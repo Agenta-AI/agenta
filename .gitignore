@@ -1,0 +1,4 @@
+/.nox/
+/docs/_build/
+__pycache__/
+.env

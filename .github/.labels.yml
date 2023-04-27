@@ -1,0 +1,77 @@
+---
+# Labels names are important as they are used by Release Drafter to decide
+# regarding where to record them in changelog or if to skip them.
+#
+# The repository labels will be automatically configured using this file and
+# the GitHub Action https://github.com/marketplace/actions/github-labeler.
+- name: breaking
+  description: Breaking Changes
+  color: 7c3ea5
+- name: bug
+  description: Something isn't working
+  color: d73a4a
+- name: build
+  description: Changes that affect the build system or external dependencies
+  color: fc964e
+- name: ci
+  description: Changes to CI configuration files and scripts
+  color: 00485e
+- name: cookiecutter
+  description: Changes outside of the template directory
+  color: f9ffb2
+- name: dependencies
+  description: Dependencies
+  color: 00ce44
+- name: documentation
+  description: Improvements or additions to documentation
+  color: 0075ca
+- name: duplicate
+  description: This issue or pull request already exists
+  color: cfd3d7
+- name: enhancement
+  description: New feature or request
+  color: a2eeef
+- name: github_actions
+  description: Pull requests that update Github_actions code
+  color: "000000"
+- name: good first issue
+  description: Good for newcomers
+  color: 7057ff
+- name: help wanted
+  description: Extra attention is needed
+  color: 008672
+- name: invalid
+  description: This doesn't seem right
+  color: e4e669
+- name: performance
+  description: A code change that improves performance
+  color: f3ffb2
+- name: python
+  description: Pull requests that update Python code
+  color: 2b67c6
+- name: question
+  description: Further information is requested
+  color: d876e3
+- name: refactoring
+  description: A code change that neither fixes a bug nor adds a feature
+  color: d4c5f9
+- name: removal
+  description: Removals and Deprecations
+  color: f00000
+- name: style
+  description:
+    Changes that do not affect the meaning of the code (white-space, formatting,
+    etc)
+  color: ffc6df
+- name: task
+  description:
+  color: d88c70
+- name: testing
+  description: Adding missing tests or correcting existing tests
+  color: 79e57f
+- name: wontfix
+  description: This will not be worked on
+  color: ffffff
+- name: "skip-changelog"
+  description: Changes that should be omitted from the release notes
+  color: ededed

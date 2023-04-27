@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "api"
+version = "0.1.0"
+description = ""
+authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+mongoengine = "^0.27.0"
+fastapi = "^0.95.1"
+httpx = "^0.24.0"
+openai = "^0.27.4"
+uvicorn = "^0.21.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
