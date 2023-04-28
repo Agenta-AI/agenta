@@ -3,6 +3,7 @@ services:
     build: ./api
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MONGODB_URI=mongodb://username:password@mongo:27017
     ports:
       - "8000:8000"
     depends_on:
