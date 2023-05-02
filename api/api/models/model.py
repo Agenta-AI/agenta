@@ -34,6 +34,8 @@ from mongoengine import Document, EmbeddedDocument, StringField, ObjectIdField, 
 
 
 class LLMCall(Document):
+    meta = {'collection': 'llm_call'}
+
     # run = ReferenceField(Run, required=True)
     # prompt_template = ReferenceField(PromptTemplate, required=True)
     prompt = ListField(required=True)

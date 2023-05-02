@@ -62,9 +62,10 @@ async def create_chat_completion(request: ChatCompletionRequest):
         value = getattr(request, param)
         if value is not None:
             params[param] = value
-
+    print(params)
     response = openai.ChatCompletion.create(**params)
     print(response.choices[0].message.content)
+    print(response)
     # class LLMCall(Document):
     #     # run = ReferenceField(Run, required=True)
     #     # prompt_template = ReferenceField(PromptTemplate, required=True)
