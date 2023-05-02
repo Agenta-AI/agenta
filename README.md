@@ -15,3 +15,17 @@ docker compose up
 ```
 
 This will start a mongodb instance and the api on port 8000.
+
+
+
+You can test the api by running:
+
+```
+localhost:8000/docs
+```
+
+You can test the mongodb instance by running:
+
+```
+localhost:8081
+```
