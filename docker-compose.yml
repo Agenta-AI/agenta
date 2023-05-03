@@ -45,6 +45,17 @@ services:
       mongo:
         condition: service_healthy
 
+  dashboard:
+    build: ./dashboard
+    volumes:
+      - ./dashboard:/app
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+
+
 networks:
   agenta-network:
 
