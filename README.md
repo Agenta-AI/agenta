@@ -46,6 +46,6 @@ To test the MongoDB instance, open your browser and navigate to:
 
 localhost:8081
 ```
-#Contributing
+## Contributing
 
 We welcome contributions to help us improve and expand Agenta. Please feel free to submit issues, fork the repository, and send pull requests.
