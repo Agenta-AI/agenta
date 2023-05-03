@@ -1,4 +1,4 @@
-# Agenta: Streamline Your LLM-Powered App Development
+# Agenta: Streamline Your LLM-App Development
 
 Agenta is an open-source CI/CD platform designed to simplify and accelerate the development and deployment of LLM-powered applications such as chatbots, agents, Q&A systems, and more. By connecting Agenta to your GitHub repository, you gain access to a comprehensive set of tools that streamline your workflow.
 
