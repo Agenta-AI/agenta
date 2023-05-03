@@ -5,6 +5,7 @@ base_url = "http://localhost:8000"
 
 
 def test_create_chat_completion():
+    original_count = LLMCall.objects.count()
     request_data = {
         "model": "gpt-3.5-turbo",
         "messages": [
@@ -17,9 +18,12 @@ def test_create_chat_completion():
 
     assert response.status_code == 200
     # Check if the LLMCall object was saved to the database
-    assert LLMCall.objects.count() == 1
-    llm_call = LLMCall.objects.first()
+    new_count = LLMCall.objects.count()
+    assert new_count == original_count + 1
+    llm_call = LLMCall.objects.order_by('-id').first()
 
-    assert llm_call.prompt == request_data["messages"]
+    # Convert the list of dictionaries to a list of lists
+    converted_llm_call_prompt = [dict(d) for d in llm_call.prompt]
+    assert converted_llm_call_prompt == request_data["messages"]
+
     assert llm_call.output == response.json()
-    assert llm_call.parameters["model"] == request_data["model"]

@@ -29,3 +29,12 @@ You can test the mongodb instance by running:
 ```
 localhost:8081
 ```
+
+# Test
+To run the tests, run the following command:
+
+```bash
+cd tests
+poetry shell
+pytest .
+```

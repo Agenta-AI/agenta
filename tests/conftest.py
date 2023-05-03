@@ -1,10 +1,12 @@
 # tests/conftest.py
-import sys
+import os
 import pathlib
+import sys
+
+import mongoengine
 import pytest
 from fastapi.testclient import TestClient
 from mongoengine import connect, disconnect
-import os
 
 
 @pytest.fixture(scope="module")
@@ -20,16 +22,12 @@ def test_client():
 def pytest_sessionstart(session):
     # Get the path to the parent directory of the `api` module
     api_path = str(pathlib.Path(__file__).resolve().parent.parent / "api")
-
+    os.environ['MONGODB_URI'] = 'mongodb://username:password@localhost:27017'
     # Add the `api` module path to the Python path
     sys.path.insert(0, api_path)
-
     from api.main import app
-    mongo_uri = "mongodb://username:password@localhost:27017"
-    connect(host=mongo_uri, alias="default2")
-    # Run the tests
     yield
-    disconnect(alias="default2")
+    # Print connection details for each alias
     # Remove the `api` module path from the Python path
     sys.path.remove(api_path)
 
