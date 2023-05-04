@@ -53,7 +53,13 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: development
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
+    networks:
+      - agenta-network
+    depends_on:
+      mongo:
+        condition: service_healthy
 
 
 networks:
