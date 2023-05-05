@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { NextApiRequest, NextApiResponse } from 'next';
-import connectMongo  from './../../utils/connectMongo'
+import connectMongo  from '../../utils/connectMongo'
 
 // TODO: Fix issue to get all fields
 // const LLMCallSchema = new mongoose.Schema({
