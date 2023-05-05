@@ -32,3 +32,6 @@ agenta-dashboard-1  | /bin/sh: next: not found
 agenta-dashboard-1  | error Command failed with exit code 127.
 agenta-dashboard-1  | info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.
 ```
+
+Docker resources
+https://github.com/vercel/next.js/blob/canary/examples/with-docker-compose/.env
