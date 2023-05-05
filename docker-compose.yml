@@ -46,10 +46,13 @@ services:
         condition: service_healthy
 
   dashboard:
-    build: ./dashboard
+    build:
+      context: ./dashboard
+      dockerfile: dev.Dockerfile
     volumes:
-      - ./dashboard:/app
-    command: npm run dev
+      - ./dashboard/src:/app/src
+      - ./dashboard/public:/app/public
+      - ./dashboard/components:/app/components
     ports:
       - "3000:3000"
     environment:
@@ -61,10 +64,8 @@ services:
       mongo:
         condition: service_healthy
 
-
 networks:
   agenta-network:
-
 
 volumes:
   mongodb_data:
