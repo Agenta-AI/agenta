@@ -2,3 +2,4 @@
 /docs/_build/
 __pycache__/
 .env
+tests/poetry.lock
