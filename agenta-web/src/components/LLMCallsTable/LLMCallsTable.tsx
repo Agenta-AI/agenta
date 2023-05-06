@@ -1,5 +1,18 @@
 
 import { useState, useEffect } from 'react';
+import {
+  Card,
+  Table,
+  TableHead,
+  TableRow,
+  TableHeaderCell,
+  TableBody,
+  TableCell,
+  Text,
+  Title,
+  Badge,
+} from "@tremor/react";
+
 
 export default function LLMCallsTable() {
   const [data, setData] = useState<any[]>([]);
@@ -22,36 +35,62 @@ export default function LLMCallsTable() {
   else if (!data.length) return <div>No data</div>
 
   return (
-    <div>
-      <h1 className="text-2xl font-semibold pb-10">LLM Calls</h1>
+    <div className='h-full w-full'>
+      <div className=" px-7 ">
+        <div>
+          <nav className="bg-white dark:bg-gray-700">
+            <div className="max-w-screen-xl px-4 py-3 mx-auto">
+              <div className="flex items-center">
+                <ul className="flex flex-row font-medium mt-0 mr-6 space-x-20 text-sm">
+                  <li>
+                    <a href="#" className="text-gray-900 dark:text-white hover:underline" aria-current="page">V1</a>
+                  </li>
+                  <li>
+                    <a href="#" className="text-gray-900 dark:text-white hover:underline">V2</a>
+                  </li>
+                  <li>
+                    <a href="#" className="text-gray-900 dark:text-white hover:underline">V3</a>
+                  </li>
+                  <li>
+                    <a href="#" className="text-gray-900 dark:text-white hover:underline">V4</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </nav>
+        </div>
 
-      <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
-        <table className="w-full text-sm text-left text-gray-500">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-200">
-            <tr>
-              <th scope="col" className="px-6 py-3">
-                Output
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Prompt
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Params
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((item) => (
-              <tr className="bg-white" key={item._id} >
-                <td className="px-6 py-4">{item.output}</td>
-                <td className="px-6 py-4">{item.prompt}</td>
-                <td className="px-6 py-4">{item.params}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className='py-7'>
+          <Card className="flex-grow w-full">
+            <Title className='text-2xl'>Calls</Title>
+            <Table className="mt-5">
+              <TableHead>
+                <TableRow className='text-xl'>
+                  <TableHeaderCell>Prompt</TableHeaderCell>
+                  <TableHeaderCell>Ouput</TableHeaderCell>
+                  <TableHeaderCell>Parameters</TableHeaderCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {data.map((item) => (
+                  <TableRow key={item._id}>
+                    <TableCell>
+                      <Text className='text-xl'>{item.prompt}</Text>
+                    </TableCell>
+                    <TableCell>
+                      <Text className='text-xl'>{item.output}</Text>
+                    </TableCell>
+                    <TableCell>
+                      <Text className='text-xl'>{item.params}</Text>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </div>
       </div>
 
-    </div>
+    </div >
   );
 }
