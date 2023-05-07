@@ -26,13 +26,11 @@ export default function Sidebar() {
 
         <ul className="pt-2">
           {menu.map((item, index) => (
-            <>
-              <li key={index} className="text-gray-200 text-sm flex items-center gap-x-4 cursor-pointer p-2 hover:bg-teal-700 rounded-md mt-2">
-                <span>
-                  {item.title}
-                </span>
-              </li>
-            </>
+            <li key={index} className="text-gray-200 text-sm flex items-center gap-x-4 cursor-pointer p-2 hover:bg-teal-700 rounded-md mt-2">
+              <span>
+                {item.title}
+              </span>
+            </li>
           ))}
         </ul>
       </div>
