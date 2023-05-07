@@ -45,6 +45,23 @@ services:
       mongo:
         condition: service_healthy
 
+  agenta-bff:
+    build:
+      context: ./agenta-bff
+      dockerfile: dev.Dockerfile
+    volumes:
+      - ./agenta-bff/src:/app/src
+    ports:
+      - "3030:3030"
+    environment:
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
+    networks:
+      - agenta-network
+    depends_on:
+      mongo:
+        condition: service_healthy
+
   agenta-web:
     build:
       context: ./agenta-web
