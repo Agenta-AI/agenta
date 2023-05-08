@@ -1,4 +1,5 @@
 
+import { log } from 'console';
 import { useState, useEffect } from 'react';
 
 export default function LLMCallsTable() {
@@ -7,10 +8,13 @@ export default function LLMCallsTable() {
 
   useEffect(() => {
     setLoading(true)
-    fetch('/api/fetch-llm-calls')
+    fetch('http://127.0.0.1:3030/api/llm-calls', {
+      headers: {
+        "Content-Type": "application/json",
+      }
+    })
       .then((res) => res.json())
       .then((data) => {
-        console.log(data);
         setData(data)
         setLoading(false)
       })
@@ -41,17 +45,15 @@ export default function LLMCallsTable() {
             </tr>
           </thead>
           <tbody>
-            {data.map((item) => (
-              <tr className="bg-white" key={item._id} >
+            {data.map((item, index) => (
+              <tr className="bg-white" key={`tr-${item.id}`} >
                 <td className="px-6 py-4">{item.output}</td>
                 <td className="px-6 py-4">{item.prompt}</td>
-                <td className="px-6 py-4">{item.params}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
     </div>
   );
 }
