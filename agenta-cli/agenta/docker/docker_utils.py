@@ -17,9 +17,10 @@ def create_dockerfile(out_folder: Path):
     dockerfile_template = Path(__file__).parent / "Dockerfile.template"
     dockerfile_path = out_folder / "Dockerfile"
     shutil.copy(dockerfile_template, dockerfile_path)
+    return dockerfile_path
 
 
-def build_and_upload_docker_image(folder):
+def build_and_upload_docker_image(folder: Path):
     # Initialize Docker client
     client = docker.from_env()
 
@@ -34,7 +35,7 @@ def build_and_upload_docker_image(folder):
         print("Building Docker image...")
         image, build_log = client.images.build(
             path=temp_dir,
-            tag=f"agenta/{folder}:latest",
+            tag=f"agenta/test:latest",
             rm=True  # Remove intermediate containers after a successful build
         )
 

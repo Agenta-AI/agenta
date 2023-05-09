@@ -2,7 +2,7 @@ import click
 import os
 from pathlib import Path
 
-from .docker_utils import build_and_upload_docker_image
+from agenta.docker.docker_utils import build_and_upload_docker_image
 
 
 @click.group()
@@ -12,9 +12,9 @@ def cli():
 
 @click.command()
 @click.argument('folder')
-def up(folder):
+def up(folder: str):
     """Build and upload Docker image to the Agenta registry."""
-    build_and_upload_docker_image(folder)
+    build_and_upload_docker_image(Path(folder))
 
 
 @click.command()

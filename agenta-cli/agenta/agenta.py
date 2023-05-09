@@ -4,7 +4,7 @@ app = FastAPI()
 
 
 def post(func):
-    """post de
+    """post decorator
 
     Arguments:
         func -- _description_
@@ -18,6 +18,14 @@ def post(func):
 
 
 def get(func):
+    """get decorator
+
+    Arguments:
+        func -- _description_
+
+    Returns:
+        _description_
+    """
     route = f"/{func.__name__}"
     app.get(route)(func)
     return func
