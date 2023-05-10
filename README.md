@@ -46,3 +46,6 @@ However here is what we promise:
 ## Contributing
 
 We welcome contributions to help us improve and expand Agenta. Please feel free to submit issues, fork the repository, and send pull requests.
+
+### How can you help
+- Designers/ UI-UX and frontend people: We need your help improving the UI/UX of the dashboard and the CLI. We also need help with the frontend of the dashboard. Please feel free to fork and PR. If you feel you have larger ideas, just contact us on Discord or email (team@agenta.ai).
