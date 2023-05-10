@@ -20,7 +20,15 @@ def create_dockerfile(out_folder: Path):
     return dockerfile_path
 
 
-def build_and_upload_docker_image(folder: Path):
+def build_image(folder: Path) -> Path:
+    """Builds an image from the folder and returns the path
+
+    Arguments:
+        folder -- _description_
+
+    Returns:
+        _description_
+    """
     # Initialize Docker client
     client = docker.from_env()
 
