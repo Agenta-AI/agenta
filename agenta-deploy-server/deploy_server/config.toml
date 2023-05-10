@@ -1,0 +1,3 @@
+DOCKER_REGISTRY_PORT = 5000
+DATABASE_URL = "your_database_url"
+docker_registry_url="127.0.0.1:5000"

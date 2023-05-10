@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "deploy_server"
+version = "0.1.0"
+description = ""
+authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
+readme = "README.md"
+packages = [{include = "deploy_server"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.95.1"
+pydantic = "^1.10.7"
+docker = "^6.1.1"
+toml = "^0.10.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
