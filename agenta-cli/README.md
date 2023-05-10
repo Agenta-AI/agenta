@@ -7,6 +7,18 @@ To install dependencies, run the following command:
 
 ```poetry install```
 
+## Requirements
+You need to have docker installed to be able to use the cli locally. 
+
+## How does it work
+
+The CLI allows you to push in one command your projects for evaluation in the dashboard.
+
+You only need to modify your code very slightly by adding a decorator to your chat/ and ingest functions.
+
+Under the hood the cli packages your code into a docker container and send it to a registry.
+
+Later the dashboard spins off these containers and runs the benchmarks and evaluations over them.
 ## Usage
 
 To enter the virtual environment, run the following command:
