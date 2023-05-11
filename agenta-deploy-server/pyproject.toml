@@ -12,7 +12,12 @@ fastapi = "^0.95.1"
 pydantic = "^1.10.7"
 docker = "^6.1.1"
 toml = "^0.10.2"
+uvicorn = "^0.22.0"
 
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.1"
+httpx = "^0.24.0"
 
 [build-system]
 requires = ["poetry-core"]
