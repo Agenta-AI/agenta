@@ -1,16 +1,14 @@
 import os
 import docker
-os.environ["DOCKER_REGISTRY_URL"] = "127.0.0.1:5000"
-os.environ["DATABASE_URL"] = "localhost:5432"
-os.environ["REGISTRY"] = "agenta-server"
-
+from deploy_server.config import settings
+from deploy_server.services.db_manager import get_session
 
 client = docker.from_env()
 
-all_images = client.images.list()
-for image in all_images:
-    print(image.tags)
 
-image = client.images.get(
-    f"agenta-server/test:latest")
-container = client.containers.run(image, detach=True)
+def test_get_session():
+    assert get_session() is not None
+
+
+if __name__ == "__main__":
+    test_get_session()

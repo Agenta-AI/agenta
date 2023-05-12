@@ -5,3 +5,4 @@ __pycache__/
 tests/poetry.lock
 agenta-cli/agenta/templates/main.py
 agenta-cli/agenta/templates/agenta.py
+.DS_Store
