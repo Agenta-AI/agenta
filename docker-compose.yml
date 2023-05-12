@@ -12,6 +12,25 @@ services:
     depends_on:
       - registry
     command: [ "python", "sleep.py" ]
+
+  agenta-web:
+    build:
+      context: ./agenta-web
+      dockerfile: dev.Dockerfile
+    volumes:
+      - ./agenta-web/src:/app/src
+      - ./agenta-web/public:/app/public
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      # - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
+    networks:
+      - agenta-network
+    # depends_on:
+    #   mongo:
+    #     condition: service_healthy
+
     # api:
     #   build: ./api
     #   environment:
@@ -75,26 +94,8 @@ services:
     #     mongo:
     #       condition: service_healthy
 
-    # agenta-web:
-    #   build:
-    #     context: ./agenta-web
-    #     dockerfile: dev.Dockerfile
-    #   volumes:
-    #     - ./agenta-web/src:/app/src
-    #     - ./agenta-web/public:/app/public
-    #   ports:
-    #     - "3000:3000"
-    #   environment:
-    #     - NODE_ENV=development
-    #     # - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
-    #   networks:
-    #     - agenta-network
-    #   depends_on:
-    #     mongo:
-    #       condition: service_healthy
-
-    # networks:
-    #   agenta-network:
+networks:
+  agenta-network:
 
     # volumes:
     # mongodb_data:
