@@ -1,38 +1,47 @@
+import React, { useState } from 'react';
+import { useRouter } from 'next/router';
+import { Layout, Menu, Switch } from 'antd';
+import { MailOutlined, AppstoreOutlined } from '@ant-design/icons';
 
-import { useState, useEffect } from 'react';
+const { Sider } = Layout;
 
-export default function Sidebar() {
-  const [isLoading, setLoading] = useState(false);
+const Sidebar: React.FC = () => {
+  const router = useRouter();
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
-  // if (isLoading) return <p>Loading...</p>;
+  const changeTheme = (value: boolean) => {
+    setTheme(value ? 'dark' : 'light');
+  };
 
-  const menu = [
-    { title: "LLM Calls"},
-    {
-      title: "Retrievals", submenu: true,
-      subMenuItems: [
-        { title: "One" },
-        { title: "Two" },
-        { title: "Three" },
-      ]
-    },
-  ];
+  const navigate = (path: string) => {
+    router.push(path);
+  };
 
   return (
-    <div className="bg-teal-800 h-screen p-5 pt-8 w-72">
-        <div className="inline-flex">
-          <h1 className="text-white text-2xl">Agenta</h1>
-        </div>
-
-        <ul className="pt-2">
-          {menu.map((item, index) => (
-            <li key={index} className="text-gray-200 text-sm flex items-center gap-x-4 cursor-pointer p-2 hover:bg-teal-700 rounded-md mt-2">
-              <span>
-                {item.title}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <Sider theme={theme} width={200} style={{ paddingTop: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
+      <Switch
+        checked={theme === 'dark'}
+        onChange={changeTheme}
+        checkedChildren="Dark"
+        unCheckedChildren="Light"
+        style={{ marginTop: '10px', marginBottom: '20px',}}
+      />
+      <Menu
+        mode="inline"
+        defaultSelectedKeys={['1']}
+        defaultOpenKeys={['sub1']}
+        style={{ height: '100%', borderRight: 0 }}
+        theme={theme}
+      >
+        <Menu.Item key="1" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
+          Logs
+        </Menu.Item>
+        <Menu.Item key="2" icon={<AppstoreOutlined />} onClick={() => navigate('/evaluations')}>
+          Evaluations
+        </Menu.Item>
+      </Menu>
+    </Sider>
   );
-}
+};
+
+export default Sidebar;
