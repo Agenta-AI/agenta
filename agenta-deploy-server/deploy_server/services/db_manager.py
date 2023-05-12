@@ -31,6 +31,12 @@ def add_app_version(app_version: AppVersion, image: Image):
         app_version -- AppVersion to add
         image -- The Image associated with the app version
     """
+    if app_version is None or image is None or app_version.app_name in [None, ""] or app_version.version_name in [None, ""] or image.docker_id in [None, ""] or image.tags in [None, ""]:
+        raise ValueError("App version or image is None")
+    already_exists = any([av for av in list_app_versions() if av.app_name ==
+                          app_version.app_name and av.version_name == app_version.version_name])
+    if already_exists:
+        raise ValueError("App version already exists")
     with Session(engine) as session:
         # Add image
         db_image = ImageDB(**image.dict())
@@ -66,7 +72,7 @@ def get_image(app_version: AppVersion) -> Image:
 
     with Session(engine) as session:
         db_app_version: AppVersionDB = session.query(AppVersionDB).filter(
-            AppVersionDB.id == app_version.id).first()
+            (AppVersionDB.app_name == app_version.app_name) & (AppVersionDB.version_name == app_version.version_name)).first()
         if db_app_version:
             image_db: ImageDB = session.query(ImageDB).filter(
                 ImageDB.id == db_app_version.image_id).first()
@@ -87,7 +93,7 @@ def remove_app_version(app_version: AppVersion) -> bool:
     with Session(engine) as session:
         # Find app_version in the database
         db_app_version: AppVersionDB = session.query(AppVersionDB).filter(
-            AppVersionDB.id == app_version.id).first()
+            (AppVersionDB.app_name == app_version.app_name) & (AppVersionDB.version_name == app_version.version_name)).first()
         if db_app_version:
             # Delete associated image
             db_image: ImageDB = session.query(ImageDB).filter(
