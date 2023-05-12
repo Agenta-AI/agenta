@@ -1,28 +1,10 @@
-from deploy_server.models.image import Image
-from deploy_server.models.container import Container
 from typing import List
+
 import docker
 from deploy_server.config import settings
+from deploy_server.models.api_models import AppVersion, Image
 
 client = docker.from_env()
-
-
-def start_registry():
-    container_name = settings.registry
-    try:
-        container = client.containers.get(container_name)
-    except docker.errors.NotFound:
-        container = None
-
-    if container and container.status != "running":
-        container.start()
-    elif not container:
-        container = client.containers.run(
-            "registry:2",
-            detach=True,
-            name=container_name,
-            ports={"5000/tcp": ("127.0.0.1", 5000)}
-        )
 
 
 def list_images() -> List[Image]:
