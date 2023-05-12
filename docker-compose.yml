@@ -1,66 +1,66 @@
 services:
-  api:
-    build: ./api
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - MONGODB_URI=mongodb://username:password@mongo:27017
-    ports:
-      - "8000:8000"
-    depends_on:
-      mongo:
-        condition: service_healthy
-    networks:
-      - agenta-network
-    volumes:
-      - ./api/api:/app/api
+  # api:
+  #   build: ./api
+  #   environment:
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #     - MONGODB_URI=mongodb://username:password@mongo:27017
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     mongo:
+  #       condition: service_healthy
+  #   networks:
+  #     - agenta-network
+  #   volumes:
+  #     - ./api/api:/app/api
 
-  mongo:
-    image: mongo:5.0
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: username
-      MONGO_INITDB_ROOT_PASSWORD: password
-    volumes:
-      - mongodb_data:/data/db
-    ports:
-      - "27017:27017"
-    networks:
-      - agenta-network
-    healthcheck:
-      test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
-      interval: 10s
-      timeout: 10s
-      retries: 20
+  # mongo:
+  #   image: mongo:5.0
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: username
+  #     MONGO_INITDB_ROOT_PASSWORD: password
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #   ports:
+  #     - "27017:27017"
+  #   networks:
+  #     - agenta-network
+  #   healthcheck:
+  #     test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
+  #     interval: 10s
+  #     timeout: 10s
+  #     retries: 20
 
-  mongo_express:
-    image: mongo-express
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: username
-      ME_CONFIG_MONGODB_ADMINPASSWORD: password
-      ME_CONFIG_MONGODB_SERVER: mongo
-    ports:
-      - "8081:8081"
-    networks:
-      - agenta-network
-    depends_on:
-      mongo:
-        condition: service_healthy
+  # mongo_express:
+  #   image: mongo-express
+  #   environment:
+  #     ME_CONFIG_MONGODB_ADMINUSERNAME: username
+  #     ME_CONFIG_MONGODB_ADMINPASSWORD: password
+  #     ME_CONFIG_MONGODB_SERVER: mongo
+  #   ports:
+  #     - "8081:8081"
+  #   networks:
+  #     - agenta-network
+  #   depends_on:
+  #     mongo:
+  #       condition: service_healthy
 
-  agenta-bff:
-    build:
-      context: ./agenta-bff
-      dockerfile: dev.Dockerfile
-    volumes:
-      - ./agenta-bff/src:/app/src
-    ports:
-      - "3030:3030"
-    environment:
-      - NODE_ENV=development
-      - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
-    networks:
-      - agenta-network
-    depends_on:
-      mongo:
-        condition: service_healthy
+  # agenta-bff:
+  #   build:
+  #     context: ./agenta-bff
+  #     dockerfile: dev.Dockerfile
+  #   volumes:
+  #     - ./agenta-bff/src:/app/src
+  #   ports:
+  #     - "3030:3030"
+  #   environment:
+  #     - NODE_ENV=development
+  #     - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
+  #   networks:
+  #     - agenta-network
+  #   depends_on:
+  #     mongo:
+  #       condition: service_healthy
 
   agenta-web:
     build:
@@ -73,7 +73,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
+      # - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
     networks:
       - agenta-network
     depends_on:
@@ -83,6 +83,6 @@ services:
 networks:
   agenta-network:
 
-volumes:
-  mongodb_data:
-  api_test:
+    # volumes:
+    # mongodb_data:
+    # api_test:
