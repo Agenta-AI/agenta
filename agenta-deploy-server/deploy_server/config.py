@@ -10,6 +10,7 @@ toml_config = toml.load("deploy_server/config.toml")
 os.environ["DOCKER_REGISTRY_URL"] = toml_config["docker_registry_url"]
 os.environ["DATABASE_URL"] = toml_config["database_url"]
 os.environ["REGISTRY"] = toml_config["registry"]
+os.environ["DATABASE_URL"] = toml_config["database_url"]
 
 
 class Settings(BaseSettings):
