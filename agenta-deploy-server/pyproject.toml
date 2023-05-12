@@ -13,6 +13,7 @@ pydantic = "^1.10.7"
 docker = "^6.1.1"
 toml = "^0.10.2"
 uvicorn = "^0.22.0"
+sqlmodel = "^0.0.8"
 
 
 [tool.poetry.group.dev.dependencies]
