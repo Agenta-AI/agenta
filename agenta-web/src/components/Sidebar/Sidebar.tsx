@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { Layout, Menu, Switch } from 'antd';
-import { MailOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { MailOutlined, AppstoreOutlined, ExperimentOutlined, FileTextOutlined, HddOutlined } from '@ant-design/icons';
 
 const { Sider } = Layout;
 
@@ -18,13 +18,13 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <Sider theme={theme} width={200} style={{ paddingTop: '5px', paddingLeft: '5px', paddingRight: '5px' }}>
+    <Sider theme={theme} width={160} style={{ paddingTop: '5px', paddingLeft: '0px', paddingRight: '0px' }}>
       <Switch
         checked={theme === 'dark'}
         onChange={changeTheme}
         checkedChildren="Dark"
         unCheckedChildren="Light"
-        style={{ marginTop: '10px', marginBottom: '20px', }}
+        style={{ marginLeft: '5px', marginTop: '20px', marginBottom: '20px', }}
       />
       <Menu
         mode="inline"
@@ -33,13 +33,19 @@ const Sidebar: React.FC = () => {
         style={{ height: '100%', borderRight: 0 }}
         theme={theme}
       >
-        <Menu.Item key="1" icon={<AppstoreOutlined />} onClick={() => navigate('/playground')}>
+        <Menu.Item key="1" icon={< HddOutlined />} onClick={() => navigate('/datasets')}>
+          Datasets
+        </Menu.Item>
+        <Menu.Item key="2" icon={< ExperimentOutlined />} onClick={() => navigate('/playground')}>
           Playground
         </Menu.Item>
-        <Menu.Item key="2" icon={<AppstoreOutlined />} onClick={() => navigate('/evaluations')}>
-          Evaluations
+        <Menu.Item key="3" icon={<FileTextOutlined />} onClick={() => navigate('/testsets')}>
+          Tests sets
         </Menu.Item>
-        <Menu.Item key="3" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
+        <Menu.Item key="4" icon={<AppstoreOutlined />} onClick={() => navigate('/evaluations')}>
+          Evaluation
+        </Menu.Item>
+        <Menu.Item key="5" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
           Logs
         </Menu.Item>
 
