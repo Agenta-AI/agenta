@@ -2,7 +2,7 @@ from typing import List
 
 import docker
 from deploy_server.config import settings
-from deploy_server.models.api_models import AppVersion, Image
+from deploy_server.models.api_models import AppVariant, Image
 
 client = docker.from_env()
 
@@ -16,7 +16,7 @@ def list_images() -> List[Image]:
     """
     all_images = client.images.list()
     registry_images = [
-        Image(id=image.id, tags=image.tags) for image in all_images if len(image.tags) > 0 and image.tags[0].startswith(settings.registry)]
+        Image(docker_id=image.id, tags=image.tags[0]) for image in all_images if len(image.tags) > 0 and image.tags[0].startswith(settings.registry)]
     return registry_images
 
 
