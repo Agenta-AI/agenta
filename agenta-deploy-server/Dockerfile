@@ -19,4 +19,4 @@ RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
 # remove dummy module
 RUN rm -r /app/deploy_server
-CMD ["python", "sleep.py"]
+EXPOSE 8000
