@@ -28,7 +28,7 @@ const Sidebar: React.FC = () => {
       />
       <Menu
         mode="inline"
-        defaultSelectedKeys={['1']}
+        defaultSelectedKeys={['2']}
         defaultOpenKeys={['sub1']}
         style={{ height: '100%', borderRight: 0 }}
         theme={theme}
@@ -40,11 +40,12 @@ const Sidebar: React.FC = () => {
           Playground
         </Menu.Item>
         <Menu.Item key="3" icon={<FileTextOutlined />} onClick={() => navigate('/testsets')}>
-          Tests sets
+          Test sets
         </Menu.Item>
         <Menu.Item key="4" icon={<AppstoreOutlined />} onClick={() => navigate('/evaluations')}>
           Evaluation
         </Menu.Item>
+
         <Menu.Item key="5" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
           Logs
         </Menu.Item>
