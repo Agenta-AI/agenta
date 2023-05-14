@@ -24,7 +24,7 @@ const Sidebar: React.FC = () => {
         onChange={changeTheme}
         checkedChildren="Dark"
         unCheckedChildren="Light"
-        style={{ marginTop: '10px', marginBottom: '20px',}}
+        style={{ marginTop: '10px', marginBottom: '20px', }}
       />
       <Menu
         mode="inline"
@@ -33,12 +33,16 @@ const Sidebar: React.FC = () => {
         style={{ height: '100%', borderRight: 0 }}
         theme={theme}
       >
-        <Menu.Item key="1" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
-          Logs
+        <Menu.Item key="1" icon={<AppstoreOutlined />} onClick={() => navigate('/playground')}>
+          Playground
         </Menu.Item>
         <Menu.Item key="2" icon={<AppstoreOutlined />} onClick={() => navigate('/evaluations')}>
           Evaluations
         </Menu.Item>
+        <Menu.Item key="3" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
+          Logs
+        </Menu.Item>
+
       </Menu>
     </Sider>
   );
