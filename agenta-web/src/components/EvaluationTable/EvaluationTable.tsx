@@ -130,5 +130,3 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVers
 }
 
 export default EvaluationTable;
-
-
