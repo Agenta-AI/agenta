@@ -20,7 +20,7 @@ const App: React.FC<LayoutProps> = ({ children }) => {
       {/* <Header style={{ padding: 0, background: colorBgContainer }} /> */}
       < Content style={{ margin: '0 5px' }}>
 
-        <div style={{ padding: 24, background: colorBgContainer }}>
+        <div style={{ padding: 24, background: colorBgContainer, minHeight: '100vh' }}>
           {children}
         </div>
       </Content >
