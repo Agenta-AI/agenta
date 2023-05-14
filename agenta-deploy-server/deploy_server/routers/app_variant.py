@@ -3,49 +3,54 @@ Does not deal with the instanciation of the images
 """
 from typing import List
 
-from deploy_server.models.api_models import AppVersion, Image, URI
+from deploy_server.models.api_models import AppVariant, Image, URI
 from deploy_server.services import docker_utils
 from deploy_server.services import db_manager
 from fastapi import APIRouter, HTTPException
+from deploy_server.config import settings
 
 router = APIRouter()
 
 # Add route handlers for image-related operations
 
 
-@router.get("/list/", response_model=List[AppVersion])
-async def list_app_versions():
+@router.get("/list/", response_model=List[AppVariant])
+async def list_app_variants():
     """Lists the images from our repository
 
     Raises:
         HTTPException: _description_
 
     Returns:
-        List[AppVersion]
+        List[AppVariant]
     """
     try:
-        app_versions = db_manager.list_app_versions()
-        return app_versions
+        app_variants = db_manager.list_app_variants()
+        return app_variants
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/add/")
-async def add_model(app_version: AppVersion, image: Image):
+async def add_variant(app_variant: AppVariant, image: Image):
     # checks if the image is already in the registry
+    # db_manager.add_app_variant(app_variant, image)
     try:
-        if image not in docker_utils.list_images():
-            return HTTPException(status_code=500, detail="Image not found")
+        if not image.tags.startswith(settings.registry):
+            raise HTTPException(
+                status_code=500, detail="Image should have a tag starting with the registry name (agenta-server)")
+        elif image not in docker_utils.list_images():
+            raise HTTPException(status_code=500, detail="Image not found")
         else:
-            db_manager.add_app_version(app_version, image)
+            db_manager.add_app_variant(app_variant, image)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/start/")
-async def start_model(app_version: AppVersion) -> URI:
+async def start_variant(app_variant: AppVariant) -> URI:
     # try:
-    image: Image = db_manager.get_image(app_version)
+    image: Image = db_manager.get_image(app_variant)
     uri: URI = docker_utils.start_container(image)
     return uri
     # except Exception as e:
@@ -53,9 +58,9 @@ async def start_model(app_version: AppVersion) -> URI:
 
 
 @router.post("/stop/")
-async def stop_model(app_version: AppVersion):
+async def stop_variant(app_variant: AppVariant):
     try:
-        image: Image = db_manager.get_image(app_version)
+        image: Image = db_manager.get_image(app_variant)
         docker_utils.stop_container(image)
         docker_utils.delete_container(image)
         return {"detail": "Container stopped and deleted successfully"}
