@@ -50,7 +50,7 @@ def build_and_upload_docker_image(folder: Path) -> Path:
         print("Building Docker image...")
         image, build_log = client.images.build(
             path=temp_dir,
-            tag=f"{registry}/test:latest",
+            tag=f"{registry}/clitest:latest",
             rm=True  # Remove intermediate containers after a successful build
         )
 
