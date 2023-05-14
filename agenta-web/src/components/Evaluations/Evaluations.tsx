@@ -1,7 +1,8 @@
 
 import { useState } from 'react';
-import { Button } from 'antd';
+import { Button, Switch } from 'antd';
 import EvaluationTable from '../EvaluationTable/EvaluationTable';
+import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { CaretRightOutlined } from '@ant-design/icons';
 
 
@@ -12,6 +13,8 @@ export default function Evaluations() {
   const [columnsCount, setColumnsCount] = useState(2);
 
   const [evaluationValues, setEvaluationValues] = useState({});
+
+  const [chatModeActivated, setChatModeActivated] = useState(false);
 
   const loadAppVersions = () => {
     setAppVersionsLoading(true);
@@ -30,7 +33,7 @@ export default function Evaluations() {
 
     setAppVersions([
       { id: 1, name: 'App Version 1', endpoint: '/1' },
-      { id: 2, name: 'App Version 2', endpoint: '/2'},
+      { id: 2, name: 'App Version 2', endpoint: '/2' },
       { id: 3, name: 'App Version 3', endpoint: '/3' }]
     )
   };
@@ -40,21 +43,39 @@ export default function Evaluations() {
     console.log(evaluationValues);
   };
 
+  const onSwitchToChatMode = (checked: boolean) => {
+    setChatModeActivated(checked);
+  };
+
   if (isLoading) return <div>Loading...</div>
 
   return (
     <div>
       <h1 className="text-2xl font-semibold pb-10">Evaluations</h1>
-      <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-        <Button onClick={loadAppVersions} className={appVersions.length == 0 ? 'button-animation' : ''}>Load App Versions</Button>
-        <Button type="primary" onClick={runBenchmarking} icon={<CaretRightOutlined />} style={{marginLeft: 10}}>Run</Button>
+      <div>
+        <span style={{ marginRight: 10 }}>Switch to chat mode</span>
+        <Switch defaultChecked={false} onChange={onSwitchToChatMode} />
       </div>
 
-      <EvaluationTable
-        columnsCount={columnsCount}
-        appVersions={appVersions}
-        onReady={setEvaluationValues}
-      />
+      <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+        <Button onClick={loadAppVersions} className={appVersions.length == 0 ? 'button-animation' : ''}>Load App Versions</Button>
+        <Button type="primary" onClick={runBenchmarking} icon={<CaretRightOutlined />} style={{ marginLeft: 10 }}>Run</Button>
+      </div>
+
+      {!chatModeActivated &&
+        <EvaluationTable
+          columnsCount={columnsCount}
+          appVersions={appVersions}
+          onReady={setEvaluationValues}
+        />}
+
+      {chatModeActivated &&
+        <EvaluationTableWithChat
+          columnsCount={columnsCount}
+          appVersions={appVersions}
+          onReady={setEvaluationValues}
+        />}
+
     </div>
   );
 
