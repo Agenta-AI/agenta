@@ -1,9 +1,8 @@
 
-import LLMCallsTable from '../../components/LLMCallsTable/LLMCallsTable';
-
+import Playground from '@/components/Playground/Playground';
 export default function Logs() {
 
     return (
-        <LLMCallsTable />
+        <Playground />
     );
 }
