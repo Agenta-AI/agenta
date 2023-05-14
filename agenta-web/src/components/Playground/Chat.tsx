@@ -9,11 +9,11 @@ type Message = {
 };
 
 type ChatProps = {
-    chat: Message[];
+    chat?: Message[];
     onChatChange: (newChat: Message[]) => void;
 };
 
-const Chat: React.FC<ChatProps> = ({ chat, onChatChange }) => {
+const Chat: React.FC<ChatProps> = ({ chat = [], onChatChange }) => {
     const [input, setInput] = useState('');
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,6 +52,13 @@ const Chat: React.FC<ChatProps> = ({ chat, onChatChange }) => {
             <Button onClick={startNewChat}>Start New Chat</Button>
         </div>
     );
+};
+
+Chat.defaultProps = {
+    chat: [
+        { sender: 'user', content: 'Hello, bot!' },
+        { sender: 'bot', content: 'Hello, user!' },
+    ],
 };
 
 export default Chat;
