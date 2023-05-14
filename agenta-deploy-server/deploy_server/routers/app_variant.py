@@ -7,6 +7,7 @@ from deploy_server.models.api_models import AppVariant, Image, URI
 from deploy_server.services import docker_utils
 from deploy_server.services import db_manager
 from fastapi import APIRouter, HTTPException
+from deploy_server.config import settings
 
 router = APIRouter()
 
@@ -33,10 +34,13 @@ async def list_app_variants():
 @router.post("/add/")
 async def add_variant(app_variant: AppVariant, image: Image):
     # checks if the image is already in the registry
-    db_manager.add_app_variant(app_variant, image)
+    # db_manager.add_app_variant(app_variant, image)
     try:
-        if image not in docker_utils.list_images():
-            return HTTPException(status_code=500, detail="Image not found")
+        if not image.tags.startswith(settings.registry):
+            raise HTTPException(
+                status_code=500, detail="Image should have a tag starting with the registry name (agenta-server)")
+        elif image not in docker_utils.list_images():
+            raise HTTPException(status_code=500, detail="Image not found")
         else:
             db_manager.add_app_variant(app_variant, image)
     except Exception as e:
