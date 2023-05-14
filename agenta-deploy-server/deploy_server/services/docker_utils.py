@@ -2,9 +2,20 @@ from typing import List
 
 import docker
 from deploy_server.config import settings
-from deploy_server.models.api_models import AppVariant, Image
+from deploy_server.models.api_models import AppVariant, Image, URI
+
 
 client = docker.from_env()
+
+
+def port_generator(start_port=9000):
+    port = start_port
+    while True:
+        yield port
+        port += 1
+
+
+ports = port_generator()
 
 
 def list_images() -> List[Image]:
@@ -20,11 +31,26 @@ def list_images() -> List[Image]:
     return registry_images
 
 
-def start_container(image_name, tag="latest"):
-    image = client.images.get(
-        f"{settings.docker_registry_url}/{image_name}:{tag}")
-    container = client.containers.run(image, detach=True)
-    return Container(id=container.id, image=container.image, status=container.status, name=container.name)
+def start_container(image_name, app_name, tag="latest") -> URI:
+    image = client.images.get(f"{image_name}:{tag}")
+
+    labels = {
+        f"traefik.http.routers.{app_name}.rule": f"PathPrefix(`/{app_name}`)",
+        f"traefik.http.routers.{app_name}.entrypoints": "web",
+        f"traefik.http.services.{app_name}.loadbalancer.server.port": "80",
+        f"traefik.http.middlewares.{app_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}",
+        f"traefik.http.routers.{app_name}.middlewares": f"{app_name}-strip-prefix",
+        # this line connects the router to the service
+        f"traefik.http.middlewares.{app_name}-openapi.redirectregex.regex": "^/openapi.json$",
+        f"traefik.http.middlewares.{app_name}-openapi.redirectregex.replacement": f"/{app_name}/openapi.json",
+        f"traefik.http.middlewares.{app_name}-openapi.redirectregex.permanent": "true",
+        f"traefik.http.routers.{app_name}-openapi.rule": "Path(`/openapi.json`)",
+        f"traefik.http.routers.{app_name}-openapi.middlewares": f"{app_name}-openapi",
+        f"traefik.http.routers.{app_name}.service": f"{app_name}",
+    }
+    container = client.containers.run(
+        image, detach=True, labels=labels, network="agenta-network")
+    return URI(uri=f"http://localhost:80/{app_name}/docs")
 
 
 def stop_container(container_id):
