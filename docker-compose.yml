@@ -34,11 +34,11 @@ services:
       - "traefik.http.services.deploy-server.loadbalancer.server.port=8000"
       - "traefik.http.routers.deploy-server.service=deploy-server"
       # we redirect /openapi.json to /api/openapi.json, otherwise /docs would not work for fastapi
-      - "traefik.http.middlewares.deploy-server-openapi.redirectregex.regex=^/openapi.json$"
-      - "traefik.http.middlewares.deploy-server-openapi.redirectregex.replacement=/api/openapi.json"
-      - "traefik.http.middlewares.deploy-server-openapi.redirectregex.permanent=true"
-      - "traefik.http.routers.deploy-server-openapi.rule=Path(`/openapi.json`)"
-      - "traefik.http.routers.deploy-server-openapi.middlewares=deploy-server-openapi"
+      # - "traefik.http.middlewares.deploy-server-openapi.redirectregex.regex=^/openapi.json$"
+      # - "traefik.http.middlewares.deploy-server-openapi.redirectregex.replacement=/api/openapi.json"
+      # - "traefik.http.middlewares.deploy-server-openapi.redirectregex.permanent=true"
+      # - "traefik.http.routers.deploy-server-openapi.rule=Path(`/openapi.json`)"
+      # - "traefik.http.routers.deploy-server-openapi.middlewares=deploy-server-openapi"
 
     networks:
       - agenta-network
@@ -50,7 +50,9 @@ services:
         "0.0.0.0",
         "--port",
         "8000",
-        "--reload"
+        "--reload",
+        "--root-path",
+        "/api"
       ]
 
   agenta-web:

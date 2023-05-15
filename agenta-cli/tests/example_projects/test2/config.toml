@@ -1,2 +1,2 @@
 app-name = "asdf"
-variants = [ "again",]
+variants = [ "again", "testme",]
