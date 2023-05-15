@@ -56,35 +56,35 @@ export default function LLMCallsTable() {
   //       setLoading(false)
   //     })
   // }, [])
-  // useEffect(() => {
-  //   setLoading(true);
-  //   // Load the mock data
-  //   setTableRows(mockData);
-  //   setLoading(false);
-  // }, []);
+  useEffect(() => {
+    setLoading(true);
+    // Load the mock data
+    setTableRows(mockData);
+    setLoading(false);
+  }, []);
 
-//   useEffect(() => {
-//     setLoading(true);
-//     setTableRows(mockData);
-//     setLoading(false);
-//   }, []);
+  //   useEffect(() => {
+  //     setLoading(true);
+  //     setTableRows(mockData);
+  //     setLoading(false);
+  //   }, []);
 
-//   // if (isLoading) return <div>Loading...</div>
-//   // if (!tableRows) return <div>No data</div>
-//   // if (tableRows.length && tableRows.length === 0) return <div>No data</div>
-//   // else if (!tableRows.length) return <div>No data</div>
+  //   // if (isLoading) return <div>Loading...</div>
+  //   // if (!tableRows) return <div>No data</div>
+  //   // if (tableRows.length && tableRows.length === 0) return <div>No data</div>
+  //   // else if (!tableRows.length) return <div>No data</div>
 
-//   // const TABLE_HEAD = ["Output", "Prompt", "Params"];
+  //   // const TABLE_HEAD = ["Output", "Prompt", "Params"];
 
-//   return (
-//     <div>
-//       <h1 className="text-2xl font-semibold pb-10">Logs</h1>
+  return (
+    <div>
+      {/* //       <h1 className="text-2xl font-semibold pb-10">Logs</h1> */}
       <Divider />
       <Table
         columns={columns}
         dataSource={tableRows}
       />
-// =======
+      {/* // =======
 
 //       <table className="w-full table-auto text-left">
 //         <thead>
@@ -116,7 +116,7 @@ export default function LLMCallsTable() {
 //         </tbody>
 //       </table>
 
-// >>>>>>> main
+// >>>>>>> main */}
     </div>
   );
 };
