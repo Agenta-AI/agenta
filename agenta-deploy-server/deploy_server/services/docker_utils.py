@@ -31,26 +31,26 @@ def list_images() -> List[Image]:
     return registry_images
 
 
-def start_container(image_name, app_name) -> URI:
+def start_container(image_name, app_name, variant_name) -> URI:
     image = client.images.get(f"{image_name}")
 
     labels = {
-        f"traefik.http.routers.{app_name}.rule": f"PathPrefix(`/{app_name}`)",
-        f"traefik.http.routers.{app_name}.entrypoints": "web",
-        f"traefik.http.services.{app_name}.loadbalancer.server.port": "80",
-        f"traefik.http.middlewares.{app_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}",
-        f"traefik.http.routers.{app_name}.middlewares": f"{app_name}-strip-prefix",
+        f"traefik.http.routers.{app_name}-{variant_name}.rule": f"PathPrefix(`/{app_name}/{variant_name}`)",
+        f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
+        f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
+        f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
+        f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}-strip-prefix",
         # this line connects the router to the service
-        f"traefik.http.middlewares.{app_name}-openapi.redirectregex.regex": "^/openapi.json$",
-        f"traefik.http.middlewares.{app_name}-openapi.redirectregex.replacement": f"/{app_name}/openapi.json",
-        f"traefik.http.middlewares.{app_name}-openapi.redirectregex.permanent": "true",
-        f"traefik.http.routers.{app_name}-openapi.rule": "Path(`/openapi.json`)",
-        f"traefik.http.routers.{app_name}-openapi.middlewares": f"{app_name}-openapi",
-        f"traefik.http.routers.{app_name}.service": f"{app_name}",
+        # f"traefik.http.middlewares.{app_name}-{variant_name}-openapi.redirectregex.regex": "^/openapi.json$",
+        # f"traefik.http.middlewares.{app_name}-{variant_name}-openapi.redirectregex.replacement": f"/{app_name}/openapi.json",
+        # f"traefik.http.middlewares.{app_name}-{variant_name}-openapi.redirectregex.permanent": "true",
+        # f"traefik.http.routers.{app_name}-{variant_name}-openapi.rule": "Path(`/openapi.json`)",
+        # f"traefik.http.routers.{app_name}-{variant_name}-openapi.middlewares": f"{app_name}-{variant_name}-openapi",
+        f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
     }
     container = client.containers.run(
         image, detach=True, labels=labels, network="agenta-network")
-    return URI(uri=f"http://localhost:80/{app_name}/docs")
+    return URI(uri=f"http://localhost/{app_name}/{variant_name}")
 
 
 def stop_container(container_id):
