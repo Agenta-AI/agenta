@@ -7,3 +7,4 @@ agenta-cli/agenta/templates/main.py
 agenta-cli/agenta/templates/agenta.py
 .DS_Store
 agenta-cli/tmp/
+agenta-cli/tests/
