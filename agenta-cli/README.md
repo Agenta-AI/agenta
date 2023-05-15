@@ -19,19 +19,24 @@ You only need to modify your code very slightly by adding a decorator to your ch
 Under the hood the cli packages your code into a docker container and send it to a registry.
 
 Later the dashboard spins off these containers and runs the benchmarks and evaluations over them.
-## Usage
+## Quickstart
 
 To enter the virtual environment, run the following command:
 
 ```poetry shell```
 
-To build the Docker image for the version and upload the container to the registry, run the following command:
-
-```agenta up folder```
-
-To start from a template, run the following command:
+To init a new project and start from a simple template. Run the following command in an empty folder:
 
 ```agenta init```
+
+Build your code and add it to the platform to be tested in the UI. This command builds a Docker image for the version and upload the container to the registry:
+
+```agenta add-variant```
+
+Start your code as a containarized service locally:
+
+```agenta start```
+
 
 ## How to write code to be user in agenta
 
@@ -92,3 +97,5 @@ def ingest(input_data: IngestInput) -> IngestOutput:
 When you run `agenta up folder`, the CLI tool will do the following:
 - Build a Docker image for your code
 - Upload the Docker image to the Agenta registry
+
+## How to deal with secrets:
