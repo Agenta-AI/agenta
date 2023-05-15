@@ -31,8 +31,8 @@ def list_images() -> List[Image]:
     return registry_images
 
 
-def start_container(image_name, app_name, tag="latest") -> URI:
-    image = client.images.get(f"{image_name}:{tag}")
+def start_container(image_name, app_name) -> URI:
+    image = client.images.get(f"{image_name}")
 
     labels = {
         f"traefik.http.routers.{app_name}.rule": f"PathPrefix(`/{app_name}`)",
