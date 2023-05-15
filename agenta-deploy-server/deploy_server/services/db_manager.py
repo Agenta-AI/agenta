@@ -1,7 +1,7 @@
 from sqlmodel import Session, SQLModel, create_engine
-from deploy_server.models.api_models import AppVersion, Image
-from deploy_server.models.db_models import AppVersionDB, ImageDB
-from deploy_server.models.converters import app_version_db_to_pydantic, image_db_to_pydantic
+from deploy_server.models.api_models import AppVariant, Image
+from deploy_server.models.db_models import AppVariantDB, ImageDB
+from deploy_server.models.converters import app_variant_db_to_pydantic, image_db_to_pydantic
 from typing import List
 import os
 
@@ -23,88 +23,88 @@ def get_session():
         yield session
 
 
-def add_app_version(app_version: AppVersion, image: Image):
-    """Adds a new app version to the db. 
-    First adds an app version, then adds the image to the db and links it to the app version
+def add_app_variant(app_variant: AppVariant, image: Image):
+    """Adds a new app variant to the db. 
+    First adds an app variant, then adds the image to the db and links it to the app variant
 
     Arguments:
-        app_version -- AppVersion to add
-        image -- The Image associated with the app version
+        app_variant -- AppVariant to add
+        image -- The Image associated with the app variant
     """
-    if app_version is None or image is None or app_version.app_name in [None, ""] or app_version.version_name in [None, ""] or image.docker_id in [None, ""] or image.tags in [None, ""]:
-        raise ValueError("App version or image is None")
-    already_exists = any([av for av in list_app_versions() if av.app_name ==
-                          app_version.app_name and av.version_name == app_version.version_name])
+    if app_variant is None or image is None or app_variant.app_name in [None, ""] or app_variant.variant_name in [None, ""] or image.docker_id in [None, ""] or image.tags in [None, ""]:
+        raise ValueError("App variant or image is None")
+    already_exists = any([av for av in list_app_variants() if av.app_name ==
+                          app_variant.app_name and av.variant_name == app_variant.variant_name])
     if already_exists:
-        raise ValueError("App version already exists")
+        raise ValueError("App variant already exists")
     with Session(engine) as session:
         # Add image
         db_image = ImageDB(**image.dict())
         session.add(db_image)
         session.commit()
         session.refresh(db_image)
-        # Add app version and link it to the app version
-        db_app_version = AppVersionDB(
-            image_id=db_image.id, **app_version.dict())
-        session.add(db_app_version)
+        # Add app variant and link it to the app variant
+        db_app_variant = AppVariantDB(
+            image_id=db_image.id, **app_variant.dict())
+        session.add(db_app_variant)
         session.commit()
-        session.refresh(db_app_version)
+        session.refresh(db_app_variant)
 
 
-def list_app_versions() -> List[AppVersion]:
+def list_app_variants() -> List[AppVariant]:
     """
-    Lists all the app versions from the db"""
+    Lists all the app variants from the db"""
 
     with Session(engine) as session:
-        app_versions_db: List[AppVersionDB] = session.query(AppVersionDB).all()
-        return [app_version_db_to_pydantic(av) for av in app_versions_db]
+        app_variants_db: List[AppVariantDB] = session.query(AppVariantDB).all()
+        return [app_variant_db_to_pydantic(av) for av in app_variants_db]
 
 
-def get_image(app_version: AppVersion) -> Image:
-    """Returns the image associated with the app version
+def get_image(app_variant: AppVariant) -> Image:
+    """Returns the image associated with the app variant
 
     Arguments:
-        app_version -- _description_
+        app_variant -- _description_
 
     Returns:
         _description_
     """
 
     with Session(engine) as session:
-        db_app_version: AppVersionDB = session.query(AppVersionDB).filter(
-            (AppVersionDB.app_name == app_version.app_name) & (AppVersionDB.version_name == app_version.version_name)).first()
-        if db_app_version:
+        db_app_variant: AppVariantDB = session.query(AppVariantDB).filter(
+            (AppVariantDB.app_name == app_variant.app_name) & (AppVariantDB.variant_name == app_variant.variant_name)).first()
+        if db_app_variant:
             image_db: ImageDB = session.query(ImageDB).filter(
-                ImageDB.id == db_app_version.image_id).first()
+                ImageDB.id == db_app_variant.image_id).first()
             return image_db_to_pydantic(image_db)
         else:
-            raise Exception("App version not found")
+            raise Exception("App variant not found")
 
 
-def remove_app_version(app_version: AppVersion) -> bool:
-    """Remove an app version and its associated image from the db 
+def remove_app_variant(app_variant: AppVariant) -> bool:
+    """Remove an app variant and its associated image from the db 
 
     Arguments:
-        app_version -- _description_
+        app_variant -- _description_
     Returns:
-        bool -- True if the app version was removed, False otherwise
+        bool -- True if the app variant was removed, False otherwise
     """
 
     with Session(engine) as session:
-        # Find app_version in the database
-        db_app_version: AppVersionDB = session.query(AppVersionDB).filter(
-            (AppVersionDB.app_name == app_version.app_name) & (AppVersionDB.version_name == app_version.version_name)).first()
-        if db_app_version:
+        # Find app_variant in the database
+        db_app_variant: AppVariantDB = session.query(AppVariantDB).filter(
+            (AppVariantDB.app_name == app_variant.app_name) & (AppVariantDB.variant_name == app_variant.variant_name)).first()
+        if db_app_variant:
             # Delete associated image
             db_image: ImageDB = session.query(ImageDB).filter(
-                ImageDB.id == db_app_version.image_id).first()
+                ImageDB.id == db_app_variant.image_id).first()
             if db_image:
                 session.delete(db_image)
             else:
                 raise Exception("Image for app not found")
 
-            # Delete app_version
-            session.delete(db_app_version)
+            # Delete app_variant
+            session.delete(db_app_variant)
             session.commit()
             return True
         else:

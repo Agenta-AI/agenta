@@ -1,14 +1,12 @@
 import os
 import docker
 from deploy_server.config import settings
-from deploy_server.services.db_manager import get_session
+
+from deploy_server.services.docker_utils import list_images, start_container, stop_container, delete_container
+from deploy_server.services.db_manager import add_app_variant, list_app_variants, get_image
+from deploy_server.models.api_models import AppVariant, Image, URI
 
 client = docker.from_env()
+uri = start_container("agenta-server/clitest", "clitest")
 
-
-def test_get_session():
-    assert get_session() is not None
-
-
-if __name__ == "__main__":
-    test_get_session()
+print(uri)
