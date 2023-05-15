@@ -62,7 +62,7 @@ async def start_variant(app_variant: AppVariant) -> URI:
     try:
         image: Image = db_manager.get_image(app_variant)
         uri: URI = docker_utils.start_container(
-            image_name=image.tags, app_name=app_variant.app_name)
+            image_name=image.tags, app_name=app_variant.app_name, variant_name=app_variant.variant_name)
         return uri
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
