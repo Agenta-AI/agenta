@@ -92,10 +92,7 @@ def ingest(input_data: IngestInput) -> IngestOutput:
     return IngestOutput(status=status)
 
 ```
-
-## How does it work
-When you run `agenta up folder`, the CLI tool will do the following:
-- Build a Docker image for your code
-- Upload the Docker image to the Agenta registry
-
 ## How to deal with secrets:
+- For now we are using a .env file to store secrets.
+- Create an .env file to store your secrets.
+- The .env file is built into the image and uploaded to the local registry. THIS IS NOT GOOD. WE WILL FIX IT ASAP.
