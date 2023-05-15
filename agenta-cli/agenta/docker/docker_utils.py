@@ -53,16 +53,19 @@ def build_and_upload_docker_image(folder: Path, variant_name: str) -> Image:
         registry = settings.registry
         tag = f"{registry}/{variant_name}:latest"
         print("Building Docker image...")
-        image, build_log = client.images.build(
-            path=temp_dir,
-            tag=tag,
-            rm=True  # Remove intermediate containers after a successful build
-        )
+        try:
+            image, build_log = client.images.build(
+                path=temp_dir,
+                tag=tag,
+                rm=True  # Remove intermediate containers after a successful build
+            )
+        except docker.errors.BuildError as e:
+            print("Error building Docker image:\n", e)
+            raise e
 
         # Print the build log
         for line in build_log:
             print(line)
-
         # Upload the Docker image to the Agenta registry
         print("Uploading Docker image...")
         client.images.push(repository=f"{registry}", tag="latest")
