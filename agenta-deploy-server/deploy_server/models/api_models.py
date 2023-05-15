@@ -2,9 +2,9 @@ from pydantic import BaseModel
 from typing import List
 
 
-class AppVersion(BaseModel):
+class AppVariant(BaseModel):
     app_name: str
-    version_name: str
+    variant_name: str
 
 
 class Image(BaseModel):

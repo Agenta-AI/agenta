@@ -1,9 +1,9 @@
 from fastapi import FastAPI
-from deploy_server.routers import app_version
+from deploy_server.routers import app_variant
 
 app = FastAPI()
 
-app.include_router(app_version.router, prefix='/app_version')
+app.include_router(app_variant.router, prefix='/app_variant')
 
 
 @app.on_event("startup")

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
+import { MailOutlined, AppstoreOutlined, ExperimentOutlined, FileTextOutlined, HddOutlined } from '@ant-design/icons';
 import { Layout, Menu, Space, Switch } from 'antd';
 import { FireOutlined, AlignCenterOutlined } from '@ant-design/icons';
 import logoDarkMode from './logo-dark-mode.png'
@@ -21,13 +22,13 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <Sider theme={theme} width={250} style={{ paddingTop: '5px', paddingLeft: '15px', paddingRight: '15px' }}>
+    <Sider theme={theme} width={160} style={{ paddingTop: '5px', paddingLeft: '0px', paddingRight: '0px' }}>
       <Switch
         checked={theme === 'dark'}
         onChange={changeTheme}
         checkedChildren="Dark"
         unCheckedChildren="Light"
-        style={{ marginTop: '20px' }}
+        style={{ marginLeft: '5px', marginTop: '20px', marginBottom: '20px', }}
       />
       <div style={{
         display: 'flex',
@@ -50,17 +51,28 @@ const Sidebar: React.FC = () => {
 
       <Menu
         mode="inline"
-        defaultSelectedKeys={['1']}
+        defaultSelectedKeys={['2']}
         defaultOpenKeys={['sub1']}
         style={{ borderRight: 0 }}
         theme={theme}
       >
-        <Menu.Item key="1" icon={<AlignCenterOutlined />} onClick={() => navigate('/logs')}>
-          Logs
+        <Menu.Item key="1" icon={< HddOutlined />} onClick={() => navigate('/datasets')}>
+          Datasets
         </Menu.Item>
-        <Menu.Item key="2" icon={<FireOutlined />} onClick={() => navigate('/evaluations')}>
+        <Menu.Item key="2" icon={< ExperimentOutlined />} onClick={() => navigate('/playground')}>
           Playground
         </Menu.Item>
+        <Menu.Item key="3" icon={<FileTextOutlined />} onClick={() => navigate('/testsets')}>
+          Test sets
+        </Menu.Item>
+        <Menu.Item key="4" icon={<AppstoreOutlined />} onClick={() => navigate('/evaluations')}>
+          Evaluation
+        </Menu.Item>
+
+        <Menu.Item key="5" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
+          Logs
+        </Menu.Item>
+
       </Menu>
     </Sider>
   );

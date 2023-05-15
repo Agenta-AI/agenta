@@ -17,14 +17,16 @@ const App: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sidebar />
+      < Sidebar />
+      {/* <Header style={{ padding: 0, background: colorBgContainer }} /> */}
       <Layout className="site-layout">
-        <Content style={{ margin: '0 16px' }}>
-          <div style={{ padding: 24, minHeight: 360, background: colorBgContainer }}>
-            {children}
-          </div>
-        </Content>
 
+      < Content style={{ margin: '0 5px' }}>
+
+        <div style={{ padding: 24, background: colorBgContainer, minHeight: '100vh' }}>
+          {children}
+        </div>
+      </Content >
         <Footer style={{ textAlign: 'center' }}>
           <div>
             <span>Agenta © 2023. Made with</span>
@@ -33,7 +35,8 @@ const App: React.FC<LayoutProps> = ({ children }) => {
           </div>
           </Footer>
       </Layout>
-    </Layout>
+
+    </Layout >
   );
 };
 
