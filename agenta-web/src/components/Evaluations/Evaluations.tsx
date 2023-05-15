@@ -8,33 +8,33 @@ import { CaretRightOutlined } from '@ant-design/icons';
 
 export default function Evaluations() {
   const [isLoading, setLoading] = useState(false);
-  const [areAppVersionsLoading, setAppVersionsLoading] = useState(false);
-  const [appVersions, setAppVersions] = useState<any[]>([]);
+  const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
+  const [appVariants, setAppVariants] = useState<any[]>([]);
   const [columnsCount, setColumnsCount] = useState(2);
 
   const [evaluationValues, setEvaluationValues] = useState({});
 
   const [chatModeActivated, setChatModeActivated] = useState(false);
 
-  const loadAppVersions = () => {
-    setAppVersionsLoading(true);
+  const loadAppVariants = () => {
+    setAppVariantsLoading(true);
     // setColumnsCount(3);
 
-    // fetch('http://127.0.0.1:3030/api/app-versions', {
+    // fetch('http://127.0.0.1:3030/api/app-variants', {
     //   headers: {
     //     "Content-Type": "application/json",
     //   }
     // })
     //   .then((res) => res.json())
     //   .then((data) => {
-    //     setAppVersions(data)
-    //     setAppVersionsLoading(false);
+    //     setAppVariants(data)
+    //     setAppVariantsLoading(false);
     //   })
 
-    setAppVersions([
-      { id: 1, name: 'App Version 1', endpoint: '/1' },
-      { id: 2, name: 'App Version 2', endpoint: '/2' },
-      { id: 3, name: 'App Version 3', endpoint: '/3' }]
+    setAppVariants([
+      { id: 1, name: 'App Variant 1', endpoint: '/1' },
+      { id: 2, name: 'App Variant 2', endpoint: '/2' },
+      { id: 3, name: 'App Variant 3', endpoint: '/3' }]
     )
   };
 
@@ -58,21 +58,21 @@ export default function Evaluations() {
       </div>
 
       <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-        <Button onClick={loadAppVersions} className={appVersions.length == 0 ? 'button-animation' : ''}>Load App Versions</Button>
+        <Button onClick={loadAppVariants} className={appVariants.length == 0 ? 'button-animation' : ''}>Load App Variants</Button>
         <Button type="primary" onClick={runBenchmarking} icon={<CaretRightOutlined />} style={{ marginLeft: 10 }}>Run</Button>
       </div>
 
       {!chatModeActivated &&
         <EvaluationTable
           columnsCount={columnsCount}
-          appVersions={appVersions}
+          appVariants={appVariants}
           onReady={setEvaluationValues}
         />}
 
       {chatModeActivated &&
         <EvaluationTableWithChat
           columnsCount={columnsCount}
-          appVersions={appVersions}
+          appVariants={appVariants}
           onReady={setEvaluationValues}
         />}
 

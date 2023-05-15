@@ -1,4 +1,4 @@
-export interface AppVersion {
+export interface AppVariant {
   id: number;
   name: string;
   endpoint: string;

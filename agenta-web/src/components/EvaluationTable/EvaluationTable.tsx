@@ -4,11 +4,11 @@ import type { ColumnType } from 'antd/es/table';
 import { LikeOutlined, DislikeOutlined, DownOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Space, Table, TableColumnsType } from 'antd';
 import { EditableCell, EditableRow } from './EditableTableComponents';
-import { AppVersion } from '@/models/AppVersion';
+import { AppVariant } from '@/models/AppVariant';
 
 interface EvaluationTableProps {
   columnsCount: number;
-  appVersions: AppVersion[]
+  appVariants: AppVariant[]
   onReady: (values: Object) => void;
 }
 
@@ -17,14 +17,14 @@ interface TableDataType {
   [key: string]: any;
 }
 
-const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVersions, onReady}) => {
+const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, onReady}) => {
   const initialData = Array.from({ length: 1 }, (_, i) => ({
     key: i.toString(),
     ...Array.from({ length: columnsCount }, (_, j) => ({ [`column${j}`]: `Data ${j}` })),
   }));
 
   const [dataSource, setDataSource] = useState<TableDataType[]>(initialData);
-  const [selectedItems, setSelectedItems] = useState<string[]>(Array(columnsCount).fill('Select a version'));
+  const [selectedItems, setSelectedItems] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
   const [isSelected, setIsSelected] = useState<boolean[]>(Array(columnsCount).fill(false));
   const [valuationsData, setValuationsData] = useState<Object>({});
 
@@ -70,9 +70,9 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVers
     const columnKey = `column${i}`;
     const menu = (
       <Menu onClick={handleMenuClick(i)}>
-        {appVersions.map((appVersion, index) =>
-          <Menu.Item key={appVersion.name}>
-            {appVersion.name}
+        {appVariants.map((appVariant, index) =>
+          <Menu.Item key={appVariant.name}>
+            {appVariant.name}
           </Menu.Item>
         )}
       </Menu>
@@ -81,8 +81,8 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVers
     return ({
       title: (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          App Version:
-          <Dropdown overlay={menu} placement="bottomRight" className={!isSelected[i] && appVersions.length > 0 ? 'button-animation' : ''}>
+          App Variant:
+          <Dropdown overlay={menu} placement="bottomRight" className={!isSelected[i] && appVariants.length > 0 ? 'button-animation' : ''}>
             <Button size="small">
               {selectedItems[i]} <DownOutlined />
             </Button>

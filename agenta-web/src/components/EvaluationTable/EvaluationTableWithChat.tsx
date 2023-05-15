@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button, Dropdown, Input, Menu, Space, Table } from 'antd';
-import { AppVersion } from '@/models/AppVersion';
+import { AppVariant } from '@/models/AppVariant';
 import type { ColumnType } from 'antd/es/table';
 import { DislikeOutlined, DownOutlined, LikeOutlined } from '@ant-design/icons';
 
 interface EvaluationTableWithChatProps {
   columnsCount: number;
-  appVersions: AppVersion[]
+  appVariants: AppVariant[]
   onReady: (values: Object) => void;
 }
 
@@ -15,9 +15,9 @@ interface TableDataType {
   [key: string]: any;
 }
 
-const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({ columnsCount, appVersions, onReady }) => {
+const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({ columnsCount, appVariants, onReady }) => {
   const [dataSource, setDataSource] = useState<TableDataType[]>([]);
-  const [selectedItems, setSelectedItems] = useState<string[]>(Array(columnsCount).fill('Select a version'));
+  const [selectedItems, setSelectedItems] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
   const [isSelected, setIsSelected] = useState<boolean[]>(Array(columnsCount).fill(false));
   const [inputData, setInputData] = useState("");
   const inputRef = useRef<any>(null);
@@ -53,9 +53,9 @@ const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({ colum
     const columnKey = `column${i}`;
     const menu = (
       <Menu onClick={handleMenuClick(i)}>
-        {appVersions.map((appVersion, index) =>
-          <Menu.Item key={appVersion.name}>
-            {appVersion.name}
+        {appVariants.map((appVariant, index) =>
+          <Menu.Item key={appVariant.name}>
+            {appVariant.name}
           </Menu.Item>
         )}
       </Menu>
@@ -64,8 +64,8 @@ const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({ colum
     return ({
       title: (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          App Version:
-          <Dropdown overlay={menu} placement="bottomRight" className={!isSelected[i] && appVersions.length > 0 ? 'button-animation' : ''}>
+          App Variant:
+          <Dropdown overlay={menu} placement="bottomRight" className={!isSelected[i] && appVariants.length > 0 ? 'button-animation' : ''}>
             <Button size="small">
               {selectedItems[i]} <DownOutlined />
             </Button>
