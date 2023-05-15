@@ -1,10 +1,7 @@
 import Evaluations from '@/components/Evaluations/Evaluations';
-import Layout from '@/components/Layout/Layout';
 
-export default function Dashboard() {
+export default function Evaluation() {
   return (
-    <Layout>
-      <Evaluations/>
-    </Layout>
+    <Evaluations />
   );
 }

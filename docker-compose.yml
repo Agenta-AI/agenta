@@ -3,6 +3,20 @@ services:
     image: registry:2
     ports:
       - 5001:5000
+    networks:
+      - agenta-network
+
+  reverse-proxy:
+    image: traefik:v2.0
+    command: --api.insecure=true --providers.docker --entrypoints.web.address=:80
+    ports:
+      - "80:80" # The HTTP port
+      - "8080:8080" # The Web UI (enabled by --api.insecure=true)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - agenta-network
+
   deploy-server:
     build: ./agenta-deploy-server
     volumes:
@@ -11,7 +25,30 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - registry
-    command: [ "python", "sleep.py" ]
+    labels:
+      - "traefik.http.routers.deploy-server.rule=PathPrefix(`/api/`)"
+      - "traefik.http.routers.deploy-server.entrypoints=web"
+      - "traefik.http.middlewares.deploy-server-strip.stripprefix.prefixes=/api"
+      - "traefik.http.middlewares.deploy-server-strip.stripprefix.forceslash=true"
+      - "traefik.http.routers.deploy-server.middlewares=deploy-server-strip"
+      # we redirect /openapi.json to /api/openapi.json, otherwise /docs would not work for fastapi
+      - "traefik.http.middlewares.deploy-server-openapi.redirectregex.regex=^/openapi.json$"
+      - "traefik.http.middlewares.deploy-server-openapi.redirectregex.replacement=/api/openapi.json"
+      - "traefik.http.middlewares.deploy-server-openapi.redirectregex.permanent=true"
+      - "traefik.http.routers.deploy-server-openapi.rule=Path(`/openapi.json`)"
+      - "traefik.http.routers.deploy-server-openapi.middlewares=deploy-server-openapi"
+
+    networks:
+      - agenta-network
+    command:
+      [
+        "uvicorn",
+        "deploy_server.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ]
 
   agenta-web:
     build:
@@ -30,6 +67,16 @@ services:
     # depends_on:
     #   mongo:
     #     condition: service_healthy
+
+
+networks:
+  agenta-network:
+    name: agenta-network
+    # volumes:
+    # mongodb_data:
+    # api_test:
+
+
 
     # api:
     #   build: ./api
@@ -93,10 +140,3 @@ services:
     #   depends_on:
     #     mongo:
     #       condition: service_healthy
-
-networks:
-  agenta-network:
-
-    # volumes:
-    # mongodb_data:
-    # api_test:
