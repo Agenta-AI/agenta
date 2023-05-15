@@ -1,12 +1,9 @@
 
-import Layout from '@/components/Layout/Layout';
 import LLMCallsTable from '../../components/LLMCallsTable/LLMCallsTable';
 
-export default function Dashboard() {
+export default function Logs() {
 
   return (
-    <Layout>
-      <LLMCallsTable />
-    </Layout>
+    <LLMCallsTable />
   );
 }
