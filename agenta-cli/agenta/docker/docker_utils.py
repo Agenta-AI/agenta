@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from pathlib import Path
 import shutil
 from agenta.config import settings
+from docker.models.images import Image
 
 
 def create_dockerfile(out_folder: Path):
@@ -22,14 +23,17 @@ def create_dockerfile(out_folder: Path):
     return dockerfile_path
 
 
-def build_and_upload_docker_image(folder: Path) -> Path:
+def build_and_upload_docker_image(folder: Path, variant_name: str) -> Image:
     """Builds an image from the folder and returns the path
 
     Arguments:
-        folder -- _description_
+        folder -- The folder containg the project code
 
     Returns:
-        _description_
+        The image object
+    TODO: Check that the variant name does not exist
+    TODO: Deal with different app names (probably we need to look then at multiple tags)
+    TODO: Error handling
     """
     # Initialize Docker client
     client = docker.from_env()
@@ -47,10 +51,11 @@ def build_and_upload_docker_image(folder: Path) -> Path:
 
         # Build the Docker image
         registry = settings.registry
+        tag = f"{registry}/{variant_name}:latest"
         print("Building Docker image...")
         image, build_log = client.images.build(
             path=temp_dir,
-            tag=f"{registry}/clitest:latest",
+            tag=tag,
             rm=True  # Remove intermediate containers after a successful build
         )
 
@@ -65,3 +70,4 @@ def build_and_upload_docker_image(folder: Path) -> Path:
 
         # Clean up the temporary Dockerfile
         dockerfile_path.unlink()
+    return image
