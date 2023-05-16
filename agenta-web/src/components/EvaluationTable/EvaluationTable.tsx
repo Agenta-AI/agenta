@@ -4,6 +4,7 @@ import type { ColumnType } from 'antd/es/table';
 import { LikeOutlined, DislikeOutlined, DownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Row, Space, Table } from 'antd';
 import { AppVariant } from '@/models/AppVariant';
+import ReactDiffViewer from 'react-diff-viewer';
 
 interface EvaluationTableProps {
   columnsCount: number;
@@ -59,62 +60,48 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     const appVariantX = selectedAppVariants[0];
     const appVariantY = selectedAppVariants[1];
 
-    console.log(startupName,
-      startupIdea,
-      appVariantX,
-      appVariantY);
-
+    setRowValue(rowIndex, 'columnData0',  'loading...');
+    setRowValue(rowIndex, 'columnData1',  'loading...' );
     try {
+      
       const response = await fetch(`http://localhost/pitch_genius/v1/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        },
-        // body: JSON.stringify({
-        //   startupName,
-        //   startupIdea,
-        //   appVariantX,
-        //   appVariantY
-        // })
+        }
       });
       const data = await response.json();
-      console.log(data);
       setRowValue(rowIndex, 'columnData0',  data);
     }
     catch (e) {
       console.log(e);
     }
-    
 
-
-    
-    
-    
-    setRowValue(rowIndex, 'columnData1', 'The idea is great' );
-
-    // const responseTwo = await fetch('https://example.com/api/endpoint', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify(rows)
-    // });
-
-    // const dataTwo = await responseTwo.json();
-    // console.log(dataTwo);
+    try {
+      
+      const response = await fetch(`http://localhost/pitch_genius/v1/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      setRowValue(rowIndex, 'columnData1',  data);
+    }
+    catch (e) {
+      console.log(e);
+    }
   };
 
   const setRowValue = (rowIndex: number, columnKey: keyof EvaluationTableRow, value: any) => {
     const newRows = [...rows];
     newRows[rowIndex][columnKey] = value;
 
-    console.log(newRows);
     setRows(newRows);
   };
 
   const dynamicColumns: ColumnType<TableDataType>[] = Array.from({ length: columnsCount }, (_, i) => {
     const columnKey = `columnData${i}`;
-    console.log(columnKey);
     
     const menu = (
       <Menu onClick={handleAppVariantsMenuClick(i)}>
