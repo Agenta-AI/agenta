@@ -4,7 +4,6 @@ import type { ColumnType } from 'antd/es/table';
 import { LikeOutlined, DislikeOutlined, DownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Row, Space, Table } from 'antd';
 import { AppVariant } from '@/models/AppVariant';
-import ReactDiffViewer from 'react-diff-viewer';
 
 interface EvaluationTableProps {
   columnsCount: number;
