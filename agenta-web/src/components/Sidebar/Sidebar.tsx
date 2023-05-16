@@ -61,7 +61,7 @@ const Sidebar: React.FC = () => {
         <Menu.Item key="5" icon={<CloudUploadOutlined />} onClick={() => navigate('/deployements')}>
           Deployements
         </Menu.Item>
-        <Menu.Item key="4" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
+        <Menu.Item key="6" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
           Monitor
         </Menu.Item>
 
