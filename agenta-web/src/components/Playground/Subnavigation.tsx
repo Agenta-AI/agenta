@@ -14,7 +14,7 @@ const SubNavigation: React.FC = () => {
 
     return (
         <Tabs defaultActiveKey="1">
-            <TabPane tab="Parameters/Prompts" key="1">
+            <TabPane tab="Parameters" key="1">
                 <Row gutter={16}>
                     <Col span={12}>
                         <h3>Prompts</h3>
@@ -57,6 +57,10 @@ const SubNavigation: React.FC = () => {
             <TabPane tab="Chat" key="2">
                 <Chat />
             </TabPane>
+            <TabPane tab="Logs" key="3">
+                <Chat />
+            </TabPane>
+
         </Tabs>
     );
 };
