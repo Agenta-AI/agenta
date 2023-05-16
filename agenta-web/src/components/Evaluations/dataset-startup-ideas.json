@@ -1,0 +1,42 @@
+[
+  {
+    "startup_name": "FoodieFinder",
+    "startup_idea": "An app for discovering local, unique dining experiences."
+  },
+  {
+    "startup_name": "CodeCove",
+    "startup_idea": "Online peer-to-peer coding mentorship platform."
+  },
+  {
+    "startup_name": "EcoMovers",
+    "startup_idea": "A sustainable logistics company using electric vehicles."
+  },
+  {
+    "startup_name": "PetNet",
+    "startup_idea": "A social network for pet owners to share tips and arrange meetups."
+  },
+  {
+    "startup_name": "HealthTrack",
+    "startup_idea": "AI-powered health and fitness app that provides personalized workout and nutrition plans."
+  },
+  {
+    "startup_name": "StudyBuddy",
+    "startup_idea": "AI-based platform that offers personalized learning paths for students."
+  },
+  {
+    "startup_name": "GreenGrow",
+    "startup_idea": "Subscription service for urban gardeners providing seeds, soil, and tips."
+  },
+  {
+    "startup_name": "SpaceSaver",
+    "startup_idea": "A marketplace to rent unused storage spaces in private homes."
+  },
+  {
+    "startup_name": "ChefAR",
+    "startup_idea": "An augmented reality cooking app that offers real-time culinary assistance."
+  },
+  {
+    "startup_name": "SkillBridge",
+    "startup_idea": "Online platform connecting freelancers with local businesses."
+  }
+]
