@@ -1,6 +1,6 @@
 
-import { useState } from 'react';
-import { Button, Switch } from 'antd';
+import { useState, useEffect } from 'react';
+import { Button, Col, Row, Switch } from 'antd';
 import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { CaretRightOutlined } from '@ant-design/icons';
@@ -20,23 +20,26 @@ export default function Evaluations() {
     setAppVariantsLoading(true);
     // setColumnsCount(3);
 
-    // fetch('http://127.0.0.1:3030/api/app-variants', {
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //   }
-    // })
-    //   .then((res) => res.json())
-    //   .then((data) => {
-    //     setAppVariants(data)
-    //     setAppVariantsLoading(false);
-    //   })
-
-    setAppVariants([
-      { id: 1, name: 'App Variant 1', endpoint: '/1' },
-      { id: 2, name: 'App Variant 2', endpoint: '/2' },
-      { id: 3, name: 'App Variant 3', endpoint: '/3' }]
-    )
+    fetch('http://localhost/api/app_variant/list/', {
+      headers: {
+        "Content-Type": "application/json",
+      }
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        // setAppVariants(data)
+        setAppVariants([
+          { id: 1, name: 'App Variant 1', endpoint: '/1' },
+          { id: 2, name: 'App Variant 2', endpoint: '/2' },
+          { id: 3, name: 'App Variant 3', endpoint: '/3' }]
+        );
+        setAppVariantsLoading(false);
+      })
   };
+
+  useEffect(() => {
+    loadAppVariants();
+  }, [])
 
 
   const runBenchmarking = () => {
@@ -52,15 +55,19 @@ export default function Evaluations() {
   return (
     <div>
       <h1 className="text-2xl font-semibold pb-10">Evaluations</h1>
-      <div>
-        <span style={{ marginRight: 10 }}>Switch to chat mode</span>
-        <Switch defaultChecked={false} onChange={onSwitchToChatMode} />
-      </div>
 
-      <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-        <Button onClick={loadAppVariants} className={appVariants.length == 0 ? 'button-animation' : ''}>Load App Variants</Button>
-        <Button type="primary" onClick={runBenchmarking} icon={<CaretRightOutlined />} style={{ marginLeft: 10 }}>Run</Button>
-      </div>
+      <Row justify="space-between" style={{ marginTop: 20, marginBottom: 20 }}>
+        <Col>
+          <Button onClick={runBenchmarking} icon={<CaretRightOutlined />} style={{ marginRight: 10 }}>Run All</Button>
+          <Button onClick={loadAppVariants}>Refresh App Variants</Button>
+        </Col>
+        <Col>
+          <div>
+            <span style={{ marginRight: 10, fontWeight: 10 }}>Switch to Chat mode</span>
+            <Switch defaultChecked={false} onChange={onSwitchToChatMode} />
+          </div>
+        </Col>
+      </Row>
 
       {!chatModeActivated &&
         <EvaluationTable
