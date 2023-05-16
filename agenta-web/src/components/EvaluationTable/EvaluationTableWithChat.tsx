@@ -7,7 +7,6 @@ import { DislikeOutlined, DownOutlined, LikeOutlined } from '@ant-design/icons';
 interface EvaluationTableWithChatProps {
   columnsCount: number;
   appVariants: AppVariant[]
-  onReady: (values: Object) => void;
 }
 
 interface TableDataType {
@@ -15,7 +14,7 @@ interface TableDataType {
   [key: string]: any;
 }
 
-const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({ columnsCount, appVariants, onReady }) => {
+const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({ columnsCount, appVariants }) => {
   const [dataSource, setDataSource] = useState<TableDataType[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
   const [isSelected, setIsSelected] = useState<boolean[]>(Array(columnsCount).fill(false));

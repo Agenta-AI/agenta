@@ -1,20 +1,21 @@
 
 import { useState, useEffect } from 'react';
-import { Button, Col, Dropdown, Menu, MenuProps, Row, Space, Switch } from 'antd';
+import { Button, Col, Dropdown, Menu, Row, Switch } from 'antd';
 import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
-import { CaretRightOutlined, DownOutlined } from '@ant-design/icons';
+import { DownOutlined } from '@ant-design/icons';
 import { MenuInfo } from 'rc-menu/lib/interface';
 
+import dataset from './dataset-startup-ideas.json';
 
 export default function Evaluations() {
 
   const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
   const [appVariants, setAppVariants] = useState<any[]>([]);
   const [columnsCount, setColumnsCount] = useState(2);
-  const [evaluationValues, setEvaluationValues] = useState({});
   const [chatModeActivated, setChatModeActivated] = useState(false);
-  const [selectedDataset, setSelectedDataset] = useState("Select a Dataset");
+  const [selectedDataset, setSelectedDataset] = useState<string | []>("Select a Dataset");
+  const [datasetContent, setDatasetContent] = useState<any[]>([]);
 
   useEffect(() => {
     onLoadAppVariants();
@@ -43,20 +44,12 @@ export default function Evaluations() {
       });
   };
 
-  const onRunBenchmarking = () => {
-    console.log(evaluationValues);
-  };
-
-  const onLoadDataSets = () => {
-    console.log(evaluationValues);
-  };
-
   const onSwitchToChatMode = (checked: boolean) => {
     setChatModeActivated(checked);
   };
 
   const handleDatasetMenuClick = (menuInfo: MenuInfo) => {
-    setSelectedDataset(menuInfo.key);
+    setDatasetContent(dataset);
   };
 
   const dataSets = [
@@ -94,7 +87,6 @@ export default function Evaluations() {
           </Dropdown>
 
           <Button onClick={onLoadAppVariants} style={{ marginRight: 10 }}>Refresh App Variants</Button>
-          <Button onClick={onRunBenchmarking} icon={<CaretRightOutlined />}>Run All</Button>
         </Col>
         <Col>
           <div>
@@ -108,14 +100,13 @@ export default function Evaluations() {
         <EvaluationTable
           columnsCount={columnsCount}
           appVariants={appVariants}
-          onReady={setEvaluationValues}
+          dataset={datasetContent}
         />}
 
       {chatModeActivated &&
         <EvaluationTableWithChat
           columnsCount={columnsCount}
           appVariants={appVariants}
-          onReady={setEvaluationValues}
         />}
     </div>
   );
