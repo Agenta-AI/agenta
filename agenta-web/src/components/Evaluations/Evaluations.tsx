@@ -1,22 +1,26 @@
 
 import { useState, useEffect } from 'react';
-import { Button, Col, Row, Switch } from 'antd';
+import { Button, Col, Dropdown, Menu, MenuProps, Row, Space, Switch } from 'antd';
 import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
-import { CaretRightOutlined } from '@ant-design/icons';
+import { CaretRightOutlined, DownOutlined } from '@ant-design/icons';
+import { MenuInfo } from 'rc-menu/lib/interface';
 
 
 export default function Evaluations() {
-  const [isLoading, setLoading] = useState(false);
+
   const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
   const [appVariants, setAppVariants] = useState<any[]>([]);
   const [columnsCount, setColumnsCount] = useState(2);
-
   const [evaluationValues, setEvaluationValues] = useState({});
-
   const [chatModeActivated, setChatModeActivated] = useState(false);
+  const [selectedDataset, setSelectedDataset] = useState("Select a Dataset");
 
-  const loadAppVariants = () => {
+  useEffect(() => {
+    onLoadAppVariants();
+  }, []);
+
+  const onLoadAppVariants = () => {
     setAppVariantsLoading(true);
     // setColumnsCount(3);
 
@@ -27,22 +31,23 @@ export default function Evaluations() {
     })
       .then((res) => res.json())
       .then((data) => {
-        // setAppVariants(data)
-        setAppVariants([
-          { id: 1, name: 'App Variant 1', endpoint: '/1' },
-          { id: 2, name: 'App Variant 2', endpoint: '/2' },
-          { id: 3, name: 'App Variant 3', endpoint: '/3' }]
-        );
+
+        const appVariantsFromResponse = data.map((item: any, index: number) => ({
+          id: index,
+          name: item.variant_name,
+          endpoint: item.variant_name
+        }));
+
+        setAppVariants(appVariantsFromResponse);
         setAppVariantsLoading(false);
-      })
+      });
   };
 
-  useEffect(() => {
-    loadAppVariants();
-  }, [])
+  const onRunBenchmarking = () => {
+    console.log(evaluationValues);
+  };
 
-
-  const runBenchmarking = () => {
+  const onLoadDataSets = () => {
     console.log(evaluationValues);
   };
 
@@ -50,7 +55,31 @@ export default function Evaluations() {
     setChatModeActivated(checked);
   };
 
-  if (isLoading) return <div>Loading...</div>
+  const handleDatasetMenuClick = (menuInfo: MenuInfo) => {
+    setSelectedDataset(menuInfo.key);
+  };
+
+  const dataSets = [
+    {
+      name: 'Dataset 1',
+    },
+    {
+      name: 'Dataset 2',
+    },
+    {
+      name: 'Dataset 3',
+    }
+  ]
+
+  const menu = (
+    <Menu onClick={(e) => handleDatasetMenuClick(e)}>
+      {dataSets.map((dataSet, index) =>
+        <Menu.Item key={dataSet.name}>
+          {dataSet.name}
+        </Menu.Item>
+      )}
+    </Menu>
+  );
 
   return (
     <div>
@@ -58,8 +87,14 @@ export default function Evaluations() {
 
       <Row justify="space-between" style={{ marginTop: 20, marginBottom: 20 }}>
         <Col>
-          <Button onClick={runBenchmarking} icon={<CaretRightOutlined />} style={{ marginRight: 10 }}>Run All</Button>
-          <Button onClick={loadAppVariants}>Refresh App Variants</Button>
+          <Dropdown overlay={menu} placement="bottomRight">
+            <Button style={{ marginRight: 10 }}>
+              {selectedDataset} <DownOutlined />
+            </Button>
+          </Dropdown>
+
+          <Button onClick={onLoadAppVariants} style={{ marginRight: 10 }}>Refresh App Variants</Button>
+          <Button onClick={onRunBenchmarking} icon={<CaretRightOutlined />}>Run All</Button>
         </Col>
         <Col>
           <div>
@@ -82,7 +117,6 @@ export default function Evaluations() {
           appVariants={appVariants}
           onReady={setEvaluationValues}
         />}
-
     </div>
   );
 
