@@ -1,2 +1,2 @@
 app-name = "pitch_genius"
-variants = [ "v0", "v1", "cors", "V1", "v2",]
+variants = [ "v0",]
