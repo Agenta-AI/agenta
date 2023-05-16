@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-import { MailOutlined, AppstoreOutlined, ExperimentOutlined, FileTextOutlined, HddOutlined } from '@ant-design/icons';
+import { MailOutlined, AppstoreOutlined, ExperimentOutlined, FileTextOutlined, HddOutlined, CloudUploadOutlined, FundProjectionScreenOutlined } from '@ant-design/icons';
 import { Layout, Menu, Space, Switch } from 'antd';
 import { FireOutlined, AlignCenterOutlined } from '@ant-design/icons';
-import logoDarkMode from './logo-dark-mode.png'
-import logoWhiteMode from './logo-light-mode.png'
+import logoDarkMode from './logo-dark-small.png'
+import logoWhiteMode from './logo-light-small.png'
 import Image from 'next/image';
 
 const { Sider } = Layout;
@@ -22,55 +22,47 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <Sider theme={theme} width={160} style={{ paddingTop: '5px', paddingLeft: '0px', paddingRight: '0px' }}>
-      <Switch
-        checked={theme === 'dark'}
-        onChange={changeTheme}
-        checkedChildren="Dark"
-        unCheckedChildren="Light"
-        style={{ marginLeft: '5px', marginTop: '20px', marginBottom: '20px', }}
-      />
+    <Sider theme={theme} width={200} style={{ paddingTop: '5px', paddingLeft: '10px', paddingRight: '10px' }}>
       <div style={{
-        display: 'flex',
-        justifyContent: 'center',
+        padding: 10,
+        marginBottom: 80,
+        marginTop: 25,
+
       }}>
-        <div style={{
-          padding: 10,
-          marginBottom: 30,
-          marginTop: 30,
-          border: `1px solid ${theme == 'dark' ? '#fff' : '#000'}`,
-          borderRadius: '10px',
-        }}>
-          <Image
-            src={theme == 'dark' ? logoDarkMode : logoWhiteMode}
-            width={160}
-            alt="Picture of the author"
-          />
-        </div>
+        <Image
+          src={theme == 'dark' ? logoDarkMode : logoWhiteMode}
+          width={100}
+          style={{ display: 'block', margin: '0 auto' }}
+          alt="Picture of the author"
+
+        />
       </div>
 
       <Menu
         mode="inline"
-        defaultSelectedKeys={['2']}
+        defaultSelectedKeys={['1']}
         defaultOpenKeys={['sub1']}
         style={{ borderRight: 0 }}
         theme={theme}
       >
-        <Menu.Item key="1" icon={< HddOutlined />} onClick={() => navigate('/datasets')}>
-          Datasets
-        </Menu.Item>
-        <Menu.Item key="2" icon={< ExperimentOutlined />} onClick={() => navigate('/playground')}>
+        <Menu.Item key="1" icon={< ExperimentOutlined />} onClick={() => navigate('/playground')}>
           Playground
         </Menu.Item>
-        <Menu.Item key="3" icon={<FileTextOutlined />} onClick={() => navigate('/testsets')}>
-          Test sets
-        </Menu.Item>
-        <Menu.Item key="4" icon={<AppstoreOutlined />} onClick={() => navigate('/evaluations')}>
-          Evaluation
-        </Menu.Item>
 
-        <Menu.Item key="5" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
-          Logs
+        <Menu.Item key="2" icon={< HddOutlined />} onClick={() => navigate('/datasets')}>
+          Datasets
+        </Menu.Item>
+        <Menu.Item key="3" icon={<AppstoreOutlined />} onClick={() => navigate('/evaluations')}>
+          Evaluate
+        </Menu.Item>
+        <Menu.Item key="4" icon={<FundProjectionScreenOutlined />} onClick={() => navigate('/results')}>
+          Results
+        </Menu.Item>
+        <Menu.Item key="5" icon={<CloudUploadOutlined />} onClick={() => navigate('/deployements')}>
+          Deployements
+        </Menu.Item>
+        <Menu.Item key="4" icon={<MailOutlined />} onClick={() => navigate('/logs')}>
+          Monitor
         </Menu.Item>
 
       </Menu>
