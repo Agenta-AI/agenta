@@ -7,8 +7,8 @@ import { AppVariant } from '@/models/AppVariant';
 
 interface EvaluationTableProps {
   columnsCount: number;
-  appVariants: AppVariant[]
-  onReady: (values: Object) => void;
+  appVariants: AppVariant[];
+  dataset?: any;
 }
 
 interface TableDataType {
@@ -25,15 +25,24 @@ interface EvaluationTableRow {
   columnData1: string;
 }
 
-const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, onReady }) => {
+const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset }) => {
   const [selectedAppVariants, setSelectedAppVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
-  const [rows, setRows] = useState<EvaluationTableRow[]>([
-    {
+  const [rows, setRows] = useState<EvaluationTableRow[]>(
+    [{
       inputFields: { field1: '', field2: '' },
       columnData0: '',
       columnData1: ''
     }
-  ]);
+    ]);
+
+  useEffect(() => {
+    const initialRows = dataset && dataset.length > 0 ? dataset.map((item:any) => ({
+      inputFields: { field1: item.startup_name, field2: item.startup_idea },
+      columnData0: '',
+      columnData1: ''
+    })) : [];
+    setRows([...initialRows, ...rows]);
+  }, [dataset]);
 
   const handleAppVariantsMenuClick = (columnIndex: number) => ({ key }: { key: string }) => {
     setSelectedAppVariants(prevState => {
@@ -53,16 +62,22 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     setRows(newRows);
   };
 
+  const runAllEvaluations = async () => {
+    for (let i = 0; i < rows.length; i++) {
+      await runEvaluation(i);
+    }
+  };
+
   const runEvaluation = async (rowIndex: number) => {
     const startupName = rows[rowIndex].inputFields.field1;
     const startupIdea = rows[rowIndex].inputFields.field2;
     const appVariantX = selectedAppVariants[0];
     const appVariantY = selectedAppVariants[1];
 
-    setRowValue(rowIndex, 'columnData0',  'loading...');
-    setRowValue(rowIndex, 'columnData1',  'loading...' );
+    setRowValue(rowIndex, 'columnData0', 'loading...');
+    setRowValue(rowIndex, 'columnData1', 'loading...');
     try {
-      
+
       const response = await fetch(`http://localhost/pitch_genius/v1/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
         method: 'POST',
         headers: {
@@ -70,14 +85,13 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
         }
       });
       const data = await response.json();
-      setRowValue(rowIndex, 'columnData0',  data);
+      setRowValue(rowIndex, 'columnData0', data);
     }
     catch (e) {
       console.log(e);
     }
 
     try {
-      
       const response = await fetch(`http://localhost/pitch_genius/v1/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
         method: 'POST',
         headers: {
@@ -85,7 +99,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
         }
       });
       const data = await response.json();
-      setRowValue(rowIndex, 'columnData1',  data);
+      setRowValue(rowIndex, 'columnData1', data);
     }
     catch (e) {
       console.log(e);
@@ -95,13 +109,12 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
   const setRowValue = (rowIndex: number, columnKey: keyof EvaluationTableRow, value: any) => {
     const newRows = [...rows];
     newRows[rowIndex][columnKey] = value;
-
     setRows(newRows);
   };
 
   const dynamicColumns: ColumnType<TableDataType>[] = Array.from({ length: columnsCount }, (_, i) => {
     const columnKey = `columnData${i}`;
-    
+
     const menu = (
       <Menu onClick={handleAppVariantsMenuClick(i)}>
         {appVariants.map((appVariant, index) =>
@@ -132,7 +145,12 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
   const columns = [
     {
       key: '1',
-      title: 'Question',
+      title: (
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          Question
+          <Button size="small" onClick={runAllEvaluations} icon={<CaretRightOutlined />}>Run All</Button>
+        </div>
+      ),
       dataIndex: 'inputFields',
       render: (text: any, record: EvaluationTableRow, rowIndex: number) => (
         <div>
