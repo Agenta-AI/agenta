@@ -1,14 +1,15 @@
 // SubNavigation.tsx
 import { useState } from 'react';
 import React from 'react';
-import { Tabs, Input, Select, Slider, Row, Col } from 'antd';
-import TestView from './TestView';
-import LogsView from './LogsView';
-import ParametersView from './ParametersView';
+import { Tabs, Input, Select, Slider, Row, Col, Button } from 'antd';
+import TestView from './Views/TestView';
+import LogsView from './Views/LogsView';
+import ParametersView from './Views/ParametersView';
 const { TabPane } = Tabs;
 const { Option } = Select;
 
-const SubNavigation: React.FC = () => {
+
+const ViewNavigation: React.FC = () => {
     const [inputValue, setInputValue] = useState(1);
     const onChange = (newValue: number) => {
         setInputValue(newValue);
@@ -30,5 +31,5 @@ const SubNavigation: React.FC = () => {
     );
 };
 
-export default SubNavigation;
+export default ViewNavigation;
 

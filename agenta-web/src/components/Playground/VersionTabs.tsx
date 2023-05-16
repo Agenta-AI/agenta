@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Tabs } from 'antd';
-import SubNavigation from './SubNavigation';
+import ViewNavigation from './ViewNavigation';
 // import { VersionProvider, useVersionContext } from './VersionContext';
 
 const { TabPane } = Tabs;
@@ -58,7 +58,7 @@ const VersionTabs: React.FC = () => {
         >
             {tabList.map(key => (
                 <TabPane tab={`Version ${key}`} key={key} closable={tabList.length > 1}>
-                    <SubNavigation />
+                    <ViewNavigation />
                 </TabPane>
             ))}
         </Tabs>

@@ -6,27 +6,27 @@ const BoxComponent = () => {
     const [results, setResults] = useState('');
     const [startupName, setStartupName] = useState('');
     const [startupIdea, setStartupIdea] = useState('');
-    const handleRun = () => {
-        fetch('http://localhost/pitch_genius/v2/generate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'accept': 'application/json'
-            },
-            body: JSON.stringify({
-                startup_name: startupName,
-                startup_idea: startupIdea
-            })
-        })
-            .then(response => response.json())
-            .then(data => setResults(data))
-            .catch(error => console.error('Error:', error));
-    };
 
+    const handleRun = async () => {
+        setResults("Loading..");
+        const url = `http://localhost/pitch_genius/v0/generate?startup_name=${encodeURIComponent(startupName)}&startup_idea=${encodeURIComponent(startupIdea)}`;
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'accept': 'application/json'
+                },
+            });
+            const data = await response.json();
+            setResults(data);
+        } catch (e) {
+            console.error('Error:', e)
+        }
+    }
 
     return (
         <Card style={{ marginBottom: '5px', padding: '5px' }}>
-            <Row gutter={[5]}>
+            <Row gutter={5}>
                 <Col span={12} style={{ paddingRight: '19px' }}>
                     <label>Startup Name</label>
                     <TextArea
@@ -38,7 +38,7 @@ const BoxComponent = () => {
                     <TextArea
                         placeholder="Startup Idea "
                         style={{ width: '100%', marginTop: 10, marginBottom: 10 }}
-                        onChange={e => setStartupName(e.target.value)}
+                        onChange={e => setStartupIdea(e.target.value)}
                     />
                     <Button onClick={handleRun}>Run</Button>
                 </Col>
