@@ -1,9 +1,8 @@
 
 import { useState, useEffect } from 'react';
 import type { ColumnType } from 'antd/es/table';
-import { LikeOutlined, DislikeOutlined, DownOutlined } from '@ant-design/icons';
-import { Button, Dropdown, Input, Menu, Space, Table, TableColumnsType } from 'antd';
-import { EditableCell, EditableRow } from './EditableTableComponents';
+import { LikeOutlined, DislikeOutlined, DownOutlined, CaretRightOutlined } from '@ant-design/icons';
+import { Button, Dropdown, Input, Menu, Row, Space, Table } from 'antd';
 import { AppVariant } from '@/models/AppVariant';
 
 interface EvaluationTableProps {
@@ -17,59 +16,94 @@ interface TableDataType {
   [key: string]: any;
 }
 
-const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, onReady}) => {
-  const initialData = Array.from({ length: 1 }, (_, i) => ({
-    key: i.toString(),
-    ...Array.from({ length: columnsCount }, (_, j) => ({ [`column${j}`]: `Data ${j}` })),
-  }));
-
-  const [dataSource, setDataSource] = useState<TableDataType[]>(initialData);
-  const [selectedItems, setSelectedItems] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
-  const [isSelected, setIsSelected] = useState<boolean[]>(Array(columnsCount).fill(false));
-  const [valuationsData, setValuationsData] = useState<Object>({});
-
-  const handleAddRow = () => {
-    setDataSource(prevState => [
-      ...prevState,
-      { key: (prevState.length + 1).toString(), ...Array.from({ length: columnsCount }, (_, i) => ({ [`column${i}`]: `Data ${i}` })) },
-    ]);
+interface EvaluationTableRow {
+  inputFields: {
+    field1: string;
+    field2: string;
   };
+  columnData0: string;
+  columnData1: string;
+}
 
-  const handleMenuClick = (columnIndex: number) => ({ key }: { key: string }) => {
-    console.log(columnIndex);
-    
-    setSelectedItems(prevState => {
+const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, onReady }) => {
+  const [selectedAppVariants, setSelectedAppVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
+  const [rows, setRows] = useState<EvaluationTableRow[]>([
+    {
+      inputFields: { field1: '', field2: '' },
+      columnData0: '',
+      columnData1: ''
+    }
+  ]);
+
+  const handleAppVariantsMenuClick = (columnIndex: number) => ({ key }: { key: string }) => {
+    setSelectedAppVariants(prevState => {
       const newState = [...prevState];
       newState[columnIndex] = key;
       return newState;
     });
-
-    setIsSelected(prevState => {
-      const newState = [...prevState];
-      newState[columnIndex] = true;
-      return newState;
-    });
-    console.log(selectedItems);
-    const a = {modelOne: selectedItems[0], modelTwo: selectedItems[1] }
-    setValuationsData(a);
   };
 
-  useEffect(() => {
-    onReady(valuationsData);
-  }, [valuationsData, onReady]);
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    rowIndex: number,
+    inputFieldKey: "field1" | "field2"
+  ) => {
+    const newRows = [...rows];
+    newRows[rowIndex].inputFields[inputFieldKey] = e.target.value;
+    setRows(newRows);
+  };
 
-  const components = {
-    body: {
-      row: EditableRow,
-      cell: EditableCell,
-    },
+  const runEvaluation = async (rowIndex: number) => {
+    const startupName = rows[rowIndex].inputFields.field1;
+    const startupIdea = rows[rowIndex].inputFields.field2;
+    const appVariantX = selectedAppVariants[0];
+    const appVariantY = selectedAppVariants[1];
+
+    setRowValue(rowIndex, 'columnData0',  'loading...');
+    setRowValue(rowIndex, 'columnData1',  'loading...' );
+    try {
+      
+      const response = await fetch(`http://localhost/pitch_genius/v1/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      setRowValue(rowIndex, 'columnData0',  data);
+    }
+    catch (e) {
+      console.log(e);
+    }
+
+    try {
+      
+      const response = await fetch(`http://localhost/pitch_genius/v1/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      setRowValue(rowIndex, 'columnData1',  data);
+    }
+    catch (e) {
+      console.log(e);
+    }
+  };
+
+  const setRowValue = (rowIndex: number, columnKey: keyof EvaluationTableRow, value: any) => {
+    const newRows = [...rows];
+    newRows[rowIndex][columnKey] = value;
+
+    setRows(newRows);
   };
 
   const dynamicColumns: ColumnType<TableDataType>[] = Array.from({ length: columnsCount }, (_, i) => {
-
-    const columnKey = `column${i}`;
+    const columnKey = `columnData${i}`;
+    
     const menu = (
-      <Menu onClick={handleMenuClick(i)}>
+      <Menu onClick={handleAppVariantsMenuClick(i)}>
         {appVariants.map((appVariant, index) =>
           <Menu.Item key={appVariant.name}>
             {appVariant.name}
@@ -82,9 +116,9 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
       title: (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           App Variant:
-          <Dropdown overlay={menu} placement="bottomRight" className={!isSelected[i] && appVariants.length > 0 ? 'button-animation' : ''}>
+          <Dropdown overlay={menu} placement="bottomRight" className={selectedAppVariants[i] == 'Select a variant' ? 'button-animation' : ''}>
             <Button size="small">
-              {selectedItems[i]} <DownOutlined />
+              {selectedAppVariants[i]} <DownOutlined />
             </Button>
           </Dropdown>
         </div>
@@ -99,9 +133,29 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     {
       key: '1',
       title: 'Question',
-      dataIndex: 'questionContent',
-      render: () => (
-        <Input></Input>)
+      dataIndex: 'inputFields',
+      render: (text: any, record: EvaluationTableRow, rowIndex: number) => (
+        <div>
+          <div style={{ marginBottom: 10 }}>
+            <Input
+              placeholder="Startup name"
+              value={record.inputFields.field1}
+              onChange={(e) => handleInputChange(e, rowIndex, "field1")}
+            />
+
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <Input
+              placeholder="Startup idea"
+              value={record.inputFields.field2}
+              onChange={(e) => handleInputChange(e, rowIndex, "field2")}
+            />
+          </div>
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
+            <Button onClick={() => (runEvaluation(rowIndex))} icon={<CaretRightOutlined />} style={{ marginLeft: 10 }}>Run</Button>
+          </div>
+        </div>
+      )
     },
     ...dynamicColumns,
     {
@@ -119,10 +173,22 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     }
   ];
 
+  const addRow = () => {
+    setRows([
+      ...rows,
+      { inputFields: { field1: "", field2: "" }, columnData0: "", columnData1: "" },
+    ]);
+  };
+
   return (
     <div>
-      <Table dataSource={dataSource} columns={columns} components={components} rowClassName={() => 'editable-row'} />
-      <Button onClick={handleAddRow} type="primary" style={{ marginBottom: 16 }}>
+      <Table
+        dataSource={rows}
+        columns={columns}
+        pagination={false}
+        rowClassName={() => 'editable-row'}
+      />
+      <Button onClick={addRow} style={{ marginTop: 16 }}>
         Add a row
       </Button>
     </div>
