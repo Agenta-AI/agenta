@@ -7,7 +7,7 @@ import os
 
 
 @post
-def generate(startup_name: str, startup_idea: str, p1: str, p2: str, p3: str) -> str:
+def generate(startup_name: str, startup_idea: str) -> str:
     prompt_template = """
     please write a short linkedin message (2 SENTENCES MAX) to an investor pitchin the following startup:
     startup name: {startup_name}
