@@ -8,3 +8,5 @@ agenta-cli/agenta/templates/agenta.py
 .DS_Store
 agenta-cli/tmp/
 agenta-cli/tests/
+
+examples/pitch-genius/config.toml
