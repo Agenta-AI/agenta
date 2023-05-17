@@ -15,18 +15,17 @@ const CardGrid = () => {
                 {cards.map((card, index) => (
                     <Col key={index} span={6}> {/* each card takes 1/4 of the row */}
                         <Card style={{
-                            width: 300, height: '250px', background: '#EDEDEA', marginBottom: '20px'
+                            width: 300, height: '250px', marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center'
                         }}>
                             {card === cards.length ? ( // display + in the last card
-                                <Button type="primary" onClick={addCard} block>
+                                <Button type="primary" onClick={addCard} style={{ height: '200px', width: '220px' }}>
                                     +
                                 </Button>
                             ) : (
                                 <div>{`Project ${card}`}</div> // display project name
                             )}
                         </Card>
-                    </Col>
-                ))}
+                    </Col>))}
             </Row>
         </div>
     );
