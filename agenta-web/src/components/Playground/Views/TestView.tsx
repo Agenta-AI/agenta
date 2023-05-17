@@ -26,8 +26,8 @@ const BoxComponent = () => {
 
     return (
         <Card style={{ marginBottom: '5px', padding: '5px' }}>
-            <Row gutter={5}>
-                <Col span={12} style={{ paddingRight: '19px' }}>
+            <Row gutter={2}>
+                <Col span={12} style={{ paddingRight: '10px' }}>
                     <label>Startup Name</label>
                     <TextArea
                         placeholder="Startup Name"
@@ -63,7 +63,7 @@ const App = () => {
             {rows.map(row => (
                 <BoxComponent key={row} />
             ))}
-            <Button onClick={handleAddRow}>Add Row</Button>
+            <Button onClick={handleAddRow} style={{ width: '100%' }}>Add Row</Button>
         </div>
 
     );
