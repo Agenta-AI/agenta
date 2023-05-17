@@ -11,11 +11,6 @@ interface EvaluationTableProps {
   dataset?: any;
 }
 
-interface TableDataType {
-  key: string;
-  [key: string]: any;
-}
-
 interface EvaluationTableRow {
   inputFields: {
     field1: string;
@@ -36,7 +31,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     ]);
 
   useEffect(() => {
-    const initialRows = dataset && dataset.length > 0 ? dataset.map((item:any) => ({
+    const initialRows = dataset && dataset.length > 0 ? dataset.map((item: any) => ({
       inputFields: { field1: item.startup_name, field2: item.startup_idea },
       columnData0: '',
       columnData1: ''
@@ -63,9 +58,15 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
   };
 
   const runAllEvaluations = async () => {
+    const promises: Promise<void>[] = [];
+
     for (let i = 0; i < rows.length; i++) {
-      await runEvaluation(i);
+      promises.push(runEvaluation(i));
     }
+
+    Promise.all(promises)
+      .then(() => console.log('All functions finished.'))
+      .catch(err => console.error('An error occurred:', err));
   };
 
   const runEvaluation = async (rowIndex: number) => {
@@ -74,37 +75,34 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     const appVariantX = selectedAppVariants[0];
     const appVariantY = selectedAppVariants[1];
 
+    if (!startupName || !startupIdea) {
+      console.log(`Skipping evaluation for row ${rowIndex} due to empty startupName or startupIdea.`);
+      return;
+    }
+
     setRowValue(rowIndex, 'columnData0', 'loading...');
     setRowValue(rowIndex, 'columnData1', 'loading...');
-    try {
 
-      const response = await fetch(`http://localhost/pitch_genius/v1/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      const data = await response.json();
-      setRowValue(rowIndex, 'columnData0', data);
-    }
-    catch (e) {
-      console.log(e);
-    }
+    const requestX = fetch(`http://localhost/pitch_genius/${appVariantX}/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).then(res => res.json())
+      .then(data => setRowValue(rowIndex, 'columnData0', data))
+      .catch(e => console.log(e));
 
-    try {
-      const response = await fetch(`http://localhost/pitch_genius/v1/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      const data = await response.json();
-      setRowValue(rowIndex, 'columnData1', data);
-    }
-    catch (e) {
-      console.log(e);
-    }
-  };
+    const requestY = fetch(`http://localhost/pitch_genius/${appVariantY}/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).then(res => res.json())
+      .then(data => setRowValue(rowIndex, 'columnData1', data))
+      .catch(e => console.log(e));
+
+    await Promise.all([requestX, requestY]);
+  }
 
   const setRowValue = (rowIndex: number, columnKey: keyof EvaluationTableRow, value: any) => {
     const newRows = [...rows];
@@ -112,7 +110,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     setRows(newRows);
   };
 
-  const dynamicColumns: ColumnType<TableDataType>[] = Array.from({ length: columnsCount }, (_, i) => {
+  const dynamicColumns: ColumnType<EvaluationTableRow>[] = Array.from({ length: columnsCount }, (_, i) => {
     const columnKey = `columnData${i}`;
 
     const menu = (
