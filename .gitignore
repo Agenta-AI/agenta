@@ -9,4 +9,4 @@ agenta-cli/agenta/templates/agenta.py
 agenta-cli/tmp/
 agenta-cli/tests/
 
-examples/pitch-genius/config.toml
+examples/pitch_genius/config.toml
