@@ -1,10 +1,18 @@
 # Agenta Lab: Streamline Your LLM-App Development
 
-Agenta is an open-source CI/CD platform designed to simplify and accelerate the development and deployment of LLM-powered applications such as chatbots, agents, Q&A systems, and more. 
+Agenta is an open-source CI/CD platform designed to simplify and accelerate the development and deployment of LLM-powered applications such as chatbots, agents, Q&A systems, and more. Agenta is targeted towards technnical audience bringing LLM-powered apps into production.
 
-Building LLM-powered apps is currently very frustrating. You need to iterate over multiple versions and play around with 100s of parameters to find something that works. Agenta streamline this process to allow you to bring your app to production faster with the certainty that it works well.
+Building LLM-powered apps is currently very frustrating. It involves a significant amount of trial and error and a lots of parameters to tune and countless iterations. Agenta simplifies this process, enabling you to quickly iterate, experiment, and optimize your LLM apps.
 
-Agenta is targeted towards technnical developers building complex LLM-powered apps into production.
+## What can you do with Agenta Lab?
+
+[x] Playground to test different parameters: With a couple of lines modify your custom code to specify which parameters you want to experiment with. Then you (or your colleagues) can test your application and experiment with different parameters directly through a user-friendly web platform.
+[x] Version evaluation: Create test sets, evaluate and compare different versions of your app
+[] Regression Testing: Run regression tests based on real data whenevery you deploy a new version.
+[x] Effortless API Deployment: Agenta allows developers to deploy their LLM applications as an API without any extra effort. (Currently only locally)Í
+[] Monitoring and Logging: Agenta provides a dashboard to monitor and log your app's performance and usage. You can also monitor the performance of your app in production and compare it to previous versions.
+[] A/B Testing & User Feedback: Experiment with different app versions and gather valuable user feedback for continuous improvement.
+[] Automated Deployment: Push a commit to automatically deploy your app, saving time and minimizing human error.
 
 ## Why another platform for building LLM-apps?
 
@@ -16,16 +24,6 @@ There are a number of great platforms for building LLM apps, yet we find that no
 - Collaboration with non technical users: We realized that building LLM-powered apps involves the collaboration between developer and domain experts who might not be technical. We wanted to build a tool that allows both to collaborate and build apps together. The developer writes the main code, while the domain expert can edit and modify parameters (e.g. prompts, hyperparameters, etc.) and label the results for evaluation
 - Open-source: We wanted to be able to contribute to the platform and extend it to our needs.
 
-## Features
-- Automated Deployment: Push a commit to automatically deploy your app, saving time and minimizing human error.
-- App Evaluation: Test and compare app performance with regression tests, output comparisons, and intermediate output analysis.
-- A/B Testing & User Feedback: Experiment with different app versions and gather valuable user feedback for continuous improvement.
-- Workflow Management: Launch evaluations, benchmarking, and labeling workflows to make informed decisions and ensure the quality of your app.
-- Local Deployment: Deploy your app locally along with the required vector database for seamless integration.
-
-Please note that some features mentioned above are part of our future roadmap. Currently, Agenta supports monitoring, logging, and evaluations.
-
-Follow the steps below for installation and testing instructions.
 
 ## Architecture
 
