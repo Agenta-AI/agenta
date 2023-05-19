@@ -7,11 +7,17 @@ Building LLM-powered apps is currently very frustrating. It involves a significa
 ## What can you do with Agenta Lab?
 
 [x] Playground to test different parameters: With a couple of lines modify your custom code to specify which parameters you want to experiment with. Then you (or your colleagues) can test your application and experiment with different parameters directly through a user-friendly web platform.
+
 [x] Version evaluation: Create test sets, evaluate and compare different versions of your app
+
 [] Regression Testing: Run regression tests based on real data whenevery you deploy a new version.
+
 [x] Effortless API Deployment: Agenta allows developers to deploy their LLM applications as an API without any extra effort. (Currently only locally)Í
+
 [] Monitoring and Logging: Agenta provides a dashboard to monitor and log your app's performance and usage. You can also monitor the performance of your app in production and compare it to previous versions.
+
 [] A/B Testing & User Feedback: Experiment with different app versions and gather valuable user feedback for continuous improvement.
+
 [] Automated Deployment: Push a commit to automatically deploy your app, saving time and minimizing human error.
 
 ## Why another platform for building LLM-apps?
