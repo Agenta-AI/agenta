@@ -1,4 +1,4 @@
-from agenta import post
+from agenta import post, TextParam, FloatParam
 from dotenv import load_dotenv
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
@@ -6,13 +6,15 @@ from langchain.prompts import PromptTemplate
 import os
 
 
-@post
-def generate(startup_name: str, startup_idea: str) -> str:
-    prompt_template = """
+default_prompt = """
     please write a short linkedin message (2 SENTENCES MAX) to an investor pitchin the following startup:
     startup name: {startup_name}
     startup idea: {startup_idea}"""
-    llm = OpenAI(temperature=0.9)
+
+
+@post
+def generate(startup_name: str, startup_idea: str, prompt_template: TextParam = default_prompt, temperature: FloatParam = 0.5) -> str:
+    llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
         input_variables=["startup_name", "startup_idea"],
         template=prompt_template)
