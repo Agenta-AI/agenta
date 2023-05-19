@@ -1,10 +1,9 @@
-import docker
 import os
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from pathlib import Path
-import shutil
+
+import docker
 from agenta.config import settings
 from docker.models.images import Image
 
