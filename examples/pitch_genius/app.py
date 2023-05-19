@@ -18,11 +18,7 @@ def generate(startup_name: str, startup_idea: str, prompt_template: TextParam = 
     prompt = PromptTemplate(
         input_variables=["startup_name", "startup_idea"],
         template=prompt_template)
+
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(startup_name=startup_name, startup_idea=startup_idea)
     return output
-
-
-if __name__ == "__main__":
-    load_dotenv()
-    print(generate("Agenta AI", "Developer tool for LLM-powered apps"))

@@ -1,22 +1,20 @@
-from agenta import post
+from agenta import post, TextParam, FloatParam
 from dotenv import load_dotenv
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 
+default_prompt = "What is a good name for a company that makes {product}?"
+
 
 @post
-def completion(product: str) -> str:
-    llm = OpenAI(temperature=0.9)
+def completion(product: str, temperature: FloatParam = 0.9, prompt_template: TextParam = default_prompt) -> str:
+    llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
         input_variables=["product"],
-        template="What is a good name for a company that makes {product}?",
+        template=prompt_template,
     )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(product=product)
+
     return output
-
-
-if __name__ == "__main__":
-    load_dotenv()
-    print(completion("socks"))
