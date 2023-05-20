@@ -6,11 +6,13 @@ interface DataType {
   id: string;
   variants: string;
   results: any | null;
+  createdAt?: string;
 }
 
 interface ResponseItem {
   id: string;
   variants: [string];
+  created_at: string;
 }
 
 const fetchData = async (url: string): Promise<any> => {
@@ -29,6 +31,7 @@ const Results: React.FC = () => {
       .then(responseData => {
         const initialData: DataType[] = responseData.map((item: ResponseItem) => ({
           id: item.id,
+          createdAt: item.created_at,
           variants: item.variants,
           results: null,
         }));
@@ -65,6 +68,11 @@ const Results: React.FC = () => {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
+    },
+    {
+      title: 'Created At',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
     },
     {
       title: 'Variants',
