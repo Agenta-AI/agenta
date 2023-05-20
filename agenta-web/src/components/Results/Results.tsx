@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Table, Card, Spin } from 'antd';
+import { Table, Spin, Tag } from 'antd';
 
 interface DataType {
   id: string;
@@ -45,7 +45,7 @@ const Results: React.FC = () => {
             .then(results => {
               setData(prevData => {
                 const newData = [...prevData];
-                newData[index].results = JSON.stringify(results.results);
+                newData[index].results = results.results;
                 return newData;
               });
 
@@ -80,10 +80,15 @@ const Results: React.FC = () => {
       key: 'variants',
     },
     {
-      title: 'results',
+      title: 'Results',
       key: 'results',
       render: (text: string, record: DataType, index: number) => (
-        statsLoading[index] ? <Spin /> : record.results
+        statsLoading[index] ? <Spin /> : <div>
+          <Tag color="blue">v1: {record.results.v1}</Tag>
+          <Tag color="purple">v2: {record.results.v2}</Tag>
+          <Tag color="red">Flag: {record.results.flag}</Tag>
+        </div>
+        // record.results
       ),
     },
   ];
