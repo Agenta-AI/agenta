@@ -15,7 +15,7 @@ type User = {
 
 const { Content, Footer } = Layout;
 const mockUser: User = {
-  name: 'John Doe',
+  name: 'Foulen',
   avatar: 'https://example.com/john-doe.jpg',
 };
 
@@ -32,7 +32,7 @@ const App: React.FC<LayoutProps> = ({ children }) => {
       <Layout style={{ marginTop: '1px' }}>
         {router.pathname !== '/' && <Sidebar />}
         <Content style={{ margin: '0 1px' }}>
-          <div style={{ padding: 20, background: colorBgContainer, minHeight: '100vh' }}>
+          <div style={{ padding: 20, background: colorBgContainer, minHeight: '95vh' }}>
             {children}
           </div>
         </Content>
