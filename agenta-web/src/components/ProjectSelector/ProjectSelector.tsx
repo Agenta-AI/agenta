@@ -15,20 +15,20 @@ const ProjectSelector = () => {
 
     const handleOk = () => {
         setIsModalOpen(false);
-        handleAddProject();
+        handleNavToProject(newProject);
     };
 
     const handleCancel = () => {
         setIsModalOpen(false);
     };
 
-    const handleAddProject = () => {
+    const handleNavToProject = (projectName: string) => {
         // add the newProject to your backend and update the state
-        setProject(newProject);
+        setProject(projectName);
         // redirect to the main page
         router.push('/playground');
     }
-    const [cards, setCards] = useState([1]); // initial state with one card
+    const [cards, setCards] = useState(["pitch_genius"]); // initial state with one card
 
     const addCard = () => {
         const newCard = cards.length + 1;
@@ -37,22 +37,21 @@ const ProjectSelector = () => {
 
 
     return (
-        <div>
-            <Row gutter={16}> {/* gutter adds spacing between columns */}
+        <div style={{ margin: "50px 150px" }}>
+            <Row gutter={10}> {/* gutter adds spacing between columns */}
                 {cards.map((card, index) => (
-                    <Col key={index} span={6}> {/* each card takes 1/4 of the row */}
-                        <Card style={{
-                            width: 300, height: '250px', marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center'
-                        }}>
-                            {card === cards.length ? ( // display + in the last card
-                                <Button type="default" onClick={showModal} style={{ height: '200px', width: '220px' }}>
-                                    New project
-                                </Button>
-                            ) : (
-                                <div>{`Project ${card}`}</div> // display project name
-                            )}
-                        </Card>
-                    </Col>))}
+                    <Col key={index} span={6}>
+                        <Button type="default" onClick={() => handleNavToProject(card)} style={{ height: '200px', width: '220px' }}>
+                            <div>{`${card}`}</div>
+                        </Button>
+                    </Col>
+
+                ))}
+                <Col span={6}>
+                    <Button type="default" onClick={showModal} style={{ height: '200px', width: '220px' }}>
+                        New project
+                    </Button>
+                </Col>
             </Row>
             <Modal title="Add new project" open={isModalOpen} onOk={handleOk} onCancel={handleCancel}>
                 <Input
@@ -61,7 +60,7 @@ const ProjectSelector = () => {
                     onChange={(e) => setNewProject(e.target.value)}
                 />
             </Modal>
-        </div>
+        </div >
 
     );
 };
