@@ -72,7 +72,6 @@ export default function Evaluations() {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json'
-
         },
         redirect: 'follow',
         referrerPolicy: 'no-referrer',
