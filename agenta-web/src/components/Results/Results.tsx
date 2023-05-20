@@ -88,7 +88,6 @@ const Results: React.FC = () => {
           <Tag color="purple">v2: {record.results.v2}</Tag>
           <Tag color="red">Flag: {record.results.flag}</Tag>
         </div>
-        // record.results
       ),
     },
   ];
