@@ -42,14 +42,16 @@ const ProjectSelector = () => {
                 {cards.map((card, index) => (
                     <Col key={index} span={6}>
                         <Button type="default" onClick={() => handleNavToProject(card)} style={{ height: '200px', width: '220px' }}>
-                            <div>{`${card}`}</div>
+                            <h3 style={{ fontWeight: 'bold' }}>{`${card}`}</h3>
+
                         </Button>
                     </Col>
 
                 ))}
                 <Col span={6}>
                     <Button type="default" onClick={showModal} style={{ height: '200px', width: '220px' }}>
-                        New project
+                        <h3 style={{ fontWeight: 'bold' }}>New project</h3>
+
                     </Button>
                 </Col>
             </Row>
