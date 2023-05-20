@@ -4,6 +4,7 @@ from datetime import datetime
 
 class ComparisonTable(BaseModel):
     id: str
+    variants: Optional[List[str]]
     created_at: datetime
     updated_at: datetime
 
@@ -24,4 +25,7 @@ class EvaluationRow(BaseModel):
 
 class EvaluationRowUpdate(BaseModel):
     vote: str
+
+class ComparisonTableUpdate(BaseModel):
+    variants: List[str]
 
