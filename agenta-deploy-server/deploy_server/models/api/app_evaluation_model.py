@@ -2,26 +2,26 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
-class AppEvaluationsExperiment(BaseModel):
+class ComparisonTable(BaseModel):
     id: str
     created_at: datetime
     updated_at: datetime
 
-class AppEvaluationEntryInput(BaseModel):
+class EvaluationRowInput(BaseModel):
     input_name: str
     input_value: str
 
-class AppEvaluationEntryOutput(BaseModel):
+class EvaluationRowOutput(BaseModel):
     variant_name: str
     variant_output: str
 
-class AppEvaluationEntry(BaseModel):
-    app_evaluations_experiment_id: str
-    inputs: List[AppEvaluationEntryInput]
-    outputs: List[AppEvaluationEntryOutput]
-    score: str
+class EvaluationRow(BaseModel):
+    comparison_table_id: str
+    inputs: List[EvaluationRowInput]
+    outputs: List[EvaluationRowOutput]
+    vote: str
     id: Optional[str]
 
-class AppEvaluationEntryUpdate(BaseModel):
-    score: str
+class EvaluationRowUpdate(BaseModel):
+    vote: str
 
