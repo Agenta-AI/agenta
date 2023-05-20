@@ -10,3 +10,5 @@ agenta-cli/tmp/
 agenta-cli/tests/
 
 examples/pitch_genius/config.toml
+examples/pitch_genius/agenta.py
+examples/pitch_genius/main.py
