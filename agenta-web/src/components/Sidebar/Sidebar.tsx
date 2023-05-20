@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { MailOutlined, AppstoreOutlined, ExperimentOutlined, FileTextOutlined, HddOutlined, CloudUploadOutlined, FundProjectionScreenOutlined } from '@ant-design/icons';
-import { Layout, Menu, Space, Switch } from 'antd';
+import { Layout, Menu, Space, Switch, theme } from 'antd';
 import { FireOutlined, AlignCenterOutlined } from '@ant-design/icons';
 import logoDarkMode from './logo-dark-small.png'
 import logoWhiteMode from './logo-light-small.png'
@@ -11,31 +11,34 @@ const { Sider } = Layout;
 
 const Sidebar: React.FC = () => {
   const router = useRouter();
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  // const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
-  const changeTheme = (value: boolean) => {
-    setTheme(value ? 'dark' : 'light');
-  };
+  // const changeTheme = (value: boolean) => {
+  //   setTheme(value ? 'dark' : 'light');
+  // };
 
   const navigate = (path: string) => {
     router.push(path);
   };
+  const {
+    token: { colorBgContainer },
+  } = theme.useToken();
 
   return (
-    <Sider theme={theme} width={200} style={{ paddingTop: '5px', paddingLeft: '10px', paddingRight: '10px' }}>
+    <Sider width={200} style={{ paddingTop: '5px', paddingLeft: '10px', paddingRight: '10px', background: colorBgContainer }}>
       <div style={{
         padding: 10,
-        marginBottom: 80,
+        marginBottom: 10,
         marginTop: 25,
 
       }}>
-        <Image
+        {/* <Image
           src={theme == 'dark' ? logoDarkMode : logoWhiteMode}
           width={100}
           style={{ display: 'block', margin: '0 auto' }}
           alt="Picture of the author"
 
-        />
+        /> */}
       </div>
 
       <Menu
@@ -43,7 +46,6 @@ const Sidebar: React.FC = () => {
         defaultSelectedKeys={['1']}
         defaultOpenKeys={['sub1']}
         style={{ borderRight: 0 }}
-        theme={theme}
       >
         <Menu.Item key="1" icon={< ExperimentOutlined />} onClick={() => navigate('/playground')}>
           Playground
