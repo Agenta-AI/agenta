@@ -9,7 +9,7 @@ interface EvaluationTableProps {
   columnsCount: number;
   appVariants: AppVariant[];
   dataset?: any;
-  evaluationEnvironmentId?: string;
+  comparisonTableId?: string;
 }
 
 interface EvaluationTableRow {
@@ -20,17 +20,17 @@ interface EvaluationTableRow {
   };
   columnData0: string;
   columnData1: string;
-  score: string;
+  vote: string;
 }
 
-const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset, evaluationEnvironmentId }) => {
+const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset, comparisonTableId }) => {
   const [selectedAppVariants, setSelectedAppVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
   const [rows, setRows] = useState<EvaluationTableRow[]>(
     [{
       inputFields: { field1: '', field2: '' },
       columnData0: '',
       columnData1: '',
-      score: ''
+      vote: ''
     }
     ]);
 
@@ -39,7 +39,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
       inputFields: { field1: item.startup_name, field2: item.startup_idea },
       columnData0: '',
       columnData1: '',
-      score: ''
+      vote: ''
     })) : [];
     setRows([...initialRows, ...rows]);
   }, [dataset]);
@@ -62,12 +62,12 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     setRows(newRows);
   };
 
-  const handleScoreClick = (rowIndex: number, score: string) => {
-    const evaluation_run_id = rows[rowIndex].id;
+  const handleVoteClick = (rowIndex: number, vote: string) => {
+    const evaluation_row_id = rows[rowIndex].id;
     
-    if (evaluation_run_id) {
-      setRowValue(rowIndex, 'score', 'loading');
-      const data = { score: score };
+    if (evaluation_row_id) {
+      setRowValue(rowIndex, 'vote', 'loading');
+      const data = { vote: vote };
       const updateData = async (url = '', data = {}) => {
         const response = await fetch(url, {
           method: 'PUT',
@@ -84,9 +84,9 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
         return response.json();
       };
 
-      updateData(`http://localhost/api/app_evaluations/${evaluationEnvironmentId}/app_evaluation_entry/${evaluation_run_id}`, data)
+      updateData(`http://localhost/api/app_evaluations/${comparisonTableId}/evaluation_row/${evaluation_row_id}`, data)
         .then(data => {
-          setRowValue(rowIndex, 'score', score);
+          setRowValue(rowIndex, 'vote', vote);
         }).catch(err => {
           console.error(err);
         });
@@ -99,7 +99,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
       const outputVariantY = rows[rowIndex].columnData1;
 
       const data = {
-        "app_evaluations_experiment_id": evaluationEnvironmentId,
+        "comparison_table_id": comparisonTableId,
         "inputs": [
           { "input_name": "startupName", "input_value": startupName },
           { "input_name": "startupIdea", "input_value": startupIdea }
@@ -108,10 +108,10 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
           { "variant_name": appVariantX, "variant_output": outputVariantX },
           { "variant_name": appVariantY, "variant_output": outputVariantY }
         ],
-        "score": score
+        "vote": vote
       };
 
-      setRowValue(rowIndex, 'score', 'loading');
+      setRowValue(rowIndex, 'vote', 'loading');
 
       const postData = async (url = '', data = {}) => {
         const response = await fetch(url, {
@@ -129,9 +129,9 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
         return response.json();
       };
 
-      postData(`http://localhost/api/app_evaluations/${evaluationEnvironmentId}/app_evaluation_entry`, data)
+      postData(`http://localhost/api/app_evaluations/${comparisonTableId}/evaluation_row`, data)
         .then(data => {
-          setRowValue(rowIndex, 'score', data.score);
+          setRowValue(rowIndex, 'vote', data.vote);
           setRowValue(rowIndex, 'id', data.id);
         }).catch(err => {
           console.error(err);
@@ -264,24 +264,24 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
       width: 200,
       // fixed: 'right',
       render: (text: any, record: any, rowIndex: number) => (
-        <Spin spinning={rows[rowIndex].score === 'loading' ? true : false}>
+        <Spin spinning={rows[rowIndex].vote === 'loading' ? true : false}>
           <Space>
             <Button
-              type={rows[rowIndex].score === record.inputFields.field1 ? "primary" : "default"}
-              onClick={() => handleScoreClick(rowIndex, record.inputFields.field1)}
+              type={rows[rowIndex].vote === selectedAppVariants[0] ? "primary" : "default"}
+              onClick={() => handleVoteClick(rowIndex, selectedAppVariants[0])}
             >
-              Variant A
+              {`Variant: ${selectedAppVariants [0]}`}
             </Button>
             <Button
-              type={rows[rowIndex].score === record.inputFields.field2 ? "primary" : "default"}
-              onClick={() => handleScoreClick(rowIndex, record.inputFields.field2)}
+              type={rows[rowIndex].vote === selectedAppVariants[1] ? "primary" : "default"}
+              onClick={() => handleVoteClick(rowIndex, selectedAppVariants[1])}
             >
-              Variant B
+              {`Variant: ${selectedAppVariants [1]}`}
             </Button>
             <Button
-              type={rows[rowIndex].score === 'Flag' ? "primary" : "default"}
+              type={rows[rowIndex].vote === 'Flag' ? "primary" : "default"}
               danger
-              onClick={() => handleScoreClick(rowIndex, 'Flag')}
+              onClick={() => handleVoteClick(rowIndex, 'Flag')}
             >
               Both are bad
             </Button>
@@ -294,7 +294,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
   const addRow = () => {
     setRows([
       ...rows,
-      { inputFields: { field1: "", field2: "" }, columnData0: "", columnData1: "", score: '' },
+      { inputFields: { field1: "", field2: "" }, columnData0: "", columnData1: "", vote: '' },
     ]);
   };
 

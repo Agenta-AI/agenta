@@ -16,7 +16,7 @@ export default function Evaluations() {
   const [chatModeActivated, setChatModeActivated] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<string | []>("Select a Dataset");
   const [datasetContent, setDatasetContent] = useState<any[]>([]);
-  const [evaluationEnvironmentId, setEvaluationEnvironmentId] = useState("");
+  const [comparisonTableId, setComparisonTableId] = useState("");
   const [newEvaluationEnvironment, setNewEvaluationEnvironment] = useState(false);
   const [breadcrumbItems, setBreadcrumbItems] = useState<any[]>([
     { title: 'Home' },
@@ -84,7 +84,7 @@ export default function Evaluations() {
 
     postData('http://localhost/api/app_evaluations/')
       .then(data => {
-        setEvaluationEnvironmentId(data.id);
+        setComparisonTableId(data.id);
         setBreadcrumbItems(prevState => {
           const newState = [...prevState];
 
@@ -156,7 +156,7 @@ export default function Evaluations() {
           columnsCount={columnsCount}
           appVariants={appVariants}
           dataset={datasetContent}
-          evaluationEnvironmentId={evaluationEnvironmentId}
+          comparisonTableId={comparisonTableId}
         />}
 
       {chatModeActivated &&
