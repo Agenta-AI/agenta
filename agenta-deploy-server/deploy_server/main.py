@@ -1,6 +1,7 @@
 from fastapi import FastAPI
-from deploy_server.routers import app_variant
 from fastapi.middleware.cors import CORSMiddleware
+from deploy_server.routers import app_variant
+from deploy_server.routers import app_evaluation_router
 
 origins = [
     "http://localhost:3000",
@@ -9,7 +10,7 @@ origins = [
 # this is the prefix in which we are reverse proxying the api
 app = FastAPI()
 app.include_router(app_variant.router, prefix='/app_variant')
-
+app.include_router(app_evaluation_router.router, prefix='/app_evaluations')
 
 app.add_middleware(
     CORSMiddleware,
