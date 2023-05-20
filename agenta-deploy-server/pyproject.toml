@@ -14,6 +14,7 @@ docker = "^6.1.1"
 toml = "^0.10.2"
 uvicorn = "^0.22.0"
 sqlmodel = "^0.0.8"
+motor = "^3.1.2"
 
 
 [tool.poetry.group.dev.dependencies]

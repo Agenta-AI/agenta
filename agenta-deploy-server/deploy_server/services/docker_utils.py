@@ -2,7 +2,7 @@ from typing import List
 
 import docker
 from deploy_server.config import settings
-from deploy_server.models.api_models import AppVariant, Image, URI
+from deploy_server.models.api.api_models import AppVariant, Image, URI
 
 
 client = docker.from_env()

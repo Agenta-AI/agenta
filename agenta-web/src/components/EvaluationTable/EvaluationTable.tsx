@@ -2,31 +2,35 @@
 import { useState, useEffect } from 'react';
 import type { ColumnType } from 'antd/es/table';
 import { LikeOutlined, DislikeOutlined, DownOutlined, CaretRightOutlined } from '@ant-design/icons';
-import { Button, Dropdown, Input, Menu, Row, Space, Table } from 'antd';
+import { Button, Dropdown, Input, Menu, Row, Space, Spin, Table } from 'antd';
 import { AppVariant } from '@/models/AppVariant';
 
 interface EvaluationTableProps {
   columnsCount: number;
   appVariants: AppVariant[];
   dataset?: any;
+  evaluationEnvironmentId?: string;
 }
 
 interface EvaluationTableRow {
+  id?: number;
   inputFields: {
     field1: string;
     field2: string;
   };
   columnData0: string;
   columnData1: string;
+  score: string;
 }
 
-const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset }) => {
+const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset, evaluationEnvironmentId }) => {
   const [selectedAppVariants, setSelectedAppVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
   const [rows, setRows] = useState<EvaluationTableRow[]>(
     [{
       inputFields: { field1: '', field2: '' },
       columnData0: '',
-      columnData1: ''
+      columnData1: '',
+      score: ''
     }
     ]);
 
@@ -34,7 +38,8 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     const initialRows = dataset && dataset.length > 0 ? dataset.map((item: any) => ({
       inputFields: { field1: item.startup_name, field2: item.startup_idea },
       columnData0: '',
-      columnData1: ''
+      columnData1: '',
+      score: ''
     })) : [];
     setRows([...initialRows, ...rows]);
   }, [dataset]);
@@ -56,6 +61,84 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     newRows[rowIndex].inputFields[inputFieldKey] = e.target.value;
     setRows(newRows);
   };
+
+  const handleScoreClick = (rowIndex: number, score: string) => {
+    const evaluation_run_id = rows[rowIndex].id;
+    
+    if (evaluation_run_id) {
+      setRowValue(rowIndex, 'score', 'loading');
+      const data = { score: score };
+      const updateData = async (url = '', data = {}) => {
+        const response = await fetch(url, {
+          method: 'PUT',
+          cache: 'no-cache',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          redirect: 'follow',
+          referrerPolicy: 'no-referrer',
+          body: JSON.stringify(data)
+        });
+
+        return response.json();
+      };
+
+      updateData(`http://localhost/api/app_evaluations/${evaluationEnvironmentId}/app_evaluation_entry/${evaluation_run_id}`, data)
+        .then(data => {
+          setRowValue(rowIndex, 'score', score);
+        }).catch(err => {
+          console.error(err);
+        });
+    } else {
+      const startupName = rows[rowIndex].inputFields.field1;
+      const startupIdea = rows[rowIndex].inputFields.field2;
+      const appVariantX = selectedAppVariants[0];
+      const appVariantY = selectedAppVariants[1];
+      const outputVariantX = rows[rowIndex].columnData0;
+      const outputVariantY = rows[rowIndex].columnData1;
+
+      const data = {
+        "app_evaluations_experiment_id": evaluationEnvironmentId,
+        "inputs": [
+          { "input_name": "startupName", "input_value": startupName },
+          { "input_name": "startupIdea", "input_value": startupIdea }
+        ],
+        "outputs": [
+          { "variant_name": appVariantX, "variant_output": outputVariantX },
+          { "variant_name": appVariantY, "variant_output": outputVariantY }
+        ],
+        "score": score
+      };
+
+      setRowValue(rowIndex, 'score', 'loading');
+
+      const postData = async (url = '', data = {}) => {
+        const response = await fetch(url, {
+          method: 'POST',
+          cache: 'no-cache',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          redirect: 'follow',
+          referrerPolicy: 'no-referrer',
+          body: JSON.stringify(data)
+        });
+
+        return response.json();
+      };
+
+      postData(`http://localhost/api/app_evaluations/${evaluationEnvironmentId}/app_evaluation_entry`, data)
+        .then(data => {
+          setRowValue(rowIndex, 'score', data.score);
+          setRowValue(rowIndex, 'id', data.id);
+        }).catch(err => {
+          console.error(err);
+        });
+    }
+
+  }
 
   const runAllEvaluations = async () => {
     const promises: Promise<void>[] = [];
@@ -106,7 +189,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
 
   const setRowValue = (rowIndex: number, columnKey: keyof EvaluationTableRow, value: any) => {
     const newRows = [...rows];
-    newRows[rowIndex][columnKey] = value;
+    newRows[rowIndex][columnKey] = value as never;
     setRows(newRows);
   };
 
@@ -180,19 +263,38 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
       key: 'evaluate',
       width: 200,
       // fixed: 'right',
-      render: () => (
-        <Space>
-          <Button type="primary" ghost icon={<LikeOutlined />}>Good</Button>
-          <Button icon={<DislikeOutlined />}>Bad</Button>
-          <Button danger>Flag</Button>
-        </Space>)
+      render: (text: any, record: any, rowIndex: number) => (
+        <Spin spinning={rows[rowIndex].score === 'loading' ? true : false}>
+          <Space>
+            <Button
+              type={rows[rowIndex].score === record.inputFields.field1 ? "primary" : "default"}
+              onClick={() => handleScoreClick(rowIndex, record.inputFields.field1)}
+            >
+              Variant A
+            </Button>
+            <Button
+              type={rows[rowIndex].score === record.inputFields.field2 ? "primary" : "default"}
+              onClick={() => handleScoreClick(rowIndex, record.inputFields.field2)}
+            >
+              Variant B
+            </Button>
+            <Button
+              type={rows[rowIndex].score === 'Flag' ? "primary" : "default"}
+              danger
+              onClick={() => handleScoreClick(rowIndex, 'Flag')}
+            >
+              Both are bad
+            </Button>
+          </Space>
+        </Spin>
+      )
     }
   ];
 
   const addRow = () => {
     setRows([
       ...rows,
-      { inputFields: { field1: "", field2: "" }, columnData0: "", columnData1: "" },
+      { inputFields: { field1: "", field2: "" }, columnData0: "", columnData1: "", score: '' },
     ]);
   };
 

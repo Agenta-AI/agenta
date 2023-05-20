@@ -1,5 +1,5 @@
 from sqlmodel import Session, SQLModel, create_engine
-from deploy_server.models.api_models import AppVariant, Image
+from deploy_server.models.api.api_models import AppVariant, Image
 from deploy_server.models.db_models import AppVariantDB, ImageDB
 from deploy_server.models.converters import app_variant_db_to_pydantic, image_db_to_pydantic
 from typing import List

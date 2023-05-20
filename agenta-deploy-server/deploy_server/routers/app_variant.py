@@ -3,7 +3,7 @@ Does not deal with the instanciation of the images
 """
 from typing import List
 
-from deploy_server.models.api_models import AppVariant, Image, URI
+from deploy_server.models.api.api_models import AppVariant, Image, URI
 from deploy_server.services import docker_utils
 from deploy_server.services import db_manager
 from fastapi import APIRouter, HTTPException
