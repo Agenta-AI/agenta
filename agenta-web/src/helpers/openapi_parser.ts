@@ -31,7 +31,6 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
             });
         }
     });
-
     return parameters;
 };
 

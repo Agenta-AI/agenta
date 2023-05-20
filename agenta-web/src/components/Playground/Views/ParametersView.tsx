@@ -1,52 +1,73 @@
 import { useState } from 'react';
 import React from 'react';
-import { Tabs, Input, Select, Slider, Row, Col } from 'antd';
-const ParametersView: React.FC = () => {
-    const { TabPane } = Tabs;
-    const { Option } = Select;
+import { Parameter } from '@/helpers/openapi_parser';
+import { Input, Slider, Row, Col, InputNumber } from 'antd';
+
+interface Props {
+    params: Parameter[];
+    onParamsChange: (newParams: Parameter[]) => void;
+}
+
+const ParametersView: React.FC<Props> = ({ params, onParamsChange }) => {
     const [inputValue, setInputValue] = useState(1);
-    const onChange = (newValue: number) => {
+    const onChange = (param: Parameter, newValue: number) => {
         setInputValue(newValue);
+        handleParamChange(param.name, newValue)
     };
+    const handleParamChange = (name: string, newVal: any) => {
+        const newParams = params.map(param =>
+            param.name === name ? { ...param, default: newVal } : param);
+        onParamsChange(newParams);
+    }
+    console.log("parametersView", params);
 
     return (
         <Row gutter={16}>
             <Col span={12}>
-                <h3>Prompts</h3>
-                <Input.TextArea rows={5} defaultValue="please write a short linkedin message (2 SENTENCES MAX) to an investor pitchin the following startup:
-    startup name: {startup_name}
-    startup idea: {startup_idea}" />
+
+                {params.filter(param => (!param.input) && (param.type === 'string')).map((param, index) => (
+                    <div key={index}>
+                        <h3>{param.name}</h3>
+
+                        <Input.TextArea rows={5}
+                            defaultValue={param.default}
+                            onChange={e => handleParamChange(param.name, e.target.value)}
+                        />
+                    </div>
+                ))}
             </Col>
+
             <Col span={12}>
-                <h3>Parameters</h3>
-                {/* <h5>Mode</h5>
-                <Select defaultValue="complete" style={{ width: '100%', marginBottom: 16 }}>
-                    <Option value="complete">Complete</Option>
-                    <Option value="chat">Chat</Option>
-                </Select>
-                <h5>Model</h5>
-                <Select defaultValue="text-davinci-003" style={{ width: '100%', marginBottom: 16 }}>
-                    <Option value="text-davinci-003">text-davinci-003</Option>
-                    <Option value="text-curie-001">text-curie-001</Option>
-                </Select>
-                <h5>Processing Technique</h5>
-                <Select defaultValue="map-reduce" style={{ width: '100%', marginBottom: 16 }}>
-                    <Option value="map-reduce">map-reduce</Option>
-                    <Option value="stuffing">stuffing</Option>
-                </Select> */}
 
-                <h5>Temperature</h5>
-                <Slider
-                    min={0}
-                    max={1}
-                    efaultValue={0.9}
-                    onChange={onChange}
-                    value={typeof inputValue === 'number' ? inputValue : 0}
-                    step={0.01}
-                    style={{ marginBottom: 16 }}
-                />
-
+                {params.filter(param => (!param.input) && (param.type === 'number')).map((param, index) => (
+                    <div key={index}>
+                        <h3>{param.name}</h3>
+                        <Row>
+                            <Col span={12}>
+                                <Slider
+                                    min={0}
+                                    max={1}
+                                    value={typeof param.default === 'number' ? param.default : 0}
+                                    step={0.01}
+                                    onChange={value => onChange(param, value)}
+                                    style={{ marginBottom: 16 }}
+                                />
+                            </Col>
+                            <Col span={4}>
+                                <InputNumber
+                                    min={1}
+                                    max={20}
+                                    style={{ margin: '0 16px' }}
+                                    value={param.default}
+                                    onChange={(value) => onChange(param, value)}
+                                />
+                            </Col>
+                        </Row>
+                    </div>
+                ))}
             </Col>
+
+
         </Row>
     );
 };
