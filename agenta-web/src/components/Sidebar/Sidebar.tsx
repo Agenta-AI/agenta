@@ -2,20 +2,11 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { MailOutlined, AppstoreOutlined, ExperimentOutlined, FileTextOutlined, HddOutlined, CloudUploadOutlined, FundProjectionScreenOutlined } from '@ant-design/icons';
 import { Layout, Menu, Space, Switch, theme } from 'antd';
-import { FireOutlined, AlignCenterOutlined } from '@ant-design/icons';
-import logoDarkMode from './logo-dark-small.png'
-import logoWhiteMode from './logo-light-small.png'
-import Image from 'next/image';
 
 const { Sider } = Layout;
 
 const Sidebar: React.FC = () => {
   const router = useRouter();
-  // const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-
-  // const changeTheme = (value: boolean) => {
-  //   setTheme(value ? 'dark' : 'light');
-  // };
 
   const navigate = (path: string) => {
     router.push(path);
@@ -32,13 +23,6 @@ const Sidebar: React.FC = () => {
         marginTop: 25,
 
       }}>
-        {/* <Image
-          src={theme == 'dark' ? logoDarkMode : logoWhiteMode}
-          width={100}
-          style={{ display: 'block', margin: '0 auto' }}
-          alt="Picture of the author"
-
-        /> */}
       </div>
 
       <Menu

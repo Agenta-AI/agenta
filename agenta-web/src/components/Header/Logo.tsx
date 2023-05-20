@@ -19,10 +19,6 @@ const Logo: React.FC = () => {
                 }}>
                     Agenta
                 </div>
-                {/* <Image
-                    src={logoWhiteMode}
-                    width={60}
-                    alt="Picture of the author" /> */}
             </Link >
 
 
