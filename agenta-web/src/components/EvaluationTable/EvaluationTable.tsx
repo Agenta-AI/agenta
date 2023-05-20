@@ -45,11 +45,38 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
   }, [dataset]);
 
   const handleAppVariantsMenuClick = (columnIndex: number) => ({ key }: { key: string }) => {
-    setSelectedAppVariants(prevState => {
-      const newState = [...prevState];
-      newState[columnIndex] = key;
-      return newState;
-    });
+    const updateData = async (url = '', data = {}) => {
+      const response = await fetch(url, {
+        method: 'PUT',
+        cache: 'no-cache',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        redirect: 'follow',
+        referrerPolicy: 'no-referrer',
+        body: JSON.stringify(data)
+      });
+
+      return response.json();
+    };
+
+    const data = {
+       variants: [selectedAppVariants[0], selectedAppVariants[1] ]
+    };
+
+    data.variants[columnIndex] = key;
+
+    updateData(`http://localhost/api/app_evaluations/${comparisonTableId}`, data)
+      .then(data => {
+        setSelectedAppVariants(prevState => {
+          const newState = [...prevState];
+          newState[columnIndex] = key;
+          return newState;
+        });
+      }).catch(err => {
+        console.error(err);
+      });
   };
 
   const handleInputChange = (
