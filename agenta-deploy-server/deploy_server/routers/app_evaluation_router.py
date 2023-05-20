@@ -1,44 +1,44 @@
 from fastapi import HTTPException, APIRouter
-from deploy_server.models.api.app_evaluation_model import AppEvaluationEntry, AppEvaluationsExperiment, AppEvaluationEntryUpdate
-from deploy_server.services.db_mongo import app_evaluation_entries, app_evaluation_experiments
+from deploy_server.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate
+from deploy_server.services.db_mongo import comparison_tables, evaluation_rows
 from datetime import datetime
 from bson import ObjectId
 
 router = APIRouter()
 
-@router.post("/", response_model=AppEvaluationsExperiment)
-async def create_app_evaluation_experiment():
-  app_evaluation_experiment = dict()
-  app_evaluation_experiment["created_at"] = app_evaluation_experiment["updated_at"] = datetime.utcnow()
-  result = await app_evaluation_experiments.insert_one(app_evaluation_experiment)
+@router.post("/", response_model=ComparisonTable)
+async def create_comparison_table():
+  comparison_table = dict()
+  comparison_table["created_at"] = comparison_table["updated_at"] = datetime.utcnow()
+  result = await comparison_tables.insert_one(comparison_table)
   if result.acknowledged:
-    app_evaluation_experiment["id"] = str(result.inserted_id)
-    return app_evaluation_experiment
+    comparison_table["id"] = str(result.inserted_id)
+    return comparison_table
   else:
-    raise HTTPException(status_code=500, detail="Failed to create app_evaluation_entry")
+    raise HTTPException(status_code=500, detail="Failed to create evaluation_row")
 
-@router.post("/{app_evaluation_experiment_id}/app_evaluation_entry", response_model=AppEvaluationEntry)
-async def create_app_evaluation_entry(app_evaluation_entry: AppEvaluationEntry):
-  app_evaluation_entry_dict = app_evaluation_entry.dict()
-  app_evaluation_entry_dict.pop("id", None)
+@router.post("/{comparison_table_id}/evaluation_row", response_model=EvaluationRow)
+async def create_evaluation_row(evaluation_row: EvaluationRow):
+  evaluation_row_dict = evaluation_row.dict()
+  evaluation_row_dict.pop("id", None)
 
-  app_evaluation_entry_dict["created_at"] = app_evaluation_entry_dict["updated_at"] = datetime.utcnow()
-  result = await app_evaluation_entries.insert_one(app_evaluation_entry_dict)
+  evaluation_row_dict["created_at"] = evaluation_row_dict["updated_at"] = datetime.utcnow()
+  result = await evaluation_rows.insert_one(evaluation_row_dict)
   if result.acknowledged:
-    app_evaluation_entry_dict["id"] = str(result.inserted_id)
-    return app_evaluation_entry_dict
+    evaluation_row_dict["id"] = str(result.inserted_id)
+    return evaluation_row_dict
   else:
-    raise HTTPException(status_code=500, detail="Failed to create app_evaluation_entry")
+    raise HTTPException(status_code=500, detail="Failed to create evaluation_row")
 
-@router.put("/{app_evaluation_experiment_id}/app_evaluation_entry/{app_evaluation_entry_id}")
-async def update_app_evaluation_entry(app_evaluation_entry_id: str, app_evaluation_entry: AppEvaluationEntryUpdate):
-  app_evaluation_entry_dict = app_evaluation_entry.dict()
-  app_evaluation_entry_dict["updated_at"] = datetime.utcnow()
-  result = await app_evaluation_entries.update_one(
-        {'_id': ObjectId(app_evaluation_entry_id)},
-        {'$set': {'score': app_evaluation_entry_dict["score"]}}
+@router.put("/{comparison_table_id}/evaluation_row/{evaluation_row_id}")
+async def update_evaluation_row(evaluation_row_id: str, evaluation_row: EvaluationRowUpdate):
+  evaluation_row_dict = evaluation_row.dict()
+  evaluation_row_dict["updated_at"] = datetime.utcnow()
+  result = await evaluation_rows.update_one(
+        {'_id': ObjectId(evaluation_row_id)},
+        {'$set': {'vote': evaluation_row_dict["vote"]}}
     )
   if result.acknowledged:
-    return app_evaluation_entry_dict
+    return evaluation_row_dict
   else:
-    raise HTTPException(status_code=500, detail="Failed to create app_evaluation_entry")
+    raise HTTPException(status_code=500, detail="Failed to create evaluation_row")
