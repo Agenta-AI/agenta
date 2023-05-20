@@ -16,9 +16,6 @@ type HeaderProps = {
 };
 
 const { Header } = Layout;
-// const {
-//     token: { colorBgContainer },
-// } = theme.useToken();
 
 const AppHeader: React.FC<HeaderProps> = ({ user }) => {
     const resetProject = useResetProject();
@@ -50,20 +47,6 @@ const AppHeader: React.FC<HeaderProps> = ({ user }) => {
                         },
 
                     ]} />
-
-                    {/* <Breadcrumb.Item> /
-                            <Link href="/">
-                                projects
-                            </Link>
-                        </Breadcrumb.Item>
-                        {projectName !== 'projects' && (
-                            <Breadcrumb.Item> /pro
-                                <Link href={`/${projectName}`}>
-                            <a>{projectName}</a>
-                        </Link>
-                            </Breadcrumb.Item>
-                        )} */}
-                    {/* </Breadcrumb> */}
                 </Col>
                 <Col span={2} >
                     <div >

@@ -45,7 +45,7 @@ const ProjectSelector = () => {
                             width: 300, height: '250px', marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center'
                         }}>
                             {card === cards.length ? ( // display + in the last card
-                                <Button type="primary" onClick={showModal} style={{ height: '200px', width: '220px' }}>
+                                <Button type="default" onClick={showModal} style={{ height: '200px', width: '220px' }}>
                                     New project
                                 </Button>
                             ) : (
@@ -54,7 +54,7 @@ const ProjectSelector = () => {
                         </Card>
                     </Col>))}
             </Row>
-            <Modal title="Basic Modal" open={isModalOpen} onOk={handleOk} onCancel={handleCancel}>
+            <Modal title="Add new project" open={isModalOpen} onOk={handleOk} onCancel={handleCancel}>
                 <Input
                     placeholder="New project name"
                     value={newProject}
