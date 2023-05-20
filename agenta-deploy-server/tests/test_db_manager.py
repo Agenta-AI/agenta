@@ -1,5 +1,5 @@
 import pytest
-from deploy_server.models.api_models import AppVariant, Image
+from deploy_server.models.api.api_models import AppVariant, Image
 from random import choice
 from string import ascii_letters
 from deploy_server.services.db_manager import get_session, list_app_variants, add_app_variant, remove_app_variant, engine, get_image
