@@ -1,8 +1,10 @@
 from fastapi import HTTPException, APIRouter
-from deploy_server.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate
+from deploy_server.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, ComparisonTableUpdate
 from deploy_server.services.db_mongo import comparison_tables, evaluation_rows
 from datetime import datetime
 from bson import ObjectId
+from typing import List
+
 
 router = APIRouter()
 
@@ -14,6 +16,19 @@ async def create_comparison_table():
   if result.acknowledged:
     comparison_table["id"] = str(result.inserted_id)
     return comparison_table
+  else:
+    raise HTTPException(status_code=500, detail="Failed to create evaluation_row")
+
+@router.put("/{comparison_table_id}")
+async def update_comparison_table(comparison_table_id: str, comparison_table: ComparisonTableUpdate):
+  comparison_table_dict = comparison_table.dict()
+  comparison_table_dict["updated_at"] = datetime.utcnow()
+  result = await comparison_tables.update_one(
+        {'_id': ObjectId(comparison_table_id)},
+        {'$set': {'variants': comparison_table_dict["variants"]}}
+    )
+  if result.acknowledged:
+    return comparison_table_dict
   else:
     raise HTTPException(status_code=500, detail="Failed to create evaluation_row")
 
@@ -42,3 +57,39 @@ async def update_evaluation_row(evaluation_row_id: str, evaluation_row: Evaluati
     return evaluation_row_dict
   else:
     raise HTTPException(status_code=500, detail="Failed to create evaluation_row")
+
+@router.get("/", response_model=List[ComparisonTable])
+async def get_comparison_table_id():
+  cursor = comparison_tables.find().sort('created_at', -1)
+  items = await cursor.to_list(length=100)  # limit length to 100 for the example
+  for item in items:
+      item['id'] = str(item['_id'])
+  return items
+
+@router.get("/{comparison_table_id}/results")
+async def fetchResults(comparison_table_id: str):
+  print("fetchResults")
+  print(comparison_table_id)
+  document = await comparison_tables.find_one({"_id": ObjectId(comparison_table_id)})
+
+  results = {}
+  print(document["variants"])
+  
+  countFlag = await evaluation_rows.count_documents({
+    'vote': 'Flag',
+    'comparison_table_id' : comparison_table_id
+  })
+  results["flag"] = countFlag;
+
+  countAllComparisonTableEvaluationRows = await evaluation_rows.count_documents({
+    'comparison_table_id' : comparison_table_id
+  })
+  results["nbOfRows"] = countAllComparisonTableEvaluationRows
+
+  for item in document["variants"]:
+    countVariant = await evaluation_rows.count_documents({
+      'vote': item,
+      'comparison_table_id' : comparison_table_id
+    })
+    results[item] = countVariant
+  return {"results": results}
