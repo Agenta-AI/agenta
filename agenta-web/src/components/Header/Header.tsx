@@ -26,17 +26,17 @@ const AppHeader: React.FC<HeaderProps> = ({ user }) => {
     return (
         <Header style={{ background: '#ffffff' }} >
             <Row justify="space-between" align="middle">
-                <Col span={1}  >
+                <Col span={3}  >
                     <div >
                         <Logo />
                     </div>
 
                 </Col>
-                <Col span={12} style={{ textAlign: 'center' }}>
+                <Col span={18} style={{ textAlign: 'center' }}>
                     <Breadcrumb items={[
                         {
                             title: <Link href="/" onClick={resetProject}>
-                                /projects
+                                / projects
                             </Link>,
                         },
                         {
@@ -48,7 +48,7 @@ const AppHeader: React.FC<HeaderProps> = ({ user }) => {
 
                     ]} />
                 </Col>
-                <Col span={2} >
+                <Col span={3} >
                     <div >
                         <Row justify="space-between" align="middle">
                             <Col span={12} style={{ textAlign: 'center' }}>

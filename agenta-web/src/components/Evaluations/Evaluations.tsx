@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Button, Col, Dropdown, Menu, Row, Switch } from 'antd';
+import { Breadcrumb, Button, Col, Dropdown, Menu, Row, Spin, Switch } from 'antd';
 import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
@@ -16,10 +16,23 @@ export default function Evaluations() {
   const [chatModeActivated, setChatModeActivated] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<string | []>("Select a Dataset");
   const [datasetContent, setDatasetContent] = useState<any[]>([]);
+  const [comparisonTableId, setComparisonTableId] = useState("");
+  const [newEvaluationEnvironment, setNewEvaluationEnvironment] = useState(false);
+  const [breadcrumbItems, setBreadcrumbItems] = useState<any[]>([
+    { title: 'Home' },
+    { title: <a href="">Pitch Genius</a> },
+    { title: <a href="">Evaluations</a> }
+  ]);
 
   useEffect(() => {
     onLoadAppVariants();
   }, []);
+
+  useEffect(() => {
+    if(newEvaluationEnvironment){
+      setupNewEvaluationEnvironment();
+    }
+  }, [newEvaluationEnvironment]);
 
   const onLoadAppVariants = () => {
     setAppVariantsLoading(true);
@@ -44,11 +57,52 @@ export default function Evaluations() {
       });
   };
 
+  const createNewEvaluationEnvironment = () => {
+    setBreadcrumbItems(prevState => {
+      const newState = [...prevState];
+      newState.push({
+        title: <Spin size="small"/>,
+      });
+      return newState;
+    });
+    const postData = async (url = '', data = {}) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        cache: 'no-cache',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        redirect: 'follow',
+        referrerPolicy: 'no-referrer',
+        body: JSON.stringify(data)
+      });
+
+      return response.json();
+    };
+
+    postData('http://localhost/api/app_evaluations/')
+      .then(data => {
+        setComparisonTableId(data.id);
+        setBreadcrumbItems(prevState => {
+          const newState = [...prevState];
+
+          newState[newState.length - 1] = ({
+            title: <a href="#">{data.id}</a>,
+          });
+          return newState;
+        });
+      }).catch(err => {
+        console.error(err);
+      });
+  };
+
   const onSwitchToChatMode = (checked: boolean) => {
     setChatModeActivated(checked);
   };
 
-  const handleDatasetMenuClick = (menuInfo: MenuInfo) => {
+  const setupNewEvaluationEnvironment = () => {
+    createNewEvaluationEnvironment();
     setDatasetContent(dataset);
   };
 
@@ -62,10 +116,10 @@ export default function Evaluations() {
     {
       name: 'Dataset 3',
     }
-  ]
+  ];
 
   const menu = (
-    <Menu onClick={(e) => handleDatasetMenuClick(e)}>
+    <Menu onClick={() => setNewEvaluationEnvironment(true)}>
       {dataSets.map((dataSet, index) =>
         <Menu.Item key={dataSet.name}>
           {dataSet.name}
@@ -77,7 +131,7 @@ export default function Evaluations() {
   return (
     <div>
       <h1 className="text-2xl font-semibold pb-10">Evaluations</h1>
-
+      <Breadcrumb items={breadcrumbItems} />
       <Row justify="space-between" style={{ marginTop: 20, marginBottom: 20 }}>
         <Col>
           <Dropdown overlay={menu} placement="bottomRight">
@@ -101,6 +155,7 @@ export default function Evaluations() {
           columnsCount={columnsCount}
           appVariants={appVariants}
           dataset={datasetContent}
+          comparisonTableId={comparisonTableId}
         />}
 
       {chatModeActivated &&
