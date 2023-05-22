@@ -16,9 +16,3 @@ class AppVariantDB(SQLModel, table=True):
     app_name: str = Field(...)
     variant_name: str = Field(...)
     image_id: int = Field(foreign_key="imagedb.id")
-
-
-class App(SQLModel, table=True):
-    """Defines an app / project """
-    id: int = Field(default=None, primary_key=True)
-    app_name: str = Field(...)
