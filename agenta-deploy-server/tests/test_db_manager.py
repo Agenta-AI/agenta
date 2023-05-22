@@ -1,8 +1,8 @@
 import pytest
-from deploy_server.models.api.api_models import AppVariant, Image
+from deploy_server.models.api.api_models import AppVariant, Image, App
 from random import choice
 from string import ascii_letters
-from deploy_server.services.db_manager import get_session, list_app_variants, add_app_variant, remove_app_variant, engine, get_image
+from deploy_server.services.db_manager import get_session, list_app_variants, add_app_variant, remove_app_variant, engine, get_image, list_app_names
 from sqlmodel import Session
 
 
@@ -43,7 +43,7 @@ def app_variant2():
 
 
 @pytest.fixture
-def image():
+def image() -> Image:
     return Image(docker_id=random_string(), tags=random_string())
 
 
@@ -119,3 +119,53 @@ def test_add_app_variant_with_image(app_variant, image):
                        variant_name=app_variant.variant_name))
     assert image.docker_id == image_.docker_id
     assert image.tags == image_.tags
+
+
+def test_filter_by_app_name(image: Image):
+    """Adds some app variants with two different apps and checks that list_app_variants
+    with the given app_name returns only the app variants with that app_name
+
+    Arguments:
+        image -- _description_
+    """
+    # Assuming you have a setUp function that clears the database before each test
+    app_name = 'test_app'
+    other_app_name = 'other_app'
+
+    # Generate some random app variants
+    for _ in range(5):
+        variant_name = ''.join(choice(ascii_letters) for _ in range(10))
+        add_app_variant(AppVariant(app_name=app_name, variant_name=variant_name), image)
+
+    # Generate some random app variants with a different app name
+    for _ in range(3):
+        variant_name = ''.join(choice(ascii_letters) for _ in range(10))
+        add_app_variant(AppVariant(app_name=other_app_name, variant_name=variant_name), image)
+
+    # Check that list_app_variants with the given app_name returns only the app variants with that app_name
+    app_variants = list_app_variants(app_name)
+    assert len(app_variants) == 5
+    for app_variant in app_variants:
+        assert app_variant.app_name == app_name
+
+
+def test_list_app_names(image):
+    # Assuming you have a setUp function that clears the database before each test
+    app_name1 = 'test_app'
+    app_name2 = 'other_app'
+
+    # Generate some random app variants
+    for _ in range(5):
+        variant_name = ''.join(choice(ascii_letters) for _ in range(10))
+        add_app_variant(AppVariant(app_name=app_name1, variant_name=variant_name), image)
+
+    # Generate some random app variants with a different app name
+    for _ in range(3):
+        variant_name = ''.join(choice(ascii_letters) for _ in range(10))
+        add_app_variant(AppVariant(app_name=app_name2, variant_name=variant_name), image)
+
+    # Check that list_app_names returns all unique app names
+    app_names = list_app_names()
+    assert len(app_names) == 2
+    assert App(app_name=app_name1) in app_names
+    assert App(app_name=app_name2) in app_names

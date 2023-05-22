@@ -1,6 +1,6 @@
 # Using this template
 
-Please make sure to create a `.env` file with your OpenAI API key before running the project.
+Please make sure to create a `.env` file with your OpenAI API key before running the app.
 OPENAI_API_KEY=sk-xxxxxxx
 
 ## Running
