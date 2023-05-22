@@ -28,10 +28,10 @@ const App: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <Layout >
-      <Header user={mockUser} />
       <Layout style={{ marginTop: '2px' }}>
         {router.pathname !== '/' && <Sidebar />}
         <Content style={{ margin: '0 2px' }}>
+        <Header user={mockUser} />
           <div style={{ padding: 20, background: colorBgContainer, minHeight: '95vh' }}>
             {children}
           </div>
