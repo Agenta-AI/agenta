@@ -25,6 +25,7 @@ services:
       - ./agenta-deploy-server/deploy_server:/app/deploy_server
       - ./agenta-deploy-server/tests:/app/tests
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./agenta-deploy-server/db:/db
     depends_on:
       - registry
     labels:
