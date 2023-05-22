@@ -1,0 +1,70 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Agenta AI",
+  "logo": {
+    "dark": "/logo/dark.png",
+    "light": "/logo/light.png"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#0069ED",
+    "light": "#4D9CFF",
+    "dark": "#0050B4"
+  },
+  "topbarLinks": [
+    {
+      "name": "Documentation",
+      "url": "https://docs.agenta.ai"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "https://github.com/agenta-ai/agenta"
+  },
+  "anchors": [
+    {
+      "name": "API Reference",
+      "icon": "rectangle-terminal",
+      "url": "api-reference"
+    },
+    {
+      "name": "Changelog",
+      "icon": "list",
+      "url": "https://agenta.ai"
+    },
+    {
+      "name": "Community",
+      "icon": "discord",
+      "url": "https://agenta.ai/blog"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Home",
+      "pages": [
+        "introduction",
+        "features"
+      ]
+    },
+    {
+      "group": "API Documentation",
+      "pages": [
+        "api-reference/authentication"
+      ]
+    },
+    {
+      "group": "Endpoint Examples",
+      "pages": [
+        "api-reference/endpoint/get",
+        "api-reference/endpoint/create",
+        "api-reference/endpoint/update",
+        "api-reference/endpoint/delete"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "twitter": "https://twitter.com/agenta_ai",
+    "github": "https://github.com/agenta-ai",
+    "linkedin": "https://www.linkedin.com/company/agenta_ai"
+  }
+}
