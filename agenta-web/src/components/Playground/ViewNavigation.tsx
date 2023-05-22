@@ -7,24 +7,12 @@ import LogsView from './Views/LogsView';
 import ParametersView from './Views/ParametersView';
 import { Parameter, parseOpenApiSchema } from '@/helpers/openapi_parser'
 import { set } from 'cypress/types/lodash';
-import useSWR, { Fetcher } from 'swr';
-
+import AppContext from '@/contexts/appContext';
 const { TabPane } = Tabs;
 const { Option } = Select;
 
-const fetcher: Fetcher<string> = (...args) => fetch(...args).then(res => res.json());
-
-function useParams() {
-
-    const { data, error, isLoading } = useSWR('http://localhost/pitch_genius/v0/openapi.json', fetcher)
-
-    return {
-        user: parseOpenApiSchema(data),
-        isLoading,
-        isError: error
-    }
-}
-const ViewNavigation: React.FC = () => {
+const ViewNavigation: React.FC<{ variant: { variant_name: string } }> = ({ variant }) => {
+    const { app } = React.useContext(AppContext);
     const [params, setParams] = useState<Parameter[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -33,10 +21,13 @@ const ViewNavigation: React.FC = () => {
         setParams(newParams);
         console.log(params)
     };
+    console.log("viewNavigation", variant);
     useEffect(() => {
         const fetchSchema = async () => {
             try {
-                const response = await fetch('http://localhost/pitch_genius/v1/openapi.json');
+                console.log(`http://localhost/${app}/${variant.variant_name}/openapi.json`);
+                const response = await fetch(`http://localhost/${app}/${variant.variant_name}/openapi.json`);
+
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -51,7 +42,7 @@ const ViewNavigation: React.FC = () => {
         };
 
         fetchSchema();
-    }, []);
+    }, [variant]);
     if (loading) {
         return <div>Loading...</div>;
     }
