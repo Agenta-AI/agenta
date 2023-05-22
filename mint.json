@@ -2,10 +2,10 @@
   "$schema": "https://mintlify.com/schema.json",
   "name": "Agenta AI",
   "logo": {
-    "dark": "/logo/dark.png",
-    "light": "/logo/light.png"
+    "dark": "docs/logo/dark.png",
+    "light": "docs/logo/light.png"
   },
-  "favicon": "/favicon.png",
+  "favicon": "docs/favicon.png",
   "colors": {
     "primary": "#0069ED",
     "light": "#4D9CFF",
@@ -36,23 +36,23 @@
     {
       "group": "Quickstart",
       "pages": [
-        "introduction",
-        "installation",
-        "getting-started"
+        "docs/introduction",
+        "docs/installation",
+        "docs/getting-started"
       ]
     },
     {
       "group": "Deploy Server API",
       "pages": [
-        "deploy-server-api/overview"
+        "docs/deploy-server-api/overview"
       ]
     },
     {
       "group": "Contribute",
       "pages": [
-        "contributing/technical_details",
-        "contributing/contributing_to_the_project",
-        "contributing/community"
+        "docs/contributing/technical_details",
+        "docs/contributing/contributing_to_the_project",
+        "docs/contributing/community"
       ]
     }
   ],
