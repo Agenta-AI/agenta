@@ -11,11 +11,9 @@ const BoxComponent: React.FC<Parameter[]> = ({ params }) => {
     console.log("params", params);
     const handleRun = async (params) => {
         setResults("Loading..");
-        console.log("as =", params);
         const urlParams = Object.entries(paramsDict).map(([key, val]) => `${key}=${encodeURIComponent(val)}`).join('&');
         const paramParams = params.filter(param => !param.input).map(param => `${param.name}=${encodeURIComponent(param.default)}`).join('&');
         const url = `http://localhost/pitch_genius/v1/generate?${urlParams}&${paramParams}`;
-        console.log(url);
         try {
             const response = await fetch(url, {
                 method: 'POST',
@@ -37,7 +35,6 @@ const BoxComponent: React.FC<Parameter[]> = ({ params }) => {
     };
 
     const canRun = Object.values(paramsDict).some(val => val === '');
-    console.log(canRun);
     return (
         <Card style={{ marginBottom: '5px', padding: '5px' }}>
             <Row gutter={2}>
