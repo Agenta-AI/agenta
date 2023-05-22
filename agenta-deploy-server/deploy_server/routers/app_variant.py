@@ -8,6 +8,7 @@ from deploy_server.services import docker_utils
 from deploy_server.services import db_manager
 from fastapi import APIRouter, HTTPException
 from deploy_server.config import settings
+from typing import Optional
 
 router = APIRouter()
 
@@ -15,9 +16,11 @@ router = APIRouter()
 
 
 @router.get("/list/", response_model=List[AppVariant])
-async def list_app_variants():
-    """Lists the app variants from our repository
+async def list_app_variants(app_name: Optional[str] = None):
+    """Lists the app variants from our repository.
 
+    Arguments:
+        app_name -- If specified, only returns the app variants for the specified app
     Raises:
         HTTPException: _description_
 
@@ -25,7 +28,7 @@ async def list_app_variants():
         List[AppVariant]
     """
     try:
-        app_variants = db_manager.list_app_variants()
+        app_variants = db_manager.list_app_variants(app_name=app_name)
         return app_variants
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

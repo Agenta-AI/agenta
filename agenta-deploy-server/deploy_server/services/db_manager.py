@@ -51,12 +51,18 @@ def add_app_variant(app_variant: AppVariant, image: Image):
         session.refresh(db_app_variant)
 
 
-def list_app_variants() -> List[AppVariant]:
+def list_app_variants(app_name: str = None) -> List[AppVariant]:
     """
     Lists all the app variants from the db"""
 
     with Session(engine) as session:
-        app_variants_db: List[AppVariantDB] = session.query(AppVariantDB).all()
+        query = session.query(AppVariantDB)
+        if app_name is not None:
+            query = query.filter(AppVariantDB.app_name == app_name)
+
+        app_variants_db: List[AppVariantDB] = query.all()
+
+        # Assuming app_variant_db_to_pydantic() function is defined somewhere else
         return [app_variant_db_to_pydantic(av) for av in app_variants_db]
 
 
