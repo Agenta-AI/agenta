@@ -14,3 +14,7 @@ class Image(BaseModel):
 
 class URI(BaseModel):
     uri: str
+
+
+class App(BaseModel):
+    app_name: str
