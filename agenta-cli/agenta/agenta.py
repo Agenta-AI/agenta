@@ -35,7 +35,7 @@ class FloatParam(float):
 
     @classmethod
     def __modify_schema__(cls, field_schema):
-        field_schema.update({"x-parameter": "text"})
+        field_schema.update({"x-parameter": "float"})
 
 
 def post(func: Callable[..., Any]):

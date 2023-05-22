@@ -2,31 +2,35 @@
 import { useState, useEffect } from 'react';
 import type { ColumnType } from 'antd/es/table';
 import { LikeOutlined, DislikeOutlined, DownOutlined, CaretRightOutlined } from '@ant-design/icons';
-import { Button, Dropdown, Input, Menu, Row, Space, Table } from 'antd';
+import { Button, Dropdown, Input, Menu, Row, Space, Spin, Table } from 'antd';
 import { AppVariant } from '@/models/AppVariant';
 
 interface EvaluationTableProps {
   columnsCount: number;
   appVariants: AppVariant[];
   dataset?: any;
+  comparisonTableId?: string;
 }
 
 interface EvaluationTableRow {
+  id?: number;
   inputFields: {
     field1: string;
     field2: string;
   };
   columnData0: string;
   columnData1: string;
+  vote: string;
 }
 
-const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset }) => {
+const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset, comparisonTableId }) => {
   const [selectedAppVariants, setSelectedAppVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
   const [rows, setRows] = useState<EvaluationTableRow[]>(
     [{
       inputFields: { field1: '', field2: '' },
       columnData0: '',
-      columnData1: ''
+      columnData1: '',
+      vote: ''
     }
     ]);
 
@@ -34,17 +38,45 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     const initialRows = dataset && dataset.length > 0 ? dataset.map((item: any) => ({
       inputFields: { field1: item.startup_name, field2: item.startup_idea },
       columnData0: '',
-      columnData1: ''
+      columnData1: '',
+      vote: ''
     })) : [];
     setRows([...initialRows, ...rows]);
   }, [dataset]);
 
   const handleAppVariantsMenuClick = (columnIndex: number) => ({ key }: { key: string }) => {
-    setSelectedAppVariants(prevState => {
-      const newState = [...prevState];
-      newState[columnIndex] = key;
-      return newState;
-    });
+    const updateData = async (url = '', data = {}) => {
+      const response = await fetch(url, {
+        method: 'PUT',
+        cache: 'no-cache',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        redirect: 'follow',
+        referrerPolicy: 'no-referrer',
+        body: JSON.stringify(data)
+      });
+
+      return response.json();
+    };
+
+    const data = {
+       variants: [selectedAppVariants[0], selectedAppVariants[1] ]
+    };
+
+    data.variants[columnIndex] = key;
+
+    updateData(`http://localhost/api/app_evaluations/${comparisonTableId}`, data)
+      .then(data => {
+        setSelectedAppVariants(prevState => {
+          const newState = [...prevState];
+          newState[columnIndex] = key;
+          return newState;
+        });
+      }).catch(err => {
+        console.error(err);
+      });
   };
 
   const handleInputChange = (
@@ -56,6 +88,84 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     newRows[rowIndex].inputFields[inputFieldKey] = e.target.value;
     setRows(newRows);
   };
+
+  const handleVoteClick = (rowIndex: number, vote: string) => {
+    const evaluation_row_id = rows[rowIndex].id;
+    
+    if (evaluation_row_id) {
+      setRowValue(rowIndex, 'vote', 'loading');
+      const data = { vote: vote };
+      const updateData = async (url = '', data = {}) => {
+        const response = await fetch(url, {
+          method: 'PUT',
+          cache: 'no-cache',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          redirect: 'follow',
+          referrerPolicy: 'no-referrer',
+          body: JSON.stringify(data)
+        });
+
+        return response.json();
+      };
+
+      updateData(`http://localhost/api/app_evaluations/${comparisonTableId}/evaluation_row/${evaluation_row_id}`, data)
+        .then(data => {
+          setRowValue(rowIndex, 'vote', vote);
+        }).catch(err => {
+          console.error(err);
+        });
+    } else {
+      const startupName = rows[rowIndex].inputFields.field1;
+      const startupIdea = rows[rowIndex].inputFields.field2;
+      const appVariantX = selectedAppVariants[0];
+      const appVariantY = selectedAppVariants[1];
+      const outputVariantX = rows[rowIndex].columnData0;
+      const outputVariantY = rows[rowIndex].columnData1;
+
+      const data = {
+        "comparison_table_id": comparisonTableId,
+        "inputs": [
+          { "input_name": "startupName", "input_value": startupName },
+          { "input_name": "startupIdea", "input_value": startupIdea }
+        ],
+        "outputs": [
+          { "variant_name": appVariantX, "variant_output": outputVariantX },
+          { "variant_name": appVariantY, "variant_output": outputVariantY }
+        ],
+        "vote": vote
+      };
+
+      setRowValue(rowIndex, 'vote', 'loading');
+
+      const postData = async (url = '', data = {}) => {
+        const response = await fetch(url, {
+          method: 'POST',
+          cache: 'no-cache',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          redirect: 'follow',
+          referrerPolicy: 'no-referrer',
+          body: JSON.stringify(data)
+        });
+
+        return response.json();
+      };
+
+      postData(`http://localhost/api/app_evaluations/${comparisonTableId}/evaluation_row`, data)
+        .then(data => {
+          setRowValue(rowIndex, 'vote', data.vote);
+          setRowValue(rowIndex, 'id', data.id);
+        }).catch(err => {
+          console.error(err);
+        });
+    }
+
+  }
 
   const runAllEvaluations = async () => {
     const promises: Promise<void>[] = [];
@@ -106,7 +216,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
 
   const setRowValue = (rowIndex: number, columnKey: keyof EvaluationTableRow, value: any) => {
     const newRows = [...rows];
-    newRows[rowIndex][columnKey] = value;
+    newRows[rowIndex][columnKey] = value as never;
     setRows(newRows);
   };
 
@@ -180,19 +290,38 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
       key: 'evaluate',
       width: 200,
       // fixed: 'right',
-      render: () => (
-        <Space>
-          <Button type="primary" ghost icon={<LikeOutlined />}>Good</Button>
-          <Button icon={<DislikeOutlined />}>Bad</Button>
-          <Button danger>Flag</Button>
-        </Space>)
+      render: (text: any, record: any, rowIndex: number) => (
+        <Spin spinning={rows[rowIndex].vote === 'loading' ? true : false}>
+          <Space>
+            <Button
+              type={rows[rowIndex].vote === selectedAppVariants[0] ? "primary" : "default"}
+              onClick={() => handleVoteClick(rowIndex, selectedAppVariants[0])}
+            >
+              {`Variant: ${selectedAppVariants [0]}`}
+            </Button>
+            <Button
+              type={rows[rowIndex].vote === selectedAppVariants[1] ? "primary" : "default"}
+              onClick={() => handleVoteClick(rowIndex, selectedAppVariants[1])}
+            >
+              {`Variant: ${selectedAppVariants [1]}`}
+            </Button>
+            <Button
+              type={rows[rowIndex].vote === 'Flag' ? "primary" : "default"}
+              danger
+              onClick={() => handleVoteClick(rowIndex, 'Flag')}
+            >
+              Both are bad
+            </Button>
+          </Space>
+        </Spin>
+      )
     }
   ];
 
   const addRow = () => {
     setRows([
       ...rows,
-      { inputFields: { field1: "", field2: "" }, columnData0: "", columnData1: "" },
+      { inputFields: { field1: "", field2: "" }, columnData0: "", columnData1: "", vote: '' },
     ]);
   };
 
