@@ -26,7 +26,7 @@ def build_and_upload_docker_image(folder: Path, variant_name: str) -> Image:
     """Builds an image from the folder and returns the path
 
     Arguments:
-        folder -- The folder containg the project code
+        folder -- The folder containg the app code
 
     Returns:
         The image object
@@ -38,14 +38,14 @@ def build_and_upload_docker_image(folder: Path, variant_name: str) -> Image:
     client = docker.from_env()
 
     with TemporaryDirectory() as temp_dir:
-        # Create a Dockerfile for the project
+        # Create a Dockerfile for the app
         # TODO: Later do this in the temp dir
         dockerfile_path = create_dockerfile(folder)
         shutil.copy(Path(__file__).parent.parent / "agenta.py", folder)
         shutil.copy(Path(__file__).parent /
                     "docker-assets" / "main.py", folder)
 
-        # Copy the project files to a temporary directory
+        # Copy the app files to a temporary directory
         shutil.copytree(folder, temp_dir, dirs_exist_ok=True)
 
         # Build the Docker image
