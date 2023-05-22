@@ -1,0 +1,53 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Agenta AI",
+  "logo": {
+    "dark": "/logo/dark.png",
+    "light": "/logo/light.png"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#0069ED",
+    "light": "#4D9CFF",
+    "dark": "#0050B4"
+  },
+  "topbarLinks": [
+    {
+      "name": "Documentation",
+      "url": "https://docs.agenta.ai"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "https://github.com/agenta-ai/agenta"
+  },
+  "anchors": [],
+  "navigation": [
+    {
+      "group": "Home",
+      "pages": [
+        "introduction",
+        "installation",
+        "getting-started"
+      ]
+    },
+    {
+      "group": "Deploy Server API",
+      "pages": [
+        "deploy-server-api/overview"
+      ]
+    },
+    {
+      "group": "Contribute",
+      "pages": [
+        "contributing/technical_details",
+        "contributing/contributing_to_the_project",
+        "contributing/community"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "twitter": "https://twitter.com/agenta_ai",
+    "github": "https://github.com/agenta-ai"
+  }
+}
