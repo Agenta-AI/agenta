@@ -1,3 +1,3 @@
 docker_registry_url="registry:5001"
 registry="agenta-server"
-database_url="sqlite:///deploy.db"
+database_url="sqlite:////db/deploy.db"
