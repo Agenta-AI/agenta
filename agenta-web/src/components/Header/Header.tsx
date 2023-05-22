@@ -7,65 +7,41 @@ import { useContext } from 'react';
 import ProjectContext from '@/contexts/projectContext';
 import useResetProject from '@/hooks/useResetProject';
 type User = {
-    name: string;
-    avatar: string;
+  name: string;
+  avatar: string;
 };
 
 type HeaderProps = {
-    user: User;
+  user: User;
 };
 
 const { Header } = Layout;
 
 const AppHeader: React.FC<HeaderProps> = ({ user }) => {
-    const resetProject = useResetProject();
-    // get the project name from the current route
-    const projectName = useContext(ProjectContext);
+  const resetProject = useResetProject();
+  // get the project name from the current route
+  const projectName = useContext(ProjectContext);
 
+  return (
+    <Header style={{ background: '#ffffff', }} >
+      <div style={{paddingTop: 30}}>
+        <Breadcrumb items={[
+          {
+            title: <Link href="/" onClick={resetProject}>
+              / projects
+            </Link>,
+          },
+          {
+            title: <Link href="/playground">
+              {projectName.project}
+            </Link>,
+            key: 'projectName',
+          },
 
-    return (
-        <Header style={{ background: '#ffffff' }} >
-            <Row justify="space-between" align="middle">
-                <Col span={3}  >
-                    <div >
-                        <Logo />
-                    </div>
-
-                </Col>
-                <Col span={18} style={{ textAlign: 'center' }}>
-                    <Breadcrumb items={[
-                        {
-                            title: <Link href="/" onClick={resetProject}>
-                                / projects
-                            </Link>,
-                        },
-                        {
-                            title: <Link href="/playground">
-                                {projectName.project}
-                            </Link>,
-                            key: 'projectName',
-                        },
-
-                    ]} />
-                </Col>
-                <Col span={3} >
-                    <div >
-                        <Row justify="space-between" align="middle">
-                            <Col span={12} style={{ textAlign: 'center' }}>
-                                {user.name}
-                            </Col>
-                            <Col span={12} style={{ textAlign: 'center' }}>
-                                <Avatar style={{ backgroundColor: 'blue', verticalAlign: 'middle' }} size="large" >
-                                    {user.name[0]}
-                                </Avatar>
-                            </Col>
-                        </Row>
-
-                    </div>
-                </Col>
-            </Row >
-        </Header >
-    );
+        ]} />
+      </div>
+    </Header >
+  );
 };
 
 export default AppHeader;
