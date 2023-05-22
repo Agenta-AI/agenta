@@ -4,7 +4,7 @@ import docker
 import pytest
 from fastapi.testclient import TestClient
 from deploy_server.main import app
-from deploy_server.models.api_models import AppVariant, Image
+from deploy_server.models.api.api_models import AppVariant, Image
 import io
 from random import choice
 from string import ascii_letters
