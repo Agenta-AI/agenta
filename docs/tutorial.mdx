@@ -1,0 +1,51 @@
+---
+title: Tutorial
+description: 'Welcome Agenta: The Open Source Platform to Streamline Your LLM-App Development.'
+---
+
+In this tutorial, we will walk you through deploying your first LLM app using Agenta.
+
+# Installation
+
+Before you start, make sure you have the Agenta SDK installed. If not, install it with pip:
+
+```bash
+pip install agenta
+```
+
+# Define your LLM App
+
+The first step is to define your LLM app. You can do this in a standard Python script.
+
+Here's an example:
+
+```python
+from agenta import post, TextParam, FloatParam
+
+@post
+def generate(startup_name: str, startup_idea: str, prompt: TextParam="Default prompt", temperature: FloatParam=0.5) -> str:
+    # Your LLM code here
+    ...
+```
+In this example, `startup_name` and `startup_idea` are required inputs, while `prompt` and `temperature` are optional parameters with default values. The types TextParam and FloatParam are used to indicate these are parameters rather than inputs, and they will be made available for tuning in the Agenta UI.
+
+# Deploy your App
+
+Once you've defined your app, you can deploy it as an API using Agenta's CLI tool.
+
+agenta deploy your_script.py
+
+
+# Playground for Parameter Tuning
+
+After deployment, your app will be accessible on the Agenta UI. You can interact with your app, experiment with different parameters, and fine-tune your app's behavior to get the results you want.
+
+Regression Testing and Version Evaluation
+
+Agenta provides regression testing tools and allows you to compare different versions of your app. You can use these features to ensure the quality of your application and to decide when to update the live version of your app.
+
+That's it! With Agenta, you can take your LLM app from idea to deployment in no time. Enjoy developing with Agenta!
+
+
+
+
