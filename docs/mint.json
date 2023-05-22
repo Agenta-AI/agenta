@@ -11,6 +11,10 @@
     "light": "#4D9CFF",
     "dark": "#0050B4"
   },
+  "feedback": {
+    "suggestEdit": true,
+    "raiseIssue": true
+  },
   "topbarLinks": [
     {
       "name": "Documentation",
@@ -30,7 +34,7 @@
   ],
   "navigation": [
     {
-      "group": "Home",
+      "group": "Quickstart",
       "pages": [
         "introduction",
         "installation",
