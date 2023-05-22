@@ -26,7 +26,7 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <Sider theme='light' style={{ paddingLeft: '10px', paddingRight: '10px', background: colorBgContainer }} width={250}>
+    <Sider theme='light' style={{ paddingLeft: '10px', paddingRight: '10px', background: colorBgContainer }} width={225}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ marginTop: '30px', marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
           <Logo />
@@ -81,7 +81,7 @@ const Sidebar: React.FC = () => {
                     VectorDB
                   </span>
                   <span>
-                    <Tag color="warning">soon</Tag>
+                    <Tag color="orange" bordered={false}>soon</Tag>
                   </span>
                 </Space>
               </div>
@@ -97,7 +97,7 @@ const Sidebar: React.FC = () => {
                     Deployment
                   </span>
                   <span>
-                    <Tag color="warning">soon</Tag>
+                    <Tag color="orange" bordered={false}>soon</Tag>
                   </span>
                 </Space>
               </div>
@@ -112,7 +112,7 @@ const Sidebar: React.FC = () => {
                     Monitoring
                   </span>
                   <span>
-                    <Tag color="warning">soon</Tag>
+                    <Tag color="orange" bordered={false}>soon</Tag>
                   </span>
                 </Space>
               </div>
