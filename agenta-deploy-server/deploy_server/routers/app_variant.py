@@ -3,7 +3,7 @@ Does not deal with the instanciation of the images
 """
 from typing import List
 
-from deploy_server.models.api.api_models import AppVariant, Image, URI
+from deploy_server.models.api.api_models import AppVariant, Image, URI, App
 from deploy_server.services import docker_utils
 from deploy_server.services import db_manager
 from fastapi import APIRouter, HTTPException
@@ -15,7 +15,8 @@ router = APIRouter()
 # Add route handlers for image-related operations
 
 
-@router.get("/list/", response_model=List[AppVariant])
+@router.get("/list/", response_model=List[AppVariant])  # deprecated
+@router.get("/list_variants/", response_model=List[AppVariant])
 async def list_app_variants(app_name: Optional[str] = None):
     """Lists the app variants from our repository.
 
@@ -30,6 +31,23 @@ async def list_app_variants(app_name: Optional[str] = None):
     try:
         app_variants = db_manager.list_app_variants(app_name=app_name)
         return app_variants
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/list_apps/", response_model=List[App])
+async def list_apps() -> List[App]:
+    """Lists the apps from our repository.
+
+    Raises:
+        HTTPException: _description_
+
+    Returns:
+        List[App]
+    """
+    try:
+        apps = db_manager.list_app_names()
+        return apps
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
