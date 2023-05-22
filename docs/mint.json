@@ -21,7 +21,13 @@
     "name": "Get Started",
     "url": "https://github.com/agenta-ai/agenta"
   },
-  "anchors": [],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/agenta-ai/agenta"
+    }
+  ],
   "navigation": [
     {
       "group": "Home",
