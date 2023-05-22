@@ -2,11 +2,11 @@
 import logoWhiteMode from '../../assets/logo-light-small.png'
 import Image from 'next/image';
 import Link from 'next/link';
-import useResetProject from '@/hooks/useResetProject';
+import useResetApp from '@/hooks/useResetApp';
 
 
 const Logo: React.FC = () => {
-  const resetProject = useResetProject();
+  const resetApp = useResetApp();
   return (
     <div style={{
       border: "1px solid black;",
@@ -14,7 +14,7 @@ const Logo: React.FC = () => {
       borderTopLeftRadius: 10,
       borderBottomRightRadius: 10
     }}>
-      <Link href="/" onClick={resetProject}>
+      <Link href="/" onClick={resetApp}>
         <div style={{
           color: '#000',
           textDecoration: 'none',

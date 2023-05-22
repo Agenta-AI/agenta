@@ -33,7 +33,7 @@ When a user runs agenta serve for the first time within an app, we instantiate t
 ### Web app
 Users can also create a new app via the web app. However, new apps in this context can only be created based on a template. This implies that the user won't have access to the app code but can only use the container. If the user requires access to the app code, they must initiate the process from the CLI.
 
-When a user starts a new app from the web app, they need to select a template. In this case, we instruct the backend to initiate a project from a template. The template is a Docker image located in some registry which the backend downloads, adds to the registry, initializes a new app, and subsequently launches it.
+When a user starts a new app from the web app, they need to select a template. In this case, we instruct the backend to initiate an app from a template. The template is a Docker image located in some registry which the backend downloads, adds to the registry, initializes a new app, and subsequently launches it.
 
 
 ## Creating a new variant
@@ -69,7 +69,7 @@ class AppVariantDB(SQLModel, table=True):
 
 
 class App(SQLModel, table=True):
-    """Defines an app / project """
+    """Defines an app """
     id: int = Field(default=None, primary_key=True)
     app_name: str = Field(...)
 ```
