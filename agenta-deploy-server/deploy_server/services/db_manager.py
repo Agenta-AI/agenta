@@ -1,5 +1,5 @@
 from sqlmodel import Session, SQLModel, create_engine
-from deploy_server.models.api.api_models import AppVariant, Image
+from deploy_server.models.api.api_models import AppVariant, Image, App
 from deploy_server.models.db_models import AppVariantDB, ImageDB
 from deploy_server.models.converters import app_variant_db_to_pydantic, image_db_to_pydantic
 from typing import List
@@ -51,13 +51,31 @@ def add_app_variant(app_variant: AppVariant, image: Image):
         session.refresh(db_app_variant)
 
 
-def list_app_variants() -> List[AppVariant]:
+def list_app_variants(app_name: str = None) -> List[AppVariant]:
     """
     Lists all the app variants from the db"""
 
     with Session(engine) as session:
-        app_variants_db: List[AppVariantDB] = session.query(AppVariantDB).all()
+        query = session.query(AppVariantDB)
+        if app_name is not None:
+            query = query.filter(AppVariantDB.app_name == app_name)
+
+        app_variants_db: List[AppVariantDB] = query.all()
+
+        # Assuming app_variant_db_to_pydantic() function is defined somewhere else
         return [app_variant_db_to_pydantic(av) for av in app_variants_db]
+
+
+def list_app_names() -> List[App]:
+    """
+    Lists all the unique app names from the database
+    """
+
+    with Session(engine) as session:
+        app_names = session.query(AppVariantDB.app_name).distinct().all()
+
+        # Unpack tuples to create a list of strings instead of a list of tuples
+        return [App(app_name=name) for (name,) in app_names]
 
 
 def get_image(app_variant: AppVariant) -> Image:
