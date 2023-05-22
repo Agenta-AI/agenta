@@ -21,7 +21,6 @@ const ViewNavigation: React.FC<{ variant: { variant_name: string } }> = ({ varia
         setParams(newParams);
         console.log(params)
     };
-    console.log("viewNavigation", variant);
     useEffect(() => {
         const fetchSchema = async () => {
             try {
@@ -46,11 +45,9 @@ const ViewNavigation: React.FC<{ variant: { variant_name: string } }> = ({ varia
     if (loading) {
         return <div>Loading...</div>;
     }
-
     if (error) {
         return <div>Error: {error.message}</div>;
     }
-    console.log(params)
 
     const onChange = (newValue: number) => {
         setInputValue(newValue);
