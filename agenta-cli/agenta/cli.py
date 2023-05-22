@@ -1,11 +1,13 @@
-import click
 import os
 import shutil
-import toml
+import sys
 from pathlib import Path
+
+import click
 import questionary
-from agenta.docker.docker_utils import build_and_upload_docker_image
+import toml
 from agenta.client import client
+from agenta.docker.docker_utils import build_and_upload_docker_image
 from docker.models.images import Image as DockerImage
 
 
@@ -15,12 +17,12 @@ def cli():
 
 
 @click.command(name='add-variant')
-@click.argument('project_folder', default='.')
+@click.argument('app_folder', default='.')
 @click.option('--variant_name', default='')
-def add_variant(variant_name: str, project_folder: str):
+def add_variant(variant_name: str, app_folder: str):
     """Add a new variant."""
-    project_path = Path(project_folder)
-    config_file = project_path / 'config.toml'
+    app_path = Path(app_folder)
+    config_file = app_path / 'config.toml'
     if not config_file.exists():
         click.echo("Please run agenta init first")
         return
@@ -44,7 +46,7 @@ def add_variant(variant_name: str, project_folder: str):
         toml.dump(config, config_file.open('w'))
 
     docker_image: DockerImage = build_and_upload_docker_image(
-        folder=project_path, variant_name=variant_name)
+        folder=app_path, variant_name=variant_name)
     client.add_variant_to_server(app_name, variant_name, docker_image)
     click.echo(f"Variant {variant_name} for App {app_name} added")
 
@@ -52,7 +54,7 @@ def add_variant(variant_name: str, project_folder: str):
 @click.command()
 @click.option('--app_name', default='')
 def init(app_name: str):
-    """Initialize a new Agenta project with the template files."""
+    """Initialize a new Agenta app with the template files."""
     if not app_name:
         app_name = questionary.text('Please enter the app name').ask()
 
@@ -62,8 +64,8 @@ def init(app_name: str):
 
     # Ask for init option
     init_option = questionary.select(
-        "How do you want to initialize your project?",
-        choices=['Blank Project', 'From Template']
+        "How do you want to initialize your app?",
+        choices=['Blank App', 'From Template']
     ).ask()
 
     # If the user selected the second option, show a list of available templates
@@ -87,15 +89,15 @@ def init(app_name: str):
         for file in chosen_template_dir.glob("*"):
             if file.name != 'template.toml':
                 shutil.copy(file, current_dir / file.name)
-    click.echo("Project initialized successfully")
+    click.echo("App initialized successfully")
 
 
 @click.command(name='start')
 @click.option('--variant_name', default=None)
 def start_variant_cli(variant_name: str):
     """Start a variant."""
-    project_path = Path('.')
-    config_file = project_path / 'config.toml'
+    app_path = Path('.')
+    config_file = app_path / 'config.toml'
     if not config_file.exists():
         click.echo("Please run agenta init first")
         return
