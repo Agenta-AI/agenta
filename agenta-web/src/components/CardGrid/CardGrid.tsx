@@ -22,7 +22,7 @@ const CardGrid = () => {
                                     +
                                 </Button>
                             ) : (
-                                <div>{`Project ${card}`}</div> // display project name
+                                <div>{`App ${card}`}</div> // display app name
                             )}
                         </Card>
                     </Col>))}
