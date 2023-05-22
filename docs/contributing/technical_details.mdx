@@ -47,6 +47,35 @@ Users can also create a new app variant by forking an existing one via the web U
 When a user formulates a new variant in the playground, it only virtually exists, with its parameters stored in the UI. The variant truly comes into existence only when the user saves the new variant. At this stage, the backend replicates the new variant and mounts a new volume to the image with the new default parameters.
 In this scenario, the SDK bypasses the code's default parameters and instead uses those within the mounted volume.
 
+# Database Schema
+
+Our current schema is rudementary:
+
+```python
+class ImageDB(SQLModel, table=True):
+    """Defines the info needed to get an image and connect it to the app variant
+    """
+    id: int = Field(default=None, primary_key=True)
+    docker_id: str = Field(...)
+    tags: str = Field(...)
+
+
+class AppVariantDB(SQLModel, table=True):
+    """Defines an app variant and connects to an image    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    app_name: str = Field(...)
+    variant_name: str = Field(...)
+    image_id: int = Field(foreign_key="imagedb.id")
+
+
+class App(SQLModel, table=True):
+    """Defines an app / project """
+    id: int = Field(default=None, primary_key=True)
+    app_name: str = Field(...)
+```
+
+The first time the user adds an app variant, we update the App table then the AppVariant table. Subsequently, we only update the AppVariant table.
+
 
 # Future Considerations:
 An alternative approach to implementing this is by modifying the image code to incorporate new elements as files. However, this would imply that the backend has access to the code.
