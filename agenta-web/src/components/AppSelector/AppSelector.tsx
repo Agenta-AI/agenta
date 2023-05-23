@@ -36,7 +36,6 @@ const AppSelector = () => {
     const { data, error, isLoading } = useSWR('http://localhost/api/app_variant/list_apps/', fetcher)
     if (error) return <div>failed to load</div>
     if (isLoading) return <div>loading...</div>
-    console.log(data)
 
 
     return (
