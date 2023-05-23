@@ -3,23 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, Modal, Input, Select, Space } from 'antd';
 import ViewNavigation from './ViewNavigation';
-import useSWR from 'swr';
 import { useRouter } from 'next/router';
 import AppContext from '@/contexts/appContext';
-
+import { listVariants } from '@/services/api';
 const { TabPane } = Tabs;
-
-const fetcher = (...args) => fetch(...args).then(res => res.json());
-
-function useParams(app_name: string) {
-    const { data, error } = useSWR(`http://localhost/api/app_variant/list_variants/?app_name=${app_name}`, fetcher)
-
-    return {
-        variants: data,
-        isLoading: !error && !data,
-        isError: error
-    }
-}
 
 function addTab(tabList, setTabList, setActiveKey, setVariantDict, newVariant) {
     const newKey = (tabList.length + 1).toString();
@@ -73,7 +60,7 @@ const VersionTabs: React.FC = () => {
         }
     }, []);
 
-    const { variants, isLoading, isError } = useParams(app);
+    const { variants, isLoading, isError } = listVariants(app);
     if (isError) return <div>failed to load</div>
     if (isLoading) return <div>loading...</div>
 
