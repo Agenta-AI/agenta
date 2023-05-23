@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from deploy_server.routers import app_variant
-from deploy_server.routers import app_evaluation_router
+from agenta_backend.routers import app_variant
+from agenta_backend.routers import app_evaluation_router
 
 origins = [
     "http://localhost:3000",
@@ -19,6 +19,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.on_event("startup")
 async def startup_event():

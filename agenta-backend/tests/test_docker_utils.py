@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import MagicMock, patch
 # replace with your actual module name
-from deploy_server.services.docker_utils import start_container, stop_container, delete_container, list_images
+from agenta_backend.services.docker_utils import start_container, stop_container, delete_container, list_images
 # replace with your actual module name
-from deploy_server.models.api_models import Image, Container
+from agenta_backend.models.api_models import Image, Container
 
 
 @pytest.fixture

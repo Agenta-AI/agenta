@@ -42,9 +42,9 @@
       ]
     },
     {
-      "group": "Deploy Server API",
+      "group": "Backend API",
       "pages": [
-        "docs/deploy-server-api/overview"
+        "docs/backend-api/overview"
       ]
     },
     {

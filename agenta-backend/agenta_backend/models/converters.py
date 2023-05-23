@@ -1,7 +1,7 @@
 """Converts db models to pydantic models
 """
-from deploy_server.models.db_models import AppVariantDB, ImageDB
-from deploy_server.models.api.api_models import AppVariant, Image
+from agenta_backend.models.db_models import AppVariantDB, ImageDB
+from agenta_backend.models.api.api_models import AppVariant, Image
 
 
 def app_variant_db_to_pydantic(app_variant_db: AppVariantDB) -> AppVariant:
