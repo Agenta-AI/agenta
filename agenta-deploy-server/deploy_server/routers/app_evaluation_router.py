@@ -130,28 +130,29 @@ async def fetch_results(comparison_table_id: str):
     Returns:
         _description_
     """
-    logging.debug("fetch_results")
-    logging.debug(comparison_table_id)
     document = await comparison_tables.find_one({"_id": ObjectId(comparison_table_id)})
-
     results = {}
-    logging.debug(document["variants"])
 
-    count_flag = await evaluation_rows.count_documents({
-        'vote': 'Flag',
+    variants = document.get("variants", [])
+    results["variants"] = variants
+    results["votes"] = []
+
+    flag_votes_nb = await evaluation_rows.count_documents({
+        'vote': 0,
         'comparison_table_id': comparison_table_id
     })
-    results["flag"] = count_flag
 
-    count_all_comparison_table_evaluation_rows = await evaluation_rows.count_documents({
+    results["votes"].append({"0" : flag_votes_nb});
+
+    comparison_table_rows_nb = await evaluation_rows.count_documents({
         'comparison_table_id': comparison_table_id
     })
-    results["nbOfRows"] = count_all_comparison_table_evaluation_rows
+    results["nb_of_rows"] = comparison_table_rows_nb
 
-    for item in document["variants"]:
-        count_variant: int = await evaluation_rows.count_documents({
+    for item in variants:
+        variant_votes_nb: int = await evaluation_rows.count_documents({
             'vote': item,
             'comparison_table_id': comparison_table_id
         })
-        results[item] = count_variant
+        results["votes"].append({item: variant_votes_nb})
     return {"results": results}
