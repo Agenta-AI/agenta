@@ -1,18 +1,25 @@
 
 import { useState, useEffect } from 'react';
 import { Table, Spin, Tag } from 'antd';
+import { ColumnsType } from 'antd/es/table';
+
 
 interface DataType {
   id: string;
-  variants: string;
-  results: any | null;
+  variants: [string];
+  results: null | { variants: string[]; votes: Array<Record<string, number>>; nb_of_rows: number };
   createdAt?: string;
 }
 
-interface ResponseItem {
+interface ResultsType {
   id: string;
   variants: [string];
+  votes: Array<Record<string, number>>;
   created_at: string;
+}
+
+interface Vote {
+  [key: string]: number;
 }
 
 const fetchData = async (url: string): Promise<any> => {
@@ -29,7 +36,7 @@ const Results: React.FC = () => {
   useEffect(() => {
     fetchData('http://localhost/api/app_evaluations')
       .then(responseData => {
-        const initialData: DataType[] = responseData.map((item: ResponseItem) => ({
+        const initialData: DataType[] = responseData.map((item: ResultsType) => ({
           id: item.id,
           createdAt: item.created_at,
           variants: item.variants,
@@ -38,11 +45,11 @@ const Results: React.FC = () => {
 
         setData(initialData);
         setLoading(false);
-        setStatsLoading(new Array(initialData.length).fill(true));
 
         initialData.forEach((item, index) => {
           fetchData(`http://localhost/api/app_evaluations/${item.id}/results`)
             .then(results => {
+
               setData(prevData => {
                 const newData = [...prevData];
                 newData[index].results = results.results;
@@ -63,7 +70,7 @@ const Results: React.FC = () => {
       });
   }, []);
 
-  const columns = [
+  const columns: ColumnsType<DataType> = [
     {
       title: 'ID',
       dataIndex: 'id',
@@ -78,17 +85,50 @@ const Results: React.FC = () => {
       title: 'Variants',
       dataIndex: 'variants',
       key: 'variants',
+      render: (_: any, record: DataType, index: number) => {
+        const variants = record.variants;
+        if (variants) {
+          return <>
+            {variants.map((variant, index) => (
+              <span style={{ marginRight: "5px" }} key={index}>{variant}</span>
+            ))}
+          </>
+        }
+        return null;
+
+      }
     },
     {
       title: 'Results',
       key: 'results',
-      render: (text: string, record: DataType, index: number) => (
-        statsLoading[index] ? <Spin /> : <div>
-          <Tag color="blue">v1: {record.results.v1}</Tag>
-          <Tag color="purple">v2: {record.results.v2}</Tag>
-          <Tag color="red">Flag: {record.results.flag}</Tag>
-        </div>
-      ),
+      render: (_: any, record: DataType, index: number) => {
+        if (statsLoading[index]) {
+          return <Spin />;
+        }
+        const results = record.results;
+
+        if (results && results.votes) {
+          const sortedVotes: Vote[] = [...results.votes].sort((a, b) => {
+            const keyA = Object.keys(a)[0];
+            const keyB = Object.keys(b)[0];
+
+            if (keyA === '0') return 1; // '0' should always come last
+            if (keyB === '0') return -1;
+
+            // Regular alphabetical sort for other keys
+            return keyA.localeCompare(keyB);
+          });
+
+          return sortedVotes.map((vote, i) => {
+            const [key, value] = Object.entries(vote)[0];
+            if (key === '0') {
+              return <Tag color="red" key={i}>Flag: {value}</Tag>
+            }
+            return <Tag color="green" key={i}>{key}: {value}</Tag>
+          });
+        }
+        return null;
+      },
     },
   ];
 
@@ -100,11 +140,13 @@ const Results: React.FC = () => {
         <Table
           columns={columns}
           dataSource={data}
+          loading={loading}
         />
       )}
     </div>
   );
-
+};
+export default Results;
 
 
 
@@ -234,7 +276,7 @@ const Results: React.FC = () => {
   //     }).catch(err => {
   //         console.error(err);
   //     });
-};
+
 
 // return (
 //     <div>
@@ -253,4 +295,3 @@ const Results: React.FC = () => {
 // );
 // };
 
-export default Results;
