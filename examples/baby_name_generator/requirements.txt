@@ -1,3 +1,2 @@
-langchain
 openai
-python-dotenv
+jinja2
