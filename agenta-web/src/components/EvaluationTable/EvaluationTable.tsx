@@ -4,8 +4,9 @@ import type { ColumnType } from 'antd/es/table';
 import { LikeOutlined, DislikeOutlined, DownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Row, Space, Spin, Table } from 'antd';
 import { AppVariant } from '@/models/AppVariant';
-import { runVariant } from '@/services/api';
+import { runVariant, fetchVariantParameters } from '@/services/api';
 import AppContext from '@/contexts/appContext';
+import { countBy } from 'cypress/types/lodash';
 interface EvaluationTableProps {
   columnsCount: number;
   appVariants: AppVariant[];
@@ -15,10 +16,7 @@ interface EvaluationTableProps {
 
 interface EvaluationTableRow {
   id?: number;
-  inputFields: {
-    field1: string;
-    field2: string;
-  };
+  inputFields: any;
   columnData0: string;
   columnData1: string;
   vote: string;
@@ -33,10 +31,28 @@ interface EvaluationTableRow {
  */
 const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset, comparisonTableId }) => {
   const { app } = useContext(AppContext);
+  const [variantInputs, setVariantInputs] = useState<string[]>([]);
   const [selectedAppVariants, setSelectedAppVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
+  //First let's get the variants parameters
+  useEffect(() => {
+    const fetchAndSetSchema = async () => {
+      try {
+        const variantParams = await fetchVariantParameters(app, appVariants[0].name);
+        const variantInputs = variantParams.filter(obj => obj.input).map(param => param.name);
+        setVariantInputs(variantInputs);
+      } catch (e) {
+        //pass
+
+      } finally {
+        //pass
+      }
+    };
+    fetchAndSetSchema();
+  }, [appVariants]);
+
   const [rows, setRows] = useState<EvaluationTableRow[]>(
     [{
-      inputFields: { field1: '', field2: '' },
+      inputFields: variantInputs.reduce((obj: any, value: string) => { obj[`${value}`] = ""; return obj; }, {}),
       columnData0: '',
       columnData1: '',
       vote: ''
@@ -45,11 +61,15 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
 
   useEffect(() => {
     const initialRows = dataset && dataset.length > 0 ? dataset.map((item: any) => ({
-      inputFields: { field1: item.startup_name, field2: item.startup_idea },
+      inputFields: variantInputs.reduce((obj: any, name: string) => {
+        obj[name] = item[name];
+        return obj;
+      }, {}),
       columnData0: '',
       columnData1: '',
       vote: ''
     })) : [];
+    console.log("initialRows", initialRows)
     setRows([...initialRows, ...rows]);
   }, [dataset]);
 
@@ -91,7 +111,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement>,
     rowIndex: number,
-    inputFieldKey: "field1" | "field2"
+    inputFieldKey: string
   ) => {
     const newRows = [...rows];
     newRows[rowIndex].inputFields[inputFieldKey] = e.target.value;
@@ -127,19 +147,15 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
           console.error(err);
         });
     } else {
-      const startupName = rows[rowIndex].inputFields.field1;
-      const startupIdea = rows[rowIndex].inputFields.field2;
+      const inputFields = rows[rowIndex].inputFields;
       const appVariantX = selectedAppVariants[0];
       const appVariantY = selectedAppVariants[1];
       const outputVariantX = rows[rowIndex].columnData0;
       const outputVariantY = rows[rowIndex].columnData1;
-
+      const inputs = Object.entries(inputFields).map(([input_name, input_value]) => ({ input_name, input_value }));
       const data = {
         "comparison_table_id": comparisonTableId,
-        "inputs": [
-          { "input_name": "startupName", "input_value": startupName },
-          { "input_name": "startupIdea", "input_value": startupIdea }
-        ],
+        "inputs": inputs,
         "outputs": [
           { "variant_name": appVariantX, "variant_output": outputVariantX },
           { "variant_name": appVariantY, "variant_output": outputVariantY }
@@ -189,23 +205,21 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
   };
 
   const runEvaluation = async (rowIndex: number) => {
-    const startupName = rows[rowIndex].inputFields.field1;
-    const startupIdea = rows[rowIndex].inputFields.field2;
+    const inputFields = rows[rowIndex].inputFields;
     const appVariantX = selectedAppVariants[0];
     const appVariantY = selectedAppVariants[1];
-
-    if (!startupName || !startupIdea) {
-      console.log(`Skipping evaluation for row ${rowIndex} due to empty startupName or startupIdea.`);
+    const hasEmptyFields = Object.values(inputFields).some(value => !value);
+    if (hasEmptyFields) {
+      console.log(`Skipping evaluation for row ${rowIndex} due to empty input fields.`);
       return;
     }
-
     setRowValue(rowIndex, 'columnData0', 'loading...');
     setRowValue(rowIndex, 'columnData1', 'loading...');
-    const requestX = runVariant(app, appVariantX, { startup_name: startupName, startup_idea: startupIdea })
+    const requestX = runVariant(app, appVariantX, inputFields)
       .then(data => setRowValue(rowIndex, 'columnData0', data))
       .catch(e => console.log(e));
 
-    const requestY = runVariant(app, appVariantY, { startup_name: startupName, startup_idea: startupIdea })
+    const requestY = runVariant(app, appVariantY, inputFields)
       .then(data => setRowValue(rowIndex, 'columnData1', data))
       .catch(e => console.log(e));
     await Promise.all([requestX, requestY]);
@@ -259,21 +273,16 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
       dataIndex: 'inputFields',
       render: (text: any, record: EvaluationTableRow, rowIndex: number) => (
         <div>
-          <div style={{ marginBottom: 10 }}>
-            <Input
-              placeholder="Startup name"
-              value={record.inputFields.field1}
-              onChange={(e) => handleInputChange(e, rowIndex, "field1")}
-            />
+          {variantInputs.map((input, index) => (
+            <div key={index} style={{ marginBottom: 10 }}>
+              <Input
+                placeholder={input}
+                value={record.inputFields.field1}
+                onChange={(e) => handleInputChange(e, rowIndex, `${input}`)}
+              />
 
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <Input
-              placeholder="Startup idea"
-              value={record.inputFields.field2}
-              onChange={(e) => handleInputChange(e, rowIndex, "field2")}
-            />
-          </div>
+            </div>
+          ))}
           <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
             <Button onClick={() => (runEvaluation(rowIndex))} icon={<CaretRightOutlined />} style={{ marginLeft: 10 }}>Run</Button>
           </div>
@@ -316,9 +325,10 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
   ];
 
   const addRow = () => {
+    let inputFields: any = variantInputs.reduce((obj: any, value: string) => { obj[`${value}`] = ""; return obj; }, {});
     setRows([
       ...rows,
-      { inputFields: { field1: "", field2: "" }, columnData0: "", columnData1: "", vote: '' },
+      { inputFields: inputFields, columnData0: "", columnData1: "", vote: '' },
     ]);
   };
 
