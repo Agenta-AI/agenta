@@ -67,15 +67,15 @@ const VersionTabs: React.FC = () => {
         }
     }, [app]);
 
+    useEffect(() => {
+        if (variants && Array.isArray(variants) && variants.length > 0) {
+            setActiveKey(variants[0].variant_name);
+        }
+    }, []);
 
     const { variants, isLoading, isError } = useParams(app);
     if (isError) return <div>failed to load</div>
     if (isLoading) return <div>loading...</div>
-    useEffect(() => {
-        if (variants.length > 0) {
-            setActiveKey(variants[0].variant_name);
-        }
-    }, [variants]);
 
     return (
         <div>
