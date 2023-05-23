@@ -11,16 +11,9 @@ from agenta.docker.docker_utils import build_and_upload_docker_image
 from docker.models.images import Image as DockerImage
 
 
-@click.group()
-def cli():
-    pass
-
-
-@click.command(name='add-variant')
-@click.argument('app_folder', default='.')
-@click.option('--variant_name', default='')
-def add_variant(variant_name: str, app_folder: str):
-    """Add a new variant."""
+def add_variant(variant_name: str, app_folder: str) -> str:
+    """Add a new variant.
+    Returns the name of the variant. (useful for serve)"""
     app_path = Path(app_folder)
     config_file = app_path / 'config.toml'
     if not config_file.exists():
@@ -49,6 +42,51 @@ def add_variant(variant_name: str, app_folder: str):
         folder=app_path, variant_name=variant_name)
     client.add_variant_to_server(app_name, variant_name, docker_image)
     click.echo(f"Variant {variant_name} for App {app_name} added")
+    return variant_name
+
+
+def start_variant(variant_name: str, app_folder: str):
+    app_folder = Path(app_folder)
+    config_file = app_folder / 'config.toml'
+    if not config_file.exists():
+        click.echo("Please run agenta init first")
+        return
+    else:
+        config = toml.load(config_file)
+        app_name = config['app-name']
+        if 'variants' not in config:
+            click.echo("No variants found. Please add a variant first.")
+            return
+
+    if not variant_name:
+        variant_name = questionary.select(
+            'Please choose a variant',
+            choices=config['variants']
+        ).ask()
+
+    endpoint = client.start_variant(app_name, variant_name)
+    click.echo(
+        f"Started variant {variant_name} for App {app_name}. Endpoint: {endpoint}")
+
+
+@click.group()
+def cli():
+    pass
+
+
+@click.command(name='serve')
+@click.argument('app_folder', default='.')
+def serve_cli(app_folder: str):
+    """Add a variant and start its container."""
+    variant_name = add_variant(variant_name='', app_folder=app_folder)
+    start_variant(variant_name=variant_name, app_folder=app_folder)
+
+
+@click.command(name='add-variant')
+@click.argument('app_folder', default='.')
+@click.option('--variant_name', default='')
+def add_variant_cli(variant_name: str, app_folder: str):
+    return add_variant(variant_name, app_folder)
 
 
 @click.command()
@@ -94,35 +132,17 @@ def init(app_name: str):
 
 @click.command(name='start')
 @click.option('--variant_name', default=None)
-def start_variant_cli(variant_name: str):
+@click.argument('app_folder', default=".")
+def start_variant_cli(variant_name: str, app_folder: str):
     """Start a variant."""
-    app_path = Path('.')
-    config_file = app_path / 'config.toml'
-    if not config_file.exists():
-        click.echo("Please run agenta init first")
-        return
-    else:
-        config = toml.load(config_file)
-        app_name = config['app-name']
-        if 'variants' not in config:
-            click.echo("No variants found. Please add a variant first.")
-            return
-
-    if not variant_name:
-        variant_name = questionary.select(
-            'Please choose a variant',
-            choices=config['variants']
-        ).ask()
-
-    endpoint = client.start_variant(app_name, variant_name)
-    click.echo(
-        f"Started variant {variant_name} for App {app_name}. Endpoint: {endpoint}")
+    start_variant(variant_name, app_folder)
 
 
 # Add the commands to the CLI group
-cli.add_command(add_variant)
+cli.add_command(add_variant_cli)
 cli.add_command(init)
 cli.add_command(start_variant_cli)
+cli.add_command(serve_cli)
 
 if __name__ == '__main__':
     cli()

@@ -19,7 +19,6 @@ const ParametersView: React.FC<Props> = ({ params, onParamsChange }) => {
             param.name === name ? { ...param, default: newVal } : param);
         onParamsChange(newParams);
     }
-    console.log("parametersView", params);
 
     return (
         <Row gutter={16}>
