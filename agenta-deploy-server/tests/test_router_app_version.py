@@ -63,7 +63,7 @@ def docker_test_image(docker_client):
 
 
 def test_list_app_variant():
-    response = client.get("/app_variant/list/")
+    response = client.get("/app_variant/list_variants/")
     assert response.status_code == 200
     assert response.json() == []
 
@@ -71,7 +71,7 @@ def test_list_app_variant():
 def test_list_app_variant_after_manual_add(app_variant, image):
     # This is the function from db_manager.py
     add_app_variant(app_variant, image)
-    response = client.get("/app_variant/list/")
+    response = client.get("/app_variant/list_variants/")
     assert response.status_code == 200
     assert len(response.json()) == 1
     result = AppVariant(**response.json()[0])
@@ -85,7 +85,7 @@ def test_add_variant(app_variant, docker_test_image):
     response = client.post(
         "app_variant/add/", json={"app_variant": app_variant.dict(), "image": image.dict()})
     assert response.status_code == 200
-    response = client.get("/app_variant/list/")
+    response = client.get("/app_variant/list_variants/")
     assert response.status_code == 200
     assert len(response.json()) == 1
     result = AppVariant(**response.json()[0])
