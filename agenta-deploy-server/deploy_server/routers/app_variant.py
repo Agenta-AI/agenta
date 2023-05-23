@@ -15,7 +15,6 @@ router = APIRouter()
 # Add route handlers for image-related operations
 
 
-@router.get("/list/", response_model=List[AppVariant])  # deprecated
 @router.get("/list_variants/", response_model=List[AppVariant])
 async def list_app_variants(app_name: Optional[str] = None):
     """Lists the app variants from our repository.
