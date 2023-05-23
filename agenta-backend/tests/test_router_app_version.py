@@ -1,13 +1,17 @@
-from sqlmodel import Session
-from deploy_server.services.db_manager import get_session, list_app_variants, add_app_variant, remove_app_variant, engine, get_image
-import docker
-import pytest
-from fastapi.testclient import TestClient
-from deploy_server.main import app
-from deploy_server.models.api.api_models import AppVariant, Image
 import io
 from random import choice
 from string import ascii_letters
+
+import docker
+import pytest
+from agenta_backend.main import app
+from agenta_backend.models.api.api_models import AppVariant, Image
+from agenta_backend.services.db_manager import (add_app_variant, engine,
+                                                get_image, get_session,
+                                                list_app_variants,
+                                                remove_app_variant)
+from fastapi.testclient import TestClient
+from sqlmodel import Session
 
 client = TestClient(app)
 

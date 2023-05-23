@@ -1,8 +1,8 @@
 from typing import List
 
 import docker
-from deploy_server.config import settings
-from deploy_server.models.api.api_models import AppVariant, Image, URI
+from agenta_backend.config import settings
+from agenta_backend.models.api.api_models import AppVariant, Image, URI
 
 
 client = docker.from_env()
@@ -20,7 +20,7 @@ ports = port_generator()
 
 def list_images() -> List[Image]:
     """Lists all the images from our repository
-    These are tagged with the registry name (config in both deploy_server and agenta-cli)
+    These are tagged with the registry name (config in both agenta_backend and agenta-cli)
 
     Returns:
         List[Image]

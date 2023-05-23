@@ -1,6 +1,6 @@
 from fastapi import HTTPException, APIRouter
-from deploy_server.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, ComparisonTableUpdate
-from deploy_server.services.db_mongo import comparison_tables, evaluation_rows
+from agenta_backend.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, ComparisonTableUpdate
+from agenta_backend.services.db_mongo import comparison_tables, evaluation_rows
 from datetime import datetime
 from bson import ObjectId
 from typing import List
@@ -142,7 +142,7 @@ async def fetch_results(comparison_table_id: str):
         'comparison_table_id': comparison_table_id
     })
 
-    results["votes"].append({"0" : flag_votes_nb});
+    results["votes"].append({"0": flag_votes_nb})
 
     comparison_table_rows_nb = await evaluation_rows.count_documents({
         'comparison_table_id': comparison_table_id
