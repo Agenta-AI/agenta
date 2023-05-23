@@ -5,33 +5,32 @@ import { Tabs, Input, Select, Slider, Row, Col, Button } from 'antd';
 import TestView from './Views/TestView';
 import LogsView from './Views/LogsView';
 import ParametersView from './Views/ParametersView';
-import { Parameter, parseOpenApiSchema } from '@/helpers/openapi_parser'
-import { set } from 'cypress/types/lodash';
+import { Parameter, parseOpenApiSchema } from '@/helpers/openapi_parser';
+import { fetchVariantParameters } from '@/services/api'; // Import fetchVariantParameters() from api.ts
 import AppContext from '@/contexts/appContext';
 const { TabPane } = Tabs;
 const { Option } = Select;
 
-const ViewNavigation: React.FC<{ variant: { variant_name: string } }> = ({ variant }) => {
+interface ViewNavigationProps {
+    variant: { variant_name: string };
+}
+
+const ViewNavigation: React.FC<ViewNavigationProps> = ({ variant }) => {
     const { app } = React.useContext(AppContext);
     const [params, setParams] = useState<Parameter[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [inputValue, setInputValue] = useState(1);
+
     const handlePramsChange = (newParams: Parameter[]) => {
         setParams(newParams);
         console.log(params)
     };
-    useEffect(() => {
-        const fetchSchema = async () => {
-            try {
-                console.log(`http://localhost/${app}/${variant.variant_name}/openapi.json`);
-                const response = await fetch(`http://localhost/${app}/${variant.variant_name}/openapi.json`);
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const schema = await response.json();
-                const initialParams = parseOpenApiSchema(schema);
+    useEffect(() => {
+        const fetchAndSetSchema = async () => {
+            try {
+                const initialParams = await fetchVariantParameters(app, variant.variant_name);
                 setParams(initialParams);
             } catch (e) {
                 setError(e);
@@ -40,8 +39,9 @@ const ViewNavigation: React.FC<{ variant: { variant_name: string } }> = ({ varia
             }
         };
 
-        fetchSchema();
+        fetchAndSetSchema();
     }, [variant]);
+
     if (loading) {
         return <div>Loading...</div>;
     }
@@ -49,17 +49,13 @@ const ViewNavigation: React.FC<{ variant: { variant_name: string } }> = ({ varia
         return <div>Error: {error.message}</div>;
     }
 
-    const onChange = (newValue: number) => {
-        setInputValue(newValue);
-    };
-
     return (
         <Tabs defaultActiveKey="1">
             <TabPane tab="Parameters" key="1">
                 <ParametersView params={params} onParamsChange={handlePramsChange} />
             </TabPane>
             <TabPane tab="Test" key="2">
-                <TestView params={params} />
+                <TestView params={params} variantName={variant.variant_name} />
             </TabPane>
             <TabPane tab="Logs" key="3">
                 <LogsView />
