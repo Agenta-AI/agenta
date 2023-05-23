@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "deploy_server"
+name = "agenta_backend"
 version = "0.1.0"
 description = ""
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
-packages = [{include = "deploy_server"}]
+packages = [{include = "agenta_backend"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
