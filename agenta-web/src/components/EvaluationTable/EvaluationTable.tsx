@@ -1,10 +1,11 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import type { ColumnType } from 'antd/es/table';
 import { LikeOutlined, DislikeOutlined, DownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Row, Space, Spin, Table } from 'antd';
 import { AppVariant } from '@/models/AppVariant';
-
+import { runVariant } from '@/services/api';
+import AppContext from '@/contexts/appContext';
 interface EvaluationTableProps {
   columnsCount: number;
   appVariants: AppVariant[];
@@ -22,8 +23,16 @@ interface EvaluationTableRow {
   columnData1: string;
   vote: string;
 }
-
+/**
+ * 
+ * @param columnsCount - Number of variants to compare face to face (per default 2)
+ * @param appVariants - List of all app variants available for comparison
+ * @param dataset -  The dataset selected for comparison
+ * @param comparisonTableId - The id of the comparison table, used to save in the eval
+ * @returns 
+ */
 const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset, comparisonTableId }) => {
+  const { app } = useContext(AppContext);
   const [selectedAppVariants, setSelectedAppVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
   const [rows, setRows] = useState<EvaluationTableRow[]>(
     [{
@@ -62,7 +71,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
     };
 
     const data = {
-       variants: [selectedAppVariants[0], selectedAppVariants[1] ]
+      variants: [selectedAppVariants[0], selectedAppVariants[1]]
     };
 
     data.variants[columnIndex] = key;
@@ -91,7 +100,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
 
   const handleVoteClick = (rowIndex: number, vote: string) => {
     const evaluation_row_id = rows[rowIndex].id;
-    
+
     if (evaluation_row_id) {
       setRowValue(rowIndex, 'vote', 'loading');
       const data = { vote: vote };
@@ -192,25 +201,13 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
 
     setRowValue(rowIndex, 'columnData0', 'loading...');
     setRowValue(rowIndex, 'columnData1', 'loading...');
-
-    const requestX = fetch(`http://localhost/pitch_genius/${appVariantX}/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }).then(res => res.json())
+    const requestX = runVariant(app, appVariantX, { startup_name: startupName, startup_idea: startupIdea })
       .then(data => setRowValue(rowIndex, 'columnData0', data))
       .catch(e => console.log(e));
 
-    const requestY = fetch(`http://localhost/pitch_genius/${appVariantY}/generate?startup_name=${startupName}&startup_idea=${startupIdea}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }).then(res => res.json())
+    const requestY = runVariant(app, appVariantY, { startup_name: startupName, startup_idea: startupIdea })
       .then(data => setRowValue(rowIndex, 'columnData1', data))
       .catch(e => console.log(e));
-
     await Promise.all([requestX, requestY]);
   }
 
@@ -297,13 +294,13 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
               type={rows[rowIndex].vote === selectedAppVariants[0] ? "primary" : "default"}
               onClick={() => handleVoteClick(rowIndex, selectedAppVariants[0])}
             >
-              {`Variant: ${selectedAppVariants [0]}`}
+              {`Variant: ${selectedAppVariants[0]}`}
             </Button>
             <Button
               type={rows[rowIndex].vote === selectedAppVariants[1] ? "primary" : "default"}
               onClick={() => handleVoteClick(rowIndex, selectedAppVariants[1])}
             >
-              {`Variant: ${selectedAppVariants [1]}`}
+              {`Variant: ${selectedAppVariants[1]}`}
             </Button>
             <Button
               type={rows[rowIndex].vote === 'Flag' ? "primary" : "default"}
