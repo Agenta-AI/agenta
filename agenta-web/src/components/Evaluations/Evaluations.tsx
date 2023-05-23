@@ -66,7 +66,7 @@ export default function Evaluations() {
   //   setAppVariantsLoading(true);
   //   // setColumnsCount(3);
 
-  //   fetch('http://localhost/api/app_variant/list/', {
+  //   fetch('http://localhost/api/app_variant/list_variants/', {
   //     headers: {
   //       "Content-Type": "application/json",
   //     }
