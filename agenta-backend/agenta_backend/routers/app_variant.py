@@ -3,11 +3,11 @@ Does not deal with the instanciation of the images
 """
 from typing import List
 
-from deploy_server.models.api.api_models import AppVariant, Image, URI, App
-from deploy_server.services import docker_utils
-from deploy_server.services import db_manager
+from agenta_backend.models.api.api_models import AppVariant, Image, URI, App
+from agenta_backend.services import docker_utils
+from agenta_backend.services import db_manager
 from fastapi import APIRouter, HTTPException
-from deploy_server.config import settings
+from agenta_backend.config import settings
 from typing import Optional
 
 router = APIRouter()
