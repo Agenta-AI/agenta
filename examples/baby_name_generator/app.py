@@ -1,20 +1,21 @@
-from agenta import post, TextParam, FloatParam
-from dotenv import load_dotenv
-# from langchain.chains import LLMChain
-# from langchain.llms import OpenAI
-# from langchain.prompts import PromptTemplate
+import os
 
-default_prompt = "Here are five cool names for a baby from this country {country} with this gender {gender}:"
+import openai
+from agenta import FloatParam, TextParam, post
+from jinja2 import Template
+
+default_prompt = "Give me five cool names for a baby from this country {{country}} with this gender {{gender}}"
 
 
 @post
-def completion(country: str, gender: str, temperature: FloatParam = 0.9, prompt_template: TextParam = default_prompt) -> str:
-    # llm = OpenAI(temperature=temperature)
-    # prompt = PromptTemplate(
-    #     input_variables=["country", "gender"],
-    #     template=prompt_template,
-    # )
-    # chain = LLMChain(llm=llm, prompt=prompt)
-    # output = chain.run(country=country, gender=gender)
+def generate(country: str, gender: str, temperature: FloatParam = 0.9, prompt_template: TextParam = default_prompt) -> str:
 
-    return "country"
+    template = Template(prompt_template)
+    prompt = template.render(country=country, gender=gender)
+
+    openai.api_key = os.environ.get("OPENAI_API_KEY")  # make sure to set this manually!
+    chat_completion = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
+
+    result = chat_completion.choices[0].message.content
+    return result
