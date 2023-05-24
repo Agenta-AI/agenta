@@ -10,7 +10,6 @@ from sqlmodel import Session, SQLModel, create_engine, func, and_
 # SQLite database connection
 DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_engine(DATABASE_URL)
-
 # Create tables if they don't exist
 SQLModel.metadata.create_all(engine)
 
