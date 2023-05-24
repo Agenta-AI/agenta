@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from deploy_server.routers import app_variant
 from deploy_server.routers import app_evaluation_router
+from deploy_server.routers import dataset_router
 
 origins = [
     "http://localhost:3000",
@@ -11,6 +12,7 @@ origins = [
 app = FastAPI()
 app.include_router(app_variant.router, prefix='/app_variant')
 app.include_router(app_evaluation_router.router, prefix='/app_evaluations')
+app.include_router(dataset_router.router, prefix='/datasets')
 
 app.add_middleware(
     CORSMiddleware,
