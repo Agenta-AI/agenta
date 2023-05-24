@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from deploy_server.main import app
+from agenta_backend.main import app
 
 
 @pytest.fixture(scope="session", autouse=True)

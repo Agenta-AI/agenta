@@ -13,6 +13,7 @@ fastapi = "^0.95.1"
 toml = "^0.10.2"
 questionary = "^1.10.0"
 ipdb = "^0.13.13"
+python-dotenv = "^1.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

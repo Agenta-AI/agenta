@@ -3,11 +3,11 @@ Does not deal with the instanciation of the images
 """
 from typing import List
 
-from deploy_server.models.api.api_models import AppVariant, Image, URI, App
-from deploy_server.services import docker_utils
-from deploy_server.services import db_manager
+from agenta_backend.models.api.api_models import AppVariant, Image, URI, App
+from agenta_backend.services import docker_utils
+from agenta_backend.services import db_manager
 from fastapi import APIRouter, HTTPException
-from deploy_server.config import settings
+from agenta_backend.config import settings
 from typing import Optional
 
 router = APIRouter()
@@ -15,7 +15,6 @@ router = APIRouter()
 # Add route handlers for image-related operations
 
 
-@router.get("/list/", response_model=List[AppVariant])  # deprecated
 @router.get("/list_variants/", response_model=List[AppVariant])
 async def list_app_variants(app_name: Optional[str] = None):
     """Lists the app variants from our repository.
