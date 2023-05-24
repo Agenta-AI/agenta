@@ -12,7 +12,6 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
     const parameters: Parameter[] = [];
 
     schema?.paths?.['/generate']?.post?.parameters.forEach((param: any) => {
-        console.log(param)
         if (param.schema['x-parameter']) {
             parameters.push({
                 name: param.name,

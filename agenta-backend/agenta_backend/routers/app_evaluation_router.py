@@ -138,7 +138,7 @@ async def fetch_results(comparison_table_id: str):
     results["votes"] = []
 
     flag_votes_nb = await evaluation_rows.count_documents({
-        'vote': 0,
+        'vote': '0',
         'comparison_table_id': comparison_table_id
     })
 
