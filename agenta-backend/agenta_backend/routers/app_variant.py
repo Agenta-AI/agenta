@@ -12,8 +12,6 @@ from typing import Optional
 
 router = APIRouter()
 
-# Add route handlers for image-related operations
-
 
 @router.get("/list_variants/", response_model=List[AppVariant])
 async def list_app_variants(app_name: Optional[str] = None):
