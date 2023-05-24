@@ -1,10 +1,11 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 class AppVariant(BaseModel):
     app_name: str
     variant_name: str
+    parameters: Optional[dict]
 
 
 class Image(BaseModel):
