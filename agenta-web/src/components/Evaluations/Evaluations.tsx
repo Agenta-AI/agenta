@@ -5,10 +5,8 @@ import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
 import AppContext from '@/contexts/appContext';
-import { listVariants } from '@/services/api';
+import { listVariants, loadDatasetsList } from '@/services/api';
 import { useRouter } from 'next/router';
-
-import dataset from './dataset-startup-ideas.json';
 
 export default function Evaluations() {
   const { app } = useContext(AppContext);
@@ -23,19 +21,19 @@ export default function Evaluations() {
   const [comparisonTableId, setComparisonTableId] = useState("");
   const [newEvaluationEnvironment, setNewEvaluationEnvironment] = useState(false);
 
+  const breadcrumbItems = [
+    { title: 'Home' },
+    { title: <a href="">{app}</a> },
+    { title: <a href="">Evaluations</a> }
+  ];
+
+  const { datasets, isDatasetsLoading, isDatasetsLoadingError } = loadDatasetsList();
 
   useEffect(() => {
     if (app == "") {
       router.push("/");
     }
   }, [app]);
-
-
-  const breadcrumbItems = [
-    { title: 'Home' },
-    { title: <a href="">{app}</a> },
-    { title: <a href="">Evaluations</a> }
-  ];
 
   useEffect(() => {
     if (variants && Array.isArray(variants) && variants.length > 0) {
@@ -44,16 +42,15 @@ export default function Evaluations() {
         name: item.variant_name,
         endpoint: item.variant_name
       }));
-
       setAppVariants(appVariantsFromResponse);
-
     }
-
   }, []);
 
   useEffect(() => {
-    loadDatasetsList();
-  }, []);
+    if (!isDatasetsLoadingError && datasets) {
+      setDatasetsList(datasets);
+    }
+  }, [datasets, isDatasetsLoadingError]);
 
   useEffect(() => {
     if (newEvaluationEnvironment) {
@@ -61,7 +58,6 @@ export default function Evaluations() {
       setNewEvaluationEnvironment(false);
     }
   }, [newEvaluationEnvironment]);
-
 
   const { variants, isLoading, isError } = listVariants(app);
   if (isError) return <div>failed to load list of variants</div>
@@ -126,19 +122,6 @@ export default function Evaluations() {
   const setupNewEvaluationEnvironment = () => {
     createNewEvaluationEnvironment();
     loadDataset()
-  };
-
-  const loadDatasetsList = () => {
-    fetch('http://localhost/api/datasets', {
-      headers: {
-        "Content-Type": "application/json",
-      }
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log(data)
-        setDatasetsList(data);
-      });
   };
 
   const loadDataset = () => {
