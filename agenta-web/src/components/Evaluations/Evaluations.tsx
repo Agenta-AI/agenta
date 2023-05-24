@@ -17,10 +17,12 @@ export default function Evaluations() {
   const [appVariants, setAppVariants] = useState<any[]>([]);
   const [columnsCount, setColumnsCount] = useState(2);
   const [chatModeActivated, setChatModeActivated] = useState(false);
-  const [selectedDataset, setSelectedDataset] = useState<string | []>("Select a Dataset");
+  const [selectedDataset, setSelectedDataset] = useState<{ _id?: string, name: string }>({ name: "Select a Dataset" });
   const [datasetContent, setDatasetContent] = useState<any[]>([]);
+  const [datasetsList, setDatasetsList] = useState<any[]>([]);
   const [comparisonTableId, setComparisonTableId] = useState("");
   const [newEvaluationEnvironment, setNewEvaluationEnvironment] = useState(false);
+
 
   useEffect(() => {
     if (app == "") {
@@ -28,11 +30,12 @@ export default function Evaluations() {
     }
   }, [app]);
 
-  const [breadcrumbItems, setBreadcrumbItems] = useState<any[]>([
+
+  const breadcrumbItems = [
     { title: 'Home' },
-    { title: <a href="">Pitch Genius</a> },
+    { title: <a href="">{app}</a> },
     { title: <a href="">Evaluations</a> }
-  ]);
+  ];
 
   useEffect(() => {
     if (variants && Array.isArray(variants) && variants.length > 0) {
@@ -45,11 +48,17 @@ export default function Evaluations() {
       setAppVariants(appVariantsFromResponse);
 
     }
+
+  }, []);
+
+  useEffect(() => {
+    loadDatasetsList();
   }, []);
 
   useEffect(() => {
     if (newEvaluationEnvironment) {
       setupNewEvaluationEnvironment();
+      setNewEvaluationEnvironment(false);
     }
   }, [newEvaluationEnvironment]);
 
@@ -86,13 +95,6 @@ export default function Evaluations() {
   // };
 
   const createNewEvaluationEnvironment = () => {
-    setBreadcrumbItems(prevState => {
-      const newState = [...prevState];
-      newState.push({
-        title: <Spin size="small" />,
-      });
-      return newState;
-    });
     const postData = async (url = '', data = {}) => {
       const response = await fetch(url, {
         method: 'POST',
@@ -112,14 +114,6 @@ export default function Evaluations() {
     postData('http://localhost/api/app_evaluations/')
       .then(data => {
         setComparisonTableId(data.id);
-        setBreadcrumbItems(prevState => {
-          const newState = [...prevState];
-
-          newState[newState.length - 1] = ({
-            title: <a href="#">{data.id}</a>,
-          });
-          return newState;
-        });
       }).catch(err => {
         console.error(err);
       });
@@ -131,25 +125,47 @@ export default function Evaluations() {
 
   const setupNewEvaluationEnvironment = () => {
     createNewEvaluationEnvironment();
-    setDatasetContent(dataset);
+    loadDataset()
   };
 
-  const dataSets = [
-    {
-      name: 'Dataset 1',
-    },
-    {
-      name: 'Dataset 2',
-    },
-    {
-      name: 'Dataset 3',
-    }
-  ];
+  const loadDatasetsList = () => {
+    fetch('http://localhost/api/datasets', {
+      headers: {
+        "Content-Type": "application/json",
+      }
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log(data)
+        setDatasetsList(data);
+      });
+  };
 
-  const menu = (
-    <Menu onClick={() => setNewEvaluationEnvironment(true)}>
-      {dataSets.map((dataSet, index) =>
-        <Menu.Item key={dataSet.name}>
+  const loadDataset = () => {
+    fetch(`http://localhost/api/datasets/${selectedDataset._id}`, {
+      headers: {
+        "Content-Type": "application/json",
+      }
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setDatasetContent(data.csvdata);
+      });
+  };
+
+  const updateData = (newData: object[]) => {
+    setDatasetContent(newData);
+  };
+
+  const onDatasetSelect = (selectedDatasetIndexInDatasetsList: number) => {
+    setSelectedDataset(datasetsList[selectedDatasetIndexInDatasetsList]);
+    setNewEvaluationEnvironment(true)
+  };
+
+  const datasetsMenu = (
+    <Menu>
+      {datasetsList.map((dataSet, index) =>
+        <Menu.Item key={dataSet.name} onClick={({ key }) => onDatasetSelect(index)}>
           {dataSet.name}
         </Menu.Item>
       )}
@@ -158,13 +174,12 @@ export default function Evaluations() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold pb-10">Evaluations</h1>
       <Breadcrumb items={breadcrumbItems} />
       <Row justify="space-between" style={{ marginTop: 20, marginBottom: 20 }}>
         <Col>
-          <Dropdown overlay={menu} placement="bottomRight">
+          <Dropdown overlay={datasetsMenu} placement="bottomRight">
             <Button style={{ marginRight: 10 }}>
-              {selectedDataset} <DownOutlined />
+              {selectedDataset.name} <DownOutlined />
             </Button>
           </Dropdown>
 

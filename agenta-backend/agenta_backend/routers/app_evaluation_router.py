@@ -31,7 +31,7 @@ async def create_comparison_table():
 
 @router.put("/{comparison_table_id}")
 async def update_comparison_table(comparison_table_id: str, comparison_table: ComparisonTableUpdate):
-    """Updates a comparison table 
+    """Updates a comparison table
 
     Arguments:
         comparison_table_id -- _description_
