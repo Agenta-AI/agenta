@@ -15,3 +15,6 @@ examples/pitch_genius/main.py
 agenta-backend/db/deploy.db
 
 .vscode
+examples/**/config.toml
+examples/**/agenta.py
+examples/**/main.py
