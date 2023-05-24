@@ -1,7 +1,7 @@
 from sqlmodel import Session, SQLModel, create_engine
-from deploy_server.models.api.api_models import AppVariant, Image, App
-from deploy_server.models.db_models import AppVariantDB, ImageDB
-from deploy_server.models.converters import app_variant_db_to_pydantic, image_db_to_pydantic
+from agenta_backend.models.api.api_models import AppVariant, Image, App
+from agenta_backend.models.db_models import AppVariantDB, ImageDB
+from agenta_backend.models.converters import app_variant_db_to_pydantic, image_db_to_pydantic
 from typing import List
 import os
 

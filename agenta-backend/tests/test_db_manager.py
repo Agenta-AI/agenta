@@ -1,8 +1,8 @@
 import pytest
-from deploy_server.models.api.api_models import AppVariant, Image, App
+from agenta_backend.models.api.api_models import AppVariant, Image, App
 from random import choice
 from string import ascii_letters
-from deploy_server.services.db_manager import get_session, list_app_variants, add_app_variant, remove_app_variant, engine, get_image, list_app_names
+from agenta_backend.services.db_manager import get_session, list_app_variants, add_app_variant, remove_app_variant, engine, get_image, list_app_names
 from sqlmodel import Session
 
 

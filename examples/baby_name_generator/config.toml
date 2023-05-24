@@ -1,0 +1,2 @@
+app-name = "baby_name_generator"
+variants = [ "v0", "v1",]

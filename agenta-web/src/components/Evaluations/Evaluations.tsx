@@ -1,61 +1,98 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { Breadcrumb, Button, Col, Dropdown, Menu, Row, Spin, Switch } from 'antd';
 import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
+import AppContext from '@/contexts/appContext';
+import { listVariants } from '@/services/api';
+import { useRouter } from 'next/router';
+
+import dataset from './dataset-startup-ideas.json';
 
 export default function Evaluations() {
-
+  const { app } = useContext(AppContext);
+  const router = useRouter();
   const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
   const [appVariants, setAppVariants] = useState<any[]>([]);
   const [columnsCount, setColumnsCount] = useState(2);
   const [chatModeActivated, setChatModeActivated] = useState(false);
-  const [selectedDataset, setSelectedDataset] = useState<{_id?: string, name: string}>({name:"Select a Dataset"});
+  const [selectedDataset, setSelectedDataset] = useState<{ _id?: string, name: string }>({ name: "Select a Dataset" });
   const [datasetContent, setDatasetContent] = useState<any[]>([]);
   const [datasetsList, setDatasetsList] = useState<any[]>([]);
   const [comparisonTableId, setComparisonTableId] = useState("");
   const [newEvaluationEnvironment, setNewEvaluationEnvironment] = useState(false);
+
+
+  useEffect(() => {
+    if (app == "") {
+      router.push("/");
+    }
+  }, [app]);
+
+
   const breadcrumbItems = [
     { title: 'Home' },
-    { title: <a href="">Pitch Genius</a> },
+    { title: <a href="">{app}</a> },
     { title: <a href="">Evaluations</a> }
   ];
 
   useEffect(() => {
-    onLoadAppVariants();
+    if (variants && Array.isArray(variants) && variants.length > 0) {
+      const appVariantsFromResponse = variants.map((item: any, index: number) => ({
+        id: index,
+        name: item.variant_name,
+        endpoint: item.variant_name
+      }));
+
+      setAppVariants(appVariantsFromResponse);
+
+    }
+
+  }, []);
+
+  useEffect(() => {
     loadDatasetsList();
   }, []);
 
   useEffect(() => {
-    if(newEvaluationEnvironment){
+    if (newEvaluationEnvironment) {
       setupNewEvaluationEnvironment();
       setNewEvaluationEnvironment(false);
     }
   }, [newEvaluationEnvironment]);
 
-  const onLoadAppVariants = () => {
-    setAppVariantsLoading(true);
-    // setColumnsCount(3);
 
-    fetch('http://localhost/api/app_variant/list/', {
-      headers: {
-        "Content-Type": "application/json",
-      }
-    })
-      .then((res) => res.json())
-      .then((data) => {
+  const { variants, isLoading, isError } = listVariants(app);
+  if (isError) return <div>failed to load list of variants</div>
+  if (isLoading) return <div>loading variants</div>
 
-        const appVariantsFromResponse = data.map((item: any, index: number) => ({
-          id: index,
-          name: item.variant_name,
-          endpoint: item.variant_name
-        }));
+  // useEffect(() => {
+  //   onLoadAppVariants();
+  // }, []);
 
-        setAppVariants(appVariantsFromResponse);
-        setAppVariantsLoading(false);
-      });
-  };
+  // const onLoadAppVariants = () => {
+  //   setAppVariantsLoading(true);
+  //   // setColumnsCount(3);
+
+  //   fetch('http://localhost/api/app_variant/list_variants/', {
+  //     headers: {
+  //       "Content-Type": "application/json",
+  //     }
+  //   })
+  //     .then((res) => res.json())
+  //     .then((data) => {
+
+  //       const appVariantsFromResponse = data.map((item: any, index: number) => ({
+  //         id: index,
+  //         name: item.variant_name,
+  //         endpoint: item.variant_name
+  //       }));
+
+  //       setAppVariants(appVariantsFromResponse);
+  //       setAppVariantsLoading(false);
+  //     });
+  // };
 
   const createNewEvaluationEnvironment = () => {
     const postData = async (url = '', data = {}) => {
@@ -146,7 +183,7 @@ export default function Evaluations() {
             </Button>
           </Dropdown>
 
-          <Button onClick={onLoadAppVariants} style={{ marginRight: 10 }}>Refresh App Variants</Button>
+          {/* <Button onClick={onLoadAppVariants} style={{ marginRight: 10 }}>Refresh App Variants</Button> */}
         </Col>
         <Col>
           <div>
