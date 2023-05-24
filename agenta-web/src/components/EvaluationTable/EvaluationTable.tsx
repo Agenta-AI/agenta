@@ -91,7 +91,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
 
   const handleVoteClick = (rowIndex: number, vote: string) => {
     const evaluation_row_id = rows[rowIndex].id;
-    
+
     if (evaluation_row_id) {
       setRowValue(rowIndex, 'vote', 'loading');
       const data = { vote: vote };
