@@ -11,12 +11,12 @@ RUN pip install --upgrade pip \
 COPY pyproject.toml poetry.lock* README.md sleep.py /app/
 
 # This is a hack to create a dummy module so that poetry install doesn't fail 
-RUN mkdir -p /app/deploy_server
-RUN touch /app/deploy_server/__init__.py
+RUN mkdir -p /app/agenta_backend
+RUN touch /app/agenta_backend/__init__.py
 
 # Project initialization:
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
 # remove dummy module
-RUN rm -r /app/deploy_server
+RUN rm -r /app/agenta_backend
 EXPOSE 8000
