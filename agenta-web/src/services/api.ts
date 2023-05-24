@@ -17,10 +17,10 @@ export function listVariants(app_name: string) {
 
 /**
  * This function runs a variant and returns the result. It calls the right api endpoint.
- * and take care of specifying the right parameters if needed. 
- * @param app_name 
- * @param variantName 
- * @param inputs 
+ * and take care of specifying the right parameters if needed.
+ * @param app_name
+ * @param variantName
+ * @param inputs
  * @returns - the result of the variant as a json object
  */
 export function runVariant(appName: string, variantName: string, inputs: any) {
@@ -35,9 +35,9 @@ export function runVariant(appName: string, variantName: string, inputs: any) {
 
 /**
  * Parses the openapi.json from a variant and returns the parameters as an array of objects.
- * @param app 
- * @param variantName 
- * @returns 
+ * @param app
+ * @param variantName
+ * @returns
  */
 export const fetchVariantParameters = async (app: string, variantName: string) => {
     try {
@@ -47,5 +47,18 @@ export const fetchVariantParameters = async (app: string, variantName: string) =
         return initialParams;
     } catch (error) {
         throw error;
+    }
+};
+
+/**
+ * Loads the list of datasets
+ * @returns
+ */
+export const loadDatasetsList = () => {
+    const { data, error } = useSWR(`${API_BASE_URL}/api/datasets`, fetcher)
+    return {
+        datasets: data,
+        isDatasetsLoading: !error && !data,
+        isDatasetsLoadingError: error
     }
 };
