@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Row, Col, Button, Input, Card, Space } from 'antd';
-import { runVariant, Parameter } from '@/services/api';
+import { callVariant, Parameter } from '@/services/api';
 import AppContext from '@/contexts/appContext';
 
 interface TestViewProps {
@@ -27,7 +27,8 @@ const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath
     const handleRun = async () => {
         setResults("Loading..");
         try {
-            // TODO: implement
+            const result = await callVariant(inputParamsDict, optParams, URIPath);
+            setResults(result);
         } catch (e) {
             console.error('Error:', e)
         }
