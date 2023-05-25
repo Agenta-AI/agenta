@@ -2,6 +2,7 @@ import useSWR from 'swr';
 import axios from 'axios';
 import { parseOpenApiSchema } from '@/helpers/openapi_parser';
 import { Variant } from '@/components/Playground/VersionTabs';
+import { param } from 'cypress/types/jquery';
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -100,6 +101,32 @@ export const getVariantParameters = async (app: string, variant: Variant) => {
     }
 };
 
+
+/**
+ * Saves a new variant to the database based on previous
+ */
+export async function saveNewVariant(appName: string, variant: Variant, parameters: Parameter[]) {
+    console.log(variant);
+    const appVariant = {
+        app_name: appName,
+        variant_name: variant.templateVariantName,
+    };
+    console.log(parameters.reduce((acc, param) => { return { ...acc, [param.name]: param.default } }, {}))
+    try {
+        const response = await axios.post(`${API_BASE_URL}/api/app_variant/add/from_previous/`, {
+            previous_app_variant: appVariant,
+            new_variant_name: variant.variantName,
+            parameters: parameters.reduce((acc, param) => { return { ...acc, [param.name]: param.default } }, {})
+        });
+
+        // You can use the response here if needed
+        console.log(response.data);
+    } catch (error) {
+        console.error(error);
+        // Handle error here
+        throw error;
+    }
+}
 /**
  * Loads the list of datasets
  * @returns
@@ -112,3 +139,4 @@ export const loadDatasetsList = () => {
         isDatasetsLoadingError: error
     }
 };
+
