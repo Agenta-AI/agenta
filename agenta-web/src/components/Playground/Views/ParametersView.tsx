@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import React from 'react';
-import { Parameter } from '@/helpers/openapi_parser';
+import { Parameter } from '@/lib/helpers/openapi_parser';
 import { Input, Slider, Row, Col, InputNumber } from 'antd';
 
 interface Props {

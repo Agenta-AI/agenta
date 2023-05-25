@@ -5,7 +5,7 @@ import { Tabs, Modal, Input, Select, Space } from 'antd';
 import ViewNavigation from './ViewNavigation';
 import { useRouter } from 'next/router';
 import AppContext from '@/contexts/appContext';
-import { listVariants } from '@/services/api';
+import { listVariants } from '@/lib/services/api';
 const { TabPane } = Tabs;
 
 function addTab(tabList, setTabList, setActiveKey, setVariantDict, newVariant) {
