@@ -42,6 +42,7 @@ export function useVariant(appName: string, variantName: string, sourceVariantNa
      * @param persist 
      */
     const saveOptParams = async (updatedOptParams: Parameter[], persist: boolean) => {
+        console.log(updatedOptParams);
         setIsLoading(true);
         setIsError(false);
         try {

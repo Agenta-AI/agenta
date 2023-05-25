@@ -44,6 +44,15 @@ export function runVariant(appName: string, variantName: string, inputs: any) {
     }).then(res => res.data);
 }
 
+export function callVariant(inputParamsDict: Record<string, string>, optParams: Parameter[], URIPath: string) {
+    const inputParams = Object.keys(inputParamsDict).map(key => `${key}=${encodeURIComponent(inputParamsDict[key])}`).join('&');
+    const OptParams = optParams.filter((param) => param.default).map(param => `${param.name}=${encodeURIComponent(param.default)}`).join('&');
+    return axios.post(`${API_BASE_URL}/${URIPath}/generate?${inputParams}&${OptParams}`, {
+        headers: {
+            'accept': 'application/json',
+        }
+    }).then(res => res.data);
+}
 /**
  * Parses the openapi.json from a variant and returns the parameters as an array of objects.
  * @param app
