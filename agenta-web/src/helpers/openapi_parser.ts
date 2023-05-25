@@ -1,13 +1,13 @@
 // parser.ts
-
-export interface Parameter {
-    name: string;
-    type: string;
-    input: boolean;
-    required: boolean;
-    default?: any;
-}
-
+import { Parameter } from '@/services/api';
+/**
+ * Returns a raw list of parameters from an openapi.json schema.
+ * This list of parameters includes both the inputs and the parameters
+ * The parameters are discovered from the openapi.json in that they have the
+ * x-parameter property set to the type of parameter
+ * @param schema 
+ * @returns Parameter[]
+ */
 export const parseOpenApiSchema = (schema: any): Parameter[] => {
     const parameters: Parameter[] = [];
 
