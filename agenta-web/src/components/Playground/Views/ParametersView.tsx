@@ -1,30 +1,28 @@
 import { useState } from 'react';
 import React from 'react';
-import { Parameter } from '@/helpers/openapi_parser';
+import { Parameter } from '@/services/api';
 import { Input, Slider, Row, Col, InputNumber } from 'antd';
 
 interface Props {
-    params: Parameter[];
-    onParamsChange: (newParams: Parameter[]) => void;
+    optParams: Parameter[] | null;  // The optional parameters
+    onOptParamsChange: (newOptParams: Parameter[], persist: boolean) => void;
 }
 
-const ParametersView: React.FC<Props> = ({ params, onParamsChange }) => {
+const ParametersView: React.FC<Props> = ({ optParams, onOptParamsChange }) => {
     const [inputValue, setInputValue] = useState(1);
     const onChange = (param: Parameter, newValue: number) => {
         setInputValue(newValue);
         handleParamChange(param.name, newValue)
     };
     const handleParamChange = (name: string, newVal: any) => {
-        const newParams = params.map(param =>
+        const newOptParams = optParams?.map(param =>
             param.name === name ? { ...param, default: newVal } : param);
-        onParamsChange(newParams);
+        newOptParams && onOptParamsChange(newOptParams, false)
     }
-
     return (
         <Row gutter={16}>
             <Col span={12}>
-
-                {params.filter(param => (!param.input) && (param.type === 'string')).map((param, index) => (
+                {optParams?.filter(param => (param.type === 'string')).map((param, index) => (
                     <div key={index}>
                         <h3>{param.name}</h3>
 
@@ -37,8 +35,7 @@ const ParametersView: React.FC<Props> = ({ params, onParamsChange }) => {
             </Col>
 
             <Col span={12}>
-
-                {params.filter(param => (!param.input) && (param.type === 'number')).map((param, index) => (
+                {optParams?.filter(param => (!param.input) && (param.type === 'number')).map((param, index) => (
                     <div key={index}>
                         <h3>{param.name}</h3>
                         <Row>
