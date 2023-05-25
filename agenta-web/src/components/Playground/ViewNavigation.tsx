@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tabs } from 'antd';
+import { Col, Tabs, Row } from 'antd';
 import TestView from './Views/TestView';
 import LogsView from './Views/LogsView';
 import ParametersView from './Views/ParametersView';
@@ -28,17 +28,18 @@ const ViewNavigation: React.FC<ViewNavigationProps> = ({ variant }) => {
     }
 
     return (
-        <Tabs defaultActiveKey="1">
-            <TabPane tab="Parameters" key="1">
-                <ParametersView optParams={optParams} onOptParamsChange={saveOptParams} />
-            </TabPane>
-            <TabPane tab="Test" key="2">
-                <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
-            </TabPane>
-            <TabPane tab="Logs" key="3">
-                <LogsView />
-            </TabPane>
-        </Tabs>
+        <>
+            <Row gutter={20} style={{ margin: 10 }}>
+                <Col span={12}>
+                    <ParametersView optParams={optParams} onOptParamsChange={saveOptParams} />
+                </Col>
+                {/* </Row>
+            <Row gutter={20} style={{ margin: 10, marginTop: 50 }}> */}
+                <Col span={12}>
+                    <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
+                </Col>
+            </Row >
+        </>
     );
 };
 
