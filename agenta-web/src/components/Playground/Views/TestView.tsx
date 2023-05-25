@@ -9,7 +9,6 @@ interface TestViewProps {
     optParams: Parameter[] | null;
 }
 const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath }) => {
-    const { app } = React.useContext(AppContext);
     const { TextArea } = Input;
     const [results, setResults] = useState('');
     if (!inputParams) {
