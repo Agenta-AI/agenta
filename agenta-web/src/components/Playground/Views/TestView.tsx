@@ -36,11 +36,12 @@ const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath
 
     return (
         <Card style={{ marginBottom: '5px', padding: '5px' }}>
+            <div style={{ marginBottom: '10px' }}><label >Test case</label></div>
             <Row gutter={2}>
                 <Col span={12} style={{ paddingRight: '10px' }}>
                     {Object.keys(inputParamsDict).map((key, index) => (
                         <div key={index}>
-                            <label>{key}</label>
+                            {/* <label>{key}</label> */}
                             <TextArea
                                 placeholder={key}
                                 style={{ width: '100%', marginTop: 10, marginBottom: 10 }}
