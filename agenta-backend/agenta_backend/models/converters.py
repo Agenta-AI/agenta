@@ -4,8 +4,8 @@ from agenta_backend.models.db_models import AppVariantDB, ImageDB
 from agenta_backend.models.api.api_models import AppVariant, Image
 
 
-def app_variant_db_to_pydantic(app_variant_db: AppVariantDB) -> AppVariant:
-    return AppVariant(app_name=app_variant_db.app_name, variant_name=app_variant_db.variant_name, parameters=app_variant_db.parameters)
+def app_variant_db_to_pydantic(app_variant_db: AppVariantDB, previous_variant_name: str = None) -> AppVariant:
+    return AppVariant(app_name=app_variant_db.app_name, variant_name=app_variant_db.variant_name, parameters=app_variant_db.parameters, previous_variant_name=previous_variant_name)
 
 
 def image_db_to_pydantic(image_db: ImageDB) -> Image:

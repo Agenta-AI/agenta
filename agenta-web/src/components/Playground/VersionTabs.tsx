@@ -14,6 +14,7 @@ export interface Variant {
     variantName: string;
     templateVariantName: string | null; // template name of the variant in case it has a precursor. Needed to compute the URI path
     persistent: boolean;  // whether the variant is persistent in the backend or not
+    parameters: Record<string, string> | null;  // parameters of the variant. Only set in the case of forked variants
 }
 
 function addTab(setActiveKey: any, setVariants: any, templateVariantName: string, newVariantName: string) {
@@ -67,15 +68,17 @@ const VersionTabs: React.FC = () => {
 
                 if (backendVariants.data && Array.isArray(backendVariants.data) && backendVariants.data.length > 0) {
                     console.log(backendVariants)
-                    const backendVariantsProcessed = backendVariants.data.map((variant: Record<string, string>) => {
-                        return {
+                    const backendVariantsProcessed = backendVariants.data.map((variant: Record<string, any>) => {
+                        let v: Variant = {
                             variantName: variant.variant_name,
-                            templateVariantName: null,
-                            persistent: true
+                            templateVariantName: variant.previous_variant_name,
+                            persistent: true,
+                            parameters: variant.parameters
                         }
+                        return v;
                     });
                     setVariants(backendVariantsProcessed);
-                    setActiveKey(backendVariantsProcessed[0].variant_name);
+                    setActiveKey(backendVariantsProcessed[0].variantName);
                 }
                 setIsLoading(false);
             } catch (error) {
