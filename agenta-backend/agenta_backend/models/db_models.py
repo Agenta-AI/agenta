@@ -1,5 +1,5 @@
-from sqlmodel import SQLModel, Field
-from typing import List, Optional
+from sqlmodel import SQLModel, Field, JSON, Column
+from typing import List, Optional, Dict
 
 
 class ImageDB(SQLModel, table=True):
@@ -11,8 +11,10 @@ class ImageDB(SQLModel, table=True):
 
 
 class AppVariantDB(SQLModel, table=True):
-    """Defines an app variant and connects to an image    """
     id: Optional[int] = Field(default=None, primary_key=True)
     app_name: str = Field(...)
     variant_name: str = Field(...)
     image_id: int = Field(foreign_key="imagedb.id")
+    parameters: Dict = Field(sa_column=Column(JSON))
+    previous_variant_id: Optional[int] = Field(default=None, foreign_key="appvariantdb.id")
+    version: int = Field(default=1)
