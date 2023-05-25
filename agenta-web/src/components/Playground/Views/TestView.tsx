@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Row, Col, Button, Input, Card, Space } from 'antd';
-import { Parameter } from '@/helpers/openapi_parser';
-import { runVariant } from '@/services/api';
+import { Parameter } from '@/lib/helpers/openapi_parser';
+import { runVariant } from '@/lib/services/api';
 import AppContext from '@/contexts/appContext';
 import { param } from 'cypress/types/jquery';
 

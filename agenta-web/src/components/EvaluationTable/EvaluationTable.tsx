@@ -3,8 +3,8 @@ import { useState, useEffect, useContext } from 'react';
 import type { ColumnType } from 'antd/es/table';
 import { DownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Row, Space, Spin, Table } from 'antd';
-import { AppVariant } from '@/models/AppVariant';
-import { runVariant, fetchVariantParameters } from '@/services/api';
+import { AppVariant } from '@/lib/Types';
+import { runVariant, fetchVariantParameters } from '@/lib/services/api';
 import AppContext from '@/contexts/appContext';
 
 interface EvaluationTableProps {
