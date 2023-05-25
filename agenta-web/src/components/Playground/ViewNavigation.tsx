@@ -5,15 +5,16 @@ import LogsView from './Views/LogsView';
 import ParametersView from './Views/ParametersView';
 import { useVariant } from '@/hooks/useVariant';
 import AppContext from '@/contexts/appContext';
+import { Variant } from './VersionTabs';
 const { TabPane } = Tabs;
 
 interface ViewNavigationProps {
-    variant: { variant_name: string };
+    variant: { variantName: string };
 }
 
-const ViewNavigation: React.FC<ViewNavigationProps> = ({ variant }) => {
+const ViewNavigation: React.FC<Variant> = ({ variant }) => {
     const { app } = React.useContext(AppContext);
-    const { inputParams, optParams, URIPath, isLoading, isError, error, saveOptParams } = useVariant(app, variant.variant_name);
+    const { inputParams, optParams, URIPath, isLoading, isError, error, saveOptParams } = useVariant(app, variant);
 
 
     if (isLoading) {
