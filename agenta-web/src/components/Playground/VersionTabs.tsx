@@ -1,7 +1,7 @@
 // VersionTabs.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Tabs, Modal, Input, Select, Space, Typography } from 'antd';
+import { Tabs, Modal, Input, Select, Space, Typography, message } from 'antd';
 import ViewNavigation from './ViewNavigation';
 import { useRouter } from 'next/router';
 import AppContext from '@/contexts/appContext';
@@ -17,12 +17,33 @@ export interface Variant {
     parameters: Record<string, string> | null;  // parameters of the variant. Only set in the case of forked variants
 }
 
-function addTab(setActiveKey: any, setVariants: any, templateVariantName: string, newVariantName: string) {
-    const newVariant = {
-        variantName: newVariantName,
-        templateVariantName: templateVariantName,
-        persistent: false
+function addTab(setActiveKey: any, setVariants: any, variants: Variant[], templateVariantName: string, newVariantName: string) {
+    // 1) Check if variant with the same name already exists
+    const existingVariant = variants.find(variant => variant.variantName === newVariantName);
+
+    if (existingVariant) {
+        message.error('A variant with this name already exists. Please choose a different name.');
+        return;
     }
+
+    // Find the template variant
+    const templateVariant = variants.find(variant => variant.variantName === templateVariantName);
+
+    // Check if the template variant exists
+    if (!templateVariant) {
+        message.error('Template variant not found. Please choose a valid variant.');
+        return;
+    }
+
+    const newTemplateVariantName = templateVariant.templateVariantName ? templateVariant.templateVariantName : templateVariantName;
+
+    const newVariant: Variant = {
+        variantName: newVariantName,
+        templateVariantName: newTemplateVariantName,
+        persistent: false,
+        parameters: templateVariant.parameters,
+    }
+
     setVariants(prevState => [...prevState, newVariant])
     setActiveKey(newVariantName);
 }
@@ -120,7 +141,7 @@ const VersionTabs: React.FC = () => {
                 visible={isModalOpen}
                 onOk={() => {
                     setIsModalOpen(false);
-                    addTab(setActiveKey, setVariants, templateVariantName, newVariantName);
+                    addTab(setActiveKey, setVariants, variants, templateVariantName, newVariantName);
                 }}
                 onCancel={() => setIsModalOpen(false)}
                 centered
