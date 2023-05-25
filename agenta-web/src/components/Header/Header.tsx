@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Logo from './Logo'; // create this component to display your logo
 import { useContext } from 'react';
 import appContext from '@/contexts/appContext';
-import useResetApp from '@/hooks/useResetApp';
+import useResetApp from '@/lib/hooks/useResetApp';
 type User = {
   name: string;
   avatar: string;

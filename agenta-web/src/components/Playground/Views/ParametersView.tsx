@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import React from 'react';
-import { Parameter } from '@/services/api';
+import { Parameter } from '@/lib/services/api';
 import { Input, Slider, Row, Col, InputNumber, Button, Tooltip } from 'antd';
 
 interface Props {

@@ -5,7 +5,7 @@ import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
 import AppContext from '@/contexts/appContext';
-import { listVariants, loadDatasetsList } from '@/services/api';
+import { listVariants, loadDatasetsList } from '@/lib/services/api';
 import { useRouter } from 'next/router';
 
 export default function Evaluations() {
@@ -114,9 +114,9 @@ export default function Evaluations() {
 
   const datasetsMenu = (
     <Menu>
-      {datasetsList.map((dataSet, index) =>
-        <Menu.Item key={dataSet.name} onClick={({ key }) => onDatasetSelect(index)}>
-          {dataSet.name}
+      {datasetsList.map((dataset, index) =>
+        <Menu.Item key={`${dataset.name}-${dataset._id}`} onClick={({ key }) => onDatasetSelect(index)}>
+          {dataset.name}
         </Menu.Item>
       )}
     </Menu>
