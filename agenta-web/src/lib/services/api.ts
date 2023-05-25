@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import axios from 'axios';
-import { parseOpenApiSchema } from '@/helpers/openapi_parser';
+import { parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
 
 const API_BASE_URL = "http://localhost";  // Replace this with your actual API base URL
 

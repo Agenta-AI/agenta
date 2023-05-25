@@ -2,7 +2,7 @@
 import logoWhiteMode from '../../assets/logo-light-small.png'
 import Image from 'next/image';
 import Link from 'next/link';
-import useResetApp from '@/hooks/useResetApp';
+import useResetApp from '@/lib/hooks/useResetApp';
 
 
 const Logo: React.FC = () => {

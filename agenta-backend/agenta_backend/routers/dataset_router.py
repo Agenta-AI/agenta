@@ -1,9 +1,9 @@
 import os
-from fastapi import HTTPException, APIRouter, UploadFile, File
+from fastapi import HTTPException, APIRouter, UploadFile, File, Form
 from agenta_backend.services.db_mongo import datasets
 from agenta_backend.models.api.dataset_model import DatasetModel, UploadResponse
-from agenta_backend.services.db_mongo import datasets
 from datetime import datetime
+from typing import Optional
 from bson import ObjectId
 import csv
 
@@ -13,12 +13,13 @@ router = APIRouter()
 
 
 @router.post('/upload', response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] = Form(None)):
     """
     Uploads a CSV file and saves its data to MongoDB.
 
     Args:
         file (UploadFile): The CSV file to upload.
+        dataset_name (Optional): the name of the dataset if provided.
 
     Returns:
         dict: The result of the upload process.
@@ -33,7 +34,7 @@ async def upload_file(file: UploadFile = File(...)):
         # Create a document with the CSV data
         document = {
             "created_date": datetime.now().isoformat(),
-            "name": file.filename,
+            "name": dataset_name if dataset_name else file.filename,
             "csvdata": []
         }
         # Populate the document with column names and values
@@ -57,27 +58,7 @@ async def upload_file(file: UploadFile = File(...)):
             status_code=500, detail="Failed to process file") from e
 
 
-@router.post("/", response_model=DatasetModel)
-async def save_dataset(dataset: DatasetModel):
-    """
-    Save a new dataset document to MongoDB.
 
-    Args:
-        dataset (DatasetModel): The dataset document to save.
-
-    Returns:
-        The saved dataset document.
-    """
-    dataset_doc = dataset.dict()
-    result = await datasets.insert_one(dataset_doc)
-    if result.acknowledged:
-        return DatasetModel(**dataset_doc)
-    else:
-        raise HTTPException(
-            status_code=400, detail="Insert operation was not successful.")
-
-
-# @router.get("/", response_model=List[UploadResponse])
 @router.get("/")
 async def get_datasets():
     """

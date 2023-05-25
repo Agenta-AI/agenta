@@ -5,8 +5,8 @@ import { Tabs, Input, Select, Slider, Row, Col, Button } from 'antd';
 import TestView from './Views/TestView';
 import LogsView from './Views/LogsView';
 import ParametersView from './Views/ParametersView';
-import { Parameter, parseOpenApiSchema } from '@/helpers/openapi_parser';
-import { fetchVariantParameters } from '@/services/api'; // Import fetchVariantParameters() from api.ts
+import { Parameter, parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
+import { fetchVariantParameters } from '@/lib/services/api'; // Import fetchVariantParameters() from api.ts
 import AppContext from '@/contexts/appContext';
 const { TabPane } = Tabs;
 const { Option } = Select;
