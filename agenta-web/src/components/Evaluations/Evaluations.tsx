@@ -21,12 +21,6 @@ export default function Evaluations() {
   const [comparisonTableId, setComparisonTableId] = useState("");
   const [newEvaluationEnvironment, setNewEvaluationEnvironment] = useState(false);
 
-  const breadcrumbItems = [
-    { title: 'Home' },
-    { title: <a href="">{app}</a> },
-    { title: <a href="">Evaluations</a> }
-  ];
-
   const { datasets, isDatasetsLoading, isDatasetsLoadingError } = loadDatasetsList();
 
   useEffect(() => {
@@ -62,33 +56,6 @@ export default function Evaluations() {
   const { variants, isLoading, isError } = listVariants(app);
   if (isError) return <div>failed to load list of variants</div>
   if (isLoading) return <div>loading variants</div>
-
-  // useEffect(() => {
-  //   onLoadAppVariants();
-  // }, []);
-
-  // const onLoadAppVariants = () => {
-  //   setAppVariantsLoading(true);
-  //   // setColumnsCount(3);
-
-  //   fetch('http://localhost/api/app_variant/list_variants/', {
-  //     headers: {
-  //       "Content-Type": "application/json",
-  //     }
-  //   })
-  //     .then((res) => res.json())
-  //     .then((data) => {
-
-  //       const appVariantsFromResponse = data.map((item: any, index: number) => ({
-  //         id: index,
-  //         name: item.variant_name,
-  //         endpoint: item.variant_name
-  //       }));
-
-  //       setAppVariants(appVariantsFromResponse);
-  //       setAppVariantsLoading(false);
-  //     });
-  // };
 
   const createNewEvaluationEnvironment = () => {
     const postData = async (url = '', data = {}) => {
@@ -157,7 +124,6 @@ export default function Evaluations() {
 
   return (
     <div>
-      <Breadcrumb items={breadcrumbItems} />
       <Row justify="space-between" style={{ marginTop: 20, marginBottom: 20 }}>
         <Col>
           <Dropdown overlay={datasetsMenu} placement="bottomRight">
