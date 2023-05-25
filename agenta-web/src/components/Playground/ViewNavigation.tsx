@@ -1,66 +1,42 @@
-// SubNavigation.tsx
-import { useState, useEffect } from 'react';
 import React from 'react';
-import { Tabs, Input, Select, Slider, Row, Col, Button } from 'antd';
+import { Col, Tabs, Row } from 'antd';
 import TestView from './Views/TestView';
 import LogsView from './Views/LogsView';
 import ParametersView from './Views/ParametersView';
-import { Parameter, parseOpenApiSchema } from '@/helpers/openapi_parser';
-import { fetchVariantParameters } from '@/services/api'; // Import fetchVariantParameters() from api.ts
+import { useVariant } from '@/hooks/useVariant';
 import AppContext from '@/contexts/appContext';
+import { Variant } from './VersionTabs';
 const { TabPane } = Tabs;
-const { Option } = Select;
 
-interface ViewNavigationProps {
-    variant: { variant_name: string };
-}
-
-const ViewNavigation: React.FC<ViewNavigationProps> = ({ variant }) => {
+const ViewNavigation: React.FC<Variant> = ({ variant }) => {
     const { app } = React.useContext(AppContext);
-    const [params, setParams] = useState<Parameter[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [inputValue, setInputValue] = useState(1);
+    const { inputParams, optParams, URIPath, isLoading, isError, error, saveOptParams } = useVariant(app, variant);
 
-    const handlePramsChange = (newParams: Parameter[]) => {
-        setParams(newParams);
-        console.log(params)
-    };
 
-    useEffect(() => {
-        const fetchAndSetSchema = async () => {
-            try {
-                const initialParams = await fetchVariantParameters(app, variant.variant_name);
-                setParams(initialParams);
-            } catch (e) {
-                setError(e);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchAndSetSchema();
-    }, [variant]);
-
-    if (loading) {
+    if (isLoading) {
         return <div>Loading...</div>;
     }
-    if (error) {
-        return <div>Error: {error.message}</div>;
+    if (isError) {
+        return (
+            <div>
+                {error ? <div>Error: {error.message}</div> : null}
+            </div>
+        );
     }
 
     return (
-        <Tabs defaultActiveKey="1">
-            <TabPane tab="Parameters" key="1">
-                <ParametersView params={params} onParamsChange={handlePramsChange} />
-            </TabPane>
-            <TabPane tab="Test" key="2">
-                <TestView params={params} variantName={variant.variant_name} />
-            </TabPane>
-            <TabPane tab="Logs" key="3">
-                <LogsView />
-            </TabPane>
-        </Tabs>
+        <>
+            <Row gutter={20} style={{ margin: 10 }}>
+                <Col span={12}>
+                    <ParametersView optParams={optParams} onOptParamsChange={saveOptParams} />
+                </Col>
+                {/* </Row>
+            <Row gutter={20} style={{ margin: 10, marginTop: 50 }}> */}
+                <Col span={12}>
+                    <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
+                </Col>
+            </Row >
+        </>
     );
 };
 
