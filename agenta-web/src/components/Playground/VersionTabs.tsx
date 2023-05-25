@@ -12,7 +12,6 @@ function addTab(tabList, setTabList, setActiveKey, setVariantDict, newVariant) {
     const newKey = (tabList.length + 1).toString();
     setTabList(prevState => [...prevState, newKey]);
     setVariantDict(prevState => ({ ...prevState, [newKey]: newVariant }));
-    console.log("newKey", newKey);
     setActiveKey(newKey);
 }
 
