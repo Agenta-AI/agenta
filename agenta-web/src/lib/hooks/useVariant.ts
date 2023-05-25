@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Parameter, getVariantParameters, saveNewVariant } from '@/services/api';
+import { Parameter, getVariantParameters, saveNewVariant } from '@/lib/services/api';
 import { Variant } from '@/components/Playground/VersionTabs';
 import { valuesIn } from 'cypress/types/lodash';
 

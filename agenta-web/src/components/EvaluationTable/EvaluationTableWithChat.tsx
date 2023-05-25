@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button, Dropdown, Input, Menu, Space, Table } from 'antd';
-import { AppVariant } from '@/models/AppVariant';
+import { AppVariant } from '@/lib/Types';
 import type { ColumnType } from 'antd/es/table';
 import { DislikeOutlined, DownOutlined, LikeOutlined } from '@ant-design/icons';
 
