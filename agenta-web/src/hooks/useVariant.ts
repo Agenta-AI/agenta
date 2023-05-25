@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Parameter, fetchVariantParameters } from '@/services/api';
-
+import { Parameter, getVariantParameters } from '@/services/api';
+import { Variant } from '@/components/Playground/VersionTabs';
 
 /**
  * Hook for using the variant.
@@ -9,7 +9,7 @@ import { Parameter, fetchVariantParameters } from '@/services/api';
  * @param sourceVariantName The original variant name, this is important for determining the URI path
  * @returns 
  */
-export function useVariant(appName: string, variantName: string, sourceVariantName: string | null = null) {
+export function useVariant(appName: string, variant: Variant) {
     const [optParams, setOptParams] = useState<Parameter[] | null>(null);
     const [inputParams, setInputParams] = useState<Parameter[] | null>(null);
     const [URIPath, setURIPath] = useState<string | null>(null);
@@ -21,10 +21,10 @@ export function useVariant(appName: string, variantName: string, sourceVariantNa
             setIsLoading(true);
             setIsError(false);
             try {
-                const { initOptParams, inputParams } = await fetchVariantParameters(appName, variantName);
+                const { initOptParams, inputParams } = await getVariantParameters(appName, variant);
                 setOptParams(initOptParams);
                 setInputParams(inputParams);
-                setURIPath(`${appName}/${sourceVariantName ? sourceVariantName : variantName}`);
+                setURIPath(`${appName}/${variant.templateVariantName ? variant.templateVariantName : variant.variantName}`);
             } catch (error: any) {
                 setIsError(true);
                 setError(error);
@@ -34,7 +34,7 @@ export function useVariant(appName: string, variantName: string, sourceVariantNa
         };
 
         fetchParameters();
-    }, [appName, variantName]);
+    }, [appName, variant]);
 
     /**
      * Saves new values for the optional parameters of the variant.
