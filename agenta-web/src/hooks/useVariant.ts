@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Parameter, getVariantParameters } from '@/services/api';
+import { Parameter, getVariantParameters, saveNewVariant } from '@/services/api';
 import { Variant } from '@/components/Playground/VersionTabs';
 
 /**
@@ -47,7 +47,7 @@ export function useVariant(appName: string, variant: Variant) {
         setIsError(false);
         try {
             if (persist) {
-                // await updateVariantParameters(appName, variantName, updatedParameters);
+                await saveNewVariant(appName, variant, updatedOptParams);
             }
             setOptParams(updatedOptParams);
         } catch (error) {
