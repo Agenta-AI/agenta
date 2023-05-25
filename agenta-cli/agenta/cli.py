@@ -39,7 +39,7 @@ def add_variant(variant_name: str, app_folder: str) -> str:
         toml.dump(config, config_file.open('w'))
 
     docker_image: DockerImage = build_and_upload_docker_image(
-        folder=app_path, variant_name=variant_name)
+        folder=app_path, app_name=app_name, variant_name=variant_name)
     client.add_variant_to_server(app_name, variant_name, docker_image)
     click.echo(f"Variant {variant_name} for App {app_name} added")
     return variant_name

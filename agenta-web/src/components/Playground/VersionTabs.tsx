@@ -1,53 +1,81 @@
 // VersionTabs.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Tabs, Modal, Input, Select, Space } from 'antd';
+import { Tabs, Modal, Input, Select, Space, Typography, message } from 'antd';
 import ViewNavigation from './ViewNavigation';
 import { useRouter } from 'next/router';
 import AppContext from '@/contexts/appContext';
-import { listVariants } from '@/services/api';
+import { API_BASE_URL } from '@/services/api';
+import axios from 'axios';
+import { set } from 'cypress/types/lodash';
 const { TabPane } = Tabs;
 
-function addTab(tabList, setTabList, setActiveKey, setVariantDict, newVariant) {
-    const newKey = (tabList.length + 1).toString();
-    setTabList(prevState => [...prevState, newKey]);
-    setVariantDict(prevState => ({ ...prevState, [newKey]: newVariant }));
-    console.log("newKey", newKey);
-    setActiveKey(newKey);
+export interface Variant {
+    variantName: string;
+    templateVariantName: string | null; // template name of the variant in case it has a precursor. Needed to compute the URI path
+    persistent: boolean;  // whether the variant is persistent in the backend or not
+    parameters: Record<string, string> | null;  // parameters of the variant. Only set in the case of forked variants
 }
 
-function removeTab(targetKey, tabList, setTabList, setActiveKey, setVariantDict, activeKey, variantDict) {
-    let newActiveKey = activeKey;
-    let lastIndex;
+function addTab(setActiveKey: any, setVariants: any, variants: Variant[], templateVariantName: string, newVariantName: string) {
+    // 1) Check if variant with the same name already exists
+    const existingVariant = variants.find(variant => variant.variantName === newVariantName);
 
-    tabList.forEach((tab, i) => {
-        if (tab === targetKey) {
-            lastIndex = i - 1;
-        }
-    });
-
-    const newTabList = tabList.filter(tab => tab !== targetKey);
-    if (newTabList.length && newActiveKey === targetKey) {
-        newActiveKey = newTabList[lastIndex >= 0 ? lastIndex : 0];
+    if (existingVariant) {
+        message.error('A variant with this name already exists. Please choose a different name.');
+        return;
     }
 
-    setTabList(newTabList);
-    setActiveKey(newActiveKey);
+    // Find the template variant
+    const templateVariant = variants.find(variant => variant.variantName === templateVariantName);
 
-    const newVariantDict = { ...variantDict };
-    delete newVariantDict[targetKey];
-    setVariantDict(newVariantDict);
+    // Check if the template variant exists
+    if (!templateVariant) {
+        message.error('Template variant not found. Please choose a valid variant.');
+        return;
+    }
+
+    const newTemplateVariantName = templateVariant.templateVariantName ? templateVariant.templateVariantName : templateVariantName;
+
+    const newVariant: Variant = {
+        variantName: newVariantName,
+        templateVariantName: newTemplateVariantName,
+        persistent: false,
+        parameters: templateVariant.parameters,
+    }
+
+    setVariants(prevState => [...prevState, newVariant])
+    setActiveKey(newVariantName);
 }
 
+function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], activeKey: string) {
+    console.log(activeKey)
+    const newVariants = variants.filter(variant => variant.variantName !== activeKey);
+
+    let newActiveKey = '';
+    if (newVariants.length > 0) {
+
+        newActiveKey = newVariants[newVariants.length - 1].variantName;
+    }
+    console.log(newActiveKey, newVariants)
+    setVariants(newVariants);
+    setActiveKey(newActiveKey);
+}
+
+
+
 const VersionTabs: React.FC = () => {
-    const [templateVariantName, setTemplateVariantName] = useState("");
-    const [variantDict, setVariantDict] = useState({});
+    const { app } = React.useContext(AppContext);
     const router = useRouter();
+    const [templateVariantName, setTemplateVariantName] = useState("");  // We use this to save the template variant name when the user creates a new variant
     const [activeKey, setActiveKey] = useState('1');
     const [tabList, setTabList] = useState([]);
-    const { app } = React.useContext(AppContext);
     const [isModalOpen, setIsModalOpen] = useState(false);
-
+    const [variants, setVariants] = useState<Variant[]>([]);  // These are the variants that exist in the backend
+    const [isLoading, setIsLoading] = useState(true);
+    const [isError, setIsError] = useState(false);
+    const [newVariantName, setNewVariantName] = useState("");  // This is the name of the new variant that the user is creating
+    const { Text } = Typography; // Destructure Text from Typography for text components
     useEffect(() => {
         if (app == "") {
             router.push("/");
@@ -55,12 +83,34 @@ const VersionTabs: React.FC = () => {
     }, [app]);
 
     useEffect(() => {
-        if (variants && Array.isArray(variants) && variants.length > 0) {
-            setActiveKey(variants[0].variant_name);
-        }
-    }, []);
+        const fetchData = async () => {
+            try {
+                const backendVariants = await axios.get(`${API_BASE_URL}/api/app_variant/list_variants/?app_name=${app}`);
 
-    const { variants, isLoading, isError } = listVariants(app);
+                if (backendVariants.data && Array.isArray(backendVariants.data) && backendVariants.data.length > 0) {
+                    console.log(backendVariants)
+                    const backendVariantsProcessed = backendVariants.data.map((variant: Record<string, any>) => {
+                        let v: Variant = {
+                            variantName: variant.variant_name,
+                            templateVariantName: variant.previous_variant_name,
+                            persistent: true,
+                            parameters: variant.parameters
+                        }
+                        return v;
+                    });
+                    setVariants(backendVariantsProcessed);
+                    setActiveKey(backendVariantsProcessed[0].variantName);
+                }
+                setIsLoading(false);
+            } catch (error) {
+                setIsError(true);
+                setIsLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [app]);
+
     if (isError) return <div>failed to load</div>
     if (isLoading) return <div>loading...</div>
 
@@ -74,44 +124,48 @@ const VersionTabs: React.FC = () => {
                     if (action === 'add') {
                         setIsModalOpen(true);
                     } else if (action === 'remove') {
-                        removeTab(targetKey, tabList, setTabList, setActiveKey, setVariantDict, activeKey, variantDict);
+                        removeTab(setActiveKey, setVariants, variants, targetKey);
                     }
                 }}
             >
                 {variants.map((variant, index) => (
-                    <TabPane tab={`Variant ${variant.variant_name}`} key={variant.variant_name} closable={false}>
+                    <TabPane tab={`Variant ${variant.variantName}`} key={variant.variantName} closable={!variant.persistent}>
                         <ViewNavigation variant={variant} />
                     </TabPane>
                 ))}
 
-                {tabList.map((key) => (
-                    <TabPane tab={`New Variant ${key}`} key={`${key}`} >
-                        <ViewNavigation variant={variantDict[key]} />
-                    </TabPane>
-                ))}
             </Tabs>
 
             <Modal
-                title="Choose a Starting Variant"
+                title="Create a New Variant"
                 visible={isModalOpen}
                 onOk={() => {
                     setIsModalOpen(false);
-                    addTab(tabList, setTabList, setActiveKey, setVariantDict, { "variant_name": templateVariantName });
+                    addTab(setActiveKey, setVariants, variants, templateVariantName, newVariantName);
                 }}
                 onCancel={() => setIsModalOpen(false)}
                 centered
             >
-                <div style={{ marginBottom: 20 }}>
-                    Please select a variant to use as your template:
-                </div>
-                <Select
-                    style={{ width: '100%' }}
-                    placeholder="Select a variant"
-                    onChange={setTemplateVariantName}
-                    options={variants.map(variant => ({ value: variant.variant_name, label: variant.variant_name }))}
-                />
-            </Modal>
-        </div>
+                <Space direction="vertical" size={20}>
+                    <div>
+                        <Text>Enter a unique name for the new variant:</Text>
+                        <Input
+                            placeholder="New variant name"
+                            onChange={e => setNewVariantName(e.target.value)}
+                        />
+                    </div>
+
+                    <div>
+                        <Text>Select an existing variant to use as a template:</Text>
+                        <Select
+                            style={{ width: '100%' }}
+                            placeholder="Select a variant"
+                            onChange={setTemplateVariantName}
+                            options={variants.map(variant => ({ value: variant.variantName, label: variant.variantName }))}
+                        />
+                    </div>
+                </Space>
+            </Modal> </div>
     );
 };
 
