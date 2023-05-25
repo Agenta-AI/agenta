@@ -28,6 +28,7 @@ export function listVariants(app_name: string) {
 }
 
 /**
+ * DEPREACATED
  * This function runs a variant and returns the result. It calls the right api endpoint.
  * and take care of specifying the right parameters if needed.
  * @param app_name
@@ -55,14 +56,9 @@ export function callVariant(inputParamsDict: Record<string, string>, optParams: 
     }).then(res => res.data);
 }
 
-/**
- * Saves the variant to the database (or update it if it already exists)
- */
-export function saveVariant(appName: string, variantName: string, inputs: any) {
-
-}
 
 /**
+ * DEPREACTED
  * Parses the openapi.json from a variant and returns the parameters as an array of objects.
  * @param app
  * @param variantName
