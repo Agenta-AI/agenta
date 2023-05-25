@@ -108,6 +108,10 @@ const Results: React.FC = () => {
         const results = record.results;
 
         if (results && results.votes) {
+
+          if(results.votes.length === 1 && Object.keys(results.votes[0])[0] === '0') {
+            return <div> No votes </div>;
+          }
           const sortedVotes: Vote[] = [...results.votes].sort((a, b) => {
             const keyA = Object.keys(a)[0];
             const keyB = Object.keys(b)[0];
