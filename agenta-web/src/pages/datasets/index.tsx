@@ -1,31 +1,49 @@
 
-import { InboxOutlined, UploadOutlined } from "@ant-design/icons";
-import { Button, Form, Spin, Table, Upload, message } from "antd";
-import { RcFile, UploadChangeParam } from "antd/es/upload";
-import { useState, useEffect } from 'react';
+import { UploadOutlined } from "@ant-design/icons";
+import { Button, Form, Input, Spin, Upload, message } from "antd";
+import { useState } from 'react';
 import axios from 'axios';
-import useSWR from 'swr'
 import DatasetsTable from "./DatasetsTable";
+import { Dataset } from "@/lib/Types";
 
 export default function Datasets() {
     const [uploadLoading, setUploadLoading] = useState(false);
+    const [dataset, setDataset] = useState<Dataset>({
+        id: '1',
+        name: 'Example Dataset',
+    });
+    const [form] = Form.useForm();
 
     const onFinish = async (values: any) => {
         const { file } = values;
 
+        if (!values.file) {
+            message.error('Please select a file to upload');
+            return;
+        }
+
         if (file && file.length > 0) {
             const formData = new FormData();
             formData.append('file', file[0].originFileObj);
+            if (values.datasetName && values.datasetName.trim() !== "") {
+                formData.append('dataset_name', values.datasetName);
+            }
 
             try {
                 setUploadLoading(true);
-                const response = await axios.post('http://localhost/api/datasets/upload', formData);
+                const response = await axios.post('http://localhost/api/datasets/upload', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                });
 
                 if (response.status === 200) {
                     // File uploaded successfully
                     const data = response.data;
-                    console.log('Uploaded file:', data);
-                    setUploadLoading(false); // Set loading state to false after successful upload
+
+                    setDataset(data);
+                    setUploadLoading(false);
+                    form.resetFields();
                 } else {
                     // Handle error
                     console.error('Failed to upload file:', response.status);
@@ -40,9 +58,21 @@ export default function Datasets() {
     return (
         <div>
             <Spin spinning={uploadLoading}>
-                <Form onFinish={onFinish}>
-                    <Form.Item name="file" valuePropName="fileList" getValueFromEvent={(e) => e.fileList}>
-                        <Upload.Dragger name="file" accept=".csv" multiple={false}>
+                <Form onFinish={onFinish} form={form}>
+                    <Form.Item
+                        name="datasetName"
+                        label="Dataset name"
+                        rules={[{ type: 'string' }]}
+                    >
+                        <Input style={{ width: '25%' }} maxLength={25} />
+                    </Form.Item>
+                    <Form.Item name="file" valuePropName="fileList" getValueFromEvent={(e) => e.fileList} >
+                        <Upload.Dragger
+                            name="file"
+                            accept=".csv"
+                            multiple={false}
+                            maxCount={1}
+                        >
                             <p className="ant-upload-drag-icon">
                                 <UploadOutlined />
                             </p>
@@ -57,7 +87,7 @@ export default function Datasets() {
                 </Form>
             </Spin>
 
-            <DatasetsTable/>
+            <DatasetsTable dataset={dataset} />
         </div>
 
 

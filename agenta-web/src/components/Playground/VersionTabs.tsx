@@ -5,9 +5,8 @@ import { Tabs, Modal, Input, Select, Space, Typography, message } from 'antd';
 import ViewNavigation from './ViewNavigation';
 import { useRouter } from 'next/router';
 import AppContext from '@/contexts/appContext';
-import { API_BASE_URL } from '@/services/api';
+import { API_BASE_URL } from '@/lib/services/api';
 import axios from 'axios';
-import { set } from 'cypress/types/lodash';
 const { TabPane } = Tabs;
 
 export interface Variant {

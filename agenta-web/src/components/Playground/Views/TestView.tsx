@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Row, Col, Button, Input, Card, Space } from 'antd';
-import { callVariant, Parameter } from '@/services/api';
+import { Parameter, callVariant, Parameter, runVariant } from '@/lib/services/api';
 import AppContext from '@/contexts/appContext';
 
 interface TestViewProps {
