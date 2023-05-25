@@ -1,7 +1,7 @@
 import useSWR from 'swr';
 import axios from 'axios';
 import { parseOpenApiSchema } from '@/helpers/openapi_parser';
-
+import { Variant } from '@/components/Playground/VersionTabs';
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -13,7 +13,7 @@ export interface Parameter {
     default?: any;
 }
 
-const API_BASE_URL = "http://localhost";  // Replace this with your actual API base URL
+export const API_BASE_URL = "http://localhost";  // Replace this with your actual API base URL
 
 const fetcher = (...args) => fetch(...args).then(res => res.json());
 
@@ -53,6 +53,14 @@ export function callVariant(inputParamsDict: Record<string, string>, optParams: 
         }
     }).then(res => res.data);
 }
+
+/**
+ * Saves the variant to the database (or update it if it already exists)
+ */
+export function saveVariant(appName: string, variantName: string, inputs: any) {
+
+}
+
 /**
  * Parses the openapi.json from a variant and returns the parameters as an array of objects.
  * @param app
@@ -62,6 +70,26 @@ export function callVariant(inputParamsDict: Record<string, string>, optParams: 
 export const fetchVariantParameters = async (app: string, variantName: string) => {
     try {
         const url = `${API_BASE_URL}/${app}/${variantName}/openapi.json`;
+        const response = await axios.get(url);
+        const APIParams = parseOpenApiSchema(response.data);
+        const initOptParams = APIParams.filter(param => (!param.input)); // contains the default values too!
+        const inputParams = APIParams.filter(param => (param.input)); // don't have input values
+        return { initOptParams, inputParams };
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
+ * Parses the openapi.json from a variant and returns the parameters as an array of objects.
+ * @param app
+ * @param variantName
+ * @returns
+ */
+export const getVariantParameters = async (app: string, variant: Variant) => {
+    try {
+        const sourceName = variant.templateVariantName ? variant.templateVariantName : variant.variantName;
+        const url = `${API_BASE_URL}/${app}/${sourceName}/openapi.json`;
         const response = await axios.get(url);
         const APIParams = parseOpenApiSchema(response.data);
         const initOptParams = APIParams.filter(param => (!param.input)); // contains the default values too!
