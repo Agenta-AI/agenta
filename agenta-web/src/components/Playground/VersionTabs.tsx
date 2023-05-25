@@ -1,7 +1,7 @@
 // VersionTabs.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Tabs, Modal, Input, Select, Space } from 'antd';
+import { Tabs, Modal, Input, Select, Space, Typography } from 'antd';
 import ViewNavigation from './ViewNavigation';
 import { useRouter } from 'next/router';
 import AppContext from '@/contexts/appContext';
@@ -54,7 +54,7 @@ const VersionTabs: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
     const [newVariantName, setNewVariantName] = useState("");  // This is the name of the new variant that the user is creating
-
+    const { Text } = Typography; // Destructure Text from Typography for text components
     useEffect(() => {
         if (app == "") {
             router.push("/");
@@ -116,7 +116,7 @@ const VersionTabs: React.FC = () => {
             </Tabs>
 
             <Modal
-                title="Choose a Starting Variant"
+                title="Create a New Variant"
                 visible={isModalOpen}
                 onOk={() => {
                     setIsModalOpen(false);
@@ -125,26 +125,26 @@ const VersionTabs: React.FC = () => {
                 onCancel={() => setIsModalOpen(false)}
                 centered
             >
-                <div style={{ marginBottom: 20 }}>
-                    Please select a variant to use as your template:
-                </div>
-                <Select
-                    style={{ width: '100%' }}
-                    placeholder="Select a variant"
-                    onChange={setTemplateVariantName}
-                    options={variants.map(variant => ({ value: variant.variantName, label: variant.variantName }))}
-                />
-                <div style={{ marginBottom: 20 }}>
-                    Please give a name for the new variant:
-                </div>
-                <Input.TextArea
-                    defaultValue=""
-                    onChange={e => setNewVariantName(e.target.value)}
-                />
+                <Space direction="vertical" size={20}>
+                    <div>
+                        <Text>Enter a unique name for the new variant:</Text>
+                        <Input
+                            placeholder="New variant name"
+                            onChange={e => setNewVariantName(e.target.value)}
+                        />
+                    </div>
 
-
-            </Modal>
-        </div>
+                    <div>
+                        <Text>Select an existing variant to use as a template:</Text>
+                        <Select
+                            style={{ width: '100%' }}
+                            placeholder="Select a variant"
+                            onChange={setTemplateVariantName}
+                            options={variants.map(variant => ({ value: variant.variantName, label: variant.variantName }))}
+                        />
+                    </div>
+                </Space>
+            </Modal> </div>
     );
 };
 
