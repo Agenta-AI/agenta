@@ -21,7 +21,8 @@ const ParametersView: React.FC<Props> = ({ optParams, onOptParamsChange }) => {
     }
     return (
         <div>
-            <Row gutter={16}>
+
+            <Row gutter={16} style={{}}>
                 <Col span={12}>
                     {optParams?.filter(param => (param.type === 'string')).map((param, index) => (
                         <div key={index}>
@@ -67,18 +68,16 @@ const ParametersView: React.FC<Props> = ({ optParams, onOptParamsChange }) => {
 
 
             </Row>
-            <Row style={{ marginTop: 40 }}>
-                <Col span={12} style={{ textAlign: 'left' }}>
+            <Row style={{ marginTop: 10 }}>
+                <Col span={24} style={{ textAlign: 'right' }}>
                     <Button type="primary" onClick={() => onOptParamsChange(optParams!, true)}>
                         <Tooltip placement="right" title="Save the new parameters for the variant permanently">
                             Save changes
                         </Tooltip>
                     </Button>
                 </Col>
-                <Col span={12} style={{ textAlign: 'left' }} >
-                </Col>
-
             </Row>
+
         </div>
     );
 };
