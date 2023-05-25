@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import axios from 'axios';
-import { parseOpenApiSchema } from '@/helpers/openapi_parser';
+import { parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
 import { Variant } from '@/components/Playground/VersionTabs';
 import { param } from 'cypress/types/jquery';
 /**

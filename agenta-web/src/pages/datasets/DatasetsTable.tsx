@@ -1,32 +1,36 @@
 
+import { Dataset } from '@/lib/Types';
 import { Spin, Table } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import { useState, useEffect } from 'react';
 
-interface DataType {
-  id: string;
-  name: string;
-  created_date?: string;
-}
+type Props = {
+  dataset: Dataset;
+};
 
 const fetchData = async (url: string): Promise<any> => {
   const response = await fetch(url);
   return response.json();
 }
 
-const DatasetsTable: React.FC = () => {
-  const [data, setData] = useState<DataType[]>([]);
+const DatasetsTable: React.FC<Props>= ({ dataset }) => {
+  const [fetchedDatasets, setFetchedDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     fetchData('http://localhost/api/datasets')
       .then(data => {
-        setData(data);
+        setFetchedDatasets(data);
         setLoading(false);
       });
   }, []);
 
-  const columns: ColumnsType<DataType> = [
+  useEffect(() => {
+    const newDatasets = [dataset, ...fetchedDatasets];
+    setFetchedDatasets(newDatasets);
+  }, [dataset]);
+
+  const columns: ColumnsType<Dataset> = [
     {
       title: 'Name',
       dataIndex: 'name',
@@ -46,7 +50,7 @@ const DatasetsTable: React.FC = () => {
       ) : (
         <Table
           columns={columns}
-          dataSource={data}
+          dataSource={fetchedDatasets}
           loading={loading}
         />
       )}

@@ -3,7 +3,9 @@ import { Col, Tabs, Row } from 'antd';
 import TestView from './Views/TestView';
 import LogsView from './Views/LogsView';
 import ParametersView from './Views/ParametersView';
-import { useVariant } from '@/hooks/useVariant';
+import { parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
+import { Parameter, fetchVariantParameters } from '@/lib/services/api'; // Import fetchVariantParameters() from api.ts
+import { useVariant } from '@/lib/hooks/useVariant';
 import AppContext from '@/contexts/appContext';
 import { Variant } from './VersionTabs';
 const { TabPane } = Tabs;
