@@ -39,12 +39,12 @@ function removeTab(targetKey, tabList, setTabList, setActiveKey, setVariantDict,
 }
 
 const VersionTabs: React.FC = () => {
+    const { app } = React.useContext(AppContext);
+    const router = useRouter();
     const [templateVariantName, setTemplateVariantName] = useState("");
     const [variantDict, setVariantDict] = useState({});
-    const router = useRouter();
     const [activeKey, setActiveKey] = useState('1');
     const [tabList, setTabList] = useState([]);
-    const { app } = React.useContext(AppContext);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
