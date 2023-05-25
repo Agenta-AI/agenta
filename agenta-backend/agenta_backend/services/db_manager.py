@@ -67,6 +67,9 @@ def add_variant_based_on_image(app_variant: AppVariant, image: Image):
         raise ValueError("App variant or image is None")
     if app_variant.parameters is not None:
         raise ValueError("Parameters are not supported when adding based on image")
+    if app_variant.previous_variant_id is not None:
+        raise ValueError(
+            "Previous variant name is not supported when adding based on image")
     already_exists = any([av for av in list_app_variants() if av.app_name ==
                           app_variant.app_name and av.variant_name == app_variant.variant_name])
     if already_exists:
@@ -109,6 +112,9 @@ def add_variant_based_on_previous(previous_app_variant: AppVariant, new_variant_
 
     if template_variant is None:
         raise ValueError("Template app variant not found")
+    elif template_variant.previous_variant_id is not None:
+        raise ValueError(
+            "Template app variant is not a template, it is a variant itself")
 
     with Session(engine) as session:
         db_app_variant = AppVariantDB(
@@ -125,7 +131,10 @@ def add_variant_based_on_previous(previous_app_variant: AppVariant, new_variant_
 
 def list_app_variants(app_name: str = None) -> List[AppVariant]:
     """
-    Lists all the app variants from the db, only latest versions"""
+    Lists all the app variants from the db, only latest versions
+    TODO: TEST THIS
+
+    """
 
     with Session(engine) as session:
         query = session.query(AppVariantDB)
@@ -139,10 +148,23 @@ def list_app_variants(app_name: str = None) -> List[AppVariant]:
         query = query.join(subquery, and_(AppVariantDB.app_name == subquery.c.app_name,
                                           AppVariantDB.variant_name == subquery.c.variant_name,
                                           AppVariantDB.version == subquery.c.max_version))
-
         app_variants_db: List[AppVariantDB] = query.all()
 
-        return [app_variant_db_to_pydantic(av) for av in app_variants_db]
+        # Include previous variant name
+        app_variants: List[AppVariant] = []
+        for av in app_variants_db:
+            if av.previous_variant_id is None:
+                app_variant = app_variant_db_to_pydantic(av)
+            else:
+                previous_variant = session.query(AppVariantDB).filter(AppVariantDB.id == av.previous_variant_id).first()
+
+                if previous_variant:
+                    app_variant = app_variant_db_to_pydantic(av, previous_variant.variant_name)
+                else:
+                    raise ValueError("Previous variant not found!!")
+            app_variants.append(app_variant)
+
+        return app_variants
 
 
 def list_app_names() -> List[App]:
