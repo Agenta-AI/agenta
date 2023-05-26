@@ -154,7 +154,7 @@ export default function Evaluations() {
         </Col>
       </Row>
 
-      {!chatModeActivated &&
+      {!chatModeActivated && datasetContent.length > 0 &&
         <EvaluationTable
           columnsCount={columnsCount}
           variants={variants}
