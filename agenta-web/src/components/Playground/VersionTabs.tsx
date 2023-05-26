@@ -5,16 +5,11 @@ import { Tabs, Modal, Input, Select, Space, Typography, message } from 'antd';
 import ViewNavigation from './ViewNavigation';
 import { useRouter } from 'next/router';
 import AppContext from '@/contexts/appContext';
-import { API_BASE_URL } from '@/lib/services/api';
+import { fetchVariants } from '@/lib/services/api';
 import axios from 'axios';
+import { Variant } from '@/lib/Types';
 const { TabPane } = Tabs;
 
-export interface Variant {
-    variantName: string;
-    templateVariantName: string | null; // template name of the variant in case it has a precursor. Needed to compute the URI path
-    persistent: boolean;  // whether the variant is persistent in the backend or not
-    parameters: Record<string, string> | null;  // parameters of the variant. Only set in the case of forked variants
-}
 
 function addTab(setActiveKey: any, setVariants: any, variants: Variant[], templateVariantName: string, newVariantName: string) {
     // 1) Check if variant with the same name already exists
@@ -84,22 +79,13 @@ const VersionTabs: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const backendVariants = await axios.get(`${API_BASE_URL}/api/app_variant/list_variants/?app_name=${app}`);
+                const backendVariants = await fetchVariants(app);
 
-                if (backendVariants.data && Array.isArray(backendVariants.data) && backendVariants.data.length > 0) {
-                    console.log(backendVariants)
-                    const backendVariantsProcessed = backendVariants.data.map((variant: Record<string, any>) => {
-                        let v: Variant = {
-                            variantName: variant.variant_name,
-                            templateVariantName: variant.previous_variant_name,
-                            persistent: true,
-                            parameters: variant.parameters
-                        }
-                        return v;
-                    });
-                    setVariants(backendVariantsProcessed);
-                    setActiveKey(backendVariantsProcessed[0].variantName);
+                if (backendVariants.length > 0) {
+                    setVariants(backendVariants);
+                    setActiveKey(backendVariants[0].variantName);
                 }
+
                 setIsLoading(false);
             } catch (error) {
                 setIsError(true);
@@ -110,8 +96,8 @@ const VersionTabs: React.FC = () => {
         fetchData();
     }, [app]);
 
-    if (isError) return <div>failed to load</div>
-    if (isLoading) return <div>loading...</div>
+    if (isError) return <div>failed to load variants</div>
+    if (isLoading) return <div>loading variants...</div>
 
     return (
         <div>
