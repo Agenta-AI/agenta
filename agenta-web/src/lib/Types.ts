@@ -16,3 +16,11 @@ export interface Variant {
   persistent: boolean;  // whether the variant is persistent in the backend or not
   parameters: Record<string, string> | null;  // parameters of the variant. Only set in the case of forked variants
 }
+
+export interface Parameter {
+  name: string;
+  type: string;
+  input: boolean;
+  required: boolean;
+  default?: any;
+}
