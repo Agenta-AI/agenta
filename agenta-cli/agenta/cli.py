@@ -36,11 +36,18 @@ def add_variant(variant_name: str, app_folder: str) -> str:
             sys.exit(0)
     else:
         config['variants'].append(variant_name)
-
-    docker_image: DockerImage = build_and_upload_docker_image(
-        folder=app_path, app_name=app_name, variant_name=variant_name)
-    client.add_variant_to_server(app_name, variant_name, docker_image)
-    click.echo(f"Variant {variant_name} for App {app_name} added")
+    try:
+        docker_image: DockerImage = build_and_upload_docker_image(
+            folder=app_path, app_name=app_name, variant_name=variant_name)
+    except Exception as e:
+        click.echo(click.style(f"Error while building image: {e}", fg='red'))
+        return None
+    try:
+        client.add_variant_to_server(app_name, variant_name, docker_image)
+    except Exception as e:
+        click.echo(click.style(f"Error while adding variant: {e}", fg='red'))
+        return None
+    click.echo(click.style(f"Variant {variant_name} for App {app_name} added successfully", fg='green'))
     # Last step us to save the config file
     toml.dump(config, config_file.open('w'))
     return variant_name
@@ -80,7 +87,8 @@ def cli():
 def serve_cli(app_folder: str):
     """Add a variant and start its container."""
     variant_name = add_variant(variant_name='', app_folder=app_folder)
-    start_variant(variant_name=variant_name, app_folder=app_folder)
+    if variant_name:  # otherwise we failed
+        start_variant(variant_name=variant_name, app_folder=app_folder)
 
 
 @click.command(name='add-variant')
