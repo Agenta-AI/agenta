@@ -96,8 +96,8 @@ const VersionTabs: React.FC = () => {
         fetchData();
     }, [app]);
 
-    if (isError) return <div>failed to load</div>
-    if (isLoading) return <div>loading...</div>
+    if (isError) return <div>failed to load variants</div>
+    if (isLoading) return <div>loading variants...</div>
 
     return (
         <div>
