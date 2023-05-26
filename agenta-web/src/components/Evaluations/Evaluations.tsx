@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useContext } from 'react';
-import { Breadcrumb, Button, Col, Dropdown, Menu, Row, Spin, Switch } from 'antd';
+import { Breadcrumb, Button, Col, Dropdown, Menu, Row, Spin, Switch, Tooltip, Tag } from 'antd';
 import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
@@ -136,8 +136,10 @@ export default function Evaluations() {
         </Col>
         <Col>
           <div>
-            <span style={{ marginRight: 10, fontWeight: 10 }}>Switch to Chat mode</span>
-            <Switch defaultChecked={false} onChange={onSwitchToChatMode} />
+
+            <span style={{ marginRight: 10, fontWeight: 10, color: "grey" }}>Switch to Chat mode</span>
+            <Tag color="orange" bordered={false}>soon</Tag>
+            <Switch defaultChecked={false} onChange={onSwitchToChatMode} disabled={true} />
           </div>
         </Col>
       </Row>
