@@ -38,8 +38,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
     const [variantInputs, setVariantInputs] = useState<string[]>([]);
     const [isError, setIsError] = useState(false);
     // const [selectedAppVariants, setSelectedVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
-    const [selectedVariants, setSelectedVariants] = useState<Variant[]>([]);
-    //First let's get the variants parameters
+    const [selectedVariants, setSelectedVariants] = useState<Variant[]>(new Array(columnsCount).fill({ variantName: 'Select a variant' }));    //First let's get the variants parameters
     useEffect(() => {
         const fetchAndSetSchema = async () => {
             try {
@@ -84,7 +83,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
             }
         }) : [];
         setRows([...initialRows, ...rows]);
-    }, [dataset]);
+    }, [dataset, variantInputs]);
 
     const handleAppVariantsMenuClick = (columnIndex: number) => ({ key }: { key: string }) => {
 
@@ -98,6 +97,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
         if (!selectedVariant) {
             console.log('Error: No variant found');
         }
+        console.log('comparisonTableId', comparisonTableId);
         updateAppEvaluations(comparisonTableId, data)
             .then(data => {
                 setSelectedVariants(prevState => {
