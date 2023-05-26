@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Parameter, getVariantParameters, saveNewVariant } from '@/lib/services/api';
-import { Variant } from '@/lib/Types';
+import { getVariantParameters, saveNewVariant } from '@/lib/services/api';
+import { Variant, Parameter } from '@/lib/Types';
 
 /**
  * Hook for using the variant.
