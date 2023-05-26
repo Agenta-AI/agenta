@@ -1,17 +1,10 @@
 import useSWR from 'swr';
 import axios from 'axios';
 import { parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
-import { Variant } from '@/lib/Types';
+import { Variant, Parameter } from '@/lib/Types';
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
-export interface Parameter {
-    name: string;
-    type: string;
-    input: boolean;
-    required: boolean;
-    default?: any;
-}
 
 export const API_BASE_URL = "http://localhost";  // Replace this with your actual API base URL
 
@@ -143,3 +136,22 @@ export const loadDatasetsList = () => {
     }
 };
 
+
+const eval_endpoint = axios.create({
+    baseURL: `${API_BASE_URL}/api/app_evaluations`,
+});
+
+export const updateAppEvaluations = async (comparisonTableId, data) => {
+    const response = await eval_endpoint.put(`/${comparisonTableId}`, data);
+    return response.data;
+};
+
+export const updateEvaluationRow = async (comparisonTableId, evaluationRowId, data) => {
+    const response = await eval_endpoint.put(`/${comparisonTableId}/evaluation_row/${evaluationRowId}`, data);
+    return response.data;
+};
+
+export const postEvaluationRow = async (comparisonTableId, data) => {
+    const response = await eval_endpoint.post(`/${comparisonTableId}/evaluation_row`, data);
+    return response.data;
+};
