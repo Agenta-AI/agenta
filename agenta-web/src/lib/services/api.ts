@@ -1,8 +1,7 @@
 import useSWR from 'swr';
 import axios from 'axios';
 import { parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
-import { Variant } from '@/components/Playground/VersionTabs';
-import { param } from 'cypress/types/jquery';
+import { Variant } from '@/lib/Types';
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -18,15 +17,23 @@ export const API_BASE_URL = "http://localhost";  // Replace this with your actua
 
 const fetcher = (...args) => fetch(...args).then(res => res.json());
 
-export function listVariants(app_name: string) {
-    const { data, error } = useSWR(`${API_BASE_URL}/api/app_variant/list_variants/?app_name=${app_name}`, fetcher)
-    return {
-        variants: data,
-        isLoading: !error && !data,
-        isError: error
-    }
-}
+export async function fetchVariants(app: string): Promise<Variant[]> {
+    const response = await axios.get(`${API_BASE_URL}/api/app_variant/list_variants/?app_name=${app}`);
 
+    if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        return response.data.map((variant: Record<string, any>) => {
+            let v: Variant = {
+                variantName: variant.variant_name,
+                templateVariantName: variant.previous_variant_name,
+                persistent: true,
+                parameters: variant.parameters
+            }
+            return v;
+        });
+    }
+
+    return [];
+}
 /**
  * DEPREACATED
  * This function runs a variant and returns the result. It calls the right api endpoint.

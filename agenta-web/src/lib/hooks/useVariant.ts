@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Parameter, getVariantParameters, saveNewVariant } from '@/lib/services/api';
-import { Variant } from '@/components/Playground/VersionTabs';
-import { valuesIn } from 'cypress/types/lodash';
+import { Variant } from '@/lib/Types';
 
 /**
  * Hook for using the variant.
