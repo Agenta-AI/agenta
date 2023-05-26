@@ -5,14 +5,15 @@ import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
 import AppContext from '@/contexts/appContext';
-import { listVariants, loadDatasetsList } from '@/lib/services/api';
+import { fetchVariants, loadDatasetsList } from '@/lib/services/api';
 import { useRouter } from 'next/router';
 
 export default function Evaluations() {
   const { app } = useContext(AppContext);
   const router = useRouter();
   const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
-  const [appVariants, setAppVariants] = useState<any[]>([]);
+  const [isError, setIsError] = useState(false);
+  const [variants, setVariants] = useState<any[]>([]);
   const [columnsCount, setColumnsCount] = useState(2);
   const [chatModeActivated, setChatModeActivated] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<{ _id?: string, name: string }>({ name: "Select a Dataset" });
@@ -30,15 +31,26 @@ export default function Evaluations() {
   }, [app]);
 
   useEffect(() => {
-    if (variants && Array.isArray(variants) && variants.length > 0) {
-      const appVariantsFromResponse = variants.map((item: any, index: number) => ({
-        id: index,
-        name: item.variant_name,
-        endpoint: item.variant_name
-      }));
-      setAppVariants(appVariantsFromResponse);
-    }
-  }, []);
+    const fetchData = async () => {
+      try {
+        const backendVariants = await fetchVariants(app);
+
+        if (backendVariants.length > 0) {
+          setVariants(backendVariants);
+        }
+
+        setAppVariantsLoading(false);
+      } catch (error) {
+        setIsError(true);
+        setAppVariantsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [app]);
+
+  if (isError) return <div>failed to load variants</div>
+  if (areAppVariantsLoading) return <div>loading variants...</div>
 
   useEffect(() => {
     if (!isDatasetsLoadingError && datasets) {
@@ -53,9 +65,7 @@ export default function Evaluations() {
     }
   }, [newEvaluationEnvironment]);
 
-  const { variants, isLoading, isError } = listVariants(app);
-  if (isError) return <div>failed to load list of variants</div>
-  if (isLoading) return <div>loading variants</div>
+
 
   const createNewEvaluationEnvironment = () => {
     const postData = async (url = '', data = {}) => {
@@ -147,16 +157,16 @@ export default function Evaluations() {
       {!chatModeActivated &&
         <EvaluationTable
           columnsCount={columnsCount}
-          appVariants={appVariants}
+          variants={variants}
           dataset={datasetContent}
           comparisonTableId={comparisonTableId}
         />}
 
-      {chatModeActivated &&
+      {/* {chatModeActivated &&
         <EvaluationTableWithChat
           columnsCount={columnsCount}
           appVariants={appVariants}
-        />}
+        />} */}
     </div>
   );
 
