@@ -4,9 +4,9 @@ import type { ColumnType } from 'antd/es/table';
 import { DownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Row, Space, Spin, Table, message } from 'antd';
 import { Variant, Parameter } from '@/lib/Types';
-import { updateAppEvaluations, updateEvaluationRow, postEvaluationRow, getVariantParameters } from '@/lib/services/api';
+import { updateAppEvaluations, updateEvaluationRow, postEvaluationRow, getVariantParameters, callVariant } from '@/lib/services/api';
 import AppContext from '@/contexts/appContext';
-import { set } from 'cypress/types/lodash';
+import { useVariant } from '@/lib/hooks/useVariant';
 
 interface EvaluationTableProps {
     columnsCount: number;
@@ -37,16 +37,24 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
     const { app } = useContext(AppContext);
     const [variantInputs, setVariantInputs] = useState<string[]>([]);
     const [isError, setIsError] = useState(false);
-    // const [selectedAppVariants, setSelectedVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
-    const [selectedVariants, setSelectedVariants] = useState<Variant[]>(new Array(columnsCount).fill({ variantName: 'Select a variant' }));    //First let's get the variants parameters
+    const [selectedVariants, setSelectedVariants] = useState<Variant[]>(new Array(columnsCount).fill({ variantName: 'Select a variant' }));
+    const variantData = selectedVariants.map((variant, index) => {
+        const { optParams, URIPath, isLoading, isError, error } = useVariant(app, variant);
+
+        return {
+            optParams,
+            URIPath,
+            isLoading,
+            isError,
+            error
+        };
+    });
     useEffect(() => {
         const fetchAndSetSchema = async () => {
             try {
                 if (variants.length > 0) {
                     const { inputParams } = await getVariantParameters(app, variants[0]);
                     setVariantInputs(inputParams.map((inputParam: Parameter) => inputParam.name));
-                } else {
-                    setVariantInputs([]);
                 }
             } catch (e) {
                 setIsError(true);
@@ -74,15 +82,17 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
     }, [variantInputs]);
 
     useEffect(() => {
-        const initialRows = dataset && dataset.length > 0 ? dataset.map((item: any) => {
-            return {
-                inputFields: variantInputs.map((input: string) => ({ input_name: input, input_value: item[input] })),
-                columnData0: '',
-                columnData1: '',
-                vote: ''
-            }
-        }) : [];
-        setRows([...initialRows, ...rows]);
+        if (variantInputs.length > 0) {
+            const initialRows = dataset && dataset.length > 0 ? dataset.map((item: any) => {
+                return {
+                    inputFields: variantInputs.map((input: string) => ({ input_name: input, input_value: item[input] })),
+                    columnData0: '',
+                    columnData1: '',
+                    vote: ''
+                }
+            }) : [];
+            setRows([...initialRows, ...rows]);
+        }
     }, [dataset, variantInputs]);
 
     const handleAppVariantsMenuClick = (columnIndex: number) => ({ key }: { key: string }) => {
@@ -177,27 +187,23 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
         const appVariantX = selectedVariants[0];
         const appVariantY = selectedVariants[1];
         const queryString = rows[rowIndex].inputFields.map((item) => `${item.input_name}=${item.input_value}`).join('&');
+        const inputParamsDict = rows[rowIndex].inputFields.reduce((acc, item) => { acc[item.input_name] = item.input_value; return acc; }, {});
 
-        setRowValue(rowIndex, 'columnData0', 'loading...');
-        setRowValue(rowIndex, 'columnData1', 'loading...');
-        const requestX = fetch(`http://localhost/${app}/${appVariantX}/generate?${queryString}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        }).then(res => res.json())
-            .then(data => setRowValue(rowIndex, 'columnData0', data))
-            .catch(e => console.log(e));
 
-        const requestY = fetch(`http://localhost/${app}/${appVariantY}/generate?${queryString}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
+        // setRowValue(rowIndex, 'columnData1', 'loading...');
+        const columnsDataNames = ['columnData0', 'columnData1']
+        columnsDataNames.forEach(async (columnName: any, idx: number) => {
+
+            setRowValue(rowIndex, columnName, 'loading...');
+            try {
+                let result = await callVariant(inputParamsDict, variantData[idx].optParams, variantData[idx].URIPath);
+                setRowValue(rowIndex, columnName, result);
             }
-        }).then(res => res.json())
-            .then(data => setRowValue(rowIndex, 'columnData1', data))
-            .catch(e => console.log(e));
-        await Promise.all([requestX, requestY]);
+
+            catch (e) {
+                console.error('Error:', e)
+            }
+        });
     }
 
     const setRowValue = (rowIndex: number, columnKey: keyof EvaluationTableRow, value: any) => {
