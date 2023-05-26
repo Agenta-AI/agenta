@@ -39,13 +39,13 @@ def add_variant(variant_name: str, app_folder: str) -> str:
     try:
         docker_image: DockerImage = build_and_upload_docker_image(
             folder=app_path, app_name=app_name, variant_name=variant_name)
-    except Exception as e:
-        click.echo(click.style(f"Error while building image: {e}", fg='red'))
+    except Exception as ex:
+        click.echo(click.style(f"Error while building image: {ex}", fg='red'))
         return None
     try:
         client.add_variant_to_server(app_name, variant_name, docker_image)
-    except Exception as e:
-        click.echo(click.style(f"Error while adding variant: {e}", fg='red'))
+    except Exception as ex:
+        click.echo(click.style(f"Error while adding variant: {ex}", fg='red'))
         return None
     click.echo(click.style(f"Variant {variant_name} for App {app_name} added successfully", fg='green'))
     # Last step us to save the config file
