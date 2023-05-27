@@ -40,7 +40,8 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <Sider theme='light' style={{ paddingLeft: '10px', paddingRight: '10px', background: colorBgContainer }} width={225}>
+    <Sider theme='light' style={{ paddingLeft: '10px', paddingRight: '10px', background: colorBgContainer, border: '0.01px solid #ddd' }} width={225}>
+
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ marginTop: '30px', marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
           <Logo />
