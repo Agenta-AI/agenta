@@ -25,6 +25,14 @@ def add_variant(variant_name: str, app_folder: str) -> str:
         if 'variants' not in config:
             config['variants'] = []
 
+    env_file = app_path / '.env'
+    if not env_file.exists():
+        continue_without_env = questionary.confirm(
+            'No .env file found! Are you sure you handled the API keys needed in your application?\n Do you want to continue without it?').ask()
+        if not continue_without_env:
+            click.echo("Operation cancelled.")
+            sys.exit(0)
+
     if not variant_name:
         variant_name = questionary.text('Please enter the variant name').ask()
 
