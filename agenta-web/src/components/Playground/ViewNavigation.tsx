@@ -6,13 +6,14 @@ import ParametersView from './Views/ParametersView';
 import { parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
 import { Parameter, fetchVariantParameters } from '@/lib/services/api'; // Import fetchVariantParameters() from api.ts
 import { useVariant } from '@/lib/hooks/useVariant';
-import AppContext from '@/contexts/appContext';
 import { Variant } from './VersionTabs';
+import { useRouter } from 'next/router';
 const { TabPane } = Tabs;
 
 const ViewNavigation: React.FC<Variant> = ({ variant }) => {
-    const { app } = React.useContext(AppContext);
-    const { inputParams, optParams, URIPath, isLoading, isError, error, saveOptParams } = useVariant(app, variant);
+    const router = useRouter();
+    const { app_name } = router.query;
+    const { inputParams, optParams, URIPath, isLoading, isError, error, saveOptParams } = useVariant(app_name, variant);
 
 
     if (isLoading) {
