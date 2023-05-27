@@ -18,7 +18,9 @@ def add_variant_to_server(app_name: str, variant_name: str, docker_image: Docker
     # TODO: save uri as a config
     response = requests.post("http://localhost/api/app_variant/add/from_image/",
                              json={"app_variant": app_variant.dict(), "image": image.dict()})
-    assert response.status_code == 200
+    if response.status_code != 200:
+        raise Exception(
+            f"Request to add variant failed with status code {response.status_code}. Response: {response.text}")
 
 
 def start_variant(app_name: str, variant_name: str) -> str:
