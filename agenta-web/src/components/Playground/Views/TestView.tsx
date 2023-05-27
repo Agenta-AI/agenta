@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Row, Col, Button, Input, Card, Space } from 'antd';
 import { Parameter, callVariant, Parameter, runVariant } from '@/lib/services/api';
-import AppContext from '@/contexts/appContext';
+
 
 interface TestViewProps {
     URIPath: string | null;
