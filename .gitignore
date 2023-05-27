@@ -18,3 +18,4 @@ agenta-backend/db/deploy.db
 examples/**/config.toml
 examples/**/agenta.py
 examples/**/main.py
+agenta-cli/dist/
