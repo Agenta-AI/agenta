@@ -5,7 +5,7 @@ import { DownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Row, Space, Spin, Table } from 'antd';
 import { AppVariant } from '@/lib/Types';
 import { runVariant, fetchVariantParameters } from '@/lib/services/api';
-import AppContext from '@/contexts/appContext';
+import { useRouter } from 'next/router';
 
 interface EvaluationTableProps {
   columnsCount: number;
@@ -33,7 +33,8 @@ interface EvaluationTableRow {
  * @returns
  */
 const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVariants, dataset, comparisonTableId }) => {
-  const { app } = useContext(AppContext);
+  const router = useRouter();
+  const { app_name } = router.query;
   const [variantInputs, setVariantInputs] = useState<string[]>([]);
   const [selectedAppVariants, setSelectedAppVariants] = useState<string[]>(Array(columnsCount).fill('Select a variant'));
   //First let's get the variants parameters
@@ -223,7 +224,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
 
     setRowValue(rowIndex, 'columnData0', 'loading...');
     setRowValue(rowIndex, 'columnData1', 'loading...');
-    const requestX = fetch(`http://localhost/${app}/${appVariantX}/generate?${queryString}`, {
+    const requestX = fetch(`http://localhost/${app_name}/${appVariantX}/generate?${queryString}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -232,7 +233,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, appVari
       .then(data => setRowValue(rowIndex, 'columnData0', data))
       .catch(e => console.log(e));
 
-    const requestY = fetch(`http://localhost/${app}/${appVariantY}/generate?${queryString}`, {
+    const requestY = fetch(`http://localhost/${app_name}/${appVariantY}/generate?${queryString}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

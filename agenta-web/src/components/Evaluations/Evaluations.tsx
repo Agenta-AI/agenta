@@ -1,15 +1,13 @@
 
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { Breadcrumb, Button, Col, Dropdown, Menu, Row, Spin, Switch } from 'antd';
 import EvaluationTable from '../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
-import AppContext from '@/contexts/appContext';
 import { listVariants, loadDatasetsList } from '@/lib/services/api';
 import { useRouter } from 'next/router';
 
 export default function Evaluations() {
-  const { app } = useContext(AppContext);
   const router = useRouter();
   const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
   const [appVariants, setAppVariants] = useState<any[]>([]);
@@ -23,11 +21,7 @@ export default function Evaluations() {
 
   const { datasets, isDatasetsLoading, isDatasetsLoadingError } = loadDatasetsList();
 
-  useEffect(() => {
-    if (app == "") {
-      router.push("/");
-    }
-  }, [app]);
+  const app_name  = router.query.app_name?.toString() || "";
 
   useEffect(() => {
     if (variants && Array.isArray(variants) && variants.length > 0) {
@@ -53,7 +47,7 @@ export default function Evaluations() {
     }
   }, [newEvaluationEnvironment]);
 
-  const { variants, isLoading, isError } = listVariants(app);
+  const { variants, isLoading, isError } = listVariants(app_name);
   if (isError) return <div>failed to load list of variants</div>
   if (isLoading) return <div>loading variants</div>
 
