@@ -73,7 +73,7 @@ def post(func: Callable[..., Any]):
 
     wrapper.__signature__ = sig.replace(parameters=new_params)
 
-    route = f"/{func.__name__}"
+    route = "/generate"
     app.post(route)(wrapper)
 
     # check if the module is being run as the main script
