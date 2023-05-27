@@ -5,8 +5,8 @@ import { DownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Row, Space, Spin, Table, message } from 'antd';
 import { Variant, Parameter } from '@/lib/Types';
 import { updateAppEvaluations, updateEvaluationRow, postEvaluationRow, getVariantParameters, callVariant } from '@/lib/services/api';
-import AppContext from '@/contexts/appContext';
 import { useVariant } from '@/lib/hooks/useVariant';
+import { useRouter } from 'next/router';
 
 interface EvaluationTableProps {
     columnsCount: number;
@@ -34,12 +34,13 @@ interface EvaluationTableRow {
  * @returns
  */
 const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variants, dataset, comparisonTableId }) => {
-    const { app } = useContext(AppContext);
+    const router = useRouter();
+    const { app_name } = router.query;
     const [variantInputs, setVariantInputs] = useState<string[]>([]);
     const [isError, setIsError] = useState(false);
     const [selectedVariants, setSelectedVariants] = useState<Variant[]>(new Array(columnsCount).fill({ variantName: 'Select a variant' }));
     const variantData = selectedVariants.map((variant, index) => {
-        const { optParams, URIPath, isLoading, isError, error } = useVariant(app, variant);
+        const { optParams, URIPath, isLoading, isError, error } = useVariant(app_name, variant);
 
         return {
             optParams,
@@ -53,7 +54,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
         const fetchAndSetSchema = async () => {
             try {
                 if (variants.length > 0) {
-                    const { inputParams } = await getVariantParameters(app, variants[0]);
+                    const { inputParams } = await getVariantParameters(app_name, variants[0]);
                     setVariantInputs(inputParams.map((inputParam: Parameter) => inputParam.name));
                 }
             } catch (e) {

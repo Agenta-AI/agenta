@@ -1,15 +1,13 @@
 
-import { useState, useEffect, useContext } from 'react';
-import { Breadcrumb, Button, Col, Dropdown, Menu, Row, Spin, Switch, Tooltip, Tag } from 'antd';
-import EvaluationTable from '../EvaluationTable/EvaluationTable';
+import { useState, useEffect } from 'react';
+import { Button, Col, Dropdown, Menu, Row, Spin, Switch, Tooltip, Tag, message } from 'antd';
+import EvaluationTable from './../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
-import AppContext from '@/contexts/appContext';
 import { fetchVariants, loadDatasetsList } from '@/lib/services/api';
 import { useRouter } from 'next/router';
 
 export default function Evaluations() {
-  const { app } = useContext(AppContext);
   const router = useRouter();
   const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
@@ -24,16 +22,12 @@ export default function Evaluations() {
 
   const { datasets, isDatasetsLoading, isDatasetsLoadingError } = loadDatasetsList();
 
-  useEffect(() => {
-    if (app == "") {
-      router.push("/");
-    }
-  }, [app]);
+  const app_name = router.query.app_name?.toString() || "";
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const backendVariants = await fetchVariants(app);
+        const backendVariants = await fetchVariants(app_name);
 
         if (backendVariants.length > 0) {
           setVariants(backendVariants);
@@ -47,7 +41,7 @@ export default function Evaluations() {
     };
 
     fetchData();
-  }, [app]);
+  }, [app_name]);
 
   if (isError) return <div>failed to load variants</div>
   if (areAppVariantsLoading) return <div>loading variants...</div>
@@ -64,8 +58,6 @@ export default function Evaluations() {
       setNewEvaluationEnvironment(false);
     }
   }, [newEvaluationEnvironment]);
-
-
 
   const createNewEvaluationEnvironment = () => {
     const postData = async (url = '', data = {}) => {
@@ -149,7 +141,7 @@ export default function Evaluations() {
 
             <span style={{ marginRight: 10, fontWeight: 10, color: "grey" }}>Switch to Chat mode</span>
             <Tag color="orange" bordered={false}>soon</Tag>
-            <Switch defaultChecked={false} onChange={onSwitchToChatMode} disabled={true} />
+            {/* <Switch defaultChecked={false} onChange={onSwitchToChatMode} disabled={true} /> */}
           </div>
         </Col>
       </Row>

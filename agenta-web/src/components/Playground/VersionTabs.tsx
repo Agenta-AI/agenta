@@ -4,9 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Tabs, Modal, Input, Select, Space, Typography, message } from 'antd';
 import ViewNavigation from './ViewNavigation';
 import { useRouter } from 'next/router';
-import AppContext from '@/contexts/appContext';
 import { fetchVariants } from '@/lib/services/api';
-import axios from 'axios';
 import { Variant } from '@/lib/Types';
 const { TabPane } = Tabs;
 
@@ -59,8 +57,8 @@ function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], act
 
 
 const VersionTabs: React.FC = () => {
-    const { app } = React.useContext(AppContext);
     const router = useRouter();
+    const { app_name } = router.query;
     const [templateVariantName, setTemplateVariantName] = useState("");  // We use this to save the template variant name when the user creates a new variant
     const [activeKey, setActiveKey] = useState('1');
     const [tabList, setTabList] = useState([]);
@@ -70,16 +68,11 @@ const VersionTabs: React.FC = () => {
     const [isError, setIsError] = useState(false);
     const [newVariantName, setNewVariantName] = useState("");  // This is the name of the new variant that the user is creating
     const { Text } = Typography; // Destructure Text from Typography for text components
-    useEffect(() => {
-        if (app == "") {
-            router.push("/");
-        }
-    }, [app]);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const backendVariants = await fetchVariants(app);
+                const backendVariants = await fetchVariants(app_name);
 
                 if (backendVariants.length > 0) {
                     setVariants(backendVariants);
@@ -94,7 +87,7 @@ const VersionTabs: React.FC = () => {
         };
 
         fetchData();
-    }, [app]);
+    }, [app_name]);
 
     if (isError) return <div>failed to load variants</div>
     if (isLoading) return <div>loading variants...</div>
