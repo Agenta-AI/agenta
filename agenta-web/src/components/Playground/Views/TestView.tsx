@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Row, Col, Button, Input, Card, Space } from 'antd';
+import { Row, Col, Button, Input, Card, Spin, message } from 'antd';
 import { callVariant } from '@/lib/services/api';
 import { Parameter } from '@/lib/Types';
 
@@ -12,8 +12,9 @@ interface TestViewProps {
 const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath }) => {
     const { TextArea } = Input;
     const [results, setResults] = useState('');
+    const [loading, setLoading] = useState(false); // Add this state for loading
     if (!inputParams) {
-        return <div>Loading...</div>;
+        return <Spin />; // Use Spin when loading
     }
     const [inputParamsDict, setInputParamsDict] = useState<Record<string, string>>(inputParams.reduce((dict, param) => ({ ...dict, [param.name]: param.default }), {}));
     const handleInputParamValChange = (inputParamName: string, newValue: string) => {
@@ -25,18 +26,22 @@ const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath
 
 
     const handleRun = async () => {
-        setResults("Loading..");
+        setLoading(true); // Start loading
+        setResults(""); // Clear previous results
         try {
             const result = await callVariant(inputParamsDict, optParams, URIPath);
             setResults(result);
+            setInputParamsDict({}); // Clear input fields
         } catch (e) {
-            console.error('Error:', e)
+            console.error('Error:', e);
+            message.error('An error occurred. Please try again.'); // Show error message
+        } finally {
+            setLoading(false); // Stop loading
         }
     }
 
-
     return (
-        <Card style={{ marginBottom: '5px', padding: '5px' }}>
+        <Card style={{ marginBottom: '5px', padding: '0px' }}>
             <div style={{ marginBottom: '10px' }}><label >Test case</label></div>
             <Row gutter={2}>
                 <Col span={12} style={{ paddingRight: '10px' }}>
@@ -45,7 +50,8 @@ const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath
                             {/* <label>{key}</label> */}
                             <TextArea
                                 placeholder={key}
-                                style={{ width: '100%', marginTop: 10, marginBottom: 10 }}
+                                rows={6}
+                                style={{ width: '100%', marginTop: 0, marginBottom: 5 }}
                                 onChange={e => handleInputParamValChange(key, e.target.value)}
                             />
                         </div>))}
