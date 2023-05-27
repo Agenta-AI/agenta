@@ -34,7 +34,7 @@ const App: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </Content>
       </Layout>
-      <Footer style={{ textAlign: 'center' }}>
+      <Footer style={{ textAlign: 'center', padding: '10px 50px' }}>
         <div>
           <span>Agenta © 2023. Made with</span>
           <span> <HeartTwoTone twoToneColor="#eb2f96" /> </span>
