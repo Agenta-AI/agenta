@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { RocketOutlined, FileTextOutlined, DatabaseOutlined, CloudUploadOutlined, BarChartOutlined, LineChartOutlined, MonitorOutlined, UserOutlined, QuestionOutlined } from '@ant-design/icons';
+import { RocketOutlined, AppstoreOutlined, FileTextOutlined, DatabaseOutlined, CloudUploadOutlined, BarChartOutlined, LineChartOutlined, MonitorOutlined, UserOutlined, QuestionOutlined } from '@ant-design/icons';
 import { Avatar, Badge, Card, Layout, Menu, Space, Tag, Tooltip, theme, } from 'antd';
 import { MenuInfo } from 'rc-menu/lib/interface';
 
@@ -47,10 +47,10 @@ const Sidebar: React.FC = () => {
         </div>
         <Menu mode="inline" selectedKeys={initialSelectedKeys} style={{ borderRight: 0 }}>
 
-          <Menu.Item key="apps" icon={<RocketOutlined />} onClick={() => navigate('apps')}>
-            <Tooltip placement="right" title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.">
+          <Menu.Item key="apps" icon={<AppstoreOutlined />} onClick={() => navigate('apps')}>
+            <Tooltip placement="right" title="Create new applications or switch between your existing projects">
               <div style={{ width: '100%' }}>
-                Manage Apps
+                App Management
               </div>
             </Tooltip>
           </Menu.Item>
