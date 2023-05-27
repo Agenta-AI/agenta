@@ -18,13 +18,16 @@ def add_variant(variant_name: str, app_folder: str) -> str:
     config_file = app_path / 'config.toml'
     if not config_file.exists():
         click.echo("Please run agenta init first")
-        return
+        return None
     else:
         config = toml.load(config_file)
         app_name = config['app-name']
         if 'variants' not in config:
             config['variants'] = []
-
+    app_file = app_path / 'app.py'
+    if not app_file.exists():
+        click.echo(click.style(f"No app.py exists! Please make sure you are in the right directory", fg='red'))
+        return None
     env_file = app_path / '.env'
     if not env_file.exists():
         continue_without_env = questionary.confirm(
