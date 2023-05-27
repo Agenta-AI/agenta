@@ -67,9 +67,6 @@ def add_variant_based_on_image(app_variant: AppVariant, image: Image):
         raise ValueError("App variant or image is None")
     if app_variant.parameters is not None:
         raise ValueError("Parameters are not supported when adding based on image")
-    if app_variant.previous_variant_id is not None:
-        raise ValueError(
-            "Previous variant name is not supported when adding based on image")
     already_exists = any([av for av in list_app_variants() if av.app_name ==
                           app_variant.app_name and av.variant_name == app_variant.variant_name])
     if already_exists:
@@ -117,7 +114,7 @@ def add_variant_based_on_previous(previous_app_variant: AppVariant, new_variant_
             "Template app variant is not a template, it is a forked variant itself")
 
     already_exists = any([av for av in list_app_variants() if av.app_name ==
-                          app_variant.app_name and av.variant_name == app_variant.variant_name])
+                          previous_app_variant.app_name and av.variant_name == new_variant_name])
     if already_exists:
         raise ValueError("App variant with the same name already exists")
 

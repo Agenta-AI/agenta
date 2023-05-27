@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Row, Col, Button, Input, Card, Space } from 'antd';
-import { Parameter, callVariant, Parameter, runVariant } from '@/lib/services/api';
-
+import { callVariant } from '@/lib/services/api';
+import { Parameter } from '@/lib/Types';
 
 interface TestViewProps {
     URIPath: string | null;
     inputParams: Parameter[] | null;
     optParams: Parameter[] | null;
 }
+
 const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath }) => {
     const { TextArea } = Input;
     const [results, setResults] = useState('');
