@@ -48,19 +48,18 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
     }
 
     return (
-        <>
-            <Row gutter={20} style={{ margin: 10 }}>
-                <Col span={12}>
+        <div style={{ margin: '10px' }}>
+            <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]}>
+                <Col span={24}>
                     <ParametersView optParams={optParams} onOptParamsChange={saveOptParams} />
                 </Col>
-                {/* </Row>
-            <Row gutter={20} style={{ margin: 10, marginTop: 50 }}> */}
-                <Col span={12}>
+            </Row>
+            <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]} style={{ marginTop: '20px' }}>
+                <Col span={24}>
                     <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
                 </Col>
-            </Row >
-        </>
-    );
+            </Row>
+        </div>);
 };
 
 export default ViewNavigation;
