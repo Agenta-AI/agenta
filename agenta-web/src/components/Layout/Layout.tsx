@@ -1,38 +1,35 @@
 import React from 'react';
-import { Layout, theme } from 'antd';
+import { Breadcrumb, Layout, theme } from 'antd';
 import Sidebar from '../Sidebar/Sidebar';
 import { HeartTwoTone } from '@ant-design/icons';
 import { useRouter } from 'next/router';
-import Header from '../Header/Header';
 
 type LayoutProps = {
   children: React.ReactNode
 }
-type User = {
-  name: string;
-  avatar: string;
-};
 
 const { Content, Footer } = Layout;
-const mockUser: User = {
-  name: 'Foulen',
-  avatar: 'https://example.com/john-doe.jpg',
-};
 
 const App: React.FC<LayoutProps> = ({ children }) => {
-
+  const router = useRouter();
+  const { app_name }  = router.query
   const {
     token: { colorBgContainer },
   } = theme.useToken();
-  const router = useRouter();
 
   return (
-    <Layout >
-      <Layout style={{ marginTop: '2px' }}>
-        {router.pathname !== '/' && <Sidebar />}
-        <Content style={{ margin: '0 2px' }}>
-        <Header user={mockUser} />
+    <Layout>
+      <Layout hasSider>
+        <Sidebar />
+        <Content >
           <div style={{ padding: 20, background: colorBgContainer, minHeight: '95vh' }}>
+            <Breadcrumb
+              style={{ marginTop: '20px', marginBottom: '40px'}}
+              items={[
+                { title: <a href="/">Apps</a> },
+                { title: app_name}
+              ]}
+            />
             {children}
           </div>
         </Content>
@@ -44,7 +41,6 @@ const App: React.FC<LayoutProps> = ({ children }) => {
           <span>in Berlin.</span>
         </div>
       </Footer>
-
     </Layout>
   );
 };

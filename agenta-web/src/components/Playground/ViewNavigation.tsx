@@ -3,12 +3,13 @@ import { Col, Row } from 'antd';
 import TestView from './Views/TestView';
 import ParametersView from './Views/ParametersView';
 import { useVariant } from '@/lib/hooks/useVariant';
-import AppContext from '@/contexts/appContext';
 import { Variant } from '@/lib/Types';
+import { useRouter } from 'next/router';
 
 const ViewNavigation: React.FC<Variant> = ({ variant }) => {
-    const { app } = React.useContext(AppContext);
-    const { inputParams, optParams, URIPath, isLoading, isError, error, saveOptParams } = useVariant(app, variant);
+    const router = useRouter();
+    const { app_name } = router.query;
+    const { inputParams, optParams, URIPath, isLoading, isError, error, saveOptParams } = useVariant(app_name, variant);
 
 
     if (isLoading) {
