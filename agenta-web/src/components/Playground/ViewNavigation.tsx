@@ -17,7 +17,7 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
     }
     if (isError) {
         let variantDesignator = variant.variantTemplate;
-        let imageName = `agenta-server/${app.toLowerCase()}_`;
+        let imageName = `agenta-server/${app_name.toLowerCase()}_`;
 
         if (!variantDesignator || variantDesignator === '') {
             variantDesignator = variant.variantName;
@@ -26,7 +26,7 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
             imageName += variantDesignator.toLowerCase();
         }
 
-        const apiAddress = `localhost/${app}/${variantDesignator}/openapi.json`;
+        const apiAddress = `localhost/${app_name}/${variantDesignator}/openapi.json`;
 
         return (
             <div>
