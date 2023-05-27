@@ -50,7 +50,7 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
 
         # Build the Docker image
         registry = settings.registry
-        tag = f"{registry}/{app_name}_{variant_name}:latest"
+        tag = f"{registry}/{app_name.lower()}_{variant_name.lower()}:latest"
         print("Building Docker image...")
         try:
             image, build_log = client.images.build(
