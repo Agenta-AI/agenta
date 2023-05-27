@@ -36,11 +36,11 @@ const AppSelector = () => {
             <Row gutter={10}> {/* gutter adds spacing between columns */}
                 {data.map((app, index) => (
                     <Col key={index} span={6}>
-                        <Button type="default" style={{ height: '200px', width: '220px' }}>
-                            <Link href={`/apps/${app.app_name}/playground`}>
+                        <Link href={`/apps/${app.app_name}/playground`}>
+                            <Button type="default" style={{ height: '200px', width: '220px' }}>
                                 <h3 style={{ fontWeight: 'bold' }}>{`${app.app_name}`}</h3>
-                            </Link>
-                        </Button>
+                            </Button>
+                        </Link>
                     </Col>
 
                 ))}
