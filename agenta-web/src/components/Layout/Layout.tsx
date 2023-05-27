@@ -3,7 +3,7 @@ import { Breadcrumb, Layout, theme } from 'antd';
 import Sidebar from '../Sidebar/Sidebar';
 import { HeartTwoTone } from '@ant-design/icons';
 import { useRouter } from 'next/router';
-
+import Link from 'next/link';
 type LayoutProps = {
   children: React.ReactNode
 }
@@ -12,7 +12,7 @@ const { Content, Footer } = Layout;
 
 const App: React.FC<LayoutProps> = ({ children }) => {
   const router = useRouter();
-  const { app_name }  = router.query
+  const { app_name } = router.query
   const {
     token: { colorBgContainer },
   } = theme.useToken();
@@ -24,10 +24,10 @@ const App: React.FC<LayoutProps> = ({ children }) => {
         <Content >
           <div style={{ padding: 20, background: colorBgContainer, minHeight: '95vh' }}>
             <Breadcrumb
-              style={{ marginTop: '20px', marginBottom: '40px'}}
+              style={{ marginTop: '20px', marginBottom: '40px' }}
               items={[
-                { title: <a href="/">Apps</a> },
-                { title: app_name}
+                { title: <Link href="/apps">Apps</Link> },
+                { title: app_name }
               ]}
             />
             {children}
