@@ -1,16 +1,17 @@
 
 import { useState, useEffect } from 'react';
-import { Breadcrumb, Button, Col, Dropdown, Menu, Row, Spin, Switch } from 'antd';
-import EvaluationTable from '../EvaluationTable/EvaluationTable';
+import { Button, Col, Dropdown, Menu, Row, Spin, Switch, Tooltip, Tag, message } from 'antd';
+import EvaluationTable from './../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
-import { listVariants, loadDatasetsList } from '@/lib/services/api';
+import { fetchVariants, loadDatasetsList } from '@/lib/services/api';
 import { useRouter } from 'next/router';
 
 export default function Evaluations() {
   const router = useRouter();
   const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
-  const [appVariants, setAppVariants] = useState<any[]>([]);
+  const [isError, setIsError] = useState(false);
+  const [variants, setVariants] = useState<any[]>([]);
   const [columnsCount, setColumnsCount] = useState(2);
   const [chatModeActivated, setChatModeActivated] = useState(false);
   const [selectedDataset, setSelectedDataset] = useState<{ _id?: string, name: string }>({ name: "Select a Dataset" });
@@ -21,18 +22,29 @@ export default function Evaluations() {
 
   const { datasets, isDatasetsLoading, isDatasetsLoadingError } = loadDatasetsList();
 
-  const app_name  = router.query.app_name?.toString() || "";
+  const app_name = router.query.app_name?.toString() || "";
 
   useEffect(() => {
-    if (variants && Array.isArray(variants) && variants.length > 0) {
-      const appVariantsFromResponse = variants.map((item: any, index: number) => ({
-        id: index,
-        name: item.variant_name,
-        endpoint: item.variant_name
-      }));
-      setAppVariants(appVariantsFromResponse);
-    }
-  }, []);
+    const fetchData = async () => {
+      try {
+        const backendVariants = await fetchVariants(app_name);
+
+        if (backendVariants.length > 0) {
+          setVariants(backendVariants);
+        }
+
+        setAppVariantsLoading(false);
+      } catch (error) {
+        setIsError(true);
+        setAppVariantsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [app_name]);
+
+  if (isError) return <div>failed to load variants</div>
+  if (areAppVariantsLoading) return <div>loading variants...</div>
 
   useEffect(() => {
     if (!isDatasetsLoadingError && datasets) {
@@ -46,10 +58,6 @@ export default function Evaluations() {
       setNewEvaluationEnvironment(false);
     }
   }, [newEvaluationEnvironment]);
-
-  const { variants, isLoading, isError } = listVariants(app_name);
-  if (isError) return <div>failed to load list of variants</div>
-  if (isLoading) return <div>loading variants</div>
 
   const createNewEvaluationEnvironment = () => {
     const postData = async (url = '', data = {}) => {
@@ -130,25 +138,27 @@ export default function Evaluations() {
         </Col>
         <Col>
           <div>
-            <span style={{ marginRight: 10, fontWeight: 10 }}>Switch to Chat mode</span>
-            <Switch defaultChecked={false} onChange={onSwitchToChatMode} />
+
+            <span style={{ marginRight: 10, fontWeight: 10, color: "grey" }}>Switch to Chat mode</span>
+            <Tag color="orange" bordered={false}>soon</Tag>
+            {/* <Switch defaultChecked={false} onChange={onSwitchToChatMode} disabled={true} /> */}
           </div>
         </Col>
       </Row>
 
-      {!chatModeActivated &&
+      {!chatModeActivated && datasetContent.length > 0 &&
         <EvaluationTable
           columnsCount={columnsCount}
-          appVariants={appVariants}
+          variants={variants}
           dataset={datasetContent}
           comparisonTableId={comparisonTableId}
         />}
 
-      {chatModeActivated &&
+      {/* {chatModeActivated &&
         <EvaluationTableWithChat
           columnsCount={columnsCount}
           appVariants={appVariants}
-        />}
+        />} */}
     </div>
   );
 

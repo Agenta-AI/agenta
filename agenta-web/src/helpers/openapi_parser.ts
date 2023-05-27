@@ -1,5 +1,5 @@
 // parser.ts
-import { Parameter } from '@/services/api';
+import { Parameter } from '@/lib/Types';
 /**
  * Returns a raw list of parameters from an openapi.json schema.
  * This list of parameters includes both the inputs and the parameters
