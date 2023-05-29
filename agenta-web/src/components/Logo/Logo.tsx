@@ -9,7 +9,7 @@ const Logo: React.FC = () => {
       borderTopLeftRadius: 10,
       borderBottomRightRadius: 10
     }}>
-      <Link href="/">
+      <Link href="/apps">
         <div style={{
           color: '#000',
           textDecoration: 'none',
