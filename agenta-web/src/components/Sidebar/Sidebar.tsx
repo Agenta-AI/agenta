@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { RocketOutlined, FileTextOutlined, DatabaseOutlined, CloudUploadOutlined, BarChartOutlined, LineChartOutlined, MonitorOutlined, UserOutlined, QuestionOutlined } from '@ant-design/icons';
+import { RocketOutlined, AppstoreOutlined, FileTextOutlined, DatabaseOutlined, CloudUploadOutlined, BarChartOutlined, LineChartOutlined, MonitorOutlined, UserOutlined, QuestionOutlined } from '@ant-design/icons';
 import { Avatar, Badge, Card, Layout, Menu, Space, Tag, Tooltip, theme, } from 'antd';
 import { MenuInfo } from 'rc-menu/lib/interface';
 
@@ -38,30 +38,30 @@ const Sidebar: React.FC = () => {
 		}
 	};
 
-	return (
-		<Sider theme='light' style={{ paddingLeft: '10px', paddingRight: '10px', background: colorBgContainer }} width={225}>
-			<div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-				<div style={{ marginTop: '30px', marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
-					<Logo />
-				</div>
-				<Menu mode="inline" selectedKeys={initialSelectedKeys} style={{ borderRight: 0 }}>
+  return (
+    <Sider theme='light' style={{ paddingLeft: '10px', paddingRight: '10px', background: colorBgContainer, border: '0.01px solid #ddd'  }} width={225}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ marginTop: '30px', marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
+          <Logo />
+        </div>
+        <Menu mode="inline" selectedKeys={initialSelectedKeys} style={{ borderRight: 0 }}>
 
-					<Menu.Item key="apps" icon={<RocketOutlined />} onClick={() => navigate('apps')}>
-						<Tooltip placement="right" title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.">
-							<div style={{ width: '100%' }}>
-								Manage Apps
-							</div>
-						</Tooltip>
-					</Menu.Item>
-					{page_name && (
-						<>
-							<Menu.Item key="playground" icon={<RocketOutlined />} onClick={() => navigate('playground')}>
-								<Tooltip placement="right" title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.">
-									<div style={{ width: '100%' }}>
-										Playground
-									</div>
-								</Tooltip>
-							</Menu.Item>
+          <Menu.Item key="apps" icon={<AppstoreOutlined />} onClick={() => navigate('apps')}>
+            <Tooltip placement="right" title="Create new applications or switch between your existing projects.">
+              <div style={{ width: '100%' }}>
+			  	App Management
+              </div>
+            </Tooltip>
+          </Menu.Item>
+          {page_name && (
+            <>
+              <Menu.Item key="playground" icon={<RocketOutlined />} onClick={() => navigate('playground')}>
+                <Tooltip placement="right" title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.">
+                  <div style={{ width: '100%' }}>
+                    Playground
+                  </div>
+                </Tooltip>
+              </Menu.Item>
 
 							<Menu.Item key="datasets" icon={<DatabaseOutlined />} onClick={() => navigate('datasets')}>
 								<Tooltip placement="right" title="Create and manage datasets for evaluation purposes.">
