@@ -1,6 +1,6 @@
-# 🧿🤖 Agenta Lab: Your LLMOps platform for LLM-powered application development
+# **✨ Agenta.ai**
+### **The developer-first open source LLMOps platform.**
 
-Agenta Lab is an open-source, **developer-focused** LLMOps platform that streamlines the development and evaluation of LLM-powered applications.
 
 Building LLM-powered apps is currently very frustrating. It involves a significant amount of prompt engineering and a lots of parameters to tune and countless iterations. Agenta simplifies this process, enabling you to quickly iterate, experiment, and optimize your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
