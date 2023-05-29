@@ -1,154 +1,167 @@
 
 import { useState, useEffect } from 'react';
-import { Table, Spin, Tag } from 'antd';
+import { Table, Spin, Tag, Progress } from 'antd';
 import { ColumnsType } from 'antd/es/table';
-
+import { formatDate } from '@/lib/helpers/dateTimeHelper';
 
 interface DataType {
-  id: string;
-  variants: [string];
-  results: null | { variants: string[]; votes: Array<Record<string, number>>; nb_of_rows: number };
-  createdAt?: string;
+    id: string;
+    variants: string[];
+    votesData: {
+        variants_votes_data: {
+            number_of_votes: number,
+            percentage: number
+        },
+        flag_votes: { number_of_votes: number, percentage: number },
+    }
+    createdAt?: string;
 }
 
-interface ResultsType {
-  id: string;
-  variants: [string];
-  votes: Array<Record<string, number>>;
-  created_at: string;
+interface ResponseType {
+    id: string;
+    variants: string[];
+    votes_data: {
+        variants_votes_data: {
+            number_of_votes: number,
+            percentage: number
+        },
+        flag_votes: { number_of_votes: number, percentage: number },
+    }
+    created_at: string;
 }
 
 interface Vote {
-  [key: string]: number;
+    [key: string]: number;
 }
 
 const fetchData = async (url: string): Promise<any> => {
-  const response = await fetch(url);
-  return response.json();
+    const response = await fetch(url);
+    return response.json();
+}
+
+const renderVotesPlot = (votesData: any, variants: string[], index: number, record: DataType) => {
+    const hexColors = ['#5B8FF9', '#61DDAA', '#FFbcb8'];
+
+    let flagDiv = null;
+    if (record.votesData.flag_votes.number_of_votes > 0) {
+        flagDiv = <div
+            key={`flag-${index}`}
+            style={{
+                width: `${record.votesData.flag_votes.percentage * 100}%`,
+                backgroundColor: hexColors[hexColors.length - 1],
+                textAlign: 'center',
+                padding: '2px 10px',
+            }}
+        >{`Flag: ${record.votesData.flag_votes.number_of_votes} votes (${record.votesData.flag_votes.percentage}%)`}</div>
+    }
+
+    return <div style={{
+        display: 'flex',
+        maxHeight: '50px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+    }}>
+        {variants.map((cell, index) => {
+
+            const variantsVotesData = votesData.variants_votes_data[cell];
+            if (!variantsVotesData || variantsVotesData.number_of_votes === 0) return null;
+            return <div
+                key={`variant-${index}`}
+                style={{
+                    padding: '2px 10px',
+                    color: '#fff',
+                    width: `${variantsVotesData.percentage * 100}%`,
+                    backgroundColor: hexColors[index],
+                    textAlign: 'center',
+                }}
+            >
+                {`${cell} : ${variantsVotesData.number_of_votes} votes (${variantsVotesData.percentage}%)`}
+            </div>
+        })}
+        {flagDiv}
+    </div>
 }
 
 const Results: React.FC = () => {
 
-  const [data, setData] = useState<DataType[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [statsLoading, setStatsLoading] = useState<boolean[]>([]);
+    const [data, setData] = useState<DataType[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
+    const [statsLoading, setStatsLoading] = useState<boolean[]>([]);
 
-  useEffect(() => {
-    fetchData('http://localhost/api/app_evaluations')
-      .then(responseData => {
-        const initialData: DataType[] = responseData.map((item: ResultsType) => ({
-          id: item.id,
-          createdAt: item.created_at,
-          variants: item.variants,
-          results: null,
-        }));
+    useEffect(() => {
+        fetchData('http://localhost/api/app_evaluations')
+            .then(responseData => {
+                const initialData: DataType[] = responseData.map((item: ResponseType) => {
+                    return {
+                        id: item.id,
+                        createdAt: formatDate(item.created_at),
+                        variants: item.variants,
+                        votesData: null,
+                    }
+                })
 
-        setData(initialData);
-        setLoading(false);
+                setData(initialData);
+                setLoading(false);
 
-        initialData.forEach((item, index) => {
-          fetchData(`http://localhost/api/app_evaluations/${item.id}/results`)
-            .then(results => {
+                initialData.forEach((item, index) => {
+                    fetchData(`http://localhost/api/app_evaluations/${item.id}/votes_data`)
+                        .then(results => {
+                            setData(prevData => {
+                                const newData = [...prevData];
+                                newData[index].votesData = results.votes_data;
+                                return newData;
+                            });
 
-              setData(prevData => {
-                const newData = [...prevData];
-                newData[index].results = results.results;
-                return newData;
-              });
-
-              setStatsLoading(prevStatsLoading => {
-                const newStatsLoading = [...prevStatsLoading];
-                newStatsLoading[index] = false;
-                return newStatsLoading;
-              });
+                            setStatsLoading(prevStatsLoading => {
+                                const newStatsLoading = [...prevStatsLoading];
+                                newStatsLoading[index] = false;
+                                return newStatsLoading;
+                            });
+                        });
+                });
+            })
+            .catch(err => {
+                console.error(err);
+                setLoading(false);
             });
-        });
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
-  }, []);
+    }, []);
 
-  const columns: ColumnsType<DataType> = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-    },
-    {
-      title: 'Created At',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-    },
-    {
-      title: 'Variants',
-      dataIndex: 'variants',
-      key: 'variants',
-      render: (_: any, record: DataType, index: number) => {
-        const variants = record.variants;
-        if (variants) {
-          return <>
-            {variants.map((variant, index) => (
-              <span style={{ marginRight: "5px" }} key={index}>{variant}</span>
-            ))}
-          </>
-        }
-        return null;
+    const columns: ColumnsType<DataType> = [
+        {
+            title: 'Variants votes results',
+            dataIndex: 'votesData',
+            key: 'votesData',
+            width: '70%',
+            render: (value: any, record: DataType, index: number) => {
+                const variants = data[index].variants;
 
-      }
-    },
-    {
-      title: 'Results',
-      key: 'results',
-      render: (_: any, record: DataType, index: number) => {
-        if (statsLoading[index]) {
-          return <Spin />;
-        }
-        const results = record.results;
+                if (!variants || !record.votesData) return null;
 
-        if (results && results.votes) {
+                return renderVotesPlot(record.votesData, variants, index, record);
+            },
+        },
+        {
+            title: 'Created at',
+            dataIndex: 'createdAt',
+            key: 'createdAt',
+            width: '300',
+        },
+    ];
 
-          if(results.votes.length === 1 && Object.keys(results.votes[0])[0] === '0') {
-            return <div> No votes </div>;
-          }
-          const sortedVotes: Vote[] = [...results.votes].sort((a, b) => {
-            const keyA = Object.keys(a)[0];
-            const keyB = Object.keys(b)[0];
-
-            if (keyA === '0') return 1; // '0' should always come last
-            if (keyB === '0') return -1;
-
-            // Regular alphabetical sort for other keys
-            return keyA.localeCompare(keyB);
-          });
-
-          return sortedVotes.map((vote, i) => {
-            const [key, value] = Object.entries(vote)[0];
-            if (key === '0') {
-              return <Tag color="red" key={i}>Flag: {value}</Tag>
-            }
-            return <Tag color="green" key={i}>{key}: {value}</Tag>
-          });
-        }
-        return null;
-      },
-    },
-  ];
-
-  return (
-    <div>
-      {loading ? (
-        <Spin />
-      ) : (
-        <Table
-          columns={columns}
-          dataSource={data}
-          loading={loading}
-        />
-      )}
-    </div>
-  );
+    return (
+        <div>
+            {loading ? (
+                <Spin />
+            ) : (
+                <Table
+                    columns={columns}
+                    dataSource={data}
+                    loading={loading}
+                />
+            )}
+        </div>
+    );
 };
 export default Results;
 

@@ -120,7 +120,7 @@ async def get_comparison_table_id():
     return items
 
 
-@router.get("/{comparison_table_id}/results")
+@router.get("/{comparison_table_id}/votes_data")
 async def fetch_results(comparison_table_id: str):
     """Fetch all the results for one the comparison table
 
@@ -135,24 +135,27 @@ async def fetch_results(comparison_table_id: str):
 
     variants = document.get("variants", [])
     results["variants"] = variants
-    results["votes"] = []
-
-    flag_votes_nb = await evaluation_rows.count_documents({
-        'vote': '0',
-        'comparison_table_id': comparison_table_id
-    })
-
-    results["votes"].append({"0": flag_votes_nb})
+    results["variants_votes_data"] = {}
 
     comparison_table_rows_nb = await evaluation_rows.count_documents({
         'comparison_table_id': comparison_table_id
     })
     results["nb_of_rows"] = comparison_table_rows_nb
 
+    flag_votes_nb = await evaluation_rows.count_documents({
+        'vote': '0',
+        'comparison_table_id': comparison_table_id
+    })
+    results["flag_votes"] = {}
+    results["flag_votes"]["number_of_votes"] = flag_votes_nb
+    results["flag_votes"]["percentage"] = round(flag_votes_nb / comparison_table_rows_nb * 100, 2)
+
     for item in variants:
+        results["variants_votes_data"][item] = {}
         variant_votes_nb: int = await evaluation_rows.count_documents({
             'vote': item,
             'comparison_table_id': comparison_table_id
         })
-        results["votes"].append({item: variant_votes_nb})
-    return {"results": results}
+        results["variants_votes_data"][item]["number_of_votes"]= variant_votes_nb
+        results["variants_votes_data"][item]["percentage"] = round(variant_votes_nb / comparison_table_rows_nb * 100, 2)
+    return {"votes_data": results}
