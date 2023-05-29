@@ -1,55 +1,96 @@
-# Agenta Lab: Streamline Your LLM-App Development
-
-Agenta is an open-source CI/CD platform designed to simplify and accelerate the development and deployment of LLM-powered applications such as chatbots, agents, Q&A systems, and more. Agenta is targeted towards technnical audience bringing LLM-powered apps into production.
-
-Building LLM-powered apps is currently very frustrating. It involves a significant amount of trial and error and a lots of parameters to tune and countless iterations. Agenta simplifies this process, enabling you to quickly iterate, experiment, and optimize your LLM apps.
-
-## What can you do with Agenta Lab?
-
-[x] Playground to test different parameters: With a couple of lines modify your custom code to specify which parameters you want to experiment with. Then you (or your colleagues) can test your application and experiment with different parameters directly through a user-friendly web platform.
-
-[x] Version evaluation: Create test sets, evaluate and compare different versions of your app
-
-[] Regression Testing: Run regression tests based on real data whenevery you deploy a new version.
-
-[x] Effortless API Deployment: Agenta allows developers to deploy their LLM applications as an API without any extra effort. (Currently only locally)Í
-
-[] Monitoring and Logging: Agenta provides a dashboard to monitor and log your app's performance and usage. You can also monitor the performance of your app in production and compare it to previous versions.
-
-[] A/B Testing & User Feedback: Experiment with different app versions and gather valuable user feedback for continuous improvement.
-
-[] Automated Deployment: Push a commit to automatically deploy your app, saving time and minimizing human error.
-
-## Why another platform for building LLM-apps?
-
-There are a number of great platforms for building LLM apps, yet we find that none fits our needs:
-
-- Developer-friendly: We write complicated llm-apps and pipelines that cannot be abstracted with a few no-code abstractions. We want the control to build our apps the way we want.
-- Privacy-first: We did not want our data to proxied through a third-party service. We prefered to host our own data and models.
-- Solution-agnostic: We wanted to be able to use any library and models we want, whether Langchain, llma_index, or a home written alternative.
-- Collaboration with non technical users: We realized that building LLM-powered apps involves the collaboration between developer and domain experts who might not be technical. We wanted to build a tool that allows both to collaborate and build apps together. The developer writes the main code, while the domain expert can edit and modify parameters (e.g. prompts, hyperparameters, etc.) and label the results for evaluation
-- Open-source: We wanted to be able to contribute to the platform and extend it to our needs.
+# **✨ Agenta.ai**
+### **The developer-first open source LLMOps platform.**
 
 
-## Architecture
+Building LLM-powered apps is currently very frustrating. It involves a significant amount of prompt engineering and a lots of parameters to tune and countless iterations. Agenta simplifies this process, enabling you to quickly iterate, experiment, and optimize your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
-## Running
+## How Agenta Lab works:
+1. Develop your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain, llma_index, GPT-3, or open-source models).
+2. With two lines of code, specify the parameters for your experiment.
+3. Deploy your app using the Agenta CLI.
+4. You or your team can iterate, version parameters, test different versions, and run systematic evaluations via a user-friendly web platform.
 
-## Testing
+In the future, we plan to extend Agenta Lab to facilitate your LLM-app development further, providing features for deployment, monitoring, logging, and A/B testing.
 
-## Open-source and monitization
-We want to be upfront from the beginning. We decided from the beginning not the host the project under our personal usernames, then switch to a business later, like some did. Although this is an open-source project, we do plan to monetize it and build a sustainable business around it. We are still unsure how we will do this.
+## Features of Agenta Lab
 
-However here is what we promise:
-- We take care of the community and the contributors: whenever possible, we would love to have our top collaborators as part of our team (either as early co-founders, employees, or contractors). We will also make sure to give back to the community by sponsoring events, giving talks, and contributing to other open-source projects.
-- The core functionalities of our project will always be open-source and free to use: If you are a small team that wants to evaluate different apps, version them, and deploy them to production. You will have all the features to do that in a version that you can self-host without limitations.
-- We will always be transparent about our plans and roadmap: We will always be transparent about our plans and roadmap. We will also be transparent about our monetization plans and how we plan to make money.
-- We will always maintain the open-source version of this project. Unless we go out of business.
+- **Parameter Playground:** With just a few lines of code, define the parameters you wish to experiment with. Through our user-friendly web platform, you or your team can then experiment and tweak these parameters.
 
+- **Version Evaluation:** Define test sets, evaluate, and compare different app versions.
+
+- **API Deployment Made Easy:** Agenta Lab allows you to deploy your LLM applications as APIs without any additional effort. (Currently only available locally)
+## Documentation
+
+Please go to [docs.agenta.ai](docs.agenta.ai) for full documentation on:
+- [Installation](docs.agenta.ai/docs/installation)
+- [Getting Started](docs.agenta.ai/docs/getting-started)
+- [How to tutorials](docs.agenta.ai/docs/how-to)
+
+## Getting Started
+
+### Requirements
+
+Agenta Lab requires Docker installed on your machine. If you don't have Docker, you can install it from [here](https://docs.docker.com/get-docker/).
+
+### Installation
+
+```bash
+pip install agenta
+```
+
+### Usage
+
+#### 0. Start the agenta server
+
+```bash
+docker compose -f "docker-compose.yml" up -d --build
+```
+
+#### 1. Create a new project
+
+Create an empty folder and use the following command to initialize a new project. Provide an app name, then choose from Template and Simple Prompt as a template.
+
+```bash
+mkdir example_app; cd example_app
+agenta init
+```
+
+#### 2. Write your app and deploy it
+
+Modify the app in app.py if needed and then proceed to serve it. Your app will start running, and you can see its endpoints on `localhost/app_name/variant_name/openapi.json`.
+
+```bash
+agenta serve
+```
+
+#### 3. Start experimenting
+Navigate to localhost:3000, select your app, and begin experimenting with different parameters in the playground.
+
+
+## Why choose Agenta Lab for building LLM-apps?
+
+While there are numerous LLMops platforms, we believe Agenta Lab offers unique benefits:
+
+- Developer-Friendly: We cater to complex LLM-apps and pipelines that require more than just a few no-code abstractions. We give you the freedom to develop your apps the way you want.
+- Privacy-First: We respect your privacy and do not proxy your data through third-party services. You have the choice to host your data and models.
+- Solution-Agnostic: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
+- Collaborative: We recognize that building LLM-powered apps requires the collaboration of developers and domain experts. Our tool enables this collaboration, allowing domain experts to edit and modify parameters (e.g., prompts, hyperparameters, etc.), and label results for evaluation.
+- Open-Source: We encourage you to contribute to the platform and customize it to suit your needs.
+
+## Roadmap 
+
+Currently, we support Q&A applications (no chat) and do not yet support persistent data (like using a persistent vector database). Our future plans include:
+
+- Supporting chat applications.
+- Support for persistent data and vector databases.
+- Automated Deployment: Enable automatic app deployment with a simple commit.
+- Monitoring and Logging: Introduce a dashboard to monitor your app's performance and usage.
+- A/B Testing & User Feedback: Allow for experimentation with different app versions and collect user feedback.
+- Regression Testing: Introduce regression tests based on real data for each new version deployment.
 
 ## Contributing
 
-We welcome contributions to help us improve and expand Agenta. Please feel free to submit issues, fork the repository, and send pull requests.
+We warmly welcome contributions to Agenta Lab. Feel free to submit issues, fork the repository, and send pull requests.
 
 ### How can you help
-- Designers/ UI-UX and frontend people: We need your help improving the UI/UX of the dashboard and the CLI. We also need help with the frontend of the dashboard. Please feel free to fork and PR. If you feel you have larger ideas, just contact us on Discord or email (team@agenta.ai).
+- Designers, UI/UX and Frontend Developers: We need your expertise to enhance the UI/UX of the dashboard and the CLI. We also need help with improving the frontend of the dashboard. Feel free to fork and submit a PR. For bigger ideas, you can contact us via Discord or email (team@agenta.ai).
