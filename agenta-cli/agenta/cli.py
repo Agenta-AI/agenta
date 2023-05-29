@@ -145,7 +145,7 @@ def init(app_name: str):
         # Copy the template files to the current directory
         chosen_template_dir = template_dir / template
         for file in chosen_template_dir.glob("*"):
-            if file.name != 'template.toml':
+            if file.name != 'template.toml' and not file.is_dir():
                 shutil.copy(file, current_dir / file.name)
     click.echo("App initialized successfully")
 
