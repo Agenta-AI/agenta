@@ -141,7 +141,7 @@ def list_app_variants(app_name: str = None, show_soft_deleted=False) -> List[App
         return app_variants
 
 
-def list_app_names() -> List[App]:
+def list_apps() -> List[App]:
     """
     Lists all the unique app names from the database
     """
