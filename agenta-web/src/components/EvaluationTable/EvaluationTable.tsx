@@ -4,19 +4,19 @@ import type { ColumnType } from 'antd/es/table';
 import { DownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Dropdown, Input, Menu, Row, Space, Spin, Table, message } from 'antd';
 import { Variant, Parameter } from '@/lib/Types';
-import { updateAppEvaluations, updateEvaluationRow, postEvaluationRow, getVariantParameters, callVariant } from '@/lib/services/api';
+import { updateEvaluationRow, postEvaluationRow, getVariantParameters, callVariant } from '@/lib/services/api';
 import { useVariant } from '@/lib/hooks/useVariant';
 import { useRouter } from 'next/router';
 
 interface EvaluationTableProps {
     columnsCount: number;
     variants: Variant[];
-    dataset?: any;
-    comparisonTableId?: string;
+    dataset: any;
+    comparisonTableId: string;
 }
 
 interface EvaluationTableRow {
-    id?: number;
+    id?: string;
     inputFields: {
         input_name: string;
         input_value: string;
@@ -24,6 +24,7 @@ interface EvaluationTableRow {
     columnData0: string;
     columnData1: string;
     vote: string;
+    evaluationFlow: EvaluationFlow;
 }
 /**
  *
@@ -33,13 +34,20 @@ interface EvaluationTableRow {
  * @param comparisonTableId - The id of the comparison table, used to save in the eval
  * @returns
  */
+
+enum EvaluationFlow {
+    EVALUATION_STARTED,
+    VOTE_STARTED,
+    COMPARISON_RUN_STARTED
+}
+
 const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variants, dataset, comparisonTableId }) => {
     const router = useRouter();
     const { app_name } = router.query;
     const [variantInputs, setVariantInputs] = useState<string[]>([]);
     const [isError, setIsError] = useState(false);
-    const [selectedVariants, setSelectedVariants] = useState<Variant[]>(new Array(columnsCount).fill({ variantName: 'Select a variant' }));
-    const variantData = selectedVariants.map((variant, index) => {
+
+    const variantData = variants.map((variant, index) => {
         const { optParams, URIPath, isLoading, isError, error } = useVariant(app_name, variant);
 
         return {
@@ -51,6 +59,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
         };
     });
     useEffect(() => {
+        // TODO: move this to the evaluation component. so that we fetch evertything for this component
         const fetchAndSetSchema = async () => {
             try {
                 if (variants.length > 0) {
@@ -62,25 +71,9 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
             }
         };
         fetchAndSetSchema();
-    }, [variants]);
+    }, [app_name, variants]);
 
-    const [rows, setRows] = useState<EvaluationTableRow[]>(
-        [{
-            inputFields: [{ input_name: '', input_value: '' }],
-            columnData0: '',
-            columnData1: '',
-            vote: ''
-
-        }]);
-
-    useEffect(() => {
-        setRows([{
-            inputFields: variantInputs.map((variantInput: string) => ({ input_name: variantInput, input_value: '' })),
-            columnData0: '',
-            columnData1: '',
-            vote: ''
-        }])
-    }, [variantInputs]);
+    const [rows, setRows] = useState<EvaluationTableRow[]>([]);
 
     useEffect(() => {
         if (variantInputs.length > 0) {
@@ -89,37 +82,14 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
                     inputFields: variantInputs.map((input: string) => ({ input_name: input, input_value: item[input] })),
                     columnData0: '',
                     columnData1: '',
-                    vote: ''
+                    vote: '',
+                    evaluationFlow: EvaluationFlow.EVALUATION_STARTED
                 }
             }) : [];
             setRows([...initialRows, ...rows]);
         }
-    }, [dataset, variantInputs]);
 
-    const handleAppVariantsMenuClick = (columnIndex: number) => ({ key }: { key: string }) => {
-
-        const data = {
-            variants: [selectedVariants[0].variantName, selectedVariants[1].variantName]
-        };
-
-        data.variants[columnIndex] = key;
-        const selectedVariant = variants.find(variant => variant.variantName === key);
-
-        if (!selectedVariant) {
-            console.log('Error: No variant found');
-        }
-        console.log('comparisonTableId', comparisonTableId);
-        updateAppEvaluations(comparisonTableId, data)
-            .then(data => {
-                setSelectedVariants(prevState => {
-                    const newState = [...prevState];
-                    newState[columnIndex] = selectedVariant;
-                    return newState;
-                });
-            }).catch(err => {
-                console.error(err);
-            });
-    };
+    }, [variantInputs, dataset]);
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
@@ -145,8 +115,8 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
                     console.error(err);
                 });
         } else {
-            const appVariantNameX = selectedVariants[0].variantName;
-            const appVariantNameY = selectedVariants[1].variantName;
+            const appVariantNameX = variants[0].variantName;
+            const appVariantNameY = variants[1].variantName;
             const outputVariantX = rows[rowIndex].columnData0;
             const outputVariantY = rows[rowIndex].columnData1;
             const data = {
@@ -185,13 +155,8 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
     };
 
     const runEvaluation = async (rowIndex: number) => {
-        const appVariantX = selectedVariants[0];
-        const appVariantY = selectedVariants[1];
-        const queryString = rows[rowIndex].inputFields.map((item) => `${item.input_name}=${item.input_value}`).join('&');
         const inputParamsDict = rows[rowIndex].inputFields.reduce((acc, item) => { acc[item.input_name] = item.input_value; return acc; }, {});
 
-
-        // setRowValue(rowIndex, 'columnData1', 'loading...');
         const columnsDataNames = ['columnData0', 'columnData1']
         columnsDataNames.forEach(async (columnName: any, idx: number) => {
 
@@ -199,6 +164,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
             try {
                 let result = await callVariant(inputParamsDict, variantData[idx].optParams, variantData[idx].URIPath);
                 setRowValue(rowIndex, columnName, result);
+                setRowValue(rowIndex, 'evaluationFlow', EvaluationFlow.COMPARISON_RUN_STARTED);
             }
 
             catch (e) {
@@ -216,25 +182,10 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
     const dynamicColumns: ColumnType<EvaluationTableRow>[] = Array.from({ length: columnsCount }, (_, i) => {
         const columnKey = `columnData${i}`;
 
-        const menu = (
-            <Menu onClick={handleAppVariantsMenuClick(i)}>
-                {variants.map((variant, index) =>
-                    <Menu.Item key={variant.variantName}>
-                        {variant.variantName}
-                    </Menu.Item>
-                )}
-            </Menu>
-        );
-
         return ({
             title: (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    App Variant:
-                    <Dropdown overlay={menu} placement="bottomRight" className={selectedVariants[i].variantName == 'Select a variant' ? 'button-animation' : ''}>
-                        <Button size="small">
-                            {selectedVariants[i].variantName} <DownOutlined />
-                        </Button>
-                    </Dropdown>
+                <div>
+                    App Variant: {variants[i].variantName}
                 </div>
             ),
             dataIndex: columnKey,
@@ -248,7 +199,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
             key: '1',
             title: (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    Question
+                    Inputs
                     <Button size="small" onClick={runAllEvaluations} icon={<CaretRightOutlined />}>Run All</Button>
                 </div>
             ),
@@ -257,9 +208,8 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
                 <div>
                     {variantInputs.length == record.inputFields.length && // initial value of inputFields is array with 1 element and variantInputs could contain more than 1 element
                         variantInputs.map((variantInputName: string, index: number) =>
-                            <div style={{ marginBottom: 10 }}>
+                            <div style={{ marginBottom: 10 }} key={index}>
                                 <Input
-                                    key={index}
                                     placeholder={record.inputFields[index].input_name}
                                     value={record.inputFields[index].input_value}
                                     onChange={(e) => handleInputChange(e, rowIndex, index)}
@@ -285,19 +235,22 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
                 <Spin spinning={rows[rowIndex].vote === 'loading' ? true : false}>
                     <Space>
                         <Button
-                            type={rows[rowIndex].vote === selectedVariants[0].variantName ? "primary" : "default"}
-                            onClick={() => handleVoteClick(rowIndex, selectedVariants[0].variantName)}
+                            type={rows[rowIndex].vote === variants[0].variantName ? "primary" : "default"}
+                            disabled={rows[rowIndex].evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ? false : true}
+                            onClick={() => handleVoteClick(rowIndex, variants[0].variantName)}
                         >
-                            {`Variant: ${selectedVariants[0].variantName}`}
+                            {`Variant: ${variants[0].variantName}`}
                         </Button>
                         <Button
-                            type={rows[rowIndex].vote === selectedVariants[1].variantName ? "primary" : "default"}
-                            onClick={() => handleVoteClick(rowIndex, selectedVariants[1].variantName)}
+                            type={rows[rowIndex].vote === variants[1].variantName ? "primary" : "default"}
+                            disabled={rows[rowIndex].evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ? false : true}
+                            onClick={() => handleVoteClick(rowIndex, variants[1].variantName)}
                         >
-                            {`Variant: ${selectedVariants[1].variantName}`}
+                            {`Variant: ${variants[1].variantName}`}
                         </Button>
                         <Button
                             type={rows[rowIndex].vote === '0' ? "primary" : "default"}
+                            disabled={rows[rowIndex].evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ? false : true}
                             danger
                             onClick={() => handleVoteClick(rowIndex, '0')}
                         >
@@ -310,14 +263,14 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
     ];
 
     const addRow = () => {
-        let inputFields: any = variantInputs.reduce((obj: any, value: string) => { obj[`${value}`] = ""; return obj; }, {});
         setRows([
             ...rows,
             {
                 inputFields: variantInputs.map((variantInput: string) => ({ input_name: variantInput, input_value: '' })),
                 columnData0: '',
                 columnData1: '',
-                vote: ''
+                vote: '',
+                evaluationFlow: EvaluationFlow.EVALUATION_STARTED
             }
         ]);
     };
