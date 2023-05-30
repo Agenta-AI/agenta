@@ -7,12 +7,15 @@ from agenta_backend.models.converters import (app_variant_db_to_pydantic,
 from agenta_backend.models.db_models import AppVariantDB, ImageDB
 from agenta_backend.services import helpers
 from sqlmodel import Session, SQLModel, create_engine, func, and_
-
+import logging
 # SQLite database connection
 DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_engine(DATABASE_URL)
 # Create tables if they don't exist
 SQLModel.metadata.create_all(engine)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def get_session():
@@ -97,8 +100,7 @@ def add_variant_based_on_previous(previous_app_variant: AppVariant, new_variant_
             variant_name=new_variant_name,
             image_id=template_variant.image_id,
             parameters=parameters,
-            previous_variant_name=template_variant.variant_name,
-            version=template_variant.version + 1)
+            previous_variant_name=template_variant.variant_name)
         session.add(db_app_variant)
         session.commit()
         session.refresh(db_app_variant)
@@ -106,7 +108,7 @@ def add_variant_based_on_previous(previous_app_variant: AppVariant, new_variant_
 
 def list_app_variants(app_name: str = None) -> List[AppVariant]:
     """
-    Lists all the app variants from the db, only latest versions
+    Lists all the app variants from the db
     TODO: TEST THIS
 
     """
@@ -116,13 +118,11 @@ def list_app_variants(app_name: str = None) -> List[AppVariant]:
         if app_name is not None:
             query = query.filter(AppVariantDB.app_name == app_name)
 
-        # Get latest versions only
-        subquery = session.query(AppVariantDB.app_name, AppVariantDB.variant_name, func.max(AppVariantDB.version).label("max_version"))\
-            .group_by(AppVariantDB.app_name, AppVariantDB.variant_name).subquery()
+        subquery = session.query(AppVariantDB.app_name, AppVariantDB.variant_name).group_by(
+            AppVariantDB.app_name, AppVariantDB.variant_name).subquery()
 
         query = query.join(subquery, and_(AppVariantDB.app_name == subquery.c.app_name,
-                                          AppVariantDB.variant_name == subquery.c.variant_name,
-                                          AppVariantDB.version == subquery.c.max_version))
+                                          AppVariantDB.variant_name == subquery.c.variant_name))
         app_variants_db: List[AppVariantDB] = query.all()
 
         # Include previous variant name
@@ -157,7 +157,7 @@ def get_image(app_variant: AppVariant) -> Image:
 
     with Session(engine) as session:
         db_app_variant: AppVariantDB = session.query(AppVariantDB).filter(
-            (AppVariantDB.app_name == app_variant.app_name) & (AppVariantDB.variant_name == app_variant.variant_name)).order_by(AppVariantDB.version.desc()).first()
+            (AppVariantDB.app_name == app_variant.app_name) & (AppVariantDB.variant_name == app_variant.variant_name)).first()
         if db_app_variant:
             image_db: ImageDB = session.query(ImageDB).filter(
                 ImageDB.id == db_app_variant.image_id).first()
@@ -232,7 +232,8 @@ def get_variant_from_db(app_variant: AppVariant) -> AppVariantDB:
     with Session(engine) as session:
         # Find app_variant in the database
         db_app_variant: AppVariantDB = session.query(AppVariantDB).filter(
-            (AppVariantDB.app_name == app_variant.app_name) & (AppVariantDB.variant_name == app_variant.variant_name)).order_by(AppVariantDB.version.desc()).first()
+            (AppVariantDB.app_name == app_variant.app_name) & (AppVariantDB.variant_name == app_variant.variant_name)).first()
+        logger.info(f"Found app variant: {db_app_variant}")
         if db_app_variant:
             return db_app_variant
         else:
