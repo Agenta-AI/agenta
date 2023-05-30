@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import URI, App, AppVariant, Image
-from agenta_backend.services import db_manager, docker_utils
+from agenta_backend.services import db_manager, docker_utils, app_manager
 from fastapi import APIRouter, HTTPException, Body
 
 router = APIRouter()
@@ -98,10 +98,7 @@ async def add_variant_from_previous(previous_app_variant: AppVariant, new_varian
 @router.post("/start/")
 async def start_variant(app_variant: AppVariant) -> URI:
     try:
-        image: Image = db_manager.get_image(app_variant)
-        uri: URI = docker_utils.start_container(
-            image_name=image.tags, app_name=app_variant.app_name, variant_name=app_variant.variant_name)
-        return uri
+        return app_manager.start_variant(app_variant)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -131,6 +128,7 @@ async def list_images():
 @router.delete("/remove_variant/")
 async def remove_variant(app_variant: AppVariant):
     """Remove a variant from the server.
+    In the case it's the last variant using the image, stop the container and remove the image.
 
     Arguments:
         app_variant -- AppVariant to remove
