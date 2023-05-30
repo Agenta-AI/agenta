@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 @router.post('/upload', response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] = Form(None)):
+async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] = File(...), app_name:str = Form(None)):
     """
     Uploads a CSV file and saves its data to MongoDB.
 
@@ -35,6 +35,7 @@ async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] 
         document = {
             "created_date": datetime.now().isoformat(),
             "name": dataset_name if dataset_name else file.filename,
+            "app_name": app_name,
             "csvdata": []
         }
         # Populate the document with column names and values
@@ -60,7 +61,7 @@ async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] 
 
 
 @router.get("/")
-async def get_datasets():
+async def get_datasets(app_name: Optional[str] = None):
     """
     Get all datasets.
 
@@ -70,7 +71,7 @@ async def get_datasets():
     Raises:
     - `HTTPException` with status code 404 if no datasets are found.
     """
-    cursor = datasets.find({}, {"_id": 1, "name": 1, "created_date": 1})
+    cursor = datasets.find({"app_name": app_name}, {"_id": 1, "name": 1, "created_date": 1})
     documents = await cursor.to_list(length=100)
     for document in documents:
         document['_id'] = str(document['_id'])
