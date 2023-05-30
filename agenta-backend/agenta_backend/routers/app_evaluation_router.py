@@ -1,17 +1,16 @@
-from fastapi import HTTPException, APIRouter
-from agenta_backend.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, ComparisonTableUpdate
+from fastapi import HTTPException, APIRouter, Body
+from agenta_backend.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, NewComparisonTable
 from agenta_backend.services.db_mongo import comparison_tables, evaluation_rows
 from datetime import datetime
 from bson import ObjectId
 from typing import List
 import logging
-
 router = APIRouter()
 
 
 @router.post("/", response_model=ComparisonTable)
-async def create_comparison_table():
-    """Creates an empty comparison table document
+async def create_comparison_table(newComparisonTableData: NewComparisonTable = Body(...)):
+    """Creates a new comparison table document
 
     Raises:
         HTTPException: _description_
@@ -21,36 +20,11 @@ async def create_comparison_table():
     """
     comparison_table = dict()
     comparison_table["created_at"] = comparison_table["updated_at"] = datetime.utcnow()
+    comparison_table["variants"] = newComparisonTableData.variants
     result = await comparison_tables.insert_one(comparison_table)
     if result.acknowledged:
         comparison_table["id"] = str(result.inserted_id)
         return comparison_table
-    else:
-        raise HTTPException(status_code=500, detail="Failed to create evaluation_row")
-
-
-@router.put("/{comparison_table_id}")
-async def update_comparison_table(comparison_table_id: str, comparison_table: ComparisonTableUpdate):
-    """Updates a comparison table
-
-    Arguments:
-        comparison_table_id -- _description_
-        comparison_table -- _description_
-
-    Raises:
-        HTTPException: _description_
-
-    Returns:
-        _description_
-    """
-    comparison_table_dict = comparison_table.dict()
-    comparison_table_dict["updated_at"] = datetime.utcnow()
-    result = await comparison_tables.update_one(
-        {'_id': ObjectId(comparison_table_id)},
-        {'$set': {'variants': comparison_table_dict["variants"]}}
-    )
-    if result.acknowledged:
-        return comparison_table_dict
     else:
         raise HTTPException(status_code=500, detail="Failed to create evaluation_row")
 
