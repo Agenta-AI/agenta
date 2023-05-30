@@ -46,6 +46,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
     const { app_name } = router.query;
     const [variantInputs, setVariantInputs] = useState<string[]>([]);
     const [isError, setIsError] = useState(false);
+    const datasetRowsData = dataset.csvdata
 
     const variantData = variants.map((variant, index) => {
         const { optParams, URIPath, isLoading, isError, error } = useVariant(app_name, variant);
@@ -77,7 +78,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
 
     useEffect(() => {
         if (variantInputs.length > 0) {
-            const initialRows = dataset && dataset.length > 0 ? dataset.map((item: any) => {
+            const initialRows = datasetRowsData && datasetRowsData.length > 0 ? datasetRowsData.map((item: any) => {
                 return {
                     inputFields: variantInputs.map((input: string) => ({ input_name: input, input_value: item[input] })),
                     columnData0: '',
@@ -130,7 +131,6 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
             };
 
             setRowValue(rowIndex, 'vote', 'loading');
-
 
             postEvaluationRow(comparisonTableId, data)
                 .then(data => {
@@ -185,7 +185,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
         return ({
             title: (
                 <div>
-                    App Variant: {variants[i].variantName}
+                    App Variant: <span style={{backgroundColor: 'rgb(153 232 175)', padding: 4, borderRadius: 5}}>{variants[i].variantName}</span>
                 </div>
             ),
             dataIndex: columnKey,
@@ -199,7 +199,11 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
             key: '1',
             title: (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    Inputs
+                    <div >
+                        <span> Inputs (Dataset: </span>
+                        <span style={{backgroundColor: 'rgb(153 232 175)', padding: 4, borderRadius: 5}}>{dataset.name}</span>
+                        <span> )</span>
+                    </div>
                     <Button size="small" onClick={runAllEvaluations} icon={<CaretRightOutlined />}>Run All</Button>
                 </div>
             ),
