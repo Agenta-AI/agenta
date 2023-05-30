@@ -89,7 +89,8 @@ def test_add_same_app_variant_twice(app_variant, image):
 def test_remove_non_existent_app_variant():
     non_existent_app_variant = AppVariant(
         app_name=random_string(), variant_name=random_string())
-    remove_app_variant(non_existent_app_variant)  # Should not raise an error
+    with pytest.raises(ValueError):
+        remove_app_variant(non_existent_app_variant)  # Should not raise an error
     assert len(list_app_variants()) == 0
 
 
@@ -269,9 +270,14 @@ def test_add_remove_chain_of_variants(app_variant, image):
     # Add another variant based on the previous one
     new_variant2 = AppVariant(app_name=app_variant.app_name, variant_name=random_string(),
                               parameters={'param1': 'value2', 'param2': 20})
-    add_variant_based_on_previous(previous_app_variant=new_variant1,
+    with pytest.raises(ValueError):
+        add_variant_based_on_previous(previous_app_variant=new_variant1,
+                                      new_variant_name=new_variant2.variant_name,
+                                      parameters=new_variant2.parameters)
+    add_variant_based_on_previous(previous_app_variant=app_variant,
                                   new_variant_name=new_variant2.variant_name,
                                   parameters=new_variant2.parameters)
+
     assert get_image(new_variant1) is not None
     # Remove original variant
     remove_app_variant(app_variant)
