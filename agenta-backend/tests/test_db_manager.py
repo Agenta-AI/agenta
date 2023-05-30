@@ -5,7 +5,7 @@ import pytest
 from agenta_backend.models.api.api_models import App, AppVariant, Image
 from agenta_backend.services.db_manager import (add_variant_based_on_image,
                                                 engine, get_image, get_session,
-                                                list_app_names,
+                                                list_apps,
                                                 list_app_variants,
                                                 remove_app_variant,
                                                 add_variant_based_on_previous, print_all)
@@ -163,7 +163,7 @@ def test_filter_by_app_name(image: Image):
         assert app_variant.app_name == app_name
 
 
-def test_list_app_names(image):
+def test_list_apps(image):
     # Assuming you have a setUp function that clears the database before each test
     app_name1 = 'test_app'
     app_name2 = 'other_app'
@@ -178,8 +178,8 @@ def test_list_app_names(image):
         variant_name = ''.join(choice(ascii_letters) for _ in range(10))
         add_variant_based_on_image(AppVariant(app_name=app_name2, variant_name=variant_name), image)
 
-    # Check that list_app_names returns all unique app names
-    app_names = list_app_names()
+    # Check that list_apps returns all unique app names
+    app_names = list_apps()
     assert len(app_names) == 2
     assert App(app_name=app_name1) in app_names
     assert App(app_name=app_name2) in app_names
