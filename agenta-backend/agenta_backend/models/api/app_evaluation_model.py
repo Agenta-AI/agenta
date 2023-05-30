@@ -32,5 +32,5 @@ class EvaluationRowUpdate(BaseModel):
     vote: str
 
 
-class ComparisonTableUpdate(BaseModel):
+class NewComparisonTable(BaseModel):
     variants: List[str]

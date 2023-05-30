@@ -21,9 +21,9 @@ export default function Evaluations() {
 
   const [selectedVariants, setSelectedVariants] = useState<Variant[]>(new Array(2).fill({ variantName: 'Select a variant' }));
 
-  const { datasets, isDatasetsLoading, isDatasetsLoadingError } = loadDatasetsList();
-
   const app_name = router.query.app_name?.toString() || "";
+
+  const { datasets, isDatasetsLoading, isDatasetsLoadingError } = loadDatasetsList(app_name);
 
   const [evaluationTable, setEvaluationTable] = useState(EmptyEvaluationTable);
 
@@ -72,7 +72,11 @@ export default function Evaluations() {
       return response.json();
     };
 
-    return postData('http://localhost/api/app_evaluations/')
+    const data = {
+      variants: selectedVariants.map((variant) => variant.variantName), // TODO: Change to variant id
+    }
+
+    return postData('http://localhost/api/app_evaluations/', data)
       .then(data => {
         return data.id;
       }).catch(err => {
@@ -215,7 +219,7 @@ export default function Evaluations() {
           </Dropdown>
 
           <Button onClick={onStartEvaluation} type="primary">
-            Start Evaluating
+            Start a new evaluation
           </Button>
         </Col>
         <Col>
