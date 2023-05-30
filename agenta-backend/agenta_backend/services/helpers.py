@@ -6,6 +6,7 @@ def print_app_variant(app_variant):
     print(f"Image ID: {app_variant.image_id}")
     print(f"Parameters: {app_variant.parameters}")
     print(f"Previous Variant Name: {app_variant.previous_variant_name}")
+    print(f"Is Deleted: {app_variant.is_deleted}")
     print("------------------------")
 
 

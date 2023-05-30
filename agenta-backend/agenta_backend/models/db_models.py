@@ -17,3 +17,4 @@ class AppVariantDB(SQLModel, table=True):
     image_id: int = Field(foreign_key="imagedb.id")
     parameters: Dict = Field(sa_column=Column(JSON))
     previous_variant_name: Optional[str] = Field(default=None)
+    is_deleted: bool = Field(default=False)  # soft deletion for using the template variants
