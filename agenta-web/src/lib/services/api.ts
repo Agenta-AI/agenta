@@ -103,17 +103,17 @@ const eval_endpoint = axios.create({
     baseURL: `${API_BASE_URL}/api/app_evaluations`,
 });
 
-export const updateAppEvaluations = async (comparisonTableId: string, data) => {
-    const response = await eval_endpoint.put(`/${comparisonTableId}`, data);
+export const updateAppEvaluations = async (evaluationTableId: string, data) => {
+    const response = await eval_endpoint.put(`${API_BASE_URL}/${evaluationTableId}`, data);
     return response.data;
 };
 
-export const updateEvaluationRow = async (comparisonTableId: string, evaluationRowId: string, data) => {
-    const response = await eval_endpoint.put(`/${comparisonTableId}/evaluation_row/${evaluationRowId}`, data);
+export const updateEvaluationRow = async (evaluationTableId: string, evaluationRowId: string, data) => {
+    const response = await eval_endpoint.put(`${API_BASE_URL}/api/app_evaluations/${evaluationTableId}/evaluation_row/${evaluationRowId}`, data);
     return response.data;
 };
 
-export const postEvaluationRow = async (comparisonTableId: string, data) => {
-    const response = await eval_endpoint.post(`/${comparisonTableId}/evaluation_row`, data);
+export const postEvaluationRow = async (evaluationTableId: string, data) => {
+    const response = await eval_endpoint.post(`${API_BASE_URL}/api/app_evaluations/${evaluationTableId}/evaluation_row`, data);
     return response.data;
 };
