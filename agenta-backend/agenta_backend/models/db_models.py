@@ -16,5 +16,5 @@ class AppVariantDB(SQLModel, table=True):
     variant_name: str = Field(...)
     image_id: int = Field(foreign_key="imagedb.id")
     parameters: Dict = Field(sa_column=Column(JSON))
-    previous_variant_id: Optional[int] = Field(default=None, foreign_key="appvariantdb.id")
+    previous_variant_name: Optional[str] = Field(default=None)
     version: int = Field(default=1)
