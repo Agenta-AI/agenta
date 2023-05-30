@@ -6,7 +6,7 @@ import docker
 import pytest
 from agenta_backend.main import app
 from agenta_backend.models.api.api_models import AppVariant, Image
-from agenta_backend.services.db_manager import (add_app_variant, engine,
+from agenta_backend.services.db_manager import (add_variant_based_on_image, engine,
                                                 get_image, get_session,
                                                 list_app_variants,
                                                 remove_app_variant)
@@ -79,7 +79,7 @@ def test_list_app_variant():
 
 def test_list_app_variant_after_manual_add(app_variant, image):
     # This is the function from db_manager.py
-    add_app_variant(app_variant, image)
+    add_variant_based_on_image(app_variant, image)
     response = client.get("/app_variant/list_variants/")
     assert response.status_code == 200
     assert len(response.json()) == 1
