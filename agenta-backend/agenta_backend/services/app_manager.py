@@ -38,15 +38,49 @@ def remove_app_variant(app_variant: AppVariant):
                     for container_id in container_ids:
                         docker_utils.delete_container(container_id)
                         logger.info(f"Container {container_id} deleted")
-                    docker_utils.delete_image(image)
-                    logger.info(f"Image {image.tags} deleted")
-                    db_manager.remove_image(image)
                 except Exception as e:
                     logger.error(f"Error managing Docker resources: {str(e)}")
                     raise
+                try:
+                    docker_utils.delete_image(image)
+                    logger.info(f"Image {image.tags} deleted")
+                except:
+                    logger.warning(f"Warning: Error deleting image {image.tags}. Probably multiple variants using it.")
+                db_manager.remove_image(image)
             db_manager.remove_app_variant(app_variant)
         except Exception as e:
             logger.error(f"Error deleting app variant: {str(e)}")
+            raise
+
+
+def remove_app(app_name: str):
+    """Removes all app variants from db, if it is the last one using an image, then
+    deletes the image from the db, shutdowns the container, deletes it and remove 
+    the image from the registry
+
+    Arguments:
+        app_name -- the app name to remove
+    """
+    # checks if it is the last app variant using its image
+    if app_name not in [app.app_name for app in db_manager.list_apps()]:
+        msg = f"App {app_name} not found in DB"
+        logger.error(msg)
+        raise ValueError(msg)
+    try:
+        app_variants = db_manager.list_app_variants(app_name=app_name, show_soft_deleted=True)
+    except Exception as e:
+        logger.error(f"Error fetching app variants from the database: {str(e)}")
+        raise
+    if app_variants is None:
+        msg = f"App {app_name} not found in DB"
+        logger.error(msg)
+        raise ValueError(msg)
+    else:
+        try:
+            for app_variant in app_variants:
+                remove_app_variant(app_variant)
+        except Exception as e:
+            logger.error(f"Error deleting app variants: {str(e)}")
             raise
 
 
