@@ -89,8 +89,8 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
  * Loads the list of datasets
  * @returns
  */
-export const loadDatasetsList = () => {
-    const { data, error } = useSWR(`${API_BASE_URL}/api/datasets`, fetcher)
+export const loadDatasetsList = (app_name: string) => {
+    const { data, error } = useSWR(`${API_BASE_URL}/api/datasets?app_name=${app_name}`, fetcher)
     return {
         datasets: data,
         isDatasetsLoading: !error && !data,

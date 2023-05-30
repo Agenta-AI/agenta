@@ -3,6 +3,7 @@ import { Dataset } from '@/lib/Types';
 import { Spin, Table } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import { useState, useEffect } from 'react';
+import { formatDate } from '@/lib/helpers/dateTimeHelper';
 
 type Props = {
   dataset: Dataset;
@@ -40,6 +41,9 @@ const DatasetsTable: React.FC<Props>= ({ dataset }) => {
       title: 'Creation date',
       dataIndex: 'created_date',
       key: 'created_date',
+      render: (date: string) => {
+        return formatDate(date);
+      }
     },
   ];
 
