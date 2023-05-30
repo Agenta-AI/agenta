@@ -8,8 +8,9 @@ from agenta_backend.services.db_manager import (add_variant_based_on_image,
                                                 list_app_names,
                                                 list_app_variants,
                                                 remove_app_variant,
-                                                add_variant_based_on_previous)
+                                                add_variant_based_on_previous, print_all)
 from sqlmodel import Session
+from time import sleep
 
 
 @pytest.fixture(autouse=True)
@@ -283,8 +284,7 @@ def test_add_remove_chain_of_variants(app_variant, image):
     remove_app_variant(app_variant)
 
     # Image should still exist as other variants are using it
-    with pytest.raises(Exception):
-        get_image(app_variant)
+    get_image(app_variant)
 
     assert get_image(new_variant1) is not None
 
@@ -302,3 +302,48 @@ def test_add_remove_chain_of_variants(app_variant, image):
     # Now the image should not exist as all variants using it have been removed
     with pytest.raises(Exception):
         get_image(new_variant2)
+
+
+def test_add_variant_based_on_previous(app_variant, app_variant2, image):
+    add_variant_based_on_image(app_variant, image)
+    parameters = {"key": "value"}
+    add_variant_based_on_previous(previous_app_variant=app_variant,
+                                  new_variant_name=app_variant2.variant_name, parameters=parameters)
+    app_variants = list_app_variants()
+    assert len(app_variants) == 2
+    assert app_variants[1].app_name == app_variant.app_name
+    assert app_variants[1].variant_name == app_variant2.variant_name
+
+
+def test_remove_app_variant_and_check_soft_deletion(app_variant, app_variant2, image):
+    add_variant_based_on_image(app_variant, image)
+    parameters = {"key": "value"}
+    add_variant_based_on_previous(app_variant, app_variant2.variant_name, parameters)
+    remove_app_variant(app_variant)
+    app_variants = list_app_variants(show_soft_deleted=True)
+    assert len(app_variants) == 2
+    app_variants = list_app_variants()
+    assert len(app_variants) == 1
+
+
+def test_add_variant_after_remove(app_variant, app_variant2, image):
+    add_variant_based_on_image(app_variant, image)
+    remove_app_variant(app_variant)
+    parameters = {"key": "value"}
+    with pytest.raises(ValueError):
+        add_variant_based_on_previous(previous_app_variant=app_variant,
+                                      new_variant_name=app_variant2.variant_name, parameters=parameters)
+
+
+def test_add_variant_based_on_previous_with_soft_deleted_variant(app_variant, app_variant2, image):
+    add_variant_based_on_image(app_variant, image)
+    parameters = {"key": "value"}
+    add_variant_based_on_previous(app_variant, app_variant2.variant_name+"2", parameters)
+    remove_app_variant(app_variant)
+
+    add_variant_based_on_previous(app_variant, app_variant2.variant_name, parameters)
+    app_variants = list_app_variants()
+    print_all()
+    assert len(app_variants) == 2
+    assert app_variants[1].app_name == app_variant.app_name
+    assert app_variants[1].variant_name == app_variant2.variant_name
