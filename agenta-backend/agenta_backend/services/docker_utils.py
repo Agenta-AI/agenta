@@ -3,9 +3,13 @@ from typing import List
 import docker
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import AppVariant, Image, URI
-
+import logging
 
 client = docker.from_env()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def port_generator(start_port=9000):
@@ -49,41 +53,65 @@ def start_container(image_name, app_name, variant_name) -> URI:
         f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
     }
     container = client.containers.run(
-        image, detach=True, labels=labels, network="agenta-network")
+        image, detach=True, labels=labels, network="agenta-network", name=f"{app_name}-{variant_name}")
     return URI(uri=f"http://localhost/{app_name}/{variant_name}")
 
 
-def stop_container(container_id):
-    container = client.containers.get(container_id)
-    response = container.stop()
-    return response
+def stop_containers_based_on_image(image: Image) -> List[str]:
+    """Stops all the containers that use a certain image
+
+    Arguments:
+        image -- Image containing the docker id
+
+    Raises:
+        RuntimeError: _description_
+
+    Returns:
+        The container ids of the stopped containers
+    """
+    stopped_container_ids = []
+    for container in client.containers.list(all=True):
+        if container.image.id == image.docker_id:
+            try:
+                container.stop()
+                stopped_container_ids.append(container.id)
+                logger.info(f'Stopped container with id: {container.id}')
+            except docker.errors.APIError as ex:
+                logger.error(f'Error stopping container with id: {container.id}. Error: {str(ex)}')
+                raise RuntimeError(f'Error stopping container with id: {container.id}') from ex
+    return stopped_container_ids
 
 
-def delete_container(container_id):
-    container = client.containers.get(container_id)
-    response = container.remove()
-    return response
+def delete_container(container_id: str):
+    """Delete a container based on its id
+
+    Arguments:
+        container_id -- _description_
+
+    Raises:
+        RuntimeError: _description_
+    """
+    try:
+        container = client.containers.get(container_id)
+        container.remove()
+        logger.info(f'Deleted container with id: {container.id}')
+    except docker.errors.APIError as ex:
+        logger.error(f'Error deleting container with id: {container.id}. Error: {str(ex)}')
+        raise RuntimeError(f'Error deleting container with id: {container.id}') from ex
 
 
-# def list_images():
-#     images = client.images.list()
-#     return images
+def delete_image(image: Image):
+    """Delete an image based on its id
 
+    Arguments:
+        image -- _description_
 
-# def pull_image(image_name, tag="latest"):
-#     image = client.images.pull(
-#         f"{settings.docker_registry_url}/{image_name}:{tag}")
-#     return image
-
-
-# def push_image(image_name, tag="latest"):
-#     image = client.images.get(f"{image_name}:{tag}")
-#     response = client.images.push(
-#         f"{settings.docker_registry_url}/{image_name}", tag=tag)
-#     return response
-
-
-# def delete_image(image_name, tag="latest"):
-#     image = client.images.get(f"{image_name}:{tag}")
-#     response = client.images.remove(image.id)
-#     return response
+    Raises:
+        RuntimeError: _description_
+    """
+    try:
+        client.images.remove(image.docker_id)
+        logger.info(f'Deleted image with id: {image.docker_id}')
+    except docker.errors.APIError as ex:
+        logger.error(f'Error deleting image with id: {image.docker_id}. Error: {str(ex)}')
+        raise RuntimeError(f'Error deleting image with id: {image.docker_id}') from ex
