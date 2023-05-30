@@ -2,11 +2,13 @@ import os
 import docker
 from agenta_backend.config import settings
 
-from agenta_backend.services.docker_utils import list_images, start_container, stop_container, delete_container
-from agenta_backend.services.db_manager import add_app_variant, list_app_variants, get_image
-from agenta_backend.models.api_models import AppVariant, Image, URI
+from agenta_backend.services import app_manager
+from agenta_backend.services import db_manager
+from agenta_backend.models.api.api_models import AppVariant, Image, URI
 
-client = docker.from_env()
-uri = start_container("agenta-server/clitest", "clitest")
-
-print(uri)
+db_manager.print_all()
+app_manager.remove_app("baby_name_generator")
+# app = AppVariant(app_name="baby_name_generator", variant_name="v0")
+# app_manager.remove_app_variant(app)
+# app = AppVariant(app_name="baby_name_generator", variant_name="v0.2")
+# app_manager.remove_app_variant(app)
