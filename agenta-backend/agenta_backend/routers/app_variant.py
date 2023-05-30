@@ -151,3 +151,23 @@ async def remove_variant(app_variant: AppVariant):
     except Exception as e:
         detail = f"Unexpected error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
+
+
+@router.delete("/remove_app/")
+async def remove_app(app: App):
+    """Remove app, all its variant, containers and images
+
+    Arguments:
+        app -- App to remove
+    """
+    try:
+        app_manager.remove_app(app)
+    except SQLAlchemyError as e:
+        detail = f"Database error while trying to remove the app: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except DockerException as e:
+        detail = f"Docker error while trying to remove the app: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except Exception as e:
+        detail = f"Unexpected error while trying to remove the app: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
