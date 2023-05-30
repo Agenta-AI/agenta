@@ -11,7 +11,10 @@ const { Sider } = Layout;
 const Sidebar: React.FC = () => {
 	const router = useRouter();
 	const { app_name } = router.query;
-	const { page_name } = router.query;
+
+	const pathSegments = router.asPath.split('/');
+	const page_name = pathSegments[3]
+
 	const {
 		token: { colorBgContainer },
 	} = theme.useToken();
