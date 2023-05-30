@@ -39,11 +39,12 @@ def add_variant_based_on_image(app_variant: AppVariant, image: Image):
     Raises:
         ValueError: if variant exists or missing inputs
     """
+    clean_soft_deleted_variants()
     if app_variant is None or image is None or app_variant.app_name in [None, ""] or app_variant.variant_name in [None, ""] or image.docker_id in [None, ""] or image.tags in [None, ""]:
         raise ValueError("App variant or image is None")
     if app_variant.parameters is not None:
         raise ValueError("Parameters are not supported when adding based on image")
-    already_exists = any([av for av in list_app_variants() if av.app_name ==
+    already_exists = any([av for av in list_app_variants(show_soft_deleted=True) if av.app_name ==
                           app_variant.app_name and av.variant_name == app_variant.variant_name])
     if already_exists:
         raise ValueError("App variant with the same name already exists")
@@ -73,6 +74,7 @@ def add_variant_based_on_previous(previous_app_variant: AppVariant, new_variant_
     Raises:
         ValueError: _description_
     """
+    clean_soft_deleted_variants()
     if previous_app_variant is None or previous_app_variant.app_name in [None, ""] or previous_app_variant.variant_name in [None, ""]:
         raise ValueError("App variant is None")
     if parameters is None:
@@ -84,12 +86,13 @@ def add_variant_based_on_previous(previous_app_variant: AppVariant, new_variant_
             (AppVariantDB.app_name == previous_app_variant.app_name) & (AppVariantDB.variant_name == previous_app_variant.variant_name)).first()
 
     if template_variant is None:
+        print_all()
         raise ValueError("Template app variant not found")
     elif template_variant.previous_variant_name is not None:
         raise ValueError(
             "Template app variant is not a template, it is a forked variant itself")
 
-    already_exists = any([av for av in list_app_variants() if av.app_name ==
+    already_exists = any([av for av in list_app_variants(show_soft_deleted=True) if av.app_name ==
                           previous_app_variant.app_name and av.variant_name == new_variant_name])
     if already_exists:
         raise ValueError("App variant with the same name already exists")
@@ -106,15 +109,20 @@ def add_variant_based_on_previous(previous_app_variant: AppVariant, new_variant_
         session.refresh(db_app_variant)
 
 
-def list_app_variants(app_name: str = None) -> List[AppVariant]:
+def list_app_variants(app_name: str = None, show_soft_deleted=False) -> List[AppVariant]:
     """
     Lists all the app variants from the db
-    TODO: TEST THIS
-
+    Args:
+        app_name: if specified, only returns the variants for the app name
+        show_soft_deleted: if true, returns soft deleted variants as well
+    Returns:
+        List[AppVariant]: List of AppVariant objects
     """
-
+    clean_soft_deleted_variants()
     with Session(engine) as session:
         query = session.query(AppVariantDB)
+        if not show_soft_deleted:
+            query = query.filter(AppVariantDB.is_deleted == False)
         if app_name is not None:
             query = query.filter(AppVariantDB.app_name == app_name)
 
@@ -137,10 +145,9 @@ def list_app_names() -> List[App]:
     """
     Lists all the unique app names from the database
     """
-
+    clean_soft_deleted_variants()
     with Session(engine) as session:
         app_names = session.query(AppVariantDB.app_name).distinct().all()
-
         # Unpack tuples to create a list of strings instead of a list of tuples
         return [App(app_name=name) for (name,) in app_names]
 
@@ -175,11 +182,18 @@ def remove_app_variant(app_variant: AppVariant):
     """
     if app_variant is None or app_variant.app_name in [None, ""] or app_variant.variant_name in [None, ""]:
         raise ValueError("App variant is None")
-    app_variant_db = get_variant_from_db(app_variant)
-    if app_variant_db is None:
-        raise ValueError("App variant not found")
     with Session(engine) as session:
-        session.delete(app_variant_db)
+        app_variant_db = session.query(AppVariantDB).filter(
+            (AppVariantDB.app_name == app_variant.app_name) & (AppVariantDB.variant_name == app_variant.variant_name)).first()
+        if app_variant_db is None:
+            raise ValueError("App variant not found")
+
+        if app_variant_db.previous_variant_name is not None:  # forked variant
+            session.delete(app_variant_db)
+        elif check_is_last_variant(app_variant_db):  # last variant using the image, okay to delete
+            session.delete(app_variant_db)
+        else:
+            app_variant_db.is_deleted = True  # soft deletion
         session.commit()
 
 
@@ -248,3 +262,23 @@ def print_all():
             helpers.print_app_variant(app_variant)
         for image in session.query(ImageDB).all():
             helpers.print_image(image)
+
+
+def clean_soft_deleted_variants():
+    """Remove soft-deleted app variants if their image is not used by any existing variant.
+    """
+    with Session(engine) as session:
+        # Get all soft-deleted app variants
+        soft_deleted_variants: List[AppVariantDB] = session.query(
+            AppVariantDB).filter(AppVariantDB.is_deleted == True).all()
+
+        for variant in soft_deleted_variants:
+            # Get non-deleted variants that use the same image
+            image_used = session.query(AppVariantDB).filter(
+                (AppVariantDB.image_id == variant.image_id) & (AppVariantDB.is_deleted == False)).first()
+
+            # If the image is not used by any non-deleted variant, delete the variant
+            if image_used is None:
+                session.delete(variant)
+
+        session.commit()
