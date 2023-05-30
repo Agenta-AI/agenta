@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Button, Col, Dropdown, Menu, Row, Spin, Switch, Tooltip, Tag, message, MenuProps } from 'antd';
+import { Button, Col, Dropdown, Menu, Row, Spin, Switch, Tooltip, Tag, message, MenuProps, Divider } from 'antd';
 import EvaluationTable from './../EvaluationTable/EvaluationTable';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
@@ -92,7 +92,7 @@ export default function Evaluations() {
     })
       .then((res) => res.json())
       .then((data) => {
-        return data.csvdata
+        return data
       })
       .catch((err) => {
         console.error(err);
@@ -226,6 +226,8 @@ export default function Evaluations() {
           </div>
         </Col>
       </Row>
+
+      <Divider style={{marginTop:30, marginBottom:30}}></Divider>
 
       {!chatModeActivated &&
         evaluationTable
