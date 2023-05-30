@@ -118,6 +118,9 @@ const Results: React.FC = () => {
                                 newStatsLoading[index] = false;
                                 return newStatsLoading;
                             });
+                        })
+                        .catch(err => {
+                            console.error(err);
                         });
                 });
             })
