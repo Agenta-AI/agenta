@@ -6,10 +6,14 @@ from typing import Any, Dict, List, Optional
 
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import URI, App, AppVariant, Image
-from agenta_backend.services import db_manager, docker_utils
-from fastapi import APIRouter, HTTPException, Body
+from agenta_backend.services import app_manager, db_manager, docker_utils
+from docker.errors import DockerException
+from fastapi import APIRouter, Body, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @router.get("/list_variants/", response_model=List[AppVariant])
@@ -42,7 +46,7 @@ async def list_apps() -> List[App]:
         List[App]
     """
     try:
-        apps = db_manager.list_app_names()
+        apps = db_manager.list_apps()
         return apps
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -98,10 +102,7 @@ async def add_variant_from_previous(previous_app_variant: AppVariant, new_varian
 @router.post("/start/")
 async def start_variant(app_variant: AppVariant) -> URI:
     try:
-        image: Image = db_manager.get_image(app_variant)
-        uri: URI = docker_utils.start_container(
-            image_name=image.tags, app_name=app_variant.app_name, variant_name=app_variant.variant_name)
-        return uri
+        return app_manager.start_variant(app_variant)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -131,6 +132,7 @@ async def list_images():
 @router.delete("/remove_variant/")
 async def remove_variant(app_variant: AppVariant):
     """Remove a variant from the server.
+    In the case it's the last variant using the image, stop the container and remove the image.
 
     Arguments:
         app_variant -- AppVariant to remove
@@ -139,7 +141,33 @@ async def remove_variant(app_variant: AppVariant):
         HTTPException: If there is a problem removing the app variant
     """
     try:
-        if not db_manager.remove_app_variant(app_variant):
-            raise HTTPException(status_code=404, detail="App variant not found")
+        app_manager.remove_app_variant(app_variant)
+    except SQLAlchemyError as e:
+        detail = f"Database error while trying to remove the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except DockerException as e:
+        detail = f"Docker error while trying to remove the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        detail = f"Unexpected error while trying to remove the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+
+
+@router.delete("/remove_app/")
+async def remove_app(app: App):
+    """Remove app, all its variant, containers and images
+
+    Arguments:
+        app -- App to remove
+    """
+    try:
+        app_manager.remove_app(app)
+    except SQLAlchemyError as e:
+        detail = f"Database error while trying to remove the app: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except DockerException as e:
+        detail = f"Docker error while trying to remove the app: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except Exception as e:
+        detail = f"Unexpected error while trying to remove the app: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
