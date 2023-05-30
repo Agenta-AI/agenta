@@ -85,6 +85,16 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
         throw error;
     }
 }
+
+export async function removeApp(appName: string) {
+    try {
+        await axios.delete(`${API_BASE_URL}/api/app_variant/remove_app/`, { data: { app_name: appName } });
+        console.log("App removed: " + appName);
+    } catch (error) {
+        console.error("Error removing " + appName + " " + error);
+        throw error;
+    }
+}
 /**
  * Loads the list of datasets
  * @returns
