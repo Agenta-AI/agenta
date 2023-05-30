@@ -6,6 +6,7 @@ from agenta_backend.routers import dataset_router
 
 origins = [
     "http://localhost:3000",
+    "http://localhost:3001",
 ]
 
 # this is the prefix in which we are reverse proxying the api
