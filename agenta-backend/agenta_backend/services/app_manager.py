@@ -2,7 +2,7 @@
 """
 
 from agenta_backend.services import (db_manager, docker_utils)
-from agenta_backend.models.api.api_models import (AppVariant, Image, URI)
+from agenta_backend.models.api.api_models import (AppVariant, Image, URI, App)
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +53,7 @@ def remove_app_variant(app_variant: AppVariant):
             raise
 
 
-def remove_app(app_name: str):
+def remove_app(app: App):
     """Removes all app variants from db, if it is the last one using an image, then
     deletes the image from the db, shutdowns the container, deletes it and remove 
     the image from the registry
@@ -62,6 +62,7 @@ def remove_app(app_name: str):
         app_name -- the app name to remove
     """
     # checks if it is the last app variant using its image
+    app_name = app.app_name
     if app_name not in [app.app_name for app in db_manager.list_apps()]:
         msg = f"App {app_name} not found in DB"
         logger.error(msg)
