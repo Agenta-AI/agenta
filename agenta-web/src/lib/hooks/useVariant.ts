@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getVariantParameters, saveNewVariant } from '@/lib/services/api';
+import { getVariantParameters, saveNewVariant, updateVariantParams } from '@/lib/services/api';
 import { Variant, Parameter } from '@/lib/Types';
 
 /**
@@ -53,13 +53,15 @@ export function useVariant(appName: string, variant: Variant) {
      * @param updatedOptParams 
      * @param persist 
      */
-    const saveOptParams = async (updatedOptParams: Parameter[], persist: boolean) => {
+    const saveOptParams = async (updatedOptParams: Parameter[], persist: boolean, updateVariant: boolean) => {
         console.log(updatedOptParams);
         setIsLoading(true);
         setIsError(false);
         try {
-            if (persist) {
+            if (persist && !updateVariant) {
                 await saveNewVariant(appName, variant, updatedOptParams);
+            } else if (persist && !updateVariant) {
+                await updateVariantParams(appName, variant, updatedOptParams);
             }
             setOptParams(updatedOptParams);
         } catch (error) {
