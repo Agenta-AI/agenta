@@ -1,9 +1,9 @@
 import os
-from fastapi import HTTPException, APIRouter, UploadFile, File, Form
+from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Body
 from agenta_backend.services.db_mongo import datasets
-from agenta_backend.models.api.dataset_model import DatasetModel, UploadResponse
+from agenta_backend.models.api.dataset_model import UploadResponse, DeleteDatasets
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from bson import ObjectId
 import csv
 
@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 @router.post('/upload', response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] = File(...), app_name:str = Form(None)):
+async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] = File(None), app_name:str = Form(None)):
     """
     Uploads a CSV file and saves its data to MongoDB.
 
@@ -33,7 +33,7 @@ async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] 
 
         # Create a document with the CSV data
         document = {
-            "created_date": datetime.now().isoformat(),
+            "created_at": datetime.now().isoformat(),
             "name": dataset_name if dataset_name else file.filename,
             "app_name": app_name,
             "csvdata": []
@@ -51,7 +51,7 @@ async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] 
             return UploadResponse(
                 id=str(result.inserted_id),
                 name=document["name"],
-                created_date=document["created_date"]
+                created_at=document["created_at"]
             )
     except Exception as e:
         print(e)
@@ -71,7 +71,7 @@ async def get_datasets(app_name: Optional[str] = None):
     Raises:
     - `HTTPException` with status code 404 if no datasets are found.
     """
-    cursor = datasets.find({"app_name": app_name}, {"_id": 1, "name": 1, "created_date": 1})
+    cursor = datasets.find({"app_name": app_name}, {"_id": 1, "name": 1, "created_at": 1})
     documents = await cursor.to_list(length=100)
     for document in documents:
         document['_id'] = str(document['_id'])
@@ -96,3 +96,29 @@ async def get_dataset(dataset_id: str):
         return dataset
     else:
         raise HTTPException(status_code=404, detail=f"dataset with id {dataset_id} not found")
+
+
+@router.delete("/", response_model=List[str])
+async def delete_datasets(deleteDatasets: DeleteDatasets):
+    """
+    Delete specific datasets based on their unique IDs.
+
+    Args:
+    dataset_ids (List[str]): The unique identifiers of the datasets to delete.
+
+    Returns:
+    A list of the deleted datasets' IDs.
+    """
+    deleted_ids = []
+
+    for dataset_id in deleteDatasets.dataset_ids:
+        dataset = await datasets.find_one({'_id': ObjectId(dataset_id)})
+
+        if dataset is not None:
+            result = await datasets.delete_one({'_id': ObjectId(dataset_id)})
+            if result:
+                deleted_ids.append(dataset_id)
+        else:
+            raise HTTPException(status_code=404, detail=f"Dataset {dataset_id} not found")
+
+    return deleted_ids
