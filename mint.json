@@ -7,9 +7,9 @@
   },
   "favicon": "docs/favicon.png",
   "colors": {
-    "primary": "#0069ED",
-    "light": "#4D9CFF",
-    "dark": "#0050B4"
+    "primary": "#6100ed",
+    "light": "#7d4dff",
+    "dark": "#5000b4"
   },
   "feedback": {
     "suggestEdit": true,
