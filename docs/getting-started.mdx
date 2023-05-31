@@ -1,0 +1,39 @@
+---
+title: Getting Started
+description: 'Building your first LLM-application in Agenta'
+---
+
+# Introduction
+
+In this quick-start tutorial we will build a simple LLM-application using a template and iterate on it in the Agenta playground. We will not write the code ourselves, but rather use a template that is already available in the Agenta playground. If you want to learn how to write your own LLM-applications, please see the [LLM documentation](/docs/tutorials/your-first-llm-app).
+
+# Installation
+
+Before starting make sure that you have installed the Agenta CLI and SDK, and started the web platform using docker-compose. If you have not done this yet, please see the [installation guide](/docs/installation).
+
+# Create a new project
+
+Create an empty folder and use the following command to initialize a new project. 
+
+```bash
+mkdir example_app; cd example_app
+agenta init
+```
+
+Start a new project based on the [template](https://docs.agenta.ai/docs/conceptual/concepts#templates) `simple_prompt`:
+
+![Screenshot 2023-05-31 at 17 42 19](https://github.com/Agenta-AI/agenta/assets/4510758/ab7c10f0-6efd-4c30-8575-91adcd345aac)
+
+
+
+# 3. Write your app and deploy it
+
+Modify the app in app.py if needed and then proceed to serve it. Your app will start running, and you can see its endpoints on `localhost/app_name/variant_name/openapi.json`.
+
+```bash
+agenta serve
+```
+
+# 4. Start experimenting
+Navigate to localhost:3000, select your app, and begin experimenting with different parameters in the playground.
+
