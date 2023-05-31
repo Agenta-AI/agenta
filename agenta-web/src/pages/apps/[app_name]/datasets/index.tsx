@@ -35,7 +35,6 @@ export default function Datasets() {
         }
         fetchData(`http://localhost/api/datasets?app_name=${app_name}`)
             .then(data => {
-                console.log(data);
                 let newDatasetsList = data.map((obj:Dataset) => {
 
                     let newObj:DatasetTableDatatype = {
@@ -45,7 +44,6 @@ export default function Datasets() {
                     }
                     return newObj;
                 });
-                console.log(newDatasetsList);
                 setLoading(false);
                 setDatasetsList(newDatasetsList);
             }).
@@ -72,7 +70,6 @@ export default function Datasets() {
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[], selectedRows: DatasetTableDatatype[]) => {
-            console.log(`selectedRowKeys: ${selectedRowKeys}`, 'selectedRows: ', selectedRows);
             setSelectedRowKeys(selectedRowKeys);
         },
         getCheckboxProps: (record: DatasetTableDatatype) => ({
