@@ -58,7 +58,7 @@ def add_variant(variant_name: str, app_folder: str) -> str:
     except Exception as ex:
         click.echo(click.style(f"Error while adding variant: {ex}", fg='red'))
         return None
-    click.echo(click.style(f"Variant {variant_name} for App {app_name} added successfully", fg='green'))
+    click.echo(click.style(f"Variant {variant_name} for App {app_name} added successfully to Agenta!", fg='green'))
     # Last step us to save the config file
     toml.dump(config, config_file.open('w'))
     return variant_name
@@ -85,11 +85,8 @@ def start_variant(variant_name: str, app_folder: str):
 
     endpoint = client.start_variant(app_name, variant_name)
     click.echo(
-        f"""Variant {variant_name} for App {app_name} added successfully to Agenta!\n
-        You app has been deployed locally as an api: {endpoint}/openapi.json \n\n
-
-        Go to the playground to experiment with your app : http://localhost:3000/apps/{app_name}/playground \n
-        """
+        f"""You app has been deployed locally as an api: {endpoint}/openapi.json \n\n
+Go to the playground to experiment with your app : http://localhost:3000/apps/{app_name}/playground \n"""
     )
 
 
