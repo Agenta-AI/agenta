@@ -1,4 +1,4 @@
-\import { UploadOutlined } from "@ant-design/icons";
+import { UploadOutlined } from "@ant-design/icons";
 import { Alert, Button, Form, Input, Space, Spin, Upload, message } from "antd";
 import { useState } from "react";
 import axios from 'axios';
@@ -23,8 +23,8 @@ export default function AddANewDataset() {
             formData.append('file', file[0].originFileObj);
             if (values.datasetName && values.datasetName.trim() !== "") {
                 formData.append('dataset_name', values.datasetName);
-                formData.append('app_name', app_name?.toString() || '');
             }
+            formData.append('app_name', app_name?.toString() || '');
 
             try {
                 setUploadLoading(true);
