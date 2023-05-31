@@ -85,7 +85,12 @@ def start_variant(variant_name: str, app_folder: str):
 
     endpoint = client.start_variant(app_name, variant_name)
     click.echo(
-        f"Started variant {variant_name} for App {app_name}. Endpoint: {endpoint}")
+        f"""Variant {variant_name} for App {app_name} added successfully to Agenta!\n
+        You app has been deployed locally as an api: {endpoint}/openapi.json \n\n
+
+        Go to the playground to experiment with your app : http://localhost:3000/apps/{app_name}/playground \n
+        """
+    )
 
 
 @click.group()
@@ -123,11 +128,11 @@ def init(app_name: str):
     # Ask for init option
     init_option = questionary.select(
         "How do you want to initialize your app?",
-        choices=['Blank App', 'From Template']
+        choices=['Blank App', 'Start from template']
     ).ask()
 
     # If the user selected the second option, show a list of available templates
-    if init_option == 'From Template':
+    if init_option == 'Start from template':
         current_dir = Path.cwd()
         template_dir = Path(__file__).parent / "templates"
         templates = [folder.name for folder in template_dir.iterdir()
@@ -148,6 +153,8 @@ def init(app_name: str):
             if file.name != 'template.toml' and not file.is_dir():
                 shutil.copy(file, current_dir / file.name)
     click.echo("App initialized successfully")
+    if init_option == 'Start from template':
+        click.echo("Please check the README.md for further instructions to setup the template.")
 
 
 @click.command(name='start')
