@@ -66,16 +66,43 @@ Start a new project based on the template `simple_prompt`:
 
 ![Screenshot 2023-05-31 at 17 42 19](https://github.com/Agenta-AI/agenta/assets/4510758/ab7c10f0-6efd-4c30-8575-91adcd345aac)
 
+This will create a new project in your folder with the following structure:
+
+```bash
+.
+├── README.md         // How to use the template
+├── app.py            // the code of the app
+├── config.toml      
+└── requirements.txt
+```
+
+The app created uses a simple prompt template in [langchain](https://python.langchain.com/en/latest/getting_started/getting_started.html) and gpt-3.5 to generate names for companies that makes `{product}` 
 
 #### 3. Write your app and deploy it
 
-Modify the app in app.py if needed and then proceed to serve it. Your app will start running, and you can see its endpoints on `localhost/app_name/variant_name/openapi.json`.
+Create a `.env` file with you open api key in the same folder as asked in `README.md`
+
+Before adding the app to the Agenta platform, you can test it in your terminal
+
+```bash
+python app.py "colorful socks"
+
+Feetful of Fun
+```
+
+Now let's procede to add the application to the Agenta platform. 
+
 
 ```bash
 agenta serve
 ```
 
+This command will do two things:
+1) Package the code and serve it locally as an api endpoint under `localhost/app_name/{variant_name}/openapi.json`.
+2) Add the code to the Agenta platform
+
 #### 4. Start experimenting
+
 Navigate to localhost:3000, select your app, and begin experimenting with different parameters in the playground.
 
 
