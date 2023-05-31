@@ -66,6 +66,7 @@ const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRem
                         isParamSaveLoading={isParamSaveLoading}
                         onOptParamsChange={saveOptParams}
                         handlePersistVariant={handlePersistVariant}
+                        isPersistent={variant.persistent}  // if the variant persists in the backend, then saveoptparams will need to know to update and not save new variant
                         setRemovalVariantName={setRemovalVariantName}
                         setRemovalWarningModalOpen={setRemovalWarningModalOpen}
                         isDeleteLoading={isDeleteLoading}

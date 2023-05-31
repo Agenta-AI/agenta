@@ -23,7 +23,7 @@ export function useVariant(appName: string, variant: Variant) {
             setIsLoading(true);
             setIsError(false);
             try {
-
+                // get the parameters of the variant by parsing the openapi.json
                 const { initOptParams, inputParams } = await getVariantParameters(appName, variant);
 
                 if (variant.parameters) {
@@ -62,7 +62,7 @@ export function useVariant(appName: string, variant: Variant) {
         try {
             if (persist && !updateVariant) {
                 await saveNewVariant(appName, variant, updatedOptParams);
-            } else if (persist && !updateVariant) {
+            } else if (persist && updateVariant) {
                 await updateVariantParams(appName, variant, updatedOptParams);
             }
             setOptParams(updatedOptParams);
