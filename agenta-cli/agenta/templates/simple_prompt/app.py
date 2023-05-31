@@ -9,6 +9,7 @@ default_prompt = "What is a good name for a company that makes {product}?"
 
 @post
 def generate(product: str, temperature: FloatParam = 0.9, prompt_template: TextParam = default_prompt) -> str:
+    load_dotenv()
     llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
         input_variables=["product"],
