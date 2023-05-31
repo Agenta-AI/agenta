@@ -69,8 +69,9 @@ const VersionTabs: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
     const [newVariantName, setNewVariantName] = useState("");  // This is the name of the new variant that the user is creating
-    const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
-    const [removalKey, setRemovalKey] = useState<string | null>(null);
+    const [isWarningModalOpen, setRemovalWarningModalOpen] = useState(false);
+    const [removalVariantName, setRemovalVariantName] = useState<string | null>(null);
+    const [isDeleteLoading, setIsDeleteLoading] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -97,14 +98,14 @@ const VersionTabs: React.FC = () => {
 
 
     const handleRemove = () => {
-        if (removalKey) {
-            removeTab(setActiveKey, setVariants, variants, removalKey);
+        if (removalVariantName) {
+            removeTab(setActiveKey, setVariants, variants, removalVariantName);
         }
-        setIsWarningModalOpen(false);
+        setRemovalWarningModalOpen(false);
     };
 
     const handleCancel = () => {
-        setIsWarningModalOpen(false);
+        setRemovalWarningModalOpen(false);
     };
 
     /**
@@ -134,14 +135,20 @@ const VersionTabs: React.FC = () => {
                     if (action === 'add') {
                         setIsModalOpen(true);
                     } else if (action === 'remove') {
-                        setRemovalKey(targetKey);
-                        setIsWarningModalOpen(true);
+                        setRemovalVariantName(targetKey);
+                        setRemovalWarningModalOpen(true);
                     }
                 }}
             >
                 {variants.map((variant, index) => (
                     <TabPane tab={`Variant ${variant.variantName}`} key={variant.variantName} closable={!variant.persistent}>
-                        <ViewNavigation variant={variant} handlePersistVariant={handlePersistVariant} />
+                        <ViewNavigation
+                            variant={variant}
+                            handlePersistVariant={handlePersistVariant}
+                            setRemovalVariantName={setRemovalVariantName}
+                            setRemovalWarningModalOpen={setRemovalWarningModalOpen}
+                            isDeleteLoading={isDeleteLoading}
+                        />
                     </TabPane>
                 ))}
 
@@ -157,7 +164,7 @@ const VersionTabs: React.FC = () => {
             />
             <VariantRemovalWarningModal
                 isModalOpen={isWarningModalOpen}
-                setIsModalOpen={setIsWarningModalOpen}
+                setIsModalOpen={setRemovalWarningModalOpen}
                 handleRemove={handleRemove}
                 handleCancel={handleCancel}
             />
