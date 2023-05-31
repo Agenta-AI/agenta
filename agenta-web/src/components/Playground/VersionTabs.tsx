@@ -3,8 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, Modal, Input, Select, Space, Typography, message } from 'antd';
 import ViewNavigation from './ViewNavigation';
+import VariantRemovalWarningModal from './VariantRemovalWarningModal';
+import NewVariantModal from './NewVariantModal';
 import { useRouter } from 'next/router';
-import { fetchVariants } from '@/lib/services/api';
+import { fetchVariants, removeVariant } from '@/lib/services/api';
 import { Variant } from '@/lib/Types';
 const { TabPane } = Tabs;
 
@@ -58,7 +60,7 @@ function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], act
 
 const VersionTabs: React.FC = () => {
     const router = useRouter();
-    const { app_name } = router.query;
+    const appName = router.query.app_name as unknown as string;
     const [templateVariantName, setTemplateVariantName] = useState("");  // We use this to save the template variant name when the user creates a new variant
     const [activeKey, setActiveKey] = useState('1');
     const [tabList, setTabList] = useState([]);
@@ -67,12 +69,16 @@ const VersionTabs: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
     const [newVariantName, setNewVariantName] = useState("");  // This is the name of the new variant that the user is creating
-    const { Text } = Typography; // Destructure Text from Typography for text components
+    const [isWarningModalOpen1, setRemovalWarningModalOpen1] = useState(false);
+    const [isWarningModalOpen2, setRemovalWarningModalOpen2] = useState(false);
+    const [removalVariantName, setRemovalVariantName] = useState<string | null>(null);
+    const [isDeleteLoading, setIsDeleteLoading] = useState(false);
+    const [messageApi, contextHolder] = message.useMessage();
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const backendVariants = await fetchVariants(app_name);
+                const backendVariants = await fetchVariants(appName);
 
                 if (backendVariants.length > 0) {
                     setVariants(backendVariants);
@@ -87,13 +93,59 @@ const VersionTabs: React.FC = () => {
         };
 
         fetchData();
-    }, [app_name]);
+    }, [appName]);
 
     if (isError) return <div>failed to load variants</div>
     if (isLoading) return <div>loading variants...</div>
 
+
+    const handleRemove = () => {
+        if (removalVariantName) {
+            removeTab(setActiveKey, setVariants, variants, removalVariantName);
+        }
+        setRemovalWarningModalOpen1(false);
+    };
+    const handleBackendRemove = async () => {
+        if (removalVariantName) {
+            setIsDeleteLoading(true);
+            await removeVariant(appName, removalVariantName);
+            removeTab(setActiveKey, setVariants, variants, removalVariantName);
+            setIsDeleteLoading(false);
+        }
+        setRemovalWarningModalOpen1(false);
+        removedSuccessfully();
+    };
+
+
+    const handleCancel1 = () => setRemovalWarningModalOpen1(false);
+    const handleCancel2 = () => setRemovalWarningModalOpen2(false);
+
+    /**
+     * Called when the variant is saved for the first time to the backend
+     * after this point, the variant cannot be removed from the tab menu
+     * but only through the button
+     * @param variantName 
+     */
+    function handlePersistVariant(variantName: string) {
+        setVariants(prevVariants => {
+            return prevVariants.map(variant => {
+                if (variant.variantName === variantName) {
+                    return { ...variant, persistent: true };
+                }
+                return variant;
+            });
+        });
+    }
+    const removedSuccessfully = () => {
+        messageApi.open({
+            type: 'success',
+            content: 'Variant removed successfully!',
+        });
+    };
+
     return (
         <div>
+            {contextHolder}
             <Tabs
                 type="editable-card"
                 activeKey={activeKey}
@@ -102,48 +154,47 @@ const VersionTabs: React.FC = () => {
                     if (action === 'add') {
                         setIsModalOpen(true);
                     } else if (action === 'remove') {
-                        removeTab(setActiveKey, setVariants, variants, targetKey);
+                        setRemovalVariantName(targetKey);
+                        setRemovalWarningModalOpen1(true);
                     }
                 }}
             >
                 {variants.map((variant, index) => (
                     <TabPane tab={`Variant ${variant.variantName}`} key={variant.variantName} closable={!variant.persistent}>
-                        <ViewNavigation variant={variant} />
+                        <ViewNavigation
+                            variant={variant}
+                            handlePersistVariant={handlePersistVariant}
+                            setRemovalVariantName={setRemovalVariantName}
+                            setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
+                            isDeleteLoading={isDeleteLoading}
+                        />
                     </TabPane>
                 ))}
 
             </Tabs>
 
-            <Modal
-                title="Create a New Variant"
-                visible={isModalOpen}
-                onOk={() => {
-                    setIsModalOpen(false);
-                    addTab(setActiveKey, setVariants, variants, templateVariantName, newVariantName);
-                }}
-                onCancel={() => setIsModalOpen(false)}
-                centered
-            >
-                <Space direction="vertical" size={20}>
-                    <div>
-                        <Text>Enter a unique name for the new variant:</Text>
-                        <Input
-                            placeholder="New variant name"
-                            onChange={e => setNewVariantName(e.target.value)}
-                        />
-                    </div>
+            <NewVariantModal
+                isModalOpen={isModalOpen}
+                setIsModalOpen={setIsModalOpen}
+                addTab={() => addTab(setActiveKey, setVariants, variants, templateVariantName, newVariantName)}
+                variants={variants}
+                setNewVariantName={setNewVariantName}
+                setTemplateVariantName={setTemplateVariantName}
+            />
+            <VariantRemovalWarningModal
+                isModalOpen={isWarningModalOpen1}
+                setIsModalOpen={setRemovalWarningModalOpen1}
+                handleRemove={handleRemove}
+                handleCancel={handleCancel1}
+            />
+            <VariantRemovalWarningModal
+                isModalOpen={isWarningModalOpen2}
+                setIsModalOpen={setRemovalWarningModalOpen2}
+                handleRemove={handleBackendRemove}
+                handleCancel={handleCancel2}
+            />
 
-                    <div>
-                        <Text>Select an existing variant to use as a template:</Text>
-                        <Select
-                            style={{ width: '100%' }}
-                            placeholder="Select a variant"
-                            onChange={setTemplateVariantName}
-                            options={variants.map(variant => ({ value: variant.variantName, label: variant.variantName }))}
-                        />
-                    </div>
-                </Space>
-            </Modal> </div>
+        </div>
     );
 };
 
