@@ -5,13 +5,17 @@ import ParametersView from './Views/ParametersView';
 import { useVariant } from '@/lib/hooks/useVariant';
 import { Variant } from '@/lib/Types';
 import { useRouter } from 'next/router';
+import { is } from 'cypress/types/bluebird';
 
 interface Props {
     variant: Variant;
     handlePersistVariant: (variantName: string) => void;
+    setRemovalVariantName: (variantName: string) => void;
+    setRemovalWarningModalOpen: (value: boolean) => void;
+    isDeleteLoading: boolean;
 }
 
-const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant }) => {
+const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRemovalVariantName, setRemovalWarningModalOpen, isDeleteLoading }) => {
     const router = useRouter();
     const appName = router.query.app_name as unknown as string;
     const { inputParams, optParams, URIPath, isLoading, isError, error, isParamSaveLoading, saveOptParams } = useVariant(appName, variant);
@@ -56,7 +60,16 @@ const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant }) => {
         <div style={{ margin: '10px' }}>
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]}>
                 <Col span={24}>
-                    <ParametersView variantName={variant.variantName} optParams={optParams} isParamSaveLoading={isParamSaveLoading} onOptParamsChange={saveOptParams} handlePersistVariant={handlePersistVariant} />
+                    <ParametersView
+                        variantName={variant.variantName}
+                        optParams={optParams}
+                        isParamSaveLoading={isParamSaveLoading}
+                        onOptParamsChange={saveOptParams}
+                        handlePersistVariant={handlePersistVariant}
+                        setRemovalVariantName={setRemovalVariantName}
+                        setRemovalWarningModalOpen={setRemovalWarningModalOpen}
+                        isDeleteLoading={isDeleteLoading}
+                    />
                 </Col>
             </Row>
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]} style={{ marginTop: '20px' }}>
