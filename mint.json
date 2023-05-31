@@ -42,7 +42,29 @@
       ]
     },
     {
-      "group": "Backend API",
+      "group": "Tutorials",
+      "pages": [
+        "docs/introduction",
+        "docs/installation",
+        "docs/getting-started"
+      ]
+    },
+    {
+      "group": "How-to Guides",
+      "pages": [
+        "docs/introduction",
+        "docs/installation",
+        "docs/getting-started"
+      ]
+    },
+    {
+      "group": "Conceptual Guides",
+      "pages": [
+        "docs/conceptual/architecture"
+      ]
+    },
+    {
+      "group": "Reference",
       "pages": [
         "docs/backend-api/overview"
       ]
