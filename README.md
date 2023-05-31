@@ -77,6 +77,8 @@ This will create a new project in your folder with the following structure:
 
 The app created uses a simple prompt template in [langchain](https://python.langchain.com/en/latest/getting_started/getting_started.html) and gpt-3.5 to generate names for companies that makes `{product}` 
 
+If you are interested in working with your own code in Agenta, please see this tutorial on [writing you first LLM-app in Agenta](https://docs.agenta.ai/docs/tutorials/your-first-llm-app)
+
 #### 3. Write your app and deploy it
 
 Create a `.env` file with you open api key in the same folder as asked in `README.md`
