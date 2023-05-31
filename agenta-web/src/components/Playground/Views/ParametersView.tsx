@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import React from 'react';
 import { Parameter } from '@/lib/Types';
-import { Input, Slider, Row, Col, InputNumber, Button, Tooltip, message } from 'antd';
+import { Input, Slider, Row, Col, InputNumber, Button, Tooltip, message, Space } from 'antd';
 
 interface Props {
+    variantName: string;            // The name of the variant
     optParams: Parameter[] | null;  // The optional parameters
     isParamSaveLoading: boolean;    // Whether the parameters are currently being saved
     onOptParamsChange: (newOptParams: Parameter[], persist: boolean) => void;
+    handlePersistVariant: (variantName: string) => void;
 }
 
-const ParametersView: React.FC<Props> = ({ optParams, isParamSaveLoading, onOptParamsChange }) => {
+const ParametersView: React.FC<Props> = ({ variantName, optParams, isParamSaveLoading, onOptParamsChange, handlePersistVariant }) => {
     const [inputValue, setInputValue] = useState(1);
     const [messageApi, contextHolder] = message.useMessage();
     const onChange = (param: Parameter, newValue: number) => {
@@ -25,6 +27,7 @@ const ParametersView: React.FC<Props> = ({ optParams, isParamSaveLoading, onOptP
         messageApi.open({
             type: 'success',
             content: 'Changes saved successfully!',
+            onClose: () => handlePersistVariant(variantName)
         });
     };
 
@@ -79,18 +82,21 @@ const ParametersView: React.FC<Props> = ({ optParams, isParamSaveLoading, onOptP
             </Row>
             <Row style={{ marginTop: 10 }}>
                 <Col span={24} style={{ textAlign: 'right' }}>
-                    <Button
-                        type="primary"
-                        onClick={() => {
-                            onOptParamsChange(optParams!, true);
-                            success();
-                        }}
-                        loading={isParamSaveLoading}
-                    >
-                        <Tooltip placement="right" title="Save the new parameters for the variant permanently">
-                            Save changes
-                        </Tooltip>
-                    </Button>
+                    <Space>
+                        <Button
+                            type="primary"
+                            onClick={() => {
+                                onOptParamsChange(optParams!, true);
+                                success();
+                            }}
+                            loading={isParamSaveLoading}
+                        >
+                            <Tooltip placement="right" title="Save the new parameters for the variant permanently">
+                                Save changes
+                            </Tooltip>
+                        </Button>
+
+                    </Space>
                 </Col>
             </Row>
 
