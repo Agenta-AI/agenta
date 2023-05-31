@@ -47,13 +47,13 @@
         "docs/tutorials/your-first-llm-app"
       ]
     },
-    // {
-    //   "group": "How-to Guides",
-    //   "pages": [
-    //     "docs/howto/how-to-use-playground",
-    //     "docs/howto/how-to-compare-apps"
-    //   ]
-    // },
+    {
+      "group": "How-to Guides",
+      "pages": [
+        "docs/howto/how-to-use-playground",
+        "docs/howto/how-to-compare-apps"
+      ]
+    },
     {
       "group": "Conceptual Guides",
       "pages": [
@@ -61,18 +61,18 @@
         "docs/conceptual/concepts"
       ]
     },
-    // {
-    //   "group": "Reference",
-    //   "pages": [
-    //     "docs/backend-api/overview"
-    //   ]
-    // },
+    {
+      "group": "Reference",
+      "pages": [
+        "docs/backend-api/overview"
+      ]
+    },
     {
       "group": "Contribute",
       "pages": [
-        "docs/contributing/technical_details"
-        // "docs/contributing/contributing_to_the_project",
-        // "docs/contributing/community"
+        "docs/contributing/technical_details",
+        "docs/contributing/contributing_to_the_project",
+        "docs/contributing/community"
       ]
     }
   ],
