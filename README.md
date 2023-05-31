@@ -102,9 +102,11 @@ This command will do two things:
 
 #### 4. Start experimenting
 
-Navigate to localhost:3000, select your app, and begin experimenting with different parameters in the playground.
+Navigate to localhost:3000, select your app, and begin experimenting with the parameters we exposed in the code in the playground.
 
 <img width="1263" alt="Screenshot 2023-05-31 at 19 06 09" src="https://github.com/Agenta-AI/agenta/assets/4510758/6283d5af-0337-479f-951d-e7560c16d6ec">
+
+You can fork new variants, run batch evalutions, and more.
 
 ## Why choose Agenta Lab for building LLM-apps?
 
