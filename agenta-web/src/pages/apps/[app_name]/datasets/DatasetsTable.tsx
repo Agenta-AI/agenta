@@ -6,60 +6,60 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '@/lib/helpers/dateTimeHelper';
 
 type Props = {
-  dataset: Dataset;
+    dataset: Dataset;
 };
 
 const fetchData = async (url: string): Promise<any> => {
-  const response = await fetch(url);
-  return response.json();
+    const response = await fetch(url);
+    return response.json();
 }
 
-const DatasetsTable: React.FC<Props>= ({ dataset }) => {
-  const [fetchedDatasets, setFetchedDatasets] = useState<Dataset[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+const DatasetsTable: React.FC<Props> = ({ dataset }) => {
+    const [fetchedDatasets, setFetchedDatasets] = useState<Dataset[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    fetchData('http://localhost/api/datasets')
-      .then(data => {
-        setFetchedDatasets(data);
-        setLoading(false);
-      });
-  }, []);
+    useEffect(() => {
+        fetchData('http://localhost/api/datasets')
+            .then(data => {
+                setFetchedDatasets(data);
+                setLoading(false);
+            });
+    }, []);
 
-  useEffect(() => {
-    const newDatasets = [dataset, ...fetchedDatasets];
-    setFetchedDatasets(newDatasets);
-  }, [dataset]);
+    useEffect(() => {
+        const newDatasets = [dataset, ...fetchedDatasets];
+        setFetchedDatasets(newDatasets);
+    }, [dataset]);
 
-  const columns: ColumnsType<Dataset> = [
-    {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name'
-    },
-    {
-      title: 'Creation date',
-      dataIndex: 'created_date',
-      key: 'created_date',
-      render: (date: string) => {
-        return formatDate(date);
-      }
-    },
-  ];
+    const columns: ColumnsType<Dataset> = [
+        {
+            title: 'Name',
+            dataIndex: 'name',
+            key: 'name'
+        },
+        {
+            title: 'Creation date',
+            dataIndex: 'created_date',
+            key: 'created_date',
+            render: (date: string) => {
+                return formatDate(date);
+            }
+        },
+    ];
 
-  return (
-    <div>
-      {loading ? (
-        <Spin />
-      ) : (
-        <Table
-          columns={columns}
-          dataSource={fetchedDatasets}
-          loading={loading}
-        />
-      )}
-    </div>
-  );
+    return (
+        <div>
+            {loading ? (
+                <Spin />
+            ) : (
+                <Table
+                    columns={columns}
+                    dataSource={fetchedDatasets}
+                    loading={loading}
+                />
+            )}
+        </div>
+    );
 };
 
 export default DatasetsTable;

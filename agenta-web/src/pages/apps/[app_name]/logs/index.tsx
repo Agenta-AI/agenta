@@ -1,9 +1,9 @@
 
-import LLMCallsTable from '../../components/LLMCallsTable/LLMCallsTable';
+import LLMCallsTable from '../../../../components/LLMCallsTable/LLMCallsTable';
 
 export default function Logs() {
 
-  return (
-    <LLMCallsTable />
-  );
+    return (
+        <LLMCallsTable />
+    );
 }
