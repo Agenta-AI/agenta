@@ -44,17 +44,14 @@
     {
       "group": "Tutorials",
       "pages": [
-        "docs/introduction",
-        "docs/installation",
-        "docs/getting-started"
+        "docs/tutorials/your-first-llm-app.mdx"
       ]
     },
     {
       "group": "How-to Guides",
       "pages": [
-        "docs/introduction",
-        "docs/installation",
-        "docs/getting-started"
+        "docs/howto/how-to-use-playground",
+        "docs/howto/how-to-compare-apps"
       ]
     },
     {
