@@ -1,0 +1,21 @@
+---
+title: "Concepts"
+description: "An overview of the architecture of Agenta"
+---
+
+
+
+## Templates
+
+Templates are reusable LLM-powered applications that you can start your code with and build upon. 
+At the time of writing, there is only one template available `simple_prompt` which is a simple prompt-based application developed in langchain.
+In the future we plan to add a multitude of templates for different use cases (e.g. simple chatbot, classification app, chat with your PDB app, etc.) using a multitude of libraries (langchain, llma_index, guardrails, etc.) and LLMs (gpt-4, cohere, huggingface, etc.)
+
+You can use a template when you start your project from CLI:
+
+```bash
+agenta init
+```
+
+![example of agenta init](docs/images/using_template.png)
+
