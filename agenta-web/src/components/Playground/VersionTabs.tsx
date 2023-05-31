@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Tabs, Modal, Input, Select, Space, Typography, message } from 'antd';
 import ViewNavigation from './ViewNavigation';
+import VariantRemovalWarningModal from './VariantRemovalWarningModal';
+import NewVariantModal from './NewVariantModal';
 import { useRouter } from 'next/router';
 import { fetchVariants } from '@/lib/services/api';
 import { Variant } from '@/lib/Types';
@@ -67,7 +69,8 @@ const VersionTabs: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
     const [newVariantName, setNewVariantName] = useState("");  // This is the name of the new variant that the user is creating
-    const { Text } = Typography; // Destructure Text from Typography for text components
+    const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+    const [removalKey, setRemovalKey] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -91,7 +94,16 @@ const VersionTabs: React.FC = () => {
 
     if (isError) return <div>failed to load variants</div>
     if (isLoading) return <div>loading variants...</div>
+    const handleRemove = () => {
+        if (removalKey) {
+            removeTab(setActiveKey, setVariants, variants, removalKey);
+        }
+        setIsWarningModalOpen(false);
+    };
 
+    const handleCancel = () => {
+        setIsWarningModalOpen(false);
+    };
     return (
         <div>
             <Tabs
@@ -102,7 +114,8 @@ const VersionTabs: React.FC = () => {
                     if (action === 'add') {
                         setIsModalOpen(true);
                     } else if (action === 'remove') {
-                        removeTab(setActiveKey, setVariants, variants, targetKey);
+                        setRemovalKey(targetKey);
+                        setIsWarningModalOpen(true);
                     }
                 }}
             >
@@ -114,36 +127,21 @@ const VersionTabs: React.FC = () => {
 
             </Tabs>
 
-            <Modal
-                title="Create a New Variant"
-                visible={isModalOpen}
-                onOk={() => {
-                    setIsModalOpen(false);
-                    addTab(setActiveKey, setVariants, variants, templateVariantName, newVariantName);
-                }}
-                onCancel={() => setIsModalOpen(false)}
-                centered
-            >
-                <Space direction="vertical" size={20}>
-                    <div>
-                        <Text>Enter a unique name for the new variant:</Text>
-                        <Input
-                            placeholder="New variant name"
-                            onChange={e => setNewVariantName(e.target.value)}
-                        />
-                    </div>
-
-                    <div>
-                        <Text>Select an existing variant to use as a template:</Text>
-                        <Select
-                            style={{ width: '100%' }}
-                            placeholder="Select a variant"
-                            onChange={setTemplateVariantName}
-                            options={variants.map(variant => ({ value: variant.variantName, label: variant.variantName }))}
-                        />
-                    </div>
-                </Space>
-            </Modal> </div>
+            <NewVariantModal
+                isModalOpen={isModalOpen}
+                setIsModalOpen={setIsModalOpen}
+                addTab={() => addTab(setActiveKey, setVariants, variants, templateVariantName, newVariantName)}
+                variants={variants}
+                setNewVariantName={setNewVariantName}
+                setTemplateVariantName={setTemplateVariantName}
+            />
+            <VariantRemovalWarningModal
+                isModalOpen={isWarningModalOpen}
+                setIsModalOpen={setIsWarningModalOpen}
+                handleRemove={handleRemove}
+                handleCancel={handleCancel}
+            />
+        </div>
     );
 };
 
