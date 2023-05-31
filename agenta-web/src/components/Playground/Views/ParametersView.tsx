@@ -12,6 +12,7 @@ interface Props {
     setRemovalVariantName: (variantName: string) => void;
     setRemovalWarningModalOpen: (value: boolean) => void;
     isDeleteLoading: boolean;
+    isPersistent: boolean;
 }
 
 const ParametersView: React.FC<Props> = ({ variantName,
@@ -21,7 +22,8 @@ const ParametersView: React.FC<Props> = ({ variantName,
     handlePersistVariant,
     setRemovalVariantName,
     setRemovalWarningModalOpen,
-    isDeleteLoading }) => {
+    isDeleteLoading,
+    isPersistent }) => {
 
     const [inputValue, setInputValue] = useState(1);
     const [messageApi, contextHolder] = message.useMessage();
@@ -38,7 +40,7 @@ const ParametersView: React.FC<Props> = ({ variantName,
         messageApi.open({
             type: 'success',
             content: 'Changes saved successfully!',
-            onClose: () => handlePersistVariant(variantName)
+            onClose: () => handlePersistVariant(variantName,)
         });
     };
 
@@ -97,13 +99,14 @@ const ParametersView: React.FC<Props> = ({ variantName,
                     <Space>
                         <Button
                             type="primary"
-                            onClick={() => {
-                                onOptParamsChange(optParams!, true, false);
+                            onClick={async () => {
+                                console.log("Calling onOptParamsChange with optParams: ", optParams, " and isPersistent: ", true, " and isPersistent: ", isPersistent)
+                                await onOptParamsChange(optParams!, true, isPersistent);
                                 success();
                             }}
                             loading={isParamSaveLoading}
                         >
-                            <Tooltip placement="right" title="Save the new parameters for the variant permanently">
+                            <Tooltip placement="bottom" title="Save the new parameters for the variant permanently">
                                 Save changes
                             </Tooltip>
                         </Button>
@@ -116,7 +119,7 @@ const ParametersView: React.FC<Props> = ({ variantName,
                             }}
                             loading={isDeleteLoading}
                         >
-                            <Tooltip placement="right" title="Save the new parameters for the variant permanently">
+                            <Tooltip placement="bottom" title="Delete the variant permanently">
                                 Delete Variant
                             </Tooltip>
                         </Button>

@@ -122,3 +122,24 @@ def start_variant(app_variant: AppVariant) -> URI:
             f"Failed to start Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}") from e
 
     return uri
+
+
+def update_variant_parameters(app_variant: AppVariant):
+    """Updates the parameters for app variant in the database.
+
+    Arguments:
+        app_variant -- the app variant to update
+    """
+    if app_variant.app_name in ["", None] or app_variant.variant_name == ["", None]:
+        msg = f"App name and variant name cannot be empty"
+        logger.error(msg)
+        raise ValueError(msg)
+    if app_variant.parameters is None:
+        msg = f"Parameters cannot be empty when updating app variant"
+        logger.error(msg)
+        raise ValueError(msg)
+    try:
+        db_manager.update_variant_parameters(app_variant, app_variant.parameters)
+    except:
+        logger.error(f"Error updating app variant {app_variant.app_name}/{app_variant.variant_name}")
+        raise
