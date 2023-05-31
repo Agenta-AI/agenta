@@ -94,6 +94,8 @@ const VersionTabs: React.FC = () => {
 
     if (isError) return <div>failed to load variants</div>
     if (isLoading) return <div>loading variants...</div>
+
+
     const handleRemove = () => {
         if (removalKey) {
             removeTab(setActiveKey, setVariants, variants, removalKey);
@@ -104,6 +106,24 @@ const VersionTabs: React.FC = () => {
     const handleCancel = () => {
         setIsWarningModalOpen(false);
     };
+
+    /**
+     * Called when the variant is saved for the first time to the backend
+     * after this point, the variant cannot be removed from the tab menu
+     * but only through the button
+     * @param variantName 
+     */
+    function handlePersistVariant(variantName: string) {
+        setVariants(prevVariants => {
+            return prevVariants.map(variant => {
+                if (variant.variantName === variantName) {
+                    return { ...variant, persistent: true };
+                }
+                return variant;
+            });
+        });
+    }
+
     return (
         <div>
             <Tabs
@@ -121,7 +141,7 @@ const VersionTabs: React.FC = () => {
             >
                 {variants.map((variant, index) => (
                     <TabPane tab={`Variant ${variant.variantName}`} key={variant.variantName} closable={!variant.persistent}>
-                        <ViewNavigation variant={variant} />
+                        <ViewNavigation variant={variant} handlePersistVariant={handlePersistVariant} />
                     </TabPane>
                 ))}
 
