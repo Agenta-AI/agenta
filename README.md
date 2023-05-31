@@ -62,6 +62,11 @@ mkdir example_app; cd example_app
 agenta init
 ```
 
+Start a new project based on the template `simple_prompt`:
+
+![Screenshot 2023-05-31 at 17 42 19](https://github.com/Agenta-AI/agenta/assets/4510758/ab7c10f0-6efd-4c30-8575-91adcd345aac)
+
+
 #### 3. Write your app and deploy it
 
 Modify the app in app.py if needed and then proceed to serve it. Your app will start running, and you can see its endpoints on `localhost/app_name/variant_name/openapi.json`.
