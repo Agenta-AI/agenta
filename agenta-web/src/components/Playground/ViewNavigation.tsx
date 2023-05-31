@@ -6,7 +6,12 @@ import { useVariant } from '@/lib/hooks/useVariant';
 import { Variant } from '@/lib/Types';
 import { useRouter } from 'next/router';
 
-const ViewNavigation: React.FC<Variant> = ({ variant }) => {
+interface Props {
+    variant: Variant;
+    handlePersistVariant: (variantName: string) => void;
+}
+
+const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant }) => {
     const router = useRouter();
     const appName = router.query.app_name as unknown as string;
     const { inputParams, optParams, URIPath, isLoading, isError, error, isParamSaveLoading, saveOptParams } = useVariant(appName, variant);
@@ -16,7 +21,7 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
         return <div>Loading...</div>;
     }
     if (isError) {
-        let variantDesignator = variant.variantTemplate;
+        let variantDesignator = variant.templateVariantName;
         let imageName = `agenta-server/${appName.toLowerCase()}_`;
 
         if (!variantDesignator || variantDesignator === '') {
@@ -51,7 +56,7 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
         <div style={{ margin: '10px' }}>
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]}>
                 <Col span={24}>
-                    <ParametersView optParams={optParams} isParamSaveLoading={isParamSaveLoading} onOptParamsChange={saveOptParams} />
+                    <ParametersView variantName={variant.variantName} optParams={optParams} isParamSaveLoading={isParamSaveLoading} onOptParamsChange={saveOptParams} handlePersistVariant={handlePersistVariant} />
                 </Col>
             </Row>
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]} style={{ marginTop: '20px' }}>
