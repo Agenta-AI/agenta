@@ -282,3 +282,33 @@ def clean_soft_deleted_variants():
                 session.delete(variant)
 
         session.commit()
+
+
+def update_variant_parameters(app_variant: AppVariant, parameters: Dict[str, Any]):
+    """Updates the parameters of a specific variant
+
+    Arguments:
+        app_variant -- contains the name of the app and variant
+        parameters -- the new parameters. 
+
+    Raises:
+        ValueError: If the variant doesn't exist or parameters is None.
+    """
+    if app_variant is None or app_variant.app_name in [None, ""] or app_variant.variant_name in [None, ""]:
+        raise ValueError("App variant is None")
+    if parameters is None:
+        raise ValueError("Parameters is None")
+
+    with Session(engine) as session:
+        db_app_variant: AppVariantDB = session.query(AppVariantDB).filter(
+            (AppVariantDB.app_name == app_variant.app_name) & (AppVariantDB.variant_name == app_variant.variant_name)).first()
+
+        if db_app_variant is None:
+            raise ValueError("App variant not found")
+
+        # Update parameters
+        if set(db_app_variant.parameters.keys()) != set(parameters.keys()):
+            logger.error(f"Parameters keys don't match: {db_app_variant.parameters.keys()} vs {parameters.keys()}")
+            raise ValueError("Parameters keys don't match")
+        db_app_variant.parameters = parameters
+        session.commit()

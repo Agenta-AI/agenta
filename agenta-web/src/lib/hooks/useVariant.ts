@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getVariantParameters, saveNewVariant } from '@/lib/services/api';
+import { getVariantParameters, saveNewVariant, updateVariantParams } from '@/lib/services/api';
 import { Variant, Parameter } from '@/lib/Types';
 
 /**
@@ -23,7 +23,7 @@ export function useVariant(appName: string, variant: Variant) {
             setIsLoading(true);
             setIsError(false);
             try {
-
+                // get the parameters of the variant by parsing the openapi.json
                 const { initOptParams, inputParams } = await getVariantParameters(appName, variant);
 
                 if (variant.parameters) {
@@ -55,13 +55,18 @@ export function useVariant(appName: string, variant: Variant) {
      * @param updatedOptParams 
      * @param persist 
      */
-    const saveOptParams = async (updatedOptParams: Parameter[], persist: boolean) => {
+    const saveOptParams = async (updatedOptParams: Parameter[], persist: boolean, updateVariant: boolean) => {
         console.log(updatedOptParams);
         setIsParamSaveLoading(true);
         setIsError(false);
         try {
             if (persist) {
-                await saveNewVariant(appName, variant, updatedOptParams);
+                if (!updateVariant) {
+                    await saveNewVariant(appName, variant, updatedOptParams);
+                } else if (updateVariant) {
+                    await updateVariantParams(appName, variant, updatedOptParams);
+                }
+                variant.parameters = updatedOptParams.reduce((acc, param) => { return { ...acc, [param.name]: param.default } }, {});
             }
             setOptParams(updatedOptParams);
         } catch (error) {
