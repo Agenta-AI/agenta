@@ -21,11 +21,10 @@ In the future, we plan to extend Agenta Lab to facilitate your LLM-app developme
 - **API Deployment Made Easy:** Agenta Lab allows you to deploy your LLM applications as APIs without any additional effort. (Currently only available locally)
 ## Documentation
 
-Please go to [docs.agenta.ai](docs.agenta.ai) for full documentation on:
-- [Installation](docs.agenta.ai/docs/installation)
-- [Getting Started](docs.agenta.ai/docs/getting-started)
-- [How to tutorials](docs.agenta.ai/docs/how-to)
-
+Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
+- [Installation](https://docs.agenta.ai/docs/installation)
+- [Getting Started](https://docs.agenta.ai/docs/getting-started)
+- [Tutorials](https://docs.agenta.ai/docs/tutorials)
 ## Getting Started
 
 ### Requirements
@@ -62,7 +61,7 @@ mkdir example_app; cd example_app
 agenta init
 ```
 
-Start a new project based on the template `simple_prompt`:
+Start a new project based on the [template](https://docs.agenta.ai/docs/conceptual/concepts#templates) `simple_prompt`:
 
 ![Screenshot 2023-05-31 at 17 42 19](https://github.com/Agenta-AI/agenta/assets/4510758/ab7c10f0-6efd-4c30-8575-91adcd345aac)
 
