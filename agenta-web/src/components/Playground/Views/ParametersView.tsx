@@ -5,7 +5,7 @@ import { Input, Slider, Row, Col, InputNumber, Button, Tooltip } from 'antd';
 
 interface Props {
     optParams: Parameter[] | null;  // The optional parameters
-    onOptParamsChange: (newOptParams: Parameter[], persist: boolean) => void;
+    onOptParamsChange: (newOptParams: Parameter[], persist: boolean, updateVariant: boolean) => void;
 }
 
 const ParametersView: React.FC<Props> = ({ optParams, onOptParamsChange }) => {
@@ -17,7 +17,7 @@ const ParametersView: React.FC<Props> = ({ optParams, onOptParamsChange }) => {
     const handleParamChange = (name: string, newVal: any,) => {
         const newOptParams = optParams?.map(param =>
             param.name === name ? { ...param, default: newVal } : param);
-        newOptParams && onOptParamsChange(newOptParams, false)
+        newOptParams && onOptParamsChange(newOptParams, false, false)
     }
     return (
         <div>
@@ -70,7 +70,7 @@ const ParametersView: React.FC<Props> = ({ optParams, onOptParamsChange }) => {
             </Row>
             <Row style={{ marginTop: 10 }}>
                 <Col span={24} style={{ textAlign: 'right' }}>
-                    <Button type="primary" onClick={() => onOptParamsChange(optParams!, true)}>
+                    <Button type="primary" onClick={() => onOptParamsChange(optParams!, true, false)}>
                         <Tooltip placement="right" title="Save the new parameters for the variant permanently">
                             Save changes
                         </Tooltip>
