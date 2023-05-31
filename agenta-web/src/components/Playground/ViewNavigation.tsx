@@ -5,19 +5,28 @@ import ParametersView from './Views/ParametersView';
 import { useVariant } from '@/lib/hooks/useVariant';
 import { Variant } from '@/lib/Types';
 import { useRouter } from 'next/router';
+import { is } from 'cypress/types/bluebird';
 
-const ViewNavigation: React.FC<Variant> = ({ variant }) => {
+interface Props {
+    variant: Variant;
+    handlePersistVariant: (variantName: string) => void;
+    setRemovalVariantName: (variantName: string) => void;
+    setRemovalWarningModalOpen: (value: boolean) => void;
+    isDeleteLoading: boolean;
+}
+
+const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRemovalVariantName, setRemovalWarningModalOpen, isDeleteLoading }) => {
     const router = useRouter();
-    const { app_name } = router.query;
-    const { inputParams, optParams, URIPath, isLoading, isError, error, saveOptParams } = useVariant(app_name, variant);
+    const appName = router.query.app_name as unknown as string;
+    const { inputParams, optParams, URIPath, isLoading, isError, error, isParamSaveLoading, saveOptParams } = useVariant(appName, variant);
 
 
     if (isLoading) {
         return <div>Loading...</div>;
     }
     if (isError) {
-        let variantDesignator = variant.variantTemplate;
-        let imageName = `agenta-server/${app_name.toLowerCase()}_`;
+        let variantDesignator = variant.templateVariantName;
+        let imageName = `agenta-server/${appName.toLowerCase()}_`;
 
         if (!variantDesignator || variantDesignator === '') {
             variantDesignator = variant.variantName;
@@ -26,7 +35,7 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
             imageName += variantDesignator.toLowerCase();
         }
 
-        const apiAddress = `localhost/${app_name}/${variantDesignator}/openapi.json`;
+        const apiAddress = `localhost/${appName}/${variantDesignator}/openapi.json`;
 
         return (
             <div>
@@ -51,7 +60,16 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
         <div style={{ margin: '10px' }}>
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]}>
                 <Col span={24}>
-                    <ParametersView optParams={optParams} onOptParamsChange={saveOptParams} />
+                    <ParametersView
+                        variantName={variant.variantName}
+                        optParams={optParams}
+                        isParamSaveLoading={isParamSaveLoading}
+                        onOptParamsChange={saveOptParams}
+                        handlePersistVariant={handlePersistVariant}
+                        setRemovalVariantName={setRemovalVariantName}
+                        setRemovalWarningModalOpen={setRemovalWarningModalOpen}
+                        isDeleteLoading={isDeleteLoading}
+                    />
                 </Col>
             </Row>
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]} style={{ marginTop: '20px' }}>

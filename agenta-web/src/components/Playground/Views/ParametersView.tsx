@@ -1,15 +1,31 @@
 import { useState } from 'react';
 import React from 'react';
-import { Parameter } from '@/lib/services/api';
-import { Input, Slider, Row, Col, InputNumber, Button, Tooltip } from 'antd';
+import { Parameter } from '@/lib/Types';
+import { Input, Slider, Row, Col, InputNumber, Button, Tooltip, message, Space } from 'antd';
 
 interface Props {
+    variantName: string;            // The name of the variant
     optParams: Parameter[] | null;  // The optional parameters
+    isParamSaveLoading: boolean;    // Whether the parameters are currently being saved
     onOptParamsChange: (newOptParams: Parameter[], persist: boolean) => void;
+    handlePersistVariant: (variantName: string) => void;
+    setRemovalVariantName: (variantName: string) => void;
+    setRemovalWarningModalOpen: (value: boolean) => void;
+    isDeleteLoading: boolean;
+
 }
 
-const ParametersView: React.FC<Props> = ({ optParams, onOptParamsChange }) => {
+const ParametersView: React.FC<Props> = ({ variantName,
+    optParams,
+    isParamSaveLoading,
+    onOptParamsChange,
+    handlePersistVariant,
+    setRemovalVariantName,
+    setRemovalWarningModalOpen,
+    isDeleteLoading }) => {
+
     const [inputValue, setInputValue] = useState(1);
+    const [messageApi, contextHolder] = message.useMessage();
     const onChange = (param: Parameter, newValue: number) => {
         setInputValue(newValue);
         handleParamChange(param.name, newValue)
@@ -19,9 +35,17 @@ const ParametersView: React.FC<Props> = ({ optParams, onOptParamsChange }) => {
             param.name === name ? { ...param, default: newVal } : param);
         newOptParams && onOptParamsChange(newOptParams, false)
     }
+    const success = () => {
+        messageApi.open({
+            type: 'success',
+            content: 'Changes saved successfully!',
+            onClose: () => handlePersistVariant(variantName)
+        });
+    };
+
     return (
         <div>
-
+            {contextHolder}
             <Row gutter={16} style={{}}>
                 <Col span={12}>
                     {optParams?.filter(param => (param.type === 'string')).map((param, index) => (
@@ -70,15 +94,38 @@ const ParametersView: React.FC<Props> = ({ optParams, onOptParamsChange }) => {
             </Row>
             <Row style={{ marginTop: 10 }}>
                 <Col span={24} style={{ textAlign: 'right' }}>
-                    <Button type="primary" onClick={() => onOptParamsChange(optParams!, true)}>
-                        <Tooltip placement="right" title="Save the new parameters for the variant permanently">
-                            Save changes
-                        </Tooltip>
-                    </Button>
+                    <Space>
+                        <Button
+                            type="primary"
+                            onClick={() => {
+                                onOptParamsChange(optParams!, true);
+                                success();
+                            }}
+                            loading={isParamSaveLoading}
+                        >
+                            <Tooltip placement="right" title="Save the new parameters for the variant permanently">
+                                Save changes
+                            </Tooltip>
+                        </Button>
+                        <Button
+                            type="primary"
+                            danger
+                            onClick={() => {
+                                setRemovalVariantName(variantName);
+                                setRemovalWarningModalOpen(true);
+                            }}
+                            loading={isDeleteLoading}
+                        >
+                            <Tooltip placement="right" title="Save the new parameters for the variant permanently">
+                                Delete Variant
+                            </Tooltip>
+                        </Button>
+
+                    </Space>
                 </Col>
             </Row>
 
-        </div>
+        </div >
     );
 };
 export default ParametersView;
