@@ -1,7 +1,7 @@
 export interface Dataset {
-    id: string;
+    _id: string;
     name: string;
-    created_date?: string;
+    created_at: string;
 }
 
 export interface AppVariant {
