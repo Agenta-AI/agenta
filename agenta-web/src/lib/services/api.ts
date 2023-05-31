@@ -86,6 +86,20 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
     }
 }
 
+export async function updateVariantParams(appName: string, variant: Variant, parameters: Parameter[]) {
+    try {
+        const response = await axios.put(`${API_BASE_URL}/api/app_variant/update_variant_parameters/`, {
+            app_name: appName,
+            variant_name: variant.variantName,
+            parameters: parameters.reduce((acc, param) => { return { ...acc, [param.name]: param.default } }, {})
+        });
+        console.log(response.data);
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+}
+
 export async function removeApp(appName: string) {
     try {
         await axios.delete(`${API_BASE_URL}/api/app_variant/remove_app/`, { data: { app_name: appName } });

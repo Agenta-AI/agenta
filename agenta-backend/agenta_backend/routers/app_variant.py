@@ -171,3 +171,23 @@ async def remove_app(app: App):
     except Exception as e:
         detail = f"Unexpected error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
+
+
+@router.put("/update_variant_parameters/")
+async def update_variant_parameters(app_variant: AppVariant):
+    """Updates the parameters for an app variant
+
+    Arguments:
+        app_variant -- Appvariant to update
+    """
+    try:
+        app_manager.update_variant_parameters(app_variant)
+    except ValueError as e:
+        detail = f"Error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except SQLAlchemyError as e:
+        detail = f"Database error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except Exception as e:
+        detail = f"Unexpected error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
