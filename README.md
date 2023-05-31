@@ -40,22 +40,29 @@ pip install agenta
 
 ### Usage
 
-#### 0. Start the agenta server
+#### 0. Clone repository and cd into it
+
+```bash
+git clone https://github.com/Agenta-AI/agenta.git
+cd agenta
+```
+
+#### 1. Start the agenta server
 
 ```bash
 docker compose -f "docker-compose.yml" up -d --build
 ```
 
-#### 1. Create a new project
+#### 2. Create a new project
 
-Create an empty folder and use the following command to initialize a new project. Provide an app name, then choose from Template and Simple Prompt as a template.
+Create an empty folder and use the following command to initialize a new project. 
 
 ```bash
 mkdir example_app; cd example_app
 agenta init
 ```
 
-#### 2. Write your app and deploy it
+#### 3. Write your app and deploy it
 
 Modify the app in app.py if needed and then proceed to serve it. Your app will start running, and you can see its endpoints on `localhost/app_name/variant_name/openapi.json`.
 
@@ -63,7 +70,7 @@ Modify the app in app.py if needed and then proceed to serve it. Your app will s
 agenta serve
 ```
 
-#### 3. Start experimenting
+#### 4. Start experimenting
 Navigate to localhost:3000, select your app, and begin experimenting with different parameters in the playground.
 
 
