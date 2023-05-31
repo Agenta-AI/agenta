@@ -8,8 +8,8 @@ import { useRouter } from 'next/router';
 
 const ViewNavigation: React.FC<Variant> = ({ variant }) => {
     const router = useRouter();
-    const { app_name } = router.query;
-    const { inputParams, optParams, URIPath, isLoading, isError, error, saveOptParams } = useVariant(app_name, variant);
+    const appName = router.query.app_name as unknown as string;
+    const { inputParams, optParams, URIPath, isLoading, isError, error, isParamSaveLoading, saveOptParams } = useVariant(appName, variant);
 
 
     if (isLoading) {
@@ -17,7 +17,7 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
     }
     if (isError) {
         let variantDesignator = variant.variantTemplate;
-        let imageName = `agenta-server/${app_name.toLowerCase()}_`;
+        let imageName = `agenta-server/${appName.toLowerCase()}_`;
 
         if (!variantDesignator || variantDesignator === '') {
             variantDesignator = variant.variantName;
@@ -26,7 +26,7 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
             imageName += variantDesignator.toLowerCase();
         }
 
-        const apiAddress = `localhost/${app_name}/${variantDesignator}/openapi.json`;
+        const apiAddress = `localhost/${appName}/${variantDesignator}/openapi.json`;
 
         return (
             <div>
@@ -51,7 +51,7 @@ const ViewNavigation: React.FC<Variant> = ({ variant }) => {
         <div style={{ margin: '10px' }}>
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]}>
                 <Col span={24}>
-                    <ParametersView optParams={optParams} onOptParamsChange={saveOptParams} />
+                    <ParametersView optParams={optParams} isParamSaveLoading={isParamSaveLoading} onOptParamsChange={saveOptParams} />
                 </Col>
             </Row>
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]} style={{ marginTop: '20px' }}>
