@@ -86,6 +86,9 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
     }
 }
 
+export async function updateVariantParams(appName: string, variant: Variant, parameters: Parameter[]) {
+
+}
 export async function removeApp(appName: string) {
     try {
         await axios.delete(`${API_BASE_URL}/api/app_variant/remove_app/`, { data: { app_name: appName } });
