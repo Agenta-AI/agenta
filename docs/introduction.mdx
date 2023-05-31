@@ -1,17 +1,34 @@
 ---
 title: Introduction
-description: 'Welcome Agenta: The Open Source Platform to Streamline Your LLM-App Development.'
+description: 'Welcome Agenta: The developer-first open source LLMOps platform.'
 ---
 
+Agenta is an open-source developer first LLMOps platform to streamline the process of building LLM-powered applications. Building LLM-powered apps is an iterative process with lots of prompt-engineering and testing multiple variants. Agenta brings is the CI/CD platform to this process enabling to quickly iterate, experiment, evaluate, and optimze your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
-Agenta is an open-source CI/CD platform designed to simplify and accelerate the development and deployment of LLM-powered applications such as chatbots, agents, Q&A systems, and more. By connecting Agenta to your GitHub repository, you gain access to a comprehensive set of tools that streamline your workflow.
+## How Agenta Lab works:
+1. Develop your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain, llma_index, GPT-3, or open-source models).
+2. With two lines of code, specify the parameters for your experiment.
+3. Deploy your app using the Agenta CLI.
+4. You or your team can iterate, version parameters, test different versions, and run systematic evaluations via a user-friendly web platform.
+
 
 ## Key Benefits
-- Automated Deployment: Push a commit to automatically deploy your app, saving time and minimizing human error.
-- App Evaluation: Test and compare app performance with regression tests, output comparisons, and intermediate output analysis.
-- A/B Testing & User Feedback: Experiment with different app versions and gather valuable user feedback for continuous improvement.
-- Workflow Management: Launch evaluations, benchmarking, and labeling workflows to make informed decisions and ensure the quality of your app.
-- Local Deployment: Deploy your app locally along with the required vector database for seamless integration.
+- **Parameter Playground:** With just a few lines of code, define the parameters you wish to experiment with. Through our user-friendly web platform, you or your team can then experiment and tweak these parameters.
+
+- **Version Evaluation:** Define test sets, evaluate, and compare different app versions.
+
+- **API Deployment Made Easy:** Agenta Lab allows you to deploy your LLM applications as APIs without any additional effort. (Currently only available locally)
+
+
+## Why choose Agenta Lab for building LLM-apps?
+
+While there are numerous LLMops platforms, we believe Agenta Lab offers unique benefits:
+
+- Developer-Friendly: We cater to complex LLM-apps and pipelines that require more than just a few no-code abstractions. We give you the freedom to develop your apps the way you want.
+- Privacy-First: We respect your privacy and do not proxy your data through third-party services. You have the choice to host your data and models.
+- Solution-Agnostic: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
+- Collaborative: We recognize that building LLM-powered apps requires the collaboration of developers and domain experts. Our tool enables this collaboration, allowing domain experts to edit and modify parameters (e.g., prompts, hyperparameters, etc.), and label results for evaluation.
+- Open-Source: We encourage you to contribute to the platform and customize it to suit your needs.
 
 
 <CardGroup cols={2}>
@@ -20,13 +37,13 @@ Agenta is an open-source CI/CD platform designed to simplify and accelerate the 
     icon="screwdriver-wrench"
     href="installation"
   >
-    Get your docs set up locally for easy development.
+    Install Agenta on your local machine to get started.
   </Card>
   <Card
     title="Getting Started"
     icon="stars"
     href="getting-started"
   >
-    Preview your changes before you push to make sure they're perfect.
+    5 minutes to get started with Agenta.
   </Card>
 </CardGroup>
