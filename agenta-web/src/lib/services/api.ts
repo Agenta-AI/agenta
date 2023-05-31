@@ -119,6 +119,21 @@ export const loadDatasetsList = (app_name: string) => {
     }
 };
 
+export const deleteDatasets = async (ids: string[]) => {
+    try {
+        const response = await axios({
+            method: 'delete',
+            url: `${API_BASE_URL}/api/datasets`,
+            data: { dataset_ids: ids },
+        });
+        if (response.status === 200) {
+            return response.data;
+        }
+    } catch (error) {
+        console.error(`Error deleting entity: ${error}`);
+        throw error;
+    }
+};
 
 const eval_endpoint = axios.create({
     baseURL: `${API_BASE_URL}/api/app_evaluations`,

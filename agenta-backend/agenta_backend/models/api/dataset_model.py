@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
-from typing import Any
+from typing import Any, Optional, List
+
 
 class DatasetModel(BaseModel):
     column_name: str = Field(...)
@@ -20,4 +21,8 @@ class DatasetModel(BaseModel):
 class UploadResponse(BaseModel):
     id: str
     name: str
-    created_date: str
+    created_at: str
+
+
+class DeleteDatasets(BaseModel):
+    dataset_ids: List[str]
