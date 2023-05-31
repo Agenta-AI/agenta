@@ -9,9 +9,21 @@ interface Props {
     isParamSaveLoading: boolean;    // Whether the parameters are currently being saved
     onOptParamsChange: (newOptParams: Parameter[], persist: boolean) => void;
     handlePersistVariant: (variantName: string) => void;
+    setRemovalVariantName: (variantName: string) => void;
+    setRemovalWarningModalOpen: (value: boolean) => void;
+    isDeleteLoading: boolean;
+
 }
 
-const ParametersView: React.FC<Props> = ({ variantName, optParams, isParamSaveLoading, onOptParamsChange, handlePersistVariant }) => {
+const ParametersView: React.FC<Props> = ({ variantName,
+    optParams,
+    isParamSaveLoading,
+    onOptParamsChange,
+    handlePersistVariant,
+    setRemovalVariantName,
+    setRemovalWarningModalOpen,
+    isDeleteLoading }) => {
+
     const [inputValue, setInputValue] = useState(1);
     const [messageApi, contextHolder] = message.useMessage();
     const onChange = (param: Parameter, newValue: number) => {
@@ -93,6 +105,19 @@ const ParametersView: React.FC<Props> = ({ variantName, optParams, isParamSaveLo
                         >
                             <Tooltip placement="right" title="Save the new parameters for the variant permanently">
                                 Save changes
+                            </Tooltip>
+                        </Button>
+                        <Button
+                            type="primary"
+                            danger
+                            onClick={() => {
+                                setRemovalVariantName(variantName);
+                                setRemovalWarningModalOpen(true);
+                            }}
+                            loading={isDeleteLoading}
+                        >
+                            <Tooltip placement="right" title="Save the new parameters for the variant permanently">
+                                Delete Variant
                             </Tooltip>
                         </Button>
 
