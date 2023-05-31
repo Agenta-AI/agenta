@@ -1,35 +1,35 @@
 {
-  "name": "dashboard",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "test": "yarn cypress run"
-  },
-  "dependencies": {
-    "@ant-design/icons": "^5.0.1",
-    "@heroicons/react": "^2.0.17",
-    "@types/node": "18.16.3",
-    "@types/react": "18.2.0",
-    "@types/react-dom": "18.2.1",
-    "antd": "^5.4.7",
-    "autoprefixer": "10.4.14",
-    "axios": "^1.4.0",
-    "classnames": "^2.3.2",
-    "eslint": "8.39.0",
-    "eslint-config-next": "13.3.4",
-    "next": "13.3.4",
-    "postcss": "8.4.23",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "swr": "^2.1.5",
-    "typescript": "5.0.4"
-  },
-  "devDependencies": {
-    "cypress": "^12.11.0",
-    "node-mocks-http": "^1.12.2"
-  }
+    "name": "dashboard",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint",
+        "test": "yarn cypress run"
+    },
+    "dependencies": {
+        "@ant-design/icons": "^5.0.1",
+        "@heroicons/react": "^2.0.17",
+        "@types/node": "18.16.3",
+        "@types/react": "18.2.0",
+        "@types/react-dom": "18.2.1",
+        "antd": "^5.4.7",
+        "autoprefixer": "10.4.14",
+        "axios": "^1.4.0",
+        "classnames": "^2.3.2",
+        "eslint": "8.39.0",
+        "eslint-config-next": "13.3.4",
+        "next": "13.3.4",
+        "postcss": "8.4.23",
+        "react": "18.2.0",
+        "react-dom": "18.2.0",
+        "swr": "^2.1.5",
+        "typescript": "5.0.4"
+    },
+    "devDependencies": {
+        "cypress": "^12.11.0",
+        "node-mocks-http": "^1.12.2"
+    }
 }
