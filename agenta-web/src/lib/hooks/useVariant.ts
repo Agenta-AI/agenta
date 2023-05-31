@@ -60,10 +60,13 @@ export function useVariant(appName: string, variant: Variant) {
         setIsParamSaveLoading(true);
         setIsError(false);
         try {
-            if (persist && !updateVariant) {
-                await saveNewVariant(appName, variant, updatedOptParams);
-            } else if (persist && updateVariant) {
-                await updateVariantParams(appName, variant, updatedOptParams);
+            if (persist) {
+                if (!updateVariant) {
+                    await saveNewVariant(appName, variant, updatedOptParams);
+                } else if (updateVariant) {
+                    await updateVariantParams(appName, variant, updatedOptParams);
+                }
+                variant.parameters = updatedOptParams.reduce((acc, param) => { return { ...acc, [param.name]: param.default } }, {});
             }
             setOptParams(updatedOptParams);
         } catch (error) {
