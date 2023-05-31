@@ -185,7 +185,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
         return ({
             title: (
                 <div>
-                    App Variant: <span style={{backgroundColor: 'rgb(201 255 216)', padding: 4, borderRadius: 5}}>{variants[i].variantName}</span>
+                    App Variant: <span style={{ backgroundColor: 'rgb(201 255 216)', padding: 4, borderRadius: 5 }}>{variants[i].variantName}</span>
                 </div>
             ),
             dataIndex: columnKey,
@@ -201,7 +201,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ columnsCount, variant
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <div >
                         <span> Inputs (Dataset: </span>
-                        <span style={{backgroundColor: 'rgb(201 255 216)', padding: 4, borderRadius: 5}}>{dataset.name}</span>
+                        <span style={{ backgroundColor: 'rgb(201 255 216)', padding: 4, borderRadius: 5 }}>{dataset.name}</span>
                         <span> )</span>
                     </div>
                     <Button size="small" onClick={runAllEvaluations} icon={<CaretRightOutlined />}>Run All</Button>
