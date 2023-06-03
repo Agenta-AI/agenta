@@ -2,14 +2,14 @@
   "$schema": "https://mintlify.com/schema.json",
   "name": "Agenta AI",
   "logo": {
-    "dark": "docs/logo/dark.png",
+    "dark": "docs/logo/dark1.png",
     "light": "docs/logo/light.png"
   },
   "favicon": "docs/favicon.png",
   "colors": {
-    "primary": "#6100ed",
-    "light": "#7d4dff",
-    "dark": "#5000b4"
+    "primary": "#5a67d8",
+    "light": "#f0f7ff",
+    "dark": "#212835"
   },
   "feedback": {
     "suggestEdit": true,
