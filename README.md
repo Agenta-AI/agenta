@@ -1,8 +1,8 @@
-# **✨ Agenta.ai**
+# **✨ Agenta Lab**
 ### **The developer-first open source LLMOps platform.**
 
 
-Building LLM-powered apps is currently very frustrating. It involves a significant amount of prompt engineering and a lots of parameters to tune and countless iterations. Agenta simplifies this process, enabling you to quickly iterate, experiment, and optimize your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
+Building LLM-powered apps is currently very frustrating. It involves a significant amount of prompt engineering and a lots of parameters to tune and countless iterations. Agenta Lab simplifies this process, enabling you to quickly iterate, experiment, and optimize your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
 ## How Agenta Lab works:
 1. Develop your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain, llma_index, GPT-3, or open-source models).
@@ -77,13 +77,13 @@ This will create a new project in your folder with the following structure:
 
 The app created uses a simple prompt template in [langchain](https://python.langchain.com/en/latest/getting_started/getting_started.html) and gpt-3.5 to generate names for companies that makes `{product}` 
 
-If you are interested in working with your own code in Agenta, please see this tutorial on [writing you first LLM-app in Agenta](https://docs.agenta.ai/docs/tutorials/your-first-llm-app)
+If you are interested using your own code in Agenta Lab, please see this tutorial on [writing you first LLM-app with Agenta Lab](https://docs.agenta.ai/docs/tutorials/your-first-llm-app)
 
 #### 3. Write your app and deploy it
 
 Create a `.env` file with you open api key in the same folder as asked in `README.md`
 
-Before adding the app to the Agenta platform, you can test it in your terminal
+Before adding the app to Agenta Lab, you can test it in your terminal
 
 ```bash
 python app.py "colorful socks"
@@ -91,7 +91,7 @@ python app.py "colorful socks"
 Feetful of Fun
 ```
 
-Now let's procede to add the application to the Agenta platform. 
+Now let's procede to add the application to Agenta Lab. 
 
 
 ```bash
@@ -100,7 +100,7 @@ agenta serve
 
 This command will do two things:
 1) Package the code and serve it locally as an api endpoint under `localhost/app_name/{variant_name}/openapi.json`.
-2) Add the code to the Agenta platform
+2) Add the code to the Agenta web platform
 
 #### 4. Start experimenting
 
