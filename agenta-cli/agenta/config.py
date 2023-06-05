@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     docker_registry_url: str
     database_url: str
     registry: str
+    backend_endpoint: str
 
 
 settings = Settings()
