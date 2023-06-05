@@ -1,1 +1,1 @@
-from .agenta import post, get, TextParam, FloatParam
+from .agenta import post, TextParam, FloatParam
