@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Row, Col, Button, Input, Card, Space } from 'antd';
+import { Row, Col, Button, Input, Card, Modal } from 'antd';
 import { callVariant } from '@/lib/services/api';
 import { Parameter } from '@/lib/Types';
 interface TestViewProps {
@@ -10,6 +10,7 @@ interface TestViewProps {
 const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath }) => {
     const { TextArea } = Input;
     const [results, setResults] = useState('');
+
     if (!inputParams) {
         return <div>Loading...</div>;
     }
@@ -28,7 +29,7 @@ const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath
             const result = await callVariant(inputParamsDict, optParams, URIPath);
             setResults(result);
         } catch (e) {
-            console.error('Error:', e)
+            setResults("The code has resulted in the following error: \n\n --------------------- \n" + e + "---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/docs/howto/how-to-debug");
         }
     }
 
@@ -54,6 +55,7 @@ const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath
                 </Col>
             </Row>
         </Card >
+
 
     );
 };
