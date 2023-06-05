@@ -70,3 +70,22 @@ def list_variants(app_name: str) -> List[AppVariant]:
             f"Request to list_variants endpoint failed with status code {response.status_code} and error message: {error_message}.")
     app_variants = response.json()
     return [AppVariant(**variant) for variant in app_variants]
+
+
+def remove_variant(app_name: str, variant_name: str):
+    """Removes a variant from the backend
+
+    Arguments:
+        app_name -- the app name
+        variant_name -- the variant name
+    """
+    app_variant = AppVariant(app_name=app_name, variant_name=variant_name)
+    app_variant_json = app_variant.json()
+    response = requests.delete(f"{BACKEND_URL}/app_variant/remove_variant/",
+                               data=app_variant_json, headers={'Content-Type': 'application/json'}, timeout=600)
+
+    # Check for successful request
+    if response.status_code != 200:
+        error_message = response.text
+        raise APIRequestError(
+            f"Request to remove_variant endpoint failed with status code {response.status_code} and error message: {error_message}")
