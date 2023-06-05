@@ -1,3 +1,4 @@
+"""The code for the Agenta SDK"""
 import argparse
 import functools
 import inspect
