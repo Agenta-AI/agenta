@@ -1,9 +1,12 @@
 """Main Business logic
 """
 
-from agenta_backend.services import (db_manager, docker_utils)
-from agenta_backend.models.api.api_models import (AppVariant, Image, URI, App)
 import logging
+
+from agenta_backend.config import settings
+from agenta_backend.models.api.api_models import URI, App, AppVariant, Image
+from agenta_backend.services import db_manager, docker_utils
+from docker.errors import DockerException
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -80,6 +83,7 @@ def remove_app(app: App):
         try:
             for app_variant in app_variants:
                 remove_app_variant(app_variant)
+                logger.info(f"App variant {app_variant.app_name}/{app_variant.variant_name} deleted")
         except Exception as e:
             logger.error(f"Error deleting app variants: {str(e)}")
             raise
@@ -142,4 +146,53 @@ def update_variant_parameters(app_variant: AppVariant):
         db_manager.update_variant_parameters(app_variant, app_variant.parameters)
     except:
         logger.error(f"Error updating app variant {app_variant.app_name}/{app_variant.variant_name}")
+        raise
+
+
+def update_variant_image(app_variant: AppVariant, image: Image):
+    """Updates the image for app variant in the database.
+
+    Arguments:
+        app_variant -- the app variant to update
+        image -- the image to update
+    """
+    if app_variant.app_name in ["", None] or app_variant.variant_name == ["", None]:
+        msg = "App name and variant name cannot be empty"
+        logger.error(msg)
+        raise ValueError(msg)
+    if image.tags in ["", None]:
+        msg = "Image tags cannot be empty"
+        logger.error(msg)
+        raise ValueError(msg)
+    if not image.tags.startswith(settings.registry):
+        raise ValueError("Image should have a tag starting with the registry name (agenta-server)")
+    if image not in docker_utils.list_images():
+        raise DockerException(f"Image {image.docker_id} with tags {image.tags} not found")
+
+    if db_manager.get_variant_from_db(app_variant) is None:
+        msg = f"App variant {app_variant.app_name}/{app_variant.variant_name} not found in DB"
+        logger.error(msg)
+        raise ValueError(msg)
+    try:
+        old_variant = db_manager.get_variant_from_db(app_variant)
+        old_image = db_manager.get_image(old_variant)
+        container_ids = docker_utils.stop_containers_based_on_image(old_image)
+        logger.info(f"Containers {container_ids} stopped")
+        for container_id in container_ids:
+            docker_utils.delete_container(container_id)
+            logger.info(f"Container {container_id} deleted")
+        db_manager.remove_app_variant(old_variant)
+    except Exception as e:
+        logger.error(f"Error removing old variant: {str(e)}")
+        logger.error(
+            f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}")
+        logger.error("Previous variant removed but new variant not added. Rolling back")
+        db_manager.add_variant_based_on_image(old_variant, old_image)
+        raise
+    try:
+        logger.info(f"Updating variant {app_variant.app_name}/{app_variant.variant_name}")
+        db_manager.add_variant_based_on_image(app_variant, image)
+        logger.info(f"Starting variant {app_variant.app_name}/{app_variant.variant_name}")
+        start_variant(app_variant)
+    except:
         raise
