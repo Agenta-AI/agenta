@@ -4,11 +4,13 @@ import functools
 import inspect
 import os
 import sys
+import traceback
 from typing import Any, Callable, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
@@ -56,7 +58,11 @@ def post(func: Callable[..., Any]):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         kwargs = {**app_params, **kwargs}
-        return func(*args, **kwargs)
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            traceback_str = ''.join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__))
+            return JSONResponse(status_code=500, content={"error": str(e), "traceback": traceback_str})
 
     new_params = []
     for name, param in sig.parameters.items():
@@ -95,17 +101,3 @@ def post(func: Callable[..., Any]):
         print(func(**vars(args)))
 
     return wrapper
-
-
-def get(func):
-    """get decorator
-
-    Arguments:
-        func -- _description_
-
-    Returns:
-        _description_
-    """
-    route = f"/{func.__name__}"
-    app.get(route)(func)
-    return func
