@@ -51,7 +51,8 @@
       "group": "How-to Guides",
       "pages": [
         "docs/howto/how-to-use-playground",
-        "docs/howto/how-to-compare-apps"
+        "docs/howto/how-to-compare-apps",
+        "docs/howto/how-to-debug"
       ]
     },
     {
