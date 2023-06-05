@@ -17,16 +17,17 @@ def add_variant(variant_name: str, app_folder: str) -> str:
     Returns the name of the variant. (useful for serve)"""
 
     app_path = Path(app_folder)
-    # Checks
+    # Checks config
     config_file = app_path / 'config.toml'
     if not config_file.exists():
         click.echo("Please run agenta init first")
         return None
 
+    helper.update_config_from_backend(config_file)
     config = toml.load(config_file)
     app_name = config['app-name']
-    if 'variants' not in config:
-        config['variants'] = []
+
+    # check files in folder
     app_file = app_path / 'app.py'
     if not app_file.exists():
         click.echo(click.style("No app.py exists! Please make sure you are in the right directory", fg='red'))
@@ -42,7 +43,7 @@ def add_variant(variant_name: str, app_folder: str) -> str:
     if not variant_name:
         variant_name = questionary.text('Please enter the variant name').ask()
     # update the config file with the variant names from the backend
-    config = helper.update_variants_from_backend(app_name, config)
+
     if variant_name in config['variants']:
         overwrite = questionary.confirm(
             'This variant already exists. Do you want to overwrite it?').ask()
@@ -69,19 +70,32 @@ def add_variant(variant_name: str, app_folder: str) -> str:
 
 
 def start_variant(variant_name: str, app_folder: str):
+    """
+    Starts a container for an existing variant
+    Args:
+        variant_name: the name of the variant
+        app_folder: the folder of the app
+    """
     app_folder = Path(app_folder)
     config_file = app_folder / 'config.toml'
     if not config_file.exists():
         click.echo("Please run agenta init first")
         return
-    else:
-        config = toml.load(config_file)
-        app_name = config['app-name']
-        if 'variants' not in config:
-            click.echo("No variants found. Please add a variant first.")
-            return
 
-    if not variant_name:
+    helper.update_config_from_backend(config_file)
+
+    config = toml.load(config_file)
+    app_name = config['app-name']
+    if len(config['variants']) == 0:
+        click.echo("No variants found. Please add a variant first.")
+        return
+
+    if variant_name:
+        if variant_name not in config['variants']:
+            click.echo(click.style(
+                f"Variant {variant_name} not found in backend. Maybe you removed it in the webUI?", fg="red"))
+            return
+    else:
         variant_name = questionary.select(
             'Please choose a variant',
             choices=config['variants']
