@@ -108,6 +108,54 @@ Go to the playground to experiment with your app : http://localhost:3000/apps/{a
     )
 
 
+def remove_variant(variant_name: str, app_folder: str):
+    """
+    Removes a variant from the server
+    Args:
+        variant_name: the name of the variant
+        app_folder: the folder of the app
+    """
+    app_folder = Path(app_folder)
+    config_file = app_folder / 'config.toml'
+    if not config_file.exists():
+        click.echo(click.style(
+            f"Config file not found in {app_folder}. Make sure you are in the right folder and that you have run agenta init first.", fg='red'))
+        return
+
+    helper.update_config_from_backend(config_file)
+
+    config = toml.load(config_file)
+    app_name = config['app-name']
+
+    if variant_name:
+        if variant_name not in config['variants']:
+            click.echo(click.style(
+                f"Variant {variant_name} not found in backend. Maybe you already removed it in the webUI?", fg="red"))
+            return
+    else:
+        variant_name = questionary.select(
+            'Please choose a variant',
+            choices=config['variants']
+        ).ask()
+    try:
+        client.remove_variant(app_name, variant_name)
+    except Exception as ex:
+        click.echo(click.style(
+            f"Error while removing variant {variant_name} for App {app_name} from the backend", fg='red'))
+        click.echo(click.style(f"Error message: {ex}", fg='red'))
+        return
+
+    click.echo(click.style(f"Variant {variant_name} for App {app_name} removed successfully from Agenta!", fg='green'))
+
+
+@click.command(name='remove-variant')
+@click.argument('app_folder', default='.')
+@click.option('--variant_name', default='')
+def remove_variant_cli(variant_name: str, app_folder: str):
+    """Remove an existing variant."""
+    remove_variant(variant_name, app_folder)
+
+
 @click.command(name='serve')
 @click.argument('app_folder', default='.')
 def serve_cli(app_folder: str):
@@ -121,6 +169,7 @@ def serve_cli(app_folder: str):
 @click.argument('app_folder', default='.')
 @click.option('--variant_name', default='')
 def add_variant_cli(variant_name: str, app_folder: str):
+    """Builds the code into a new variant and add it to the platform"""
     return add_variant(variant_name, app_folder)
 
 
@@ -185,6 +234,7 @@ cli.add_command(add_variant_cli)
 cli.add_command(init)
 cli.add_command(start_variant_cli)
 cli.add_command(serve_cli)
+cli.add_command(remove_variant_cli)
 
 if __name__ == '__main__':
     cli()
