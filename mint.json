@@ -65,12 +65,6 @@
       "pages": [
         "docs/reference/agenta-cli"
       ]
-    },
-    {
-      "group": "Contribute",
-      "pages": [
-        "docs/contributing/technical_details"
-      ]
     }
   ],
   "footerSocials": {
