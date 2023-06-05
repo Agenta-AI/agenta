@@ -1,11 +1,13 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict
 from datetime import datetime
 
 
 class ComparisonTable(BaseModel):
     id: str
     variants: Optional[List[str]]
+    app_name: str
+    dataset: Dict[str, str] = Field(...)
     created_at: datetime
     updated_at: datetime
 
@@ -30,7 +32,12 @@ class EvaluationRow(BaseModel):
 
 class EvaluationRowUpdate(BaseModel):
     vote: str
+    outputs: List[EvaluationRowOutput]
 
 
 class NewComparisonTable(BaseModel):
+    app_name: str
     variants: List[str]
+    inputs: List[str]
+    dataset: Dict[str, str] = Field(...)
+    status: str = Field(...)

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Table, Spin, Tag, Progress } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import { formatDate } from '@/lib/helpers/dateTimeHelper';
+import { AppEvaluationResponseType } from '@/lib/Types';
 
 interface DataType {
     id: string;
@@ -17,18 +18,6 @@ interface DataType {
     createdAt?: string;
 }
 
-interface ResponseType {
-    id: string;
-    variants: string[];
-    votes_data: {
-        variants_votes_data: {
-            number_of_votes: number,
-            percentage: number
-        },
-        flag_votes: { number_of_votes: number, percentage: number },
-    }
-    created_at: string;
-}
 
 interface Vote {
     [key: string]: number;
@@ -92,7 +81,7 @@ const Results: React.FC = () => {
     useEffect(() => {
         fetchData('http://localhost/api/app_evaluations')
             .then(responseData => {
-                const initialData: DataType[] = responseData.map((item: ResponseType) => {
+                const initialData: DataType[] = responseData.map((item: AppEvaluationResponseType) => {
                     return {
                         id: item.id,
                         createdAt: formatDate(item.created_at),
