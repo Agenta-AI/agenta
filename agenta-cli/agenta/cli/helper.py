@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Any, List, MutableMapping
-
+import click
 import toml
 from agenta.client import client
 from agenta.client.api_models import AppVariant
@@ -35,3 +35,24 @@ def update_config_from_backend(config_file: Path):
         config['variants'] = []
     config = update_variants_from_backend(app_name, config)
     toml.dump(config, config_file.open('w'))
+
+
+def display_app_variant(variant: AppVariant):
+    """Prints a variant nicely in the terminal
+    """
+    click.echo(click.style("App Name: ", bold=True, fg="green") + click.style(variant.app_name, fg="green"))
+    click.echo(click.style("Variant Name: ", bold=True, fg="blue") + click.style(variant.variant_name, fg="blue"))
+    click.echo(click.style("Parameters: ", bold=True, fg="cyan"))
+    if variant.parameters:
+
+        for param, value in variant.parameters.items():
+            click.echo(click.style(f"  {param}: ", fg="cyan") + click.style(str(value), fg="cyan"))
+    else:
+        click.echo(click.style("  Defaults from code", fg="cyan"))
+    if variant.previous_variant_name:
+        click.echo(click.style("Template Variant Name: ", bold=True, fg="magenta") +
+                   click.style(variant.previous_variant_name, fg="magenta"))
+    else:
+        click.echo(click.style("Template Variant Name: ", bold=True, fg="magenta") +
+                   click.style("None", fg="magenta"))
+    click.echo(click.style("-"*50, bold=True, fg="white"))  # a line for separating each variant
