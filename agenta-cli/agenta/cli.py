@@ -91,11 +91,6 @@ Go to the playground to experiment with your app : http://localhost:3000/apps/{a
     )
 
 
-@click.group()
-def cli():
-    pass
-
-
 @click.command(name='serve')
 @click.argument('app_folder', default='.')
 def serve_cli(app_folder: str):
@@ -161,6 +156,11 @@ def init(app_name: str):
 def start_variant_cli(variant_name: str, app_folder: str):
     """Start a variant."""
     start_variant(variant_name, app_folder)
+
+
+@click.group()
+def cli():
+    pass
 
 
 # Add the commands to the CLI group
