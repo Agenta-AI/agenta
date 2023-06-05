@@ -1,39 +1,131 @@
 ---
 title: Getting Started
-description: 'Building your first LLM-application in Agenta'
+description: 'Building your first Large Language Model Application in Agenta'
 ---
 
-# Introduction
+## Introduction
 
-In this quick-start tutorial we will build a simple LLM-application using a template and iterate on it in the Agenta playground. We will not write the code ourselves, but rather use a template that is already available in the Agenta playground. If you want to learn how to write your own LLM-applications, please see the [LLM documentation](/docs/tutorials/your-first-llm-app).
+Welcome! In this beginner-friendly guide, we'll walk through the process of building a simple LLM app in Agenta Lab, using an existing template. By the end of this tutorial, you'll have your first working LLM app and a good understanding of how to interact with Agenta Lab.
 
-# Installation
+To learn more about creating an LLM app from scratch, please visit our [advanced tutorial](/docs/tutorials/your-first-llm-app).
 
-Before starting make sure that you have installed the Agenta CLI and SDK, and started the web platform using docker-compose. If you have not done this yet, please see the [installation guide](/docs/installation).
+## Prerequisites
 
-# Create a new project
+Ensure you have installed the Agenta CLI and SDK, and have set up the web platform using docker-compose. If you haven't done this, follow the steps in our [installation guide](/docs/installation).
 
-Create an empty folder and use the following command to initialize a new project. 
+## Step 1: Initialize a New Project
+
+To start, create a new project. Begin by making an empty folder and initialize it using the following command:
 
 ```bash
 mkdir example_app; cd example_app
 agenta init
 ```
 
-Start a new project based on the [template](https://docs.agenta.ai/docs/conceptual/concepts#templates) `simple_prompt`:
+Next, start a new project based on the `simple_prompt` [template](https://docs.agenta.ai/docs/conceptual/concepts#templates):
 
 ![Screenshot 2023-05-31 at 17 42 19](https://github.com/Agenta-AI/agenta/assets/4510758/ab7c10f0-6efd-4c30-8575-91adcd345aac)
 
 
+## Step 2: Understand the Generated Code
 
-# 3. Write your app and deploy it
+The initialization process generates the following files:
 
-Modify the app in app.py if needed and then proceed to serve it. Your app will start running, and you can see its endpoints on `localhost/app_name/variant_name/openapi.json`.
+```bash
+.
+├── README.md
+├── app.py
+├── config.toml
+└── requirements.txt
+```
+
+Let's take a closer look at each:
+
+### README.md
+This file provides a brief overview of your application.
+
+### requirements.txt
+Here you'll find the dependencies required by the template.
+
+### config.toml
+This file holds the configuration details of your application. Currently, it only contains the app name that you have chosen.
+
+### app.py
+This is the main application file. The generated `app.py` file should look like this:
+
+```python
+# imports
+default_prompt = "Give me five cool names for a baby from this country {{country}} with this gender {{gender}}!!!!"
+
+@post
+def generate(country: str, gender: str, temperature: FloatParam = 0.9, prompt_template: TextParam = default_prompt) -> str:
+
+    template = Template(prompt_template)
+    prompt = template.render(country=country, gender=gender)
+
+    openai.api_key = os.environ.get("OPENAI_API_KEY")  # make sure to set this manually!
+    chat_completion = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
+
+    result = chat_completion.choices[0].message.content
+    return result
+```
+
+This code sets up a simple LLM-application using the OpenAI Python library. The decorator `@post` and the types `FloatParam` and `TextParam` are imported from `agenta`, which inform the Agenta SDK that this function is an endpoint of the application, and these parameters can be adjusted in the playground.
+
+## Step 3: Set up the OpenAI API Key
+
+To run your LLM-application, you'll need to set the OpenAI API key in your environment. Here's how:
+
+1. Visit the [OpenAI API keys page](https://platform.openai.com/account/api-keys), and create a new key. 
+
+2. Create a file `.env` in your project folder and add the line:
+```bash
+OPENAI_API_KEY=sk-xxxxxxx
+```
+
+## Step 4: Run the Application in the CLI
+
+Test your application via the command line. The `@post` decorator allows us to do this without writing additional code:
+
+```bash
+> python app.py
+usage: app.py [-h] [--temperature TEMPERATURE] [--prompt_template PROMPT_TEMPLATE] country gender
+app.py: error: the following arguments are required: country, gender
+
+> python app.py tunisia male
+1. Malik (meaning "king")
+2. Youssef (meaning "God will increase")
+3. Ammar (meaning "long-living" or "prosperous")
+4. Hédi (meaning "calm" or "serene")
+5. Farid (meaning "unique" or "precious")
+```
+
+Here, `app.py` uses the `country` and `gender` inputs from the function definition as arguments.
+
+## Step 5: Run the Application in the Playground
+
+To run the application in the playground, you need to serve it locally first. Use the command `agenta variant serve` to do this. This command:
+
+1. Creates a Docker image of the application, and starts a container based on this image.
+2. Starts a server that exposes an endpoint /generate at `localhost/{app_name}/{variant_name}/openapi.json` with the parameters specified in the application.
+3. Adds the application to the Agenta lab's web UI.
 
 ```bash
 agenta variant serve
 ```
 
-# 4. Start experimenting
-Navigate to localhost:3000, select your app, and begin experimenting with different parameters in the playground.
+This will do two things:
+1. It will create a docker image of the application, and start a container based on this image.
+2. The container will start a server exposing an endpoint /generate with the same parameters we specified in the application at `localhost/{app_name}/{variant_name}/openapi.json`.
+3. It will add the application to the web ui Agenta lab
 
+## Step 6: Start Experimenting
+
+Go to `localhost:3000`, select your app, and begin experimenting with different parameters in the playground.
+
+![title](/docs/images/playground.png)
+
+The playground provides a platform to create new app variants from the one you just made, and to tweak the application parameters. 
+
+We hope you found this guide useful. Happy coding!

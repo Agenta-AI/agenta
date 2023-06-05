@@ -1,0 +1,74 @@
+---
+title: "Agenta CLI Reference"
+---
+
+
+The Agenta CLI (Command Line Interface) is a tool designed to manage LLM app variants used in Agenta Lab.
+
+## Commands
+
+The primary commands provided by the Agenta CLI are `init` and `variant`. 
+
+### 1. `init`
+
+```bash
+agenta init
+```
+
+The `init` command is used to initialize a new Agenta app in an empty folder. It allows the user to specify the name of the app. It creates either an empty app or an app based on the template. In both cases it creates a config.toml file. In the case of creating an app based on the template it also copies the code for the app (`app.py`) in addition to the `requirements.txt`. 
+
+Note that `agenta init` does not interact with the backend, i.e. the app cannot not be seen in the Agenta Lab web UI until it is added using the `agenta variant add` command.
+
+### 2. `variant`
+
+```bash
+agenta variant COMMAND
+```
+
+The `variant` command is designed to manage different variants of your application. 
+
+#### `variant` Sub-Commands:
+
+##### `add`
+
+```bash
+agenta variant add
+```
+
+The `add` command builds the code into an image and adds the image to docker registry. In addition it registers the variant to the backend. 
+
+In the case a variant already exists with the same name, it overwrites (after asking) the image for the previous variant and updates the informatoin in the backend.
+
+##### `list`
+
+```bash
+agenta variant list
+```
+
+The `list` command displays all the variants of your app that are currently available in the backend. 
+
+##### `remove`
+
+```bash
+agenta variant remove
+```
+
+The `remove` command allows you to delete an existing variant from the platform. 
+
+##### `serve`
+
+```bash
+agenta variant serve
+```
+
+The `serve` command adds a variant to the web UI and serves the API locally.
+
+In fact `serve` is a combination of `add` and `start` commands. It builds the code into an image and adds the image to docker registry. In addition it registers the variant to the backend.
+
+##### `start`
+
+```bash
+agenta variant start
+```
+
+The `start` command launches a specified variant. 
