@@ -4,7 +4,7 @@ import openai
 from agenta import FloatParam, TextParam, post
 from jinja2 import Template
 
-default_prompt = "Give me five cool names for a baby from this country {{country}} with this gender {{gender}}"
+default_prompt = "Give me five cool names for a baby from this country {{country}} with this gender {{gender}}!!!!"
 
 
 @post
