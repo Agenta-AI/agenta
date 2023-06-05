@@ -6,6 +6,7 @@ from pathlib import Path
 import click
 import questionary
 import toml
+from agenta.cli import helper
 from agenta.client import client
 from agenta.docker.docker_utils import build_and_upload_docker_image
 from docker.models.images import Image as DockerImage
@@ -14,19 +15,21 @@ from docker.models.images import Image as DockerImage
 def add_variant(variant_name: str, app_folder: str) -> str:
     """Add a new variant.
     Returns the name of the variant. (useful for serve)"""
+
     app_path = Path(app_folder)
+    # Checks
     config_file = app_path / 'config.toml'
     if not config_file.exists():
         click.echo("Please run agenta init first")
         return None
-    else:
-        config = toml.load(config_file)
-        app_name = config['app-name']
-        if 'variants' not in config:
-            config['variants'] = []
+
+    config = toml.load(config_file)
+    app_name = config['app-name']
+    if 'variants' not in config:
+        config['variants'] = []
     app_file = app_path / 'app.py'
     if not app_file.exists():
-        click.echo(click.style(f"No app.py exists! Please make sure you are in the right directory", fg='red'))
+        click.echo(click.style("No app.py exists! Please make sure you are in the right directory", fg='red'))
         return None
     env_file = app_path / '.env'
     if not env_file.exists():
@@ -39,7 +42,7 @@ def add_variant(variant_name: str, app_folder: str) -> str:
     if not variant_name:
         variant_name = questionary.text('Please enter the variant name').ask()
     # update the config file with the variant names from the backend
-
+    config = helper.update_variants_from_backend(app_name, config)
     if variant_name in config['variants']:
         overwrite = questionary.confirm(
             'This variant already exists. Do you want to overwrite it?').ask()
