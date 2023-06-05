@@ -17,10 +17,40 @@ export interface Variant {
     parameters: Record<string, string> | null;  // parameters of the variant. Only set in the case of forked variants
 }
 
+export interface AppEvaluation {
+    id: string;
+    createdAt: string;
+    variants: Variant[];
+    dataset: {
+        _id: string;
+        name: string;
+    };
+    appName: string;
+}
+
 export interface Parameter {
     name: string;
     type: string;
     input: boolean;
     required: boolean;
     default?: any;
+}
+
+
+export interface AppEvaluationResponseType {
+    id: string;
+    variants: string[];
+    votes_data: {
+        variants_votes_data: {
+            number_of_votes: number,
+            percentage: number
+        },
+        flag_votes: { number_of_votes: number, percentage: number },
+    }
+    app_name: string;
+    dataset: {
+        _id: string;
+        name: string;
+    }
+    created_at: string;
 }
