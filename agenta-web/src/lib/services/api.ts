@@ -36,7 +36,14 @@ export function callVariant(inputParamsDict: Record<string, string>, optParams: 
         headers: {
             'accept': 'application/json',
         }
-    }).then(res => res.data);
+    }).then(res => {
+        return res.data;
+    }).catch(error => {
+        if (error.response && error.response.status === 500) {
+            throw new Error(error.response.data.error + " " + error.response.data.traceback);
+        }
+        throw error; // If it's not a 500 status, or if error.response is undefined, rethrow the error so it can be handled elsewhere.
+    });
 }
 
 /**
