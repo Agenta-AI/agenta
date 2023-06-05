@@ -95,17 +95,3 @@ def post(func: Callable[..., Any]):
         print(func(**vars(args)))
 
     return wrapper
-
-
-def get(func):
-    """get decorator
-
-    Arguments:
-        func -- _description_
-
-    Returns:
-        _description_
-    """
-    route = f"/{func.__name__}"
-    app.get(route)(func)
-    return func
