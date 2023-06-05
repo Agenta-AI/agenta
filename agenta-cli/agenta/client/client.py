@@ -89,3 +89,23 @@ def remove_variant(app_name: str, variant_name: str):
         error_message = response.text
         raise APIRequestError(
             f"Request to remove_variant endpoint failed with status code {response.status_code} and error message: {error_message}")
+
+
+def update_variant_image(app_name: str, variant_name: str, docker_image: DockerImage):
+    """Adds a variant to the server.
+
+    Arguments:
+        app_name -- Name of the app
+        variant_name -- Name of the variant
+        image_name -- Name of the image
+    """
+    image: Image = Image(docker_id=docker_image.id,
+                         tags=f"{docker_image.tags[0]}")
+    app_variant: AppVariant = AppVariant(
+        app_name=app_name, variant_name=variant_name)
+    response = requests.put(f"{BACKEND_URL}/app_variant/update_variant_image/",
+                            json={"app_variant": app_variant.dict(), "image": image.dict()}, timeout=600)
+    if response.status_code != 200:
+        error_message = response.text
+        raise APIRequestError(
+            f"Request to update app_variant failed with status code {response.status_code} and error message: {error_message}.")

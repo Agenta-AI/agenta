@@ -8,9 +8,9 @@ description: "A comprehensive technical overview of Agenta's architecture"
 
 ## Commands
 
-### `agenta serve`
+### `agenta variant serve`
 
-When you execute `agenta serve`, it performs the following tasks:
+When you execute `agenta variant serve`, it performs the following tasks:
 
 Copies your code into a temporary folder and supplements it with our proprietary code (dockerfile, agenta.py, etc.)
 Constructs a Docker image from the content in the temporary folder
@@ -24,9 +24,9 @@ Instructs the backend to launch the Docker image
 Users can create a new app in two ways: via the CLI or the web app.
 
 ### CLI
-Upon executing `agenta init`, we solicit the app name and store it in `config.toml`. At this stage, the app exists only locally within the user's directory. It gets incorporated into the backend only after the user executes the agenta serve command.
+Upon executing `agenta init`, we solicit the app name and store it in `config.toml`. At this stage, the app exists only locally within the user's directory. It gets incorporated into the backend only after the user executes the `agenta variant serve` command.
 
-When a user runs agenta serve for the first time within an app, we instantiate the new app in the backend. For each newly served variant, we add a new variant to the app name specified in `config.toml`.
+When a user runs `agenta variant serve` for the first time within an app, we instantiate the new app in the backend. For each newly served variant, we add a new variant to the app name specified in `config.toml`.
 
 
 
