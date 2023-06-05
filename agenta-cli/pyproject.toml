@@ -23,4 +23,4 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-agenta = "agenta.cli:cli"
+agenta = "agenta.cli.main:cli"

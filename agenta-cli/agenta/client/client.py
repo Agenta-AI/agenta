@@ -4,6 +4,7 @@ from typing import List
 import requests
 from agenta.client.api_models import AppVariant, Image
 from docker.models.images import Image as DockerImage
+import agenta.config
 
 BACKEND_URL = os.environ["BACKEND_ENDPOINT"]
 
