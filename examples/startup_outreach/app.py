@@ -14,6 +14,7 @@ default_prompt = """
 
 @post
 def generate(startup_name: str, startup_idea: str, prompt_template: TextParam = default_prompt, temperature: FloatParam = 0.5) -> str:
+    load_dotenv()
     llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
         input_variables=["startup_name", "startup_idea"],
