@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "agenta"
 version = "0.1.4"
-description = ""
+description = "Code for the SDK and CLI for the Agenta Lab platform"
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
 
@@ -23,4 +23,4 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-agenta = "agenta.cli:cli"
+agenta = "agenta.cli.main:cli"
