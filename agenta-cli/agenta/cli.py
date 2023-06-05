@@ -38,6 +38,7 @@ def add_variant(variant_name: str, app_folder: str) -> str:
 
     if not variant_name:
         variant_name = questionary.text('Please enter the variant name').ask()
+    # update the config file with the variant names from the backend
 
     if variant_name in config['variants']:
         overwrite = questionary.confirm(

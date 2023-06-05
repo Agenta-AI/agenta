@@ -1,6 +1,10 @@
+import os
+
+import requests
 from agenta.client.api_models import AppVariant, Image
 from docker.models.images import Image as DockerImage
-import requests
+
+BACKEND_URL = os.environ["BACKEND_ENDPOINT"]
 
 
 def add_variant_to_server(app_name: str, variant_name: str, docker_image: DockerImage):
@@ -16,8 +20,8 @@ def add_variant_to_server(app_name: str, variant_name: str, docker_image: Docker
     app_variant: AppVariant = AppVariant(
         app_name=app_name, variant_name=variant_name)
     # TODO: save uri as a config
-    response = requests.post("http://localhost/api/app_variant/add/from_image/",
-                             json={"app_variant": app_variant.dict(), "image": image.dict()})
+    response = requests.post(f"{BACKEND_URL}/app_variant/add/from_image/",
+                             json={"app_variant": app_variant.dict(), "image": image.dict()}, timeout=600)
     if response.status_code != 200:
         raise Exception(
             f"Request to add variant failed with status code {response.status_code}. Response: {response.text}")
@@ -33,7 +37,7 @@ def start_variant(app_name: str, variant_name: str) -> str:
     Returns:
         The endpoint of the container
     """
-    response = requests.post("http://localhost/api/app_variant/start/",
-                             json={"app_name": app_name, "variant_name": variant_name})
+    response = requests.post(f"{BACKEND_URL}/app_variant/start/",
+                             json={"app_name": app_name, "variant_name": variant_name}, timeout=600)
     assert response.status_code == 200
     return response.json()['uri']
