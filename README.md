@@ -91,11 +91,11 @@ python app.py "colorful socks"
 Feetful of Fun
 ```
 
-Now let's procede to add the application to Agenta Lab. 
+Now let's procede to add the app [variant](https://docs.agenta.ai/docs/conceptual/concepts#app-variant) to Agenta Lab. 
 
 
 ```bash
-agenta serve
+agenta variant serve
 ```
 
 This command will do two things:
@@ -108,7 +108,7 @@ Navigate to localhost:3000, select your app, and begin experimenting with the pa
 
 <img width="1263" alt="Screenshot 2023-05-31 at 19 06 09" src="https://github.com/Agenta-AI/agenta/assets/4510758/6283d5af-0337-479f-951d-e7560c16d6ec">
 
-You can fork new variants, run batch evalutions, and more.
+You can fork new [variants](https://docs.agenta.ai/docs/conceptual/concepts#app-variant), run batch evalutions, and more.
 
 ## Why choose Agenta Lab for building LLM-apps?
 
