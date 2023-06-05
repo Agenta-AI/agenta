@@ -1,176 +1,15 @@
-import os
 import shutil
-import sys
 from pathlib import Path
 
 import click
 import questionary
 import toml
-from agenta.cli import helper
-from agenta.client import client
-from agenta.docker.docker_utils import build_and_upload_docker_image
-from docker.models.images import Image as DockerImage
+from agenta.cli import variant_commands
 
 
-def add_variant(variant_name: str, app_folder: str) -> str:
-    """Add a new variant.
-    Returns the name of the variant. (useful for serve)"""
-
-    app_path = Path(app_folder)
-    # Checks config
-    config_file = app_path / 'config.toml'
-    if not config_file.exists():
-        click.echo("Please run agenta init first")
-        return None
-
-    helper.update_config_from_backend(config_file)
-    config = toml.load(config_file)
-    app_name = config['app-name']
-
-    # check files in folder
-    app_file = app_path / 'app.py'
-    if not app_file.exists():
-        click.echo(click.style("No app.py exists! Please make sure you are in the right directory", fg='red'))
-        return None
-    env_file = app_path / '.env'
-    if not env_file.exists():
-        continue_without_env = questionary.confirm(
-            'No .env file found! Are you sure you handled the API keys needed in your application?\n Do you want to continue without it?').ask()
-        if not continue_without_env:
-            click.echo("Operation cancelled.")
-            sys.exit(0)
-
-    if not variant_name:
-        variant_name = questionary.text('Please enter the variant name').ask()
-    # update the config file with the variant names from the backend
-
-    if variant_name in config['variants']:
-        overwrite = questionary.confirm(
-            'This variant already exists. Do you want to overwrite it?').ask()
-        if not overwrite:
-            click.echo("Operation cancelled.")
-            sys.exit(0)
-    else:
-        config['variants'].append(variant_name)
-    try:
-        docker_image: DockerImage = build_and_upload_docker_image(
-            folder=app_path, app_name=app_name, variant_name=variant_name)
-    except Exception as ex:
-        click.echo(click.style(f"Error while building image: {ex}", fg='red'))
-        return None
-    try:
-        client.add_variant_to_server(app_name, variant_name, docker_image)
-    except Exception as ex:
-        click.echo(click.style(f"Error while adding variant: {ex}", fg='red'))
-        return None
-    click.echo(click.style(f"Variant {variant_name} for App {app_name} added successfully to Agenta!", fg='green'))
-    # Last step us to save the config file
-    toml.dump(config, config_file.open('w'))
-    return variant_name
-
-
-def start_variant(variant_name: str, app_folder: str):
-    """
-    Starts a container for an existing variant
-    Args:
-        variant_name: the name of the variant
-        app_folder: the folder of the app
-    """
-    app_folder = Path(app_folder)
-    config_file = app_folder / 'config.toml'
-    if not config_file.exists():
-        click.echo("Please run agenta init first")
-        return
-
-    helper.update_config_from_backend(config_file)
-
-    config = toml.load(config_file)
-    app_name = config['app-name']
-    if len(config['variants']) == 0:
-        click.echo("No variants found. Please add a variant first.")
-        return
-
-    if variant_name:
-        if variant_name not in config['variants']:
-            click.echo(click.style(
-                f"Variant {variant_name} not found in backend. Maybe you removed it in the webUI?", fg="red"))
-            return
-    else:
-        variant_name = questionary.select(
-            'Please choose a variant',
-            choices=config['variants']
-        ).ask()
-
-    endpoint = client.start_variant(app_name, variant_name)
-    click.echo(
-        f"""You app has been deployed locally as an api: {endpoint}/openapi.json \n\n
-Go to the playground to experiment with your app : http://localhost:3000/apps/{app_name}/playground \n"""
-    )
-
-
-def remove_variant(variant_name: str, app_folder: str):
-    """
-    Removes a variant from the server
-    Args:
-        variant_name: the name of the variant
-        app_folder: the folder of the app
-    """
-    app_folder = Path(app_folder)
-    config_file = app_folder / 'config.toml'
-    if not config_file.exists():
-        click.echo(click.style(
-            f"Config file not found in {app_folder}. Make sure you are in the right folder and that you have run agenta init first.", fg='red'))
-        return
-
-    helper.update_config_from_backend(config_file)
-
-    config = toml.load(config_file)
-    app_name = config['app-name']
-
-    if variant_name:
-        if variant_name not in config['variants']:
-            click.echo(click.style(
-                f"Variant {variant_name} not found in backend. Maybe you already removed it in the webUI?", fg="red"))
-            return
-    else:
-        variant_name = questionary.select(
-            'Please choose a variant',
-            choices=config['variants']
-        ).ask()
-    try:
-        client.remove_variant(app_name, variant_name)
-    except Exception as ex:
-        click.echo(click.style(
-            f"Error while removing variant {variant_name} for App {app_name} from the backend", fg='red'))
-        click.echo(click.style(f"Error message: {ex}", fg='red'))
-        return
-
-    click.echo(click.style(f"Variant {variant_name} for App {app_name} removed successfully from Agenta!", fg='green'))
-
-
-@click.command(name='remove-variant')
-@click.argument('app_folder', default='.')
-@click.option('--variant_name', default='')
-def remove_variant_cli(variant_name: str, app_folder: str):
-    """Remove an existing variant."""
-    remove_variant(variant_name, app_folder)
-
-
-@click.command(name='serve')
-@click.argument('app_folder', default='.')
-def serve_cli(app_folder: str):
-    """Add a variant and start its container."""
-    variant_name = add_variant(variant_name='', app_folder=app_folder)
-    if variant_name:  # otherwise we failed
-        start_variant(variant_name=variant_name, app_folder=app_folder)
-
-
-@click.command(name='add-variant')
-@click.argument('app_folder', default='.')
-@click.option('--variant_name', default='')
-def add_variant_cli(variant_name: str, app_folder: str):
-    """Builds the code into a new variant and add it to the platform"""
-    return add_variant(variant_name, app_folder)
+@click.group()
+def cli():
+    pass
 
 
 @click.command()
@@ -216,25 +55,9 @@ def init(app_name: str):
         click.echo("Please check the README.md for further instructions to setup the template.")
 
 
-@click.command(name='start')
-@click.option('--variant_name', default=None)
-@click.argument('app_folder', default=".")
-def start_variant_cli(variant_name: str, app_folder: str):
-    """Start a variant."""
-    start_variant(variant_name, app_folder)
-
-
-@click.group()
-def cli():
-    pass
-
-
 # Add the commands to the CLI group
-cli.add_command(add_variant_cli)
 cli.add_command(init)
-cli.add_command(start_variant_cli)
-cli.add_command(serve_cli)
-cli.add_command(remove_variant_cli)
+cli.add_command(variant_commands.variant)
 
 if __name__ == '__main__':
     cli()

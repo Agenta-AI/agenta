@@ -191,3 +191,27 @@ async def update_variant_parameters(app_variant: AppVariant):
     except Exception as e:
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
+
+
+@router.put("/update_variant_image/")
+async def update_variant_image(app_variant: AppVariant, image: Image):
+    """Updates the image used in an app variant
+
+    Arguments:
+        app_variant -- the app variant to update
+        image -- the image information
+    """
+    try:
+        app_manager.update_variant_image(app_variant, image)
+    except ValueError as e:
+        detail = f"Error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=str(e))
+    except SQLAlchemyError as e:
+        detail = f"Database error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=str(e))
+    except DockerException as e:
+        detail = f"Docker error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        detail = f"Unexpected error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=str(e))
