@@ -145,19 +145,19 @@ async def fetch_comparison_table(comparison_table_id: str):
         raise HTTPException(status_code=404, detail=f"dataset with id {comparison_table_id} not found")
 
 @router.delete("/", response_model=List[str])
-async def delete_comparison_tables(delete_app_evaluations: DeleteComparisonTable):
+async def delete_comparison_tables(delete_comparison_tables: DeleteComparisonTable):
     """
     Delete specific comparison tables based on their unique IDs.
 
     Args:
-    delete_app_evaluations (List[str]): The unique identifiers of the comparison tables to delete.
+    delete_comparison_tables (List[str]): The unique identifiers of the comparison tables to delete.
 
     Returns:
     A list of the deleted comparison tables' IDs.
     """
     deleted_ids = []
 
-    for comparison_tables_id in delete_app_evaluations.comparison_tables_ids:
+    for comparison_tables_id in delete_comparison_tables.comparison_tables_ids:
         app_evaluation = await comparison_tables.find_one({'_id': ObjectId(comparison_tables_id)})
 
         if app_evaluation is not None:
