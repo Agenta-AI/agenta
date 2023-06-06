@@ -1,13 +1,13 @@
 
 import { useState, useEffect } from 'react';
-import { Button, Col, Dropdown, Menu, Row, Spin, Switch, Tooltip, Tag, message, MenuProps, Divider } from 'antd';
-import EvaluationTable from './../EvaluationTable/EvaluationTable';
+import { Button, Col, Dropdown, Menu, Row, Tag, message } from 'antd';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
-import { fetchVariants, loadDatasetsList } from '@/lib/services/api';
+import { fetchVariants, getVariantParameters, loadDatasetsList } from '@/lib/services/api';
 import { useRouter } from 'next/router';
-import { Variant } from '@/lib/Types';
-import EmptyEvaluationTable from '../EvaluationTable/EmptyEvaluationTable';
+import { Variant, Parameter } from '@/lib/Types';
+import EvaluationsList from './EvaluationsList';
+import { EvaluationFlow } from '@/lib/enums';
 
 export default function Evaluations() {
     const router = useRouter();
@@ -25,7 +25,23 @@ export default function Evaluations() {
 
     const { datasets, isDatasetsLoading, isDatasetsLoadingError } = loadDatasetsList(app_name);
 
-    const [evaluationTable, setEvaluationTable] = useState(EmptyEvaluationTable);
+
+    const [variantInputs, setVariantInputs] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (variants.length > 0) {
+            const fetchAndSetSchema = async () => {
+                try {
+                    const { inputParams } = await getVariantParameters(app_name, variants[0]);
+                    setVariantInputs(inputParams.map((inputParam: Parameter) => inputParam.name));
+
+                } catch (e) {
+                    setIsError(true);
+                }
+            };
+            fetchAndSetSchema();
+        }
+    }, [app_name, variants]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -55,7 +71,8 @@ export default function Evaluations() {
         }
     }, [datasets, isDatasetsLoadingError]);
 
-    const createNewAppEvaluation = async () => {
+    // TODO: move to api.ts
+    const createNewAppEvaluation = async (inputs: string[]) => {
         const postData = async (url = '', data = {}) => {
             const response = await fetch(url, {
                 method: 'POST',
@@ -74,6 +91,13 @@ export default function Evaluations() {
 
         const data = {
             variants: selectedVariants.map((variant) => variant.variantName), // TODO: Change to variant id
+            app_name: app_name,
+            inputs: inputs,
+            dataset: {
+                _id: selectedDataset._id,
+                name: selectedDataset.name
+            },
+            status: EvaluationFlow.EVALUATION_FINISHED
         }
 
         return postData('http://localhost/api/app_evaluations/', data)
@@ -86,21 +110,6 @@ export default function Evaluations() {
 
     const onSwitchToChatMode = (checked: boolean) => {
         setChatModeActivated(checked);
-    };
-
-    const loadDataset = async () => {
-        return fetch(`http://localhost/api/datasets/${selectedDataset._id}`, {
-            headers: {
-                "Content-Type": "application/json",
-            }
-        })
-            .then((res) => res.json())
-            .then((data) => {
-                return data
-            })
-            .catch((err) => {
-                console.error(err);
-            });
     };
 
     const onDatasetSelect = (selectedDatasetIndexInDatasetsList: number) => {
@@ -158,28 +167,17 @@ export default function Evaluations() {
         }
 
         // 2. We create a new app evaluation
-        const evaluationTableId = await createNewAppEvaluation();
+        const evaluationTableId = await createNewAppEvaluation(variantInputs);
 
-        // 3. We load the selected dataset
-        const datasetContent = await loadDataset();
-        setVariants(selectedVariants)
+        // 3 We set the variants
+        setVariants(selectedVariants);
 
-        // 4. We create the evaluation table
-        setEvaluationTable(<EvaluationTable
-            columnsCount={columnsCount}
-            variants={variants}
-            dataset={datasetContent}
-            comparisonTableId={evaluationTableId}
-        />);
-        // 5. We reset everything
-        setSelectedVariants(new Array(2).fill({ variantName: 'Select a variant' }));
-        setSelectedDataset({ name: 'Select a Dataset' });
-        setColumnsCount(2);
+        router.push(`/apps/${app_name}/evaluations/${evaluationTableId}`);
     };
 
     return (
         <div>
-            <Row justify="space-between" style={{ marginTop: 20, marginBottom: 20 }}>
+            <Row justify="space-between" style={{ marginTop: 20, marginBottom: 40 }}>
                 <Col>
                     <Dropdown
                         overlay={datasetsMenu}
@@ -231,11 +229,7 @@ export default function Evaluations() {
                 </Col>
             </Row>
 
-            <Divider style={{ marginTop: 30, marginBottom: 30 }}></Divider>
-
-            {!chatModeActivated &&
-                evaluationTable
-            }
+            <EvaluationsList />
 
             {/* {chatModeActivated &&
         <EvaluationTableWithChat
