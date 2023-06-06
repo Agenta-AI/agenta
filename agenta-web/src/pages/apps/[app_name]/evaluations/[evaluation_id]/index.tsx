@@ -25,7 +25,7 @@ export default function Evaluation() {
             return;
         }
         const init = async () => {
-            const appEvaluation:AppEvaluation = await loadAppEvaluation(evaluationTableId);
+            const appEvaluation: AppEvaluation = await loadAppEvaluation(evaluationTableId);
             setAppEvaluation(appEvaluation)
         }
         init();

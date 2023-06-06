@@ -41,3 +41,7 @@ class NewComparisonTable(BaseModel):
     inputs: List[str]
     dataset: Dict[str, str] = Field(...)
     status: str = Field(...)
+
+
+class DeleteComparisonTable(BaseModel):
+    comparison_tables_ids: List[str]
