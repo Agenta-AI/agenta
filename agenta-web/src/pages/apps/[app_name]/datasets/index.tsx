@@ -99,6 +99,10 @@ export default function Datasets() {
                 <Link href={`${router.asPath}/new`}>
                     <Button >Add a dataset</Button>
                 </Link>
+
+                <Link href={`/apps/${app_name}/evaluations`} style={{marginLeft: 10}}>
+                    <Button >Start an evaluation</Button>
+                </Link>
                 {
                     selectedRowKeys.length > 0 && (
                         <Button style={{marginLeft: 10}} onClick={onDelete}>
