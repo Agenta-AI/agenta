@@ -1,5 +1,5 @@
 from fastapi import HTTPException, APIRouter, Body
-from agenta_backend.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, NewComparisonTable
+from agenta_backend.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, NewComparisonTable, DeleteComparisonTable
 from agenta_backend.services.db_mongo import comparison_tables, evaluation_rows, datasets
 from datetime import datetime
 from bson import ObjectId
@@ -144,6 +144,30 @@ async def fetch_comparison_table(comparison_table_id: str):
     else:
         raise HTTPException(status_code=404, detail=f"dataset with id {comparison_table_id} not found")
 
+@router.delete("/", response_model=List[str])
+async def delete_comparison_tables(delete_comparison_tables: DeleteComparisonTable):
+    """
+    Delete specific comparison tables based on their unique IDs.
+
+    Args:
+    delete_comparison_tables (List[str]): The unique identifiers of the comparison tables to delete.
+
+    Returns:
+    A list of the deleted comparison tables' IDs.
+    """
+    deleted_ids = []
+
+    for comparison_tables_id in delete_comparison_tables.comparison_tables_ids:
+        app_evaluation = await comparison_tables.find_one({'_id': ObjectId(comparison_tables_id)})
+
+        if app_evaluation is not None:
+            result = await comparison_tables.delete_one({'_id': ObjectId(comparison_tables_id)})
+            if result:
+                deleted_ids.append(comparison_tables_id)
+        else:
+            raise HTTPException(status_code=404, detail=f"Comparison table {comparison_tables_id} not found")
+
+    return deleted_ids
 
 @router.get("/{comparison_table_id}/votes_data")
 async def fetch_results(comparison_table_id: str):
