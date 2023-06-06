@@ -71,11 +71,7 @@ export default function Datasets() {
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[], selectedRows: DatasetTableDatatype[]) => {
             setSelectedRowKeys(selectedRowKeys);
-        },
-        getCheckboxProps: (record: DatasetTableDatatype) => ({
-            disabled: record.name === 'Disabled User', // Column configuration not to be checked
-            name: record.name,
-        }),
+        }
     };
 
     const onDelete = async () => {

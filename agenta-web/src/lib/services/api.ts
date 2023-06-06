@@ -203,6 +203,22 @@ export const loadAppEvaluation = async (appEvaluationId: string) => {
     }
 };
 
+export const deleteAppEvaluations = async (ids: string[]) => {
+    try {
+        const response = await axios({
+            method: 'delete',
+            url: `${API_BASE_URL}/api/app_evaluations`,
+            data: { comparison_tables_ids: ids },
+        });
+        if (response.status === 200) {
+            return response.data;
+        }
+    } catch (error) {
+        console.error(`Error deleting entity: ${error}`);
+        throw error;
+    }
+};
+
 export const loadEvaluationsRows = async (evaluationTableId: string) => {
     try {
         return await eval_endpoint.get(`${evaluationTableId}/evaluation_rows`)
