@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Button, Col, Dropdown, Menu, Row, Tag, message } from 'antd';
+import { Button, Col, Divider, Dropdown, Menu, Row, Tag, message } from 'antd';
 import EvaluationTableWithChat from '../EvaluationTable/EvaluationTableWithChat';
 import { DownOutlined } from '@ant-design/icons';
 import { fetchVariants, getVariantParameters, loadDatasetsList } from '@/lib/services/api';
@@ -228,6 +228,8 @@ export default function Evaluations() {
                     </div>
                 </Col>
             </Row>
+
+            <Divider />
 
             <EvaluationsList />
 
