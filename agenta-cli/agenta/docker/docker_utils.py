@@ -48,6 +48,8 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
         shutil.copy(Path(__file__).parent.parent / "agenta.py", folder)
         shutil.copy(Path(__file__).parent /
                     "docker-assets" / "main.py", folder)
+        shutil.copy(Path(__file__).parent /
+                    "docker-assets" / "entrypoint.sh", folder)
 
         # Copy the app files to a temporary directory
         shutil.copytree(folder, temp_dir, dirs_exist_ok=True)
@@ -64,7 +66,7 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
             )
 
         except docker.errors.BuildError as ex:
-            logger.error("Error building Docker image:\n" + ex)
+            logger.error("Error building Docker image:\n")
             # Print the build log
             for line in ex.build_log:
                 logger.error(line)
