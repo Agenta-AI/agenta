@@ -19,3 +19,4 @@ examples/**/config.toml
 examples/**/agenta.py
 examples/**/main.py
 agenta-cli/dist/
+myenv/
