@@ -20,3 +20,4 @@ examples/**/agenta.py
 examples/**/main.py
 agenta-cli/dist/
 myenv/
+examples/earning_call_analyzer/storage/
