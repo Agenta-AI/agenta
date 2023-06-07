@@ -88,6 +88,16 @@ OPENAI_API_KEY=sk-xxxxxxx
 
 Test your application via the command line. The `@post` decorator allows us to do this without writing additional code:
 
+First let's (optionally) create a virtual environment and install the dependencies. Make sure you are in the project folder.
+
+```bash
+python -m venv myenv
+source myenv/bin/activate
+pip install -r requirements.txt
+```
+
+Now let's run the application:
+
 ```bash
 > python app.py
 usage: app.py [-h] [--temperature TEMPERATURE] [--prompt_template PROMPT_TEMPLATE] country gender
