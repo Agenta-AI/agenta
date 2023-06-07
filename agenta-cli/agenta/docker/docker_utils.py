@@ -9,7 +9,7 @@ from agenta.config import settings
 from docker.models.images import Image
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 def create_dockerfile(out_folder: Path):
@@ -62,13 +62,13 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
                 tag=tag,
                 rm=True  # Remove intermediate containers after a successful build
             )
-        except docker.errors.BuildError as e:
-            print("Error building Docker image:\n", e)
-            raise e
 
-        # Print the build log
-        for line in build_log:
-            logger.debug(line)
+        except docker.errors.BuildError as ex:
+            logger.error("Error building Docker image:\n" + ex)
+            # Print the build log
+            for line in ex.build_log:
+                logger.error(line)
+            raise ex
         # Upload the Docker image to the Agenta registry
         print("Uploading Docker image...")
         client.images.push(repository=f"{registry}", tag="latest")
