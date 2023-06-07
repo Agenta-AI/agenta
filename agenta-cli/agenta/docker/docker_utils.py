@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 from pathlib import Path
@@ -6,6 +7,9 @@ from tempfile import TemporaryDirectory
 import docker
 from agenta.config import settings
 from docker.models.images import Image
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def create_dockerfile(out_folder: Path):
@@ -64,7 +68,7 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
 
         # Print the build log
         for line in build_log:
-            print(line)
+            logger.debug(line)
         # Upload the Docker image to the Agenta registry
         print("Uploading Docker image...")
         client.images.push(repository=f"{registry}", tag="latest")

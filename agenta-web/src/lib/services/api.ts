@@ -1,7 +1,8 @@
 import useSWR from 'swr';
 import axios from 'axios';
 import { parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
-import { Variant, Parameter } from '@/lib/Types';
+import { Variant, Parameter, AppEvaluationResponseType } from '@/lib/Types';
+import { fromAppEvaluationResponseToAppEvaluation } from '../transformers';
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -36,7 +37,14 @@ export function callVariant(inputParamsDict: Record<string, string>, optParams: 
         headers: {
             'accept': 'application/json',
         }
-    }).then(res => res.data);
+    }).then(res => {
+        return res.data;
+    }).catch(error => {
+        if (error.response && error.response.status === 500) {
+            throw new Error(error.response.data.error + " " + error.response.data.traceback);
+        }
+        throw error; // If it's not a 500 status, or if error.response is undefined, rethrow the error so it can be handled elsewhere.
+    });
 }
 
 /**
@@ -64,7 +72,6 @@ export const getVariantParameters = async (app: string, variant: Variant) => {
  * Saves a new variant to the database based on previous
  */
 export async function saveNewVariant(appName: string, variant: Variant, parameters: Parameter[]) {
-    console.log(variant);
     const appVariant = {
         app_name: appName,
         variant_name: variant.templateVariantName,
@@ -133,6 +140,21 @@ export const loadDatasetsList = (app_name: string) => {
     }
 };
 
+export const loadDataset = async (datasetId: string) => {
+    return fetch(`${API_BASE_URL}/api/datasets/${datasetId}`, {
+        headers: {
+            "Content-Type": "application/json",
+        }
+    })
+        .then((res) => res.json())
+        .then((data) => {
+            return data
+        })
+        .catch((err) => {
+            console.error(err);
+        });
+};
+
 export const deleteDatasets = async (ids: string[]) => {
     try {
         const response = await axios({
@@ -153,17 +175,73 @@ const eval_endpoint = axios.create({
     baseURL: `${API_BASE_URL}/api/app_evaluations`,
 });
 
+export const loadAppEvaluations = async (app_name: string) => {
+    try {
+        return await eval_endpoint.get(`?app_name=${app_name}`)
+        .then(responseData => {
+            const appEvaluations = responseData.data.map((item: AppEvaluationResponseType) => {
+                return fromAppEvaluationResponseToAppEvaluation(item);
+            });
+
+            return appEvaluations;
+        })
+    } catch(error){
+        console.error(error);
+        throw error;
+    }
+};
+
+export const loadAppEvaluation = async (appEvaluationId: string) => {
+    try {
+        return await eval_endpoint.get(appEvaluationId)
+        .then(responseData => {
+            return fromAppEvaluationResponseToAppEvaluation(responseData.data);
+        })
+    } catch(error){
+        console.error(error);
+        throw error;
+    }
+};
+
+export const deleteAppEvaluations = async (ids: string[]) => {
+    try {
+        const response = await axios({
+            method: 'delete',
+            url: `${API_BASE_URL}/api/app_evaluations`,
+            data: { comparison_tables_ids: ids },
+        });
+        if (response.status === 200) {
+            return response.data;
+        }
+    } catch (error) {
+        console.error(`Error deleting entity: ${error}`);
+        throw error;
+    }
+};
+
+export const loadEvaluationsRows = async (evaluationTableId: string) => {
+    try {
+        return await eval_endpoint.get(`${evaluationTableId}/evaluation_rows`)
+        .then(responseData => {
+            return responseData.data;
+        })
+    } catch(error){
+        console.error(error);
+        throw error;
+    }
+};
+
 export const updateAppEvaluations = async (evaluationTableId: string, data) => {
-    const response = await eval_endpoint.put(`${API_BASE_URL}/${evaluationTableId}`, data);
+    const response = await eval_endpoint.put(`${evaluationTableId}`, data);
     return response.data;
 };
 
 export const updateEvaluationRow = async (evaluationTableId: string, evaluationRowId: string, data) => {
-    const response = await eval_endpoint.put(`${API_BASE_URL}/api/app_evaluations/${evaluationTableId}/evaluation_row/${evaluationRowId}`, data);
+    const response = await eval_endpoint.put(`${evaluationTableId}/evaluation_row/${evaluationRowId}`, data);
     return response.data;
 };
 
 export const postEvaluationRow = async (evaluationTableId: string, data) => {
-    const response = await eval_endpoint.post(`${API_BASE_URL}/api/app_evaluations/${evaluationTableId}/evaluation_row`, data);
+    const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_row`, data);
     return response.data;
 };
