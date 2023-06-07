@@ -71,11 +71,7 @@ export default function Datasets() {
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[], selectedRows: DatasetTableDatatype[]) => {
             setSelectedRowKeys(selectedRowKeys);
-        },
-        getCheckboxProps: (record: DatasetTableDatatype) => ({
-            disabled: record.name === 'Disabled User', // Column configuration not to be checked
-            name: record.name,
-        }),
+        }
     };
 
     const onDelete = async () => {
@@ -98,6 +94,10 @@ export default function Datasets() {
             <div style={{ marginBottom: 40 }}>
                 <Link href={`${router.asPath}/new`}>
                     <Button >Add a dataset</Button>
+                </Link>
+
+                <Link href={`/apps/${app_name}/evaluations`} style={{marginLeft: 10}}>
+                    <Button >Start an evaluation</Button>
                 </Link>
                 {
                     selectedRowKeys.length > 0 && (
