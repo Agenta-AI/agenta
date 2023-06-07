@@ -1,0 +1,112 @@
+---
+title: Troubleshooting
+---
+
+1. [Introduction](#introduction)
+2. [Reproducing the Error](#reproducing-the-error)
+3. [Issue Categories](#issue-categories)
+    1. [Invalid SDK Usage](#invalid-sdk-usage)
+    2. [Missing API Key](#missing-api-key)
+    3. [Failure Running Serve](#failure-running-serve)
+    4. [Web UI Errors](#web-ui-errors)
+4. [Reporting Issues](#Reporting-Issues)
+
+## Introduction
+
+This guide provides a step-by-step approach to debugging common issues you might face while using Agenta.
+
+## Reproducing the Error
+
+Before you start debugging, we need to determine the type of issue we are facing. For this try to reproduce the error in CLI. This will help you understand the source of the problem.
+
+```bash
+cd folder_of_your_app
+python app.py <yourinputs>
+```
+
+If an error message appears, this means the issue is in your code.
+
+If it works, then try serving the application
+
+```bash
+agenta variant serve
+```
+
+If this does not work, then the issue is in the serving process.
+
+If it works, then the issue is in the web UI.
+
+## Issue Categories
+
+### Invalid SDK Usage
+
+If the app dies with an error message when run from CLI, make sure to check the following:
+
+- Does an `app.py` file exist in your directory?
+- Did you use the `@post` decorator in your code?
+- Did you specify types for all the inputs in the function you're calling?
+- Did you provide only `str` types as inputs?
+
+Your main function should look like this:
+
+```python
+default_prompt = "Give me five cool names for a baby from this country {{country}} with this gender {{gender}}!!!!"
+
+@post
+def func_name(input1:str, input2:str, some_parameter: TextParam = default_prompt) -> str:
+    # your code here
+    return "some string"
+```
+
+### Missing API Key
+
+If the error message suggests an issue with the API key, try the following steps:
+
+1. Export the keys to your environment and run the code:
+
+```bash 
+export OPENAI_API_KEY=<your key>
+python app.py <yourinputs>
+```
+
+2. If the code runs successfully, check if a `.env` file exists in the directory and if it includes the keys.
+3. Make sure to manually set the OpenAI key in your code:
+
+```python
+@post
+def generate(country: str, gender: str, temperature: FloatParam = 0.9, prompt_template: TextParam = default_prompt) -> str:
+    openai.api_key = os.environ.get("OPENAI_API_KEY")  # make sure to set this manually!
+    chat_completion = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
+```
+
+Remember to print the key to ensure it loads correctly.
+
+### Failure Running Serve
+
+If you run `agenta variant serve` and it doesn't work, follow these steps:
+
+1. Confirm that Docker is running.
+2. Ensure you have the latest SDK version. You can upgrade it by running `pip install agenta --upgrade`.
+3. Restart and rebuild Docker Compose:
+
+```bash
+docker-compose down
+docker-compose up --build
+```
+
+If the issue persists after following these steps, try shutting down all the containers with the same name of the variant and removing all related images. If the problem continues, please report the issue or contact us directly.
+
+### Web UI Errors
+
+If the application runs correctly in the CLI and seems to serve correctly, but you can't run it from the web UI, please:
+
+1. Check if the Docker container is running.
+2. Verify if the API is running by checking if `http://localhost/{app_name}/{variant_name}/openapi.json` exists.
+3. If the API isn't running, the issue might be with the reverse proxy (Traefik). To check, visit `localhost:8080`.
+
+If none of these checks solve the problem, there might be an issue with the web UI. Please report it or contact us directly.
+
+## Reporting Issues
+
+If you can't solve your problem using this guide, don't worry. We're here to help! Please create a new issue in our repository and we will get back to you asap.
