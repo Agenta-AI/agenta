@@ -12,7 +12,7 @@ import { EvaluationFlow } from '@/lib/enums';
 export default function Evaluations() {
     const router = useRouter();
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
-    const [isError, setIsError] = useState(false);
+    const [isError, setIsError] = useState<boolean | string>(false);
     const [variants, setVariants] = useState<any[]>([]);
     const [columnsCount, setColumnsCount] = useState(2);
     const [chatModeActivated, setChatModeActivated] = useState(false);
@@ -36,7 +36,7 @@ export default function Evaluations() {
                     setVariantInputs(inputParams.map((inputParam: Parameter) => inputParam.name));
 
                 } catch (e) {
-                    setIsError(true);
+                    setIsError("Failed to fetch variants parameters");
                 }
             };
             fetchAndSetSchema();
@@ -54,16 +54,13 @@ export default function Evaluations() {
 
                 setAppVariantsLoading(false);
             } catch (error) {
-                setIsError(true);
+                setIsError("Failed to fetch variants");
                 setAppVariantsLoading(false);
             }
         };
 
         fetchData();
     }, [app_name]);
-
-    if (isError) return <div>failed to load variants</div>
-    if (areAppVariantsLoading) return <div>loading variants...</div>
 
     useEffect(() => {
         if (!isDatasetsLoadingError && datasets) {
@@ -177,6 +174,10 @@ export default function Evaluations() {
 
     return (
         <div>
+            <div>
+                {(typeof isError === "string") && <div>{isError}</div>}
+                {areAppVariantsLoading && <div>loading variants...</div>}
+            </div>
             <Row justify="space-between" style={{ marginTop: 20, marginBottom: 40 }}>
                 <Col>
                     <Dropdown
