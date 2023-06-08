@@ -16,7 +16,6 @@ interface Props {
 }
 
 const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRemovalVariantName, setRemovalWarningModalOpen, isDeleteLoading }) => {
-    const apiURL = process.env.AGENTA_API_URL ? process.env.AGENTA_API_URL : "http://localhost";
     const router = useRouter();
     const appName = router.query.app_name as unknown as string;
     const { inputParams, optParams, URIPath, isLoading, isError, error, isParamSaveLoading, saveOptParams } = useVariant(appName, variant);
@@ -36,7 +35,7 @@ const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRem
             imageName += variantDesignator.toLowerCase();
         }
 
-        const apiAddress = `${apiURL}/${appName}/${variantDesignator}/openapi.json`;
+        const apiAddress = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appName}/${variantDesignator}/openapi.json`;
 
         return (
             <div>

@@ -8,7 +8,6 @@ const fetcher = (...args) => fetch(...args).then(res => res.json())
 
 
 const AppSelector: React.FC = () => {
-    const apiURL = process.env.AGENTA_API_URL ? process.env.AGENTA_API_URL : "http://localhost";
     const [newApp, setNewApp] = useState('');
     const router = useRouter();
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,7 +25,10 @@ const AppSelector: React.FC = () => {
     };
 
     // TODO: move to api.ts
-    const { data, error, isLoading } = useSWR(`${apiURL}/api/app_variant/list_apps/`, fetcher)
+    const { data, error, isLoading } = useSWR(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`, fetcher)
+
+    console.log('process.env.NEXT_PUBLIC_AGENTA_API_URL', process.env.NEXT_PUBLIC_AGENTA_API_URL);
+
     if (error) return <div>failed to load</div>
     if (isLoading) return <div>loading...</div>
 

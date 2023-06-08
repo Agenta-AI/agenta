@@ -73,14 +73,13 @@ const renderVotesPlot = (votesData: any, variants: string[], index: number, reco
 }
 
 const Results: React.FC = () => {
-    const apiURL = process.env.AGENTA_API_URL ? process.env.AGENTA_API_URL : "http://localhost";
     const [data, setData] = useState<DataType[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [statsLoading, setStatsLoading] = useState<boolean[]>([]);
 
     useEffect(() => {
         // TODO: move to api.ts
-        fetchData(`${apiURL}/api/app_evaluations`)
+        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations`)
             .then(responseData => {
                 const initialData: DataType[] = responseData.map((item: AppEvaluationResponseType) => {
                     return {
@@ -95,7 +94,7 @@ const Results: React.FC = () => {
                 setLoading(false);
 
                 initialData.forEach((item, index) => {
-                    fetchData(`${apiURL}/api/app_evaluations/${item.id}/votes_data`)
+                    fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations/${item.id}/votes_data`)
                         .then(results => {
                             setData(prevData => {
                                 const newData = [...prevData];

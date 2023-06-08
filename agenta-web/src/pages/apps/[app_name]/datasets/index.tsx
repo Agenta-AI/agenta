@@ -22,7 +22,6 @@ const fetchData = async (url: string): Promise<any> => {
 }
 
 export default function Datasets() {
-    const apiURL = process.env.AGENTA_API_URL ? process.env.AGENTA_API_URL : "http://localhost";
     const router = useRouter();
     const { app_name } = router.query;
     const [datasetsList, setDatasetsList] = useState<DatasetTableDatatype[]>([]);
@@ -35,7 +34,7 @@ export default function Datasets() {
             return;
         }
         // TODO: move to api.ts
-        fetchData(`${apiURL}/api/datasets?app_name=${app_name}`)
+        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets?app_name=${app_name}`)
             .then(data => {
                 let newDatasetsList = data.map((obj:Dataset) => {
 
