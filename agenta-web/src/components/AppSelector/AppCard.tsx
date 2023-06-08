@@ -22,7 +22,7 @@ const DeleteModal = ({ visible, handleOk, handleCancel, appName, confirmLoading 
 };
 
 const AppCard: React.FC<string> = ({ appName }) => {
-    console.log("AppCard", appName);
+    const apiURL = process.env.AGENTA_API_URL ? process.env.AGENTA_API_URL : "http://localhost";
     const [visibleDelete, setVisibleDelete] = useState(false);
     const [confirmLoading, setConfirmLoading] = useState(false);  // add this line
     const showDeleteModal = () => {
@@ -34,7 +34,7 @@ const AppCard: React.FC<string> = ({ appName }) => {
         await removeApp(appName);
         setVisibleDelete(false);
         setConfirmLoading(false); // add this line
-        mutate('http://localhost/api/app_variant/list_apps/');
+        mutate(`${apiURL}/api/app_variant/list_apps/`);
     };
 
     const handleDeleteCancel = () => {

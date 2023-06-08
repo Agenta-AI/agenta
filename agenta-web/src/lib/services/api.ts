@@ -7,7 +7,7 @@ import { fromAppEvaluationResponseToAppEvaluation } from '../transformers';
  * Raw interface for the parameters parsed from the openapi.json
  */
 
-export const API_BASE_URL = "http://localhost";  // Replace this with your actual API base URL
+export const API_BASE_URL = process.env.AGENTA_API_URL ? process.env.AGENTA_API_URL : "http://localhost";  // Replace this with your actual API base URL
 
 const fetcher = (...args) => fetch(...args).then(res => res.json());
 

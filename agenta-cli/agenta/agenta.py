@@ -14,10 +14,7 @@ from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
-origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-]
+origins = os.getenv('ALLOW_ORIGINS').split(',')
 
 app.add_middleware(
     CORSMiddleware,

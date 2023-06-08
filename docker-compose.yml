@@ -1,3 +1,4 @@
+version: "3"
 services:
     registry:
         image: registry:2
@@ -21,6 +22,7 @@ services:
         build: ./agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
+            - ALLOW_ORIGINS=http://localhost:3000,http://localhost:3001,http://54.93.214.89:3000
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
@@ -69,7 +71,7 @@ services:
             - "3000:3000"
         environment:
             - NODE_ENV=development
-            # - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
+            - AGENTA_API_URL=http://localhost
         networks:
             - agenta-network
         # depends_on:
@@ -104,47 +106,10 @@ services:
         networks:
             - agenta-network
         depends_on:
-            mongo:
-                condition: service_healthy
+            - mongo
 
 networks:
     agenta-network:
-        name: agenta-network
 
 volumes:
     mongodb_data:
-        # api_test:
-
-
-
-        # api:
-        #   build: ./api
-        #   environment:
-        #     - OPENAI_API_KEY=${OPENAI_API_KEY}
-        #     - MONGODB_URI=mongodb://username:password@mongo:27017
-        #   ports:
-        #     - "8000:8000"
-        #   depends_on:
-        #     mongo:
-        #       condition: service_healthy
-        #   networks:
-        #     - agenta-network
-        #   volumes:
-        #     - ./api/api:/app/api
-
-        # agenta-bff:
-        #   build:
-        #     context: ./agenta-bff
-        #     dockerfile: dev.Dockerfile
-        #   volumes:
-        #     - ./agenta-bff/src:/app/src
-        #   ports:
-        #     - "3030:3030"
-        #   environment:
-        #     - NODE_ENV=development
-        #     - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
-        #   networks:
-        #     - agenta-network
-        #   depends_on:
-        #     mongo:
-        #       condition: service_healthy

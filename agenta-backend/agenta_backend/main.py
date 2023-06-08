@@ -3,12 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from agenta_backend.routers import app_variant
 from agenta_backend.routers import app_evaluation_router
 from agenta_backend.routers import dataset_router
+import os
 
-origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-]
-
+origins = os.getenv('ALLOW_ORIGINS').split(',')
 # this is the prefix in which we are reverse proxying the api
 app = FastAPI()
 app.include_router(app_variant.router, prefix='/app_variant')

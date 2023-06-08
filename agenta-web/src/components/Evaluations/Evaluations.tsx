@@ -10,6 +10,7 @@ import EvaluationsList from './EvaluationsList';
 import { EvaluationFlow } from '@/lib/enums';
 
 export default function Evaluations() {
+    const apiURL = process.env.AGENTA_API_URL ? process.env.AGENTA_API_URL : "http://localhost";
     const router = useRouter();
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false);
     const [isError, setIsError] = useState<boolean | string>(false);
@@ -97,7 +98,7 @@ export default function Evaluations() {
             status: EvaluationFlow.EVALUATION_FINISHED
         }
 
-        return postData('http://localhost/api/app_evaluations/', data)
+        return postData(`${apiURL}/api/app_evaluations/`, data)
             .then(data => {
                 return data.id;
             }).catch(err => {

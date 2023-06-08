@@ -73,13 +73,14 @@ const renderVotesPlot = (votesData: any, variants: string[], index: number, reco
 }
 
 const Results: React.FC = () => {
-
+    const apiURL = process.env.AGENTA_API_URL ? process.env.AGENTA_API_URL : "http://localhost";
     const [data, setData] = useState<DataType[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [statsLoading, setStatsLoading] = useState<boolean[]>([]);
 
     useEffect(() => {
-        fetchData('http://localhost/api/app_evaluations')
+        // TODO: move to api.ts
+        fetchData(`${apiURL}/api/app_evaluations`)
             .then(responseData => {
                 const initialData: DataType[] = responseData.map((item: AppEvaluationResponseType) => {
                     return {
@@ -94,7 +95,7 @@ const Results: React.FC = () => {
                 setLoading(false);
 
                 initialData.forEach((item, index) => {
-                    fetchData(`http://localhost/api/app_evaluations/${item.id}/votes_data`)
+                    fetchData(`${apiURL}/api/app_evaluations/${item.id}/votes_data`)
                         .then(results => {
                             setData(prevData => {
                                 const newData = [...prevData];
@@ -279,7 +280,7 @@ export default Results;
   //     return response.json();
   //   };
 
-  // updateData(`http://localhost/api/app_evaluations/${comparisonTableId}/evaluation_row/${evaluation_row_id}`, data)
+  // updateData(`${apiURL}/api/app_evaluations/${comparisonTableId}/evaluation_row/${evaluation_row_id}`, data)
   //     .then(data => {
   //         // setRowValue(rowIndex, 'vote', vote);
   //     }).catch(err => {
