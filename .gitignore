@@ -22,3 +22,5 @@ agenta-cli/dist/
 myenv/
 examples/**/storage/
 examples/**/entrypoint.sh
+
+acme.json
