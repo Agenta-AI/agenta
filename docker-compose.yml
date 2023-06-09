@@ -13,8 +13,10 @@ services:
         ports:
             - "80:80" # The HTTP port
             - "8080:8080" # The Web UI (enabled by --api.insecure=true)
+            - "443:443"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+            - ./traefik.toml:/traefik.toml
             - ./acme.json:/acme.json
         networks:
             - agenta-network
@@ -76,9 +78,8 @@ services:
         networks:
             - agenta-network
         labels:
-            - "traefik.enable=true"
-            - "traefik.http.routers.agenta-web.rule=Host(`demo.agenta.com`)"
-            - "traefik.http.routers.agenta-web.entrypoints=web-secure"
+            - "traefik.http.routers.agenta-web.tls=true"
+            - "traefik.http.routers.agenta-web.rule=Host(`demo.agenta.ai`)"
             - "traefik.http.routers.agenta-web.tls.certresolver=myResolver"
         # depends_on:
         #   mongo:
