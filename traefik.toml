@@ -1,0 +1,15 @@
+[entryPoints]
+  [entryPoints.web]
+    address = ":80"
+  [entryPoints.web-secure]
+    address = ":443"
+
+[providers]
+  [providers.docker]
+
+[certificatesResolvers.myResolver.acme]
+  email = "akrem.abayed@gmail.com"
+  storage = "acme.json"
+  [certificatesResolvers.myResolver.acme.httpChallenge]
+    # used during the challenge
+    entryPoint = "web"

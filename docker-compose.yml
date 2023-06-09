@@ -11,7 +11,7 @@ services:
         image: traefik:v2.0
         command: --api.insecure=true --providers.docker --entrypoints.web.address=:80
         ports:
-            # - "80:80" # The HTTP port
+            - "80:80" # The HTTP port
             - "8080:8080" # The Web UI (enabled by --api.insecure=true)
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -60,17 +60,6 @@ services:
                 "/api"
             ]
 
-    caddy:
-        image: caddy:2.6.1
-        restart: unless-stopped
-        ports:
-            - '80:80'
-            - '443:443'
-        volumes:
-            - ./Caddyfile:/etc/caddy/Caddyfile
-        depends_on:
-            - agenta-web
-
     agenta-web:
         build:
             context: ./agenta-web
@@ -85,6 +74,11 @@ services:
             - NODE_ENV=development
         networks:
             - agenta-network
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.frontend.rule=Host(`demo.agenta.com`)"
+            - "traefik.http.routers.frontend.entrypoints=web-secure"
+            - "traefik.http.routers.frontend.tls.certresolver=myResolver"
         # depends_on:
         #   mongo:
         #     condition: service_healthy
