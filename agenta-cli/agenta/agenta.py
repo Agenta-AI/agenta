@@ -12,9 +12,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .config import settings
+
 app = FastAPI()
 
-origins = os.getenv('ALLOW_ORIGINS').split(',')
+origins = settings.allow_origins.split(',')
 
 app.add_middleware(
     CORSMiddleware,
