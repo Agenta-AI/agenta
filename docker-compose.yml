@@ -76,9 +76,9 @@ services:
             - agenta-network
         labels:
             - "traefik.enable=true"
-            - "traefik.http.routers.frontend.rule=Host(`demo.agenta.com`)"
-            - "traefik.http.routers.frontend.entrypoints=web-secure"
-            - "traefik.http.routers.frontend.tls.certresolver=myResolver"
+            - "traefik.http.routers.agenta-web.rule=Host(`demo.agenta.com`)"
+            - "traefik.http.routers.agenta-web.entrypoints=web-secure"
+            - "traefik.http.routers.agenta-web.tls.certresolver=myResolver"
         # depends_on:
         #   mongo:
         #     condition: service_healthy
