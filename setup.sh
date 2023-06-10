@@ -18,6 +18,4 @@ update_env_var() {
     fi
 }
 
-agenta_api_url_env_var_name="NEXT_PUBLIC_AGENTA_API_URL"
-agenta_api_url_env_var_value=$AGENTA_API_URL
-agenta_web_env_file_path="agenta-web/.env.development.local"
+update_env_var "NEXT_PUBLIC_AGENTA_API_URL" $AGENTA_API_URL "agenta-web/.env.development.local"
