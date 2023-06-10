@@ -27,8 +27,6 @@ const AppSelector: React.FC = () => {
     // TODO: move to api.ts
     const { data, error, isLoading } = useSWR(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`, fetcher)
 
-    console.log('process.env.NEXT_PUBLIC_AGENTA_API_URL', process.env.NEXT_PUBLIC_AGENTA_API_URL);
-
     if (error) return <div>failed to load</div>
     if (isLoading) return <div>loading...</div>
 
