@@ -25,7 +25,7 @@ services:
         build: ./agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
-            - ALLOW_ORIGINS=http://localhost:3000,http://localhost:3001,http://54.93.214.89:3000
+            - ALLOW_ORIGINS=${ALLOW_ORIGINS}
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
