@@ -17,7 +17,6 @@ COPY public ./public
 COPY next.config.js .
 COPY tsconfig.json .
 COPY postcss.config.js .
-COPY .env.local .
 COPY .env.development.local .
 
 # Next.js collects completely anonymous telemetry data about general usage. Learn more here: https://nextjs.org/telemetry

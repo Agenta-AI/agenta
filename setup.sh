@@ -21,4 +21,6 @@ update_env_var() {
 
 update_env_var "NEXT_PUBLIC_AGENTA_API_URL" "$AGENTA_API_URL" "./agenta-web/.env.development.local"
 
-update_env_var "ALLOW_ORIGINS" "$ALLOW_ORIGINS" "./agenta-cli/agenta/config.toml"
+update_env_var "allow_origins" "$ALLOW_ORIGINS" "./agenta-cli/agenta/config.toml"
+
+docker-compose -f docker-compose.prod.yml up

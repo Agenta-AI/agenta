@@ -44,6 +44,7 @@ const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRem
                         <p>Error connecting to the variant {variant.variantName}. {error.message}</p>
                         <p>To debug this issue, please follow the steps below:</p>
                         <ul>
+                            <li>Run "agenta variant start"</li>
                             <li>Verify whether the API is up by checking if {apiAddress} is accessible.</li>
                             <li>Check if the Docker container for the variant {variantDesignator} is running. The image should be called {imageName}.</li>
                         </ul>
