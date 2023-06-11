@@ -1,11 +1,4 @@
 services:
-  registry:
-    image: registry:2
-    ports:
-      - 5001:5000
-    networks:
-      - agenta-network
-
   reverse-proxy:
     image: traefik:v2.0
     command: --api.insecure=true --providers.docker --entrypoints.web.address=:80
@@ -19,6 +12,19 @@ services:
       - ./acme.json:/acme.json
     networks:
       - agenta-network
+
+  registry:
+    image: registry:2
+    networks:
+      - agenta-network
+    labels:
+      - "traefik.http.routers.registry.rule=Host(`registry.agenta.ai`)"
+      - "traefik.http.services.registry.loadbalancer.server.port=5000"
+      - "traefik.http.routers.registry.entrypoints=web"
+
+      - "traefik.http.routers.registry.tls=true"
+      - "traefik.http.routers.registry.entrypoints=web-secure"
+      - "traefik.http.routers.registry.tls.certresolver=myResolver"
 
   backend:
     build: ./agenta-backend
