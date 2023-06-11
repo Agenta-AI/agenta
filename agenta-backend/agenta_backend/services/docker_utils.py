@@ -4,6 +4,7 @@ import docker
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import AppVariant, Image, URI
 import logging
+import os
 
 client = docker.from_env()
 
@@ -42,16 +43,19 @@ def start_container(image_name, app_name, variant_name) -> URI:
         f"traefik.http.routers.{app_name}-{variant_name}.rule": f"PathPrefix(`/{app_name}/{variant_name}`)",
         f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
         f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
-        f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
-        f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}-strip-prefix",
-        # this line connects the router to the service
-        # f"traefik.http.middlewares.{app_name}-{variant_name}-openapi.redirectregex.regex": "^/openapi.json$",
-        # f"traefik.http.middlewares.{app_name}-{variant_name}-openapi.redirectregex.replacement": f"/{app_name}/openapi.json",
-        # f"traefik.http.middlewares.{app_name}-{variant_name}-openapi.redirectregex.permanent": "true",
-        # f"traefik.http.routers.{app_name}-{variant_name}-openapi.rule": "Path(`/openapi.json`)",
-        # f"traefik.http.routers.{app_name}-{variant_name}-openapi.middlewares": f"{app_name}-{variant_name}-openapi",
-        f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
+        f"traefik.http.middlewares.{app_name}-{variant_name}.stripprefix.prefixes": f"/{app_name}/{variant_name}",
+        f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}"
     }
+
+    if os.getenv('ENVIRONMENT') == 'production':
+        # Append additional SSL related labels
+        labels.update({
+            f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web-secure",
+            f"traefik.http.routers.{app_name}-{variant_name}.tls": "true",
+            f"traefik.http.routers.{app_name}-{variant_name}.tls.certresolver": "myResolver"
+        })
+
+
     container = client.containers.run(
         image, detach=True, labels=labels, network="agenta-network", name=f"{app_name}-{variant_name}")
     return URI(uri=f"http://localhost/{app_name}/{variant_name}")
