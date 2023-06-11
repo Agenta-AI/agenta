@@ -29,6 +29,7 @@ def query(question: str, prompt: TextParam = default_prompt) -> str:
     index = ingest()
 
     QA_TEMPLATE = Prompt(prompt)
+    #
     query_engine = index.as_query_engine(text_qa_template=QA_TEMPLATE)
     response = query_engine.query(question)
     return str(response)
