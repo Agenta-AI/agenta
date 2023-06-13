@@ -3,7 +3,7 @@ import os
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
-
+import json
 import docker
 from agenta.config import settings
 from docker.models.images import Image
@@ -73,8 +73,13 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
             raise ex
         # Upload the Docker image to the Agenta registry
         print("Uploading Docker image...")
-        client.images.push(repository=f"{registry}", tag="latest")
+        print(f"Uploading to {registry}")
+        os.environ["DOCKER_HOST"] = "registry.agenta.ai:80"
+        response = client.images.push(repository=f"{registry}", tag="latest", stream=True)
         print("Docker image uploaded successfully.")
+        print("Response:", response)
+        for line in response:
+            print(line)
 
         # Clean up the temporary Dockerfile
         dockerfile_path.unlink()
