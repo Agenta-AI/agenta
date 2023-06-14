@@ -1,5 +1,4 @@
-docker_host="registry.agenta.ai:80"
 database_url="localhost:5432"
-registry="agenta-server"
+registry="registry.agenta.ai:443/agenta-server"
 backend_endpoint="http://demo.agenta.ai/api"
 allow_origins="http://localhost:3000,http://localhost:3001,http://demo.agenta.ai"
