@@ -124,9 +124,24 @@ def start_variant(variant_name: str, app_folder: str):
         ).ask()
 
     endpoint = client.start_variant(app_name, variant_name)
+    click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg='green'))
     click.echo(
-        f"""You app has been deployed locally as an api: {endpoint}/openapi.json \n\n
-Go to the playground to experiment with your app : http://localhost:3000/apps/{app_name}/playground \n"""
+        click.style(f"Your app has been deployed locally as an API. 🚀", fg='cyan') +
+        click.style(f" You can access it here: ", fg='white') +
+        click.style(f"{endpoint}/", bold=True, fg='yellow')
+    )
+
+    click.echo(
+        click.style(f"\nRead the API documentation. 📚", fg='cyan') +
+        click.style(f" It's available at: ", fg='white') +
+        click.style(f"{endpoint}/docs", bold=True, fg='yellow')
+    )
+
+    click.echo(
+        click.style("\nStart experimenting with your app in the playground. 🎮", fg='cyan') +
+        click.style(" Go to: ", fg='white') +
+        click.style(f"http://localhost:3000/apps/{app_name}/playground", bold=True, fg='yellow') +
+        "\n"
     )
 
 
