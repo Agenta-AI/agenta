@@ -13,6 +13,7 @@ os.environ["REGISTRY"] = toml_config["registry"]
 os.environ["BACKEND_ENDPOINT"] = toml_config["backend_endpoint"]
 os.environ["ALLOW_ORIGINS"] = toml_config["allow_origins"]
 
+
 class Settings(BaseSettings):
     # docker_host: str
     database_url: str
