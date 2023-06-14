@@ -7,8 +7,8 @@ def setup_db():
     conn = sqlite3.connect('context.db')
     c = conn.cursor()
     c.execute('''
-    CREATE TABLE contexts
-    (id text primary key, context text)
+    CREATE TABLE IF NOT EXISTS contexts
+    (id INTEGER PRIMARY KEY AUTOINCREMENT, context TEXT)
     ''')
     conn.commit()
     conn.close()
@@ -43,7 +43,8 @@ def get_contexts() -> List[Context]:
 def save_context(result: Context):
     conn = sqlite3.connect('context.db')
     c = conn.cursor()
-    c.execute("INSERT INTO contexts VALUES (?, ?)",
-              (result.context_data['id'], result.to_json()))
+    c.execute('''
+    INSERT INTO contexts (context) VALUES (?)
+    ''', (result.to_json(),))
     conn.commit()
     conn.close()
