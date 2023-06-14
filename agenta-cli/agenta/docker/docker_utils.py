@@ -74,8 +74,13 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
         # Upload the Docker image to the Agenta registry
         print("Uploading Docker image...")
         print(f"Uploading to {registry}")
-        os.environ["DOCKER_HOST"] = "registry.agenta.ai:80"
-        response = client.images.push(repository=f"{registry}", tag="latest", stream=True)
+        try:
+            response = client.images.push(
+                repository=f"{registry}/{app_name.lower()}_{variant_name.lower()}", tag="latest", stream=True)
+        except Exception as ex:
+            logger.error(f"Error uploading Docker image:\n {ex}")
+            # Print the build log
+            raise ex
         print("Docker image uploaded successfully.")
         print("Response:", response)
         for line in response:
