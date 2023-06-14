@@ -62,6 +62,8 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
             image, build_log = client.images.build(
                 path=temp_dir,
                 tag=tag,
+                buildargs={"ROOT_PATH": f"/{app_name}/{variant_name}"},
+
                 rm=True  # Remove intermediate containers after a successful build
             )
 
