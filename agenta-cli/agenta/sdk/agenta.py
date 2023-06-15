@@ -5,15 +5,18 @@ import inspect
 import os
 import sys
 import traceback
-from typing import Any, Callable, Optional
 from pathlib import Path
-from dotenv import load_dotenv
-from fastapi import FastAPI, UploadFile, Depends
+from tempfile import NamedTemporaryFile
+from typing import Any, Callable, Optional
+
+from fastapi import Depends, FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from tempfile import NamedTemporaryFile
 
-load_dotenv()
+from .context import get_contexts, save_context
+from .types import FloatParam, InFile, TextParam, Context
+from .router import router as router
+
 app = FastAPI()
 
 origins = [
@@ -29,25 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-class InFile:
-    def __init__(self, file_name: str, file_path: str):
-        self.file_name = file_name
-        self.file_path = file_path
-
-
-class TextParam(str):
-
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update({"x-parameter": "text"})
-
-
-class FloatParam(float):
-
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update({"x-parameter": "float"})
+app.include_router(router, prefix='')
 
 
 def ingest_file(upfile: UploadFile):
@@ -101,7 +86,6 @@ def ingest(func: Callable[..., Any]):
                 inspect.Parameter(
                     name,
                     param.kind,
-                    default=None,
                     annotation=UploadFile
                 )
             )
@@ -152,9 +136,14 @@ def post(func: Callable[..., Any]):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        print("nlkjlj;jklkjlk")
         kwargs = {**app_params, **kwargs}
         try:
-            return func(*args, **kwargs)
+            result = func(*args, **kwargs)
+            print(result, type(result))
+            if isinstance(result, Context):
+                save_context(result)
+            return result
         except Exception as e:
             traceback_str = ''.join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__))
             return JSONResponse(status_code=500, content={"error": str(e), "traceback": traceback_str})
