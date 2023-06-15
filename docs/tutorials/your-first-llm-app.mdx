@@ -20,7 +20,31 @@ mkdir my-first-app; cd my-first-app
 agenta init
 ```
 
-Follow the prompts to initialize your project.
+Follow the prompts to initialize your project. Make sure to select `start with an empty project` when prompted.
+
+Now create a virtual environment:
+
+```bash
+python3 -m venv env
+source env/bin/activate
+```
+
+Finally let's create a requirements.txt and add within it our dependencies
+
+```
+langchain
+agenta
+python-dotenv
+```
+
+Install the dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Now we're ready to start writing our app.
+
 
 ## 2. Write a Simple LLM App
 
