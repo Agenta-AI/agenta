@@ -1,0 +1,507 @@
+
+
+Thomson Reuters StreetEvents Event Transcript
+E D I T E D   V E R S I O N
+
+Q1 2021 NVIDIA Corp Earnings Call
+MAY 21, 2020 / 9:30PM GMT
+
+================================================================================
+Corporate Participants
+================================================================================
+
+ * Colette M. Kress
+   NVIDIA Corporation - Executive VP & CFO
+ * Jen-Hsun Huang
+   NVIDIA Corporation - Co-Founder, CEO, President & Director
+ * Simona Jankowski
+   NVIDIA Corporation - VP of IR
+
+================================================================================
+Conference Call Participiants
+================================================================================
+
+ * Toshiya Hari
+   Goldman Sachs Group Inc., Research Division - MD
+ * Vivek Arya
+   BofA Merrill Lynch, Research Division - Director
+ * Aaron Christopher Rakers
+   Wells Fargo Securities, LLC, Research Division - MD of IT Hardware & Networking Equipment and Senior Analyst
+ * Joseph Lawrence Moore
+   Morgan Stanley, Research Division - Executive Director
+ * Stacy Aaron Rasgon
+   Sanford C. Bernstein & Co., LLC., Research Division - Senior Analyst
+ * William Stein
+   SunTrust Robinson Humphrey, Inc., Research Division - MD
+ * Timothy Michael Arcuri
+   UBS Investment Bank, Research Division - MD and Head of Semiconductors & Semiconductor Equipment
+ * Harlan Sur
+   JP Morgan Chase & Co, Research Division - Senior Analyst
+ * Mark John Lipacis
+   Jefferies LLC, Research Division - MD & Senior Equity Research Analyst
+ * Christopher James Muse
+   Evercore ISI Institutional Equities, Research Division - Senior MD, Head of Global Semiconductor Research & Senior Equity Research Analyst
+ * John William Pitzer
+   Crédit Suisse AG, Research Division - MD, Global Technology Strategist and Global Technology Sector Head
+ * Matthew D. Ramsay
+   Cowen and Company, LLC, Research Division - MD & Senior Technology Analyst
+
+================================================================================
+Presentation
+--------------------------------------------------------------------------------
+Operator    [1]
+--------------------------------------------------------------------------------
+Good afternoon. My name is Josh, and I will be your conference operator today. At this time, I would like to welcome everyone to NVIDIA's Financial Results Conference call. (Operator Instructions) Thank you. 
+Simona Jankowski, you may begin your conference.
+
+--------------------------------------------------------------------------------
+Simona Jankowski,  NVIDIA Corporation - VP of IR    [2]
+--------------------------------------------------------------------------------
+Thank you. Good afternoon, everyone, and welcome to NVIDIA's conference call for the first quarter of fiscal 2021. With me on the call today from NVIDIA are Jensen Huang, President and Chief Executive Officer; and Colette Kress, Executive Vice President and Chief Financial Officer. I'd like to remind you that our call is being webcast live on NVIDIA's Investor Relations website. The webcast will be available for replay until the conference call to discuss our financial results for the second quarter of fiscal 2021. The content of today's call is NVIDIA's property. It can't be reproduced or transcribed without our prior written consent.  
+During this call, we may make forward-looking statements based on current expectations. These are subject to a number of significant risks and uncertainties, and our actual results may vary materially. For a discussion of factors that could affect our future financial results and business, please refer to the disclosure in today's earnings release, our most recent Form 10-K and 10-Q and the reports that we may file on Form 8-K with the Securities and Exchange Commission. All our statements are made as of today, May 21, 2020, based on information currently available to us. Except as required by law, we assume no obligation to update any such statements.  
+During this call, we will discuss non-GAAP financial measures. You can find a reconciliation of these non-GAAP financial measures to GAAP financial measures in our CFO commentary, which is posted on our website.  
+With that, let me turn the call over to Jensen.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [3]
+--------------------------------------------------------------------------------
+Thanks, Simona. Before Colette describes our quarterly results, I'd like to thank those who are on the front lines of this crisis, first responders, health care workers, service providers, who inspires every day with their bravery and selflessness. I also want to acknowledge the incredible efforts of our colleagues here at NVIDIA. Despite many challenges, they have barely broken stride during one of the busiest periods in our history.  
+Our efforts related to the virus are focused in 3 areas. First, we're taking care of our families and communities. We've pooled in raises by 6 months to put more money in our employees' hands, and NVIDIA and our people have donated thus far more than $10 million to those in need.  
+Second, we're using NVIDIA's unique capabilities to fight the virus. A great deal of science being done on COVID-19 uses NVIDIA technology for acceleration when every second counts. Some of the many examples, including sequencing the virus, analyzing drug candidates, imaging the virus at molecular resolution with cryo-electron microscopy and identifying elevated body temperature with AI cameras.  
+And third, because COVID-19 won't be the last killer virus, we need to be ready for the next outbreak. NVIDIA technology is essential for the scientific community to develop an end-to-end computational defense system, a system that can detect early, accelerate the development of a vaccine, contain the spread of disease and continuously test and monitor.  
+We are racing to deploy the NVIDIA Clara computational health care platforms, Clara Parabricks can accelerate genomics analysis from days to minutes. Clara Imaging will continue to partner with leading research institutes to develop state-of-the-art AI models to detect infections, and Clara Guardian will connect AI to cameras and microphones and hospitals to help overloaded staff watch over patients.  
+We completed the acquisition of Mellanox on April 27. Mellanox is now NVIDIA's networking brand and business unit and will be reported as part of our data center market platform, and Israel is now one of NVIDIA's major technology centers.  
+The new NVIDIA has a much larger footprint in data center computing, end-to-end and full-stack expertise in data center architectures and tremendous scale to accelerate innovation. NVIDIA Mellanox are a perfect combination and position us for the major forces shaping the IT industry today, data center scale computing and AI.  
+From micro service cloud applications to machine learning and AI, accelerated computing and high-performance networking are critical to modern data centers. Previously, a CPU compute node was the unit of computing. Going forward, the new unit of computing is an entire data center. The basic computing elements are now storage servers, CPU servers and GPU servers, and are composed and orchestrated by hyperscale applications that are serving millions of users simultaneously. Connecting these computing elements together is the high-performance Mellanox networking. This is the era of data center scale computing. And together, NVIDIA Mellanox can architect end to end. Mellanox is an extraordinary company, and I'm thrilled that we're now one force to invent the future together.  
+Now let me turn the call over to Colette.
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [4]
+--------------------------------------------------------------------------------
+Thanks, Jensen. Against the backdrop of the extraordinary events unfolding around the globe, we had a very strong quarter. Q1 revenue was $3.08 billion, up 39% year-on-year, down 1% sequentially and slightly ahead of our outlook, reflecting upside in our data center and gaming platforms.  
+Starting with gaming. Revenue of $1.34 billion was up 27% year-on-year and down 10% sequentially. We are pleased with these results, which exceeded expectations in the quarter, marked by the unprecedented challenge of the COVID-19.  
+Let me give you some color. Early in Q1, as the epidemic unfolded, demand in China was impacted with iCafes closing for an extended period. As the virus spread globally, much of the world started working and learning from home, and gameplay surged. Globally, we have seen 50% rise in gaming hours played on our GeForce platform, driven both by more people playing and more gameplay per user.  
+With many retail outlets closed, demand for our products has shifted quite efficiently to e-tail channels globally. Gaming laptops revenue accelerated to its fastest year-on-year growth in 6 quarters. We are working with our OEMs, channel partners to meet the growing needs of the professionals and students engaged in working, learning and playing at home. In early April, our global OEM partners announced a record new 100 NVIDIA GeForce-powered laptops with availability starting in Q1 and the most to ship in Q2. These laptops are the first to use our high-end GeForce RTX 2080 SUPER and 2070 SUPER GPUs, which have been available for desktop since last summer.  
+In addition, OEMs are bringing to market laptops based on the RTX 2060 GPU at just $999, a price point that enables a larger audience to take advantage of the power and features of RTX, including its unique ray tracing and AI capabilities. These launches are well-timed as mobile and remote computing needs accelerate.  
+The global rise in gaming also lifted sales of NVIDIA Nintendo Switch and our console business, driving strong growth both sequentially and year-over-year. We collaborated with Microsoft and Mojang to bring RTX ray tracing to Minecraft, the world's most popular game with over 100 million gamers monthly and over 100 billion total views on YouTube. Minecraft with RTX looks astounding with realistic shadows and reflections. Light that reflects, refracts and scatters through surfaces as naturalistic effects like fog. Reviews for it are off the charts. Ars Technica called it a jaw-dropping stunner, and PC World said it was glorious to behold.  
+Our RTX technology stands apart, not only with our 2-year lead in ray tracing but with its use of AI to speed up and enhance games using the Tensor Core silicon on our RTX class GPUs. We introduced the next version of our AI algorithm called Deep Learning Super Sampling. In real time, DLSS 2.0 can fill the missing bits from every frame, doubling performance. It represents a major step function from the original, and it can be trained on nongaming-specific images, making it universal and easy to implement.  
+The value and momentum of our RTX GPUs continue to grow. We have a significant upgrade opportunity over the next year with the rise and tide of RTX-enabled games, including major blockbusters like Minecraft and Cyberpunk. Let me also touch on our game streaming service, GFN, which exited beta this quarter. It gives gamers access to more than 650 games with another 1,500 in line to get onboarded. These include Epic Games, Fortnite, which is the most played game on GFN; and other popular titles such as CONTROL, Destiny 2 and League of Lighting in the fall. Since launching in February, GFN has added 2 million users around the world, with both sign-ups and hours of gameplays boosted by stay-at-home measures. GFN expands our market reach to the billions of gamers with underpowered devices. It is the most publisher-friendly, developer-friendly game streaming service with the greatest number of games and the only one that supports ray tracing.  
+Moving to Pro Visualization. Revenue was $307 million, up 15% year-on-year and down 7% sequentially. Year-on-year revenue growth accelerated in Q1 driven by laptop workstations and Turing adoption.  
+We are seeing continued momentum in our ecosystem for RTX ray tracing. We now have RTX support for all major rendering visualization and design software packages, including Autodesk Maya, Dassault's CATIA, Pixar's RenderMan, Chaos Group's V-Ray and many others. Autodesk has announced that the latest release of VRED, its automotive 3D visualization software, supports NVIDIA RTX GPUs. This enables designers to take advantage of RTX to produce more like-life designs in a fraction of the time versus CPU-based systems. Over 45 leading creative and design applications now take advantage of RTX, driving a sustained upgrade opportunity for Quadro-powered systems while also expanding their reach.  
+We see strong demand in verticals, including health care, media and entertainment and higher education, among others. Higher health care demand was fueled in part by COVID-19 related research at Siemens, Oxford and Caption Health. Caption Health received FDA clearance for an update to its AI-guided ultrasound, making it easier to perform diagnostics-quality cardiac ultrasounds. And in media and entertainment, demand increased as companies like Disney deployed remote workforce initiatives.  
+Turning to automotive and robotic autonomous machines. Automotive revenue was $155 million, down 7% year-on-year and down 5% sequentially. The automotive industry is seeing a significant impact from the pandemic, and we expect that to affect our revenue in the second quarter as well, likely declining about 40% from Q1.  
+Despite the near-term challenges, our important work continues. We believe that every machine that moves someday will have autonomous capabilities. During the quarter, Xpeng introduced the P7, an all-electric sports sedan with innovative Level 3 automated driving features, powered by the NVIDIA DRIVE AGX Xavier AI compute platform. Our open, programmable, software-defined platform enables Xpeng to run its proprietary software while also delivering over-the-air updates for new driving features and capabilities. Production deliveries of the P7 with NVIDIA DRIVE begin next month.  
+Our Ampere architecture will power our next-generation NVIDIA DRIVE platform called Orin, delivering more than 6x the performance of Xavier Solutions and 4x better power efficiency. With Ampere scalability, the DRIVE platform will extend from driverless robotaxis all the way down to in windshield driver assistant systems sipping just a few watts of power. Customers appreciate the top-to-bottom platform all based on a single architecture, letting them build one software-defined platform for every vehicle in their fleet.  
+Lastly, in the area of robotics, we announced that BMW Group has selected the new NVIDIA as a robotics platforms to automate their factories, utilizing logistic robots built on advanced AI computing and visualization technologies.  
+Turning to data center. Quarterly revenue was a record $1.14 billion, up 80% year-on-year and up 18% sequentially, crossing the $1 billion mark for the first time. Announced last week, the A100 is the first Ampere architecture GPU. Although just announced, A100 is in full production, contributed meaningful to Q1 revenue and demand is strong. Overall, data center demand was solid throughout the quarter. It was also broad-based across hyperscale and vertical industry customers as well as across workloads, including training, inference and high-performance computing. We continue to have solid visibility into Q2.  
+The A100 offers the largest leap in performance to date over our 8 generations of GPUs, boosting performance by up to 20x over its predecessor. It is exceptionally versatile, serving as a universal accelerator for the most important high-performance workloads, including AI training and inference as well as data analytics, scientific computing and cloud graphics.  
+Beyond its leap performance and versatility, the A100 introduces new elastic computing technologies that make it possible to bring rightsized computing power to every job. A multi-instance GPU capability allows each A100 to be partitioned into as many as 7 smaller GPU instances. Conversely, multiple A100 interconnected by our third-generation NVLink can operate as one giant GPU for ever larger training tasks. This makes the A100 ideal for both training and for inference. The A100 will be deployed by the world's leading cloud service providers and system builders, including Alibaba cloud, Amazon Web Services, Baidu Cloud, Dell Technologies, Google Cloud platform, HPE and Microsoft Azure, among others. It is also getting adopted by several supercomputing centers, including the National Energy Research Scientific Computing Center and the Jülich Supercomputing Centre in Germany and Argonne National Laboratory.  
+We launched and shipped the DGX A100, our third-generation DGX and the most advanced AI system in the world. The DGX A100 is configurable from 1 to 56 independent GPUs to deliver elastic software-defined data center infrastructure for the most demanding workloads from AI training and inference to data analytics.  
+We announced 2 products for edge AI: the EGX A100 for larger commercial off-the-shelf servers; and the EGX Jetson Xavier NX for micro-edge servers. Supported by full AI optimized cloud, native and secure software, the EGX platform is built for AI computing at the edge. With the EGX, hospitals, retail stores, farms and factories can securely carry out real-time processing of the massive amounts of data streaming from trillions of edge sensors. NVIDIA EGX makes it possible to securely, deploy and manage and update fleets of servers remotely. EGX is also ideal for the massive computational challenge of 5G networks, which we are working on with our partners like Ericsson and Mavenir.  
+Additionally, we announced CUDA 11 and other important software harnessing the A100's performance and universatility (sic) [universality] to accelerate 3 of the most complex and fast-growing workloads: recommendation systems, conversational AI and data science.  
+First, NVIDIA Merlin is a deep recommendator (sic) [recommender] application framework that enables developers to quickly build state-of-the-art recommendation systems, leveraging our pretrained models. With billions of users and trillions of items on the Internet, deep recommendators are the critical engine powering virtually every internet service.  
+Second, NVIDIA Jarvis is a GPU-accelerated application framework that makes it easy for developers to create, deploy and run end-to-end real-time conversational AI applications that understand terminology unique to each company and its customers using both vision and speech. Demand for these applications are surging. Amid the shift to working from home, telemedicine and remote learning.  
+And third, in the field of data science and data analytics, we announced that we are bringing end-to-end GPU acceleration to Apache Spark, an analytics engine for big data processing that uses more than 500,000 data scientists worldwide. Native GPU acceleration for the entire Spark pipeline, from extracting, transforming and loading the data to training to inference, delivers the performance and the scale needed to finally connect the potential of big data with the power of AI. Adobe has achieved a 7x performance improvement and a 90% cost savings in an initial test using GPU-accelerated data analytics with Spark.  
+Our accelerated computing platform continues to gain momentum, underscored by the tremendous success of GTC Digital, our annual GPU technology conference, which shifted this spring to an online format. More than 55,000 online developers and AI research registered for the online event, which includes hundreds of hours of free content from AI practitioners and industry experts who leverage NVIDIA's platforms.  
+Our ecosystem is now 1.8 million developers strong. Times like these truly test a computing platform's metal in the utility it brings to scientist racing for solutions. Researchers around the world are deploying our GPU computing platform in the fight against COVID-19. Scientists are combining AI simulation to detect changes in pneumonia cases, sequence, the virus and seek effective biomolecular compounds for a vaccine or treatment.  
+The first breakthrough came from researchers at the University of Texas at Austin and National Institute of Health, who used the GPU-accelerated application to create the first 3D atomic scale map of virus using NVIDIA GPUs. This was followed by researchers at Oak Ridge National Laboratory who screened 8,000 compounds to identify 77 promising drug targets using the world's fastest supercomputer, Summit, which is powered by more than 27,000 NVIDIA GPUs.  
+The V100 GPUs at Oak Ridge are in high demand as they can analyze 17 million compound protein combinations in a day. They'll help understand the virus spread pattern, the University of California, San Diego, researchers ported their microbiomic analysis software to GPUs in the San Diego supercomputing cluster of 500x analysis speed up from what some people are more susceptible to the virus.  
+Okay. Moving to the rest of the P&L. Q1 GAAP gross margins was 65.1% and non-GAAP was 65.8%, up sequentially and year-on-year, primarily driven by GeForce GPU product mix and higher data center sales. Q1 GAAP operating expenses were $1.03 billion, and non-GAAP operating expenses were $821 million, up 10% and 9% year-on-year, respectively. Q1 GAAP EPS was $1.47, up 130% from a year earlier, and non-GAAP EPS was $1.80, up 105% from a year ago. Q1 cash flow from operations was $909 million.  
+Before I turn to the outlook, let me make a few comments on our Mellanox acquisition. Beyond the strong strategic and cultural fit that Jensen has discussed, Mellanox has exceptionally strong financial profile. The company reported revenue of $429 million in its March quarter, accelerating to 40% year-on-year growth, with GAAP and non-GAAP gross margins in the mid- to high 60% range. We expect the acquisition to be immediately accretive to non-GAAP gross margins, non-GAAP earnings per share and free cash flow. We aim to retain the full Mellanox team and accelerate investments in our combined road map as we jointly innovate on our shared vision for the future of accelerated computing.  
+With that, let me turn to the outlook of the second quarter of fiscal 2021, which includes a full quarter contribution from Mellanox. We have assumed in our outlook the potential ongoing impact from COVID-19. We expect our automotive platform sales to be down 40% on a sequential basis and Pro Viz to decline sequentially. In gaming, while we will likely see ongoing impact from the partial operations or closures of iCafes and retail stores, we expect that to be largely offset by a shift to e-tail channels. Overall, the precise magnitude of the impact is difficult to predict, given uncertainties around the reopening of the economy. Overall, we expect second quarter revenue to be $3.65 billion, plus or minus 2%. The contribution of Mellanox revenue is likely to be in the low teens percentage range of our total Q2 revenue. We are providing this breakout to help with comparability between Q1 and Q2. But going forward, it will become an integrated part of our data center market platform.  
+GAAP and non-GAAP gross margins are expected to be 58.6% and 66%, respectively, plus or minus 50 basis points. The sequential decline in GAAP gross margins primarily reflects an increase in acquisition-related costs, most of which are nonrecurring.  
+GAAP and non-GAAP operating expenses are expected to be approximately $1.52 billion, and $1.04 billion, respectively. The sequential change in GAAP operating expenses reflects an increase in stock-based compensation and acquisition-related costs. GAAP and non-GAAP operating expenses for the full year are expected to be approximately $5.7 billion and $4.1 billion, respectively. For the full year, stock-based compensation and acquisition-related costs also influence.  
+GAAP and non-GAAP OI&E are both expected to be an increase of approximately $50 million and $45 million, respectively. GAAP and non-GAAP tax rates are both expected to be 9%, plus or minus 1%, excluding discrete items. Capital expenditures are expected to be approximately $225 million to $250 million. Further financial details are included in the CFO commentary and other information available on our IR website.  
+New this quarter, we have also posted an investor presentation summarizing our results and key highlights. In closing, let me highlight upcoming events for the financial community. Next Thursday, May 28, we will webcast a presentation and Q&A with Jensen on our recent product announcement moderated by Evercore. We will also be at Cowen's TMT Conference on May 27; Morgan Stanley's Cloud Secular Winners Conference on June 1; BoFa's Technology Conference on June 2; Needham's Fourth Automotive Technology Conference on June 3 and Nasdaq Investor Conference on June 16.  
+Operator, we will now open for questions. Can you please poll for questions, please.
+
+
+================================================================================
+Questions and Answers
+--------------------------------------------------------------------------------
+Operator    [1]
+--------------------------------------------------------------------------------
+(Operator Instructions) Aaron Rakers with Wells Fargo.
+
+--------------------------------------------------------------------------------
+Aaron Christopher Rakers,  Wells Fargo Securities, LLC, Research Division - MD of IT Hardware & Networking Equipment and Senior Analyst    [2]
+--------------------------------------------------------------------------------
+Congratulations on a solid quarter. Colette, I'm curious of your commentary around visibility in the data center side, that that's comments over the last couple of quarters, how would you characterize your visibility today relative to maybe what it was last quarter? And how do we think about the visibility in the context of trends maybe into the back half of the calendar year.
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [3]
+--------------------------------------------------------------------------------
+Thanks, Will, for the question. You are correct. We have indicated a couple of quarters ago that we were starting to see improved visibility after we came out of the digestion period in the prior overall fiscal year. As we move into Q2, we still have visibility and solid visibility into our Q2 results for overall data centers. So at this time, I'd say they are relatively about the same of what we had seen going into the Q1 period. And we think that is a true indication of their excitement about our platform and most particularly our excitement regarding A100, and that's launched and its additional products. 
+Now regarding the second half of the year, as you know, we have seen broad-based growth in both the hyperscale and the vertical industries, both of them in terms of at record levels. In our Q1 results. And we see in terms of inferencing continuing to grow as well, as well as we're also expanding in terms of edge AI. Our strong demand of the A100 products, including the Delta Board, but also in terms of our DGXs, was just starting an initial ramp. However, we do guide only 1 quarter at a time. So it's still a little bit too early for us to give a true certainty in terms of the macro situation that's in front of us. But again, we feel very good about the demand for A100.
+
+--------------------------------------------------------------------------------
+Operator    [4]
+--------------------------------------------------------------------------------
+Your next question comes from Stacy Rasgon with Bernstein Research.
+
+--------------------------------------------------------------------------------
+Stacy Aaron Rasgon,  Sanford C. Bernstein & Co., LLC., Research Division - Senior Analyst    [5]
+--------------------------------------------------------------------------------
+I first wanted to follow-up on your gaming commentary. You sort of mentioned a couple of offsets. COVID potentially still a headwind, e-tail or tailwind and maybe offsetting each other. Were you trying to suggest that those did offset completely and gaming was kind of flattish into Q2? Because I know it has a typical seasonal pattern switches typically up. I guess what were you trying to say with those kind of factors? And what are the kinds of things we should be thinking about when it comes to seasonality, Colette, into Q2 around that business segment?
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [6]
+--------------------------------------------------------------------------------
+So let me start, and I'll see if Jensen also wants to add on to it. I think you're talking about our sequential between Q1 and Q2. Some of the...
+
+--------------------------------------------------------------------------------
+Stacy Aaron Rasgon,  Sanford C. Bernstein & Co., LLC., Research Division - Senior Analyst    [7]
+--------------------------------------------------------------------------------
+Yes. That's right.
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [8]
+--------------------------------------------------------------------------------
+Right. Some of the pieces that we had seen related to COVID-19 in Q1 may carry over into Q2. COVID-19, in fact, had an impact in terms of our retail channels as well as our iCafes. However, as we discussed, efficiently, moved to overall e-tail. We have normally been seasonally down in desktop between Q1 and Q2, and that will likely happen. But we do see the strength in terms of laptops and overall consoles as we move for Q1 to Q2. So in summary, we do expect grow sequentially between Q1 and Q2 for our overall gaming business. And I'll turn it over to Jensen to see if he has additional commentary.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [9]
+--------------------------------------------------------------------------------
+No, that was great. That was fantastic.
+
+--------------------------------------------------------------------------------
+Stacy Aaron Rasgon,  Sanford C. Bernstein & Co., LLC., Research Division - Senior Analyst    [10]
+--------------------------------------------------------------------------------
+Yes. I guess just to follow up on that, though, if it's growing. I mean like in prior years, we've seen it grow like very strong double digits. Obviously, the mix of the business was different back then. But do you think that the kind of -- I mean are we thinking kind of it's up somewhat? You don't -- is there any chance that it could be up like on -- for what we've seen in terms of like typical levels in the past? Like can you give us any sense of magnitude, that would be really helpful?
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [11]
+--------------------------------------------------------------------------------
+Yes. I think when we think about that sequential growth, we'll probably be in the low -- moving up to probably the mid-single digits in terms of -- that's what our guidance right now, and we'll just have to see how the quarter goes.
+
+--------------------------------------------------------------------------------
+Stacy Aaron Rasgon,  Sanford C. Bernstein & Co., LLC., Research Division - Senior Analyst    [12]
+--------------------------------------------------------------------------------
+Yes. That's very helpful.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [13]
+--------------------------------------------------------------------------------
+Stacy, the thing that I would add is this. I would say, I think the guidance is exactly what Colette mentioned. But if you look at the big picture, there's a few dynamics that are working really well in our favor. First, of course, is that RTX and ray tracing is just the home run. Minecraft was phenomenal. We have 33 games in the pipe that has already been announced or shipping. Just about every game developers signed on to RTX and ray tracing, and I think it's a foregone conclusion that this is the next generation. This is the way computer graphics is going to be in the future. And so I think RTX is a home run. 
+The second, the notebooks that we create is just doing great. We got 100 notebooks in gaming. We have 75 notebooks designed for either mobile workstations or what we call NVIDIA studio for designers and creators. And the timing was just perfect. With everybody needing to stay at home, the ability to have a mobile gaming platform and a mobile workstation, it was just perfect timing. And then, of course, you guys know quite well that our Nintendo Switch is doing fantastic. There are 3 -- the top 3 games in the world. The top games in the world today are Fortnite, Minecraft and Animal Crossing. All 3 games are NVIDIA platforms. And so I think we have all the dynamics working in our favor. And then we just got to see how it turns out.
+
+--------------------------------------------------------------------------------
+Operator    [14]
+--------------------------------------------------------------------------------
+Your next question comes from Joe Moore with Morgan Stanley.
+
+--------------------------------------------------------------------------------
+Joseph Lawrence Moore,  Morgan Stanley, Research Division - Executive Director    [15]
+--------------------------------------------------------------------------------
+I wanted to ask about the rollout of Ampere how quickly does that roll in the various segments between hyperscale as well as on the DGX side as well as on the HPC side. And is it a smooth transition? Is there -- I remember when you launched Volta, there was a little bit of a transitional pause. Just can you tell us how you see that ramping up with the different customer segments?
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [16]
+--------------------------------------------------------------------------------
+Yes. Thanks a lot, Joe. So first of all, taking a step back. Accelerated computing is now common sense in data centers. It wasn't the case when we first launched Volta. If you went back to Volta, Volta was the first generation that the deep learning training in a really serious way, and it was really focused on training. It was focused on training and high-performance computing. We didn't come until later with the inference version called T4. 
+But over the course of the last 5 years, we've been accelerating workloads that are now diversifying in data centers. If you take a look at most of the hyperscalers, machine learning is now pervasive. Deep learning is now pervasive. The notion of accelerated deep learning and machine learning using our GPUs is now common sense. It didn't used to be. People still saw it as something esoteric. But today, data centers all over the world expect a very significant part of their data center being accelerated with GPUs. The number of workloads that we've accelerated since in the last 5 years have expanded tremendously, whether it's imaging or video or conversational AI or deep recommender systems that probably unquestionably, at this point, the most important machine learning model in the world. And so the number of applications we now accelerate is quite diverse. And so that's really -- that's contributed greatly to the ramp of Ampere. When we came -- when we started to introduce Ampere to the data center, it was very commonsensical to them that they would adopt it. They have a large amount of workload that's already accelerated by NVIDIA GPUs. 
+And as you know, our GPUs are architecturally compatible from generation to generation. We're forward compatible or backwards compatible. Everything that runs on T4 runs on A100, everything that runs on V100 runs on A100. And so I think the transition is going to be really, really smooth. On the other hand, because V100 and T4 -- which, by the way, V100 and T4 had a great quarter. It was sequentially up. And then on top of that, we grew with the A100 shipment. A100 -- or excuse me, V100 and T4 are now quite broadly adopted in hyperscalers for their AI services, in cloud computing, in a vertical industries, which is almost roughly half of our overall HPC business. All the way out to the edge, which had a great quarter. Much smaller part, of course -- supercomputing is important, but it's a very small part of the high-performance computing. But that's also -- we also shipped A100 to supercomputing centers. And so I think the general sense of it -- the summary of it is that the number of workloads for accelerated computing has continued to grow, the adoption of machine learning and AI and all the cloud and hyperscalers has grown. The common sense of using acceleration is now a foregone conclusion. And so I think we're ramping into a very receptive market with a really fantastic -- with a really fantastic product.
+
+--------------------------------------------------------------------------------
+Operator    [17]
+--------------------------------------------------------------------------------
+Your next question comes from Vivek Arya with Bank of America.
+
+--------------------------------------------------------------------------------
+Vivek Arya,  BofA Merrill Lynch, Research Division - Director    [18]
+--------------------------------------------------------------------------------
+Congratulations on the strong growth and execution. Just a quick clarification. Colette, 66% kind of the new baseline for gross margin? And then the question, Jensen, for you, is give us a sense for how much inference as a workload and payer as a product are expected to contribute? I'm just curious where you are in terms of growing in the inference and edge AI market? And where are we kind of in the journey of Ampere penetration?
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [19]
+--------------------------------------------------------------------------------
+So let me start on the first question regarding the gross margin and our gross margin as we look into Q2. We are guiding Q2 non-GAAP gross margins at 66%. This is -- would be another record gross margin quarter just as we finished an overall record level, even as we are continuing right now to ramp our overall Ampere architecture within that. The Q2 also incorporates Mellanox. Mellanox has a very similar overall margins to our overall data center margins as well. But we see this new baseline as a great transition and likely to see some changes as we go forward. However, it's still a little early to see where these gross margins will go. But we're very pleased with the overall guidance right now at 66% for Q2.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [20]
+--------------------------------------------------------------------------------
+Accelerated computing is just at the beginning of its journey. If you look at -- I would characterize it as several segments. First is hyperscaler AI microservices, which is all the services that we enjoy today that has AI. Whenever you shop on the web, it recommends a product. When you're watching a movie, it recommends a movie or it recommends a song. All of those -- or recommends news or recommends a friend or recommends a website, the first 10 websites that they recommend. All of these recommenders that are powering the Internet are all based on machine learning today. It's the reason why they're collecting so much data. The more data they can collect, the more they could predict your preference, and that predicting your preference is the core to a personalized Internet. It used to be largely based on CPU approaches. But going forward, it's all based on deep learning approaches. The results are much more superior and a few percentage change in preference prediction accuracy could result in tens of billions of dollars of economics. 
+And so this is very, very big deal. And the shift towards deep learning in hyperscale micro services or AI micro services is still ramping. Second is cloud. And as you know, cloud is a $100 billion market segment of it today, growing about 40% into $1 trillion opportunity. This -- cloud computing is the single largest IT industry transformation that we have ever seen. The 2 powers that is really -- the force -- the 2 forces that is really driving our data center business is AI and cloud computing. We're perfectly, perfectly positioned to benefit from these 2 powerful forces. So the second is cloud computing. And that journey is -- has a long ways to go. Then the third is industrial edge. In the future, today -- it's not the case today. But the combination of IoT, 5G, industrial 5G and artificial intelligence, it's going to turn every single industry into a tech industry. And whether it's logistics or warehousing or manufacturing or farming, construction, industrial, every single industry will become a tech industry. And there'll be trillions of sensors, and they'll be connected to little micro data centers. 
+And those data centers will be in the millions. They'll be distributed all over the edge. And that journey has just barely started. We announced 3 very important partners in 3 domains. And they're the lead partners that we felt that people would know, but we have several hundred partners that are working with us on edge AI. We announced Walmart for smart retail. We announced the U.S. Postal Service, the world's largest mail sorting service and logistics service. And then we announced this last quarter, BMW, who is working with us to transform their factory into a robotics, automated factory of the future. And so these 3 applications are great examples of the next phase of artificial intelligence and where Ampere is going to ramp into. And that is just really at its early stages. And so I think it's fair to say that we're really well positioned in the 2 fundamental forces of IT today, data center scale computing and artificial intelligence. And the segments that it's going to make a real impact are all gigantic markets. Hyperscale AI, cloud and edge AI.
+
+--------------------------------------------------------------------------------
+Operator    [21]
+--------------------------------------------------------------------------------
+Your next question comes from C.J. Muse with Evercore.
+
+--------------------------------------------------------------------------------
+Christopher James Muse,  Evercore ISI Institutional Equities, Research Division - Senior MD, Head of Global Semiconductor Research & Senior Equity Research Analyst    [22]
+--------------------------------------------------------------------------------
+I guess if I could ask 2. Colette, can you help us with what you think the growth rate for Mellanox could look like in calendar '20? And then Jensen, a bigger picture question for you and really not specific to health care, more broad-based. But how do you think about the long-lasting impact of COVID on worldwide demand for AI?
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [23]
+--------------------------------------------------------------------------------
+C.J., can you help me? You cut out in the middle of your sentence to me. Can you repeat the first part of it for me?
+
+--------------------------------------------------------------------------------
+Christopher James Muse,  Evercore ISI Institutional Equities, Research Division - Senior MD, Head of Global Semiconductor Research & Senior Equity Research Analyst    [24]
+--------------------------------------------------------------------------------
+No, sorry about that. I'm curious if you could provide a little handholding on what we should think about for growth for Mellanox in calendar '20?
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [25]
+--------------------------------------------------------------------------------
+At this time, it's a little early for us. And as you know, we generally just go 1 quarter out, and we're excited to bring the Mellanox team on board so we can start beginning the future of building products together. For the overall margin, their overall performance over the last couple of quarters, they had a great last year. They had a great March quarter as well. And we're just going to have to stay tuned to see equally with them what the second half of the year looks for them. Okay?
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [26]
+--------------------------------------------------------------------------------
+Yes, C.J., thanks for the question. This pandemic is really quite tragic, and it's reshaping industries and markets. And I think it's going to be structural. I think it's going to remain. And I think your question is really good because now it's a good time to think about where to double down. There's a few areas that I believe are going to be structurally changed. And I think that once I say it, it'll be very sensible. The first is that the world's enterprise digital transformation and moving to the cloud, that is going to accelerate. Every single company can't afford to rely just on on-prem IT. They have to be much more resilient. And having a hybrid cloud computing infrastructure is  going to provide them the resilience they need. And so that's one. And when the world moves and accelerates into this $1 trillion IT infrastructure transformation, which is now $100 billion into that journey, it's growing 40% a year, I wouldn't be surprised to see that accelerate. And so cloud computing AI is going to accelerate because of that. The second is the importance of creating a computational defense system. The defense systems of most nations today are based on radar. And yet in the future, our defense systems are going to detect things that are unseeable. It's going to be infectious disease. 
+And I think every nation and government and scientific lab is now gearing up to think about what does it take to create a national defense system for each country that is based on computational methods? And NVIDIA is an accelerated computing company. We take something that otherwise would take a year in the case of Oak Ridge, and they filter 1 billion compounds in a day. And that's what you need to do. You need to find a way to have an accelerated computational defense system that allows you to find insight, detect early warning ASAP. And then, of course, the computational system has to go through the entire range from mitigation to containment to living within the monitoring. And so scientific labs are going to be gearing up. National labs are going to be gearing up. The third part is AI and robotics. We're going to have to have the ability to be able to do our work remotely. 
+NVIDIA has a lot of robots that are helping us in our labs. And without those robots helping us in our labs, we'll have a hard time getting our work done. And so we need to have remote autonomous capability for -- to handle all of these -- either dangerous circumstances to disinfect environments, to fumigate environments autonomously, to clean environments, to be able to interact with people where as little as possible in the event of an outbreak. All kinds of robotics applications are being dreamed up right now to help society forward in the case of another outbreak. And then lastly, I think more and more people are going to work permanently from home. There's a strong movement of companies that are going to support a larger percentage of people working from home. And when people work from home, it's going to clearly increase the single best home entertainment, which is video games. I think video games is going to represent a much larger segment of the overall entertainment budget of society. 
+And so these are some of the trends, I would say. I would say cloud computing, AI. I would say national labs, a computational defense system, robotics and working from home are structural changes that are going to be here to stay. And these dynamics are really good for us.
+
+--------------------------------------------------------------------------------
+Operator    [27]
+--------------------------------------------------------------------------------
+Your next question comes from Toshiya Hari with Goldman Sachs.
+
+--------------------------------------------------------------------------------
+Toshiya Hari,  Goldman Sachs Group Inc., Research Division - MD    [28]
+--------------------------------------------------------------------------------
+I had one for Colette and then one for Jensen as well, if I may. Colette, I wanted to come back to the gross margin question. You're guiding July essentially flat sequentially, despite what I'm guessing is better mixed with non-ops coming in and automotive guided down 40% sequentially. I guess the question is, what are some of the offsets that are pulling down gross margins in the current quarter? And sort of related to that, how should we be thinking about the cadence and OpEx going forward, given the 6-month pull in that you guys talked about on the compensation side? And then one quick one for Jensen. I was hoping you could comment on the current trade landscape between the U.S. and China. I feel like you guys shouldn't be impacted in a material way directly nor indirectly. But at the same time, given the critical role you play in scientific computing, I can sort of see a scenario where some people may claim that you guys contribute to efforts outside of the U.S. So if you can kind of speak on that -- speak to that, that will be helpful.
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [29]
+--------------------------------------------------------------------------------
+Thanks, Toshiya, for your question. So regarding our gross margins in the second quarter, our second quarter guide at 66% is up sequentially from even a record level in terms of what we had in terms of Q1. This next record that we hope to achieve with our overall guidance is even with including our overall Ampere architecture. So typically, when we transition to a new architectures, margins can somewhat be a little bit lower on the onset but tend to kind of move up and trend up over time. Additionally, as you articulated, our automotive is lower. But also, we're going to see growth in some of our platforms in gaming such as consoles, which may offset those 2. But overall, there's nothing structural to really highlight other than our mix in business and the ramp of Ampere and its transition.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [30]
+--------------------------------------------------------------------------------
+Let's see, the trade tension. We've been living in this environment for some time, Toshiya. And as you know, the trade tension has been in the background for coming up on a year, probably gotten longer. And China's high-performance computing systems are largely based on Chinese electronics anyhow. And so that's -- I think our condition won't materially change going forward.
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [31]
+--------------------------------------------------------------------------------
+So Toshiya, let me respond to your second question that you had for me, which was regarding to our OpEx and our decision to pull forward our overall local into Q2. This is something that we've normally done later in the year. We felt it was prudent during the current COVID-19. Although our employees are quite safe. We just wanted to make sure that their family members also were safe and had the opportunity to have cash upfront. It is about a couple of months, about 4 months earlier than normal, and it is incorporated in our guidance for Q2.
+
+--------------------------------------------------------------------------------
+Operator    [32]
+--------------------------------------------------------------------------------
+Your next question comes from Mark Lipacis with Jefferies.
+
+--------------------------------------------------------------------------------
+Mark John Lipacis,  Jefferies LLC, Research Division - MD & Senior Equity Research Analyst    [33]
+--------------------------------------------------------------------------------
+A question coming back to the A100. I'm trying to understand how this kind of fits into the evolution of your solution set over time and the evolution of the demand for the applications. Is -- and I guess if I think about it going back, you had a solution, which is largely training based. And then you kind of introduced solutions that were targeted more inferencing. And now you have a solution, it sounds to my understanding that it solves both inferencing and training efficiently. And so I guess I'm wondering is 3 years, 5 years, 10 years down the line, is this part of the kind of general purpose computing or acceleration framework that you had talked about in the past, Jensen, where Ampere is kind of like an Ampere-class product? Or is this -- would you still -- should we still expect to see inferencing-specific solutions in the market and then training-specific solutions and then an Ampere solution for a different class application? If you could provide a framework for thinking about Ampere in those context, I think that would be helpful.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [34]
+--------------------------------------------------------------------------------
+Yes. Thanks for the call, Mark. Good Question. I think the -- if you take a step back, currently in our data centers, the current setup in data centers, starting from probably all the way back, 6, 7 years ago, but really accelerating in the last 5 years and then really accelerating in the last couple of years, we learned our way into it. There are 3 classes of workloads, and they kind of came into acceleration over time. The first class of workload that we discovered was -- the major workload was deep learning training. Deep learning training. And the ideal setup for that today prior to Ampere or yesterday prior to Ampere is the V100 SXM with NVLink, 8 GPUs on one board, and that architecture is called scale up. It's like a supercomputer architecture. It's like a -- it's like a weather simulation architecture. You're trying to build the largest possible computing node you can for one operating system called scale up. And the second thing that we learned along the way was then cloud computing started to grow because researchers around the world needed to get access to an accelerated platform for developing their machine learning algorithms. And because they have a different degree of budget, and they want to get into it, a little bit more lightly and have the ability to scale up to larger nodes, the perfect model for that was actually a V100 PCI Express, not SXM, but PCI Express that allows you to offer 1 GPU all the way up to many GPUs. 
+And so that versatility, V100 PCI Express, not as scalable in performance as the V100 SXMs, but it was much more flexible for rentals. Cloud renting was really quite ideal. And then we started to get into inference, and we're on our seventh generation of TensorRT, TensorRT 7.0. Along the way, we've been able to accelerate more and more. And today, we largely accelerate every deep learning inference computational graph that's out there. And the ideal GPU for that was something that has the reduced precision, which is called (inaudible), reduced precision not with electronics that is focused more for inference -- and because inference is a scale-out application, where you have millions of queries, and each one of the queries are quite small versus scale up, where you have 1 training job and that 1 training job is running for a day. 
+It could be running for days and sometimes even weeks. And so scale-up application is for 1 user that uses it for a long period of time on a very large machine. Scale out, it's for millions of users, each one of them have a very small query and that query could last hundreds of milliseconds and where ideally, you like to get it done in hundreds of milliseconds. And so notice, I've said 3 different architecture in a data center today. Most data centers today has a storage server, has CPU servers, and it has scale-up acceleration service with Voltas has scaled out servers with GeForce and then it has scale cloud computing, flexible servers based on V100. And so the ability to predict workload is so hard, and therefore, the utilization of these systems will be spiky. And so we created an architecture that allows for 3 things. 
+So things -- the 3 characteristics of Ampere are: number one, it is the greatest generational leap in history. I mean I don't remember a generation where we increased throughput for training and inference by 20x. And it's just a gigantic -- for training and for inference, it is a gigantic leap forward. The second, it's the first architecture that is unified. We could use this to the computational -- the computation engine of Ampere accelerates the moment the data comes into the data center. From data processing, it's called [ETO]; the engine, which many of you probably know, it's the single most important computational engine in the world today for big data. It used to be Hadoop, but now it's Spark. Spark is used all over the world, 16,000 customers. We finally have the ability to accelerate that. 
+And then it's -- Ampere is also good for training, deep learning, machine learning, extra boost as well as deep learning, all the way out to inference. And so we now have a unified acceleration platform for the entire workload. And then the third thing is it's the first GPU ever, the first acceleration platform ever that's elastic. You could reconfigure it. You could configure it for either scale up or you can configure it for scale out. When you configure it for scale up, you're gaining a whole bunch of GPUs together using NVLink, and it creates this 1 gigantic GPU. When you want to scale it out, that same computation node becomes 56 small GPUs. Each one of those 56 partitions, each 1 is more powerful than Volta. 
+I mean it's really quite extraordinary. And so Ampere is a breakthrough on all of these fronts for performance for the fact that it unifies the workload, and you can now have 1 acceleration cluster; and then number three, it's elastic. You could use in the cloud, you could use for inference, you could use it for training. And so the versatility of Ampere is the thing that I'm most excited about. And now you could have 1 acceleration cluster that serves all of your needs. That's very helpful.
+
+--------------------------------------------------------------------------------
+Operator    [35]
+--------------------------------------------------------------------------------
+Your next question comes from Timothy Arcuri with UBS.
+
+--------------------------------------------------------------------------------
+Timothy Michael Arcuri,  UBS Investment Bank, Research Division - MD and Head of Semiconductors & Semiconductor Equipment    [36]
+--------------------------------------------------------------------------------
+Actually I had 2, I guess, Jensen, first for you. Just on the data center business, things have been very strong recently. Obviously, there's always concerns that customers are pulling in CapEx, but it sounds like you have pretty good visibility into July. But I guess last time, most folks also thought that your kind of attrition really was so low that you would be immune into any digestion, but that wasn't the case. So I guess I'm wondering, if things are different now with A100 and whatnot, but my question is how do you handicap your ability to this time, maybe get through any digestion on the CapEx side? And then I guess, second question, Colette, stock comp had been running like 220 a quarter, and the guidance implies that it goes to like 460 a quarter. So it goes up a lot. Is that all executive retention? And is that sort of the right level as you look into 2021?
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [37]
+--------------------------------------------------------------------------------
+Colette, did you want to handle that first? And then I'll do the...
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [38]
+--------------------------------------------------------------------------------
+Sure. So let me help you out on the overall GAAP adjustments, so the delta between our GAAP OpEx and our non-GAAP OpEx. If you look at it for the full year and what we guided, we probably have about $1.55 billion associated with GAAP level expenses. Keep in mind, there is more in there than just our stock-based compensation. We have also incorporated the accounting that we will do for the overall Mellanox, and a really good portion of those costs are associated with the amortization of intangibles and also in terms of acquisition-related costs and deal fees and onetime items. So our stock-based compensation includes what we need for NVIDIA and also the onboarding of Mellanox. There is some retention with the overall onboarding of Mellanox. But for the most part, it is just working them in to the year for 3 quarters, which is influencing the stock-based compensation.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [39]
+--------------------------------------------------------------------------------
+Tim, there are several differences between our condition then and our condition today. So the first -- the first difference is the diversity of workload we now accelerate. Back then, we were early in our inference. We were still early in our inference, and most of the data center acceleration was used for deep learning. And so today, the versatility stands from data processing to deep learning and the number of -- the number of different types of AI models that's being trained for deep learning is growing tremendously from detecting, from training video, from training a model to detecting unsafe video. The natural language understanding the conversational AI to now a gigantic movement towards deep recommender systems. And so the number of different models that are being trained is growing. The size of the models are gigantic. Recommendation systems are gigantic. They're training on models that are hundreds. The data sizes, hundreds of terabytes. Terabytes, hundreds of terabytes. And it would take tens of -- hundreds of servers to hold all of the data that is needed to train these recommender systems. And so the diversity of -- from data analytics to training all the different models to the influence of all different models. We didn't inference recurring elements at a time, which is probably the most important model today. Text language models, speech models are all recurrent, Euronet models. And so those models were early for us at the time. So number one is the diversity of workload. The second is the acceleration of -- to cloud computing. I think that accelerated cloud computing is a movement that is going to be a multiyear if not a decade-long transition. From where we are today, it's only $100 billion industry segment of the IT industry. It's going to be $1 trillion someday, and that movement is just starting. We're also much more diversified out of the clouds. At the time, cloud was largely where our acceleration went for deep learning. And today, hyperscale only represents about half. And so we've diversified significantly out of cloud, not out of cloud, but including vertical industries. And a lot of that has to do with edge AI and inference. And as I mentioned earlier, we're working with Walmart and BMW and USPS, and that's just the tip of the iceberg. And so I think the conditions are a little different. And then what I would say lastly is Ampere. I mean we are -- we've ramped a few weeks. Even though it was quite significant, it was a great ramp. The demand is fantastic. It is the best ramp we've ever had. The demand is the strongest we've ever had in data centers. And we're starting to ramp of a multiyear ramp. And so -- those are some of the differences. I think the conditions are very different.
+
+--------------------------------------------------------------------------------
+Operator    [40]
+--------------------------------------------------------------------------------
+Your next question comes from Harlan Sur with JPMorgan.
+
+--------------------------------------------------------------------------------
+Harlan Sur,  JP Morgan Chase & Co, Research Division - Senior Analyst    [41]
+--------------------------------------------------------------------------------
+Jensen, the team has showed the importance of networking, networking fabric and the Mellanox acquisition, like, for example, when you guys move from Volta DGX-1 to Volta DGX-2, you guys didn't change the GPU chipset. But by adding a custom networking fabric chip and more Mellanox network interface cards, among other things, you guys drove a pretty significant improvement in performance per GPU. But now when we think about scaling out compute acceleration to data center skilled implementation, how does Mellanox' Ethernet switching platforms differ from those provided by other large networking OEMs, some of whom have been your long-term partners? And then how does the Cumulus acquisition fit into the switching and networking strategy as well?
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [42]
+--------------------------------------------------------------------------------
+Yes. Great. Thanks a lot, Harlan. I appreciate the question. So DGX, you know this is our third-generation DGX and it's really successful. People love it. It's the most advanced AI instrument in the world. If you're a serious AI researcher, this is your instrument. And in the DGX, there are 8 A100s and there are 9 Mellanox NICs, the highest speed NICs they have. And so we have a great appreciation for high-performance networking. High-performance networking and high-performance computing go hand-in-hand. And the reason for that is because the problems we're trying to solve no longer fit in one computer, no matter how big it is. And so it has to be distributed. And when you distribute a computational workload of such intense scale, the communications overhead becomes one of its greatest bottlenecks, which is the reason why Mellanox is so valuable. There's reason why this company is so precious and really a jewel and one of a kind. And so -- and it's not just about the link speed. It's not mostly. 
+I mean we just have a deep appreciation for software. It's a combination of architecture and software and electronics design, chip design. And in that combination, Mellanox is just world-class. And that's the reason why they're in 60% of the world's supercomputers. That's why they're in 100% of the AI supercomputers. And their understanding of large-scale distributed computing is second to none. Now in the world of -- and I just talked about scale up. And you're absolutely right. 
+Now the question is why scale out? And the reason for that is this. This is the reason why they're doing so well. The movement towards disaggregated microservice applications where containers, microservice containers are distributed all over the data center and orchestrated so that the workload could be distributed across a very large hyperscale data center. That architecture -- and you probably know the 3 most important application in my estimation in the world today, number one, would be TensorFlow and PyTorch; number two would be Spark; and number three would be Kubernetes. And you could rank it however you desire. 
+And these 3 applications, in the case of Kubernetes, it's a brand-new type of application where the application is broken up with a small pieces and orchestrated across an entire data center. And because it's broken up into small pieces and orchestrate across the entire data center, the networking between the compute nodes becomes the bottleneck again. And that's the reason why they're doing so well. By increasing the network performance by offloading the communications of the CPUs, you increase the throughput of a data center tremendously. And so it's the reason why they had a record quarter last quarter. It's the reason why they've been growing 27% per year. And their stock was back, their integration into the hyperscale cloud companies, they're low latency, they're incredibly low latency of their link makes them really unique, even whether it's Ethernet or InfiniBand in both cases. 
+And so they're -- it's a really fantastic stack. And then lastly, Cumulus, we would like to integrate -- we would like to innovate in this world where the world is moving away from just a CPU as a compute node. The new computing unit, a software developer is writing a piece of software that runs on the entire data center. In the future, going forward, the computing, the fundamental computing unit is an entire data center. It's so incredible. It's just utterly incredible. You write an application, 1 human could write an application, and it would literally activate an entire data center. And in that world, we would like to be able to innovate from end to end, from networking storage, security. Everything has to be secured in the future so that we can reduce the attack surface down to practically nothing. 
+And so networking storage, security are all completely offloaded, all incredibly low latency, all incredibly high performance and all the way to compute, all the way through the switch. And then the second thing is we'd like to be able to innovate across the entire stack. You know that NVIDIA is just supremely obsessed about software stacks. And the reason for that is because software creates markets. You can't create new markets like we're talking about, whether it's computational health care or autonomous driving or robotic or conversational AI or recommender systems or edge AI. All of that requires software stacks. It takes software to create markets. And so our obsession about software and creating open platforms for the ecosystem and all of our developer partners, Cumulus plays perfectly into that. They are -- they pioneered the open networking stack. And they pioneered, in a lot of ways, software-defined data centers. And so we're super, super excited about the team. And now we have the ability to innovate in a data center scale world from end to end and then from top to bottom of the entire stack.
+
+--------------------------------------------------------------------------------
+Operator    [43]
+--------------------------------------------------------------------------------
+Your next question comes from William Stein with SunTrust.
+
+--------------------------------------------------------------------------------
+William Stein,  SunTrust Robinson Humphrey, Inc., Research Division - MD    [44]
+--------------------------------------------------------------------------------
+Jensen, I'd like to focus on something you said. I think it was in one of your earlier responses, you said something about a very significant part of data centers are now accelerated with GPUs. I'm sort of curious how to interpret that. If we think about sort of the evolution of compute architecture going from almost entirely, let's say, [REX and REXs] CPUs to some future day where we have many more accelerators and maybe a much smaller number of CPUs relative to those. Maybe you can talk to us about where we are in terms of that architectural shift and where you think it goes sort of longer term, where we are in the position of that?
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [45]
+--------------------------------------------------------------------------------
+Yes. I appreciate the question. And this, for computer architecture geeks and people who follow history, you know well that in the entire history of time, there are only 2 computing architectures that has made it so far, which is one of them is x86. The other one's ARM in any reasonable way. And if you get an ARM computer, you get an x86 computer, you can program it. And  in fact, there's no such thing as an accelerated computing platform until we came along. 
+And today, we're the only computing -- accelerated computing platform that you could really largely address. We're in every cloud. We're in every computer company. We're in every country. We have every single size, and we accelerate applications from computer graphics to video games to scientific computing to workstations to machine learning to robotics. This journey took 20-some-odd years. Inside our company, it took 20-some-odd years. And we've been focused on accelerated computing since the beginning of our company. And we made a general purpose. We made a general purpose really starting with an endeavor cost Cg, C for graphics, and then it became CUDA. And we've been working on accelerated computing for quite a long time. 
+And I think at this point, it's a foregone conclusion that accelerated computing has reached the tipping point and is well beyond it. The number of developers this year that support -- that we supported was almost 2 million developers around the world, and it's growing what appears to be exponentially. And so I think accelerated computing is now well established. NVIDIA-accelerated computing is well established. It's common sense, and people who are designing data centers expect to put accelerated computing in it. The question is how much? How much accelerated computing do you use? And what part of the date in your pipeline do you do it? And the big -- the gigantic breakthrough, of course, we know well now, and NVIDIA is recognized as one of the 3 pillars that ignited the modern AI, the big bang of modern AI. 
+And the other 2 pillar, of course, is deep learning algorithm and the abundance of data. And so the 3 -- these 3 ingredients came together and was -- people use NVIDIA accelerated computing largely for training. But over time, we expanded training to have a lot more models. And as I mentioned earlier, the single most important model of machine learning today is the recommender system. It's the most important model because it's the only way that you and I could use the Internet in any reasonable way. It's the only way that you and I could use a shopping website or a video web -- a video app or a music app or book or news or anything. And so it is the engine of the Internet from the consumer's perspective. On the company perspective, it is the engine of commerce. Without the recommender system, there's no way they could possibly make money. 
+And so their accuracy in predicting user preferences is core to everything they do. You just go up and down the list of every company. And that engine is gigantic. It is just a gigantic engine. And from the data processing part of it, which is the reason why we went and spent 3 years on Spark and RAPIDS, which made Spark possible and all the work that we did on NVLink and all that stuff was really focused on big data analytics. The second is all of the training of the deep learning models and the inference. So the number of applications, the footprint, the accelerated computing has grown tremendously, and its importance has grown tremendously because of the applications are the most important applications of these companies. And so I think when I mentioned -- when I said that, that acceleration is still growing, it is. But the major workloads, the most important workloads of the world's most important companies are now -- solidly require acceleration. And so I'm looking forward to a really exciting ramp for Ampere for all the reasons that I just mentioned.
+
+--------------------------------------------------------------------------------
+Operator    [46]
+--------------------------------------------------------------------------------
+Your next question comes from John Pitzer with Crédit Suisse.
+
+--------------------------------------------------------------------------------
+John William Pitzer,  Crédit Suisse AG, Research Division - MD, Global Technology Strategist and Global Technology Sector Head    [47]
+--------------------------------------------------------------------------------
+Just 2 quick ones. Colette, I hate to ask something as mundane as OpEx, but just given the full year guide, there's sort of a lot to unpack. And you talked about some of it like the raises. I mean I think you also probably have some COVID plus or minuses in that. I think there's an extra week this year as well. And then, of course, there's Mellanox and how you're thinking about investing in that asset. 
+I guess I'm just kind of curious, when we look at the full year guide, is there something structural going on OpEx as you try to take advantage of all these opportunities? Or can we use it as sort of a guidepost to how you're thinking about revenue for the back half of the year as well? How do I understand that? And then, Jensen, just a quick one for you. It kind of makes sense to me that COVID is accelerating activity in sort of HPC and hyperscale and maybe even in certain verticals like health care. But in the other verticals, has the sort of shelter in place kind of hurt engagement? And could we actually come out of COVID with some pent-up demand in those vertical markets?
+
+--------------------------------------------------------------------------------
+Colette M. Kress,  NVIDIA Corporation - Executive VP & CFO    [48]
+--------------------------------------------------------------------------------
+Okay. Thanks, John, for the question. Let's start from the first perspective on the overall OpEx for the year. We've guided the non-GAAP at approximately $4.1 billion for the year. Yes, that incorporates 3 full quarters of Mellanox, Mellanox and its employees. We have about close to 3,000 Mellanox employees coming on board. You are correct. We have a 53rd week in this quarter -- excuse me, not this quarter, this year. 
+And that is -- has been outlined in SEC filings, and you should expect that as well. We pulled forward a little bit our focal by several months in order to take care of our employees. And then lastly though, we are investing in our business. We see some great opportunities. You've seen some good results from our investment, and there's more to do. We are hiring and investing in those businesses. So there's nothing different structurally, but just this onset of Mellanox and are investing together, I think, we'll produce long-term great results.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [49]
+--------------------------------------------------------------------------------
+And as usual, John, you know that we're investing into the IT industry's largest opportunities, cloud computing and AI. And then after these 2 opportunities is edge AI. And so we're looking down the fairway with some pretty extraordinary opportunities. But as usual, we're thoughtful about the rate of investment, and we're well-managed. And NVIDIA's leadership team are excellent managers, and you could count on us to continue to do that. Simona, what was John's question? Could you just give me one hint? I haven't...
+
+--------------------------------------------------------------------------------
+John William Pitzer,  Crédit Suisse AG, Research Division - MD, Global Technology Strategist and Global Technology Sector Head    [50]
+--------------------------------------------------------------------------------
+Just the idea of engagement levels in verticals, just with shelter in place. Has that hampered...
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [51]
+--------------------------------------------------------------------------------
+Oh yes. Right. Yes, right. Yes, right. A few -- some of the industries have been affected. We already mentioned automotive industry. The automotive industry has been grounded to a halt. Manufacturing hasn't largely stopped. And you saw that in our guidance. We expect automotive to be down 40% quarter-to-quarter. It's not going to remain that way. It's going to come back. And nobody knows what level is going to come back to you and how long, but it's going to come back. And there's no question in my mind that the automotive industry, they're hunkered down right now, but they will absolutely invest in the future of autonomous vehicles. 
+They have to, or they'll be extinct. It's not possible not to have autonomous capability in the future of everything that moves. Not so that it could just completely drive without you. That a nice benefit, too. But mostly because of safety and comfort and just a joy of what seems like the car is reading your mind. And of course, you're still responsible for driving it and -- but it just seems to be coasting down the road, reading your mind and helping you. And so I think the future of autonomous vehicles is a certainty. People recognize the incredible economics that the pioneer, Tesla, is enjoying. And the industry is going to go after it. 
+The future car companies are going to be software-defined companies and technology companies. And they would love to have an economic that allows them to enjoy the installed base of their fleets. And so they're going to go after it. And so this is -- I'm certain that this is going to come back. And well, I have every confidence is going to come back. And let's see, the energy sectors are -- have been impacted. The retail sector has been impacted. There's -- those aren't large industries for us. The impact in some of the industries is accelerating their focus in robotics. Like, for example, on the one hand, BMW has obviously impacted in manufacturing, which is the reason why they're moving so rapidly towards robotics. They have to figure out a way to get robotics into their factories. So same thing with retail. You're going to see a lot more robotic support in retail, you're going to see a lot more robotic support in warehouses, in logistics. And so during this time, when the market -- when the industry is disrupted and impacted, it allows the market leaders to really lean into investing into the future. And so when they come back, they'll be coming back stronger than ever.
+
+--------------------------------------------------------------------------------
+Operator    [52]
+--------------------------------------------------------------------------------
+And your next question comes from Matt Ramsay with Cowen.
+
+--------------------------------------------------------------------------------
+Matthew D. Ramsay,  Cowen and Company, LLC, Research Division - MD & Senior Technology Analyst    [53]
+--------------------------------------------------------------------------------
+Two different topics, Jensen. Well, first of all, congrats on Ampere. It's a heck of a product. The first question...
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [54]
+--------------------------------------------------------------------------------
+Thank you, Matt. I'm so proud.
+
+--------------------------------------------------------------------------------
+Matthew D. Ramsay,  Cowen and Company, LLC, Research Division - MD & Senior Technology Analyst    [55]
+--------------------------------------------------------------------------------
+The first question is it might have been a little bit hard to talk when the deal was pending about this topic, but now that it's closed, maybe you could talk a little bit about opportunities to innovate on and customize the Mellanox stack and the balance of having an industry standard. And the second one is E3 canceled, Computex moved around. At the same time, there's obviously stay-at-home gaming demand. Just how you think about gaming product, launch logistics? And any comments on there would be really helpful.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [56]
+--------------------------------------------------------------------------------
+Yes. Thanks a lot, Matt. I appreciate your questions. I'll go backwards because it's kind of cool. On the one hand, I do miss that we can't engage the developers face to face. It's just so much fun. GTC is doing all their work and the hundreds of papers that are presented, I learned so much each time. And frankly, I really enjoyed the analyst meeting that we have. And so there's all kinds of stuff that I missed about the physical GTC, but here's the amazing thing. 
+We had almost -- the GTC kitchen keynote. I did it from my kitchen just right behind me, and the kitchen keynote has been viewed almost 4 million times. And the video is incredible. And so I think our reach is -- could be quite great. And so I'm not too -- we've got an amazing marketing team, and we just -- we've got great people. They're going to find a way to reach our gamers. And whenever we launch something next, you know that gamers are going to be and our customers are going to be -- our end markets are going to be really excited to see it. And so I'm very confident that we're going to do just fine. Matt, what was the question before? I should never do backwards.
+
+--------------------------------------------------------------------------------
+Matthew D. Ramsay,  Cowen and Company, LLC, Research Division - MD & Senior Technology Analyst    [57]
+--------------------------------------------------------------------------------
+Just the industry standard versus customization of Mellanox opportunity.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [58]
+--------------------------------------------------------------------------------
+I see. Okay. Yes. There's -- we work so closely with Mellanox over the years. And on the day that we announced GTC, you could see the number of products that we have working together. The product synergies are really incredible, and the product synergies include a lot of software development that went in and a lot of architectural development that went in. DGX comes with 9 Mellanox, Matt, as I mentioned. If you look at our data center, we ship -- before we ship DGXs to the customers, we ship it to our own engineers. And the reason for that is because every single product in our company has AI in it. 
+From Jarvis to Metropolis to Merlin to DRIVE to Clara to Isaac to -- right? All of our products has AI in it, and we're accelerating frameworks for all of the AI industry. And Ampere comes with a brand-new numerical format called Tensor Float 32. And TF32 is just a fantastic [medium medical] format and the performance is incredible. And we had to get it integrated in with the industry standard frameworks. And now Tensor Float comes standard with Tensor Flow -- with TF -- NVIDIA TF32, and PyTorch come standard with TF32. And so we need our own large-scale data center. And so the first customer we ship to was ourselves. And then we started shipping as quickly as we could to all of the customers. You saw that in our data center, in our supercomputer. 
+We have 170 -- 170 state-of-the-art, brand-new Mellanox switches. And almost 1,500 -- 200 gigabit per second Mellanox mix. And 15 kilometers of cables, fiber optic cables. And that is one of the most powerful supercomputers in the world today, and it's based on Ampere. And so we have a great deal of work that we did there together. We announced our first edge computer between us and Mellanox in this new card, we call it the EGX A100. It integrates Ampere and it integrates Mellanox' CX-6 Dx, which is designed for 5G telcos and edge computing. It's incredible security and has a single route of trust, and it's virtualized. And so basically, we -- this EGX A100, when you put it into a standard center x86 server, turns that server into a cloud computer in a box. 
+The entire capability of a cloud, of a state-of-the-art cloud, which is cloud native, it's secure, it has incredible AI processing, it's now completely hyperconverged inside 1 box. The technology that made EGX A100 is really quite remarkable. And so you could see all the different product synergies that we have in working together. We could have done Spark acceleration without the collaboration with Mellanox. They worked on this piece of networking software called UCX. We worked on [nickel] together. It made possible the infrastructure for large-scale distributor computing. I mean just the list goes on and on and on. And so we -- the 2 teams have great chemistry. The culture -- it's a great culture fit. I love working with them. And right out of the chute, you saw all of the great product synergies that are made possible because of the combination.
+
+--------------------------------------------------------------------------------
+Operator    [59]
+--------------------------------------------------------------------------------
+That is all the time we have for questions. I'll turn the call back to Jensen Huang for closing remarks.
+
+--------------------------------------------------------------------------------
+Jen-Hsun Huang,  NVIDIA Corporation - Co-Founder, CEO, President & Director    [60]
+--------------------------------------------------------------------------------
+It's coming. Let me just -- thank you. We had a great and busy quarter. With our announcements, we highlighted several initiatives. First, computing is moving to data center scale where computing and networking go hand in hand. The acquisition of Mellanox gives us deep expertise and scale to innovate from end to end. Second, AI is the most powerful technology force of our time. Our Ampere generation offers several breakthroughs. It is the largest ever generational leap 20x in training and inference throughput; the first unified acceleration platform for data analytics, machine learning, deep learning, training and inference; and the first elastic accelerator that can be configured for scale-up applications like training to scale-out applications like inference. 
+Ampere is fast, it's universal and it's elastic. It's going to re-architect the modern data center. Third, we are opening large new markets with AI software application framework, such as Clara for health care, DRIVE for autonomous vehicles, Isaac for robotics, Jarvis for conversational AI, Metropolis for edge IoT, AERIAL for 5G and Merlin with the very important recommender systems. And then finally, we have built up multiple engines of accelerated computing growth. RTX computer graphics, artificial intelligence, and data center scale computing from cloud to edge. I look forward to updating you on our progress next quarter. Thanks, everybody.
+
+--------------------------------------------------------------------------------
+Operator    [61]
+--------------------------------------------------------------------------------
+This concludes today's conference call. You may now disconnect.
+
+
+
+
+
+
+
+--------------------------------------------------------------------------------
+Definitions
+--------------------------------------------------------------------------------
+PRELIMINARY TRANSCRIPT: "Preliminary Transcript" indicates that the 
+Transcript has been published in near real-time by an experienced 
+professional transcriber.  While the Preliminary Transcript is highly 
+accurate, it has not been edited to ensure the entire transcription 
+represents a verbatim report of the call.
+
+EDITED TRANSCRIPT: "Edited Transcript" indicates that a team of professional 
+editors have listened to the event a second time to confirm that the 
+content of the call has been transcribed accurately and in full.
+
+--------------------------------------------------------------------------------
+Disclaimer
+--------------------------------------------------------------------------------
+Thomson Reuters reserves the right to make changes to documents, content, or other 
+information on this web site without obligation to notify any person of 
+such changes.
+
+In the conference calls upon which Event Transcripts are based, companies 
+may make projections or other forward-looking statements regarding a variety 
+of items. Such forward-looking statements are based upon current 
+expectations and involve risks and uncertainties. Actual results may differ 
+materially from those stated in any forward-looking statement based on a 
+number of important factors and risks, which are more specifically 
+identified in the companies' most recent SEC filings. Although the companies 
+may indicate and believe that the assumptions underlying the forward-looking 
+statements are reasonable, any of the assumptions could prove inaccurate or 
+incorrect and, therefore, there can be no assurance that the results 
+contemplated in the forward-looking statements will be realized.
+
+THE INFORMATION CONTAINED IN EVENT TRANSCRIPTS IS A TEXTUAL REPRESENTATION
+OF THE APPLICABLE COMPANY'S CONFERENCE CALL AND WHILE EFFORTS ARE MADE TO
+PROVIDE AN ACCURATE TRANSCRIPTION, THERE MAY BE MATERIAL ERRORS, OMISSIONS,
+OR INACCURACIES IN THE REPORTING OF THE SUBSTANCE OF THE CONFERENCE CALLS.
+IN NO WAY DOES THOMSON REUTERS OR THE APPLICABLE COMPANY ASSUME ANY RESPONSIBILITY FOR ANY INVESTMENT OR OTHER
+DECISIONS MADE BASED UPON THE INFORMATION PROVIDED ON THIS WEB SITE OR IN
+ANY EVENT TRANSCRIPT. USERS ARE ADVISED TO REVIEW THE APPLICABLE COMPANY'S
+CONFERENCE CALL ITSELF AND THE APPLICABLE COMPANY'S SEC FILINGS BEFORE
+MAKING ANY INVESTMENT OR OTHER DECISIONS.
+--------------------------------------------------------------------------------
+Copyright 2020 Thomson Reuters. All Rights Reserved.
+--------------------------------------------------------------------------------
