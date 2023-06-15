@@ -7,8 +7,8 @@ import questionary
 import toml
 from agenta.cli import helper
 from agenta.client import client
-from agenta.client.api_models import AppVariant
-from agenta.docker.docker_utils import build_and_upload_docker_image
+from agenta.client.api_models import AppVariant, Image
+from agenta.docker.docker_utils import build_and_upload_docker_image, build_tar_docker_container
 from docker.models.images import Image as DockerImage
 
 
@@ -60,16 +60,18 @@ def add_variant(variant_name: str, app_folder: str) -> str:
     if not overwrite:
         config['variants'].append(variant_name)
     try:
-        docker_image: DockerImage = build_and_upload_docker_image(
-            folder=app_path, app_name=app_name, variant_name=variant_name)
+        tar_path = build_tar_docker_container(folder=app_path)
+        image: Image = client.send_docker_tar(app_name, variant_name, tar_path)
+        # docker_image: DockerImage = build_and_upload_docker_image(
+        #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
         click.echo(click.style(f"Error while building image: {ex}", fg='red'))
         return None
     try:
         if overwrite:
-            client.update_variant_image(app_name, variant_name, docker_image)
+            client.update_variant_image(app_name, variant_name, image)
         else:
-            client.add_variant_to_server(app_name, variant_name, docker_image)
+            client.add_variant_to_server(app_name, variant_name, image)
     except Exception as ex:
         if overwrite:
             click.echo(click.style(f"Error while updating variant: {ex}", fg='red'))
