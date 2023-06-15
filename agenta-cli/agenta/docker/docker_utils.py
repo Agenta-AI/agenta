@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import docker
+import tarfile
 from agenta.config import settings
 from docker.models.images import Image
 
@@ -26,8 +27,35 @@ def create_dockerfile(out_folder: Path):
     return dockerfile_path
 
 
+def build_tar_docker_container(folder: Path) -> Path:
+    """Builds the tar file container the files needed for the docker container
+
+    Arguments:
+        folder -- the path containing the code for the app
+
+    Returns:
+        the path to the created tar file
+    """
+
+    dockerfile_path = create_dockerfile(folder)
+    shutil.copytree(Path(__file__).parent.parent / "sdk", folder / "agenta", dirs_exist_ok=True)
+    shutil.copy(Path(__file__).parent /
+                "docker-assets" / "main.py", folder)
+    shutil.copy(Path(__file__).parent /
+                "docker-assets" / "entrypoint.sh", folder)
+    # tar the directory
+
+    tarfile_path = folder/"docker.tar.gz"
+    with tarfile.open(tarfile_path, "w:gz") as tar:
+        tar.add(folder, arcname=folder.name)
+    # dockerfile_path.unlink()
+    return tarfile_path
+
+
 def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str) -> Image:
-    """Builds an image from the folder and returns the path
+    """
+    DEPRECATED
+    Builds an image from the folder and returns the path
 
     Arguments:
         folder -- The folder containg the app code
@@ -40,7 +68,6 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
     """
     # Initialize Docker client
     client = docker.from_env()
-    print(folder)
 
     with TemporaryDirectory() as temp_dir:
         # Create a Dockerfile for the app
@@ -64,7 +91,6 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
                 path=temp_dir,
                 tag=tag,
                 buildargs={"ROOT_PATH": f"/{app_name}/{variant_name}"},
-
                 rm=True  # Remove intermediate containers after a successful build
             )
 
