@@ -1,0 +1,16 @@
+entryPoints:
+  web:
+    address: ":80"
+  web-secure:
+    address: ":443"
+
+providers:
+  docker: {}
+
+certificatesResolvers:
+  myResolver:
+    acme:
+      email: "akrem.abayed@gmail.com"
+      storage: "acme.json"
+      httpChallenge:
+        entryPoint: "web"

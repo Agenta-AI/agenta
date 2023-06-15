@@ -1,4 +1,4 @@
 database_url="localhost:5432"
 registry="registry.agenta.ai:443/agenta-server"
-backend_endpoint="http://demo.agenta.ai/api"
-allow_origins="http://localhost:3000,http://localhost:3001,http://demo.agenta.ai"
+backend_endpoint="https://demo.agenta.ai/api"
+allow_origins="http://localhost:3000,http://localhost:3001,https://demo.agenta.ai"

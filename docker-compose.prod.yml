@@ -1,6 +1,6 @@
 services:
   reverse-proxy:
-    image: traefik:v2.0
+    image: traefik:v2.10
     command: --api.insecure=true --providers.docker --entrypoints.web.address=:80
     ports:
       - "80:80"
@@ -8,7 +8,7 @@ services:
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./traefik.toml:/traefik.toml
+      - ./traefik.yml:/traefik.yml
       - ./acme.json:/acme.json
     networks:
       - agenta-network

@@ -119,3 +119,45 @@ def delete_image(image: Image):
     except docker.errors.APIError as ex:
         logger.error(f'Error deleting image with id: {image.docker_id}. Error: {str(ex)}')
         raise RuntimeError(f'Error deleting image with id: {image.docker_id}') from ex
+
+
+def pull_image(image_name: str):
+    """
+    Pulls an image from the Docker registry.
+
+    Args:
+        image_name (str): The name of the Docker image to pull.
+
+    Returns:
+        image: The Docker image that was pulled.
+
+    Raises:
+        RuntimeError: If there was an error while pulling the image.
+    """
+    try:
+        image = client.images.pull(image_name)
+        return image
+    except docker.errors.APIError as e:
+        raise RuntimeError(f"An error occurred while pulling the image: {str(e)}")
+
+
+def is_image_pulled(image_name: str) -> bool:
+    """
+    Pulls the specified Docker image from the Docker registry.
+
+    Args:
+        image_name (str): The name of the Docker image to pull. This
+        string should include the tag if needed (e.g., 'my_image:latest').
+
+    Returns:
+        docker.models.images.Image: The Docker image that was pulled.
+    Raises:
+        RuntimeError: If there was an error while pulling the image.
+    """
+    images = client.images.list()
+
+    for image in images:
+        if image_name in image.tags:
+            return True
+
+    return False
