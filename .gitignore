@@ -24,3 +24,6 @@ examples/**/storage/
 examples/**/entrypoint.sh
 
 acme.json
+examples/**/agenta/
+examples/**/old
+context.db
