@@ -1,10 +1,11 @@
 import os
+from pathlib import Path
 from typing import List
 
+import agenta.config
 import requests
 from agenta.client.api_models import AppVariant, Image
 from docker.models.images import Image as DockerImage
-import agenta.config
 
 BACKEND_URL = os.environ["BACKEND_ENDPOINT"]
 
@@ -13,7 +14,7 @@ class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
-def add_variant_to_server(app_name: str, variant_name: str, docker_image: DockerImage):
+def add_variant_to_server(app_name: str, variant_name: str, image: Image):
     """Adds a variant to the server.
 
     Arguments:
@@ -21,8 +22,6 @@ def add_variant_to_server(app_name: str, variant_name: str, docker_image: Docker
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    image: Image = Image(docker_id=docker_image.id,
-                         tags=f"{docker_image.tags[0]}")
     app_variant: AppVariant = AppVariant(
         app_name=app_name, variant_name=variant_name)
     response = requests.post(f"{BACKEND_URL}/app_variant/add/from_image/",
@@ -91,7 +90,7 @@ def remove_variant(app_name: str, variant_name: str):
             f"Request to remove_variant endpoint failed with status code {response.status_code} and error message: {error_message}")
 
 
-def update_variant_image(app_name: str, variant_name: str, docker_image: DockerImage):
+def update_variant_image(app_name: str, variant_name: str, image: Image):
     """Adds a variant to the server.
 
     Arguments:
@@ -99,8 +98,6 @@ def update_variant_image(app_name: str, variant_name: str, docker_image: DockerI
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    image: Image = Image(docker_id=docker_image.id,
-                         tags=f"{docker_image.tags[0]}")
     app_variant: AppVariant = AppVariant(
         app_name=app_name, variant_name=variant_name)
     response = requests.put(f"{BACKEND_URL}/app_variant/update_variant_image/",
@@ -109,3 +106,18 @@ def update_variant_image(app_name: str, variant_name: str, docker_image: DockerI
         error_message = response.text
         raise APIRequestError(
             f"Request to update app_variant failed with status code {response.status_code} and error message: {error_message}.")
+
+
+def send_docker_tar(app_name: str, variant_name: str, tar_path: Path) -> Image:
+    with tar_path.open('rb') as tar_file:
+        response = requests.post(
+            f"{BACKEND_URL}/containers/build_image/?app_name={app_name}&variant_name={variant_name}",
+            files={
+                'tar_file': tar_file,
+            },
+            timeout=1200
+        )
+
+    response.raise_for_status()
+    image = Image.parse_obj(response.json())
+    return image
