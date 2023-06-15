@@ -2,7 +2,7 @@ import agenta
 from llama_index import VectorStoreIndex, SimpleDirectoryReader, load_index_from_storage, StorageContext, Prompt
 import os
 from pathlib import Path
-from context import Context, save_context
+import agenta as ag
 
 
 def test(index, question):
@@ -21,10 +21,9 @@ def test(index, question):
     return str(response)
 
 
-@agenta.ingest
-def ingest(file1: agenta.InFile, file2: agenta.InFile, question: str):
-    context_name = file1.file_name + "_" + file2.file_name
-    persist_dir = f"./{context_name}"
+@ag.ingest
+def ingest(file1: ag.InFile, file2: ag.InFile, question: str):
+    persist_dir = f"./storage/{file1.file_name}_{file2.file_name}"
     if not os.path.exists(persist_dir):
         documents = SimpleDirectoryReader(input_files=[file1.file_path, file2.file_path]).load_data()
         index = VectorStoreIndex.from_documents(documents)
@@ -33,7 +32,6 @@ def ingest(file1: agenta.InFile, file2: agenta.InFile, question: str):
         print("Loading from storage")
         storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
         index = load_index_from_storage(storage_context)
-    c = Context(persist_dir=context_name)
-    save_context(c)
-    print(test(index, question))
-    return Context(persist_dir=context_name)
+    c = ag.Context(persist_dir=persist_dir)
+    ag.save_context(c)
+    return ag.Context(persist_dir=persist_dir)
