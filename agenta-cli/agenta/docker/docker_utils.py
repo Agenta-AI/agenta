@@ -40,12 +40,13 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
     """
     # Initialize Docker client
     client = docker.from_env()
+    print(folder)
 
     with TemporaryDirectory() as temp_dir:
         # Create a Dockerfile for the app
         # TODO: Later do this in the temp dir
         dockerfile_path = create_dockerfile(folder)
-        shutil.copy(Path(__file__).parent.parent / "agenta.py", folder)
+        shutil.copytree(Path(__file__).parent.parent / "sdk", folder / "agenta",)
         shutil.copy(Path(__file__).parent /
                     "docker-assets" / "main.py", folder)
         shutil.copy(Path(__file__).parent /
