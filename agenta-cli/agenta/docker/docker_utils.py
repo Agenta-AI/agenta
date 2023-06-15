@@ -75,15 +75,29 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
         print("Uploading Docker image...")
         print(f"Uploading to {registry}")
         try:
-            response = client.images.push(
-                repository=f"{registry}/{app_name.lower()}/{variant_name.lower()}", tag="latest", stream=True)
-        except Exception as ex:
-            logger.error(f"Error uploading Docker image:\n {ex}")
-            # Print the build log
-            raise ex
-        print("Docker image uploaded successfully.")
+            repository = f"{registry}/{app_name.lower()}_{variant_name.lower()}"
+            # print(repository)
+            response = client.images.push(repository=repository, tag="latest", stream=False)
 
+            stream_data = response.splitlines()
+
+            # Get the last line of the stream
+            last_line = stream_data[-1]
+            print(last_line)
+            # Load the last line as a JSON object
+            last_line_dict = json.loads(last_line)
+
+            # Now you can process this dictionary as before
+            if 'aux' in last_line_dict and isinstance(last_line_dict['aux'], dict):
+                print("Uploading successful.")
+
+        except json.JSONDecodeError as ex:
+            print(f"Received malformed JSON response: {response}")
+            raise
+        except Exception as ex:
+            logger.error(f"Error in Docker image push operation:\n {ex}")
+            raise ex
 
         # Clean up the temporary Dockerfile
-        dockerfile_path.unlink()
+        # dockerfile_path.unlink()
     return image

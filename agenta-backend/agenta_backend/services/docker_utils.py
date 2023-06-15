@@ -40,10 +40,10 @@ def start_container(image_name, app_name, variant_name) -> URI:
     image = client.images.get(f"{image_name}")
 
     labels = {
-        f"traefik.http.routers.{app_name}-{variant_name}.rule": f"PathPrefix(`/{app_name}/{variant_name}`)",
+        f"traefik.http.routers.{app_name}-{variant_name}.rule": f"PathPrefix(`/{app_name}_{variant_name}`)",
         f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
         f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
-        f"traefik.http.middlewares.{app_name}-{variant_name}.stripprefix.prefixes": f"/{app_name}/{variant_name}",
+        f"traefik.http.middlewares.{app_name}-{variant_name}.stripprefix.prefixes": f"/{app_name}_{variant_name}",
         f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}"
     }
 

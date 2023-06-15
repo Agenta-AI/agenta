@@ -65,7 +65,7 @@ async def add_variant_from_image(app_variant: AppVariant, image: Image):
         HTTPException: If image not found in docker utils list
         HTTPException: If there is a problem adding the app variant
     """
-    image_name=f"{settings.registry}/{app_variant.app_name}_{app_variant.variant_name}"
+    image_name=f"{settings.docker_registry_url}/{settings.registry}/{app_variant.app_name}_{app_variant.variant_name}"
     if not docker_utils.is_image_pulled(image_name):
         try:
             docker_utils.pull_image(image_name)

@@ -4,4 +4,5 @@ database_url="sqlite:////db/deploy.db"
 
 
 # production
-#environment="production"
+# environment="production"
+# docker_registry_url="registry.agenta.ai:443"

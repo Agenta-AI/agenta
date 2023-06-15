@@ -1,3 +1,7 @@
+api:
+  dashboard: true
+  insecure: true
+
 entryPoints:
   web:
     address: ":80"
