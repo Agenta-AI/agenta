@@ -81,7 +81,7 @@ If you are interested using your own code in Agenta Lab, please see this tutoria
 
 #### 3. Write your app and deploy it
 
-Create a `.env` file with you open api key in the same folder as asked in `README.md`
+Create a `.env` file with your open api key in the same folder as asked in `README.md`: `OPENAI_API_KEY= <your-openai-api-key>`
 
 Before adding the app to Agenta Lab, you can test it in your terminal
 
