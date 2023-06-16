@@ -57,7 +57,7 @@ def start_container(image_name, app_name, variant_name) -> URI:
         # Append additional SSL related labels
         print("Adding host and SSL related labels")
         labels.update({
-            f"traefik.http.routers.{app_name}-{variant_name}.rule": f"Host(https://demo.agenta.ai) && PathPrefix(`/{app_name}/{variant_name}`)",
+            f"traefik.http.routers.{app_name}-{variant_name}.rule": f"Host(`demo.agenta.ai`) && PathPrefix(`/{app_name}/{variant_name}`)",
             f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web-secure",
             f"traefik.http.routers.{app_name}-{variant_name}.tls": "true",
             f"traefik.http.routers.{app_name}-{variant_name}.tls.certresolver": "myResolver"
