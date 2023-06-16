@@ -8,6 +8,7 @@ import { updateEvaluationRow, callVariant } from '@/lib/services/api';
 import { useVariant } from '@/lib/hooks/useVariant';
 import { useRouter } from 'next/router';
 import { EvaluationFlow } from '@/lib/enums';
+import { fetchVariants } from '@/lib/services/api';
 
 interface EvaluationTableProps {
     appEvaluation: any;

@@ -178,14 +178,14 @@ const eval_endpoint = axios.create({
 export const loadAppEvaluations = async (app_name: string) => {
     try {
         return await eval_endpoint.get(`?app_name=${app_name}`)
-        .then(responseData => {
-            const appEvaluations = responseData.data.map((item: AppEvaluationResponseType) => {
-                return fromAppEvaluationResponseToAppEvaluation(item);
-            });
+            .then(responseData => {
+                const appEvaluations = responseData.data.map((item: AppEvaluationResponseType) => {
+                    return fromAppEvaluationResponseToAppEvaluation(item);
+                });
 
-            return appEvaluations;
-        })
-    } catch(error){
+                return appEvaluations;
+            })
+    } catch (error) {
         console.error(error);
         throw error;
     }
@@ -194,10 +194,10 @@ export const loadAppEvaluations = async (app_name: string) => {
 export const loadAppEvaluation = async (appEvaluationId: string) => {
     try {
         return await eval_endpoint.get(appEvaluationId)
-        .then(responseData => {
-            return fromAppEvaluationResponseToAppEvaluation(responseData.data);
-        })
-    } catch(error){
+            .then(responseData => {
+                return fromAppEvaluationResponseToAppEvaluation(responseData.data);
+            })
+    } catch (error) {
         console.error(error);
         throw error;
     }
@@ -222,10 +222,10 @@ export const deleteAppEvaluations = async (ids: string[]) => {
 export const loadEvaluationsRows = async (evaluationTableId: string) => {
     try {
         return await eval_endpoint.get(`${evaluationTableId}/evaluation_rows`)
-        .then(responseData => {
-            return responseData.data;
-        })
-    } catch(error){
+            .then(responseData => {
+                return responseData.data;
+            })
+    } catch (error) {
         console.error(error);
         throw error;
     }
