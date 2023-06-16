@@ -66,16 +66,17 @@ async def add_variant_from_image(app_variant: AppVariant, image: Image):
         HTTPException: If there is a problem adding the app variant
     """
     image_name=f"{settings.docker_registry_url}/{settings.registry}/{app_variant.app_name}_{app_variant.variant_name}"
-    if not docker_utils.is_image_pulled(image_name):
-        try:
-            docker_utils.pull_image(image_name)
-        except RuntimeError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+    # image_name=f"{settings.docker_registry_url}/{settings.registry}/{app_variant.app_name}_{app_variant.variant_name}"
+    # if not docker_utils.is_image_pulled(image_name):
+    #     try:
+    #         docker_utils.pull_image(image_name)
+    #     except RuntimeError as e:
+    #         raise HTTPException(status_code=404, detail=str(e))
 
-        try:
-            db_manager.add_variant_based_on_image(app_variant, image)
-        except RuntimeError as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    try:
+        db_manager.add_variant_based_on_image(app_variant, image)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/add/from_previous/")

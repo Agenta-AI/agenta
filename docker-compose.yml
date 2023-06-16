@@ -7,7 +7,7 @@ services:
             - agenta-network
 
     reverse-proxy:
-        image: traefik:v2.0
+        image: traefik:v2.10
         command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
         ports:
             - "80:80"
@@ -16,12 +16,10 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
             - agenta-network
-
     backend:
         build: ./agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
-            - ALLOW_ORIGINS=${ALLOW_ORIGINS}
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
@@ -30,9 +28,20 @@ services:
         depends_on:
             - registry
         labels:
-            - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+            - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.backend.entrypoints=web"
+            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.backend.middlewares=backend-strip"
             - "traefik.http.services.backend.loadbalancer.server.port=8000"
+            - "traefik.http.routers.backend.service=backend"
+            # we redirect /openapi.json to /api/openapi.json, otherwise /docs would not work for fastapi
+            # - "traefik.http.middlewares.backend-openapi.redirectregex.regex=^/openapi.json$"
+            # - "traefik.http.middlewares.backend-openapi.redirectregex.replacement=/api/openapi.json"
+            # - "traefik.http.middlewares.backend-openapi.redirectregex.permanent=true"
+            # - "traefik.http.routers.backend-openapi.rule=Path(`/openapi.json`)"
+            # - "traefik.http.routers.backend-openapi.middlewares=backend-openapi"
+
         networks:
             - agenta-network
         command:
@@ -43,7 +52,9 @@ services:
                 "0.0.0.0",
                 "--port",
                 "8000",
-                "--reload"
+                "--reload",
+                "--root-path",
+                "/api"
             ]
 
     agenta-web:
@@ -82,18 +93,18 @@ services:
             timeout: 10s
             retries: 20
 
-    mongo_express:
-        image: mongo-express
-        environment:
-            ME_CONFIG_MONGODB_ADMINUSERNAME: username
-            ME_CONFIG_MONGODB_ADMINPASSWORD: password
-            ME_CONFIG_MONGODB_SERVER: mongo
-        ports:
-            - "8081:8081"
-        networks:
-            - agenta-network
-        depends_on:
-            - mongo
+    # mongo_express:
+    #     image: mongo-express
+    #     environment:
+    #         ME_CONFIG_MONGODB_ADMINUSERNAME: username
+    #         ME_CONFIG_MONGODB_ADMINPASSWORD: password
+    #         ME_CONFIG_MONGODB_SERVER: mongo
+    #     ports:
+    #         - "8081:8081"
+    #     networks:
+    #         - agenta-network
+    #     depends_on:
+    #         - mongo
 
 networks:
     agenta-network:
