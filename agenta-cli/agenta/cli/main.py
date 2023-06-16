@@ -32,7 +32,7 @@ def init(app_name: str):
     # If the user selected the second option, show a list of available templates
     if init_option == 'Start from template':
         current_dir = Path.cwd()
-        template_dir = Path(__file__).parent / "templates"
+        template_dir = Path(__file__).parent.parent / "templates"
         templates = [folder.name for folder in template_dir.iterdir()
                      if folder.is_dir()]
         template_desc = [toml.load(
