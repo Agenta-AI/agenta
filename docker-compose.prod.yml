@@ -39,7 +39,7 @@ services:
     depends_on:
         - registry
     labels:
-        - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
+        - "traefik.http.routers.backend.rule=Host(`demo.agenta.ai`) && PathPrefix(`/api/`)"
         - "traefik.http.routers.backend.entrypoints=web"
         - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
         - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
