@@ -307,7 +307,7 @@ def update_variant_parameters(app_variant: AppVariant, parameters: Dict[str, Any
             raise ValueError("App variant not found")
 
         # Update parameters
-        if set(db_app_variant.parameters.keys()) != set(parameters.keys()):
+        if db_app_variant.parameters is not None and set(db_app_variant.parameters.keys()) != set(parameters.keys()):
             logger.error(f"Parameters keys don't match: {db_app_variant.parameters.keys()} vs {parameters.keys()}")
             raise ValueError("Parameters keys don't match")
         db_app_variant.parameters = parameters
