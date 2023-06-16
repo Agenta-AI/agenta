@@ -25,3 +25,5 @@ examples/**/entrypoint.sh
 examples/**/agenta/
 examples/**/old
 context.db
+examples/**/docker.tar.gz
+example/**/Dockerfile
