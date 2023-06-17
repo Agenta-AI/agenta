@@ -22,14 +22,9 @@ mkdir -p ~/.docker/cli-plugins/
 curl -SL https://github.com/docker/compose/releases/download/v2.18.1/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
 
 
-
-# sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose -y # we need to check if we are downloading last stable versions
-
-
 # clone agenta
 ssh-keyscan -H github.com >> /home/ubuntu/.ssh/known_hosts
 git clone https://github.com/Agenta-AI/agenta.git
 
-
-## jq
-# sudo apt install -y jq
+# https configs
+# chmod 600 acme.json
