@@ -20,8 +20,6 @@ services:
         - ./agenta-backend/tests:/app/tests
         - /var/run/docker.sock:/var/run/docker.sock
         - ./agenta-backend/db:/db
-    depends_on:
-        - registry
     labels:
         - "traefik.http.routers.backend.rule=Host(`demo.agenta.ai`) && PathPrefix(`/api/`)"
         - "traefik.http.routers.backend.entrypoints=web"
