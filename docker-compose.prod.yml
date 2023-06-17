@@ -79,18 +79,18 @@ services:
       timeout: 10s
       retries: 20
 
-  # mongo_express:
-  #   image: mongo-express
-  #   environment:
-  #     ME_CONFIG_MONGODB_ADMINUSERNAME: username
-  #     ME_CONFIG_MONGODB_ADMINPASSWORD: password
-  #     ME_CONFIG_MONGODB_SERVER: mongo
-  #   ports:
-  #     - "8081:8081"
-  #   networks:
-  #     - agenta-network
-  #   depends_on:
-  #     - mongo
+  mongo_express:
+    image: mongo-express
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: username
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password
+      ME_CONFIG_MONGODB_SERVER: mongo
+    ports:
+      - "8081:8081"
+    networks:
+      - agenta-network
+    depends_on:
+      - mongo
 
 networks:
   agenta-network:
