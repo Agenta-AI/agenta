@@ -65,17 +65,18 @@ async def add_variant_from_image(app_variant: AppVariant, image: Image):
         HTTPException: If image not found in docker utils list
         HTTPException: If there is a problem adding the app variant
     """
-    image_name=f"{settings.docker_registry_url}/{settings.registry}/{app_variant.app_name}_{app_variant.variant_name}"
-    # image_name=f"{settings.docker_registry_url}/{settings.registry}/{app_variant.app_name}_{app_variant.variant_name}"
-    # if not docker_utils.is_image_pulled(image_name):
-    #     try:
-    #         docker_utils.pull_image(image_name)
-    #     except RuntimeError as e:
-    #         raise HTTPException(status_code=404, detail=str(e))
+
+
+    if not image.tags.startswith(settings.registry):
+        raise HTTPException(
+            status_code=500, detail="Image should have a tag starting with the registry name (agenta-server)")
+    elif image not in docker_utils.list_images():
+        raise HTTPException(status_code=500, detail="Image not found")
+
 
     try:
         db_manager.add_variant_based_on_image(app_variant, image)
-    except RuntimeError as e:
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
