@@ -1,3 +1,4 @@
 langchain
 openai
 python-dotenv
+agenta
