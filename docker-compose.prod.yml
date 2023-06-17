@@ -5,26 +5,10 @@ services:
     ports:
       - "80:80"
       - "8000:8000"
-      - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./traefik.yml:/traefik.yml
-      - ./acme.json:/acme.json
     networks:
       - agenta-network
-
-  registry:
-    image: registry:2
-    networks:
-      - agenta-network
-    labels:
-      - "traefik.http.routers.registry.rule=Host(`registry.agenta.ai`)"
-      - "traefik.http.services.registry.loadbalancer.server.port=5000"
-      - "traefik.http.routers.registry.entrypoints=web"
-
-      - "traefik.http.routers.registry.tls=true"
-      - "traefik.http.routers.registry.entrypoints=web-secure"
-      - "traefik.http.routers.registry.tls.certresolver=myResolver"
 
   backend:
     build: ./agenta-backend
@@ -52,10 +36,6 @@ services:
         # - "traefik.http.middlewares.backend-openapi.redirectregex.permanent=true"
         # - "traefik.http.routers.backend-openapi.rule=Path(`/openapi.json`)"
         # - "traefik.http.routers.backend-openapi.middlewares=backend-openapi"
-
-        - "traefik.http.routers.backend.entrypoints=web-secure"
-        - "traefik.http.routers.backend.tls=true"
-        - "traefik.http.routers.backend.tls.certresolver=myResolver"
     networks:
       - agenta-network
     command:
@@ -89,10 +69,6 @@ services:
       - "traefik.http.routers.agenta-web.rule=Host(`demo.agenta.ai`) && PathPrefix(`/`)"
       - "traefik.http.routers.agenta-web.entrypoints=web"
       - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
-
-      - "traefik.http.routers.agenta-web.entrypoints=web-secure"
-      - "traefik.http.routers.agenta-web.tls=true"
-      - "traefik.http.routers.agenta-web.tls.certresolver=myResolver"
 
   mongo:
     image: mongo:5.0
