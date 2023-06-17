@@ -66,13 +66,11 @@ async def add_variant_from_image(app_variant: AppVariant, image: Image):
         HTTPException: If there is a problem adding the app variant
     """
 
-
     if not image.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500, detail="Image should have a tag starting with the registry name (agenta-server)")
     elif image not in docker_utils.list_images():
         raise HTTPException(status_code=500, detail="Image not found")
-
 
     try:
         db_manager.add_variant_based_on_image(app_variant, image)
