@@ -40,6 +40,7 @@ def start_container(image_name, app_name, variant_name) -> URI:
     image = client.images.get(f"{image_name}")
 
     labels = {
+        f"traefik.http.routers.{app_name}-{variant_name}.rule": f"Host(`demo.agenta.ai`) && PathPrefix(`/{app_name}/{variant_name}`)",
         f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
         f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
         f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
@@ -56,12 +57,11 @@ def start_container(image_name, app_name, variant_name) -> URI:
     if settings.environment == 'production':
         # Append additional SSL related labels
         print("Adding host and SSL related labels")
-        labels.update({
-            f"traefik.http.routers.{app_name}-{variant_name}.rule": f"Host(`demo.agenta.ai`) && PathPrefix(`/{app_name}/{variant_name}`)",
-            f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web-secure",
-            f"traefik.http.routers.{app_name}-{variant_name}.tls": "true",
-            f"traefik.http.routers.{app_name}-{variant_name}.tls.certresolver": "myResolver"
-        })
+        # labels.update({
+        #     f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web-secure",
+        #     f"traefik.http.routers.{app_name}-{variant_name}.tls": "true",
+        #     f"traefik.http.routers.{app_name}-{variant_name}.tls.certresolver": "myResolver"
+        # })
 
 
     container = client.containers.run(

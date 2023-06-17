@@ -19,6 +19,8 @@ update_env_var() {
     fi
 }
 
+
+// TODO: ensure that when we do the replace the quotes ("") are not escaped and are included
 update_env_var "NEXT_PUBLIC_AGENTA_API_URL" "$AGENTA_API_URL" "./agenta-web/.env.development.local"
 
 # docker-compose -f docker-compose.prod.yml up

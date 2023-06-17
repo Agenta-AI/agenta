@@ -9,6 +9,7 @@ origins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "https:demo.agenta.ai"
+    "http://18.159.63.42",
 ]
 
 # this is the prefix in which we are reverse proxying the api
