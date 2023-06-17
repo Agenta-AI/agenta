@@ -1,11 +1,11 @@
 provider "aws" {
-  region = "eu-central-1"
+  region = ""
 }
-
+# replace with your state strategy
 terraform {
   backend "s3" {
-    bucket = "terraform-state-0935" # replace with your bucket name
-    key    = "terraform/terraform.tfstate"
-    region = "eu-central-1"
+    bucket = ""
+    key    = ""
+    region = ""
   }
 }
