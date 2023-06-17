@@ -54,16 +54,6 @@ def start_container(image_name, app_name, variant_name) -> URI:
         f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
     }
 
-    if settings.environment == 'production':
-        # Append additional SSL related labels
-        print("Adding host and SSL related labels")
-        # labels.update({
-        #     f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web-secure",
-        #     f"traefik.http.routers.{app_name}-{variant_name}.tls": "true",
-        #     f"traefik.http.routers.{app_name}-{variant_name}.tls.certresolver": "myResolver"
-        # })
-
-
     container = client.containers.run(
         image, detach=True, labels=labels, network="agenta-network", name=f"{app_name}-{variant_name}")
     return URI(uri=f"http://localhost/{app_name}/{variant_name}")
