@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import React from 'react';
 import { Parameter } from '@/lib/Types';
-import { Input, Slider, Row, Col, InputNumber, Button, Tooltip, message, Space } from 'antd';
+import { Input, Slider, Row, Col, InputNumber, Button, Tooltip, message, Space, Card } from 'antd';
 
 interface Props {
     variantName: string;            // The name of the variant
@@ -45,56 +45,66 @@ const ParametersView: React.FC<Props> = ({ variantName,
     };
 
     return (
-        <div>
+        <div >
             {contextHolder}
-            <Row gutter={16} style={{}}>
-                <Col span={12}>
-                    {optParams?.filter(param => (param.type === 'string')).map((param, index) => (
-                        <div key={index}>
-                            <h3>{param.name}</h3>
 
-                            <Input.TextArea rows={5}
-                                defaultValue={param.default}
-                                onChange={e => handleParamChange(param.name, e.target.value)}
+            {/* <Col span={12} style={{ padding: '0px 0px' }}> */}
+            {optParams?.filter(param => (param.type === 'string')).map((param, index) => (
+                <Row gutter={16} style={{ padding: '0px 0px', width: '100%' }} key={index}>
+                    <Card
+                        style={{ marginTop: 16, width: '100%', border: '1px solid #ccc' }}
+                        bodyStyle={{ padding: '4px 16px', border: '0px solid #ccc' }}
+                        headStyle={{ minHeight: 44, padding: '0px 12px' }}
+                        title={param.name.charAt(0).toUpperCase() + param.name.slice(1).replace(/_/g, ' ')}
+
+                    >
+                        {/* <h3>{param.name}</h3> */}
+
+                        <Input.TextArea rows={5}
+                            defaultValue={param.default}
+                            onChange={e => handleParamChange(param.name, e.target.value)}
+                            bordered={false}
+                            style={{ padding: '0px 0px' }}
+                        />
+                    </Card>
+                </Row>
+            ))}
+            {/* </Col> */}
+
+            {/* <Col span={12}> */}
+            {optParams?.filter(param => (!param.input) && (param.type === 'number')).map((param, index) => (
+                <Row gutter={16} style={{ padding: '0px 0px', width: '100%' }} key={index}>
+                    <h3>{param.name}</h3>
+                    <Row>
+                        <Col span={12}>
+                            <Slider
+                                min={0}
+                                max={1}
+                                value={typeof param.default === 'number' ? param.default : 0}
+                                step={0.01}
+                                onChange={value => onChange(param, value)}
+                                style={{ marginBottom: 16 }}
                             />
-                        </div>
-                    ))}
-                </Col>
+                        </Col>
+                        <Col span={12}>
+                            <InputNumber
+                                min={1}
+                                max={20}
+                                style={{ margin: '0 16px' }}
+                                value={param.default}
+                                onChange={(value) => onChange(param, value)}
+                            />
+                        </Col>
+                    </Row>
 
-                <Col span={12}>
-                    {optParams?.filter(param => (!param.input) && (param.type === 'number')).map((param, index) => (
-                        <div key={index}>
-                            <h3>{param.name}</h3>
-                            <Row>
-                                <Col span={12}>
-                                    <Slider
-                                        min={0}
-                                        max={1}
-                                        value={typeof param.default === 'number' ? param.default : 0}
-                                        step={0.01}
-                                        onChange={value => onChange(param, value)}
-                                        style={{ marginBottom: 16 }}
-                                    />
-                                </Col>
-                                <Col span={12}>
-                                    <InputNumber
-                                        min={1}
-                                        max={20}
-                                        style={{ margin: '0 16px' }}
-                                        value={param.default}
-                                        onChange={(value) => onChange(param, value)}
-                                    />
-                                </Col>
-                            </Row>
-
-                        </div>
-                    ))}
-                </Col>
+                </Row>
+            ))}
+            {/* </Col> */}
 
 
-            </Row>
-            <Row style={{ marginTop: 10 }}>
-                <Col span={24} style={{ textAlign: 'right' }}>
+
+            <Row style={{ marginTop: 24 }}>
+                <Col span={24} style={{ textAlign: 'left' }}>
 
                     <Space>
                         <Button
@@ -104,6 +114,7 @@ const ParametersView: React.FC<Props> = ({ variantName,
                                 await onOptParamsChange(optParams!, true, isPersistent);
                                 success();
                             }}
+                            size='large'
                             loading={isParamSaveLoading}
                         >
                             <Tooltip placement="bottom" title="Save the new parameters for the variant permanently">
@@ -113,6 +124,7 @@ const ParametersView: React.FC<Props> = ({ variantName,
                         <Button
                             type="primary"
                             danger
+                            size='large'
                             onClick={() => {
                                 setRemovalVariantName(variantName);
                                 setRemovalWarningModalOpen(true);

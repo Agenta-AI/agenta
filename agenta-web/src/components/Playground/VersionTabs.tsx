@@ -144,7 +144,7 @@ const VersionTabs: React.FC = () => {
     };
 
     return (
-        <div>
+        <div >
             {contextHolder}
             <Tabs
                 type="editable-card"
@@ -162,6 +162,7 @@ const VersionTabs: React.FC = () => {
                 {variants.map((variant, index) => (
                     <TabPane tab={`Variant ${variant.variantName}`} key={variant.variantName} closable={!variant.persistent}>
                         <ViewNavigation
+
                             variant={variant}
                             handlePersistVariant={handlePersistVariant}
                             setRemovalVariantName={setRemovalVariantName}
