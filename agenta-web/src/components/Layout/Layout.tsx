@@ -22,9 +22,9 @@ const App: React.FC<LayoutProps> = ({ children }) => {
             <Layout hasSider>
                 <Sidebar />
                 <Content >
-                    <div style={{ padding: 20, background: colorBgContainer, minHeight: '95vh' }}>
+                    <div style={{ paddingLeft: '24px', background: colorBgContainer, minHeight: '100vh' }}>
                         <Breadcrumb
-                            style={{ marginTop: '20px', marginBottom: '40px' }}
+                            style={{ paddingTop: '24px', paddingBottom: '24px' }}
                             items={[
                                 { title: <Link href="/apps">Apps</Link> },
                                 { title: app_name }

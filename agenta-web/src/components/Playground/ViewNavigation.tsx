@@ -1,5 +1,5 @@
 import React from 'react';
-import { Col, Row } from 'antd';
+import { Col, Row, Divider } from 'antd';
 import TestView from './Views/TestView';
 import ParametersView from './Views/ParametersView';
 import { useVariant } from '@/lib/hooks/useVariant';
@@ -57,7 +57,9 @@ const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRem
     }
 
     return (
-        <div style={{ margin: '10px' }}>
+        <div>
+            <h2 style={{ padding: '0px', marginBottom: '8px' }}>1. Modify Parameters</h2>
+
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]}>
                 <Col span={24}>
                     <ParametersView
@@ -73,12 +75,16 @@ const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRem
                     />
                 </Col>
             </Row>
+            <Divider />
+
+            <h2 style={{ padding: '0px', marginBottom: '8px' }}>2. Preview and test</h2>
+
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]} style={{ marginTop: '20px' }}>
                 <Col span={24}>
                     <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
                 </Col>
             </Row>
-        </div>);
+        </div >);
 };
 
 export default ViewNavigation;

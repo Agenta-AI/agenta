@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Row, Col, Button, Input, Card, Modal } from 'antd';
+import { CaretRightOutlined, PlusOutlined } from '@ant-design/icons';
 import { callVariant } from '@/lib/services/api';
 import { Parameter } from '@/lib/Types';
 interface TestViewProps {
@@ -35,28 +36,41 @@ const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath
 
 
     return (
-        <Card style={{ marginBottom: '5px', padding: '5px' }}>
-            <div style={{ marginBottom: '10px' }}><label >Test case</label></div>
-            <Row gutter={2}>
-                <Col span={12} style={{ paddingRight: '10px' }}>
+        <>
+
+            {/* 
+            </Card> */}
+
+            <Card
+                style={{ marginTop: 16, border: '1px solid #ccc', marginRight: '24px', }}
+                bodyStyle={{ padding: '4px 16px', border: '0px solid #ccc' }}
+            >
+                <h4 style={{ padding: '0px', marginTop: '8px', marginBottom: '8px' }}>Input parameters</h4>
+
+                <Row style={{ marginTop: '16px' }}>
                     {Object.keys(inputParamsDict).map((key, index) => (
-                        <div key={index}>
-                            {/* <label>{key}</label> */}
-                            <TextArea
-                                placeholder={key}
-                                style={{ width: '100%', marginTop: 10, marginBottom: 10 }}
-                                onChange={e => handleInputParamValChange(key, e.target.value)}
-                            />
-                        </div>))}
-                    <Button onClick={handleRun} >Run</Button>
-                </Col>
-                <Col span={12} style={{ borderLeft: '1px solid #ccc', paddingLeft: '10px' }}>
-                    <TextArea value={results} rows={6} placeholder="Results will be shown here" style={{ height: '100%', width: '100%' }} />
-                </Col>
-            </Row>
-        </Card >
+                        <TextArea
+                            key={index}
+                            placeholder={key}
+                            onChange={e => handleInputParamValChange(key, e.target.value)}
+                            style={{ height: '100%', width: '100%' }}
+                        />
+                    ))}
+                </Row>
+                <Row style={{ marginTop: '16px' }} >
+                    <Col span={24} style={{ textAlign: 'right' }}>
+                        <Button type="primary" shape="round" icon={<CaretRightOutlined />} onClick={handleRun} style={{ width: '100px' }}>Run</Button>
+                    </Col>
+                </Row>
+                <Row style={{ marginTop: '16px', marginBottom: '16px' }}>
+                    <TextArea value={results}
+                        rows={6}
+                        placeholder="Results will be shown here"
+                        style={{ background: 'rgb(249 250 251)', height: '100%', width: '100%' }} />
+                </Row>
+            </Card >
 
-
+        </>
     );
 };
 
@@ -72,7 +86,7 @@ const App: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath }) => {
             {rows.map(row => (
                 <BoxComponent key={row} inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
             ))}
-            <Button onClick={handleAddRow} style={{ width: '100%' }}>Add Row</Button>
+            <Button type="primary" size='large' icon={<PlusOutlined />} onClick={handleAddRow} style={{ marginTop: '16px', width: '200px', marginBottom: '24px' }}>Add Row</Button>
         </div>
 
     );
