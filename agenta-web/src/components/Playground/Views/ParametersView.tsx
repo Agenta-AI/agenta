@@ -50,7 +50,7 @@ const ParametersView: React.FC<Props> = ({ variantName,
 
             {/* <Col span={12} style={{ padding: '0px 0px' }}> */}
             {optParams?.filter(param => (param.type === 'string')).map((param, index) => (
-                <Row gutter={16} style={{ padding: '0px 0px', width: '100%' }} key={index}>
+                <Row gutter={0} style={{ padding: '0px 0px', width: '100%' }} key={index}>
                     <Card
                         style={{ marginTop: 16, width: '100%', border: '1px solid #ccc' }}
                         bodyStyle={{ padding: '4px 16px', border: '0px solid #ccc' }}
