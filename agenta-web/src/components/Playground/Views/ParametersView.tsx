@@ -119,11 +119,13 @@ const ParametersView: React.FC<Props> = ({ variantName,
                     >
 
                         {optParams?.filter(param => (!param.input) && (param.type === 'number')).map((param, index) => (
-                            <Row key={index} style={{ alignItems: 'center', justifyItems: 'between' }}>
-                                <Col span={2} >
+                            <Row key={index} style={{
+                                alignItems: 'center'
+                            }}>
+                                < Col span={6} >
                                     <h4 style={{ margin: 0, padding: 0, textAlign: 'left' }}>{renameVariables(param.name)}</h4>
                                 </Col>
-                                <Col span={20}>
+                                <Col span={8}>
                                     <Slider
                                         min={0}
                                         max={1}
@@ -133,7 +135,7 @@ const ParametersView: React.FC<Props> = ({ variantName,
                                         style={{ marginBottom: 8 }}
                                     />
                                 </Col>
-                                <Col span={2}>
+                                <Col >
                                     <InputNumber
                                         min={0}
                                         max={20}
@@ -147,7 +149,7 @@ const ParametersView: React.FC<Props> = ({ variantName,
                             </Row>
                         ))}
                     </Card>
-                </Row>
+                </Row >
             }
             {/* </Col> */}
 
