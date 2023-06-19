@@ -1,10 +1,4 @@
 services:
-    registry:
-        image: registry:2
-        ports:
-            - 5001:5000
-        networks:
-            - agenta-network
 
     reverse-proxy:
         image: traefik:v2.10
@@ -25,8 +19,6 @@ services:
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/db:/db
-        depends_on:
-            - registry
         labels:
             - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.backend.entrypoints=web"
@@ -63,6 +55,7 @@ services:
             - "3000:3000"
         environment:
             - NODE_ENV=development
+            - NEXT_PUBLIC_AGENTA_API_URL=http://localhost
         networks:
             - agenta-network
         labels:
