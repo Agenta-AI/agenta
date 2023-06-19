@@ -32,3 +32,4 @@ example/**/Dockerfile
 
 *.pem
 dont_commit_me.*
+examples/**/Dockerfile
