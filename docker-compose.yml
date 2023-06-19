@@ -91,7 +91,8 @@ services:
         networks:
             - agenta-network
         depends_on:
-            - mongo
+            mongo:
+                condition: service_healthy
 
 networks:
     agenta-network:
