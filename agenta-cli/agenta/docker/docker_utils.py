@@ -102,31 +102,9 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
             raise ex
         # Upload the Docker image to the Agenta registry
         print("Uploading Docker image...")
-        print(f"Uploading to {registry}")
-        try:
-            repository = f"{registry}/{app_name.lower()}_{variant_name.lower()}"
-            # print(repository)
-            response = client.images.push(repository=repository, tag="latest", stream=False)
-
-            stream_data = response.splitlines()
-
-            # Get the last line of the stream
-            last_line = stream_data[-1]
-            print(last_line)
-            # Load the last line as a JSON object
-            last_line_dict = json.loads(last_line)
-
-            # Now you can process this dictionary as before
-            if 'aux' in last_line_dict and isinstance(last_line_dict['aux'], dict):
-                print("Uploading successful.")
-
-        except json.JSONDecodeError as ex:
-            print(f"Received malformed JSON response: {response}")
-            raise
-        except Exception as ex:
-            logger.error(f"Error in Docker image push operation:\n {ex}")
-            raise ex
+        client.images.push(repository=f"{registry}", tag="latest")
+        print("Docker image uploaded successfully.")
 
         # Clean up the temporary Dockerfile
-        # dockerfile_path.unlink()
+        dockerfile_path.unlink()
     return image
