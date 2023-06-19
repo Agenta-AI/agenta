@@ -25,7 +25,7 @@ _Example simple application that generates baby names_
 ```
 
 </details>
-<details closed> <summary>With two lines of code, specify the inputs and parameters for your experiment.</summary>
+<details open> <summary>With two lines of code, **specify the inputs and parameters** for your experiment.</summary>
 <br/>
   
 ```python
@@ -41,7 +41,7 @@ def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt
 <img width="722" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
   </details>
 
-<details closed> <summary>Now your team can iterate, version, test different versions, and run systematic evaluations via a user-friendly web platform.</summary>
+<details open> <summary>Now your team can 🔄 **iterate**, 🧪 **experiment**, and ⚖️ **evaluate** different versionsvia a user-friendly web platform.</summary>
   <br/>
 <img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
 </details>
