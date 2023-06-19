@@ -97,7 +97,7 @@ export default function Evaluations() {
             status: EvaluationFlow.EVALUATION_FINISHED
         }
 
-        return postData('http://localhost/api/app_evaluations/', data)
+        return postData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations/`, data)
             .then(data => {
                 return data.id;
             }).catch(err => {

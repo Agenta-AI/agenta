@@ -22,8 +22,13 @@ agenta-cli/dist/
 myenv/
 examples/**/storage/
 examples/**/entrypoint.sh
+
+acme.json
 examples/**/agenta/
 examples/**/old
 context.db
 examples/**/docker.tar.gz
 example/**/Dockerfile
+
+*.pem
+dont_commit_me.*
