@@ -4,7 +4,7 @@
 
 Building LLM-powered apps is currently very frustrating. It involves a significant amount of prompt engineering and a lots of parameters to tune and countless iterations.
 
-Agenta Lab streamling this process, it provides you with the tool to quickly iterate, experiment, and evaluate your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
+Agenta Lab streamling this process, it provides you with the tool to quickly 🔄 **iterate**, 🧪 **experiment**, and ⚖️ **evaluate** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
 ## How Agenta Lab works:
 <details closed><summary>Write your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain, llma_index, GPT-3, or open-source models).</summary>
@@ -46,14 +46,13 @@ def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt
 <img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
 </details>
 
-
 ## Features of Agenta Lab
 
-- **Parameter Playground:** With just a few lines of code, define the parameters you wish to experiment with. Through our user-friendly web platform, you or your team can then experiment and tweak these parameters.
+- 🪄 **Parameter Playground:** With just a few lines of code, define the parameters you wish to experiment with. Through our user-friendly web platform, you or your team can then experiment and tweak these parameters.
 
-- **Version Evaluation:** Define test sets, evaluate, and A/B test app versions.
+- 📊 **Version Evaluation:** Define test sets, evaluate, and A/B test app versions.
 
-- **API Deployment Made Easy:** Agenta Lab allows you to deploy your LLM applications as APIs without any additional effort.
+- 🚀 **API Deployment Made Easy:** Agenta Lab allows you to deploy your LLM applications as APIs without any additional effort.
   
 ## Documentation
 
