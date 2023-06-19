@@ -99,7 +99,7 @@ agenta init
 
 Start a new project based on the [template](https://docs.agenta.ai/docs/conceptual/concepts#templates) `simple_prompt`:
 
-<img width="722" alt="Screenshot 2023-06-19 at 15 59 16" src="https://github.com/Agenta-AI/agenta/assets/4510758/b2081a19-3547-4a54-a53b-69d5d183eccd">
+![carbon(7)](https://github.com/Agenta-AI/agenta/assets/4510758/2a0aa528-846c-43c3-b3e7-30349b6fa0fe)
 
 
 This will create a new project in your folder with the following structure:
@@ -130,7 +130,8 @@ Feetful of Fun
 
 Now let's procede to add the app [variant](https://docs.agenta.ai/docs/conceptual/concepts#app-variant) to Agenta Lab. 
 
-![carbon(3)](https://github.com/Agenta-AI/agenta/assets/4510758/fc865d9d-91c8-4081-8511-76bc43179429)
+![carbon(6)](https://github.com/Agenta-AI/agenta/assets/4510758/cc3cefab-1bd0-479f-a54a-ce8f60ae14ae)
+
 
 This command will do two things:
 1) Package the code and serve it locally as an api endpoint under `localhost/app_name/{variant_name}/openapi.json`.
