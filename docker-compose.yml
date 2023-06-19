@@ -7,16 +7,15 @@ services:
             - agenta-network
 
     reverse-proxy:
-        image: traefik:v2.0
-        command: --api.insecure=true --providers.docker --entrypoints.web.address=:80
+        image: traefik:v2.10
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
         ports:
-            - "80:80" # The HTTP port
-            - "8080:8080" # The Web UI (enabled by --api.insecure=true)
+            - "80:80"
+            - "8080:8080"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
             - agenta-network
-
     backend:
         build: ./agenta-backend
         environment:
@@ -36,12 +35,6 @@ services:
             - "traefik.http.routers.backend.middlewares=backend-strip"
             - "traefik.http.services.backend.loadbalancer.server.port=8000"
             - "traefik.http.routers.backend.service=backend"
-            # we redirect /openapi.json to /api/openapi.json, otherwise /docs would not work for fastapi
-            # - "traefik.http.middlewares.backend-openapi.redirectregex.regex=^/openapi.json$"
-            # - "traefik.http.middlewares.backend-openapi.redirectregex.replacement=/api/openapi.json"
-            # - "traefik.http.middlewares.backend-openapi.redirectregex.permanent=true"
-            # - "traefik.http.routers.backend-openapi.rule=Path(`/openapi.json`)"
-            # - "traefik.http.routers.backend-openapi.middlewares=backend-openapi"
 
         networks:
             - agenta-network
@@ -65,16 +58,17 @@ services:
         volumes:
             - ./agenta-web/src:/app/src
             - ./agenta-web/public:/app/public
+            - ./agenta-web/.env.development.local:/app/.env.development.local
         ports:
             - "3000:3000"
         environment:
             - NODE_ENV=development
-            # - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
         networks:
             - agenta-network
-        # depends_on:
-        #   mongo:
-        #     condition: service_healthy
+        labels:
+            - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
+            - "traefik.http.routers.agenta-web.entrypoints=web"
+            - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
 
     mongo:
         image: mongo:5.0
@@ -104,8 +98,7 @@ services:
         networks:
             - agenta-network
         depends_on:
-            mongo:
-                condition: service_healthy
+            - mongo
 
 networks:
     agenta-network:
@@ -113,38 +106,3 @@ networks:
 
 volumes:
     mongodb_data:
-        # api_test:
-
-
-
-        # api:
-        #   build: ./api
-        #   environment:
-        #     - OPENAI_API_KEY=${OPENAI_API_KEY}
-        #     - MONGODB_URI=mongodb://username:password@mongo:27017
-        #   ports:
-        #     - "8000:8000"
-        #   depends_on:
-        #     mongo:
-        #       condition: service_healthy
-        #   networks:
-        #     - agenta-network
-        #   volumes:
-        #     - ./api/api:/app/api
-
-        # agenta-bff:
-        #   build:
-        #     context: ./agenta-bff
-        #     dockerfile: dev.Dockerfile
-        #   volumes:
-        #     - ./agenta-bff/src:/app/src
-        #   ports:
-        #     - "3030:3030"
-        #   environment:
-        #     - NODE_ENV=development
-        #     - MONGO_URI=mongodb://username:password@mongo:27017/test?authSource=admin
-        #   networks:
-        #     - agenta-network
-        #   depends_on:
-        #     mongo:
-        #       condition: service_healthy
