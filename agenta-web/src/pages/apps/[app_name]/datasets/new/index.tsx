@@ -28,7 +28,8 @@ export default function AddANewDataset() {
 
             try {
                 setUploadLoading(true);
-                const response = await axios.post('http://localhost/api/datasets/upload', formData, {
+                // TODO: move to api.ts
+                const response = await axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/upload`, formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
                     },

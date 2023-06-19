@@ -4,6 +4,7 @@ import docker
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import AppVariant, Image, URI
 import logging
+import os
 
 client = docker.from_env()
 
@@ -39,19 +40,22 @@ def start_container(image_name, app_name, variant_name) -> URI:
     image = client.images.get(f"{image_name}")
 
     labels = {
-        f"traefik.http.routers.{app_name}-{variant_name}.rule": f"PathPrefix(`/{app_name}/{variant_name}`)",
         f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
         f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
         f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
         f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}-strip-prefix",
-        # this line connects the router to the service
-        # f"traefik.http.middlewares.{app_name}-{variant_name}-openapi.redirectregex.regex": "^/openapi.json$",
-        # f"traefik.http.middlewares.{app_name}-{variant_name}-openapi.redirectregex.replacement": f"/{app_name}/openapi.json",
-        # f"traefik.http.middlewares.{app_name}-{variant_name}-openapi.redirectregex.permanent": "true",
-        # f"traefik.http.routers.{app_name}-{variant_name}-openapi.rule": "Path(`/openapi.json`)",
-        # f"traefik.http.routers.{app_name}-{variant_name}-openapi.middlewares": f"{app_name}-{variant_name}-openapi",
         f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
     }
+
+    rules = {
+        "development": f"PathPrefix(`/{app_name}/{variant_name}`)",
+        "production": f"Host(`{os.getenv('DOMAIN_NAME', 'demo.agenta.ai')}`) && PathPrefix(`/{app_name}/{variant_name}`)"
+    }
+
+    labels.update({
+        f"traefik.http.routers.{app_name}-{variant_name}.rule": rules.get(settings.environment)
+    })
+
     container = client.containers.run(
         image, detach=True, labels=labels, network="agenta-network", name=f"{app_name}-{variant_name}")
     return URI(uri=f"http://localhost/{app_name}/{variant_name}")
@@ -115,3 +119,45 @@ def delete_image(image: Image):
     except docker.errors.APIError as ex:
         logger.error(f'Error deleting image with id: {image.docker_id}. Error: {str(ex)}')
         raise RuntimeError(f'Error deleting image with id: {image.docker_id}') from ex
+
+
+def experimental_pull_image(image_name: str):
+    """
+    Pulls an image from the Docker registry.
+
+    Args:
+        image_name (str): The name of the Docker image to pull.
+
+    Returns:
+        image: The Docker image that was pulled.
+
+    Raises:
+        RuntimeError: If there was an error while pulling the image.
+    """
+    try:
+        image = client.images.pull(image_name)
+        return image
+    except docker.errors.APIError as e:
+        raise RuntimeError(f"An error occurred while pulling the image: {str(e)}")
+
+
+def experimental_is_image_pulled(image_name: str) -> bool:
+    """
+    Pulls the specified Docker image from the Docker registry.
+
+    Args:
+        image_name (str): The name of the Docker image to pull. This
+        string should include the tag if needed (e.g., 'my_image:latest').
+
+    Returns:
+        docker.models.images.Image: The Docker image that was pulled.
+    Raises:
+        RuntimeError: If there was an error while pulling the image.
+    """
+    images = client.images.list()
+
+    for image in images:
+        if image_name in image.tags:
+            return True
+
+    return False
