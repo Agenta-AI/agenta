@@ -144,9 +144,10 @@ This command will do two things:
 
 Navigate to localhost:3000, select your app, and begin experimenting with the parameters we exposed in the code in the playground.
 
+You can fork new [variants](https://docs.agenta.ai/docs/conceptual/concepts#app-variant), run batch evaluations, and more.
+
 <img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
 
-You can fork new [variants](https://docs.agenta.ai/docs/conceptual/concepts#app-variant), run batch evalutions, and more.
 
 ## Why choose Agenta Lab for building LLM-apps?
 
