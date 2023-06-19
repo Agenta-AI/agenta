@@ -29,3 +29,6 @@ examples/**/old
 context.db
 examples/**/docker.tar.gz
 example/**/Dockerfile
+
+*.pem
+dont_commit_me.*
