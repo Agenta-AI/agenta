@@ -32,6 +32,7 @@ const AppSelector: React.FC = () => {
 
     return (
         <div style={{ margin: "20px 20px" }}>
+
             <Space size={20} wrap direction='horizontal'>
                 {data.map((app: any, index: number) => (
                     <AppCard appName={app.app_name} key={index} />

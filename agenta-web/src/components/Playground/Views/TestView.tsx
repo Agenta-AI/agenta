@@ -3,6 +3,7 @@ import { Row, Col, Button, Input, Card, Modal } from 'antd';
 import { CaretRightOutlined, PlusOutlined } from '@ant-design/icons';
 import { callVariant } from '@/lib/services/api';
 import { Parameter } from '@/lib/Types';
+import { renameVariables } from '@/lib/helpers/utils';
 interface TestViewProps {
     URIPath: string | null;
     inputParams: Parameter[] | null;
@@ -45,15 +46,16 @@ const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath
                 style={{ marginTop: 16, border: '1px solid #ccc', marginRight: '24px', }}
                 bodyStyle={{ padding: '4px 16px', border: '0px solid #ccc' }}
             >
-                <h4 style={{ padding: '0px', marginTop: '8px', marginBottom: '8px' }}>Input parameters</h4>
+                <h4 style={{ padding: '0px', marginTop: '8px', marginBottom: '0px' }}>Input parameters</h4>
 
-                <Row style={{ marginTop: '16px' }}>
+                <Row style={{ marginTop: '0px' }}>
                     {Object.keys(inputParamsDict).map((key, index) => (
                         <TextArea
+
                             key={index}
-                            placeholder={key}
+                            placeholder={renameVariables(key)}
                             onChange={e => handleInputParamValChange(key, e.target.value)}
-                            style={{ height: '100%', width: '100%' }}
+                            style={{ height: '100%', width: '100%', marginTop: '16px' }}
                         />
                     ))}
                 </Row>
@@ -83,6 +85,8 @@ const App: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath }) => {
 
     return (
         <div>
+            <h2 style={{ padding: '0px', marginBottom: '8px' }}>2. Preview and test</h2>
+
             {rows.map(row => (
                 <BoxComponent key={row} inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
             ))}

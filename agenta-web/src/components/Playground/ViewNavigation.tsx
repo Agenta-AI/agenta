@@ -58,7 +58,7 @@ const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRem
 
     return (
         <div>
-            <h2 style={{ padding: '0px', marginBottom: '8px' }}>1. Modify Parameters</h2>
+
 
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]}>
                 <Col span={24}>
@@ -77,7 +77,6 @@ const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRem
             </Row>
             <Divider />
 
-            <h2 style={{ padding: '0px', marginBottom: '8px' }}>2. Preview and test</h2>
 
             <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]} style={{ marginTop: '20px' }}>
                 <Col span={24}>
