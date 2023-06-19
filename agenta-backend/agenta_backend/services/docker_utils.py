@@ -119,7 +119,7 @@ def delete_image(image: Image):
         raise RuntimeError(f'Error deleting image with id: {image.docker_id}') from ex
 
 
-def pull_image(image_name: str):
+def experimental_pull_image(image_name: str):
     """
     Pulls an image from the Docker registry.
 
@@ -139,7 +139,7 @@ def pull_image(image_name: str):
         raise RuntimeError(f"An error occurred while pulling the image: {str(e)}")
 
 
-def is_image_pulled(image_name: str) -> bool:
+def experimental_is_image_pulled(image_name: str) -> bool:
     """
     Pulls the specified Docker image from the Docker registry.
 
