@@ -63,7 +63,8 @@ agenta init
 
 Start a new project based on the [template](https://docs.agenta.ai/docs/conceptual/concepts#templates) `simple_prompt`:
 
-![Screenshot 2023-05-31 at 17 42 19](https://github.com/Agenta-AI/agenta/assets/4510758/ab7c10f0-6efd-4c30-8575-91adcd345aac)
+<img width="722" alt="Screenshot 2023-06-19 at 15 59 16" src="https://github.com/Agenta-AI/agenta/assets/4510758/b2081a19-3547-4a54-a53b-69d5d183eccd">
+
 
 This will create a new project in your folder with the following structure:
 
@@ -97,6 +98,7 @@ Now let's procede to add the app [variant](https://docs.agenta.ai/docs/conceptua
 ```bash
 agenta variant serve
 ```
+<img width="722" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
 
 This command will do two things:
 1) Package the code and serve it locally as an api endpoint under `localhost/app_name/{variant_name}/openapi.json`.
@@ -106,7 +108,7 @@ This command will do two things:
 
 Navigate to localhost:3000, select your app, and begin experimenting with the parameters we exposed in the code in the playground.
 
-<img width="1263" alt="Screenshot 2023-05-31 at 19 06 09" src="https://github.com/Agenta-AI/agenta/assets/4510758/6283d5af-0337-479f-951d-e7560c16d6ec">
+<img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
 
 You can fork new [variants](https://docs.agenta.ai/docs/conceptual/concepts#app-variant), run batch evalutions, and more.
 
