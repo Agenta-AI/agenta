@@ -130,11 +130,7 @@ Feetful of Fun
 
 Now let's procede to add the app [variant](https://docs.agenta.ai/docs/conceptual/concepts#app-variant) to Agenta Lab. 
 
-
-```bash
-agenta variant serve
-```
-<img width="722" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
+![carbon(3)](https://github.com/Agenta-AI/agenta/assets/4510758/fc865d9d-91c8-4081-8511-76bc43179429)
 
 This command will do two things:
 1) Package the code and serve it locally as an api endpoint under `localhost/app_name/{variant_name}/openapi.json`.
