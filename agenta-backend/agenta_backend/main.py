@@ -8,6 +8,7 @@ from agenta_backend.routers import container_manager
 origins = [
     "http://localhost:3000",
     "http://localhost:3001",
+    "http:demo.agenta.ai"
 ]
 
 # this is the prefix in which we are reverse proxying the api
@@ -19,7 +20,7 @@ app.include_router(container_manager.router, prefix='/containers')
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

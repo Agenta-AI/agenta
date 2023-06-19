@@ -33,7 +33,8 @@ export default function Datasets() {
         if (!app_name) {
             return;
         }
-        fetchData(`http://localhost/api/datasets?app_name=${app_name}`)
+        // TODO: move to api.ts
+        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets?app_name=${app_name}`)
             .then(data => {
                 let newDatasetsList = data.map((obj:Dataset) => {
 
