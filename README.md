@@ -1,4 +1,4 @@
-# **✨ Agenta.ai**
+# **✨ Agenta Lab**
 ### **The developer-first open source LLMOps platform.**
 
 
