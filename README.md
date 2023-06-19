@@ -2,29 +2,66 @@
 ### **The developer-first open source LLMOps platform.**
 
 
-Building LLM-powered apps is currently very frustrating. It involves a significant amount of prompt engineering and a lots of parameters to tune and countless iterations. Agenta Lab simplifies this process, enabling you to quickly iterate, experiment, and optimize your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
+Building LLM-powered apps is currently very frustrating. It involves a significant amount of prompt engineering and a lots of parameters to tune and countless iterations.
+
+Agenta Lab streamling this process, it provides you with the tool to quickly iterate, experiment, and evaluate your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
 ## How Agenta Lab works:
-1. Develop your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain, llma_index, GPT-3, or open-source models).
-2. With two lines of code, specify the parameters for your experiment.
-3. Deploy your app using the Agenta CLI.
-4. You or your team can iterate, version parameters, test different versions, and run systematic evaluations via a user-friendly web platform.
+<details closed><summary>Write your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain, llma_index, GPT-3, or open-source models).</summary>
+<br/>
 
-In the future, we plan to extend Agenta Lab to facilitate your LLM-app development further, providing features for deployment, monitoring, logging, and A/B testing.
+_Example simple application that generates baby names_
+```python
+    from jinja2 import Template
+    import openai
+    template = Template(prompt_template)
+    prompt = template.render(country=country, gender=gender)
+
+    openai.api_key = os.environ.get("OPENAI_API_KEY")  # make sure to set this manually!
+    chat_completion = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
+
+    print(chat_completion.choices[0].message.content)
+```
+
+</details>
+<details closed> <summary>With two lines of code, specify the inputs and parameters for your experiment.</summary>
+<br/>
+  
+```python
+import agenta as ag
+@ag.post
+def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt_template: ag.TextParam = default_prompt) -> str:
+# rest of the code
+```
+  </details>
+
+<details closed> <summary>Deploy your app using the Agenta CLI.</summary>
+  <br/>
+<img width="722" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
+  </details>
+
+<details closed> <summary>Now your team can iterate, version, test different versions, and run systematic evaluations via a user-friendly web platform.</summary>
+  <br/>
+<img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
+</details>
+
 
 ## Features of Agenta Lab
 
 - **Parameter Playground:** With just a few lines of code, define the parameters you wish to experiment with. Through our user-friendly web platform, you or your team can then experiment and tweak these parameters.
 
-- **Version Evaluation:** Define test sets, evaluate, and compare different app versions.
+- **Version Evaluation:** Define test sets, evaluate, and A/B test app versions.
 
-- **API Deployment Made Easy:** Agenta Lab allows you to deploy your LLM applications as APIs without any additional effort. (Currently only available locally)
+- **API Deployment Made Easy:** Agenta Lab allows you to deploy your LLM applications as APIs without any additional effort.
+  
 ## Documentation
 
 Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
 - [Installation](https://docs.agenta.ai/docs/installation)
 - [Getting Started](https://docs.agenta.ai/docs/getting-started)
 - [Tutorials](https://docs.agenta.ai/docs/tutorials)
+  
 ## Getting Started
 
 ### Requirements
@@ -122,20 +159,8 @@ While there are numerous LLMops platforms, we believe Agenta Lab offers unique b
 - Collaborative: We recognize that building LLM-powered apps requires the collaboration of developers and domain experts. Our tool enables this collaboration, allowing domain experts to edit and modify parameters (e.g., prompts, hyperparameters, etc.), and label results for evaluation.
 - Open-Source: We encourage you to contribute to the platform and customize it to suit your needs.
 
-## Roadmap 
-
-Currently, we support Q&A applications (no chat) and do not yet support persistent data (like using a persistent vector database). Our future plans include:
-
-- Supporting chat applications.
-- Support for persistent data and vector databases.
-- Automated Deployment: Enable automatic app deployment with a simple commit.
-- Monitoring and Logging: Introduce a dashboard to monitor your app's performance and usage.
-- A/B Testing & User Feedback: Allow for experimentation with different app versions and collect user feedback.
-- Regression Testing: Introduce regression tests based on real data for each new version deployment.
 
 ## Contributing
 
 We warmly welcome contributions to Agenta Lab. Feel free to submit issues, fork the repository, and send pull requests.
 
-### How can you help
-- Designers, UI/UX and Frontend Developers: We need your expertise to enhance the UI/UX of the dashboard and the CLI. We also need help with improving the frontend of the dashboard. Feel free to fork and submit a PR. For bigger ideas, you can contact us via Discord or email (team@agenta.ai).
