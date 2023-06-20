@@ -1,0 +1,19 @@
+---
+title: Self hosting
+description: 'Installing Agenta on your cloud provider'
+---
+
+## AWS
+We provide a Terraform module to deploy Agenta on AWS. You can find it [here](https://github.com/Agenta-AI/agenta/tree/main/self-host/aws).
+The terraform module will simply create an instance and the resources needed to run Agenta on it.
+You can customize the module according to your needs.
+
+First of all install terraforom and configure your AWS credentials.
+Then run these commands:
+```terraform
+terraform init
+terraform apply
+```
+
+Once the instance is created, it will install some dependencies and run Agenta on it.
+More details are specified in this script: [instance-setup.sh](https://github.com/Agenta-AI/agenta/blob/aws-automation/self-host/aws/instance-setup.sh)
