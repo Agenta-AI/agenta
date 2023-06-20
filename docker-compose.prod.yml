@@ -21,7 +21,7 @@ services:
         - /var/run/docker.sock:/var/run/docker.sock
         - ./agenta-backend/db:/db
     labels:
-        - "traefik.http.routers.backend.rule=Host(`${DOMAIN_NAME}`) && PathPrefix(`/api/`)"
+        - "traefik.http.routers.backend.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/api/`)"
         - "traefik.http.routers.backend.entrypoints=web"
         - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
         - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
