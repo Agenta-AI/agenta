@@ -1,4 +1,4 @@
-# **✨ Agenta.ai**
+# **✨ Agenta Lab**
 ### **The developer-first open source LLMOps platform.**
 
 
@@ -25,7 +25,7 @@ _Example simple application that generates baby names_
 ```
 
 </details>
-<details closed> <summary>With two lines of code, specify the inputs and parameters for your experiment.</summary>
+<details open> <summary>With two lines of code, **specify the inputs and parameters** for your experiment.</summary>
 <br/>
   
 ```python
@@ -41,7 +41,7 @@ def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt
 <img width="722" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
   </details>
 
-<details closed> <summary>Now your team can iterate, version, test different versions, and run systematic evaluations via a user-friendly web platform.</summary>
+<details open> <summary>Now your team can 🔄 **iterate**, 🧪 **experiment**, and ⚖️ **evaluate** different versions via a user-friendly web platform.</summary>
   <br/>
 <img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
 </details>
@@ -99,7 +99,7 @@ agenta init
 
 Start a new project based on the [template](https://docs.agenta.ai/docs/conceptual/concepts#templates) `simple_prompt`:
 
-<img width="722" alt="Screenshot 2023-06-19 at 15 59 16" src="https://github.com/Agenta-AI/agenta/assets/4510758/b2081a19-3547-4a54-a53b-69d5d183eccd">
+![carbon(7)](https://github.com/Agenta-AI/agenta/assets/4510758/2a0aa528-846c-43c3-b3e7-30349b6fa0fe)
 
 
 This will create a new project in your folder with the following structure:
@@ -130,11 +130,8 @@ Feetful of Fun
 
 Now let's procede to add the app [variant](https://docs.agenta.ai/docs/conceptual/concepts#app-variant) to Agenta Lab. 
 
+![carbon(6)](https://github.com/Agenta-AI/agenta/assets/4510758/cc3cefab-1bd0-479f-a54a-ce8f60ae14ae)
 
-```bash
-agenta variant serve
-```
-<img width="722" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
 
 This command will do two things:
 1) Package the code and serve it locally as an api endpoint under `localhost/app_name/{variant_name}/openapi.json`.

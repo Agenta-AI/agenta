@@ -16,18 +16,18 @@ services:
       - MONGODB_URI=mongodb://username:password@mongo:27017
       - ALLOW_ORIGINS=${ALLOW_ORIGINS}
     volumes:
-        - ./agenta-backend/agenta_backend:/app/agenta_backend
-        - ./agenta-backend/tests:/app/tests
-        - /var/run/docker.sock:/var/run/docker.sock
-        - ./agenta-backend/db:/db
+      - ./agenta-backend/agenta_backend:/app/agenta_backend
+      - ./agenta-backend/tests:/app/tests
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./agenta-backend/db:/db
     labels:
-        - "traefik.http.routers.backend.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/api/`)"
-        - "traefik.http.routers.backend.entrypoints=web"
-        - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
-        - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
-        - "traefik.http.routers.backend.middlewares=backend-strip"
-        - "traefik.http.services.backend.loadbalancer.server.port=8000"
-        - "traefik.http.routers.backend.service=backend"
+      - "traefik.http.routers.backend.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/api/`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+      - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+      - "traefik.http.routers.backend.middlewares=backend-strip"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      - "traefik.http.routers.backend.service=backend"
     networks:
       - agenta-network
     command:
@@ -91,7 +91,8 @@ services:
     networks:
       - agenta-network
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
 
 networks:
   agenta-network:

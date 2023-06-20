@@ -4,6 +4,7 @@ import { removeApp } from '@/lib/services/api';
 import useSWR, { mutate } from 'swr';
 import { useState } from 'react';
 import Link from 'next/link';
+import { renameVariablesCapitalizeAll } from '@/lib/helpers/utils';
 
 const DeleteModal = ({ visible, handleOk, handleCancel, appName, confirmLoading }) => {
     return (
@@ -21,7 +22,7 @@ const DeleteModal = ({ visible, handleOk, handleCancel, appName, confirmLoading 
     );
 };
 
-const AppCard: React.FC<string> = ({ appName }) => {
+const AppCard: React.FC<string> = ({ appName, index }) => {
     const [visibleDelete, setVisibleDelete] = useState(false);
     const [confirmLoading, setConfirmLoading] = useState(false);  // add this line
     const showDeleteModal = () => {
@@ -68,8 +69,8 @@ const AppCard: React.FC<string> = ({ appName }) => {
                             alignItems: 'center',
                             justifyContent: 'center'
                         }}
-                        title={<div style={{ textAlign: 'center' }}>{appName}</div>}
-                        avatar={<Avatar size='large' style={{ backgroundImage: gradients[Math.floor(Math.random() * gradients.length)] }} >{appName.charAt(0).toUpperCase()}</Avatar>}
+                        title={<div style={{ textAlign: 'center' }}>{renameVariablesCapitalizeAll(appName)}</div>}
+                        avatar={<Avatar size='large' style={{ backgroundImage: gradients[index % gradients.length] }} >{appName.charAt(0).toUpperCase()}</Avatar>}
                     /></Link>
             </Card >
 
