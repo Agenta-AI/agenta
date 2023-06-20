@@ -21,7 +21,7 @@ const DeleteModal = ({ visible, handleOk, handleCancel, appName, confirmLoading 
     );
 };
 
-const AppCard: React.FC<string> = ({ appName }) => {
+const AppCard: React.FC<string> = ({ appName, index }) => {
     const [visibleDelete, setVisibleDelete] = useState(false);
     const [confirmLoading, setConfirmLoading] = useState(false);  // add this line
     const showDeleteModal = () => {
@@ -69,7 +69,7 @@ const AppCard: React.FC<string> = ({ appName }) => {
                             justifyContent: 'center'
                         }}
                         title={<div style={{ textAlign: 'center' }}>{appName}</div>}
-                        avatar={<Avatar size='large' style={{ backgroundImage: gradients[Math.floor(Math.random() * gradients.length)] }} >{appName.charAt(0).toUpperCase()}</Avatar>}
+                        avatar={<Avatar size='large' style={{ backgroundImage: gradients[index % gradients.length] }} >{appName.charAt(0).toUpperCase()}</Avatar>}
                     /></Link>
             </Card >
 
