@@ -36,7 +36,7 @@ const AppSelector: React.FC = () => {
 
             <Space size={20} wrap direction='horizontal'>
                 {Array.isArray(data) && data.map((app: any, index: number) => (
-                    <AppCard appName={app.app_name} key={index} />
+                    <AppCard appName={app.app_name} key={index} index={index} />
                 ))}
 
             </Space>
