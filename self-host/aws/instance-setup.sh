@@ -21,7 +21,7 @@ newgrp docker
 # clone agenta
 cd $TARGET_DIR
 
-git clone https://github.com/Agenta-AI/agenta.git
+git clone -b aws-automation https://github.com/Agenta-AI/agenta.git
 
 cd $TARGET_DIR/agenta
 
