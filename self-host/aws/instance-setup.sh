@@ -28,6 +28,7 @@ cd $TARGET_DIR/agenta
 # set env vars
 DOMAIN_NAME=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
 echo $DOMAIN_NAME
+echo "BARE_DOMAIN_NAME=\"${DOMAIN_NAME}\"" >> .env
 echo "DOMAIN_NAME=\"http://${DOMAIN_NAME}\"" >> .env
 
 # TODO: remove me
