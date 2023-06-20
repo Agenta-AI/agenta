@@ -4,6 +4,7 @@ import Sidebar from '../Sidebar/Sidebar';
 import { HeartTwoTone } from '@ant-design/icons';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { renameVariablesCapitalizeAll } from '@/lib/helpers/utils';
 type LayoutProps = {
     children: React.ReactNode
 }
@@ -12,11 +13,11 @@ const { Content, Footer } = Layout;
 
 const App: React.FC<LayoutProps> = ({ children }) => {
     const router = useRouter();
-    const { app_name } = router.query
+    const { app_name: appName } = router.query
     const {
         token: { colorBgContainer },
     } = theme.useToken();
-
+    const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || '');
     return (
         <Layout>
             <Layout hasSider>
@@ -27,7 +28,7 @@ const App: React.FC<LayoutProps> = ({ children }) => {
                             style={{ paddingTop: '24px', paddingBottom: '24px' }}
                             items={[
                                 { title: <Link href="/apps">Apps</Link> },
-                                { title: app_name }
+                                { title: capitalizedAppName }
                             ]}
                         />
                         {children}
