@@ -55,6 +55,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
+      - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME}
     networks:
       - agenta-network
     labels:
