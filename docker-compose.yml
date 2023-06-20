@@ -1,5 +1,4 @@
 services:
-
     reverse-proxy:
         image: traefik:v2.10
         command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
