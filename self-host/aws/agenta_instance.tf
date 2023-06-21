@@ -2,7 +2,7 @@ resource "aws_instance" "agenta" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t2.medium"
   user_data     = file("instance-setup.sh")
-  key_name      = aws_key_pair.agenta_key.key_name // should be commented out per default
+  #   key_name      = aws_key_pair.agenta_key.key_name // uncomment this in case you need to ssh into the instance
 
   vpc_security_group_ids = [aws_security_group.agenta_instance_sg.id]
 
@@ -53,12 +53,13 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"]
 }
 
-# in case you need to ssh into the instance
-# you need to create a key pair in the AWS console or via the command
-# ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa_agenta
-# this should be commented out per default and up to the user to uncomment
-# ssh -i ~/.ssh/id_rsa_agenta ubuntu@host
-resource "aws_key_pair" "agenta_key" {
-  key_name   = "agenta-key"
-  public_key = file("~/.ssh/id_rsa_agenta.pub")
+output "open_in_browser_this_ip" {
+  value       = "http://${aws_eip.agenta_eip.public_ip}"
+  description = "Open this link in your browser to access Agenta, you need to wait a few minutes for services to start"
 }
+
+# uncomment this in case you need to ssh into the instance
+# resource "aws_key_pair" "agenta_key" {
+#   key_name   = "agenta-key"
+#   public_key = file("~/.ssh/id_rsa_agenta.pub")
+# }
