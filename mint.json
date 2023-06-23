@@ -37,8 +37,15 @@
       "group": "Quickstart",
       "pages": [
         "docs/introduction",
-        "docs/installation",
-        "docs/getting-started"
+
+        "docs/getting-started",
+        {
+            "group": "Installation",
+            "pages": [
+                "docs/installation/local-installation/local-installation",
+                "docs/installation/self-hosting/self-hosted-installation"
+            ]
+        }
       ]
     },
     {
