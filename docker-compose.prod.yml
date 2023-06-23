@@ -4,7 +4,7 @@ services:
     command: --api.insecure=true --providers.docker --entrypoints.web.address=:80
     ports:
       - "80:80"
-      - "8000:8000"
+      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -21,7 +21,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./agenta-backend/db:/db
     labels:
-      - "traefik.http.routers.backend.rule=Host(`${DOMAIN_NAME}`) && PathPrefix(`/api/`)"
+      - "traefik.http.routers.backend.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/api/`)"
       - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
       - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
@@ -55,10 +55,11 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
+      - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME}
     networks:
       - agenta-network
     labels:
-      - "traefik.http.routers.agenta-web.rule=Host(`${DOMAIN_NAME}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.agenta-web.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/`)"
       - "traefik.http.routers.agenta-web.entrypoints=web"
       - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
 

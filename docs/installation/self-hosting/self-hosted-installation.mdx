@@ -1,0 +1,73 @@
+---
+title: Self hosting
+description: 'Installing Agenta on your cloud provider'
+---
+
+## AWS
+We provide a Terraform module to deploy Agenta on AWS. You can find it [here](https://github.com/Agenta-AI/agenta/tree/main/self-host/aws).
+The terraform module will simply create a t2.medium instance, a security group (with the open ports: 80, 8080), an elastic IP and an ebs volume all of them in eu-central-1.
+You can customize the module according to your needs.
+
+First of all install [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli) and [configure your AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html).
+then run these commands:
+```bash
+cd self-host/aws
+terraform init
+terraform apply
+```
+
+Once terraform is done from creating the resources it will print an ip where you can access Agenta on.
+```
+Outputs:
+
+open_in_browser_this_ip = "http://x.x.x.x"
+```
+
+It will not be directly accessible as it needs to install dependencies and to run Agenta. So we need to wait a couple of minutes.
+More details are specified in this script: [instance-setup.sh](https://github.com/Agenta-AI/agenta/blob/main/self-host/aws/instance-setup.sh)
+
+**NOTE: We do not have any security mechanism in place yet.**
+
+#### SSH into the instance:
+In order to ssh into the instance you need to:
+
+1. Uncomment these lines in the [security group](https://github.com/Agenta-AI/agenta/blob/main/self-host/aws/agenta_instance_sg.tf)
+```bash
+ingress {
+  description = "SSH"
+  from_port   = 22
+  to_port     = 22
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]
+}
+```
+
+and also these line in the [instance](https://github.com/Agenta-AI/agenta/blob/main/self-host/aws/agenta_instance.tf) file:
+
+```bash
+resource "aws_key_pair" "agenta_key" {
+  key_name   = "agenta-key"
+  public_key = file("~/.ssh/id_rsa_agenta.pub")
+}
+
+
+key_name      = aws_key_pair.agenta_key.key_name
+```
+
+2. create a key pair in the AWS console or via the command:
+```bash
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa_agenta
+```
+
+3. and then run this command:
+```bash
+ssh -i ~/.ssh/id_rsa_agenta ubuntu@ec2-host-provided-by-aws
+```
+
+#### Rremove all the resources:
+
+To remove all the resources created by terraform run:
+```bash
+cd self-host/aws
+terraform destroy
+```

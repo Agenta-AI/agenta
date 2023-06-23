@@ -33,3 +33,7 @@ example/**/Dockerfile
 *.pem
 dont_commit_me.*
 examples/**/Dockerfile
+
+self-host/*/.terraform*
+self-host/*/*.tfstate
+self-host/*/*.tfstate.backup
