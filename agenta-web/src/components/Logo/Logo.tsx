@@ -9,13 +9,7 @@ const Logo: React.FC = () => {
 
         }}>
             <Link href="/apps">
-                <div style={{
-                    color: '#000',
-                    fontSize: '2em',
-                    fontWeight: 'bold'
-                }}>
-                    Agenta
-                </div>
+                <img src="https://github.com/Agenta-AI/agenta/agenta-web/src/assets/light-complete-transparent-CROPPED.png" alt="Agenta Logo" />
             </Link >
         </div >
     );
