@@ -2,14 +2,14 @@
   "$schema": "https://mintlify.com/schema.json",
   "name": "Agenta AI",
   "logo": {
-    "dark": "docs/logo/dark.png",
-    "light": "docs/logo/light.png"
+    "dark": "docs/logo/dark-complete-transparent-CROPPED.png",
+    "light": "docs/logo/light-complete-transparent-CROPPED.png"
   },
-  "favicon": "docs/favicon.png",
+  "favicon": "docs/logo/favicon.png",
   "colors": {
-    "primary": "#5a67d8",
+    "primary": "#00FF19",
     "light": "#f0f7ff",
-    "dark": "#212835"
+    "dark": "#000000"
   },
   "feedback": {
     "suggestEdit": true,
@@ -37,14 +37,13 @@
       "group": "Quickstart",
       "pages": [
         "docs/introduction",
-
         "docs/getting-started",
         {
-            "group": "Installation",
-            "pages": [
-                "docs/installation/local-installation/local-installation",
-                "docs/installation/self-hosting/self-hosted-installation"
-            ]
+          "group": "Installation",
+          "pages": [
+            "docs/installation/local-installation/local-installation",
+            "docs/installation/self-hosting/self-hosted-installation"
+          ]
         }
       ]
     },
