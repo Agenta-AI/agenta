@@ -7,9 +7,13 @@
   },
   "favicon": "docs/logo/favicon.png",
   "colors": {
-    "primary": "#00FF19",
-    "light": "#f0f7ff",
-    "dark": "#000000"
+    "primary": "#32bf40",
+    "light": "#00FF19",
+    "dark": "#00FF19"
+  },
+  "modeToggle": {
+    "default": "dark",
+    "isHidden": false
   },
   "feedback": {
     "suggestEdit": true,
@@ -76,5 +80,10 @@
   "footerSocials": {
     "twitter": "https://twitter.com/agenta_ai",
     "github": "https://github.com/agenta-ai"
+  },
+  "analytics": {
+    "posthog": {
+      "apiKey": "phc_CwyyDlHGNnRFptVWhTe0HOeKnq1jeOZNk9hduYiOClp"
+    }
   }
 }
