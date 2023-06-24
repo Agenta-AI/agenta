@@ -84,6 +84,10 @@
   "analytics": {
     "posthog": {
       "apiKey": "phc_CwyyDlHGNnRFptVWhTe0HOeKnq1jeOZNk9hduYiOClp"
+    },
+    "hotjar": {
+      "hjid": "3547614",
+      "hjsv": "6"
     }
   }
 }
