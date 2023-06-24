@@ -31,6 +31,7 @@ _Example simple application that generates baby names_
   
 ```python
 import agenta as ag
+default_prompt = "Give me five cool names for a baby from {{country}} with this gender {{gender}}!!!!"
 @ag.post
 def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt_template: ag.TextParam = default_prompt) -> str:
 # rest of the code
