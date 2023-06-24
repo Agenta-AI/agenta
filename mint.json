@@ -88,6 +88,9 @@
     "hotjar": {
       "hjid": "3547614",
       "hjsv": "6"
+    },
+    "ga4": {
+      "measurementId": "G-LTF78FZS33"
     }
   }
 }
