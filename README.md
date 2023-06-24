@@ -3,12 +3,12 @@
 ### **The developer-first open source LLMOps platform.**
 
 
-Building LLM-powered apps is currently very frustrating. It involves a significant amount of prompt engineering and a lots of parameters to tune and countless iterations.
+Building production-ready LLM-powered applications is currently very difficult. It involves countless iterations of prompt engineering, parameter tuning, and architectures.
 
-Agenta Lab streamling this process, it provides you with the tool to quickly 🔄 **iterate**, 🧪 **experiment**, and ⚖️ **evaluate** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
+Agenta provides you with the tools to quickly 🔄 **iterate**, 🧪 **experiment**, and ⚖️ **evaluate** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
-## How Agenta Lab works:
-<details closed><summary>Write your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain, llma_index, GPT-3, or open-source models).</summary>
+## How Agenta works:
+<details closed><summary>Write your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain or llma_index, GPT-4 or Falcon).</summary>
 <br/>
 
 _Example simple application that generates baby names_
@@ -47,13 +47,13 @@ def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt
 <img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
 </details>
 
-## Features of Agenta Lab
+## Features
 
-- 🪄 **Parameter Playground:** With just a few lines of code, define the parameters you wish to experiment with. Through our user-friendly web platform, you or your team can then experiment and tweak these parameters.
+- 🪄 **Playground:** With just a few lines of code, define the parameters and prompts you wish to experiment with. You and your team can quickly experiment and fork new versions on the web UI.
 
 - 📊 **Version Evaluation:** Define test sets, evaluate, and A/B test app versions.
 
-- 🚀 **API Deployment Made Easy:** Agenta Lab allows you to deploy your LLM applications as APIs without any additional effort.
+- 🚀 **API Deployment Made Easy:** When you are ready, deploy your LLM applications as APIs in one click.
   
 ## Documentation
 
@@ -66,9 +66,9 @@ Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
 
 ### Requirements
 
-Agenta Lab requires Docker installed on your machine. If you don't have Docker, you can install it from [here](https://docs.docker.com/get-docker/).
+Agenta requires Docker installed on your machine. If you don't have Docker, you can install it from [here](https://docs.docker.com/get-docker/).
 
-### Installation
+### Installation SDK
 
 ```bash
 pip install agenta
@@ -115,13 +115,13 @@ This will create a new project in your folder with the following structure:
 
 The app created uses a simple prompt template in [langchain](https://python.langchain.com/en/latest/getting_started/getting_started.html) and gpt-3.5 to generate names for companies that makes `{product}` 
 
-If you are interested using your own code in Agenta Lab, please see this tutorial on [writing you first LLM-app with Agenta Lab](https://docs.agenta.ai/docs/tutorials/your-first-llm-app)
+If you are interested using your own code in Agenta, please see this tutorial on [writing you first LLM-app with Agenta Lab](https://docs.agenta.ai/docs/tutorials/your-first-llm-app)
 
 #### 3. Write your app and deploy it
 
 Create a `.env` file with your open api key in the same folder as asked in `README.md`: `OPENAI_API_KEY= <your-openai-api-key>`
 
-Before adding the app to Agenta Lab, you can test it in your terminal
+Before adding the app to Agenta, you can test it in your terminal
 
 ```bash
 python app.py "colorful socks"
@@ -129,7 +129,7 @@ python app.py "colorful socks"
 Feetful of Fun
 ```
 
-Now let's procede to add the app [variant](https://docs.agenta.ai/docs/conceptual/concepts#app-variant) to Agenta Lab. 
+Now let's procede to add the app [variant](https://docs.agenta.ai/docs/conceptual/concepts#app-variant) to Agenta. 
 
 ![carbon(6)](https://github.com/Agenta-AI/agenta/assets/4510758/cc3cefab-1bd0-479f-a54a-ce8f60ae14ae)
 
@@ -147,16 +147,13 @@ You can fork new [variants](https://docs.agenta.ai/docs/conceptual/concepts#app-
 <img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
 
 
-## Why choose Agenta Lab for building LLM-apps?
+## Why choose Agenta for building LLM-apps?
 
-While there are numerous LLMops platforms, we believe Agenta Lab offers unique benefits:
-
-- Developer-Friendly: We cater to complex LLM-apps and pipelines that require more than just a few no-code abstractions. We give you the freedom to develop your apps the way you want.
-- Privacy-First: We respect your privacy and do not proxy your data through third-party services. You have the choice to host your data and models.
+- Build quickly: You need to iterate many times on different architectures and prompts to bring apps to production. We streamline this process and allow you to do this in days instead of weeks.
+- Build robust apps and reduce hallucination: We provide you with the tools to systematically and easily evaluate your application to make sure you only serve robust apps to production
+- Developer-focused: We cater to complex LLM-apps and pipelines that require more than one simple prompt. We allow you to experiment and iterate on apps that have complex integration, business logic, and many prompts.
 - Solution-Agnostic: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
-- Collaborative: We recognize that building LLM-powered apps requires the collaboration of developers and domain experts. Our tool enables this collaboration, allowing domain experts to edit and modify parameters (e.g., prompts, hyperparameters, etc.), and label results for evaluation.
-- Open-Source: We encourage you to contribute to the platform and customize it to suit your needs.
-
+- Privacy-First: We respect your privacy and do not proxy your data through third-party services. The platform and the data are hosted on your infrastructure.
 
 ## Contributing
 
