@@ -3,7 +3,7 @@ title: "Agenta CLI Reference"
 ---
 
 
-The Agenta CLI (Command Line Interface) is a tool designed to manage LLM app variants used in Agenta Lab.
+The Agenta CLI (Command Line Interface) is a tool designed to manage LLM app variants used in Agenta.
 
 ## Commands
 
@@ -17,7 +17,7 @@ agenta init
 
 The `init` command is used to initialize a new Agenta app in an empty folder. It allows the user to specify the name of the app. It creates either an empty app or an app based on the template. In both cases it creates a config.toml file. In the case of creating an app based on the template it also copies the code for the app (`app.py`) in addition to the `requirements.txt`. 
 
-Note that `agenta init` does not interact with the backend, i.e. the app cannot not be seen in the Agenta Lab web UI until it is added using the `agenta variant add` command.
+Note that `agenta init` does not interact with the backend, i.e. the app cannot not be seen in the Agenta web UI until it is added using the `agenta variant add` command.
 
 ### 2. `variant`
 
