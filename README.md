@@ -115,7 +115,7 @@ This will create a new project in your folder with the following structure:
 
 The app created uses a simple prompt template in [langchain](https://python.langchain.com/en/latest/getting_started/getting_started.html) and gpt-3.5 to generate names for companies that makes `{product}` 
 
-If you are interested using your own code in Agenta, please see this tutorial on [writing you first LLM-app with Agenta Lab](https://docs.agenta.ai/docs/tutorials/your-first-llm-app)
+If you are interested using your own code in Agenta, please see this tutorial on [writing you first LLM-app with Agenta](https://docs.agenta.ai/docs/tutorials/your-first-llm-app)
 
 #### 3. Write your app and deploy it
 
@@ -157,5 +157,5 @@ You can fork new [variants](https://docs.agenta.ai/docs/conceptual/concepts#app-
 
 ## Contributing
 
-We warmly welcome contributions to Agenta Lab. Feel free to submit issues, fork the repository, and send pull requests.
+We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
 
