@@ -1,24 +1,9 @@
-import Link from 'next/link';
-
+import Image from 'next/image';
 const Logo: React.FC = () => {
 
     return (
-        <div style={{
-
-            padding: "10px",
-
-        }}>
-            <Link href="/apps">
-                <div style={{
-                    color: '#000',
-                    fontSize: '2em',
-                    fontWeight: 'bold'
-                }}>
-                    Agenta
-                </div>
-            </Link >
-        </div >
-    );
+        <Image src="/assets/light-complete-transparent-CROPPED.png" alt="Agenta Logo" width={129} height={42.5}/>
+     );
 };
 
 export default Logo;
