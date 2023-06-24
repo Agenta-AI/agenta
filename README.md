@@ -1,4 +1,5 @@
-# **✨ Agenta Lab**
+![37 copy](https://github.com/Agenta-AI/agenta/assets/4510758/762d4838-f56f-4773-94a7-38ae417ca439)
+
 ### **The developer-first open source LLMOps platform.**
 
 
