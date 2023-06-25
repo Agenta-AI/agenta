@@ -1,18 +1,15 @@
 ![37 copy](https://github.com/Agenta-AI/agenta/assets/4510758/762d4838-f56f-4773-94a7-38ae417ca439)
 
-<p align="center">
-  <a href="https://twitter.com/agenta_ai">
-    <img src="https://img.shields.io/twitter/follow/agenta_ai?style=social" alt="Twitter Follow">
-  </a>
-</p>
 
 <p align="center">
+    <a href="https://twitter.com/agenta_ai">
+    <img src="https://img.shields.io/twitter/follow/agenta_ai?style=social" alt="Twitter Follow">
+  </a>
   <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
 </p>
 
-
-### **The developer-first open source LLMOps platform.**
+### **The Open-source Developer-first LLMOps Platform.**
 
 
 Building production-ready LLM-powered applications is currently very difficult. It involves countless iterations of prompt engineering, parameter tuning, and architectures.
