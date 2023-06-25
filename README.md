@@ -16,8 +16,6 @@ Building production-ready LLM-powered applications is currently very difficult. 
 
 Agenta provides you with the tools to quickly 🔄 **iterate**, 🧪 **experiment**, and ⚖️ **evaluate** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
-
-
 https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-67475e4ce9ed
 
 
@@ -60,7 +58,7 @@ def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt
 
 <details open> <summary>Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different versions of your app (with your code!) in the web platform.</summary>
   <br/>
-<img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
+<img width="1501" alt="Screenshot 2023-06-25 at 21 08 53" src="https://github.com/Agenta-AI/agenta/assets/57623556/7e07a988-a36a-4fb5-99dd-9cc13a678434">
 </details>
 
 ## Features
@@ -164,7 +162,7 @@ Navigate to localhost:3000, select your app, and begin experimenting with the pa
 
 You can fork new [variants](https://docs.agenta.ai/docs/conceptual/concepts#app-variant), run batch evaluations, and more.
 
-<img width="907" alt="Screenshot 2023-06-19 at 15 57 08" src="https://github.com/Agenta-AI/agenta/assets/4510758/be2e8c9f-c65a-4670-83eb-751a1b4a39ea">
+<img width="1501" alt="Screenshot 2023-06-25 at 21 08 53" src="https://github.com/Agenta-AI/agenta/assets/57623556/7e07a988-a36a-4fb5-99dd-9cc13a678434">
 
 
 ## Why choose Agenta for building LLM-apps?
