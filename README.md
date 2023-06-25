@@ -133,7 +133,8 @@ Feetful of Fun
 Now let's procede to add the app [variant](https://docs.agenta.ai/docs/conceptual/concepts#app-variant) to Agenta. 
 
 ```bash
-agenta variant serve```
+agenta variant serve
+```
 
 ![carbon(6)](https://github.com/Agenta-AI/agenta/assets/4510758/cc3cefab-1bd0-479f-a54a-ce8f60ae14ae)
 
