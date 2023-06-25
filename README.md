@@ -7,6 +7,12 @@ Building production-ready LLM-powered applications is currently very difficult. 
 
 Agenta provides you with the tools to quickly 🔄 **iterate**, 🧪 **experiment**, and ⚖️ **evaluate** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
+
+
+https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-67475e4ce9ed
+
+
+
 ## How Agenta works:
 <details closed><summary>Write your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain or llma_index, GPT-4 or Falcon).</summary>
 <br/>
