@@ -1,5 +1,6 @@
 ![37 copy](https://github.com/Agenta-AI/agenta/assets/4510758/762d4838-f56f-4773-94a7-38ae417ca439)
 
+[![Twitter Follow](https://img.shields.io/twitter/follow/agenta_ai?style=social)](https://twitter.com/agenta_ai)
 ### **The developer-first open source LLMOps platform.**
 
 
