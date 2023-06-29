@@ -23,7 +23,7 @@ const App: React.FC<LayoutProps> = ({ children }) => {
             <Layout hasSider>
                 <Sidebar />
                 <Content >
-                    <div style={{ paddingLeft: '24px', background: colorBgContainer, minHeight: '100vh' }}>
+                    <div style={{ paddingLeft: '24px', paddingRight: '24px', background: colorBgContainer, minHeight: '100vh' }}>
                         <Breadcrumb
                             style={{ paddingTop: '24px', paddingBottom: '24px' }}
                             items={[
