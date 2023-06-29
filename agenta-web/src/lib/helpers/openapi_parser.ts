@@ -23,7 +23,7 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
             parameters.push({
                 name: name,
                 input: param['x-parameter'] ? false : true,
-                type: determineType(param.type),
+                type: param['x-parameter'] ? determineType(param['x-parameter']) : 'string',
                 required: schema.components.schemas[bodySchemaName].required.includes(name),
                 default: param.default
             });
