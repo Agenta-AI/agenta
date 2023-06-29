@@ -11,25 +11,25 @@ export interface Parameter {
 export const parseOpenApiSchema = (schema: any): Parameter[] => {
     const parameters: Parameter[] = [];
 
-    schema?.paths?.['/generate']?.post?.parameters.forEach((param: any) => {
-        if (param.schema['x-parameter']) {
+    // check if requestBody exists
+    const requestBody = schema?.paths?.['/generate']?.post?.requestBody;
+    if (requestBody) {
+        const bodySchemaName = requestBody.content['application/json'].schema['$ref'].split('/').pop();
+
+        // get the actual schema for the body parameters
+        const bodySchema = schema.components.schemas[bodySchemaName].properties;
+
+        Object.entries(bodySchema).forEach(([name, param]: [string, any]) => {
             parameters.push({
-                name: param.name,
-                input: false,
-                type: determineType(param.schema['x-parameter']),
-                required: param.required,
-                default: param.schema.default
+                name: name,
+                input: param['x-parameter'] ? false : true,
+                type: determineType(param.type),
+                required: schema.components.schemas[bodySchemaName].required.includes(name),
+                default: param.default
             });
-        } else {
-            parameters.push({
-                name: param.name,
-                input: true,
-                type: 'string',
-                required: param.required,
-                default: param.schema.default
-            });
-        }
-    });
+        });
+    }
+
     return parameters;
 };
 
