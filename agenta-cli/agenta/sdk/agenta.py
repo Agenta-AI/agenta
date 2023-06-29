@@ -9,7 +9,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Optional
 
-from fastapi import Depends, FastAPI, UploadFile
+from fastapi import Depends, FastAPI, UploadFile, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -135,12 +135,11 @@ def post(func: Callable[..., Any]):
         app_params[name] = default_value
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        print("nlkjlj;jklkjlk")
-        kwargs = {**app_params, **kwargs}
+    def wrapper(body_params: dict = Body(...)):
+        kwargs = {**app_params}
+        kwargs['body_params'] = body_params
         try:
-            result = func(*args, **kwargs)
-            print(result, type(result))
+            result = func(**kwargs)
             if isinstance(result, Context):
                 save_context(result)
             return result
@@ -157,7 +156,6 @@ def post(func: Callable[..., Any]):
                     inspect.Parameter.KEYWORD_ONLY,
                     default=app_params[name],
                     annotation=Optional[param.annotation]
-
                 )
             )
         else:
