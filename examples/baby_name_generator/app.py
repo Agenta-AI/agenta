@@ -1,7 +1,7 @@
 import os
 
 import openai
-from agenta import post
+from agenta import FloatParam, TextParam, post
 from fastapi import Body
 from jinja2 import Template
 
@@ -9,10 +9,15 @@ default_prompt = "Give me five cool names for a baby from this country {{country
 
 
 @post
-def generate(body_params: dict = Body(...)) -> str:
+def generate(
+    country: str = Body(...),
+    gender: str = Body(...),
+    temperature: FloatParam = Body(0.9),
+    prompt_template: TextParam = Body(default_prompt)
+) -> str:
 
-    template = Template(body_params['prompt_template'])
-    prompt = template.render(country=body_params['country'], gender=body_params['gender'])
+    template = Template(prompt_template)
+    prompt = template.render(country=country, gender=gender)
 
     openai.api_key = os.environ.get("OPENAI_API_KEY")  # make sure to set this manually!
     chat_completion = openai.ChatCompletion.create(
