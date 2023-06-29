@@ -22,10 +22,12 @@
         "classnames": "^2.3.2",
         "eslint": "8.39.0",
         "eslint-config-next": "13.3.4",
+        "js-beautify": "^1.14.8",
         "next": "13.3.4",
         "postcss": "8.4.23",
         "react": "18.2.0",
         "react-dom": "18.2.0",
+        "react-syntax-highlighter": "^15.5.0",
         "swr": "^2.1.5",
         "typescript": "5.0.4"
     },

@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { RocketOutlined, AppstoreOutlined, FileTextOutlined, DatabaseOutlined, CloudUploadOutlined, BarChartOutlined, LineChartOutlined, MonitorOutlined, UserOutlined, QuestionOutlined } from '@ant-design/icons';
-import { Avatar, Badge, Card, Layout, Menu, Space, Tag, Tooltip, theme, } from 'antd';
-import { MenuInfo } from 'rc-menu/lib/interface';
+import { RocketOutlined, AppstoreOutlined, FileTextOutlined, DatabaseOutlined, CloudUploadOutlined, BarChartOutlined, LineChartOutlined, MonitorOutlined, UserOutlined, QuestionOutlined, GlobalOutlined } from '@ant-design/icons';
+import { Avatar, Layout, Menu, Space, Tag, Tooltip, theme, } from 'antd';
 
 import Logo from '../Logo/Logo';
 
@@ -27,7 +26,7 @@ const Sidebar: React.FC = () => {
     } else if (typeof page_name === 'undefined') {
         initialSelectedKeys = ['apps'];
     }
-    const [selectedKeys, setSelectedKeys] = React.useState(initialSelectedKeys);
+    const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys);
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys);
@@ -91,27 +90,24 @@ const Sidebar: React.FC = () => {
                                 </Tooltip>
                             </Menu.Item>
 
-                            <Menu.Item key="vectordb" icon={<FileTextOutlined />} onClick={() => navigate('vectordb')} disabled={true}>
-                                <Tooltip placement="right" title="Establish VectorDB Knowledge Bases and upload pertinent documents.">
+                            <Menu.Item key="endpoints" icon={<CloudUploadOutlined />} onClick={() => navigate('endpoints')}>
+                                <Tooltip placement="right" title="Monitor production logs to ensure seamless operations.">
                                     <div style={{ width: '100%' }}>
                                         <Space>
                                             <span>
-                                                VectorDB
-                                            </span>
-                                            <span>
-                                                <Tag color="orange" bordered={false}>soon</Tag>
+                                                Endpoints
                                             </span>
                                         </Space>
                                     </div>
                                 </Tooltip>
                             </Menu.Item>
 
-                            <Menu.Item key="deployment" icon={<CloudUploadOutlined />} onClick={() => navigate('deployements')} disabled={true}>
-                                <Tooltip placement="right" title="Transition the optimal variant into the production environment.">
+                            <Menu.Item key="vectordb" icon={<FileTextOutlined />} onClick={() => navigate('vectordb')} disabled={true}>
+                                <Tooltip placement="right" title="Establish VectorDB Knowledge Bases and upload pertinent documents.">
                                     <div style={{ width: '100%' }}>
                                         <Space>
                                             <span>
-                                                Deployment
+                                                VectorDB
                                             </span>
                                             <span>
                                                 <Tag color="orange" bordered={false}>soon</Tag>
