@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
 </p>
 
-### **The Open-source Developer-first LLMOps Platform.**
+### **The Open-source Developer-first LLMOps Platform**
 
 
 Building production-ready LLM-powered applications is currently very difficult. It involves countless iterations of prompt engineering, parameter tuning, and architectures.
