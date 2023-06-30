@@ -28,13 +28,24 @@ export async function fetchVariants(app: string): Promise<Variant[]> {
 }
 
 
-export function callVariant(inputParamsDict: Record<string, string>, optParams: Parameter[], URIPath: string) {
-    const inputParams = Object.keys(inputParamsDict).map(key => `${key}=${encodeURIComponent(inputParamsDict[key])}`).join('&');
-    const OptParams = optParams.filter((param) => param.default).map(param => `${param.name}=${encodeURIComponent(param.default)}`).join('&');
-    return axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate?${inputParams}&${OptParams}`, {
+export function callVariant(inputParametersDict: Record<string, string>, optionalParameters: Parameter[], URIPath: string) {
+    const inputParams = Object.keys(inputParametersDict).reduce((acc, key) => {
+        acc[key] = inputParametersDict[key];
+        return acc;
+    }, {});
+    optionalParameters = optionalParameters || [];
+
+    const optParams = optionalParameters.filter((param) => param.default).reduce((acc, param) => {
+        acc[param.name] = param.default;
+        return acc;
+    }, {});
+
+    const requestBody = { ...inputParams, ...optParams };
+    return axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, {
         headers: {
             'accept': 'application/json',
-        }
+        },
+        body: JSON.stringify(requestBody)
     }).then(res => {
         return res.data;
     }).catch(error => {
