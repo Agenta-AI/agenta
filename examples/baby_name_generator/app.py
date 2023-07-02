@@ -10,10 +10,10 @@ default_prompt = "Give me five cool names for a baby from this country {{country
 
 @post
 def generate(
-    country: str = Body(...),
-    gender: str = Body(...),
-    temperature: FloatParam = Body(0.9),
-    prompt_template: TextParam = Body(default_prompt)
+    country: str,
+    gender: str,
+    temperature: FloatParam = 0.9,
+    prompt_template: TextParam = default_prompt
 ) -> str:
 
     template = Template(prompt_template)
