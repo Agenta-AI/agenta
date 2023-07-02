@@ -3,7 +3,7 @@ from agenta_backend.models.api.app_evaluation_model import ComparisonTable, Eval
 from agenta_backend.services.db_mongo import comparison_tables, evaluation_rows, datasets
 from datetime import datetime
 from bson import ObjectId
-from typing import List
+from typing import List, Optional
 import logging
 router = APIRouter()
 
@@ -117,13 +117,13 @@ async def update_evaluation_row(evaluation_row_id: str, evaluation_row: Evaluati
 
 
 @router.get("/", response_model=List[ComparisonTable])
-async def fetch_list_comparison_tables():
+async def fetch_list_comparison_tables(app_name: Optional[str] = None):
     """lists of all comparison tables
 
     Returns:
         _description_
     """
-    cursor = comparison_tables.find().sort('created_at', -1)
+    cursor = comparison_tables.find({"app_name": app_name}).sort('created_at', -1)
     items = await cursor.to_list(length=100)    # limit length to 100 for the example
     for item in items:
         item['id'] = str(item['_id'])
