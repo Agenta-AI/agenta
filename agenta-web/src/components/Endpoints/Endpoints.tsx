@@ -56,14 +56,14 @@ export default function Endpoints() {
     }
 
     return (
-        <div>
+        <div style={{ margin: "20px 20px" }}>
             {isLoading ? (
                 <Spin />
             ) : (
                 <Table
                     onRow={(record, rowIndex) => {
                         return {
-                            onClick: (event) => {onRowClick(record, rowIndex)},
+                            onClick: (event) => { onRowClick(record, rowIndex) },
                         };
                     }}
                     columns={columns}
