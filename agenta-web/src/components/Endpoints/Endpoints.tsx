@@ -44,7 +44,8 @@ export default function Endpoints() {
         {
             title: 'Variant Name',
             dataIndex: 'variantName',
-            key: 'variantName'
+            key: 'variantName',
+            render: (text) => <div style={{ color: "#003a8c", fontSize: '20px' }}>{text}</div>,
         },
     ];
 
@@ -56,7 +57,7 @@ export default function Endpoints() {
     }
 
     return (
-        <div style={{ margin: "20px 20px" }}>
+        <div style={{ margin: "50px 0px" }}>
             {isLoading ? (
                 <Spin />
             ) : (
