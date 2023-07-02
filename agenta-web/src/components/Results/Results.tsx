@@ -4,6 +4,7 @@ import { Table, Spin, Tag, Progress } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 import { formatDate } from '@/lib/helpers/dateTimeHelper';
 import { AppEvaluationResponseType } from '@/lib/Types';
+import { useRouter } from 'next/router';
 
 interface DataType {
     id: string;
@@ -73,13 +74,16 @@ const renderVotesPlot = (votesData: any, variants: string[], index: number, reco
 }
 
 const Results: React.FC = () => {
+    const router = useRouter();
     const [data, setData] = useState<DataType[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [statsLoading, setStatsLoading] = useState<boolean[]>([]);
 
+    const appName = router.query.app_name?.toString() || "";
+
     useEffect(() => {
         // TODO: move to api.ts
-        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations`)
+        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations?app_name=${appName}`)
             .then(responseData => {
                 const initialData: DataType[] = responseData.map((item: AppEvaluationResponseType) => {
                     return {
@@ -117,7 +121,7 @@ const Results: React.FC = () => {
                 console.error(err);
                 setLoading(false);
             });
-    }, []);
+    }, [appName]);
 
     const columns: ColumnsType<DataType> = [
         {
