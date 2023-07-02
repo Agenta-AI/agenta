@@ -41,16 +41,20 @@ export function callVariant(inputParametersDict: Record<string, string>, optiona
     }, {});
 
     const requestBody = { ...inputParams, ...optParams };
-    return axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, {
+    console.log(requestBody);
+    return axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, requestBody, {
         headers: {
             'accept': 'application/json',
+            'Content-Type': 'application/json'
         },
-        body: JSON.stringify(requestBody)
     }).then(res => {
         return res.data;
     }).catch(error => {
         if (error.response && error.response.status === 500) {
             throw new Error(error.response.data.error + " " + error.response.data.traceback);
+        }
+        if (error.response && error.response.status === 422) {
+            throw new Error(`Unprocessable Entity: The server understands the content type of the request, and the syntax of the request is correct, but it was unable to process the contained instructions. Data: ${JSON.stringify(error.response.data, null, 2)}`);
         }
         throw error; // If it's not a 500 status, or if error.response is undefined, rethrow the error so it can be handled elsewhere.
     });
