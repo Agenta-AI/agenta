@@ -69,7 +69,7 @@ const Sidebar: React.FC = () => {
                                 <Tooltip placement="right" title="Create and manage testsets for evaluation purposes.">
                                     <div style={{ width: '100%' }}>
 
-                                        Testsets
+                                        Test Sets
                                     </div>
                                 </Tooltip>
                             </Menu.Item>
