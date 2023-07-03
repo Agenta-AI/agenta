@@ -2,13 +2,19 @@ import os
 
 import openai
 from agenta import FloatParam, TextParam, post
+from fastapi import Body
 from jinja2 import Template
 
 default_prompt = "Give me five cool names for a baby from this country {{country}} with this gender {{gender}}!!!!"
 
 
 @post
-def generate(country: str, gender: str, temperature: FloatParam = 0.9, prompt_template: TextParam = default_prompt) -> str:
+def generate(
+    country: str,
+    gender: str,
+    temperature: FloatParam = 0.9,
+    prompt_template: TextParam = default_prompt
+) -> str:
 
     template = Template(prompt_template)
     prompt = template.render(country=country, gender=gender)

@@ -31,7 +31,7 @@ const BoxComponent: React.FC<TestViewProps> = ({ inputParams, optParams, URIPath
             const result = await callVariant(inputParamsDict, optParams, URIPath);
             setResults(result);
         } catch (e) {
-            setResults("The code has resulted in the following error: \n\n --------------------- \n" + e + "---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/docs/howto/how-to-debug");
+            setResults("The code has resulted in the following error: \n\n --------------------- \n" + e + "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/docs/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground");
         }
     }
 
