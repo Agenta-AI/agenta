@@ -176,7 +176,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ appEvaluation, evalua
             title: (
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <div >
-                        <span> Inputs (Dataset: </span>
+                        <span> Inputs (Test set: </span>
                         <span style={{ backgroundColor: 'rgb(201 255 216)', padding: 4, borderRadius: 5 }}>
                             {appEvaluation.dataset.name}
                         </span>

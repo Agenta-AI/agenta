@@ -4,7 +4,7 @@ import { useState } from "react";
 import axios from 'axios';
 import { useRouter } from "next/router";
 
-export default function AddANewDataset() {
+export default function AddANewTestset() {
     const router = useRouter();
     const { app_name } = router.query;
     const [form] = Form.useForm();
@@ -74,7 +74,7 @@ export default function AddANewDataset() {
                 <Alert
                     message="File format"
                     description={<>
-                        In order to make the dataset working correctly it should be:<br />
+                        In order to make the test set working correctly it should be:<br />
                         - A CSV file.<br />
                         - The first row should contain the headers<br />
                         - The next rows should contain the data<br />
@@ -88,12 +88,12 @@ export default function AddANewDataset() {
                 <Form onFinish={onFinish} form={form} style={{ maxWidth: 600 }} {...layout}>
                     <Form.Item
                         name="datasetName"
-                        label="Dataset name"
+                        label="Test set name"
                         rules={[{ type: 'string' }]}
                     >
                         <Input maxLength={25} />
                     </Form.Item>
-                    <Form.Item name="file" valuePropName="fileList" getValueFromEvent={(e) => e.fileList} label="Dataset source">
+                    <Form.Item name="file" valuePropName="fileList" getValueFromEvent={(e) => e.fileList} label="Test set source">
                         <Upload.Dragger
                             name="file"
                             accept=".csv"
@@ -109,7 +109,7 @@ export default function AddANewDataset() {
 
                     <Form.Item {...tailLayout}>
                         <Button type="primary" htmlType="submit">
-                            Add dataset
+                            Add test set
                         </Button>
                     </Form.Item>
                 </Form>
