@@ -41,7 +41,6 @@ export function callVariant(inputParametersDict: Record<string, string>, optiona
     }, {});
 
     const requestBody = { ...inputParams, ...optParams };
-    console.log(requestBody);
     return axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, requestBody, {
         headers: {
             'accept': 'application/json',
