@@ -36,9 +36,9 @@ export default function Datasets() {
         // TODO: move to api.ts
         fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets?app_name=${app_name}`)
             .then(data => {
-                let newDatasetsList = data.map((obj:Dataset) => {
+                let newDatasetsList = data.map((obj: Dataset) => {
 
-                    let newObj:DatasetTableDatatype = {
+                    let newObj: DatasetTableDatatype = {
                         key: obj._id,
                         created_at: obj.created_at,
                         name: obj.name
@@ -94,15 +94,15 @@ export default function Datasets() {
         <div>
             <div style={{ marginBottom: 40 }}>
                 <Link href={`${router.asPath}/new`}>
-                    <Button >Add a dataset</Button>
+                    <Button >Add a test set</Button>
                 </Link>
 
-                <Link href={`/apps/${app_name}/evaluations`} style={{marginLeft: 10}}>
+                <Link href={`/apps/${app_name}/evaluations`} style={{ marginLeft: 10 }}>
                     <Button >Start an evaluation</Button>
                 </Link>
                 {
                     selectedRowKeys.length > 0 && (
-                        <Button style={{marginLeft: 10}} onClick={onDelete}>
+                        <Button style={{ marginLeft: 10 }} onClick={onDelete}>
                             <DeleteOutlined key="delete" style={{ color: 'red' }} />
                             Delete
                         </Button>
