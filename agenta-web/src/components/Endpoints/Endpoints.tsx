@@ -27,7 +27,6 @@ export default function Endpoints() {
 
                 if (backendVariants.length > 0) {
                     setVariants(backendVariants);
-                    console.log(variants);
                 }
 
                 setIsLoading(false);
