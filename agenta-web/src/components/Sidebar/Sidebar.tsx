@@ -65,17 +65,17 @@ const Sidebar: React.FC = () => {
                                 </Tooltip>
                             </Menu.Item>
 
-                            <Menu.Item key="datasets" icon={<DatabaseOutlined />} onClick={() => navigate('datasets')}>
-                                <Tooltip placement="right" title="Create and manage datasets for evaluation purposes.">
+                            <Menu.Item key="testsets" icon={<DatabaseOutlined />} onClick={() => navigate('testsets')}>
+                                <Tooltip placement="right" title="Create and manage testsets for evaluation purposes.">
                                     <div style={{ width: '100%' }}>
 
-                                        Datasets
+                                        Testsets
                                     </div>
                                 </Tooltip>
                             </Menu.Item>
 
                             <Menu.Item key="evaluations" icon={<LineChartOutlined />} onClick={() => navigate('evaluations')}>
-                                <Tooltip placement="right" title="Perform 1-to-1 variant comparisons on datasets to identify superior options.">
+                                <Tooltip placement="right" title="Perform 1-to-1 variant comparisons on testsets to identify superior options.">
                                     <div style={{ width: '100%' }}>
                                         Evaluate
                                     </div>
