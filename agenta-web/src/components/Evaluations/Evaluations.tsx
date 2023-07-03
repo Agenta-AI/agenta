@@ -16,7 +16,7 @@ export default function Evaluations() {
     const [variants, setVariants] = useState<any[]>([]);
     const [columnsCount, setColumnsCount] = useState(2);
     const [chatModeActivated, setChatModeActivated] = useState(false);
-    const [selectedDataset, setSelectedDataset] = useState<{ _id?: string, name: string }>({ name: "Select a Dataset" });
+    const [selectedDataset, setSelectedDataset] = useState<{ _id?: string, name: string }>({ name: "Select a Test set" });
     const [datasetsList, setDatasetsList] = useState<any[]>([]);
 
     const [selectedVariants, setSelectedVariants] = useState<Variant[]>(new Array(2).fill({ variantName: 'Select a variant' }));
