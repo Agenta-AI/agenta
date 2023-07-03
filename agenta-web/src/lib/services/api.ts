@@ -28,18 +28,32 @@ export async function fetchVariants(app: string): Promise<Variant[]> {
 }
 
 
-export function callVariant(inputParamsDict: Record<string, string>, optParams: Parameter[], URIPath: string) {
-    const inputParams = Object.keys(inputParamsDict).map(key => `${key}=${encodeURIComponent(inputParamsDict[key])}`).join('&');
-    const OptParams = optParams.filter((param) => param.default).map(param => `${param.name}=${encodeURIComponent(param.default)}`).join('&');
-    return axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate?${inputParams}&${OptParams}`, {
+export function callVariant(inputParametersDict: Record<string, string>, optionalParameters: Parameter[], URIPath: string) {
+    const inputParams = Object.keys(inputParametersDict).reduce((acc: any, key) => {
+        acc[key] = inputParametersDict[key];
+        return acc;
+    }, {});
+    optionalParameters = optionalParameters || [];
+
+    const optParams = optionalParameters.filter((param) => param.default).reduce((acc: any, param) => {
+        acc[param.name] = param.default;
+        return acc;
+    }, {});
+
+    const requestBody = { ...inputParams, ...optParams };
+    return axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, requestBody, {
         headers: {
             'accept': 'application/json',
-        }
+            'Content-Type': 'application/json'
+        },
     }).then(res => {
         return res.data;
     }).catch(error => {
         if (error.response && error.response.status === 500) {
             throw new Error(error.response.data.error + " " + error.response.data.traceback);
+        }
+        if (error.response && error.response.status === 422) {
+            throw new Error(`Unprocessable Entity: The server understands the content type of the request, and the syntax of the request is correct, but it was unable to process the contained instructions. Data: ${JSON.stringify(error.response.data, null, 2)}`);
         }
         throw error; // If it's not a 500 status, or if error.response is undefined, rethrow the error so it can be handled elsewhere.
     });
