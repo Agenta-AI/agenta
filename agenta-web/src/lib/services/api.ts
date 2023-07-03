@@ -29,13 +29,13 @@ export async function fetchVariants(app: string): Promise<Variant[]> {
 
 
 export function callVariant(inputParametersDict: Record<string, string>, optionalParameters: Parameter[], URIPath: string) {
-    const inputParams = Object.keys(inputParametersDict).reduce((acc, key) => {
+    const inputParams = Object.keys(inputParametersDict).reduce((acc: any, key) => {
         acc[key] = inputParametersDict[key];
         return acc;
     }, {});
     optionalParameters = optionalParameters || [];
 
-    const optParams = optionalParameters.filter((param) => param.default).reduce((acc, param) => {
+    const optParams = optionalParameters.filter((param) => param.default).reduce((acc: any, param) => {
         acc[param.name] = param.default;
         return acc;
     }, {});
