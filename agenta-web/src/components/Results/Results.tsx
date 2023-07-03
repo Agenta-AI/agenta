@@ -77,45 +77,43 @@ const Results: React.FC = () => {
     const router = useRouter();
     const [data, setData] = useState<DataType[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
-    const [statsLoading, setStatsLoading] = useState<boolean[]>([]);
 
     const appName = router.query.app_name?.toString() || "";
 
     useEffect(() => {
         // TODO: move to api.ts
+        setLoading(true);
         fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations?app_name=${appName}`)
             .then(responseData => {
-                const initialData: DataType[] = responseData.map((item: AppEvaluationResponseType) => {
-                    return {
-                        id: item.id,
-                        createdAt: formatDate(item.created_at),
-                        variants: item.variants,
-                        votesData: null,
-                    }
-                })
 
-                setData(initialData);
-                setLoading(false);
-
-                initialData.forEach((item, index) => {
-                    fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations/${item.id}/votes_data`)
+                const fetchPromises: Promise<DataType>[] = responseData.map((item: AppEvaluationResponseType) => {
+                    return fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations/${item.id}/votes_data`)
                         .then(results => {
-                            setData(prevData => {
-                                const newData = [...prevData];
-                                newData[index].votesData = results.votes_data;
-                                return newData;
-                            });
-
-                            setStatsLoading(prevStatsLoading => {
-                                const newStatsLoading = [...prevStatsLoading];
-                                newStatsLoading[index] = false;
-                                return newStatsLoading;
-                            });
+                            if (Object.keys(results.votes_data).length > 0) {
+                                return {
+                                    id: item.id,
+                                    createdAt: formatDate(item.created_at),
+                                    variants: item.variants,
+                                    votesData: results.votes_data,
+                                }
+                            }
                         })
                         .catch(err => {
                             console.error(err);
                         });
-                });
+                })
+
+                Promise.all(fetchPromises)
+                    .then(appEvaluations => {
+                        // Filter out any appEvaluations that are undefined due to not having votes data
+                        const validAppEvaluations = appEvaluations.filter(appEvaluation => appEvaluation !== undefined);
+                        setData(validAppEvaluations);
+                        setLoading(false);
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        setLoading(false);
+                    });
             })
             .catch(err => {
                 console.error(err);
@@ -131,9 +129,6 @@ const Results: React.FC = () => {
             width: '70%',
             render: (value: any, record: DataType, index: number) => {
                 const variants = data[index].variants;
-
-                if (!variants || !record.votesData) return null;
-
                 return renderVotesPlot(record.votesData, variants, index, record);
             },
         },
