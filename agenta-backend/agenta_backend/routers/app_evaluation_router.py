@@ -182,13 +182,17 @@ async def fetch_results(comparison_table_id: str):
     document = await comparison_tables.find_one({"_id": ObjectId(comparison_table_id)})
     results = {}
 
+    comparison_table_rows_nb = await evaluation_rows.count_documents({
+        'comparison_table_id': comparison_table_id,
+        'vote': {'$ne': ''}
+    })
+
+    if comparison_table_rows_nb == 0:
+        return {"votes_data": results}
+
     variants = document.get("variants", [])
     results["variants"] = variants
     results["variants_votes_data"] = {}
-
-    comparison_table_rows_nb = await evaluation_rows.count_documents({
-        'comparison_table_id': comparison_table_id
-    })
     results["nb_of_rows"] = comparison_table_rows_nb
 
     flag_votes_nb = await evaluation_rows.count_documents({
@@ -197,7 +201,7 @@ async def fetch_results(comparison_table_id: str):
     })
     results["flag_votes"] = {}
     results["flag_votes"]["number_of_votes"] = flag_votes_nb
-    results["flag_votes"]["percentage"] = round(flag_votes_nb / comparison_table_rows_nb * 100, 2)
+    results["flag_votes"]["percentage"] = round(flag_votes_nb / comparison_table_rows_nb * 100, 2) if comparison_table_rows_nb else 0
 
     for item in variants:
         results["variants_votes_data"][item] = {}
@@ -206,5 +210,5 @@ async def fetch_results(comparison_table_id: str):
             'comparison_table_id': comparison_table_id
         })
         results["variants_votes_data"][item]["number_of_votes"]= variant_votes_nb
-        results["variants_votes_data"][item]["percentage"] = round(variant_votes_nb / comparison_table_rows_nb * 100, 2)
+        results["variants_votes_data"][item]["percentage"] = round(variant_votes_nb / comparison_table_rows_nb * 100, 2) if comparison_table_rows_nb else 0
     return {"votes_data": results}
