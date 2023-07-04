@@ -1,5 +1,5 @@
 
-import { Button, Spin, Table } from "antd";
+import { Button, Dropdown, MenuProps, Space, Spin, Table } from "antd";
 
 import { Dataset } from "@/lib/Types";
 import Link from "next/link";
@@ -90,12 +90,44 @@ export default function Datasets() {
         }
     };
 
+    const items: MenuProps['items'] = [
+        {
+            label: 'Upload',
+            key: 'upload',
+        },
+        {
+            label: 'Create manually',
+            key: 'manual',
+        }
+    ];
+
+    const handleMenuClick = ({ key }: { key: string }) => {
+        if (key == 'upload') {
+            router.push(`/apps/${app_name}/testsets/new/upload`);
+        } else if ('manual') {
+            router.push(`/apps/${app_name}/testsets/new/manual`);
+        }
+    };
+
     return (
         <div>
             <div style={{ marginBottom: 40 }}>
-                <Link href={`${router.asPath}/new`}>
-                    <Button >Add a test set</Button>
-                </Link>
+
+                <Space direction="vertical">
+                    <Space wrap>
+                        <Dropdown
+                            menu={{ items, onClick: handleMenuClick }}
+                            placement="bottomLeft"
+                        >
+                            <Button>
+                                <Space>
+                                    Add a Test Set
+                                </Space>
+                            </Button>
+                        </Dropdown>
+                    </Space>
+                </Space>
+
 
                 <Link href={`/apps/${app_name}/evaluations`} style={{ marginLeft: 10 }}>
                     <Button >Start an evaluation</Button>
