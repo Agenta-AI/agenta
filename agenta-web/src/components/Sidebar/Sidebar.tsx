@@ -140,7 +140,7 @@ const Sidebar: React.FC = () => {
 
                 <Menu mode="vertical" style={{ paddingBottom: 40, borderRight: 0 }}
                     selectedKeys={selectedKeys}>
-                    <Menu.Item key="help" icon={<QuestionOutlined />}>
+                    <Menu.Item key="help" icon={<QuestionOutlined />} onClick={() => window.open('https://docs.agenta.ai', '_blank')}>
                         Help
                     </Menu.Item>
                     <Menu.Item key="user">
