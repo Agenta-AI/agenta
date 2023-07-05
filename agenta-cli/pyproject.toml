@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.1.12"
+version = "0.1.13"
 description = "Code for the SDK and CLI for the Agenta Lab platform"
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
@@ -15,6 +15,7 @@ questionary = "^1.10.0"
 ipdb = "^0.13.13"
 python-dotenv = "^1.0.0"
 python-multipart = "^0.0.6"
+importlib-metadata = "^6.7.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
