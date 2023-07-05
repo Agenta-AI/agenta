@@ -60,6 +60,7 @@
     {
       "group": "How-to Guides",
       "pages": [
+        "docs/howto/creating-multiple-app-variants",
         "docs/howto/how-to-debug"
       ]
     },
