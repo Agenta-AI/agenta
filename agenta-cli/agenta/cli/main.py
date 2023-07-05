@@ -7,7 +7,23 @@ import toml
 from agenta.cli import variant_commands
 
 
+def print_version(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    try:
+        try:
+            from importlib.metadata import version, PackageNotFoundError
+        except ImportError:
+            from importlib_metadata import version, PackageNotFoundError
+        package_version = version("agenta")
+    except PackageNotFoundError:
+        package_version = "package is not installed"
+    click.echo(f"Agenta CLI version: {package_version}")
+    ctx.exit()
+
+
 @click.group()
+@click.option('--version', '-v', is_flag=True, callback=print_version, expose_value=False, is_eager=True)
 def cli():
     pass
 
