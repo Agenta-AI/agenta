@@ -18,7 +18,7 @@ def variant():
     pass
 
 
-def add_variant(variant_name: str, app_folder: str) -> str:
+def add_variant(variant_name: str, app_folder: str, file_name: str) -> str:
     """Add a new variant.
     Returns the name of the variant. (useful for serve)"""
 
@@ -34,9 +34,9 @@ def add_variant(variant_name: str, app_folder: str) -> str:
     app_name = config['app-name']
 
     # check files in folder
-    app_file = app_path / 'app.py'
+    app_file = app_path / file_name
     if not app_file.exists():
-        click.echo(click.style("No app.py exists! Please make sure you are in the right directory", fg='red'))
+        click.echo(click.style(f"No {file_name} exists! Please make sure you are in the right directory", fg='red'))
         return None
     env_file = app_path / '.env'
     if not env_file.exists():
@@ -60,7 +60,7 @@ def add_variant(variant_name: str, app_folder: str) -> str:
     if not overwrite:
         config['variants'].append(variant_name)
     try:
-        tar_path = build_tar_docker_container(folder=app_path)
+        tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
         image: Image = client.send_docker_tar(app_name, variant_name, tar_path)
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
@@ -222,9 +222,10 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 
 @variant.command(name='serve')
 @click.option('--app_folder', default='.')
-def serve_cli(app_folder: str):
+@click.option('--file_name', default='app.py', help="The name of the file to run")
+def serve_cli(app_folder: str, file_name: str):
     """Adds a variant to the web ui and serves the api locally."""
-    variant_name = add_variant(variant_name='', app_folder=app_folder)
+    variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name)
     if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
         start_variant(variant_name=variant_name, app_folder=app_folder)
 
@@ -232,7 +233,8 @@ def serve_cli(app_folder: str):
 @variant.command(name='add')
 @click.option('--app_folder', default='.')
 @click.option('--variant_name', default='')
-def add_variant_cli(variant_name: str, app_folder: str):
+@click.option('--file_name', default='app.py', help="The name of the file to run")
+def add_variant_cli(variant_name: str, app_folder: str, file_name: str):
     """Builds the code into a new variant and add it to the platform"""
     return add_variant(variant_name, app_folder)
 
@@ -242,7 +244,7 @@ def add_variant_cli(variant_name: str, app_folder: str):
 @click.option('--app_folder', default=".")
 def start_variant_cli(variant_name: str, app_folder: str):
     """Start a variant."""
-    start_variant(variant_name, app_folder)
+    start_variant(variant_name, app_folder, file_name)
 
 
 @variant.command(name='list')
