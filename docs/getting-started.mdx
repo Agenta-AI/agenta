@@ -22,12 +22,19 @@ mkdir example_app; cd example_app
 agenta init
 ```
 
-Next, start a new project based on the `simple_prompt` [template](https://docs.agenta.ai/docs/conceptual/concepts#templates):
+Next, start a new project based on the `simple_prompt` [template](https://docs.agenta.ai/docs/conceptual/concepts#templates)
 
-![Screenshot 2023-05-31 at 17 42 19](https://github.com/Agenta-AI/agenta/assets/4510758/ab7c10f0-6efd-4c30-8575-91adcd345aac)
+````
+? Please enter the app name: company_name_generator
+? How do you want to initialize your app? Start from template
+? Which template do you want to use? simple_prompt - Simple app that uses one prompt using langchain
+App initialized successfully
+````
+
+This will generate many files for this project. The file containig the code is `app.py`. You can check a description of the generated code. Otherwise, continue to the next step.
 
 
-## Step 2: Understand the Generated Code
+<Accordion title="Understand the Generated Code">
 
 The initialization process generates the following files:
 
@@ -53,27 +60,31 @@ This file holds the configuration details of your application. Currently, it onl
 ### app.py
 This is the main application file. The generated `app.py` file should look like this:
 
-```python
+```python app.py
 # imports
-default_prompt = "Give me five cool names for a baby from this country {{country}} with this gender {{gender}}!!!!"
+import agenta as ag
 
-@post
-def generate(country: str, gender: str, temperature: FloatParam = 0.9, prompt_template: TextParam = default_prompt) -> str:
+default_prompt = "What is a good name for a company that makes {product}?"
 
-    template = Template(prompt_template)
-    prompt = template.render(country=country, gender=gender)
 
-    openai.api_key = os.environ.get("OPENAI_API_KEY")  # make sure to set this manually!
-    chat_completion = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
+@ag.post
+def generate(product: str, temperature: ag.FloatParam = 0.9, prompt_template: ag.TextParam = default_prompt) -> str:
+    llm = OpenAI(temperature=temperature)
+    prompt = PromptTemplate(
+        input_variables=["product"],
+        template=prompt_template,
+    )
+    chain = LLMChain(llm=llm, prompt=prompt)
+    output = chain.run(product=product)
 
-    result = chat_completion.choices[0].message.content
-    return result
+    return output
 ```
 
 This code sets up a simple LLM-application using the OpenAI Python library. The decorator `@post` and the types `FloatParam` and `TextParam` are imported from `agenta`, which inform the Agenta SDK that this function is an endpoint of the application, and these parameters can be adjusted in the playground.
 
-## Step 3: Set up the OpenAI API Key
+</Accordion>
+
+## Step 2: Set up the OpenAI API Key
 
 To run your LLM-application, you'll need to set the OpenAI API key in your environment. Here's how:
 
@@ -84,9 +95,9 @@ To run your LLM-application, you'll need to set the OpenAI API key in your envir
 OPENAI_API_KEY=sk-xxxxxxx
 ```
 
-## Step 4: Run the Application in the CLI
+## Step 3: Run the Application in the CLI
 
-Test your application via the command line. The `@post` decorator allows us to do this without writing additional code:
+Test your application via the command line.
 
 First let's (optionally) create a virtual environment and install the dependencies. Make sure you are in the project folder.
 
@@ -100,18 +111,15 @@ Now let's run the application:
 
 ```bash
 > python app.py
-usage: app.py [-h] [--temperature TEMPERATURE] [--prompt_template PROMPT_TEMPLATE] country gender
-app.py: error: the following arguments are required: country, gender
+usage: app.py [-h] [--temperature TEMPERATURE] [--prompt_template PROMPT_TEMPLATE] product
+app.py: error: the following arguments are required: product
 
-> python app.py tunisia male
-1. Malik (meaning "king")
-2. Youssef (meaning "God will increase")
-3. Ammar (meaning "long-living" or "prosperous")
-4. Hédi (meaning "calm" or "serene")
-5. Farid (meaning "unique" or "precious")
+> python app.py "LLMOps developer platform"
+
+CypressOps Platform.
 ```
 
-Here, `app.py` uses the `country` and `gender` inputs from the function definition as arguments.
+Here, `app.py` uses the `product` as the inputs defined in the parameters in `app.py`.
 
 ## Step 5: Run the Application in the Playground
 
@@ -134,8 +142,15 @@ This will do two things:
 
 Go to `localhost:3000`, select your app, and begin experimenting with different parameters in the playground.
 
-![title](/docs/images/playground.png)
+<Frame>
+  <img
+    className="rounded-md"
+    src="docs/images/playground.png"
+  />
+</Frame>
 
 The playground provides a platform to create new app variants from the one you just made, and to tweak the application parameters. 
 
 We hope you found this guide useful. Happy coding!
+
+
