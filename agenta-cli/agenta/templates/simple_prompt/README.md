@@ -6,7 +6,4 @@ OPENAI_API_KEY=sk-xxxxxxx
 You can find your keys here:
 https://platform.openai.com/account/api-keys
 
-## Running
-You can first test your app locally by using by running `python app.py`, after experimenting, send it to evaluation by running `agenta up folder`.
-You will find then the app in the dashboard, where you can evaluate it and compare it to previous versions.
-
+Go back to the [Getting started tutorial](https://docs.agenta.ai/docs/getting-started) to continue
