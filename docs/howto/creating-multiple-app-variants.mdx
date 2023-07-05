@@ -1,0 +1,46 @@
+---
+title: Creating Multiple App Variants
+---
+
+## How to Create Multiple App Variants in a Single Project
+
+This guide provides instructions on creating multiple variants within one project. A "variant" is a unique version of your app that may feature a different architecture or significant changes in the codebase. (See [the concept guide](/docs/conceptual/concepts#app-variant) for more details on variants.)
+
+## Ways to Create App Variants
+
+We recommend two primary workflows for creating app variants from the command line interface (CLI):
+
+- [Git Branch Workflow](#git-branch-workflow)
+- [Multiple Files Workflow](#multiple-files-workflow)
+
+And one additional method through the web interface:
+
+- [Playground Workflow](#playground-workflow)
+
+## Git Branch Workflow
+
+This approach creates a new Git branch for each variant, enabling version control for each different version of your app.
+
+Here are the steps to follow:
+
+1. For each variant, create a new branch with the command: ```git checkout -b variant_name```
+2. Modify the code in your specific file (replace the content in `app.py`)
+3. Run the following command with the new code, using the same branch name: ```agenta variant serve```
+
+## Multiple Files Workflow
+
+This method involves creating a separate Python file for each variant in the same folder (e.g. `variant_1.py`, `variant_2.py`). The files can be named as you wish. Compared to the [Git Branch Workflow](#git-branch-workflow), this workflow allows to easily switch between variants without moving between branches.
+
+To create a variant using this workflow:
+
+1. Create a new script for the new variant, either by starting from scratch or copying and older version```cp app.py variant_name.py``` and then modifying it. This file will contain the code for the new variant with `@post` for the main function.
+2. Run the command ```agenta variant serve --file_name=variant_name.py```
+3. When naming your variants, ensure the variant name aligns with the file name (e.g., `variant_name.py` -> `variant_name`)
+
+
+## Playground Workflow
+
+Alternatively, you can create app variants directly from the Playground interface. To create a new variant, click the '+' symbol on the tabs in Playground.
+
+
+
