@@ -29,15 +29,37 @@ The `variant` command is designed to manage different variants of your applicati
 
 #### `variant` Sub-Commands:
 
-##### `add`
+##### `serve`
 
 ```bash
-agenta variant add
+agenta variant serve
 ```
 
-The `add` command builds the code into an image and adds the image to docker registry. In addition it registers the variant to the backend. 
+The `serve` command adds a variant to the web UI and serves the API **locally**.
 
-In the case a variant already exists with the same name, it overwrites (after asking) the image for the previous variant and updates the informatoin in the backend.
+Internally, `serve` sends the code to the local backend, where it is containerized, started and added to the UI.
+
+```bash
+agenta variant serve --file_name variant.py
+```
+
+Using the optional --file_name argument, you can specify the name of the file that contains the code for the variant. By default, the file name is `app.py`.
+
+##### `deploy`
+
+```bash
+agenta variant deploy
+```
+
+The `deploy` command adds a variant to the web UI and serves the API **remotely**. The URI of the remote backend is specified in the config file, and can be determined using `agenta init`.
+
+Internally, `serve` sends the code to the remote backend, where it is containerized, started and added to the UI.
+
+```bash
+agenta variant deploy --file_name variant.py
+```
+
+Using the optional --file_name argument, you can specify the name of the file that contains the code for the variant. By default, the file name is `app.py`.
 
 ##### `list`
 
@@ -55,20 +77,3 @@ agenta variant remove
 
 The `remove` command allows you to delete an existing variant from the platform. 
 
-##### `serve`
-
-```bash
-agenta variant serve
-```
-
-The `serve` command adds a variant to the web UI and serves the API locally.
-
-In fact `serve` is a combination of `add` and `start` commands. It builds the code into an image and adds the image to docker registry. In addition it registers the variant to the backend.
-
-##### `start`
-
-```bash
-agenta variant start
-```
-
-The `start` command launches a specified variant. 
