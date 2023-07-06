@@ -43,7 +43,8 @@ services:
         "--root-path",
         "/api"
       ]
-
+    env_file:
+      - .env
   agenta-web:
     build:
       context: ./agenta-web
