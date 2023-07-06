@@ -58,7 +58,7 @@ def start_container(image_name, app_name, variant_name) -> URI:
 
     container = client.containers.run(
         image, detach=True, labels=labels, network="agenta-network", name=f"{app_name}-{variant_name}")
-    return URI(uri=f"http://localhost/{app_name}/{variant_name}")
+    return URI(uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}")
 
 
 def stop_containers_based_on_image(image: Image) -> List[str]:
