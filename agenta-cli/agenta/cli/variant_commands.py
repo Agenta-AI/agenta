@@ -31,13 +31,7 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
     """
 
     app_path = Path(app_folder)
-    # Checks config
     config_file = app_path / 'config.toml'
-    if not config_file.exists():
-        click.echo("Please run agenta init first")
-        return None
-
-    helper.update_config_from_backend(config_file)
     config = toml.load(config_file)
     app_name = config['app-name']
 
@@ -69,7 +63,7 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
         config['variants'].append(variant_name)
     try:
         tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
-        image: Image = client.send_docker_tar(app_name, variant_name, tar_path)
+        image: Image = client.send_docker_tar(app_name, variant_name, tar_path, host)
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
@@ -77,9 +71,9 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
         return None
     try:
         if overwrite:
-            client.update_variant_image(app_name, variant_name, image)
+            client.update_variant_image(app_name, variant_name, image, host)
         else:
-            client.add_variant_to_server(app_name, variant_name, image)
+            client.add_variant_to_server(app_name, variant_name, image, host)
     except Exception as ex:
         if overwrite:
             click.echo(click.style(f"Error while updating variant: {ex}", fg='red'))
@@ -101,7 +95,7 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
         return variant_name
 
 
-def start_variant(variant_name: str, app_folder: str):
+def start_variant(variant_name: str, app_folder: str, host: str):
     """
     Starts a container for an existing variant
     Args:
@@ -110,14 +104,9 @@ def start_variant(variant_name: str, app_folder: str):
     """
     app_folder = Path(app_folder)
     config_file = app_folder / 'config.toml'
-    if not config_file.exists():
-        click.echo("Please run agenta init first")
-        return
-
-    helper.update_config_from_backend(config_file)
-
     config = toml.load(config_file)
     app_name = config['app-name']
+
     if len(config['variants']) == 0:
         click.echo("No variants found. Please add a variant first.")
         return
@@ -133,7 +122,7 @@ def start_variant(variant_name: str, app_folder: str):
             choices=config['variants']
         ).ask()
 
-    endpoint = client.start_variant(app_name, variant_name)
+    endpoint = client.start_variant(app_name, variant_name, host=host)
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg='green'))
     click.echo(
         click.style(f"Your app has been deployed locally as an API. 🚀", fg='cyan') +
@@ -147,30 +136,23 @@ def start_variant(variant_name: str, app_folder: str):
         click.style(f"{endpoint}/docs", bold=True, fg='yellow')
     )
 
+    webui_host = "http://localhost:3000" if host == "localhost" else host
     click.echo(
         click.style("\nStart experimenting with your app in the playground. 🎮", fg='cyan') +
         click.style(" Go to: ", fg='white') +
-        click.style(f"http://localhost:3000/apps/{app_name}/playground", bold=True, fg='yellow') +
+        click.style(f"{webui_host}/apps/{app_name}/playground", bold=True, fg='yellow') +
         "\n"
     )
 
 
-def remove_variant(variant_name: str, app_folder: str):
+def remove_variant(variant_name: str, app_folder: str, host: str):
     """
     Removes a variant from the server
     Args:
         variant_name: the name of the variant
         app_folder: the folder of the app
     """
-    app_folder = Path(app_folder)
-    config_file = app_folder / 'config.toml'
-    if not config_file.exists():
-        click.echo(click.style(
-            f"Config file not found in {app_folder}. Make sure you are in the right folder and that you have run agenta init first.", fg='red'))
-        return
-
-    helper.update_config_from_backend(config_file)
-
+    config_file = Path(app_folder) / 'config.toml'
     config = toml.load(config_file)
     app_name = config['app-name']
 
@@ -185,7 +167,7 @@ def remove_variant(variant_name: str, app_folder: str):
             choices=config['variants']
         ).ask()
     try:
-        client.remove_variant(app_name, variant_name)
+        client.remove_variant(app_name, variant_name, host)
     except Exception as ex:
         click.echo(click.style(
             f"Error while removing variant {variant_name} for App {app_name} from the backend", fg='red'))
@@ -195,11 +177,28 @@ def remove_variant(variant_name: str, app_folder: str):
     click.echo(click.style(f"Variant {variant_name} for App {app_name} removed successfully from Agenta!", fg='green'))
 
 
-def list_variants(app_folder: str):
+def list_variants(app_folder: str, host: str):
     """List available variants for an app and print them to the console
 
     Arguments:
         app_folder -- _description_
+    """
+    config_file = Path(app_folder) / 'config.toml'
+    config = toml.load(config_file)
+    app_name = config['app-name']
+    variants: List[AppVariant] = client.list_variants(app_name, host)
+    if variants:
+        for variant in variants:
+            helper.display_app_variant(variant)
+    else:
+        click.echo(click.style(f"No variants found for app {app_name}", fg='red'))
+
+
+def config_check(app_folder: str):
+    """Check the config file and update it from the backend
+
+    Arguments:
+        app_folder -- the app folder 
     """
     app_folder = Path(app_folder)
     config_file = app_folder / 'config.toml'
@@ -210,14 +209,18 @@ def list_variants(app_folder: str):
 
     helper.update_config_from_backend(config_file)
 
+
+def get_host(app_folder: str) -> str:
+    """Fetches the host from the config
+    """
+    app_folder = Path(app_folder)
+    config_file = app_folder / 'config.toml'
     config = toml.load(config_file)
-    app_name = config['app-name']
-    variants: List[AppVariant] = client.list_variants(app_name)
-    if variants:
-        for variant in variants:
-            helper.display_app_variant(variant)
+    if "backend_host" not in config:
+        host = "localhost"
     else:
-        click.echo(click.style(f"No variants found for app {app_name}", fg='red'))
+        host = config['backend_host']
+    return host
 
 
 @variant.command(name='remove')
@@ -225,7 +228,8 @@ def list_variants(app_folder: str):
 @click.option('--variant_name', default='')
 def remove_variant_cli(variant_name: str, app_folder: str):
     """Remove an existing variant."""
-    remove_variant(variant_name, app_folder)
+    config_check(app_folder)
+    remove_variant(variant_name=variant_name, app_folder=app_folder, host=get_host(app_folder))
 
 
 @variant.command(name='serve')
@@ -233,23 +237,16 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 @click.option('--file_name', default='app.py', help="The name of the file to run")
 def serve_cli(app_folder: str, file_name: str):
     """Adds a variant to the web ui and serves the api locally."""
-    variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name, host="localhost")
+    config_check(app_folder)
+    host = get_host(app_folder)
+    variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name, host=host)
     if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
-        start_variant(variant_name=variant_name, app_folder=app_folder)
-
-
-@variant.command(name='deploy')
-@click.option('--app_folder', default='.')
-@click.option('--file_name', default='app.py', help="The name of the file to run")
-def serve_cli(app_folder: str, file_name: str):
-    """Adds a variant to the web ui and serves the api locally."""
-    variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name, host="localhost")
-    if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
-        start_variant(variant_name=variant_name, app_folder=app_folder)
+        start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
 
 
 @variant.command(name='list')
 @click.option('--app_folder', default=".")
 def list_variants_cli(app_folder: str):
     """List the variants in the backend"""
-    list_variants(app_folder)
+    config_check(app_folder)
+    list_variants(app_folder=app_folder, host=get_host(app_folder))
