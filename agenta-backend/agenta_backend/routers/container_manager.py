@@ -56,11 +56,12 @@ def build_image_job(app_name: str, variant_name: str, tar_path: Path, image_name
         # TODO: Add remove the temp dir and the tar file
         # return JSONResponse(content={"message": "Image built successfully", "image": str(response)})
     except docker.errors.BuildError as ex:
-        logger.error("Error building Docker image:\n")
-        # Print the build log
+        log = "Error building Docker image:\n"
+
         for line in ex.build_log:
-            logger.error(line)
-        raise HTTPException(status_code=500, detail=str(ex))
+            log += line
+        logger.error(log)
+        raise HTTPException(status_code=500, detail=str(ex)+"\n"+log)
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
 
