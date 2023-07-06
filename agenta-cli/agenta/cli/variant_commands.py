@@ -206,8 +206,9 @@ def config_check(app_folder: str):
         click.echo(click.style(
             f"Config file not found in {app_folder}. Make sure you are in the right folder and that you have run agenta init first.", fg='red'))
         return
+    host = get_host(app_folder)  # TODO: Refactor the whole config thing
 
-    helper.update_config_from_backend(config_file)
+    helper.update_config_from_backend(config_file, host=host)
 
 
 def get_host(app_folder: str) -> str:
@@ -217,7 +218,7 @@ def get_host(app_folder: str) -> str:
     config_file = app_folder / 'config.toml'
     config = toml.load(config_file)
     if "backend_host" not in config:
-        host = "localhost"
+        host = "http://localhost"
     else:
         host = config['backend_host']
     return host
