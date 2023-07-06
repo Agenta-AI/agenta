@@ -1,3 +1,4 @@
+import re
 import shutil
 from pathlib import Path
 
@@ -12,9 +13,9 @@ def print_version(ctx, param, value):
         return
     try:
         try:
-            from importlib.metadata import version, PackageNotFoundError
+            from importlib.metadata import PackageNotFoundError, version
         except ImportError:
-            from importlib_metadata import version, PackageNotFoundError
+            from importlib_metadata import PackageNotFoundError, version
         package_version = version("agenta")
     except PackageNotFoundError:
         package_version = "package is not installed"
@@ -33,9 +34,27 @@ def cli():
 def init(app_name: str):
     """Initialize a new Agenta app with the template files."""
     if not app_name:
-        app_name = questionary.text('Please enter the app name').ask()
+        while True:
+            app_name = questionary.text('Please enter the app name').ask()
+            if app_name and re.match('^[a-zA-Z0-9]+$', app_name):
+                break
+            else:
+                print("Invalid input. Please use only alphanumeric characters without spaces.")
 
-    config = {"app-name": app_name}
+    where_question = questionary.select(
+        "Are you running agenta locally?",
+        choices=['Yes', 'No']
+    ).ask()
+
+    if where_question == 'Yes':
+        backend_host = "http://localhost"
+    else:
+        backend_host = questionary.text(
+            'Please provide the IP or URL of your remote host').ask()
+    backend_host = backend_host if backend_host.startswith(
+        'http://') or backend_host.startswith('https://') else 'http://'+backend_host
+
+    config = {"app-name": app_name, "backend_host": backend_host}
     with open('config.toml', 'w') as config_file:
         toml.dump(config, config_file)
 

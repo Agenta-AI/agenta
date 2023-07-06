@@ -13,6 +13,8 @@ services:
         build: ./agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
+            - ENVIRONMENT=development
+            - BARE_DOMAIN_NAME=localhost
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
