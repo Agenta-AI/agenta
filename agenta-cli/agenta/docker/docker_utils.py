@@ -38,6 +38,8 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         the path to the created tar file
     """
     tarfile_path = folder / "docker.tar.gz"  # output file
+    if tarfile_path.exists():
+        tarfile_path.unlink()
     dockerfile_path = create_dockerfile(folder)
     shutil.copytree(Path(__file__).parent.parent / "sdk", folder / "agenta", dirs_exist_ok=True)
     shutil.copy(Path(__file__).parent /
