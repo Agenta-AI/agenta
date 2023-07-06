@@ -57,7 +57,6 @@ def build_image_job(app_name: str, variant_name: str, tar_path: Path, image_name
         # return JSONResponse(content={"message": "Image built successfully", "image": str(response)})
     except docker.errors.BuildError as ex:
         log = "Error building Docker image:\n"
-
         for line in ex.build_log:
             log += line
         logger.error(log)
