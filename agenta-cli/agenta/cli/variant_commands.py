@@ -8,7 +8,8 @@ import toml
 from agenta.cli import helper
 from agenta.client import client
 from agenta.client.api_models import AppVariant, Image
-from agenta.docker.docker_utils import build_and_upload_docker_image, build_tar_docker_container
+from agenta.docker.docker_utils import (build_and_upload_docker_image,
+                                        build_tar_docker_container)
 from docker.models.images import Image as DockerImage
 
 
