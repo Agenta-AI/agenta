@@ -49,7 +49,7 @@ def start_container(image_name, app_name, variant_name) -> URI:
 
     rules = {
         "development": f"PathPrefix(`/{app_name}/{variant_name}`)",
-        "production": f"Host(`{os.environ('BARE_DOMAIN_NAME')}`) && PathPrefix(`/{app_name}/{variant_name}`)"
+        "production": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)"
     }
 
     labels.update({
