@@ -7,14 +7,14 @@ import requests
 from agenta.client.api_models import AppVariant, Image
 from docker.models.images import Image as DockerImage
 
-BACKEND_URL = os.environ["BACKEND_ENDPOINT"]
+BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
 
 
 class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
-def add_variant_to_server(app_name: str, variant_name: str, image: Image):
+def add_variant_to_server(app_name: str, variant_name: str, image: Image, host: str):
     """Adds a variant to the server.
 
     Arguments:
@@ -24,7 +24,7 @@ def add_variant_to_server(app_name: str, variant_name: str, image: Image):
     """
     app_variant: AppVariant = AppVariant(
         app_name=app_name, variant_name=variant_name)
-    response = requests.post(f"{BACKEND_URL}/app_variant/add/from_image/",
+    response = requests.post(f"{host}/{BACKEND_URL_SUFFIX}/app_variant/add/from_image/",
                              json={"app_variant": app_variant.dict(), "image": image.dict()}, timeout=600)
     if response.status_code != 200:
         error_message = response.text
@@ -32,7 +32,7 @@ def add_variant_to_server(app_name: str, variant_name: str, image: Image):
             f"Request to app_variant endpoint failed with status code {response.status_code} and error message: {error_message}.")
 
 
-def start_variant(app_name: str, variant_name: str) -> str:
+def start_variant(app_name: str, variant_name: str, host: str) -> str:
     """Starts a container with the variant an expose its endpoint
 
     Arguments:
@@ -42,7 +42,7 @@ def start_variant(app_name: str, variant_name: str) -> str:
     Returns:
         The endpoint of the container
     """
-    response = requests.post(f"{BACKEND_URL}/app_variant/start/",
+    response = requests.post(f"{host}/{BACKEND_URL_SUFFIX}/app_variant/start/",
                              json={"app_name": app_name, "variant_name": variant_name}, timeout=600)
     if response.status_code != 200:
         error_message = response.text
@@ -51,7 +51,7 @@ def start_variant(app_name: str, variant_name: str) -> str:
     return response.json()['uri']
 
 
-def list_variants(app_name: str) -> List[AppVariant]:
+def list_variants(app_name: str, host: str) -> List[AppVariant]:
     """Lists all the variants registered in the backend for an app
 
     Arguments:
@@ -60,7 +60,7 @@ def list_variants(app_name: str) -> List[AppVariant]:
     Returns:
         a list of the variants using the pydantic model
     """
-    response = requests.get(f"{BACKEND_URL}/app_variant/list_variants/?app_name={app_name}", timeout=600)
+    response = requests.get(f"{host}/{BACKEND_URL_SUFFIX}/app_variant/list_variants/?app_name={app_name}", timeout=600)
 
     # Check for successful request
     if response.status_code != 200:
@@ -71,7 +71,7 @@ def list_variants(app_name: str) -> List[AppVariant]:
     return [AppVariant(**variant) for variant in app_variants]
 
 
-def remove_variant(app_name: str, variant_name: str):
+def remove_variant(app_name: str, variant_name: str, host: str):
     """Removes a variant from the backend
 
     Arguments:
@@ -80,7 +80,7 @@ def remove_variant(app_name: str, variant_name: str):
     """
     app_variant = AppVariant(app_name=app_name, variant_name=variant_name)
     app_variant_json = app_variant.json()
-    response = requests.delete(f"{BACKEND_URL}/app_variant/remove_variant/",
+    response = requests.delete(f"{host}/{BACKEND_URL_SUFFIX}/app_variant/remove_variant/",
                                data=app_variant_json, headers={'Content-Type': 'application/json'}, timeout=600)
 
     # Check for successful request
@@ -90,7 +90,7 @@ def remove_variant(app_name: str, variant_name: str):
             f"Request to remove_variant endpoint failed with status code {response.status_code} and error message: {error_message}")
 
 
-def update_variant_image(app_name: str, variant_name: str, image: Image):
+def update_variant_image(app_name: str, variant_name: str, image: Image, host: str):
     """Adds a variant to the server.
 
     Arguments:
@@ -100,7 +100,7 @@ def update_variant_image(app_name: str, variant_name: str, image: Image):
     """
     app_variant: AppVariant = AppVariant(
         app_name=app_name, variant_name=variant_name)
-    response = requests.put(f"{BACKEND_URL}/app_variant/update_variant_image/",
+    response = requests.put(f"{host}/{BACKEND_URL_SUFFIX}/app_variant/update_variant_image/",
                             json={"app_variant": app_variant.dict(), "image": image.dict()}, timeout=600)
     if response.status_code != 200:
         error_message = response.text
@@ -108,10 +108,10 @@ def update_variant_image(app_name: str, variant_name: str, image: Image):
             f"Request to update app_variant failed with status code {response.status_code} and error message: {error_message}.")
 
 
-def send_docker_tar(app_name: str, variant_name: str, tar_path: Path) -> Image:
+def send_docker_tar(app_name: str, variant_name: str, tar_path: Path, host: str) -> Image:
     with tar_path.open('rb') as tar_file:
         response = requests.post(
-            f"{BACKEND_URL}/containers/build_image/?app_name={app_name}&variant_name={variant_name}",
+            f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_name={app_name}&variant_name={variant_name}",
             files={
                 'tar_file': tar_file,
             },
