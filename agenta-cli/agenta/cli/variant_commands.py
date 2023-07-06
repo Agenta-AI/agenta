@@ -18,9 +18,17 @@ def variant():
     pass
 
 
-def add_variant(variant_name: str, app_folder: str, file_name: str) -> str:
-    """Add a new variant.
-    Returns the name of the variant. (useful for serve)"""
+def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -> str:
+    """
+    Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
+    Args:
+        variant_name: the name of the variant
+        app_folder: the folder of the app
+        file_name: the name of the file to run
+        host: the host to use for the variant
+    Returns:
+        the name of the variant(useful for serve)
+    """
 
     app_path = Path(app_folder)
     # Checks config
@@ -225,26 +233,19 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 @click.option('--file_name', default='app.py', help="The name of the file to run")
 def serve_cli(app_folder: str, file_name: str):
     """Adds a variant to the web ui and serves the api locally."""
-    variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name)
+    variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name, host="localhost")
     if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
         start_variant(variant_name=variant_name, app_folder=app_folder)
 
 
-@variant.command(name='add')
+@variant.command(name='deploy')
 @click.option('--app_folder', default='.')
-@click.option('--variant_name', default='')
 @click.option('--file_name', default='app.py', help="The name of the file to run")
-def add_variant_cli(variant_name: str, app_folder: str, file_name: str):
-    """Builds the code into a new variant and add it to the platform"""
-    return add_variant(variant_name, app_folder)
-
-
-@variant.command(name='start')
-@click.option('--variant_name', default=None)
-@click.option('--app_folder', default=".")
-def start_variant_cli(variant_name: str, app_folder: str):
-    """Start a variant."""
-    start_variant(variant_name, app_folder, file_name)
+def serve_cli(app_folder: str, file_name: str):
+    """Adds a variant to the web ui and serves the api locally."""
+    variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name, host="localhost")
+    if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
+        start_variant(variant_name=variant_name, app_folder=app_folder)
 
 
 @variant.command(name='list')
