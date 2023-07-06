@@ -1,10 +1,10 @@
+import logging
+import os
 from typing import List
 
 import docker
 from agenta_backend.config import settings
-from agenta_backend.models.api.api_models import AppVariant, Image, URI
-import logging
-import os
+from agenta_backend.models.api.api_models import URI, AppVariant, Image
 
 client = docker.from_env()
 
@@ -53,7 +53,7 @@ def start_container(image_name, app_name, variant_name) -> URI:
     }
 
     labels.update({
-        f"traefik.http.routers.{app_name}-{variant_name}.rule": rules.get(settings.environment)
+        f"traefik.http.routers.{app_name}-{variant_name}.rule": rules[os.environ["ENVIRONMENT"]]
     })
 
     container = client.containers.run(
