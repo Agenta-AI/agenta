@@ -1,6 +1,7 @@
+import re
 import shutil
 from pathlib import Path
-import re
+
 import click
 import questionary
 import toml
@@ -12,9 +13,9 @@ def print_version(ctx, param, value):
         return
     try:
         try:
-            from importlib.metadata import version, PackageNotFoundError
+            from importlib.metadata import PackageNotFoundError, version
         except ImportError:
-            from importlib_metadata import version, PackageNotFoundError
+            from importlib_metadata import PackageNotFoundError, version
         package_version = version("agenta")
     except PackageNotFoundError:
         package_version = "package is not installed"
