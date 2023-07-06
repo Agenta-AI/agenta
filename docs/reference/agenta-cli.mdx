@@ -35,28 +35,12 @@ The `variant` command is designed to manage different variants of your applicati
 agenta variant serve
 ```
 
-The `serve` command adds a variant to the web UI and serves the API **locally**.
+The `serve` command adds a variant to the web UI and serves the API to the backend configured when doing `agenta init`.
 
-Internally, `serve` sends the code to the local backend, where it is containerized, started and added to the UI.
+Internally, `serve` sends the code to the backend, where it is containerized, started and added to the UI.
 
 ```bash
 agenta variant serve --file_name variant.py
-```
-
-Using the optional --file_name argument, you can specify the name of the file that contains the code for the variant. By default, the file name is `app.py`.
-
-##### `deploy`
-
-```bash
-agenta variant deploy
-```
-
-The `deploy` command adds a variant to the web UI and serves the API **remotely**. The URI of the remote backend is specified in the config file, and can be determined using `agenta init`.
-
-Internally, `serve` sends the code to the remote backend, where it is containerized, started and added to the UI.
-
-```bash
-agenta variant deploy --file_name variant.py
 ```
 
 Using the optional --file_name argument, you can specify the name of the file that contains the code for the variant. By default, the file name is `app.py`.
