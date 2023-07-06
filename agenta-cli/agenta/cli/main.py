@@ -35,7 +35,20 @@ def init(app_name: str):
     if not app_name:
         app_name = questionary.text('Please enter the app name').ask()
 
-    config = {"app-name": app_name}
+    where_question = questionary.select(
+        "Are you running agenta locally?",
+        choices=['Yes', 'No']
+    ).ask()
+
+    if where_question == 'Yes':
+        backend_host = "http://localhost"
+    else:
+        backend_host = questionary.text(
+            'Please provide the IP or URL of your remote host').ask()
+    backend_host = backend_host if backend_host.startswith(
+        'http://') or backend_host.startswith('https://') else 'http://'+backend_host
+
+    config = {"app-name": app_name, "backend_host": backend_host}
     with open('config.toml', 'w') as config_file:
         toml.dump(config, config_file)
 
