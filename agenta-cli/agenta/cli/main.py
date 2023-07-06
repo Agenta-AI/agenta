@@ -1,6 +1,6 @@
 import shutil
 from pathlib import Path
-
+import re
 import click
 import questionary
 import toml
@@ -33,7 +33,12 @@ def cli():
 def init(app_name: str):
     """Initialize a new Agenta app with the template files."""
     if not app_name:
-        app_name = questionary.text('Please enter the app name').ask()
+        while True:
+            app_name = questionary.text('Please enter the app name').ask()
+            if app_name and re.match('^[a-zA-Z0-9]+$', app_name):
+                break
+            else:
+                print("Invalid input. Please use only alphanumeric characters without spaces.")
 
     where_question = questionary.select(
         "Are you running agenta locally?",
