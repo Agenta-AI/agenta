@@ -9,15 +9,15 @@ import { PlusOutlined } from '@ant-design/icons';
 
 export default function Manual() {
     const [rowData, setRowData] = useState([
-        { make: "Toyota", model: "Celica", price: 35000 },
-        { make: "Ford", model: "Mondeo", price: 32000 },
-        { make: "Porsche", model: "Boxster", price: 72000 }
+        { column1: "data1", column2: "data2", column3: "data3" },
+        { column1: "data1", column2: "data2", column3: "data3" },
+        { column1: "data1", column2: "data2", column3: "data3" }
     ]);
 
     const [columnDefs, setColumnDefs] = useState([
-        { field: 'make' },
-        { field: 'model' },
-        { field: 'price' }
+        { field: 'column1' },
+        { field: 'column2' },
+        { field: 'column3' }
     ]);
 
     const [inputValues, setInputValues] = useState(columnDefs.map(col => col.field));
@@ -69,8 +69,8 @@ export default function Manual() {
     };
 
     const onAddColumn = () => {
-        setInputValues([...inputValues, `newColumn${columnDefs.length + 1}`]);
-        setColumnDefs([...columnDefs, { field: `newColumn${columnDefs.length + 1}` }]);
+        setInputValues([...inputValues, `column${columnDefs.length + 1}`]);
+        setColumnDefs([...columnDefs, { field: `column${columnDefs.length + 1}` }]);
     };
 
     const onSaveData = () => {
