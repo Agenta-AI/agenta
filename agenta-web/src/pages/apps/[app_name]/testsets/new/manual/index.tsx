@@ -1,281 +1,126 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
-import type { InputRef } from 'antd';
-import { Button, Form, Input, Popconfirm, Table } from 'antd';
-import type { FormInstance } from 'antd/es/form';
+import React, { useState, useRef } from 'react';
+import { AgGridReact } from 'ag-grid-react';
 
-const EditableContext = React.createContext<FormInstance<any> | null>(null);
+import { Button, Input, Typography } from 'antd';
 
-interface Item {
-    key: string;
-    name: string;
-    age: string;
-    address: string;
-}
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+import { PlusOutlined } from '@ant-design/icons';
 
-interface EditableRowProps {
-    index: number;
-}
-
-const EditableRow: React.FC<EditableRowProps> = ({ index, ...props }) => {
-    const [form] = Form.useForm();
-    return (
-        <Form form={form} component={false}>
-            <EditableContext.Provider value={form}>
-                <tr {...props} />
-            </EditableContext.Provider>
-        </Form>
-    );
-};
-
-interface EditableCellProps {
-    title: React.ReactNode;
-    editable: boolean;
-    children: React.ReactNode;
-    dataIndex: keyof Item;
-    record: Item;
-    handleSave: (record: Item) => void;
-}
-
-const EditableCell: React.FC<EditableCellProps> = ({
-    title,
-    editable,
-    children,
-    dataIndex,
-    record,
-    handleSave,
-    ...restProps
-}) => {
-    const [editing, setEditing] = useState(false);
-    const inputRef = useRef<InputRef>(null);
-    const form = useContext(EditableContext)!;
-
-    useEffect(() => {
-        if (editing) {
-            inputRef.current!.focus();
-        }
-    }, [editing]);
-
-    const toggleEdit = () => {
-        setEditing(!editing);
-        form.setFieldsValue({ [dataIndex]: record[dataIndex] });
-    };
-
-    const save = async () => {
-        try {
-            const values = await form.validateFields();
-
-            handleSave({ ...record, ...values });
-            toggleEdit();
-        } catch (errInfo) {
-            console.log('Save failed:', errInfo);
-        }
-    };
-
-    let childNode = children;
-
-    if (editable) {
-        childNode = editing ? (
-            <Form.Item
-                style={{ margin: 0 }}
-                name={dataIndex}
-                rules={[
-                    {
-                        required: true,
-                        message: `${title} is required.`,
-                    },
-                ]}
-            >
-                <Input ref={inputRef} onPressEnter={save} onBlur={save} />
-            </Form.Item>
-        ) : (
-            <div className="editable-cell-value-wrap" style={{ paddingRight: 24 }} onClick={toggleEdit}>
-                {children}
-            </div>
-        );
-    }
-
-    return <td {...restProps}>{childNode}</td>;
-};
-
-type EditableTableProps = Parameters<typeof Table>[0];
-
-interface DataType {
-    key: React.Key;
-    name: string;
-    age: string;
-    address: string;
-}
-
-type ColumnTypes = Exclude<EditableTableProps['columns'], undefined>;
-
-const DynamicTestSetTable: React.FC = () => {
-    const [columnCount, setColumnCount] = useState(3);
-    const [rowCount, setRowCount] = useState(2);
-    const [dataSource, setDataSource] = useState<DataType[]>([
-        {
-            key: '0',
-            name: 'Edward King 0',
-            age: '32',
-            address: 'London, Park Lane no. 0',
-        },
-        {
-            key: '1',
-            name: 'Edward King 1',
-            age: '32',
-            address: 'London, Park Lane no. 1',
-        },
+export default function Manual() {
+    const [rowData, setRowData] = useState([
+        { make: "Toyota", model: "Celica", price: 35000 },
+        { make: "Ford", model: "Mondeo", price: 32000 },
+        { make: "Porsche", model: "Boxster", price: 72000 }
     ]);
 
-    function handleDelete(key: React.Key) {
-        setDataSource((currentDataSource) => currentDataSource.filter((item) => item.key !== key));
+    const [columnDefs, setColumnDefs] = useState([
+        { field: 'make' },
+        { field: 'model' },
+        { field: 'price' }
+    ]);
+
+    const [inputValues, setInputValues] = useState(columnDefs.map(col => col.field));
+    const gridRef = useRef(null);
+
+    const handleInputChange = (index, event) => {
+        const values = [...inputValues];
+        values[index] = event.target.value;
+        setInputValues(values);
     }
 
-    const handleAddRow = () => {
-        const newData: DataType = {
-            key: `${rowCount}`,
-            name: `Edward King ${rowCount}`,
-            age: '32',
-            address: `London, Park Lane no. ${rowCount}`,
-        };
-        // Include the new columns data
-        columns.forEach((column, index) => {
-            if (index >= 3) {
-                newData[column.dataIndex as string] = 'new data';
+    const updateTable = () => {
+        const newColumnDefs = inputValues.map((value, index) => {
+            return { field: value || columnDefs[index]?.field || `newColumn${index}` };
+        });
+
+        const keyMap = columnDefs.reduce((acc, colDef, index) => {
+            acc[colDef.field] = newColumnDefs[index].field;
+            return acc;
+        }, {});
+
+        const newRowData = rowData.map(row => {
+            const newRow = {};
+            for (let key in row) {
+                newRow[keyMap[key]] = row[key];
             }
+            return newRow;
         });
-        setDataSource([...dataSource, newData]);
-        setRowCount(rowCount + 1);
-    };
 
-    const handleAddColumn = () => {
-        setColumnCount((prevCount) => {
-            const newCount = prevCount + 1;
-            const newColumn = {
-                title: `Column ${newCount}`,
-                dataIndex: `column${newCount}`,
-                editable: true,
-                onCell: (record: DataType) => ({
-                    record,
-                    editable: true,
-                    dataIndex: `column${newCount}`,
-                    title: `Column ${newCount}`,
-                    handleSave,
-                }),
-            };
-
-            setColumns((prevColumns) => {
-                const newColumns = [
-                    ...prevColumns.slice(0, prevColumns.length - 1),
-                    newColumn,
-                    prevColumns[prevColumns.length - 1],
-                ];
-                return newColumns;
-            });
-
-            setDataSource((prevDataSource) => {
-                const newDataSource = prevDataSource.map((item) => ({
-                    ...item,
-                    [`column${newCount}`]: 'new data',
-                }));
-                return newDataSource;
-            });
-
-            return newCount;
-        });
-    };
-
-    const defaultColumns: (ColumnTypes[number] & { editable?: boolean; dataIndex: string })[] = [
-        {
-            title: 'name',
-            dataIndex: 'name',
-            width: '30%',
-            editable: true,
-        },
-        {
-            title: 'age',
-            dataIndex: 'age',
-            editable: true,
-        },
-        {
-            title: 'address',
-            dataIndex: 'address',
-            editable: true,
-        },
-        {
-            title: (
-                <Button onClick={handleAddColumn}>
-                    Add a column
-                </Button>
-            ),
-            dataIndex: 'operation',
-            render: (_, record: { key: React.Key }) =>
-                dataSource.length >= 1 ? (
-                    <Popconfirm title="Sure to delete?" onConfirm={() => handleDelete(record.key)}>
-                        <a>Delete</a>
-                    </Popconfirm>
-                ) : null,
-        },
-    ];
-
-    const handleSave = (row: DataType) => {
-        setDataSource((currentDataSource) => {
-            const newData = [...currentDataSource];
-            const index = newData.findIndex((item) => row.key === item.key);
-            const item = newData[index];
-            newData.splice(index, 1, {
-                ...item,
-                ...row,
-            });
-            return newData;
-        });
-    };
-
-    const components = {
-        body: {
-            row: EditableRow,
-            cell: EditableCell,
-        },
-    };
-
-    const [columns, setColumns] = useState(() => defaultColumns.map((col) => {
-        if (!col.editable) {
-            return col;
+        setColumnDefs(newColumnDefs);
+        setRowData(newRowData);
+        if (gridRef.current) {
+            gridRef.current.setColumnDefs(newColumnDefs);
         }
-        return {
-            ...col,
-            onCell: (record: DataType) => ({
-                record,
-                editable: col.editable,
-                dataIndex: col.dataIndex,
-                title: col.title,
-                handleSave: handleSave,
-            }),
-        };
-    }));
+    };
 
-    const handleSaveTestSet = () => {
-    }
+    const defaultColDef = {
+        flex: 1,
+        minWidth: 100,
+        editable: true,
+    };
+
+    const onAddRow = () => {
+        const newRow = {};
+        columnDefs.forEach(colDef => {
+            newRow[colDef.field] = '';
+        });
+        setRowData([...rowData, newRow]);
+    };
+
+    const onAddColumn = () => {
+        setInputValues([...inputValues, `newColumn${columnDefs.length + 1}`]);
+        setColumnDefs([...columnDefs, { field: `newColumn${columnDefs.length + 1}` }]);
+    };
+
+    const onSaveData = () => {
+        console.log(rowData);
+    };
 
     return (
         <div>
-            <Table
-                components={components}
-                rowClassName={() => 'editable-row'}
-                bordered
-                dataSource={dataSource}
-                columns={columns}
-                // columns={columns as ColumnTypes}
-                footer={() => (
-                    <Button onClick={handleAddRow}>
-                        Add a row
-                    </Button>
-                )}
-            />
-            <Button onClick={handleSaveTestSet} type="primary">
-                Save Test Set
-            </Button>
+            <Typography.Title level={5} style={{ marginBottom: '20px' }}>
+                Adjust columns headers
+            </Typography.Title>
+
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', marginBottom: '20px' }}>
+                {columnDefs.map((colDef, index) => (
+                    <div key={index} style={{ marginRight: '10px' }}>
+                        <Input
+                            key={index}
+                            value={inputValues[index]}
+                            onChange={event => handleInputChange(index, event)}
+                        />
+                    </div>
+                ))}
+
+                <Button onClick={onAddColumn} style={{ marginRight: '10px' }}><PlusOutlined /></Button>
+                <Button onClick={updateTable} type="primary">Update Table</Button>
+            </div>
+
+            <div className="ag-theme-alpine" style={{ height: 500 }}>
+                <AgGridReact
+                    onGridReady={params => gridRef.current = params.api}
+                    rowData={rowData}
+                    columnDefs={columnDefs}
+                    defaultColDef={defaultColDef}
+                    singleClickEdit={true}
+                    statusBar={{
+                        statusPanels: [
+                            {
+                                statusPanel: 'agAggregationComponent',
+                                statusPanelParams: {
+                                    aggFuncs: ['sum'],
+                                },
+                            },
+                        ],
+                    }}
+                />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                <Button onClick={onAddRow} >Add Row</Button>
+                <Button onClick={onSaveData} type="primary">Save Test Set</Button>
+            </div>
         </div>
     );
 };
-
-export default DynamicTestSetTable;
