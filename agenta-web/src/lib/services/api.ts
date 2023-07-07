@@ -158,6 +158,7 @@ export async function createNewTestSet(appName: string, testSetName: string, tes
             name: testSetName,
             csvdata: testSetData
         });
+        return response;
     } catch (error) {
         console.error(error);
         throw error;

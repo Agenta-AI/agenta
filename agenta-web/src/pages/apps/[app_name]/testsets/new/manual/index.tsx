@@ -81,7 +81,10 @@ export default function Manual() {
 
     const onSaveData = async () => {
         try {
-            await createNewTestSet(appName, testSetName, rowData);
+            const response = await createNewTestSet(appName, testSetName, rowData);
+            if (response.status === 200) {
+                router.push(`/apps/${appName}/testsets`);
+            }
         } catch (error) {
             console.error('Error creating new test set:', error);
             throw error;
