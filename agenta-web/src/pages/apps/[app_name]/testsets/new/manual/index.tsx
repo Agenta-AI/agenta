@@ -95,8 +95,6 @@ export default function Manual() {
         setTestSetName(e.target.value);
     };
 
-
-
     return (
         <div>
             <Typography.Title level={5} style={{ marginBottom: '20px' }}>
