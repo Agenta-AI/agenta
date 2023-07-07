@@ -6,8 +6,14 @@ import { Button, Input, Typography } from 'antd';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
 import { PlusOutlined } from '@ant-design/icons';
+import { createNewTestSet } from '@/lib/services/api';
+import { useRouter } from 'next/router';
 
 export default function Manual() {
+    const router = useRouter();
+    const appName = router.query.app_name?.toString() || "";
+
+    const [testSetName, setTestSetName] = useState("");
     const [rowData, setRowData] = useState([
         { column1: "data1", column2: "data2", column3: "data3" },
         { column1: "data1", column2: "data2", column3: "data3" },
@@ -73,15 +79,34 @@ export default function Manual() {
         setColumnDefs([...columnDefs, { field: `column${columnDefs.length + 1}` }]);
     };
 
-    const onSaveData = () => {
-        console.log(rowData);
+    const onSaveData = async () => {
+        try {
+            await createNewTestSet(appName, testSetName, rowData);
+        } catch (error) {
+            console.error('Error creating new test set:', error);
+            throw error;
+        }
+    }
+
+    const handleChange = (e) => {
+        setTestSetName(e.target.value);
     };
+
+
 
     return (
         <div>
             <Typography.Title level={5} style={{ marginBottom: '20px' }}>
                 Create a new Test Set
             </Typography.Title>
+
+            <div style={{ width: '50%', marginBottom: 20 }}>
+                <Input
+                    value={testSetName}
+                    onChange={handleChange}
+                    placeholder="Test Set Name"
+                />
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', marginBottom: '20px' }}>
                 {columnDefs.map((colDef, index) => (
