@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Any, Optional, List
+from typing import Any, List, Dict
 
 
 class DatasetModel(BaseModel):
@@ -26,3 +26,7 @@ class UploadResponse(BaseModel):
 
 class DeleteDatasets(BaseModel):
     dataset_ids: List[str]
+
+class NewDataSet(BaseModel):
+    name: str
+    csvdata: List[Dict[str, Any]]
