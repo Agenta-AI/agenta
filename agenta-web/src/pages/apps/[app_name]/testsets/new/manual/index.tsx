@@ -80,7 +80,7 @@ export default function Manual() {
     return (
         <div>
             <Typography.Title level={5} style={{ marginBottom: '20px' }}>
-                Adjust columns headers
+                Create a new Test Set
             </Typography.Title>
 
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', marginBottom: '20px' }}>
@@ -95,7 +95,7 @@ export default function Manual() {
                 ))}
 
                 <Button onClick={onAddColumn} style={{ marginRight: '10px' }}><PlusOutlined /></Button>
-                <Button onClick={updateTable} type="primary">Update Table</Button>
+                <Button onClick={updateTable} type="primary">Update Columns names</Button>
             </div>
 
             <div className="ag-theme-alpine" style={{ height: 500 }}>
