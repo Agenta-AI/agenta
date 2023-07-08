@@ -1,7 +1,6 @@
-import os
 from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Body
 from agenta_backend.services.db_mongo import datasets
-from agenta_backend.models.api.dataset_model import UploadResponse, DeleteDatasets
+from agenta_backend.models.api.dataset_model import UploadResponse, DeleteDatasets, NewDataSet
 from datetime import datetime
 from typing import Optional, List
 from bson import ObjectId
@@ -58,6 +57,34 @@ async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] 
         raise HTTPException(
             status_code=500, detail="Failed to process file") from e
 
+
+@router.post("/{app_name}")
+async def create_dataset(app_name: str, csvdata: NewDataSet):
+    """
+    Create a dataset with given name and app_name, save the dataset to MongoDB.
+
+    Args:
+    name (str): name of the test set.
+    app_name (str): name of the application.
+    dataset (Dict[str, str]): test set data.
+
+    Returns:
+    str: The id of the test set created.
+    """
+    dataset = {
+        "name": csvdata.name,
+        "app_name": app_name,
+        "created_at": datetime.now().isoformat(),
+        "csvdata": csvdata.csvdata
+    }
+    try:
+        result = await datasets.insert_one(dataset)
+        if result.acknowledged:
+            dataset["_id"] = str(result.inserted_id)
+            return dataset
+    except Exception as e:
+        print(str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/")

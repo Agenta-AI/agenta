@@ -1,5 +1,5 @@
 
-import { Button, Spin, Table } from "antd";
+import { Button, Dropdown, MenuProps, Space, Spin, Table } from "antd";
 
 import { Dataset } from "@/lib/Types";
 import Link from "next/link";
@@ -90,19 +90,31 @@ export default function Datasets() {
         }
     };
 
+    const handleUploadClick = () => {
+        router.push(`/apps/${app_name}/testsets/new/upload`);
+    };
+
+    const handleUIClick = () => {
+        router.push(`/apps/${app_name}/testsets/new/manual`);
+    };
+
     return (
         <div>
-            <div style={{ marginBottom: 40 }}>
-                <Link href={`${router.asPath}/new`}>
-                    <Button >Add a test set</Button>
-                </Link>
+            <div style={{ marginTop: 20, marginBottom: 40 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                    <div>
+                        <Button onClick={handleUploadClick} style={{ marginRight: 10 }}>Upload a test set</Button>
+                        <Button onClick={handleUIClick}>Create a test set with UI</Button>
+                    </div>
 
-                <Link href={`/apps/${app_name}/evaluations`} style={{ marginLeft: 10 }}>
-                    <Button >Start an evaluation</Button>
-                </Link>
+                    <Link href={`/apps/${app_name}/evaluations`} style={{ marginLeft: 10 }}>
+                        <Button >Start an evaluation</Button>
+                    </Link>
+                </div>
+
                 {
                     selectedRowKeys.length > 0 && (
-                        <Button style={{ marginLeft: 10 }} onClick={onDelete}>
+                        <Button style={{ marginTop: 30 }} onClick={onDelete}>
                             <DeleteOutlined key="delete" style={{ color: 'red' }} />
                             Delete
                         </Button>
