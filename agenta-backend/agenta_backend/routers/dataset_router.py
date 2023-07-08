@@ -59,7 +59,7 @@ async def upload_file(file: UploadFile = File(...), dataset_name: Optional[str] 
 
 
 @router.post("/{app_name}")
-async def create_dataset(app_name: str, csvdata: NewDataSet = Body(...)):
+async def create_dataset(app_name: str, csvdata: NewDataSet):
     """
     Create a dataset with given name and app_name, save the dataset to MongoDB.
 
@@ -74,7 +74,7 @@ async def create_dataset(app_name: str, csvdata: NewDataSet = Body(...)):
     dataset = {
         "name": csvdata.name,
         "app_name": app_name,
-        "created_at": datetime.now(),
+        "created_at": datetime.now().isoformat(),
         "csvdata": csvdata.csvdata
     }
     try:
