@@ -165,6 +165,19 @@ export async function createNewTestSet(appName: string, testSetName: string, tes
     }
 }
 
+export async function updateTestSet(testSetId: String, testSetName: string, testSetData: any) {
+    try {
+        const response = await axios.put(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${testSetId}`, {
+            name: testSetName,
+            csvdata: testSetData
+        });
+        return response;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+}
+
 export const loadDataset = async (datasetId: string) => {
     return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${datasetId}`, {
         headers: {
