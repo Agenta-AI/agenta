@@ -152,6 +152,19 @@ export const loadDatasetsList = (app_name: string) => {
     }
 };
 
+export async function createNewTestSet(appName: string, testSetName: string, testSetData: any) {
+    try {
+        const response = await axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${appName}`, {
+            name: testSetName,
+            csvdata: testSetData
+        });
+        return response;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+}
+
 export const loadDataset = async (datasetId: string) => {
     return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${datasetId}`, {
         headers: {
