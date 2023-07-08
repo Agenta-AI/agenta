@@ -5,7 +5,7 @@ import { Button, Input, Typography } from 'antd';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
-import { PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { createNewTestSet } from '@/lib/services/api';
 import { useRouter } from 'next/router';
 
@@ -21,10 +21,20 @@ export default function Manual() {
     ]);
 
     const [columnDefs, setColumnDefs] = useState([
+        {
+            field: '',
+            headerCheckboxSelection: true,
+            checkboxSelection: true,
+            showDisabledCheckboxes: true,
+            maxWidth: 50,
+            editable: false
+        },
         { field: 'column1' },
     ]);
 
-    const [inputValues, setInputValues] = useState(columnDefs.map(col => col.field));
+    const [inputValues, setInputValues] = useState(
+        columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field)
+    );
     const gridRef = useRef(null);
 
     const handleInputChange = (index, event) => {
@@ -34,12 +44,17 @@ export default function Manual() {
     }
 
     const updateTable = () => {
-        const newColumnDefs = inputValues.map((value, index) => {
-            return { field: value || columnDefs[index]?.field || `newColumn${index}` };
+        const checkboxColumn = columnDefs.find((colDef) => colDef.field === "");
+        const dataColumns = columnDefs.filter((colDef) => colDef.field !== "");
+
+        const newDataColumns = inputValues.map((value, index) => {
+            return { field: value || dataColumns[index]?.field || `newColumn${index}` };
         });
 
-        const keyMap = columnDefs.reduce((acc, colDef, index) => {
-            acc[colDef.field] = newColumnDefs[index].field;
+        const newColumnDefs = [checkboxColumn, ...newDataColumns];
+
+        const keyMap = dataColumns.reduce((acc, colDef, index) => {
+            acc[colDef.field] = newDataColumns[index].field;
             return acc;
         }, {});
 
@@ -67,14 +82,17 @@ export default function Manual() {
     const onAddRow = () => {
         const newRow = {};
         columnDefs.forEach(colDef => {
-            newRow[colDef.field] = '';
+            if (colDef.field !== '') {
+                newRow[colDef.field] = '';
+            }
         });
         setRowData([...rowData, newRow]);
     };
 
     const onAddColumn = () => {
-        setInputValues([...inputValues, `column${columnDefs.length + 1}`]);
-        setColumnDefs([...columnDefs, { field: `column${columnDefs.length + 1}` }]);
+        const newColumnName = `column${columnDefs.length}`;
+        setInputValues([...inputValues, newColumnName]);
+        setColumnDefs([...columnDefs, { field: newColumnName }]);
     };
 
     const onSaveData = async () => {
@@ -93,6 +111,37 @@ export default function Manual() {
         setTestSetName(e.target.value);
     };
 
+    const onDeleteRow = () => {
+        const selectedNodes = gridRef.current.getSelectedNodes();
+        const selectedData = selectedNodes.map(node => node.data);
+        const newrowData = rowData.filter(row => !selectedData.includes(row));
+        setRowData(newrowData);
+    };
+
+    const onDeleteColumn = (indexToDelete) => {
+        // Get the field to be deleted
+        const fieldToDelete = columnDefs[indexToDelete + 1]?.field;  // +1 to skip checkbox column
+
+        // Filter out the column and corresponding input value
+        const newColumnDefs = columnDefs.filter((_, index) => index !== indexToDelete + 1);  // +1 to skip checkbox column
+        const newInputValues = inputValues.filter((_, index) => index !== indexToDelete);
+
+        // Update the rowData to remove the field
+        const newRowData = rowData.map(row => {
+            const newRow = { ...row };
+            delete newRow[fieldToDelete];
+            return newRow;
+        });
+
+        // Update the state
+        setInputValues(newInputValues);
+        setColumnDefs(newColumnDefs);
+        setRowData(newRowData);
+        if (gridRef.current) {
+            gridRef.current.setColumnDefs(newColumnDefs);
+        }
+    };
+
     return (
         <div>
             <Typography.Title level={5} style={{ marginBottom: '20px' }}>
@@ -108,20 +157,22 @@ export default function Manual() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', marginBottom: '10px' }}>
-                {columnDefs.map((colDef, index) => (
-                    <div key={index} style={{ marginRight: '10px' }}>
-                        <Input
-                            key={index}
-                            value={inputValues[index]}
-                            onChange={event => handleInputChange(index, event)}
-                        />
-                    </div>
-                ))}
+                {
+                    inputValues.map((value, index) => (
+                        <div key={index} style={{ marginRight: '10px' }}>
+                            <Input
+                                value={value}
+                                onChange={event => handleInputChange(index, event)}
+                                suffix={<Button type="text" icon={<DeleteOutlined />} onClick={() => onDeleteColumn(index)} />}
+                            />
+                        </div>
+                    ))
+                }
                 <Button onClick={onAddColumn} style={{ marginRight: '10px' }}><PlusOutlined /></Button>
                 <Button onClick={updateTable} type="primary">Update Columns names</Button>
             </div>
 
-            <div style={{marginBottom: 20}}>
+            <div style={{ marginBottom: 20 }}>
                 <Typography.Text italic>Note: Specify column names similar to the Input parameters.</Typography.Text>
             </div>
 
@@ -132,10 +183,15 @@ export default function Manual() {
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
                     singleClickEdit={true}
+                    rowSelection={'multiple'}
+                    suppressRowClickSelection={true}
                 />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-                <Button onClick={onAddRow} >Add Row</Button>
+                <div>
+                    <Button onClick={onAddRow} >Add Row</Button>
+                    <Button onClick={onDeleteRow} style={{ marginLeft: 10 }}>Delete Row</Button>
+                </div>
                 <Button onClick={onSaveData} type="primary">Save Test Set</Button>
             </div>
         </div>

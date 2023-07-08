@@ -114,7 +114,7 @@ export default function Datasets() {
 
                 {
                     selectedRowKeys.length > 0 && (
-                        <Button style={{ marginLeft: 10 }} onClick={onDelete}>
+                        <Button style={{ marginTop: 30 }} onClick={onDelete}>
                             <DeleteOutlined key="delete" style={{ color: 'red' }} />
                             Delete
                         </Button>
