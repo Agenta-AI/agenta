@@ -173,7 +173,7 @@ export default function Manual() {
             </div>
 
             <div style={{ marginBottom: 20 }}>
-                <Typography.Text italic>Note: Specify column names similar to the Input parameters.</Typography.Text>
+                <Typography.Text italic>Warning: Use column names that exactly match the name of the input arguments used in your code!</Typography.Text>
             </div>
 
             <div className="ag-theme-alpine" style={{ height: 500 }}>
