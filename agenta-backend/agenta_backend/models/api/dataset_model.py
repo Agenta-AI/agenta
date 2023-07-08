@@ -27,6 +27,15 @@ class UploadResponse(BaseModel):
 class DeleteDatasets(BaseModel):
     dataset_ids: List[str]
 
+# The NewDataSet class represents a new data set.
+# Each row is a dictionary with column names as keys and column values as values.
+# csvdata = [
+#    {
+#        "column1": "data1",
+#        "column2": "data2",
+#        "column3": "data3",
+#    }
+# ]
 class NewDataSet(BaseModel):
     name: str
-    csvdata: List[Dict[str, Any]]
+    csvdata: List[Dict[str, str]]
