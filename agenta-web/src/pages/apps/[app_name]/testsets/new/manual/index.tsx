@@ -15,15 +15,13 @@ export default function Manual() {
 
     const [testSetName, setTestSetName] = useState("");
     const [rowData, setRowData] = useState([
-        { column1: "data1", column2: "data2", column3: "data3" },
-        { column1: "data1", column2: "data2", column3: "data3" },
-        { column1: "data1", column2: "data2", column3: "data3" }
+        { column1: "data1" },
+        { column1: "data1" },
+        { column1: "data1" }
     ]);
 
     const [columnDefs, setColumnDefs] = useState([
         { field: 'column1' },
-        { field: 'column2' },
-        { field: 'column3' }
     ]);
 
     const [inputValues, setInputValues] = useState(columnDefs.map(col => col.field));
@@ -109,7 +107,7 @@ export default function Manual() {
                 />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', marginBottom: '10px' }}>
                 {columnDefs.map((colDef, index) => (
                     <div key={index} style={{ marginRight: '10px' }}>
                         <Input
@@ -119,9 +117,12 @@ export default function Manual() {
                         />
                     </div>
                 ))}
-
                 <Button onClick={onAddColumn} style={{ marginRight: '10px' }}><PlusOutlined /></Button>
                 <Button onClick={updateTable} type="primary">Update Columns names</Button>
+            </div>
+
+            <div style={{marginBottom: 20}}>
+                <Typography.Text italic>Note: Specify column names similar to the Input parameters.</Typography.Text>
             </div>
 
             <div className="ag-theme-alpine" style={{ height: 500 }}>
@@ -131,16 +132,6 @@ export default function Manual() {
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
                     singleClickEdit={true}
-                    statusBar={{
-                        statusPanels: [
-                            {
-                                statusPanel: 'agAggregationComponent',
-                                statusPanelParams: {
-                                    aggFuncs: ['sum'],
-                                },
-                            },
-                        ],
-                    }}
                 />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
