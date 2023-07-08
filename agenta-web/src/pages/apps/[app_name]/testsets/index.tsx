@@ -90,48 +90,28 @@ export default function Datasets() {
         }
     };
 
-    const items: MenuProps['items'] = [
-        {
-            label: 'Upload',
-            key: 'upload',
-        },
-        {
-            label: 'Create manually',
-            key: 'manual',
-        }
-    ];
+    const handleUploadClick = () => {
+        router.push(`/apps/${app_name}/testsets/new/upload`);
+    };
 
-    const handleMenuClick = ({ key }: { key: string }) => {
-        if (key == 'upload') {
-            router.push(`/apps/${app_name}/testsets/new/upload`);
-        } else if ('manual') {
-            router.push(`/apps/${app_name}/testsets/new/manual`);
-        }
+    const handleUIClick = () => {
+        router.push(`/apps/${app_name}/testsets/new/manual`);
     };
 
     return (
         <div>
-            <div style={{ marginBottom: 40 }}>
+            <div style={{ marginTop: 20, marginBottom: 40 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                    <div>
+                        <Button onClick={handleUploadClick} style={{ marginRight: 10 }}>Upload a test set</Button>
+                        <Button onClick={handleUIClick}>Create a test set with UI</Button>
+                    </div>
 
-                <Space direction="vertical">
-                    <Space wrap>
-                        <Dropdown
-                            menu={{ items, onClick: handleMenuClick }}
-                            placement="bottomLeft"
-                        >
-                            <Button>
-                                <Space>
-                                    Add a Test Set
-                                </Space>
-                            </Button>
-                        </Dropdown>
-                    </Space>
-                </Space>
+                    <Link href={`/apps/${app_name}/evaluations`} style={{ marginLeft: 10 }}>
+                        <Button >Start an evaluation</Button>
+                    </Link>
+                </div>
 
-
-                <Link href={`/apps/${app_name}/evaluations`} style={{ marginLeft: 10 }}>
-                    <Button >Start an evaluation</Button>
-                </Link>
                 {
                     selectedRowKeys.length > 0 && (
                         <Button style={{ marginLeft: 10 }} onClick={onDelete}>
