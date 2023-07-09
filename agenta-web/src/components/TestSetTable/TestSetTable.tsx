@@ -5,7 +5,7 @@ import { Button, Input, Typography } from 'antd';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { ConsoleSqlOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { createNewTestSet, loadDataset, updateTestSet } from '@/lib/services/api';
 import { useRouter } from 'next/router';
 
@@ -156,9 +156,9 @@ const TestSetTable: React.FC<TestSetTableProps> = ({ mode }) => {
                 response = await updateTestSet(testset_id, testSetName, rowData);
             }
 
-            // if (response.status === 200) {
-            //     router.push(`/apps/${appName}/testsets`);
-            // }
+            if (response.status === 200) {
+                router.push(`/apps/${appName}/testsets`);
+            }
         } catch (error) {
             console.error('Error saving test set:', error);
             throw error;
