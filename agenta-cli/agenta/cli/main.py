@@ -1,5 +1,6 @@
 import re
 import shutil
+import sys
 from pathlib import Path
 
 import click
@@ -36,10 +37,13 @@ def init(app_name: str):
     if not app_name:
         while True:
             app_name = questionary.text('Please enter the app name').ask()
-            if app_name and re.match('^[a-zA-Z0-9]+$', app_name):
+            if app_name and re.match('^[a-zA-Z0-9_]+$', app_name):
                 break
             else:
-                print("Invalid input. Please use only alphanumeric characters without spaces.")
+                if app_name is None:  # User pressed Ctrl+C
+                    sys.exit(0)
+                else:
+                    print("Invalid input. Please use only alphanumeric characters without spaces.")
 
     where_question = questionary.select(
         "Are you running agenta locally?",
@@ -48,9 +52,11 @@ def init(app_name: str):
 
     if where_question == 'Yes':
         backend_host = "http://localhost"
-    else:
+    elif where_question == 'No':
         backend_host = questionary.text(
             'Please provide the IP or URL of your remote host').ask()
+    elif where_question is None:  # User pressed Ctrl+C
+        sys.exit(0)
     backend_host = backend_host if backend_host.startswith(
         'http://') or backend_host.startswith('https://') else 'http://'+backend_host
 
@@ -85,6 +91,8 @@ def init(app_name: str):
         for file in chosen_template_dir.glob("*"):
             if file.name != 'template.toml' and not file.is_dir():
                 shutil.copy(file, current_dir / file.name)
+    elif init_option is None:  # User pressed Ctrl+C
+        sys.exit(0)
     click.echo("App initialized successfully")
     if init_option == 'Start from template':
         click.echo("Please check the README.md for further instructions to setup the template.")
