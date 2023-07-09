@@ -57,9 +57,7 @@ const AppCard: React.FC<string> = ({ appName, index }) => {
                     overflow: 'hidden' // add this line to ensure content doesn't overflow the card
                 }}
                 actions={[
-                    <Tooltip title="Will be implemented soon">
-                        <DeleteOutlined key="delete" style={{ color: 'red' }} onClick={showDeleteModal} />
-                    </Tooltip>
+                    <DeleteOutlined key="delete" style={{ color: 'red' }} onClick={showDeleteModal} />
                 ]}
             ><Link href={`/apps/${appName}/playground`}>
                     <Card.Meta

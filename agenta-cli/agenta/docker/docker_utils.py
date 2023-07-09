@@ -1,11 +1,12 @@
 import logging
 import os
 import shutil
+import tarfile
+import tempfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import json
+
 import docker
-import tarfile
 from agenta.config import settings
 from docker.models.images import Image
 
@@ -27,16 +28,18 @@ def create_dockerfile(out_folder: Path):
     return dockerfile_path
 
 
-def build_tar_docker_container(folder: Path) -> Path:
+def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
     """Builds the tar file container the files needed for the docker container
 
     Arguments:
         folder -- the path containing the code for the app
-
+        file_name -- the file containing the main code of the app
     Returns:
         the path to the created tar file
     """
-
+    tarfile_path = folder / "docker.tar.gz"  # output file
+    if tarfile_path.exists():
+        tarfile_path.unlink()
     dockerfile_path = create_dockerfile(folder)
     shutil.copytree(Path(__file__).parent.parent / "sdk", folder / "agenta", dirs_exist_ok=True)
     shutil.copy(Path(__file__).parent /
@@ -44,10 +47,15 @@ def build_tar_docker_container(folder: Path) -> Path:
     shutil.copy(Path(__file__).parent /
                 "docker-assets" / "entrypoint.sh", folder)
     # tar the directory
-
-    tarfile_path = folder/"docker.tar.gz"
-    with tarfile.open(tarfile_path, "w:gz") as tar:
-        tar.add(folder, arcname=folder.name)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        shutil.copytree(folder, temp_path, dirs_exist_ok=True)
+        if (temp_path / "_app.py").exists():
+            raise ValueError(
+                "File _app.py already exists in the temp folder. You are not allowed to use this name in your code.")
+        shutil.copy(temp_path / file_name, temp_path / "_app.py")
+        with tarfile.open(tarfile_path, "w:gz") as tar:
+            tar.add(temp_path, arcname=folder.name)
     # dockerfile_path.unlink()
     return tarfile_path
 

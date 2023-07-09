@@ -21,18 +21,17 @@ newgrp docker
 # clone agenta
 cd $TARGET_DIR
 
-git clone -b aws-automation https://github.com/Agenta-AI/agenta.git
+git clone https://github.com/Agenta-AI/agenta.git
 
 cd $TARGET_DIR/agenta
 
 # set env vars
+# Get the ip of the instance within the instance in aws
 DOMAIN_NAME=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
 echo $DOMAIN_NAME
 echo "BARE_DOMAIN_NAME=\"${DOMAIN_NAME}\"" >> .env
 echo "DOMAIN_NAME=\"http://${DOMAIN_NAME}\"" >> .env
 
-# TODO: remove me
-cat .env
 # start agenta
 sudo docker compose -f docker-compose.prod.yml up -d
 
