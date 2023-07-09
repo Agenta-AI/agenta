@@ -66,7 +66,7 @@ def ingest(func: Callable[..., Any]):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            traceback_str = ''.join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__))
+            traceback_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
             return JSONResponse(status_code=500, content={"error": str(e), "traceback": traceback_str})
 
     new_params = []
