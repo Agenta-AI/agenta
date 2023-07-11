@@ -90,12 +90,16 @@ export default function Datasets() {
         }
     };
 
-    const handleUploadClick = () => {
+    const handleCreateWithUploadClick = () => {
         router.push(`/apps/${app_name}/testsets/new/upload`);
     };
 
-    const handleUIClick = () => {
+    const handleCreateWithUIClick = () => {
         router.push(`/apps/${app_name}/testsets/new/manual`);
+    };
+
+    const handleCreateWithApiClick = () => {
+        router.push(`/apps/${app_name}/testsets/new/api`);
     };
 
     return (
@@ -103,8 +107,9 @@ export default function Datasets() {
             <div style={{ marginTop: 20, marginBottom: 40 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
                     <div>
-                        <Button onClick={handleUploadClick} style={{ marginRight: 10 }}>Upload a test set</Button>
-                        <Button onClick={handleUIClick}>Create a test set with UI</Button>
+                        <Button onClick={handleCreateWithUploadClick} style={{ marginRight: 10 }}>Upload a test set</Button>
+                        <Button onClick={handleCreateWithUIClick} style={{ marginRight: 10 }}>Create a test set with UI</Button>
+                        <Button onClick={handleCreateWithApiClick}>Create a test set with API</Button>
                     </div>
 
                     <Link href={`/apps/${app_name}/evaluations`} style={{ marginLeft: 10 }}>
