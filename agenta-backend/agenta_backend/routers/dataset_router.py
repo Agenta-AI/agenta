@@ -86,6 +86,33 @@ async def create_dataset(app_name: str, csvdata: NewDataSet):
         print(str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.put("/{dataset_id}")
+async def update_dataset(dataset_id: str, csvdata: NewDataSet):
+    """
+    Update a dataset with given id, update the dataset in MongoDB.
+
+    Args:
+    dataset_id (str): id of the test set to be updated.
+    csvdata (NewDataSet): New data to replace the old dataset.
+
+    Returns:
+    str: The id of the test set updated.
+    """
+    dataset = {
+        "name": csvdata.name,
+        "csvdata": csvdata.csvdata,
+        "updated_at": datetime.now().isoformat()
+    }
+    try:
+        result = await datasets.update_one({"_id": ObjectId(dataset_id)}, {"$set": dataset})
+        if result.acknowledged:
+            return {"status": "success", "message": "Dataset updated successfully", "_id": dataset_id}
+        else:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+    except Exception as e:
+        print(str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/")
 async def get_datasets(app_name: Optional[str] = None):
