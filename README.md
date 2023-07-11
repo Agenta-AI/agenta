@@ -21,7 +21,7 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 
 
 ## How Agenta works:
-<details closed><summary>Write your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain or llma_index, GPT-4 or Falcon).</summary>
+<details open><summary>Write your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain or llma_index, GPT-4 or Falcon).</summary>
 <br/>
 
 _Example simple application that generates baby names_
@@ -51,7 +51,7 @@ def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt
 ```
   </details>
 
-<details closed> <summary>Deploy your app using the Agenta CLI.</summary>
+<details open> <summary>Deploy your app using the Agenta CLI.</summary>
   <br/>
 <img width="722" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
   </details>
