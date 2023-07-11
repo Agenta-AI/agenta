@@ -43,10 +43,7 @@ export default function AddANewTestset() {
                     setUploadLoading(false);
                     form.resetFields();
 
-                    const pathSegments = router.asPath.split('/');
-                    pathSegments.pop();
-                    const newPath = pathSegments.join('/');
-                    router.push(newPath);
+                    router.push(`/apps/${app_name}/testsets`);
 
                 } else {
                     // Handle error
