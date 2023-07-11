@@ -143,8 +143,14 @@ const TestSetTable: React.FC<TestSetTableProps> = ({ mode }) => {
 
     const onAddColumn = () => {
         const newColumnName = `column${columnDefs.length}`;
+        // Update each row to include the new column
+        const updatedRowData = rowData.map(row => ({
+            ...row,
+            [newColumnName]: '',  // set the initial value of the new column to an empty string
+        }));
         setInputValues([...inputValues, newColumnName]);
         setColumnDefs([...columnDefs, { field: newColumnName }]);
+        setRowData(updatedRowData);
     };
 
     const onSaveData = async () => {
@@ -200,6 +206,12 @@ const TestSetTable: React.FC<TestSetTableProps> = ({ mode }) => {
         }
     };
 
+    const handleCellValueChanged = (params) => {
+        if (params.newValue === null) {
+            params.data[params.colDef.field] = '';
+        }
+    };
+
     return (
         <div>
             <Typography.Title level={5} style={{ marginBottom: '20px' }}>
@@ -243,6 +255,8 @@ const TestSetTable: React.FC<TestSetTableProps> = ({ mode }) => {
                     singleClickEdit={true}
                     rowSelection={'multiple'}
                     suppressRowClickSelection={true}
+                    onCellValueChanged={handleCellValueChanged}
+                    stopEditingWhenCellsLoseFocus={true}
                 />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
