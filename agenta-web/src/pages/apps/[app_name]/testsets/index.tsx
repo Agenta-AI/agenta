@@ -139,6 +139,11 @@ export default function Datasets() {
                         columns={columns}
                         dataSource={datasetsList}
                         loading={loading}
+                        onRow={(record, rowIndex) => {
+                            return {
+                                onClick: () => router.push(`/apps/${app_name}/testsets/${record.key}`),
+                            };
+                        }}
                     />
                 )}
             </div>
