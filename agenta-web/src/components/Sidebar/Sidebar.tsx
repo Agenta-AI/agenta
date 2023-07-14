@@ -102,36 +102,6 @@ const Sidebar: React.FC = () => {
                                 </Tooltip>
                             </Menu.Item>
 
-                            <Menu.Item key="vectordb" icon={<FileTextOutlined />} onClick={() => navigate('vectordb')} disabled={true}>
-                                <Tooltip placement="right" title="Establish VectorDB Knowledge Bases and upload pertinent documents.">
-                                    <div style={{ width: '100%' }}>
-                                        <Space>
-                                            <span>
-                                                VectorDB
-                                            </span>
-                                            <span>
-                                                <Tag color="orange" bordered={false}>soon</Tag>
-                                            </span>
-                                        </Space>
-                                    </div>
-                                </Tooltip>
-                            </Menu.Item>
-
-                            <Menu.Item key="monitoring" icon={<MonitorOutlined />} onClick={() => navigate('logs')} disabled={true}>
-                                <Tooltip placement="right" title="Monitor production logs to ensure seamless operations.">
-                                    <div style={{ width: '100%' }}>
-                                        <Space>
-                                            <span>
-                                                Monitoring
-                                            </span>
-                                            <span>
-                                                <Tag color="orange" bordered={false}>soon</Tag>
-                                            </span>
-                                        </Space>
-                                    </div>
-                                </Tooltip>
-
-                            </Menu.Item>
                         </>
                     )}
                 </Menu>
@@ -143,13 +113,13 @@ const Sidebar: React.FC = () => {
                     <Menu.Item key="help" icon={<QuestionOutlined />} onClick={() => window.open('https://docs.agenta.ai', '_blank')}>
                         Help
                     </Menu.Item>
-                    <Menu.Item key="user">
+                    {/* <Menu.Item key="user">
                         <Space>
                             <Avatar size="small" style={{ backgroundColor: '#87d068' }} icon={<UserOutlined />} />
                             <span>Foulen</span>
                         </Space>
 
-                    </Menu.Item>
+                    </Menu.Item> */}
                 </Menu>
             </div>
         </Sider>
