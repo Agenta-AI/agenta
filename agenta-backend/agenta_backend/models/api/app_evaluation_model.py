@@ -1,10 +1,19 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from datetime import datetime
+from enum import Enum
 
+# ComparisonTableTypes = ["app_evaluation"]
+
+class EvaluationType(str, Enum):
+    auto_exact_match = "auto_exact_match"
+    auto_ai_critique = "auto_ai_critique"
+    human_a_b_testing = "human_a_b_testing"
+    human_scoring = "human_scoring"
 
 class ComparisonTable(BaseModel):
     id: str
+    evaluation_type: EvaluationType
     variants: Optional[List[str]]
     app_name: str
     dataset: Dict[str, str] = Field(...)
@@ -36,6 +45,7 @@ class EvaluationRowUpdate(BaseModel):
 
 
 class NewComparisonTable(BaseModel):
+    evaluation_type: EvaluationType
     app_name: str
     variants: List[str]
     inputs: List[str]

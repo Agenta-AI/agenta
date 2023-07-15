@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { ColumnsType } from 'antd/es/table';
 import { Variant } from "@/lib/Types";
 import { DeleteOutlined } from "@ant-design/icons";
+import { EvaluationTypeLabels } from "@/lib/helpers/utils";
+import { EvaluationType } from "@/lib/enums";
 
 interface EvaluationListTableDataType {
     key: string;
@@ -12,7 +14,8 @@ interface EvaluationListTableDataType {
     dataset: {
         _id: string;
         name: string;
-    }
+    },
+    evaluationType: string;
     // votesData: {
     //     variants_votes_data: {
     //         number_of_votes: number,
@@ -44,6 +47,7 @@ export default function EvaluationsList() {
                         key: obj.id,
                         dataset: obj.dataset,
                         variants: obj.variants,
+                        evaluationType: obj.evaluationType,
                         createdAt: obj.createdAt,
                     }
                     return newObj;
@@ -60,7 +64,13 @@ export default function EvaluationsList() {
     }, [app_name]);
 
     const onCompleteEvaluation = (appEvaluation: any) => { // TODO: improve type
-        router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/`);
+        const evaluationType = EvaluationType[appEvaluation.evaluationType as keyof typeof EvaluationType];
+
+        if (evaluationType === EvaluationType.auto_exact_match) {
+            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/auto_exact_match`);
+        } else if (evaluationType === EvaluationType.human_a_b_testing) {
+            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}`);
+        }
     }
 
     const columns: ColumnsType<EvaluationListTableDataType> = [
@@ -115,6 +125,19 @@ export default function EvaluationsList() {
                 )
 
             }
+        },
+        {
+            title: 'Evaluation type',
+            dataIndex: 'evaluationType',
+            key: 'evaluationType',
+            width: '300',
+            render: (value: string) => {
+                const evaluationType = EvaluationType[value as keyof typeof EvaluationType];
+                const label = EvaluationTypeLabels[evaluationType];
+                return (
+                  <span>{label}</span>
+                );
+              },
         },
         {
             title: 'Created at',
