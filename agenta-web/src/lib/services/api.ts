@@ -2,7 +2,7 @@ import useSWR from 'swr';
 import axios from 'axios';
 import { parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
 import { Variant, Parameter, AppEvaluationResponseType } from '@/lib/Types';
-import { fromAppEvaluationResponseToAppEvaluation } from '../transformers';
+import { fromAppEvaluationResponseToAppEvaluation, fromEvaluationsRowsResponseToEvaluationsRows } from '../transformers';
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -261,7 +261,11 @@ export const loadEvaluationsRows = async (evaluationTableId: string) => {
     try {
         return await eval_endpoint.get(`${evaluationTableId}/evaluation_rows`)
             .then(responseData => {
-                return responseData.data;
+                const evaluationsRows = responseData.data.map((item: any) => {
+                    return fromEvaluationsRowsResponseToEvaluationsRows(item);
+                });
+
+                return evaluationsRows;
             })
     } catch (error) {
         console.error(error);

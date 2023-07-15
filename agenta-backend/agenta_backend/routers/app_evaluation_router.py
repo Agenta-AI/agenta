@@ -1,10 +1,9 @@
 from fastapi import HTTPException, APIRouter, Body
-from agenta_backend.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, NewComparisonTable, DeleteComparisonTable
+from agenta_backend.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, NewComparisonTable, DeleteComparisonTable, EvaluationType
 from agenta_backend.services.db_mongo import comparison_tables, evaluation_rows, datasets
 from datetime import datetime
 from bson import ObjectId
 from typing import List, Optional
-import logging
 router = APIRouter()
 
 
@@ -36,6 +35,12 @@ async def create_comparison_table(newComparisonTableData: NewComparisonTable = B
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }
+
+            if newComparisonTableData.evaluation_type == EvaluationType.auto_exact_match:
+                if "correct_answer" in datum:
+                    evaluation_row["correct_answer"] = datum["correct_answer"]
+
+
             await evaluation_rows.insert_one(evaluation_row)
 
         comparison_table["id"] = str(newComparisonTable.inserted_id)
