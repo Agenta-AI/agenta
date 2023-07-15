@@ -36,6 +36,7 @@ class EvaluationRow(BaseModel):
     inputs: List[EvaluationRowInput]
     outputs: List[EvaluationRowOutput]
     vote: str
+    correct_answer: Optional[str]
     id: Optional[str]
 
 

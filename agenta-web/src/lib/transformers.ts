@@ -21,3 +21,13 @@ export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResp
         evaluationType: item.evaluation_type
     }
 };
+
+export const fromEvaluationsRowsResponseToEvaluationsRows = (item:any) => {
+    return {
+        id: item.id,
+        inputs: item.inputs,
+        outputs: item.outputs,
+        vote: item.vote,
+        correctAnswer: item.correct_answer
+    }
+};
