@@ -1,5 +1,5 @@
 import React from 'react';
-import { Col, Row, Divider } from 'antd';
+import { Col, Row, Divider, Button, Tooltip } from 'antd';
 import TestView from './Views/TestView';
 import ParametersView from './Views/ParametersView';
 import { useVariant } from '@/lib/hooks/useVariant';
@@ -50,6 +50,21 @@ const ViewNavigation: React.FC<Props> = ({ variant, handlePersistVariant, setRem
                         </ul>
                         <p> In case the docker container is not running. Please simply start it (using cli or docker desktop)</p>
                         <p> If the issue persists please file an issue in github or directly contact us under team@agenta.ai</p>
+
+                        <Button
+                            type="primary"
+                            danger
+                            size='normal'
+                            onClick={() => {
+                                setRemovalVariantName(variant.variantName);
+                                setRemovalWarningModalOpen(true);
+                            }}
+                            loading={isDeleteLoading}
+                        >
+                            <Tooltip placement="bottom" title="Delete the variant permanently">
+                                Delete Variant
+                            </Tooltip>
+                        </Button>
                     </div>
                     : null
                 }
