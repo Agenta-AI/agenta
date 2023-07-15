@@ -18,5 +18,6 @@ export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResp
         variants: variants,
         dataset: item.dataset,
         appName: item.app_name,
+        evaluationType: item.evaluation_type
     }
 };
