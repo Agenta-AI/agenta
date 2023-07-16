@@ -69,7 +69,7 @@ export default function EvaluationsList() {
         if (evaluationType === EvaluationType.auto_exact_match) {
             router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/auto_exact_match`);
         } else if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}`);
+            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/human_a_b_testing`);
         }
     }
 
