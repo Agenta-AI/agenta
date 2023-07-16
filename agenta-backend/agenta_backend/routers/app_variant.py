@@ -104,6 +104,8 @@ async def start_variant(app_variant: AppVariant) -> URI:
     try:
         return app_manager.start_variant(app_variant)
     except Exception as e:
+        if db_manager.get_variant_from_db(app_variant) is not None:
+            app_manager.remove_app_variant(app_variant)
         raise HTTPException(status_code=500, detail=str(e))
 
 
