@@ -3,6 +3,7 @@ import axios from 'axios';
 import { parseOpenApiSchema } from '@/lib/helpers/openapi_parser';
 import { Variant, Parameter, AppEvaluationResponseType } from '@/lib/Types';
 import { fromAppEvaluationResponseToAppEvaluation, fromEvaluationsRowsResponseToEvaluationsRows } from '../transformers';
+import { EvaluationType } from '../enums';
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -278,8 +279,8 @@ export const updateAppEvaluations = async (evaluationTableId: string, data) => {
     return response.data;
 };
 
-export const updateEvaluationRow = async (evaluationTableId: string, evaluationRowId: string, data) => {
-    const response = await eval_endpoint.put(`${evaluationTableId}/evaluation_row/${evaluationRowId}`, data);
+export const updateEvaluationRow = async (evaluationTableId: string, evaluationRowId: string, data, evaluationType: EvaluationType) => {
+    const response = await eval_endpoint.put(`${evaluationTableId}/evaluation_row/${evaluationRowId}/${evaluationType}`, data);
     return response.data;
 };
 

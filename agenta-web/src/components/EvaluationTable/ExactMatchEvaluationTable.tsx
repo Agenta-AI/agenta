@@ -27,7 +27,7 @@ interface ExactMatchEvaluationTableRow {
     }[];
     columnData0: string;
     correctAnswer: string;
-    vote: string;
+    score: string;
     evaluationFlow: EvaluationFlow;
 }
 /**
@@ -81,8 +81,8 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
     }, [correctAnswers, wrongAnswers]);
 
     useEffect(() => {
-        const correct = rows.filter(row => row.vote === 'correct').length;
-        const wrong = rows.filter(row => row.vote === 'wrong').length;
+        const correct = rows.filter(row => row.score === 'correct').length;
+        const wrong = rows.filter(row => row.score === 'wrong').length;
         const accuracy = correct + wrong > 0 ? (correct / (correct + wrong)) * 100 : 0;
 
         setCorrectAnswers(correct);
@@ -141,7 +141,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
      * This method will:
      * 1. perform an exact match evaluation for the given row number
      * 2. update the evaluation row with the result
-     * 3. update the vote column in the table
+     * 3. update the score column in the table
      */
     const evaluateWithExactMatch = (rowNumber: number) => {
         const isCorrect = rows[rowNumber].columnData0 === rows[rowNumber].correctAnswer;
@@ -152,15 +152,15 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
 
         if (evaluation_row_id) {
             const data = {
-                vote: isCorrect ? 'correct' : 'wrong',
+                score: isCorrect ? 'correct' : 'wrong',
                 outputs: [
                     { "variant_name": appVariantNameX, "variant_output": outputVariantX }
                 ]
             };
 
-            updateEvaluationRow(appEvaluation.id, evaluation_row_id, data)
+            updateEvaluationRow(appEvaluation.id, evaluation_row_id, data, appEvaluation.evaluationType)
                 .then(data => {
-                    setRowValue(rowNumber, 'vote', data.vote);
+                    setRowValue(rowNumber, 'score', data.score);
                     if (isCorrect) {
                         setCorrectAnswers(prevCorrect => prevCorrect + 1);
                     }
@@ -257,18 +257,18 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
             align: 'center' as 'left' | 'right' | 'center',
             render: (text: any, record: any, rowIndex: number) => {
                 let tagColor = ''
-                if (record.vote === 'correct') {
+                if (record.score === 'correct') {
                     tagColor = 'green'
-                } else if (record.vote === 'wrong') {
+                } else if (record.score === 'wrong') {
                     tagColor = 'red'
                 }
                 return (
-                    <Spin spinning={rows[rowIndex].vote === 'loading' ? true : false}>
+                    <Spin spinning={rows[rowIndex].score === 'loading' ? true : false}>
                         <Space>
                             <div>
-                                {rows[rowIndex].vote !== '' &&
+                                {rows[rowIndex].score !== '' &&
                                     <Tag color={tagColor} style={{ fontSize: '14px' }}>
-                                        {record.vote}
+                                        {record.score}
                                     </Tag>
                                 }
                             </div>
@@ -286,7 +286,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
                 inputs: appEvaluation.inputs.map((variantInput: string) => ({ input_name: variantInput, input_value: '' })),
                 outputs: [],
                 columnData0: '',
-                vote: '',
+                score: '',
                 correctAnswer: '',
                 evaluationFlow: EvaluationFlow.EVALUATION_STARTED
             }
