@@ -238,6 +238,8 @@ export default function Evaluations() {
 
                                 </Button>
                             </Dropdown>
+
+                            {selectedEvaluationType === EvaluationType.human_a_b_testing && (
                             <Dropdown menu={getVariantsDropdownMenu(1)}>
                                 <Button style={{ marginRight: 10, marginTop: 10, width: '100%' }}>
 
@@ -248,6 +250,7 @@ export default function Evaluations() {
 
                                 </Button>
                             </Dropdown>
+                            )}
                         </div>
 
                     </Col>
