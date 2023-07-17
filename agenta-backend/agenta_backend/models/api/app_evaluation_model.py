@@ -35,13 +35,15 @@ class EvaluationRow(BaseModel):
     comparison_table_id: str
     inputs: List[EvaluationRowInput]
     outputs: List[EvaluationRowOutput]
-    vote: str
+    vote: Optional[str]
+    score: Optional[str]
     correct_answer: Optional[str]
     id: Optional[str]
 
 
 class EvaluationRowUpdate(BaseModel):
-    vote: str
+    vote: Optional[str]
+    score: Optional[str]
     outputs: List[EvaluationRowOutput]
 
 
