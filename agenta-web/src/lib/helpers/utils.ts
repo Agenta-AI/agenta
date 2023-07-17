@@ -11,8 +11,8 @@ export const renameVariablesCapitalizeAll = (name: string) => {
 };
 
 export const EvaluationTypeLabels: Record<EvaluationType, string> = {
-    [EvaluationType.auto_exact_match]: "(Auto) Exact Match",
-    [EvaluationType.auto_ai_critique]: "(Auto) AI Critic",
-    [EvaluationType.human_a_b_testing]: "(Human) A/B testing",
-    [EvaluationType.human_scoring]: "(Human) Scoring single variant",
+    [EvaluationType.auto_exact_match]: "Exact Match",
+    [EvaluationType.auto_ai_critique]: "AI Critic",
+    [EvaluationType.human_a_b_testing]: "A/B testing",
+    [EvaluationType.human_scoring]: "Scoring single variant",
 };
