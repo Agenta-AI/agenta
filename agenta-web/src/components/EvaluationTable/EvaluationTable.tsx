@@ -97,7 +97,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ appEvaluation, evalua
                 ],
             };
 
-            updateEvaluationRow(appEvaluation.id, evaluation_row_id, data)
+            updateEvaluationRow(appEvaluation.id, evaluation_row_id, data, appEvaluation.evaluationType)
                 .then(data => {
                     setRowValue(rowIndex, 'vote', vote);
                 }).catch(err => {
