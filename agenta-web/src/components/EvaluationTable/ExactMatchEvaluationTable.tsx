@@ -144,8 +144,9 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
      * 3. update the vote column in the table
      */
     const evaluateWithExactMatch = (rowNumber: number) => {
-        // TODO: strip and remove spaces
-        const isCorrect = rows[rowNumber].columnData0 === rows[rowNumber].correctAnswer;
+        let llmAnswer = rows[rowNumber].columnData0.replace(/[\s\.]/g, "");
+
+        const isCorrect = llmAnswer === rows[rowNumber].correctAnswer;
         const evaluation_row_id = rows[rowNumber].id;
         // TODO: we need to improve this and make it dynamic
         const appVariantNameX = variants[0].variantName;
