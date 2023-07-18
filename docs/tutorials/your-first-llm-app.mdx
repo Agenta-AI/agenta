@@ -221,7 +221,22 @@ Hi there, I'm excited to tell you about Agenta, the open source Dev First LLMOPS
 ```
 
 ## 8. Deploying to Agenta
-Our app is still local. To make it available in the playground, add it to Agenta by running:
+Our app is still local. To make it available in the playground, we need to let Agenta intialize it for deployment by running the following command:
+
+```bash
+agenta init
+```
+
+You will be asked four questions:
+
+1. The name of your app.
+2. Whether you're running your app locally (answer 'yes' or 'no').
+3. How you want to initialize your app (provide details on the options available).
+4. The template you wish to use (optional).
+
+If you built your app by following the tutorial, proceed to reply to the third question by selecting 'Blank App'. The choice you make in question 3 may impact the availability of the fourth question, so choose accordingly.
+
+Proceed to serve your application which will add it to the backend by running:
 
 ```bash
 agenta variant serve
