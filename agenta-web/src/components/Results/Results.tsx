@@ -91,12 +91,12 @@ const renderScoresPlot = (scoresData: any, variants: string[], index: number, re
             style={{
                 padding: '2px 10px',
                 color: '#fff',
-                width: `${(scoresData.scores.correct/scoresData.nb_of_rows) * 100}%`,
-                backgroundColor: '#cf1322',
+                width: `${(scoresData.scores.wrong/scoresData.nb_of_rows) * 100}%`,
+                backgroundColor: '#CF6068',
                 textAlign: 'center',
             }}
         >
-            Wrong Answers
+            {scoresData.scores.wrong} Wrong Answers
         </div>
 
         <div
@@ -104,12 +104,12 @@ const renderScoresPlot = (scoresData: any, variants: string[], index: number, re
             style={{
                 padding: '2px 10px',
                 color: '#fff',
-                width: `${(scoresData.scores.wrong/scoresData.nb_of_rows) * 100}%`,
-                backgroundColor: '#3f8600',
+                width: `${(scoresData.scores.correct/scoresData.nb_of_rows) * 100}%`,
+                backgroundColor: '#8EBE64',
                 textAlign: 'center',
             }}
         >
-            Correct Answers
+            {scoresData.scores.correct} Correct Answers
         </div>
     </div>
 }
