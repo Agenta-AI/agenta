@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Button, Col, Divider, Dropdown, Menu, MenuProps, Radio, Row, Select, Space, Tag, message } from 'antd';
+import { Button, Col, Dropdown, MenuProps, Radio, RadioChangeEvent, Row, Tag, message } from 'antd';
 import { DownOutlined } from '@ant-design/icons';
 import { fetchVariants, getVariantParameters, loadDatasetsList } from '@/lib/services/api';
 import { useRouter } from 'next/router';
@@ -19,7 +19,9 @@ export default function Evaluations() {
     const [selectedDataset, setSelectedDataset] = useState<{ _id?: string, name: string }>({ name: "Select a Test set" });
     const [datasetsList, setDatasetsList] = useState<any[]>([]);
 
-    const [selectedVariants, setSelectedVariants] = useState<Variant[]>(new Array(2).fill({ variantName: 'Select a variant' }));
+    const [selectedVariants, setSelectedVariants] = useState<Variant[]>(new Array(1).fill({ variantName: 'Select a variant' }));
+    const [numberOfVariants, setNumberOfVariants] = useState<number>(1);
+
 
     const [selectedEvaluationType, setSelectedEvaluationType] = useState<EvaluationType | string>("Select an evaluation type");
 
@@ -191,6 +193,19 @@ export default function Evaluations() {
         }
     };
 
+    const onChangeEvaluationType = (e: RadioChangeEvent) => {
+        const evaluationType = e.target.value;
+        setSelectedEvaluationType(evaluationType);
+        let nbOfVariants = 1;
+        if (evaluationType === EvaluationType.human_a_b_testing) {
+            nbOfVariants = 2;
+        }
+        setNumberOfVariants(nbOfVariants);
+
+        // set the selected variants array length based on numVariants
+        setSelectedVariants(Array.from({ length: nbOfVariants }, (_, i) => selectedVariants[i] || { variantName: 'Select a variant' }));
+    };
+
     return (
         <div>
             <div>
@@ -203,7 +218,7 @@ export default function Evaluations() {
                         <Title level={4}>1. Select an evaluation type</Title>
                         <Title level={5}>Human evaluation</Title>
                         <Radio.Group
-                            onChange={e => setSelectedEvaluationType(e.target.value)}
+                            onChange={e => onChangeEvaluationType(e)}
                             style={{ width: '100%' }}
                         >
                             <Radio.Button value={EvaluationType.human_a_b_testing} style={{ display: 'block', marginBottom: '10px' }}>
@@ -227,30 +242,16 @@ export default function Evaluations() {
 
                         <div>
                             <Title level={4}>2. Which variants would you like to evaluate</Title>
-
-                            <Dropdown menu={getVariantsDropdownMenu(0)}>
-                                <Button style={{ marginRight: 10, marginTop: 40, width: '100%' }}>
-
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                                        {selectedVariants[0].variantName}
-                                        <DownOutlined />
-                                    </div>
-
-                                </Button>
-                            </Dropdown>
-
-                            {selectedEvaluationType === EvaluationType.human_a_b_testing && (
-                            <Dropdown menu={getVariantsDropdownMenu(1)}>
-                                <Button style={{ marginRight: 10, marginTop: 10, width: '100%' }}>
-
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                                        {selectedVariants[1].variantName}
-                                        <DownOutlined />
-                                    </div>
-
-                                </Button>
-                            </Dropdown>
-                            )}
+                            {Array.from({ length: numberOfVariants }).map((_, index) => (
+                                <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
+                                    <Button style={{ marginRight: 10, marginTop: index === 0 ? 40 : 10, width: '100%' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                            {selectedVariants[index]?.variantName || 'Select a variant'}
+                                            <DownOutlined />
+                                        </div>
+                                    </Button>
+                                </Dropdown>
+                            ))}
                         </div>
 
                     </Col>
