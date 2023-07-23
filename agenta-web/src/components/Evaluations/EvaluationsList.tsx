@@ -42,16 +42,21 @@ export default function EvaluationsList() {
         const fetchAppEvaluations = async () => {
             try {
                 const result = await loadAppEvaluations(app_name);
-                let newList = result.map((obj: any) => {
-                    let newObj: EvaluationListTableDataType = {
-                        key: obj.id,
-                        dataset: obj.dataset,
-                        variants: obj.variants,
-                        evaluationType: obj.evaluationType,
-                        createdAt: obj.createdAt,
-                    }
-                    return newObj;
-                });
+                let newList = result
+                    .filter((obj: any) =>
+                        obj.evaluationType === 'human_a_b_testing' ||
+                        obj.evaluationType === 'human_scoring'
+                    )
+                    .map((obj: any) => {
+                        let newObj: EvaluationListTableDataType = {
+                            key: obj.id,
+                            dataset: obj.dataset,
+                            variants: obj.variants,
+                            evaluationType: obj.evaluationType,
+                            createdAt: obj.createdAt,
+                        }
+                        return newObj;
+                    });
                 setAppEvaluationsList(newList);
                 setDeletingLoading(false);
             } catch (error) {
@@ -92,19 +97,6 @@ export default function EvaluationsList() {
                 )
             }
         },
-        // {
-        //     title: 'Variants votes results',
-        //     dataIndex: 'votesData',
-        //     key: 'votesData',
-        //     width: '70%',
-        //     render: (value: any, record: DataType, index: number) => {
-        //         const variants = data[index].variants;
-
-        //         if (!variants || !record.votesData) return null;
-
-        //         return renderVotesPlot(record.votesData, variants, index, record);
-        //     },
-        // },
         {
             title: 'Variants',
             dataIndex: 'variants',
@@ -135,9 +127,9 @@ export default function EvaluationsList() {
                 const evaluationType = EvaluationType[value as keyof typeof EvaluationType];
                 const label = EvaluationTypeLabels[evaluationType];
                 return (
-                  <span>{label}</span>
+                    <span>{label}</span>
                 );
-              },
+            },
         },
         {
             title: 'Created at',
