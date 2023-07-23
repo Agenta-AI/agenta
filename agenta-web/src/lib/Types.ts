@@ -55,3 +55,5 @@ export interface AppEvaluationResponseType {
     }
     created_at: string;
 }
+
+export type LanguageItem = { displayName: string; languageKey: string };
