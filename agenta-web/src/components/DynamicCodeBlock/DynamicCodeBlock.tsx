@@ -1,22 +1,31 @@
 import CodeBlock from "@/components/CodeBlock/CodeBlock";
 import { MenuProps, Dropdown, Button, Space } from "antd";
 import { DownOutlined } from "@ant-design/icons";
-import { useState } from "react";
-
-type LanguageItem = { displayName: string; languageKey: string };
+import { useEffect, useState } from "react";
+import { LanguageItem, Variant } from "@/lib/Types";
 
 interface DynamicCodeBlockProps {
     codeSnippets: { [key: string]: string };
+    includeVariantsDropdown?: boolean;
+    variants: Variant[];
+    selectedVariant: Variant | null;
+    selectedLanguage: LanguageItem | null;
+    onVariantChange?: (variantName: string) => void;
+    onLanguageChange?: (selectedLanguage: LanguageItem) => void;
 }
 
-const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({ codeSnippets }) => {
+const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({ codeSnippets, includeVariantsDropdown = false, variants, selectedVariant, selectedLanguage, onVariantChange, onLanguageChange }) => {
     const supportedLanguages: LanguageItem[] = [
         { displayName: 'Python', languageKey: 'python' },
         { displayName: 'cURL', languageKey: 'bash' },
         { displayName: 'TypeScript', languageKey: 'typescript' },
     ];
 
-    const [selectedLanguage, setSelectedLanguage] = useState<LanguageItem>(supportedLanguages[0]);
+    useEffect(() => {
+        if (selectedLanguage === null && supportedLanguages.length > 0) {
+            onLanguageChange?.(supportedLanguages[0]);
+        }
+    }, [supportedLanguages, selectedLanguage, onLanguageChange]);
 
     const items: MenuProps['items'] = supportedLanguages.map((languageItem, index) => ({
         key: (index + 1).toString(),
@@ -24,7 +33,22 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({ codeSnippets }) => 
     }));
 
     const handleMenuClick = ({ key }: { key: string }) => {
-        setSelectedLanguage(supportedLanguages[parseInt(key, 10) - 1]);
+        const newSelectedLanguage = supportedLanguages[parseInt(key, 10) - 1];
+        onLanguageChange?.(newSelectedLanguage);
+    };
+
+    const variantsItems: MenuProps['items'] = variants ? variants.map((variant) => {
+        return {
+            label: variant.variantName,
+            key: variant.variantName,
+        };
+    }) : [];
+
+    const handleVariantClick = ({ key }: { key: string }) => {
+        const newSelectedVariant = variants.find(variant => variant.variantName === key);
+        if (newSelectedVariant) {
+            onVariantChange?.(key);
+        }
     };
 
     return (
@@ -32,6 +56,7 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({ codeSnippets }) => 
             <div style={{ paddingTop: '7px', paddingRight: '10px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                 <Space direction="vertical">
                     <Space wrap>
+                    {selectedLanguage && (
                         <Dropdown
                             menu={{ items, onClick: handleMenuClick }}
                             placement="bottomLeft"
@@ -42,11 +67,26 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({ codeSnippets }) => 
                                     <DownOutlined />
                                 </Space>
                             </Button>
-                        </Dropdown>
+                        </Dropdown>)}
+                        {includeVariantsDropdown &&
+                            <Dropdown menu={{ items: variantsItems, onClick: handleVariantClick }}>
+                                <Button style={{ marginRight: 10, width: '100%' }} size='small'>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                        {selectedVariant?.variantName || 'Select a variant'}
+                                        <DownOutlined />
+                                    </div>
+                                </Button>
+                            </Dropdown>}
                     </Space>
                 </Space>
             </div>
-            <CodeBlock language={selectedLanguage.languageKey} value={codeSnippets[selectedLanguage.displayName]} />
+            {selectedLanguage && (
+            <CodeBlock
+                key={selectedLanguage.languageKey + selectedVariant?.variantName}
+                language={selectedLanguage.languageKey}
+                value={codeSnippets[selectedLanguage.displayName]}
+            />
+            )}
         </div>
     );
 };
