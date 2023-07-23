@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import type { ColumnType } from 'antd/es/table';
-import { ArrowUpOutlined, CaretRightOutlined, LineChartOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag } from 'antd';
-import { Variant, Parameter } from '@/lib/Types';
+import { LineChartOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag } from 'antd';
+import { Variant } from '@/lib/Types';
 import { updateEvaluationRow, callVariant } from '@/lib/services/api';
 import { useVariant } from '@/lib/hooks/useVariant';
 import { useRouter } from 'next/router';
 import { EvaluationFlow } from '@/lib/enums';
-import { fetchVariants } from '@/lib/services/api';
 
 interface ExactMatchEvaluationTableProps {
     appEvaluation: any;
