@@ -97,7 +97,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ appEvaluation, evalua
                 ],
             };
 
-            updateEvaluationRow(appEvaluation.id, evaluation_row_id, data)
+            updateEvaluationRow(appEvaluation.id, evaluation_row_id, data, appEvaluation.evaluationType)
                 .then(data => {
                     setRowValue(rowIndex, 'vote', vote);
                 }).catch(err => {
@@ -244,19 +244,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ appEvaluation, evalua
         }
     ];
 
-    const addRow = () => {
-        setRows([
-            ...rows,
-            {
-                inputs: appEvaluation.inputs.map((variantInput: string) => ({ input_name: variantInput, input_value: '' })),
-                outputs: [],
-                columnData0: '',
-                columnData1: '',
-                vote: '',
-                evaluationFlow: EvaluationFlow.EVALUATION_STARTED
-            }
-        ]);
-    };
+
 
     return (
         <div>
@@ -266,9 +254,6 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({ appEvaluation, evalua
                 pagination={false}
                 rowClassName={() => 'editable-row'}
             />
-            <Button onClick={addRow} style={{ marginTop: 16 }}>
-                Add a row
-            </Button>
         </div>
     )
 }

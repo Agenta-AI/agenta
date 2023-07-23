@@ -1,10 +1,9 @@
 from fastapi import HTTPException, APIRouter, Body
-from agenta_backend.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, NewComparisonTable, DeleteComparisonTable
+from agenta_backend.models.api.app_evaluation_model import ComparisonTable, EvaluationRow, EvaluationRowUpdate, NewComparisonTable, DeleteComparisonTable, EvaluationType
 from agenta_backend.services.db_mongo import comparison_tables, evaluation_rows, datasets
 from datetime import datetime
 from bson import ObjectId
 from typing import List, Optional
-import logging
 router = APIRouter()
 
 
@@ -32,10 +31,19 @@ async def create_comparison_table(newComparisonTableData: NewComparisonTable = B
                 "comparison_table_id": str(newComparisonTable.inserted_id),
                 "inputs": [{'input_name': name, 'input_value': datum[name]} for name in comparison_table["inputs"]],
                 "outputs": [],
-                "vote": "",
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }
+
+            if newComparisonTableData.evaluation_type == EvaluationType.auto_exact_match:
+                evaluation_row["score"] = ""
+                if "correct_answer" in datum:
+                    evaluation_row["correct_answer"] = datum["correct_answer"]
+
+            if newComparisonTableData.evaluation_type == EvaluationType.human_a_b_testing:
+                evaluation_row["vote"] = ""
+
+
             await evaluation_rows.insert_one(evaluation_row)
 
         comparison_table["id"] = str(newComparisonTable.inserted_id)
@@ -87,8 +95,8 @@ async def create_evaluation_row(evaluation_row: EvaluationRow):
         raise HTTPException(status_code=500, detail="Failed to create evaluation_row")
 
 
-@router.put("/{comparison_table_id}/evaluation_row/{evaluation_row_id}")
-async def update_evaluation_row(evaluation_row_id: str, evaluation_row: EvaluationRowUpdate):
+@router.put("/{comparison_table_id}/evaluation_row/{evaluation_row_id}/{evaluation_type}")
+async def update_evaluation_row(evaluation_row_id: str, evaluation_row: EvaluationRowUpdate, evaluation_type: EvaluationType):
     """Updates an evaluation row with a vote
 
     Arguments:
@@ -103,12 +111,19 @@ async def update_evaluation_row(evaluation_row_id: str, evaluation_row: Evaluati
     """
     evaluation_row_dict = evaluation_row.dict()
     evaluation_row_dict["updated_at"] = datetime.utcnow()
+
+    new_evaluation_set = {
+        'outputs': evaluation_row_dict["outputs"]
+    }
+
+    if evaluation_type == EvaluationType.auto_exact_match:
+        new_evaluation_set["score"] = evaluation_row_dict["score"]
+    elif evaluation_type == EvaluationType.human_a_b_testing:
+        new_evaluation_set["vote"] = evaluation_row_dict["vote"]
+
     result = await evaluation_rows.update_one(
         {'_id': ObjectId(evaluation_row_id)},
-        {'$set': {
-            'vote': evaluation_row_dict["vote"],
-            'outputs': evaluation_row_dict["outputs"]
-        }}
+        {'$set': new_evaluation_set}
     )
     if result.acknowledged:
         return evaluation_row_dict
@@ -169,7 +184,7 @@ async def delete_comparison_tables(delete_comparison_tables: DeleteComparisonTab
 
     return deleted_ids
 
-@router.get("/{comparison_table_id}/votes_data")
+@router.get("/{comparison_table_id}/results")
 async def fetch_results(comparison_table_id: str):
     """Fetch all the results for one the comparison table
 
@@ -179,18 +194,27 @@ async def fetch_results(comparison_table_id: str):
     Returns:
         _description_
     """
-    document = await comparison_tables.find_one({"_id": ObjectId(comparison_table_id)})
-    results = {}
+    comparison_table = await comparison_tables.find_one({"_id": ObjectId(comparison_table_id)})
 
+    if (comparison_table["evaluation_type"]== EvaluationType.human_a_b_testing):
+        results = await fetch_results_for_human_a_b_testing_evaluation(comparison_table_id, comparison_table.get("variants", []))
+        # TODO: replace votes_data by results_data
+        return {"votes_data": results}
+
+    elif (comparison_table["evaluation_type"]== EvaluationType.auto_exact_match):
+        results = await fetch_results_for_auto_exact_match_evaluation(comparison_table_id, comparison_table.get("variant", []))
+        return {"scores_data": results}
+
+async def fetch_results_for_human_a_b_testing_evaluation(comparison_table_id: str, variants: list):
+    results = {}
     comparison_table_rows_nb = await evaluation_rows.count_documents({
         'comparison_table_id': comparison_table_id,
         'vote': {'$ne': ''}
     })
 
     if comparison_table_rows_nb == 0:
-        return {"votes_data": results}
+        return results
 
-    variants = document.get("variants", [])
     results["variants"] = variants
     results["variants_votes_data"] = {}
     results["nb_of_rows"] = comparison_table_rows_nb
@@ -211,4 +235,32 @@ async def fetch_results(comparison_table_id: str):
         })
         results["variants_votes_data"][item]["number_of_votes"]= variant_votes_nb
         results["variants_votes_data"][item]["percentage"] = round(variant_votes_nb / comparison_table_rows_nb * 100, 2) if comparison_table_rows_nb else 0
-    return {"votes_data": results}
+    return results
+
+async def fetch_results_for_auto_exact_match_evaluation(comparison_table_id: str, variant: str):
+    results = {}
+    comparison_table_rows_nb = await evaluation_rows.count_documents({
+        'comparison_table_id': comparison_table_id,
+        'score': {'$ne': ''}
+    })
+
+    if comparison_table_rows_nb == 0:
+        return results
+
+    results["variant"] = variant
+    # results["variants_scores_data"] = {}
+    results["nb_of_rows"] = comparison_table_rows_nb
+
+    correct_scores_nb: int = await evaluation_rows.count_documents({
+        'score': 'correct',
+        'comparison_table_id': comparison_table_id
+    })
+
+    wrong_scores_nb: int = await evaluation_rows.count_documents({
+        'score': 'wrong',
+        'comparison_table_id': comparison_table_id
+    })
+    results["scores"] = {}
+    results["scores"]["correct"] = correct_scores_nb
+    results["scores"]["wrong"] = wrong_scores_nb
+    return results

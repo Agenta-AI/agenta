@@ -5,17 +5,20 @@ import { ColumnsType } from 'antd/es/table';
 import { formatDate } from '@/lib/helpers/dateTimeHelper';
 import { AppEvaluationResponseType } from '@/lib/Types';
 import { useRouter } from 'next/router';
+import { EvaluationType } from '@/lib/enums';
 
 interface DataType {
     id: string;
     variants: string[];
-    votesData: {
+    votesData?: {
         variants_votes_data: {
             number_of_votes: number,
             percentage: number
         },
         flag_votes: { number_of_votes: number, percentage: number },
     }
+    scoresData?: any;
+    evaluationType: EvaluationType;
     createdAt?: string;
 }
 
@@ -73,6 +76,44 @@ const renderVotesPlot = (votesData: any, variants: string[], index: number, reco
     </div>
 }
 
+const renderScoresPlot = (scoresData: any, variants: string[], index: number, record: DataType) => {
+    const hexColors = ['#5B8FF9', '#61DDAA', '#FFbcb8'];
+
+    return <div style={{
+        display: 'flex',
+        maxHeight: '50px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+    }}>
+        <div
+            key={`variant-${index}`}
+            style={{
+                padding: '2px 10px',
+                color: '#fff',
+                width: `${(scoresData.scores.wrong/scoresData.nb_of_rows) * 100}%`,
+                backgroundColor: '#CF6068',
+                textAlign: 'center',
+            }}
+        >
+            {scoresData.scores.wrong} Wrong Answers
+        </div>
+
+        <div
+            key={`variant-${index}`}
+            style={{
+                padding: '2px 10px',
+                color: '#fff',
+                width: `${(scoresData.scores.correct/scoresData.nb_of_rows) * 100}%`,
+                backgroundColor: '#8EBE64',
+                textAlign: 'center',
+            }}
+        >
+            {scoresData.scores.correct} Correct Answers
+        </div>
+    </div>
+}
+
 const Results: React.FC = () => {
     const router = useRouter();
     const [data, setData] = useState<DataType[]>([]);
@@ -87,14 +128,27 @@ const Results: React.FC = () => {
             .then(responseData => {
 
                 const fetchPromises: Promise<DataType>[] = responseData.map((item: AppEvaluationResponseType) => {
-                    return fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations/${item.id}/votes_data`)
+                    return fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations/${item.id}/results`)
                         .then(results => {
-                            if (Object.keys(results.votes_data).length > 0) {
-                                return {
-                                    id: item.id,
-                                    createdAt: formatDate(item.created_at),
-                                    variants: item.variants,
-                                    votesData: results.votes_data,
+                            if (item.evaluation_type === EvaluationType.human_a_b_testing) {
+                                if (Object.keys(results.votes_data).length > 0) {
+                                    return {
+                                        id: item.id,
+                                        createdAt: formatDate(item.created_at),
+                                        variants: item.variants,
+                                        votesData: results.votes_data,
+                                        evaluationType: item.evaluation_type,
+                                    }
+                                }
+                            } else if (item.evaluation_type == EvaluationType.auto_exact_match) {
+                                if (Object.keys(results.scores_data).length > 0) {
+                                    return {
+                                        id: item.id,
+                                        createdAt: formatDate(item.created_at),
+                                        variants: item.variants,
+                                        scoresData: results.scores_data,
+                                        evaluationType: item.evaluation_type,
+                                    }
                                 }
                             }
                         })
@@ -129,7 +183,11 @@ const Results: React.FC = () => {
             width: '70%',
             render: (value: any, record: DataType, index: number) => {
                 const variants = data[index].variants;
-                return renderVotesPlot(record.votesData, variants, index, record);
+                if (data[index].evaluationType == EvaluationType.human_a_b_testing) {
+                    return renderVotesPlot(record.votesData, variants, index, record);
+                } else if (data[index].evaluationType == EvaluationType.auto_exact_match) {
+                    return renderScoresPlot(record.scoresData, variants, index, record);
+                }
             },
         },
         {
@@ -155,151 +213,3 @@ const Results: React.FC = () => {
     );
 };
 export default Results;
-
-
-
-
-
-  // const modelData = [
-  //     {
-  //         key: '1',
-  //         model: 'Model A',
-  //         score: 70,
-  //         confidence: '65% - 75%',
-  //     },
-  //     {
-  //         key: '2',
-  //         model: 'Model B',
-  //         score: 60,
-  //         confidence: '55% - 65%',
-  //     },
-  //     {
-  //         key: '3',
-  //         model: 'Model C',
-  //         score: 80,
-  //         confidence: '75% - 85%',
-  //     },
-  // ];
-
-  // const recentComparisons = [
-  //     {
-  //         key: '1',
-  //         model: 'Model A',
-  //         score: 70,
-  //         confidence: '65% - 75%',
-  //     },
-  //     {
-  //         key: '2',
-  //         model: 'Model B',
-  //         score: 60,
-  //         confidence: '55% - 65%',
-  //     },
-  // ];
-
-  // const latencyData = [
-  //     {
-  //         key: '1',
-  //         model: 'Model A',
-  //         latency: 200,
-  //         cost: 0.5,
-  //     },
-  //     {
-  //         key: '2',
-  //         model: 'Model B',
-  //         latency: 300,
-  //         cost: 0.6,
-  //     },
-  //     {
-  //         key: '3',
-  //         model: 'Model C',
-  //         latency: 250,
-  //         cost: 0.7,
-  //     },
-  // ];
-
-  // const columns = [
-  //     {
-  //         title: 'Model',
-  //         dataIndex: 'model',
-  //         key: 'model',
-  //     },
-  //     {
-  //         title: 'Preference Score',
-  //         dataIndex: 'score',
-  //         key: 'score',
-  //     },
-  //     {
-  //         title: 'Confidence Interval',
-  //         dataIndex: 'confidence',
-  //         key: 'confidence',
-  //     },
-  // ];
-
-  // const latencyColumns = [
-  //     {
-  //         title: 'Model',
-  //         dataIndex: 'model',
-  //         key: 'model',
-  //     },
-  //     {
-  //         title: 'Latency (ms)',
-  //         dataIndex: 'latency',
-  //         key: 'latency',
-  //     },
-  //     {
-  //         title: 'Average Cost ($)',
-  //         dataIndex: 'cost',
-  //         key: 'cost',
-  //     },
-  // ];
-
-  // const bestModel = modelData.reduce((prev, current) =>
-  //     (prev.score > current.score) ? prev : current
-  // );
-
-  // useEffect(() => {
-  //     loadResults();
-  // }, []);
-
-  // const loadResults = () => {
-  //   const fetchResults = async (url = '', data = {}) => {
-  //     const response = await fetch(url, {
-  //       method: 'POST',
-  //       cache: 'no-cache',
-  //       credentials: 'same-origin',
-  //       headers: {
-  //         'Content-Type': 'application/json'
-  //       },
-  //       redirect: 'follow',
-  //       referrerPolicy: 'no-referrer',
-  //       body: JSON.stringify(data)
-  //     });
-
-  //     return response.json();
-  //   };
-
-  // updateData(`${apiURL}/api/app_evaluations/${comparisonTableId}/evaluation_row/${evaluation_row_id}`, data)
-  //     .then(data => {
-  //         // setRowValue(rowIndex, 'vote', vote);
-  //     }).catch(err => {
-  //         console.error(err);
-  //     });
-
-
-// return (
-//     <div>
-//         <Card title="Best Model Overview">
-//             <p><strong>Model:</strong> {bestModel.model}</p>
-//             <p><strong>Preference Score:</strong> {bestModel.score}</p>
-//             <p><strong>Confidence Interval:</strong> {bestModel.confidence}</p>
-//         </Card>
-
-//         <Table columns={columns} dataSource={modelData} title={() => 'Performance Matrix'} />
-
-//         <Table columns={columns} dataSource={recentComparisons} title={() => 'Recent Comparisons'} />
-
-//         <Table columns={latencyColumns} dataSource={latencyData} title={() => 'Latency and Cost'} />
-//     </div>
-// );
-// };
-
