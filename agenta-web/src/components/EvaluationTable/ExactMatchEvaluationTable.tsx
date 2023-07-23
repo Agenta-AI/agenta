@@ -279,19 +279,6 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
         }
     ];
 
-    const addRow = () => {
-        setRows([
-            ...rows,
-            {
-                inputs: appEvaluation.inputs.map((variantInput: string) => ({ input_name: variantInput, input_value: '' })),
-                outputs: [],
-                columnData0: '',
-                score: '',
-                correctAnswer: '',
-                evaluationFlow: EvaluationFlow.EVALUATION_STARTED
-            }
-        ]);
-    };
 
     return (
         <div>
@@ -343,9 +330,6 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
                     pagination={false}
                     rowClassName={() => 'editable-row'}
                 />
-                <Button onClick={addRow} style={{ marginTop: 16 }}>
-                    Add a row
-                </Button>
             </div>
         </div>
     )
