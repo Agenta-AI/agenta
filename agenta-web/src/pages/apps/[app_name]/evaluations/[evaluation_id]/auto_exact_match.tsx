@@ -46,7 +46,7 @@ export default function Evaluation() {
     }, [evaluationTableId]);
 
     return (
-        <div>
+        <div style={{ marginBottom: '200px' }}>
             {evaluationTableId && evaluationRows && appEvaluation &&
                 <ExactMatchEvaluationTable
                     columnsCount={columnsCount}
