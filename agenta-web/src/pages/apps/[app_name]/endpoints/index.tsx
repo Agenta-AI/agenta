@@ -50,7 +50,7 @@ export default function VariantEndpoint() {
 
 
     useEffect(() => {
-        if(variants.length > 0){
+        if (variants.length > 0) {
             setVariant(createVariant(variants[0].variantName));
         }
     }, [variants, appName]);
@@ -106,9 +106,6 @@ export default function VariantEndpoint() {
 
         renderElement = (
             <div>
-                <div>
-                    <h3>Variant Name: {variant.variantName}</h3>
-                </div>
                 <DynamicCodeBlock
                     codeSnippets={codeSnippets}
                     includeVariantsDropdown={true}
