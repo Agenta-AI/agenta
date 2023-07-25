@@ -1,7 +1,7 @@
-import { js as beautify } from 'js-beautify';
+import {js as beautify} from "js-beautify"
 
 export default function tsCode(uri: string, params: string): string {
-    const codeString =  `import axios from 'axios';
+    const codeString = `import axios from 'axios';
 
 const url = '${uri}';
 const data = {
@@ -19,9 +19,8 @@ axios.post(url, data)
     })
     .catch((error) => {
         console.error(error);
-    });`;
+    });`
 
-    const formattedCodeString = beautify(codeString);
-    return formattedCodeString;
-
+    const formattedCodeString = beautify(codeString)
+    return formattedCodeString
 }

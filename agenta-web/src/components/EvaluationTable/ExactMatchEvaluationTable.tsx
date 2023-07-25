@@ -1,33 +1,33 @@
-import { useState, useEffect } from 'react';
-import type { ColumnType } from 'antd/es/table';
-import { LineChartOutlined } from '@ant-design/icons';
-import { Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag } from 'antd';
-import { Variant } from '@/lib/Types';
-import { updateEvaluationRow, callVariant } from '@/lib/services/api';
-import { useVariant } from '@/lib/hooks/useVariant';
-import { useRouter } from 'next/router';
-import { EvaluationFlow } from '@/lib/enums';
+import {useState, useEffect} from "react"
+import type {ColumnType} from "antd/es/table"
+import {LineChartOutlined} from "@ant-design/icons"
+import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag} from "antd"
+import {Variant} from "@/lib/Types"
+import {updateEvaluationRow, callVariant} from "@/lib/services/api"
+import {useVariant} from "@/lib/hooks/useVariant"
+import {useRouter} from "next/router"
+import {EvaluationFlow} from "@/lib/enums"
 
 interface ExactMatchEvaluationTableProps {
-    appEvaluation: any;
-    columnsCount: number;
-    evaluationRows: ExactMatchEvaluationTableRow[];
+    appEvaluation: any
+    columnsCount: number
+    evaluationRows: ExactMatchEvaluationTableRow[]
 }
 
 interface ExactMatchEvaluationTableRow {
-    id?: string;
+    id?: string
     inputs: {
-        input_name: string;
-        input_value: string;
-    }[];
+        input_name: string
+        input_value: string
+    }[]
     outputs: {
-        variant_name: string;
-        variant_output: string;
-    }[];
-    columnData0: string;
-    correctAnswer: string;
-    score: string;
-    evaluationFlow: EvaluationFlow;
+        variant_name: string
+        variant_output: string
+    }[]
+    columnData0: string
+    correctAnswer: string
+    score: string
+    evaluationFlow: EvaluationFlow
 }
 /**
  *
@@ -37,100 +37,107 @@ interface ExactMatchEvaluationTableRow {
  * @returns
  */
 
-const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ appEvaluation, evaluationRows, columnsCount }) => {
-    const router = useRouter();
-    let app_name = '';
+const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
+    appEvaluation,
+    evaluationRows,
+    columnsCount,
+}) => {
+    const router = useRouter()
+    let app_name = ""
     if (Array.isArray(router.query.app_name)) {
-        app_name = router.query.app_name[0];
-    } else if (typeof router.query.app_name === 'string') {
-        app_name = router.query.app_name;
+        app_name = router.query.app_name[0]
+    } else if (typeof router.query.app_name === "string") {
+        app_name = router.query.app_name
     }
-    const variants = appEvaluation.variants;
+    const variants = appEvaluation.variants
 
     const variantData = variants.map((variant: Variant) => {
-        const { optParams, URIPath, isLoading, isError, error } = useVariant(app_name, variant);
+        const {optParams, URIPath, isLoading, isError, error} = useVariant(app_name, variant)
 
         return {
             optParams,
             URIPath,
             isLoading,
             isError,
-            error
-        };
-    });
+            error,
+        }
+    })
 
-    const [rows, setRows] = useState<ExactMatchEvaluationTableRow[]>([]);
-    const [wrongAnswers, setWrongAnswers] = useState<number>(0);
-    const [correctAnswers, setCorrectAnswers] = useState<number>(0);
-    const [accuracy, setAccuracy] = useState<number>(0);
+    const [rows, setRows] = useState<ExactMatchEvaluationTableRow[]>([])
+    const [wrongAnswers, setWrongAnswers] = useState<number>(0)
+    const [correctAnswers, setCorrectAnswers] = useState<number>(0)
+    const [accuracy, setAccuracy] = useState<number>(0)
 
     useEffect(() => {
         if (evaluationRows) {
-            setRows(evaluationRows);
+            setRows(evaluationRows)
         }
-    }, [evaluationRows]);
+    }, [evaluationRows])
 
     useEffect(() => {
         if (correctAnswers + wrongAnswers > 0) {
-            setAccuracy((correctAnswers / (correctAnswers + wrongAnswers)) * 100);
+            setAccuracy((correctAnswers / (correctAnswers + wrongAnswers)) * 100)
+        } else {
+            setAccuracy(0)
         }
-        else {
-            setAccuracy(0);
-        }
-    }, [correctAnswers, wrongAnswers]);
+    }, [correctAnswers, wrongAnswers])
 
     useEffect(() => {
-        const correct = rows.filter(row => row.score === 'correct').length;
-        const wrong = rows.filter(row => row.score === 'wrong').length;
-        const accuracy = correct + wrong > 0 ? (correct / (correct + wrong)) * 100 : 0;
+        const correct = rows.filter((row) => row.score === "correct").length
+        const wrong = rows.filter((row) => row.score === "wrong").length
+        const accuracy = correct + wrong > 0 ? (correct / (correct + wrong)) * 100 : 0
 
-        setCorrectAnswers(correct);
-        setWrongAnswers(wrong);
-        setAccuracy(accuracy);
-    }, [rows]);
+        setCorrectAnswers(correct)
+        setWrongAnswers(wrong)
+        setAccuracy(accuracy)
+    }, [rows])
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
         rowIndex: number,
-        inputFieldKey: number
+        inputFieldKey: number,
     ) => {
-        const newRows = [...rows];
-        newRows[rowIndex].inputs[inputFieldKey].input_value = e.target.value;
-        setRows(newRows);
-    };
+        const newRows = [...rows]
+        newRows[rowIndex].inputs[inputFieldKey].input_value = e.target.value
+        setRows(newRows)
+    }
 
     const runAllEvaluations = async () => {
-        const promises: Promise<void>[] = [];
+        const promises: Promise<void>[] = []
 
         for (let i = 0; i < rows.length; i++) {
-            promises.push(runEvaluation(i));
+            promises.push(runEvaluation(i))
         }
 
         Promise.all(promises)
             .then(() => {
-                console.log('All functions finished.')
+                console.log("All functions finished.")
             })
-            .catch(err => console.error('An error occurred:', err));
-    };
+            .catch((err) => console.error("An error occurred:", err))
+    }
 
     const runEvaluation = async (rowIndex: number) => {
-        const inputParamsDict = rows[rowIndex].inputs.reduce((acc: { [key: string]: any }, item) => { acc[item.input_name] = item.input_value; return acc; }, {});
+        const inputParamsDict = rows[rowIndex].inputs.reduce((acc: {[key: string]: any}, item) => {
+            acc[item.input_name] = item.input_value
+            return acc
+        }, {})
 
-        const columnsDataNames = ['columnData0']
+        const columnsDataNames = ["columnData0"]
         columnsDataNames.forEach(async (columnName: any, idx: number) => {
-
-            setRowValue(rowIndex, columnName, 'loading...');
+            setRowValue(rowIndex, columnName, "loading...")
             try {
-                let result = await callVariant(inputParamsDict, variantData[idx].optParams, variantData[idx].URIPath);
-                setRowValue(rowIndex, columnName, result);
-                setRowValue(rowIndex, 'evaluationFlow', EvaluationFlow.COMPARISON_RUN_STARTED);
-                evaluateWithExactMatch(rowIndex);
+                let result = await callVariant(
+                    inputParamsDict,
+                    variantData[idx].optParams,
+                    variantData[idx].URIPath,
+                )
+                setRowValue(rowIndex, columnName, result)
+                setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
+                evaluateWithExactMatch(rowIndex)
+            } catch (e) {
+                console.error("Error:", e)
             }
-
-            catch (e) {
-                console.error('Error:', e)
-            }
-        });
+        })
     }
 
     /**
@@ -143,169 +150,193 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
      * 3. update the score column in the table
      */
     const evaluateWithExactMatch = (rowNumber: number) => {
-        const isCorrect = rows[rowNumber].columnData0 === rows[rowNumber].correctAnswer;
-        const evaluation_row_id = rows[rowNumber].id;
+        const isCorrect = rows[rowNumber].columnData0 === rows[rowNumber].correctAnswer
+        const evaluation_row_id = rows[rowNumber].id
         // TODO: we need to improve this and make it dynamic
-        const appVariantNameX = variants[0].variantName;
-        const outputVariantX = rows[rowNumber].columnData0;
+        const appVariantNameX = variants[0].variantName
+        const outputVariantX = rows[rowNumber].columnData0
 
         if (evaluation_row_id) {
             const data = {
-                score: isCorrect ? 'correct' : 'wrong',
-                outputs: [
-                    { "variant_name": appVariantNameX, "variant_output": outputVariantX }
-                ]
-            };
+                score: isCorrect ? "correct" : "wrong",
+                outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+            }
 
-            updateEvaluationRow(appEvaluation.id, evaluation_row_id, data, appEvaluation.evaluationType)
-                .then(data => {
-                    setRowValue(rowNumber, 'score', data.score);
+            updateEvaluationRow(
+                appEvaluation.id,
+                evaluation_row_id,
+                data,
+                appEvaluation.evaluationType,
+            )
+                .then((data) => {
+                    setRowValue(rowNumber, "score", data.score)
                     if (isCorrect) {
-                        setCorrectAnswers(prevCorrect => prevCorrect + 1);
+                        setCorrectAnswers((prevCorrect) => prevCorrect + 1)
+                    } else {
+                        setWrongAnswers((prevWrong) => prevWrong + 1)
                     }
-                    else {
-                        setWrongAnswers(prevWrong => prevWrong + 1);
-                    }
-                }).catch(err => {
-                    console.error(err);
-                });
+                })
+                .catch((err) => {
+                    console.error(err)
+                })
         }
     }
 
-    const setRowValue = (rowIndex: number, columnKey: keyof ExactMatchEvaluationTableRow, value: any) => {
-        const newRows = [...rows];
-        newRows[rowIndex][columnKey] = value as never;
-        setRows(newRows);
-    };
+    const setRowValue = (
+        rowIndex: number,
+        columnKey: keyof ExactMatchEvaluationTableRow,
+        value: any,
+    ) => {
+        const newRows = [...rows]
+        newRows[rowIndex][columnKey] = value as never
+        setRows(newRows)
+    }
 
-    const dynamicColumns: ColumnType<ExactMatchEvaluationTableRow>[] = Array.from({ length: columnsCount }, (_, i) => {
-        const columnKey = `columnData${i}`;
+    const dynamicColumns: ColumnType<ExactMatchEvaluationTableRow>[] = Array.from(
+        {length: columnsCount},
+        (_, i) => {
+            const columnKey = `columnData${i}`
 
-        return ({
-            title: (
-                <div>
-                    <span>App Variant: </span>
-                    <span style={{ backgroundColor: 'rgb(201 255 216)', padding: 4, borderRadius: 5 }}>
-                        {variants ? variants[i].variantName : ""}
-                    </span>
-                </div>
-            ),
-            dataIndex: columnKey,
-            key: columnKey,
-            width: '25%',
-            render: (text: any, record: ExactMatchEvaluationTableRow, rowIndex: number) => {
-                if (record.outputs && record.outputs.length > 0) {
-                    const outputValue = record.outputs.find((output: any) => output.variant_name === variants[i].variantName)?.variant_output;
-                    return (
-                        <div>{outputValue}</div>
-                    )
-                }
-                return text;
+            return {
+                title: (
+                    <div>
+                        <span>App Variant: </span>
+                        <span
+                            style={{
+                                backgroundColor: "rgb(201 255 216)",
+                                padding: 4,
+                                borderRadius: 5,
+                            }}
+                        >
+                            {variants ? variants[i].variantName : ""}
+                        </span>
+                    </div>
+                ),
+                dataIndex: columnKey,
+                key: columnKey,
+                width: "25%",
+                render: (text: any, record: ExactMatchEvaluationTableRow, rowIndex: number) => {
+                    if (record.outputs && record.outputs.length > 0) {
+                        const outputValue = record.outputs.find(
+                            (output: any) => output.variant_name === variants[i].variantName,
+                        )?.variant_output
+                        return <div>{outputValue}</div>
+                    }
+                    return text
+                },
             }
-        });
-    });
+        },
+    )
 
     const columns = [
         {
-            key: '1',
-            width: '30%',
+            key: "1",
+            width: "30%",
             title: (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <div >
+                <div style={{display: "flex", justifyContent: "space-between"}}>
+                    <div>
                         <span> Inputs (Test set: </span>
-                        <span style={{ backgroundColor: 'rgb(201 255 216)', padding: 4, borderRadius: 5 }}>
+                        <span
+                            style={{
+                                backgroundColor: "rgb(201 255 216)",
+                                padding: 4,
+                                borderRadius: 5,
+                            }}
+                        >
                             {appEvaluation.dataset.name}
                         </span>
                         <span> )</span>
                     </div>
                 </div>
             ),
-            dataIndex: 'inputs',
+            dataIndex: "inputs",
             render: (text: any, record: ExactMatchEvaluationTableRow, rowIndex: number) => (
                 <div>
-                    {record && record.inputs && record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                        record.inputs.map((input: any, index: number) =>
-                            <div style={{ marginBottom: 10 }} key={index}>
+                    {record &&
+                        record.inputs &&
+                        record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
+                        record.inputs.map((input: any, index: number) => (
+                            <div style={{marginBottom: 10}} key={index}>
                                 <Input
                                     placeholder={input.input_name}
                                     value={input.input_value}
                                     onChange={(e) => handleInputChange(e, rowIndex, index)}
                                 />
                             </div>
-                        )
-                    }
+                        ))}
                 </div>
-            )
+            ),
         },
         ...dynamicColumns,
         {
-            title: 'Correct Answer',
-            dataIndex: 'correctAnswer',
-            key: 'correctAnswer',
-            width: '25%',
+            title: "Correct Answer",
+            dataIndex: "correctAnswer",
+            key: "correctAnswer",
+            width: "25%",
 
-            render: (text: any, record: any, rowIndex: number) => (
-                <div>{record.correctAnswer}</div>
-            )
+            render: (text: any, record: any, rowIndex: number) => <div>{record.correctAnswer}</div>,
         },
         {
-            title: 'Evaluation',
-            dataIndex: 'evaluation',
-            key: 'evaluation',
+            title: "Evaluation",
+            dataIndex: "evaluation",
+            key: "evaluation",
             width: 200,
-            align: 'center' as 'left' | 'right' | 'center',
+            align: "center" as "left" | "right" | "center",
             render: (text: any, record: any, rowIndex: number) => {
-                let tagColor = ''
-                if (record.score === 'correct') {
-                    tagColor = 'green'
-                } else if (record.score === 'wrong') {
-                    tagColor = 'red'
+                let tagColor = ""
+                if (record.score === "correct") {
+                    tagColor = "green"
+                } else if (record.score === "wrong") {
+                    tagColor = "red"
                 }
                 return (
-                    <Spin spinning={rows[rowIndex].score === 'loading' ? true : false}>
+                    <Spin spinning={rows[rowIndex].score === "loading" ? true : false}>
                         <Space>
                             <div>
-                                {rows[rowIndex].score !== '' &&
-                                    <Tag color={tagColor} style={{ fontSize: '14px' }}>
+                                {rows[rowIndex].score !== "" && (
+                                    <Tag color={tagColor} style={{fontSize: "14px"}}>
                                         {record.score}
                                     </Tag>
-                                }
+                                )}
                             </div>
                         </Space>
                     </Spin>
                 )
-            }
-        }
-    ];
-
+            },
+        },
+    ]
 
     return (
         <div>
             <h1>Exact match Evaluation</h1>
-            <div >
+            <div>
                 <Row align="middle">
-
                     <Col span={12}>
-                        <Button type="primary" onClick={runAllEvaluations} icon={<LineChartOutlined />} size="large">
+                        <Button
+                            type="primary"
+                            onClick={runAllEvaluations}
+                            icon={<LineChartOutlined />}
+                            size="large"
+                        >
                             Run Evaluation
                         </Button>
                     </Col>
 
                     <Col span={12}>
-                        <Card bordered={true} style={{ marginBottom: 20 }}>
+                        <Card bordered={true} style={{marginBottom: 20}}>
                             <Row justify="end">
                                 <Col span={10}>
                                     <Statistic
                                         title="Correct answers:"
                                         value={`${correctAnswers} out of ${rows.length}`}
-                                        valueStyle={{ color: '#3f8600' }}
+                                        valueStyle={{color: "#3f8600"}}
                                     />
                                 </Col>
                                 <Col span={10}>
                                     <Statistic
                                         title="Wrong answers:"
                                         value={`${wrongAnswers} out of ${rows.length}`}
-                                        valueStyle={{ color: '#cf1322' }}
+                                        valueStyle={{color: "#cf1322"}}
                                     />
                                 </Col>
                                 <Col span={4}>
@@ -313,7 +344,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
                                         title="Accuracy:"
                                         value={accuracy}
                                         precision={2}
-                                        valueStyle={{ color: '' }}
+                                        valueStyle={{color: ""}}
                                         suffix="%"
                                     />
                                 </Col>
@@ -327,11 +358,11 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({ a
                     dataSource={rows}
                     columns={columns}
                     pagination={false}
-                    rowClassName={() => 'editable-row'}
+                    rowClassName={() => "editable-row"}
                 />
             </div>
         </div>
     )
 }
 
-export default ExactMatchEvaluationTable;
+export default ExactMatchEvaluationTable

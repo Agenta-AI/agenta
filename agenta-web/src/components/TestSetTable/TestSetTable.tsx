@@ -1,278 +1,316 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { AgGridReact } from 'ag-grid-react';
+import React, {useState, useRef, useEffect} from "react"
+import {AgGridReact} from "ag-grid-react"
 
-import { Button, Input, Typography } from 'antd';
+import {Button, Input, Typography} from "antd"
 
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
-import { ConsoleSqlOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { createNewTestSet, loadDataset, updateTestSet } from '@/lib/services/api';
-import { useRouter } from 'next/router';
+import "ag-grid-community/styles/ag-grid.css"
+import "ag-grid-community/styles/ag-theme-alpine.css"
+import {ConsoleSqlOutlined, DeleteOutlined, PlusOutlined} from "@ant-design/icons"
+import {createNewTestSet, loadDataset, updateTestSet} from "@/lib/services/api"
+import {useRouter} from "next/router"
 
 type TestSetTableProps = {
-    mode: "create" | "edit";
-};
+    mode: "create" | "edit"
+}
 
-const TestSetTable: React.FC<TestSetTableProps> = ({ mode }) => {
-    const router = useRouter();
-    const appName = router.query.app_name?.toString() || "";
-    const { testset_id } = router.query;
+const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
+    const router = useRouter()
+    const appName = router.query.app_name?.toString() || ""
+    const {testset_id} = router.query
 
-    const [testSetName, setTestSetName] = useState("");
+    const [testSetName, setTestSetName] = useState("")
     const [rowData, setRowData] = useState([
-        { column1: "data1" },
-        { column1: "data1" },
-        { column1: "data1" }
-    ]);
+        {column1: "data1"},
+        {column1: "data1"},
+        {column1: "data1"},
+    ])
 
     const [columnDefs, setColumnDefs] = useState([
         {
-            field: '',
+            field: "",
             headerCheckboxSelection: true,
             checkboxSelection: true,
             showDisabledCheckboxes: true,
             maxWidth: 50,
-            editable: false
+            editable: false,
         },
-        { field: 'column1' },
-    ]);
+        {field: "column1"},
+    ])
 
     const [inputValues, setInputValues] = useState(
-        columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field)
-    );
-    const gridRef = useRef(null);
+        columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
+    )
+    const gridRef = useRef(null)
 
     useEffect(() => {
         // If in edit mode, load the existing test set
-        if (mode === 'edit' && testset_id) {
-            loadDataset(testset_id).then(data => {
-                setTestSetName(data.name);
-                setRowData(data.csvdata);
-                setColumnDefs(Object.keys(data.csvdata[0]).map((key) => ({ field: key })));
-            });
+        if (mode === "edit" && testset_id) {
+            loadDataset(testset_id).then((data) => {
+                setTestSetName(data.name)
+                setRowData(data.csvdata)
+                setColumnDefs(Object.keys(data.csvdata[0]).map((key) => ({field: key})))
+            })
         }
-    }, [mode, testset_id]);
+    }, [mode, testset_id])
 
     useEffect(() => {
         // If in edit mode, load the existing test set
-        if (mode === 'edit' && testset_id) {
-            loadDataset(testset_id).then(data => {
-                setTestSetName(data.name);
-                setRowData(data.csvdata);
+        if (mode === "edit" && testset_id) {
+            loadDataset(testset_id).then((data) => {
+                setTestSetName(data.name)
+                setRowData(data.csvdata)
 
                 // Create the column definitions from the data keys
-                const columnsFromData = Object.keys(data.csvdata[0]).map(key => ({ field: key }));
+                const columnsFromData = Object.keys(data.csvdata[0]).map((key) => ({
+                    field: key,
+                }))
 
                 // Merge with the existing column definitions (the checkbox column)
-                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData];
-                setColumnDefs(newColumnDefs);
-            });
+                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData]
+                setColumnDefs(newColumnDefs)
+            })
         }
-    }, [mode, testset_id]);
+    }, [mode, testset_id])
 
     useEffect(() => {
-        if (mode === 'edit' && testset_id) {
-            loadDataset(testset_id).then(data => {
-                setTestSetName(data.name);
-                setRowData(data.csvdata);
+        if (mode === "edit" && testset_id) {
+            loadDataset(testset_id).then((data) => {
+                setTestSetName(data.name)
+                setRowData(data.csvdata)
 
                 // Create the column definitions from the data keys
-                const columnsFromData = Object.keys(data.csvdata[0]).map(key => ({ field: key }));
+                const columnsFromData = Object.keys(data.csvdata[0]).map((key) => ({
+                    field: key,
+                }))
 
                 // Merge with the existing column definitions (the checkbox column)
-                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData];
-                setColumnDefs(newColumnDefs);
+                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData]
+                setColumnDefs(newColumnDefs)
 
                 // Update input values for column names
-                setInputValues(columnsFromData.map(colDef => colDef.field));
-            });
+                setInputValues(columnsFromData.map((colDef) => colDef.field))
+            })
         }
-    }, [mode, testset_id]);
+    }, [mode, testset_id])
 
     const handleInputChange = (index, event) => {
-        const values = [...inputValues];
-        values[index] = event.target.value;
-        setInputValues(values);
+        const values = [...inputValues]
+        values[index] = event.target.value
+        setInputValues(values)
     }
 
     const updateTable = () => {
-        const checkboxColumn = columnDefs.find((colDef) => colDef.field === "");
-        const dataColumns = columnDefs.filter((colDef) => colDef.field !== "");
+        const checkboxColumn = columnDefs.find((colDef) => colDef.field === "")
+        const dataColumns = columnDefs.filter((colDef) => colDef.field !== "")
 
         const newDataColumns = inputValues.map((value, index) => {
-            return { field: value || dataColumns[index]?.field || `newColumn${index}` };
-        });
+            return {
+                field: value || dataColumns[index]?.field || `newColumn${index}`,
+            }
+        })
 
-        const newColumnDefs = [checkboxColumn, ...newDataColumns];
+        const newColumnDefs = [checkboxColumn, ...newDataColumns]
 
         const keyMap = dataColumns.reduce((acc, colDef, index) => {
-            acc[colDef.field] = newDataColumns[index].field;
-            return acc;
-        }, {});
+            acc[colDef.field] = newDataColumns[index].field
+            return acc
+        }, {})
 
-        const newRowData = rowData.map(row => {
-            const newRow = {};
+        const newRowData = rowData.map((row) => {
+            const newRow = {}
             for (let key in row) {
-                newRow[keyMap[key]] = row[key];
+                newRow[keyMap[key]] = row[key]
             }
-            return newRow;
-        });
+            return newRow
+        })
 
-        setColumnDefs(newColumnDefs);
-        setRowData(newRowData);
+        setColumnDefs(newColumnDefs)
+        setRowData(newRowData)
         if (gridRef.current) {
-            gridRef.current.setColumnDefs(newColumnDefs);
+            gridRef.current.setColumnDefs(newColumnDefs)
         }
-    };
+    }
 
     const defaultColDef = {
         flex: 1,
         minWidth: 100,
         editable: true,
-    };
+    }
 
     const onAddRow = () => {
-        const newRow = {};
-        columnDefs.forEach(colDef => {
-            if (colDef.field !== '') {
-                newRow[colDef.field] = '';
+        const newRow = {}
+        columnDefs.forEach((colDef) => {
+            if (colDef.field !== "") {
+                newRow[colDef.field] = ""
             }
-        });
-        setRowData([...rowData, newRow]);
-    };
+        })
+        setRowData([...rowData, newRow])
+    }
 
     const onAddColumn = () => {
-        const newColumnName = `column${columnDefs.length}`;
+        const newColumnName = `column${columnDefs.length}`
         // Update each row to include the new column
-        const updatedRowData = rowData.map(row => ({
+        const updatedRowData = rowData.map((row) => ({
             ...row,
-            [newColumnName]: '',  // set the initial value of the new column to an empty string
-        }));
-        setInputValues([...inputValues, newColumnName]);
-        setColumnDefs([...columnDefs, { field: newColumnName }]);
-        setRowData(updatedRowData);
-    };
+            [newColumnName]: "", // set the initial value of the new column to an empty string
+        }))
+        setInputValues([...inputValues, newColumnName])
+        setColumnDefs([...columnDefs, {field: newColumnName}])
+        setRowData(updatedRowData)
+    }
 
     const onSaveData = async () => {
         try {
-            let response;
-            if (mode === 'create') {
-                response = await createNewTestSet(appName, testSetName, rowData);
-            } else if (mode === 'edit') {
-                response = await updateTestSet(testset_id, testSetName, rowData);
+            let response
+            if (mode === "create") {
+                response = await createNewTestSet(appName, testSetName, rowData)
+            } else if (mode === "edit") {
+                response = await updateTestSet(testset_id, testSetName, rowData)
             }
 
             if (response.status === 200) {
-                router.push(`/apps/${appName}/testsets`);
+                router.push(`/apps/${appName}/testsets`)
             }
         } catch (error) {
-            console.error('Error saving test set:', error);
-            throw error;
+            console.error("Error saving test set:", error)
+            throw error
         }
     }
 
     const handleChange = (e) => {
-        setTestSetName(e.target.value);
-    };
+        setTestSetName(e.target.value)
+    }
 
     const onDeleteRow = () => {
-        const selectedNodes = gridRef.current.getSelectedNodes();
-        const selectedData = selectedNodes.map(node => node.data);
-        const newrowData = rowData.filter(row => !selectedData.includes(row));
-        setRowData(newrowData);
-    };
+        const selectedNodes = gridRef.current.getSelectedNodes()
+        const selectedData = selectedNodes.map((node) => node.data)
+        const newrowData = rowData.filter((row) => !selectedData.includes(row))
+        setRowData(newrowData)
+    }
 
     const onDeleteColumn = (indexToDelete) => {
         // Get the field to be deleted
-        const fieldToDelete = columnDefs[indexToDelete + 1]?.field;  // +1 to skip checkbox column
+        const fieldToDelete = columnDefs[indexToDelete + 1]?.field // +1 to skip checkbox column
 
         // Filter out the column and corresponding input value
-        const newColumnDefs = columnDefs.filter((_, index) => index !== indexToDelete + 1);  // +1 to skip checkbox column
-        const newInputValues = inputValues.filter((_, index) => index !== indexToDelete);
+        const newColumnDefs = columnDefs.filter((_, index) => index !== indexToDelete + 1) // +1 to skip checkbox column
+        const newInputValues = inputValues.filter((_, index) => index !== indexToDelete)
 
         // Update the rowData to remove the field
-        const newRowData = rowData.map(row => {
-            const newRow = { ...row };
-            delete newRow[fieldToDelete];
-            return newRow;
-        });
+        const newRowData = rowData.map((row) => {
+            const newRow = {...row}
+            delete newRow[fieldToDelete]
+            return newRow
+        })
 
         // Update the state
-        setInputValues(newInputValues);
-        setColumnDefs(newColumnDefs);
-        setRowData(newRowData);
+        setInputValues(newInputValues)
+        setColumnDefs(newColumnDefs)
+        setRowData(newRowData)
         if (gridRef.current) {
-            gridRef.current.setColumnDefs(newColumnDefs);
+            gridRef.current.setColumnDefs(newColumnDefs)
         }
-    };
+    }
 
     const handleCellValueChanged = (params) => {
         if (params.newValue === null) {
-            params.data[params.colDef.field] = '';
+            params.data[params.colDef.field] = ""
         }
-    };
+    }
 
     return (
         <div>
-            <Typography.Title level={5} style={{ marginBottom: '20px' }}>
+            <Typography.Title level={5} style={{marginBottom: "20px"}}>
                 Create a new Test Set
             </Typography.Title>
 
-            <div style={{ width: '50%', marginBottom: 20 }}>
-                <Input
-                    value={testSetName}
-                    onChange={handleChange}
-                    placeholder="Test Set Name"
-                />
+            <div style={{width: "50%", marginBottom: 20}}>
+                <Input value={testSetName} onChange={handleChange} placeholder="Test Set Name" />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', marginBottom: '10px' }}>
-                {
-                    inputValues.map((value, index) => (
-                        <div key={index} style={{ marginRight: '10px' }}>
-                            <Input
-                                value={value}
-                                onChange={event => handleInputChange(index, event)}
-                                suffix={<Button type="text" icon={<DeleteOutlined />} onClick={() => onDeleteColumn(index)} />}
-                            />
-                        </div>
-                    ))
-                }
-                <Button onClick={onAddColumn} style={{ marginRight: '10px' }}><PlusOutlined /></Button>
-                <Button onClick={updateTable} type="primary">Update Columns names</Button>
+            <div
+                style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: "10px",
+                }}
+            >
+                {inputValues.map((value, index) => (
+                    <div key={index} style={{marginRight: "10px"}}>
+                        <Input
+                            value={value}
+                            onChange={(event) => handleInputChange(index, event)}
+                            suffix={
+                                <Button
+                                    type="text"
+                                    icon={<DeleteOutlined />}
+                                    onClick={() => onDeleteColumn(index)}
+                                />
+                            }
+                        />
+                    </div>
+                ))}
+                <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
+                    <PlusOutlined />
+                </Button>
+                <Button onClick={updateTable} type="primary">
+                    Update Columns names
+                </Button>
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-                <div><Typography.Text italic>Notes:</Typography.Text></div>
-                <div><Typography.Text italic>- Specify column names similar to the Input parameters.</Typography.Text></div>
+            <div style={{marginBottom: 20}}>
+                <div>
+                    <Typography.Text italic>Notes:</Typography.Text>
+                </div>
+                <div>
+                    <Typography.Text italic>
+                        - Specify column names similar to the Input parameters.
+                    </Typography.Text>
+                </div>
                 <div>
                     <Typography.Text italic>- A column with </Typography.Text>
                     <Typography.Text strong>'correct_answer'</Typography.Text>
-                    <Typography.Text> name will be treated as a ground truth column and could be used in evaluations.</Typography.Text></div>
+                    <Typography.Text>
+                        {" "}
+                        name will be treated as a ground truth column and could be used in
+                        evaluations.
+                    </Typography.Text>
+                </div>
             </div>
 
-            <div className="ag-theme-alpine" style={{ height: 500 }}>
+            <div className="ag-theme-alpine" style={{height: 500}}>
                 <AgGridReact
-                    onGridReady={params => gridRef.current = params.api}
+                    onGridReady={(params) => (gridRef.current = params.api)}
                     rowData={rowData}
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
                     singleClickEdit={true}
-                    rowSelection={'multiple'}
+                    rowSelection={"multiple"}
                     suppressRowClickSelection={true}
                     onCellValueChanged={handleCellValueChanged}
                     stopEditingWhenCellsLoseFocus={true}
                 />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginTop: "20px",
+                }}
+            >
                 <div>
-                    <Button onClick={onAddRow} >Add Row</Button>
-                    <Button onClick={onDeleteRow} style={{ marginLeft: 10 }}>Delete Row</Button>
+                    <Button onClick={onAddRow}>Add Row</Button>
+                    <Button onClick={onDeleteRow} style={{marginLeft: 10}}>
+                        Delete Row
+                    </Button>
                 </div>
-                <Button onClick={onSaveData} type="primary">Save Test Set</Button>
+                <Button onClick={onSaveData} type="primary">
+                    Save Test Set
+                </Button>
             </div>
         </div>
-    );
-};
+    )
+}
 
-export default TestSetTable;
+export default TestSetTable
