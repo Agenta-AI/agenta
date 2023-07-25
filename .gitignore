@@ -37,3 +37,5 @@ examples/**/Dockerfile
 self-host/*/.terraform*
 self-host/*/*.tfstate
 self-host/*/*.tfstate.backup
+
+todo.md

@@ -2,13 +2,25 @@
 
 
 <p align="center">
-    <a href="https://twitter.com/agenta_ai">
-    <img src="https://img.shields.io/twitter/follow/agenta_ai?style=social" alt="Twitter Follow">
-  </a>
   <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
+</br>
 </p>
 
+
+<p align="center">
+<a  href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
+<img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
+</a>
+<a href="https://www.linkedin.com/company/agenta-ai/">
+<img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" />
+</a>
+<a  href="https://twitter.com/agenta_ai">
+<img src="https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white" />
+</a>
+</p>
+
+<br>
 ### **The Open-source Developer-first LLMOps Platform**
 
 
@@ -87,4 +99,6 @@ Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
 ## Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
+
+Check out our [Contributing Guide](https://docs.agenta.ai/docs/contributing/getting-started) for more information.
 
