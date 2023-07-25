@@ -1,5 +1,5 @@
 export default function pythonCode(uri: string, appName: string): string {
-  return `import requests
+    return `import requests
 
 url = '${uri}'
 file_path = '/path/to/your/file.csv'
@@ -13,5 +13,5 @@ with open(file_path, 'rb') as file:
 
 print(response.status_code)
 print(response.json())
-`;
+`
 }

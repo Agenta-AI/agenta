@@ -1,5 +1,5 @@
 export default function pythonCode(uri: string, params: string): string {
-  return `import requests
+    return `import requests
 import json
 
 url = '${uri}'
@@ -15,5 +15,5 @@ response = requests.post(url, data=json.dumps(data), headers={'Content-Type': 'a
 
 print(response.status_code)
 print(response.json())
-`;
+`
 }
