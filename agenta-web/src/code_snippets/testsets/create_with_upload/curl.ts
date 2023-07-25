@@ -4,5 +4,5 @@ export default function cURLCode(uri: string, appName: string): string {
 -F 'file=@/path/to/your/file.csv' \\
 -F 'dataset_name=your_dataset_name' \\
 -F 'app_name=${appName}'
-`;
+`
 }

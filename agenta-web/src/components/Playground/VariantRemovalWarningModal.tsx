@@ -1,25 +1,30 @@
-import React from 'react';
-import { Modal, Button } from 'antd';
+import React from "react"
+import {Modal, Button} from "antd"
 
 interface Props {
-    isModalOpen: boolean;
-    setIsModalOpen: (value: boolean) => void;
-    handleRemove: () => void;
-    handleCancel: () => void;
+    isModalOpen: boolean
+    setIsModalOpen: (value: boolean) => void
+    handleRemove: () => void
+    handleCancel: () => void
 }
 
-const VariantRemovalWarningModal: React.FC<Props> = ({ isModalOpen, setIsModalOpen, handleRemove, handleCancel }) => {
-    const handleCloseModal = () => setIsModalOpen(false);
+const VariantRemovalWarningModal: React.FC<Props> = ({
+    isModalOpen,
+    setIsModalOpen,
+    handleRemove,
+    handleCancel,
+}) => {
+    const handleCloseModal = () => setIsModalOpen(false)
 
     const handleDelete = () => {
-        handleRemove();
-        handleCloseModal();
-    };
+        handleRemove()
+        handleCloseModal()
+    }
 
     const handleDismiss = () => {
-        handleCancel();
-        handleCloseModal();
-    };
+        handleCancel()
+        handleCloseModal()
+    }
 
     return (
         <Modal
@@ -29,14 +34,10 @@ const VariantRemovalWarningModal: React.FC<Props> = ({ isModalOpen, setIsModalOp
             footer={null}
             centered
         >
-            <p>
-                You're about to delete this variant. This action is irreversible.
-            </p>
-            <p>
-                Are you sure you want to proceed?
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Button onClick={handleDismiss} style={{ marginRight: 10 }}>
+            <p>You're about to delete this variant. This action is irreversible.</p>
+            <p>Are you sure you want to proceed?</p>
+            <div style={{display: "flex", justifyContent: "flex-end"}}>
+                <Button onClick={handleDismiss} style={{marginRight: 10}}>
                     Cancel
                 </Button>
                 <Button type="primary" danger onClick={handleDelete}>
@@ -44,7 +45,7 @@ const VariantRemovalWarningModal: React.FC<Props> = ({ isModalOpen, setIsModalOp
                 </Button>
             </div>
         </Modal>
-    );
-};
+    )
+}
 
-export default VariantRemovalWarningModal;
+export default VariantRemovalWarningModal

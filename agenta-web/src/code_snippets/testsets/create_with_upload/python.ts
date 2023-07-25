@@ -13,5 +13,5 @@ with open(file_path, 'rb') as file:
 
 print(response.status_code)
 print(response.json())
-`;
+`
 }
