@@ -1,5 +1,5 @@
 export default function cURLCode(uri: string, params: string): string {
-    return `curl -X POST ${uri} \
+  return `curl -X POST ${uri} \
 -H 'Content-Type: application/json' \
 -d '{
         "name": "your_dataset_name",
