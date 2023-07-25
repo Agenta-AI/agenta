@@ -7,6 +7,10 @@
   </a>
   <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
+</br>
+<a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
+    <img src="https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white">
+    </a>
 </p>
 
 ### **The Open-source Developer-first LLMOps Platform**
@@ -87,4 +91,6 @@ Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
 ## Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
+
+Check out our [Contributing Guide](https://docs.agenta.ai/docs/contributing/getting-started) for more information.
 

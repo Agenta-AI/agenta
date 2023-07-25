@@ -72,6 +72,13 @@
       ]
     },
     {
+      "group": "Contributing",
+      "pages": [
+        "docs/contributing/getting-started",
+        "docs/contributing/development-mode"
+      ]
+    },
+    {
       "group": "Reference",
       "pages": [
         "docs/reference/agenta-cli"

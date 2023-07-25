@@ -18,10 +18,6 @@ body {
     }
 }
 
-.button-animation {
-    animation: pulse 3s infinite;
-}
-
 .hover-button-wrapper {
     opacity: 0;
     transition: opacity 0.3s ease;

@@ -48,9 +48,12 @@ export interface AppEvaluationResponseType {
         flag_votes: { number_of_votes: number, percentage: number },
     }
     app_name: string;
+    evaluation_type: string;
     dataset: {
         _id: string;
         name: string;
     }
     created_at: string;
 }
+
+export type LanguageItem = { displayName: string; languageKey: string };
