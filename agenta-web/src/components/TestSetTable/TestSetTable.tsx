@@ -243,7 +243,12 @@ const TestSetTable: React.FC<TestSetTableProps> = ({ mode }) => {
             </div>
 
             <div style={{ marginBottom: 20 }}>
-                <Typography.Text italic>Note: Specify column names similar to the Input parameters.</Typography.Text>
+                <div><Typography.Text italic>Notes:</Typography.Text></div>
+                <div><Typography.Text italic>- Specify column names similar to the Input parameters.</Typography.Text></div>
+                <div>
+                    <Typography.Text italic>- A column with </Typography.Text>
+                    <Typography.Text strong>'correct_answer'</Typography.Text>
+                    <Typography.Text> name will be treated as a ground truth column and could be used in evaluations.</Typography.Text></div>
             </div>
 
             <div className="ag-theme-alpine" style={{ height: 500 }}>

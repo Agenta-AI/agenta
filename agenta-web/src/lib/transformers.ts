@@ -18,5 +18,16 @@ export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResp
         variants: variants,
         dataset: item.dataset,
         appName: item.app_name,
+        evaluationType: item.evaluation_type
+    }
+};
+
+export const fromEvaluationsRowsResponseToEvaluationsRows = (item:any) => {
+    return {
+        id: item.id,
+        inputs: item.inputs,
+        outputs: item.outputs,
+        vote: item.vote,
+        correctAnswer: item.correct_answer
     }
 };

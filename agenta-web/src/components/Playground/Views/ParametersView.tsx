@@ -120,7 +120,8 @@ const ParametersView: React.FC<Props> = ({ variantName,
 
                         {optParams?.filter(param => (!param.input) && (param.type === 'number')).map((param, index) => (
                             <Row key={index} style={{
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                marginBottom: 10,
                             }}>
                                 < Col span={6} >
                                     <h4 style={{ margin: 0, padding: 0, textAlign: 'left' }}>{renameVariables(param.name)}</h4>
