@@ -1,0 +1,35 @@
+---
+title: "Development Mode in Agenta - Quick Start Guide"
+description: "Some pointers to start contributing in Agenta"
+---
+
+**Description:** This quick start guide provides pointers for contributing to Agenta by working on the CLI, SDK, backend, and frontend code. Additionally, it covers how to debug the backend effectively.
+
+### Working on CLI or SDK Code
+
+1. Navigate to the `agenta-cli` folder.
+2. Activate the virtual environment by running `poetry shell` in your terminal.
+3. Now, when you use `agenta` in the terminal, it will utilize your local version from the `agenta-cli` folder.
+
+### Working on Backend Code
+
+No special steps are required for working on the backend code. Docker Compose automatically mounts the volume containing the code. Any changes you make will be immediately reflected in the backend.
+
+### Working on Frontend Code
+
+Similar to the backend, Docker Compose mounts the volume containing the frontend code. Consequently, any changes you make will be directly applied to the frontend.
+
+### Debugging Backend
+
+The recommended method for debugging the backend is to check the logs from Docker. Here's how:
+
+1. Open Docker Desktop.
+2. Select the backend container.
+3. Click on the "Logs" button to access the logs.
+   **OR**
+4. If you are using Visual Studio Code (VSCode), follow these steps:
+   - Go to the Docker tab in VSCode.
+   - Select the backend container.
+   - Click on the "Logs" button to view the logs.
+
+With these guidelines, you can efficiently contribute to Agenta by making local code changes and effectively debugging the backend. Happy coding!
