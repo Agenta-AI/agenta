@@ -1,5 +1,5 @@
 export default function pythonCode(uri: string, params: string): string {
-    return `import requests
+  return `import requests
 import json
 
 url = "${uri}"
