@@ -1,3 +1,4 @@
+import re
 import sys
 from pathlib import Path
 from typing import List
@@ -49,8 +50,18 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
             click.echo("Operation cancelled.")
             sys.exit(0)
 
+    # Ask for variant name and validate.
     if not variant_name:
-        variant_name = questionary.text('Please enter the variant name').ask()
+        while True:
+            variant_name = questionary.text('Please enter the variant name').ask()
+            if variant_name and re.match('^[a-zA-Z0-9_]+$', variant_name):
+                break
+            else:
+                if variant_name is None:  # User pressed Ctrl+C
+                    sys.exit(0)
+                else:
+                    print("Invalid input. Please use only alphanumeric characters without spaces.")
+
     # update the config file with the variant names from the backend
     overwrite = False
     if variant_name in config['variants']:
