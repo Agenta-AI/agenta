@@ -95,7 +95,7 @@ def init(app_name: str):
         sys.exit(0)
     
     # Create a .gitignore file and add some default environment folder names to it
-    gitignore_content = "# Environments \n.env\n.venv\nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/"
+    gitignore_content = "# Environments \nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/"
     with open('.gitignore', 'w') as gitignore_file:
         gitignore_file.write(gitignore_content)
         
