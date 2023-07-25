@@ -1,0 +1,22 @@
+# Contributing to agenta
+
+Hello, thank you for your interest in contributing to our project. We value your time and effort and hope to make this process as smooth as possible.
+
+## Getting Started
+
+1. **Local Installation:** Before you start contributing, please install the project locally. You can find the necessary steps in our [Local Installation Guide](https://docs.agenta.ai/docs/installation/local-installation/local-installation).
+
+2. **Understanding the Project:** Please take some time to read through our [Conceptual Guide](https://docs.agenta.ai/docs/conceptual/concepts) and [Architecture Guide](https://docs.agenta.ai/docs/conceptual/architecture) to understand the underlying principles and architecture of our project.
+
+3. **Start Development** Once you have a local installation and a good understanding of the project, you can start contributing. You can read the following tutorial to learn how to run the code in development mode: [Development Mode Tutorial](https://docs.agenta.ai/docs/contributing/development-mode).
+
+## Contribution Steps
+
+1. **Find an issue:** A good starting point for contributing is to find an existing issue and solve it. Browse our issue tracker, find something that suits your skills, and start coding!
+
+2. **Fork & Pull Request:** We follow the standard fork & pull request process. Fork our repository, create a new branch, make your changes, and submit a pull request. Make sure your code follows our coding standards and include relevant unit tests.
+
+3. **Build a Larger Feature:** If you're interested in building a larger feature, we would love to hear from you! Reach out to me directly at opensource@agenta.ai or schedule a meeting using my [Calendly link](https://usemotion.com/meet/mahmoud-mabrouk-r0qp/collaborate?d=30).
+
+
+Thank you for your interest in contributing to Agenta. We look forward to your pull requests!
