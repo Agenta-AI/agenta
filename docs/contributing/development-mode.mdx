@@ -11,6 +11,14 @@ description: "Some pointers to start contributing in Agenta"
 2. Activate the virtual environment by running `poetry shell` in your terminal.
 3. Now, when you use `agenta` in the terminal, it will utilize your local version from the `agenta-cli` folder.
 
+If running agenta in your terminal still doesn't work after following the above steps, kindly follow these additional steps:
+
+- In the terminal where the poetry virtual environment is activated, run `which agenta`.
+- Copy the path where `agenta` is located, and export it by running `export agenta=/replace/path/to/agenta`.
+- Go to the directory where you tried running `agenta` and it failed, then run `source ~/.bash_profile`. Run `export` to confirm `agenta` has been exported.
+- If you see `agenta` along with its path, proceed to initialize your application by running `$agenta init` and follow through the steps.
+- When you're ready to serve your app, run `$agenta variant serve.`"
+
 ### Working on Backend Code
 
 No special steps are required for working on the backend code. Docker Compose automatically mounts the volume containing the code. Any changes you make will be immediately reflected in the backend.
