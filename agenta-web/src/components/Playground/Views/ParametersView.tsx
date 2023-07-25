@@ -139,7 +139,7 @@ const ParametersView: React.FC<Props> = ({ variantName,
                                 <Col >
                                     <InputNumber
                                         min={0}
-                                        max={20}
+                                        max={10000}
                                         style={{ margin: '0 16px' }}
                                         value={param.default}
                                         onChange={(value) => onChange(param, value)}
