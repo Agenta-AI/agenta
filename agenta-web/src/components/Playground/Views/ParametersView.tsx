@@ -197,7 +197,6 @@ const ParametersView: React.FC<Props> = ({
                                     <Row />
                                 </Row>
                             ))}
-
                     </Card>
                 </Row>
             )}
