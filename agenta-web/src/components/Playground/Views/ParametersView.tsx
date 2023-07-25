@@ -188,7 +188,7 @@ const ParametersView: React.FC<Props> = ({
                                     <Col>
                                         <InputNumber
                                             min={0}
-                                            max={20}
+                                            max={10000}
                                             style={{margin: "0 16px"}}
                                             value={param.default}
                                             onChange={(value) => onChange(param, value)}
@@ -197,6 +197,7 @@ const ParametersView: React.FC<Props> = ({
                                     <Row />
                                 </Row>
                             ))}
+
                     </Card>
                 </Row>
             )}
