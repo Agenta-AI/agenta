@@ -27,40 +27,40 @@ Salesperson: You're welcome! It was my pleasure assisting you. Have a wonderful 
 """
 
 
-def truncate_text(text: str, max_length: int) -> str:
-    """
-    Function is responsible for truncating the input text to maximum length.
-    """
-    return text[:max_length]
-
-
-def generate_summary(text: str) -> str:
-    # Implement your summarization logic here (you can use external libraries or models)
-    # For simplicity, let's just truncate the text for this example
-    summary = text + "\nWith this information, {question}"
-    return summary
+default_prompt1 = "summarize the following {text} "
+default_prompt2 = "these are summaries of a long text {text}\n please summarize them"
 
 
 @ag.post
 def generate(
-    question: str,
-    max_length: int,
+    transcript: str,
     temperature: ag.FloatParam = 0.9,
-    prompt_template: ag.TextParam = sample_sales_transcript,
+    chunk_size: ag.FloatParam = 1000,
+    prompt_chunks: ag.TextParam = default_prompt1,
+    prompt_final: ag.TextParam = default_prompt2,
 ) -> str:
-    
-    # Truncate the prompt if needed
-    truncated_prompt = truncate_text(prompt_template, max_length)
-    
-    # Generate a summary using the summarization function
-    summary = generate_summary(truncated_prompt)
 
+    # Cut transcript into chunks of 1000 characters
+    transcript_chunks = [transcript[i:i+int(chunk_size)] for i in range(0, len(transcript), int(chunk_size))]
+
+    outputs = []
+    for chunk in transcript_chunks:
+        # Generate a summary using the summarization function
+        llm = OpenAI(temperature=temperature)
+        prompt = PromptTemplate(
+            input_variables=["text"],
+            template=prompt_chunks,
+        )
+        chain = LLMChain(llm=llm, prompt=prompt)
+        output = chain.run(text=chunk)
+        outputs.append(output)
+
+    outputs = "\n".join(outputs)
     llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
-        input_variables=["question"],
-        template=summary,
+        input_variables=["text"],
+        template=prompt_final,
     )
     chain = LLMChain(llm=llm, prompt=prompt)
-    output = chain.run(question=question)
-
+    output = chain.run(text=outputs)
     return output
