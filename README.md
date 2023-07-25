@@ -92,3 +92,5 @@ Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
 
+Check out our [Contributing Guide](https://docs.agenta.ai/docs/contributing/getting-started) for more information.
+
