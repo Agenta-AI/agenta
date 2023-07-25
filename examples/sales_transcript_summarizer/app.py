@@ -34,10 +34,10 @@ def truncate_text(text: str, max_length: int) -> str:
     return text[:max_length]
 
 
-def generate_summary(text: str, max_length: int) -> str:
+def generate_summary(text: str) -> str:
     # Implement your summarization logic here (you can use external libraries or models)
     # For simplicity, let's just truncate the text for this example
-    summary = truncate_text(text, max_length) + "\nWith this information, {question}"
+    summary = text + "\nWith this information, {question}"
     return summary
 
 
@@ -48,8 +48,12 @@ def generate(
     temperature: ag.FloatParam = 0.9,
     prompt_template: ag.TextParam = sample_sales_transcript,
 ) -> str:
+    
+    # Truncate the prompt if needed
+    truncated_prompt = truncate_text(prompt_template, max_length)
+    
     # Generate a summary using the summarization function
-    summary = generate_summary(prompt_template, max_length)
+    summary = generate_summary(truncated_prompt)
 
     llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
