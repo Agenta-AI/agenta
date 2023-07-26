@@ -41,11 +41,20 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
     if not app_file.exists():
         click.echo(click.style(f"No {file_name} exists! Please make sure you are in the right directory", fg='red'))
         return None
+    
     env_file = app_path / '.env'
     if not env_file.exists():
         continue_without_env = questionary.confirm(
             'No .env file found! Are you sure you handled the API keys needed in your application?\n Do you want to continue without it?').ask()
         if not continue_without_env:
+            click.echo("Operation cancelled.")
+            sys.exit(0)
+            
+    requirements_file = app_path / 'requirements.txt'
+    if not requirements_file.exists():
+        continue_without_requirements = questionary.confirm(
+            'No requirements.txt file found! Are you sure you do not need it in your application?\n Do you want to continue without it?').ask()
+        if not continue_without_requirements:
             click.echo("Operation cancelled.")
             sys.exit(0)
 
@@ -67,8 +76,10 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
         image: Image = client.send_docker_tar(app_name, variant_name, tar_path, host)
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
+    # except HTTPException as ex:
+    #     ...
     except Exception as ex:
-        click.echo(click.style(f"Error while building image: {ex}", fg='red'))
+        click.echo(click.style(f"Error while building image: {ex.args[0]}", fg='red'))
         return None
     try:
         if overwrite:
