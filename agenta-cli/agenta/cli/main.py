@@ -93,6 +93,12 @@ def init(app_name: str):
                 shutil.copy(file, current_dir / file.name)
     elif init_option is None:  # User pressed Ctrl+C
         sys.exit(0)
+    
+    # Create a .gitignore file and add some default environment folder names to it
+    gitignore_content = "# Environments \nenv/\nvenv/\nENV/\nenv.bak/\nvenv.bak/"
+    with open('.gitignore', 'w') as gitignore_file:
+        gitignore_file.write(gitignore_content)
+        
     click.echo("App initialized successfully")
     if init_option == 'Start from template':
         click.echo("Please check the README.md for further instructions to setup the template.")
