@@ -25,6 +25,15 @@
         "code",
         "design"
       ]
+    },
+    {
+      "login": "burtenshaw",
+      "name": "burtenshaw",
+      "avatar_url": "https://avatars.githubusercontent.com/u/19620375?v=4",
+      "profile": "https://github.com/burtenshaw",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
