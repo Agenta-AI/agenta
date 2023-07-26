@@ -15,6 +15,16 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "suadsuljovic",
+      "name": "Suad Suljovic",
+      "avatar_url": "https://avatars.githubusercontent.com/u/8658374?v=4",
+      "profile": "https://github.com/suadsuljovic",
+      "contributions": [
+        "code",
+        "design"
+      ]
     }
   ],
   "contributorsPerLine": 7,
