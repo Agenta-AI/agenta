@@ -77,7 +77,7 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
-        click.echo(click.style(f"Error while building image: {ex.args[0]}", fg='red'))
+        click.echo(click.style(f"Error while building image: {ex}", fg='red'))
         return None
     try:
         if overwrite:
