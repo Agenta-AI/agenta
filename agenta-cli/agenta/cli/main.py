@@ -37,7 +37,7 @@ def init(app_name: str):
     if not app_name:
         while True:
             app_name = questionary.text('Please enter the app name').ask()
-            if app_name and re.match('^[a-zA-Z0-9_]+$', app_name):
+            if app_name and re.match('^[a-zA-Z0-9_-]+$', app_name):
                 break
             else:
                 if app_name is None:  # User pressed Ctrl+C
