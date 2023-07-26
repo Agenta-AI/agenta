@@ -34,6 +34,16 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "aybruhm",
+      "name": "Abram",
+      "avatar_url": "https://avatars.githubusercontent.com/u/55067204?v=4",
+      "profile": "http://abram.tech",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
