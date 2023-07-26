@@ -1,5 +1,4 @@
 import logging
-import os
 import shutil
 import tarfile
 import tempfile
@@ -40,22 +39,45 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
     tarfile_path = folder / "docker.tar.gz"  # output file
     if tarfile_path.exists():
         tarfile_path.unlink()
+        
     dockerfile_path = create_dockerfile(folder)
     shutil.copytree(Path(__file__).parent.parent / "sdk", folder / "agenta", dirs_exist_ok=True)
     shutil.copy(Path(__file__).parent /
                 "docker-assets" / "main.py", folder)
     shutil.copy(Path(__file__).parent /
                 "docker-assets" / "entrypoint.sh", folder)
-    # tar the directory
+            
+    # Read the contents of .gitignore file
+    gitignore_content = ""
+    gitignore_file_path = folder / ".gitignore"
+    if gitignore_file_path.exists():
+        with open(gitignore_file_path, 'r') as gitignore_file:
+            gitignore_content = gitignore_file.read()
+            
+    # Create a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
-        shutil.copytree(folder, temp_path, dirs_exist_ok=True)
-        if (temp_path / "_app.py").exists():
-            raise ValueError(
-                "File _app.py already exists in the temp folder. You are not allowed to use this name in your code.")
+        
+        # Clean - remove '/' from every files and folders in the gitignore contents
+        sanitized_patterns = [
+            pattern.replace("/", "") 
+            for pattern in gitignore_content.splitlines()
+        ]
+
+        # Function to ignore files based on the patterns
+        def ignore_patterns(path, names):
+            return set(sanitized_patterns)
+
+        # Use a single copytree call with ignore_patterns
+        shutil.copytree(folder, temp_path, ignore=ignore_patterns, dirs_exist_ok=True)
+
+        # Rename the specified file to _app.py in the temporary directory
         shutil.copy(temp_path / file_name, temp_path / "_app.py")
+
+        # Create the tar.gz file
         with tarfile.open(tarfile_path, "w:gz") as tar:
             tar.add(temp_path, arcname=folder.name)
+            
     # dockerfile_path.unlink()
     return tarfile_path
 
