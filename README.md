@@ -30,7 +30,12 @@ Agenta provides you with the tools to quickly 🔄 **iterate**, 🧪 **experimen
 
 https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-67475e4ce9ed
 
+## Getting Started
 
+Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
+- [Installation](https://docs.agenta.ai/docs/installation)
+- [Getting Started](https://docs.agenta.ai/docs/getting-started)
+- [Tutorials](https://docs.agenta.ai/docs/tutorials)
 
 ## How Agenta works:
 <details open><summary>Write your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain or llma_index, GPT-4 or Falcon).</summary>
@@ -81,13 +86,6 @@ def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt
 
 - 🚀 **API Deployment Made Easy:** When you are ready, deploy your LLM applications as APIs in one click.
   
-## Getting Started
-
-Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
-- [Installation](https://docs.agenta.ai/docs/installation)
-- [Getting Started](https://docs.agenta.ai/docs/getting-started)
-- [Tutorials](https://docs.agenta.ai/docs/tutorials)
-
 ## Why choose Agenta for building LLM-apps?
 
 - 🔨 **Build quickly**: You need to iterate many times on different architectures and prompts to bring apps to production. We streamline this process and allow you to do this in days instead of weeks.
