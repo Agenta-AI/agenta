@@ -175,12 +175,15 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
                     }
                 }
             } else if (mode === "edit") {
-                response = await updateTestSet(testset_id, testSetName, rowData)
-                if (response.status === 200) {
-                    router.push(`/apps/${appName}/testsets`)
+                if (!testSetName) {
+                    setIsModalOpen(true)
+                } else {
+                    response = await updateTestSet(testset_id, testSetName, rowData)
+                    if (response.status === 200) {
+                        router.push(`/apps/${appName}/testsets`)
+                    }
                 }
             }
-            
         } catch (error) {
             console.error("Error saving test set:", error)
             throw error
