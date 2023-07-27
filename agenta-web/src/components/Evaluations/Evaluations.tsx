@@ -256,7 +256,6 @@ export default function Evaluations() {
                                 style={{display: "block", marginBottom: "10px"}}
                             >
                                 {EvaluationTypeLabels[EvaluationType.human_scoring]}
-                                human_scoring{" "}
                                 <Tag color="orange" bordered={false}>
                                     soon
                                 </Tag>
@@ -275,7 +274,7 @@ export default function Evaluations() {
                                 disabled
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                {EvaluationTypeLabels[EvaluationType.auto_ai_critique]}{" "}
+                                {EvaluationTypeLabels[EvaluationType.auto_ai_critique]}
                                 <Tag color="orange" bordered={false}>
                                     soon
                                 </Tag>
