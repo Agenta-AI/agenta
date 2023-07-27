@@ -1,5 +1,6 @@
 import React from "react"
 import {Modal} from "antd"
+import { ExclamationCircleOutlined } from "@ant-design/icons";
 
 interface Props {
     isModalOpen: boolean
@@ -24,10 +25,17 @@ const TestSetMusHaveNameModal: React.FC<Props> = ({
             centered
             footer={null}
         >
-            <p>
-                You cannot create/update a test set with an empty name. 
-                Please provide a descriptive name before proceeding.
-            </p>
+            <div style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                }}>
+                <ExclamationCircleOutlined style={{ fontSize: "24px", color: "#faad14", marginRight: "10px" }} />
+                <p>
+                    You cannot create/update a test set with an empty name. 
+                    Please provide a descriptive name before proceeding.
+                </p>
+            </div>
         </Modal>
     )
 }
