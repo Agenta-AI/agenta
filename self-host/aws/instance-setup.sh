@@ -21,7 +21,7 @@ newgrp docker
 # clone agenta
 cd $TARGET_DIR
 
-git clone -b deploy-to-domain-name https://github.com/Agenta-AI/agenta.git
+git clone https://github.com/Agenta-AI/agenta.git
 
 cd $TARGET_DIR/agenta
 
@@ -30,14 +30,10 @@ cd $TARGET_DIR/agenta
 DOMAIN_NAME=${DOMAIN_NAME}
 
 if [[ -z "${DOMAIN_NAME}" ]]; then
-  echo "DOMAIN_NAME"
-  echo $DOMAIN_NAME
   DOMAIN_NAME=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
 fi
 
 echo "IP/DOMAIN_NAME: $DOMAIN_NAME"
-echo "BARE_DOMAIN_NAME=${DOMAIN_NAME}" >> .env
-echo "DOMAIN_NAME=http://${DOMAIN_NAME}" >> .env
 
 echo "BARE_DOMAIN_NAME=$DOMAIN_NAME" >> .env
 echo "DOMAIN_NAME=http://$DOMAIN_NAME" >> .env
