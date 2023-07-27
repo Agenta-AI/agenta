@@ -30,10 +30,12 @@ cd $TARGET_DIR/agenta
 DOMAIN_NAME=${DOMAIN_NAME}
 
 if [[ -z "${DOMAIN_NAME}" ]]; then
+  echo "DOMAIN_NAME"
+  echo $DOMAIN_NAME
   DOMAIN_NAME=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
 fi
 
-echo $DOMAIN_NAME
+echo "IP/DOMAIN_NAME: $DOMAIN_NAME"
 echo "BARE_DOMAIN_NAME=\"${DOMAIN_NAME}\"" >> .env
 echo "DOMAIN_NAME=\"http://${DOMAIN_NAME}\"" >> .env
 

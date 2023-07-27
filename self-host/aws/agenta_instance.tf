@@ -1,7 +1,7 @@
 resource "aws_instance" "agenta" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t2.medium"
-  user_data = templatefile("instance-setup.sh", { DOMAIN_NAME = var.domain_name })
+  user_data     = templatefile("instance-setup.sh", { DOMAIN_NAME = var.domain_name })
   key_name      = "agenta-key" // uncomment this in case you need to ssh into the instance
 
   vpc_security_group_ids = [aws_security_group.agenta_instance_sg.id]
