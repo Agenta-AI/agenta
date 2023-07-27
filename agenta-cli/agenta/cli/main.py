@@ -1,6 +1,7 @@
 import re
 import shutil
 import sys
+from typing import Union
 from pathlib import Path
 
 import click
@@ -22,12 +23,41 @@ def print_version(ctx, param, value):
         package_version = "package is not installed"
     click.echo(f"Agenta CLI version: {package_version}")
     ctx.exit()
+    
 
+def check_latest_version() -> Union[str, None]:
+    import requests
+    try:
+        response = requests.get('https://pypi.org/pypi/agenta/json')
+        response.raise_for_status()
+        latest_version = response.json()['info']['version']
+        return latest_version
+    except (requests.RequestException, KeyError):
+        return None
+
+
+def notify_update(available_version: str):
+    import pkg_resources
+    installed_version = pkg_resources.get_distribution('agenta').version
+    if installed_version != available_version:
+        click.echo(
+            click.style(
+                f"A new release of agenta is available: {installed_version} → {available_version}",
+                fg="yellow",
+            )
+        )
+        click.echo(
+            click.style(
+                "To upgrade, run: pip install --upgrade agenta", fg="yellow"
+            )
+        )
 
 @click.group()
 @click.option('--version', '-v', is_flag=True, callback=print_version, expose_value=False, is_eager=True)
 def cli():
-    pass
+    latest_version = check_latest_version()
+    if latest_version:
+        notify_update(latest_version)
 
 
 @click.command()
