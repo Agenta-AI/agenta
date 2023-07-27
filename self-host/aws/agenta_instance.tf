@@ -53,9 +53,8 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"]
 }
 
-output "open_in_browser_this_ip" {
-  value       = "http://${coalesce(var.domain_name, aws_eip.agenta_eip.public_ip)}"
-  description = "Open this link in your browser to access Agenta, you need to wait a few minutes for services to start"
+output "open_in_browser_this_link" {
+  value       = "\nOpen the link below in your browser to access Agenta, you need to wait a few minutes for services to start.\n\nImortant: If you have provided a domain name, you can access Agenta using that domain name,\nYou need however to make sure that the domain name is pointing to this IP address: ${aws_eip.agenta_eip.public_ip}\n\nLink: http://${coalesce(var.domain_name, aws_eip.agenta_eip.public_ip)}"
 }
 
 variable "domain_name" {
