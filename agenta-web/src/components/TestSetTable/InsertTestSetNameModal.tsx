@@ -28,10 +28,6 @@ const TestSetMusHaveNameModal: React.FC<Props> = ({
                 You cannot create a test set with an empty name. 
                 Please provide a descriptive name before proceeding.
             </p>
-            <p>
-                A meaningful name will help you easily identify and manage your test sets. 
-                It should reflect the purpose, content, or any other relevant information about the test set.
-            </p>
         </Modal>
     )
 }
