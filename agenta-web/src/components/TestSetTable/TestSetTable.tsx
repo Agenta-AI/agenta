@@ -2,6 +2,7 @@ import React, {useState, useRef, useEffect} from "react"
 import {AgGridReact} from "ag-grid-react"
 
 import {Button, Input, Typography} from "antd"
+import TestSetMusHaveNameModal from "./InsertTestSetNameModal"
 
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
@@ -24,6 +25,8 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
         {column1: "data1"},
         {column1: "data1"},
     ])
+
+    const [isModalOpen, setIsModalOpen] = useState(false)
 
     const [columnDefs, setColumnDefs] = useState([
         {
@@ -163,13 +166,23 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
         try {
             let response
             if (mode === "create") {
-                response = await createNewTestSet(appName, testSetName, rowData)
+                if (!testSetName) {
+                    setIsModalOpen(true)
+                } else {
+                    response = await createNewTestSet(appName, testSetName, rowData)
+                    if (response.status === 200) {
+                        router.push(`/apps/${appName}/testsets`)
+                    }
+                }
             } else if (mode === "edit") {
-                response = await updateTestSet(testset_id, testSetName, rowData)
-            }
-
-            if (response.status === 200) {
-                router.push(`/apps/${appName}/testsets`)
+                if (!testSetName) {
+                    setIsModalOpen(true)
+                } else {
+                    response = await updateTestSet(testset_id, testSetName, rowData)
+                    if (response.status === 200) {
+                        router.push(`/apps/${appName}/testsets`)
+                    }
+                }
             }
         } catch (error) {
             console.error("Error saving test set:", error)
@@ -315,6 +328,11 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
                     </Button>
                 </div>
             </div>
+
+            <TestSetMusHaveNameModal
+                isModalOpen={isModalOpen}
+                setIsModalOpen={setIsModalOpen}
+            />
         </div>
     )
 }
