@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from typing import List
 
+from requests.exceptions import ConnectionError
+
 import click
 import questionary
 import toml
@@ -265,14 +267,13 @@ def serve_cli(app_folder: str, file_name: str):
         variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name, host=host)
         if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
             start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
+    except ConnectionError:
+        error_msg = "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
+        error_msg += "- First, please ensure that the backend service is running and accessible.\n"
+        error_msg += "- Second, try restarting the containers (if using Docker Compose)."
+        click.echo(click.style(f"{error_msg}", fg='red'))
     except Exception as e:
-        if "HTTPConnectionPool" and "Connection refused" in str(e):
-            error_msg = "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
-            error_msg += "- First, please ensure that the backend service is running and accessible.\n"
-            error_msg += "- Second, try restarting the containers (if using Docker Compose)."
-            click.echo(click.style(f"{error_msg}", fg='red'))
-        else:
-            click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
 
 
 @variant.command(name='list')
