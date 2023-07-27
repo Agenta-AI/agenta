@@ -1,8 +1,8 @@
 resource "aws_instance" "agenta" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t2.medium"
-  user_data     = file("instance-setup.sh")
-  #   key_name      = aws_key_pair.agenta_key.key_name // uncomment this in case you need to ssh into the instance
+  user_data = templatefile("instance-setup.sh", { DOMAIN_NAME = var.domain_name })
+  key_name      = "agenta-key" // uncomment this in case you need to ssh into the instance
 
   vpc_security_group_ids = [aws_security_group.agenta_instance_sg.id]
 
@@ -54,11 +54,20 @@ data "aws_ami" "ubuntu" {
 }
 
 output "open_in_browser_this_ip" {
-  value       = "http://${aws_eip.agenta_eip.public_ip}"
+  value       = "http://${coalesce(var.domain_name, aws_eip.agenta_eip.public_ip)}"
   description = "Open this link in your browser to access Agenta, you need to wait a few minutes for services to start"
 }
 
-# uncomment this in case you need to ssh into the instance
+variable "domain_name" {
+  description = "If you would like to deploy to a specific domain name, enter it without specifying http or www. for example agenta.ai\nIf you don't then simply proceed without."
+
+  validation {
+    condition     = var.domain_name == "" || can(regex("^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$", var.domain_name))
+    error_message = "The domain name must be a valid domain name. Leave it empty if you don't have a domain name."
+  }
+}
+
+# # uncomment this in case you need to ssh into the instance
 # resource "aws_key_pair" "agenta_key" {
 #   key_name   = "agenta-key"
 #   public_key = file("~/.ssh/id_rsa_agenta.pub")

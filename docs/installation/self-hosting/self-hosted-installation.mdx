@@ -16,11 +16,20 @@ terraform init
 terraform apply
 ```
 
-Once terraform is done from creating the resources it will print an ip where you can access Agenta on.
+Terraform will ask if you want to deploy to a specific domain.
+You can either specify a domain or leave it blank.
+
+Once terraform is done from creating the resources it will print an ip where you can access Agenta on or the domain name you provided.
 ```
 Outputs:
 
 open_in_browser_this_ip = "http://x.x.x.x"
+```
+
+```
+Outputs:
+
+open_in_browser_this_ip = "http://domain.com"
 ```
 
 It will not be directly accessible as it needs to install dependencies and to run Agenta. So we need to wait a couple of minutes.
