@@ -259,11 +259,17 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 @click.option('--file_name', default='app.py', help="The name of the file to run")
 def serve_cli(app_folder: str, file_name: str):
     """Adds a variant to the web ui and serves the api locally."""
-    config_check(app_folder)
-    host = get_host(app_folder)
-    variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name, host=host)
-    if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
-        start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
+    try:
+        config_check(app_folder)
+        host = get_host(app_folder)
+        variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name, host=host)
+        if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
+            start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
+    except Exception:
+        error_msg = "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
+        error_msg += "- First, please ensure that the backend service is running and accessible.\n"
+        error_msg += "- Second, try restarting the containers (if using Docker Compose)."
+        click.echo(click.style(f"{error_msg}", fg='red'))
 
 
 @variant.command(name='list')
