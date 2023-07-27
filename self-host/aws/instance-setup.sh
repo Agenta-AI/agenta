@@ -27,10 +27,17 @@ cd $TARGET_DIR/agenta
 
 # set env vars
 # Get the ip of the instance within the instance in aws
-DOMAIN_NAME=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
-echo $DOMAIN_NAME
-echo "BARE_DOMAIN_NAME=\"${DOMAIN_NAME}\"" >> .env
-echo "DOMAIN_NAME=\"http://${DOMAIN_NAME}\"" >> .env
+DOMAIN_NAME=${DOMAIN_NAME}
+
+if [[ -z "${DOMAIN_NAME}" ]]; then
+  DOMAIN_NAME=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
+fi
+
+echo "IP/DOMAIN_NAME: $DOMAIN_NAME"
+
+echo "BARE_DOMAIN_NAME=$DOMAIN_NAME" >> .env
+echo "DOMAIN_NAME=http://$DOMAIN_NAME" >> .env
+
 
 # start agenta
 sudo docker compose -f docker-compose.prod.yml up -d
