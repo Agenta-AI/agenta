@@ -1,8 +1,4 @@
 ![37 copy](https://github.com/Agenta-AI/agenta/assets/4510758/762d4838-f56f-4773-94a7-38ae417ca439)
-<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
-
 
 <p align="center">
   <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
@@ -24,6 +20,7 @@
 </p>
 
 <br>
+
 ### **The Open-source Developer-first LLMOps Platform**
 
 
@@ -107,6 +104,9 @@ Check out our [Contributing Guide](https://docs.agenta.ai/docs/contributing/gett
 
 
 ## Contributors ✨
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
 
