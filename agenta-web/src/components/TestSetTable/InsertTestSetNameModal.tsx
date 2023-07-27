@@ -25,7 +25,7 @@ const TestSetMusHaveNameModal: React.FC<Props> = ({
             footer={null}
         >
             <p>
-                You cannot create a test set with an empty name. 
+                You cannot create/update a test set with an empty name. 
                 Please provide a descriptive name before proceeding.
             </p>
         </Modal>
