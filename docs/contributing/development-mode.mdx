@@ -14,10 +14,10 @@ description: "Some pointers to start contributing in Agenta"
 If running agenta in your terminal still doesn't work after following the above steps, kindly follow these additional steps:
 
 - In the terminal where the poetry virtual environment is activated, run `which agenta`.
-- Copy the path where `agenta` is located, and export it by running `export agenta=/replace/path/to/agenta`.
-- Go to the directory where you tried running `agenta` and it failed, then run `source ~/.bash_profile`. Run `export` to confirm `agenta` has been exported.
+- Copy the path where `agenta` is located, and add `export agenta=/replace/path/to/agenta` at the last line in your shell configuration file. If you're running Ubuntu, your shell configuration file will be `~/.bashrc`.
+- Go to the terminal where you tried running `agenta`, and apply the changes you've made by running `source ~/.bashrc`. Proceed to run `export` to confirm `agenta` has been exported.
 - If you see `agenta` along with its path, proceed to initialize your application by running `$agenta init` and follow through the steps.
-- When you're ready to serve your app, run `$agenta variant serve.`"
+- When you're ready to serve your app, run `$agenta variant serve`.
 
 ### Working on Backend Code
 
