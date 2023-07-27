@@ -9,12 +9,18 @@ interface TestViewProps {
     URIPath: string | null
     inputParams: Parameter[] | null
     optParams: Parameter[] | null
+}
+
+interface BoxComponentProps {
+    URIPath: string | null
+    inputParams: Parameter[] | null
+    optParams: Parameter[] | null
     testData: Record<string, string>
     testIndex: number
     setTestList: Dispatch<SetStateAction<Record<string, string>[]>>
 }
 
-const BoxComponent: React.FC<TestViewProps> = ({
+const BoxComponent: React.FC<BoxComponentProps> = ({
     inputParams,
     optParams,
     URIPath,
