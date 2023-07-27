@@ -39,6 +39,10 @@ echo "IP/DOMAIN_NAME: $DOMAIN_NAME"
 echo "BARE_DOMAIN_NAME=${DOMAIN_NAME}" >> .env
 echo "DOMAIN_NAME=http://${DOMAIN_NAME}" >> .env
 
+echo "BARE_DOMAIN_NAME=$DOMAIN_NAME" >> .env
+echo "DOMAIN_NAME=http://$DOMAIN_NAME" >> .env
+
+
 # start agenta
 sudo docker compose -f docker-compose.prod.yml up -d
 
