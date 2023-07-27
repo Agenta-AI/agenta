@@ -19,18 +19,18 @@ terraform apply
 Terraform will ask if you want to deploy to a specific domain.
 You can either specify a domain or leave it blank.
 
-Once terraform is done from creating the resources it will print an ip where you can access Agenta on or the domain name you provided.
+Once terraform is done from creating the resources it will print an the domain name or the ip where you can access Agenta from.
+This is an example of the output:
 ```
-Outputs:
+Open the link below in your browser to access Agenta, you need to wait a few minutes for services to start.
 
-open_in_browser_this_ip = "http://x.x.x.x"
+Imortant: If you have provided a domain name, you can access Agenta using that domain name,
+You need however to make sure that the domain name is pointing to this IP address: x.x.x.x
+
+Link: http://demo.agenta.ai
 ```
 
-```
-Outputs:
-
-open_in_browser_this_ip = "http://domain.com"
-```
+As mentioned in the output, if you provided a domain name, you need to make sure that the domain name is pointing to the IP address provided by terraform.
 
 It will not be directly accessible as it needs to install dependencies and to run Agenta. So we need to wait a couple of minutes.
 More details are specified in this script: [instance-setup.sh](https://github.com/Agenta-AI/agenta/blob/main/self-host/aws/instance-setup.sh)
