@@ -5,6 +5,7 @@ import {callVariant} from "@/lib/services/api"
 import {Parameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
 import {TestContext} from "../TestContextProvider"
+import LoadTestsModal from "../LoadTestsModal"
 interface TestViewProps {
     URIPath: string | null
     inputParams: Parameter[] | null
@@ -122,9 +123,28 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
         setTestList([...testList, {}])
     }
 
+    const handleAddNewTests: (tests: Record<string, string>[]) => void = (tests) => {
+        setTestList([...testList, ...tests])
+    }
+
+    const handleSetNewTests: (tests: Record<string, string>[]) => void = (tests) => {
+        setTestList([...tests])
+    }
+
     return (
         <div>
-            <h2 style={{padding: "0px", marginBottom: "8px"}}>2. Preview and test</h2>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginRight: "24px",
+                }}
+            >
+                <h2 style={{padding: "0px", marginBottom: "8px"}}>2. Preview and test</h2>
+
+                <LoadTestsModal setNewTests={handleSetNewTests} addNewTests={handleAddNewTests} />
+            </div>
 
             {testList.map((testData, index) => (
                 <BoxComponent
