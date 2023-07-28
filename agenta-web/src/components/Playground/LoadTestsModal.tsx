@@ -1,7 +1,7 @@
-import { loadDataset, useLoadDatasetsList } from "@/lib/services/api"
-import { Button, Divider, Dropdown, Modal, Select } from "antd"
-import { useRouter } from "next/router"
-import { PropsWithChildren, useState } from "react"
+import {loadDataset, useLoadDatasetsList} from "@/lib/services/api"
+import {Button, Divider, Dropdown, Modal, Select} from "antd"
+import {useRouter} from "next/router"
+import {PropsWithChildren, useState} from "react"
 
 interface Props extends PropsWithChildren {
     addNewTests: (tests: Record<string, string>[]) => void
@@ -9,14 +9,14 @@ interface Props extends PropsWithChildren {
 }
 
 const LoadTestsModal: React.FC<Props> = (props) => {
-    const { addNewTests, setNewTests } = props
+    const {addNewTests, setNewTests} = props
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [selectedSet, setSelectedSet] = useState<string>("")
 
     const appName = router.query.app_name?.toString() || ""
 
-    const { datasets, isDatasetsLoading, isDatasetsLoadingError } = useLoadDatasetsList(appName)
+    const {datasets, isDatasetsLoading, isDatasetsLoadingError} = useLoadDatasetsList(appName)
 
     const options = datasets?.map((item: Record<string, any>) => ({
         label: item.name,
@@ -54,10 +54,10 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                     </>
                 }
             >
-                <p style={{ marginBottom: 10 }}>Please select the test set you want to use:</p>
+                <p style={{marginBottom: 10}}>Please select the test set you want to use:</p>
 
                 <Select
-                    style={{ minWidth: 120, marginBottom: 20 }}
+                    style={{minWidth: 120, marginBottom: 20}}
                     options={options}
                     placeholder="Select data set"
                     onSelect={(id) => setSelectedSet(id)}
@@ -69,7 +69,7 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                         <p>Click replace tests to replace data of existing tests</p>
                     </>
                 ) : null}
-                <Divider style={{ margin: "24px 0 0 0" }} />
+                <Divider style={{margin: "24px 0 0 0"}} />
             </Modal>
 
             <Button
