@@ -38,8 +38,10 @@ Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
 - [Tutorials](https://docs.agenta.ai/docs/tutorials)
 
 ## How Agenta works:
-<details open><summary>Write your LLM-powered application using any framework, library, or model (langchain or llma_index, GPT-4 or Falcon). You need to use a decorator and make sure the inputs and parameters are in the function call as done below.</summary>
-<br/>
+
+**1. Write your LLM-app code**
+
+Write the code using any framework, library, or model you want. Add the `agenta.post` decorator and put the inputs and parameters in the function call just like in this example:
 
 _Example simple application that generates baby names_
 ```python
@@ -64,17 +66,18 @@ def generate(country: str,
     return chat_completion.choices[0].message.content
 ```
 
-</details>
 
-<details open> <summary>Deploy your app using the Agenta CLI.</summary>
-  <br/>
+**2.Deploy your app using the Agenta CLI.**
+
 <img width="722" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
-  </details>
 
-<details open> <summary>Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different versions of your app (with your code!) in the web platform.</summary>
+
+**3. Go to agenta at localhost:3000** 
+
+Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different versions of your app (with your code!) in the web platform.</summary>
   <br/>
+
 <img width="1501" alt="Screenshot 2023-06-25 at 21 08 53" src="https://github.com/Agenta-AI/agenta/assets/57623556/7e07a988-a36a-4fb5-99dd-9cc13a678434">
-</details>
 
 ## Features
 
