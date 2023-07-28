@@ -39,7 +39,7 @@ def check_latest_version() -> Union[str, None]:
 def notify_update(available_version: str):
     import pkg_resources
     installed_version = pkg_resources.get_distribution('agenta').version
-    if installed_version != available_version:
+    if available_version > installed_version:
         click.echo(
             click.style(
                 f"A new release of agenta is available: {installed_version} → {available_version}",
