@@ -27,12 +27,14 @@ const LoadTestsModal: React.FC<Props> = (props) => {
         loadDataset(selectedSet).then((data) => {
             addNewTests(data.csvdata)
         })
+        setIsOpen(false)
     }
 
     const handleSetData = () => {
         loadDataset(selectedSet).then((data) => {
             setNewTests(data.csvdata)
         })
+        setIsOpen(false)
     }
 
     return (
