@@ -1,7 +1,7 @@
 import {useState, useEffect} from "react"
 import {Button, Col, Dropdown, MenuProps, Radio, RadioChangeEvent, Row, Tag, message} from "antd"
 import {DownOutlined} from "@ant-design/icons"
-import {fetchVariants, getVariantParameters, loadDatasetsList} from "@/lib/services/api"
+import {fetchVariants, getVariantParameters, useLoadDatasetsList} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {Variant, Parameter} from "@/lib/Types"
 import EvaluationsList from "./EvaluationsList"
@@ -32,7 +32,7 @@ export default function Evaluations() {
 
     const appName = router.query.app_name?.toString() || ""
 
-    const {datasets, isDatasetsLoading, isDatasetsLoadingError} = loadDatasetsList(appName)
+    const {datasets, isDatasetsLoading, isDatasetsLoadingError} = useLoadDatasetsList(appName)
 
     const [variantInputs, setVariantInputs] = useState<string[]>([])
 
