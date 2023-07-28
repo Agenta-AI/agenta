@@ -187,7 +187,7 @@ export async function removeVariant(appName: string, variantName: string) {
  * Loads the list of datasets
  * @returns
  */
-export const loadDatasetsList = (app_name: string) => {
+export const useLoadDatasetsList = (app_name: string) => {
     const {data, error} = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets?app_name=${app_name}`,
         fetcher,
