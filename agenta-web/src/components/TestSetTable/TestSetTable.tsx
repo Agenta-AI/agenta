@@ -237,14 +237,21 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
                 Create a new Test Set
             </Typography.Title>
 
-            <div style={{
-                width: "50%",
-                marginBottom: 20, 
-                display: "flex",
-                flexDirection: "row",
-                alignItems: "center",
-            }}>
-                <Input value={testSetName} onChange={handleChange} style={{marginRight: "10px"}} placeholder="Test Set Name" />
+            <div
+                style={{
+                    width: "50%",
+                    marginBottom: 20,
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                }}
+            >
+                <Input
+                    value={testSetName}
+                    onChange={handleChange}
+                    style={{marginRight: "10px"}}
+                    placeholder="Test Set Name"
+                />
                 <Button onClick={onSaveData} type="primary">
                     Save Test Set
                 </Button>
@@ -329,10 +336,7 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
                 </div>
             </div>
 
-            <TestSetMusHaveNameModal
-                isModalOpen={isModalOpen}
-                setIsModalOpen={setIsModalOpen}
-            />
+            <TestSetMusHaveNameModal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} />
         </div>
     )
 }
