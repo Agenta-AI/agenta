@@ -38,35 +38,33 @@ Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
 - [Tutorials](https://docs.agenta.ai/docs/tutorials)
 
 ## How Agenta works:
-<details open><summary>Write your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain or llma_index, GPT-4 or Falcon).</summary>
+<details open><summary>Write your LLM-powered application using any framework, library, or model (langchain or llma_index, GPT-4 or Falcon). You need to use a decorator and make sure the inputs and parameters are in the function call as done below.</summary>
 <br/>
 
 _Example simple application that generates baby names_
 ```python
-    from jinja2 import Template
-    import openai
+import agenta as ag
+
+from jinja2 import Template
+import openai
+
+default_prompt = "Give me five cool names for a baby from {{country}} with this gender {{gender}}!!!!"
+
+@ag.post
+def generate(country: str,
+             gender: str,
+             temperature: ag.FloatParam = 0.9,
+             prompt_template: ag.TextParam = default_prompt) -> str:
+
     template = Template(prompt_template)
     prompt = template.render(country=country, gender=gender)
-
-    openai.api_key = os.environ.get("OPENAI_API_KEY")  # make sure to set this manually!
     chat_completion = openai.ChatCompletion.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
 
-    print(chat_completion.choices[0].message.content)
+    return chat_completion.choices[0].message.content
 ```
 
 </details>
-<details open> <summary>With two lines of code, specify the inputs and parameters for your experiment.</summary>
-<br/>
-  
-```python
-import agenta as ag
-default_prompt = "Give me five cool names for a baby from {{country}} with this gender {{gender}}!!!!"
-@ag.post
-def generate(country: str, gender: str, temperature: ag.FloatParam = 0.9, prompt_template: ag.TextParam = default_prompt) -> str:
-# rest of the code
-```
-  </details>
 
 <details open> <summary>Deploy your app using the Agenta CLI.</summary>
   <br/>
