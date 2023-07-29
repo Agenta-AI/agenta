@@ -19,21 +19,20 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
     includeVariantsDropdown = false,
     variants,
     selectedVariant,
-    selectedLanguage,
     onVariantChange,
-    onLanguageChange,
 }) => {
     const supportedLanguages: LanguageItem[] = [
         {displayName: "Python", languageKey: "python"},
         {displayName: "cURL", languageKey: "bash"},
         {displayName: "TypeScript", languageKey: "typescript"},
     ]
-
+    const [selectedLanguage, setSelectedLanguage] = useState(supportedLanguages[0]);
+    
     useEffect(() => {
         if (selectedLanguage === null && supportedLanguages.length > 0) {
-            onLanguageChange?.(supportedLanguages[0])
+            setSelectedLanguage(supportedLanguages[0])
         }
-    }, [supportedLanguages, selectedLanguage, onLanguageChange])
+    }, [supportedLanguages, selectedLanguage, setSelectedLanguage])
 
     const items: MenuProps["items"] = supportedLanguages.map((languageItem, index) => ({
         key: (index + 1).toString(),
@@ -42,7 +41,7 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
 
     const handleMenuClick = ({key}: {key: string}) => {
         const newSelectedLanguage = supportedLanguages[parseInt(key, 10) - 1]
-        onLanguageChange?.(newSelectedLanguage)
+        setSelectedLanguage(newSelectedLanguage)
     }
 
     const variantsItems: MenuProps["items"] = variants
