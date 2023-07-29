@@ -1,7 +1,7 @@
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
-import {MenuProps, Dropdown, Button, Row, Col, Space} from "antd"
+import {MenuProps, Dropdown, Button, Space} from "antd"
 import {DownOutlined, ApiOutlined} from "@ant-design/icons"
-import {useEffect, useState} from "react"
+import {useState} from "react"
 import {LanguageItem, Variant} from "@/lib/Types"
 
 interface DynamicCodeBlockProps {
@@ -27,12 +27,6 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
         {displayName: "TypeScript", languageKey: "typescript"},
     ]
     const [selectedLanguage, setSelectedLanguage] = useState(supportedLanguages[0]);
-    
-    useEffect(() => {
-        if (selectedLanguage === null && supportedLanguages.length > 0) {
-            setSelectedLanguage(supportedLanguages[0])
-        }
-    }, [supportedLanguages, selectedLanguage, setSelectedLanguage])
 
     const items: MenuProps["items"] = supportedLanguages.map((languageItem, index) => ({
         key: (index + 1).toString(),
