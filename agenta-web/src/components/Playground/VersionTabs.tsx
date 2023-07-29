@@ -7,7 +7,7 @@ import VariantRemovalWarningModal from "./VariantRemovalWarningModal"
 import NewVariantModal from "./NewVariantModal"
 import {useRouter} from "next/router"
 import {fetchVariants, removeVariant} from "@/lib/services/api"
-import {Variant} from "@/lib/Types"
+import {Variant, PlaygroundTabsItem} from "@/lib/Types"
 import TestContextProvider from "./TestContextProvider"
 const {TabPane} = Tabs
 
@@ -146,6 +146,22 @@ const VersionTabs: React.FC = () => {
         })
     }
 
+    // Map the variants array to create the items array conforming to the Tab interface
+    const tabItems: PlaygroundTabsItem[] = variants.map((variant, index) => ({
+        key: variant.variantName,
+        label: `Variant ${variant.variantName}`,
+        children: (
+        <ViewNavigation
+            variant={variant}
+            handlePersistVariant={handlePersistVariant}
+            setRemovalVariantName={setRemovalVariantName}
+            setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
+            isDeleteLoading={isDeleteLoading}
+        />
+        ),
+        closable: !variant.persistent,
+    }));
+
     return (
         <div>
             {contextHolder}
@@ -156,30 +172,15 @@ const VersionTabs: React.FC = () => {
                     activeKey={activeKey}
                     onChange={setActiveKey}
                     onEdit={(targetKey, action) => {
-                        if (action === "add") {
-                            setIsModalOpen(true)
-                        } else if (action === "remove") {
-                            setRemovalVariantName(targetKey)
-                            setRemovalWarningModalOpen1(true)
-                        }
+                    if (action === 'add') {
+                        setIsModalOpen(true);
+                    } else if (action === 'remove') {
+                        setRemovalVariantName(targetKey);
+                        setRemovalWarningModalOpen1(true);
+                    }
                     }}
-                >
-                    {variants.map((variant, index) => (
-                        <TabPane
-                            tab={`Variant ${variant.variantName}`}
-                            key={variant.variantName}
-                            closable={!variant.persistent}
-                        >
-                            <ViewNavigation
-                                variant={variant}
-                                handlePersistVariant={handlePersistVariant}
-                                setRemovalVariantName={setRemovalVariantName}
-                                setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
-                                isDeleteLoading={isDeleteLoading}
-                            />
-                        </TabPane>
-                    ))}
-                </Tabs>
+                    items={tabItems}
+                />
             </TestContextProvider>
 
             <NewVariantModal
