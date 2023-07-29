@@ -1,7 +1,7 @@
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
-import {MenuProps, Dropdown, Button, Row, Col, Space} from "antd"
+import {MenuProps, Dropdown, Button, Space} from "antd"
 import {DownOutlined, ApiOutlined} from "@ant-design/icons"
-import {useEffect, useState} from "react"
+import {useState} from "react"
 import {LanguageItem, Variant} from "@/lib/Types"
 
 interface DynamicCodeBlockProps {
@@ -19,21 +19,14 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
     includeVariantsDropdown = false,
     variants,
     selectedVariant,
-    selectedLanguage,
     onVariantChange,
-    onLanguageChange,
 }) => {
     const supportedLanguages: LanguageItem[] = [
         {displayName: "Python", languageKey: "python"},
         {displayName: "cURL", languageKey: "bash"},
         {displayName: "TypeScript", languageKey: "typescript"},
     ]
-
-    useEffect(() => {
-        if (selectedLanguage === null && supportedLanguages.length > 0) {
-            onLanguageChange?.(supportedLanguages[0])
-        }
-    }, [supportedLanguages, selectedLanguage, onLanguageChange])
+    const [selectedLanguage, setSelectedLanguage] = useState(supportedLanguages[0]);
 
     const items: MenuProps["items"] = supportedLanguages.map((languageItem, index) => ({
         key: (index + 1).toString(),
@@ -42,7 +35,7 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
 
     const handleMenuClick = ({key}: {key: string}) => {
         const newSelectedLanguage = supportedLanguages[parseInt(key, 10) - 1]
-        onLanguageChange?.(newSelectedLanguage)
+        setSelectedLanguage(newSelectedLanguage)
     }
 
     const variantsItems: MenuProps["items"] = variants
