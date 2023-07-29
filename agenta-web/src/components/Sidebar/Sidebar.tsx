@@ -3,17 +3,14 @@ import {useRouter} from "next/router"
 import {
     RocketOutlined,
     AppstoreOutlined,
-    FileTextOutlined,
     DatabaseOutlined,
     CloudUploadOutlined,
     BarChartOutlined,
     LineChartOutlined,
-    MonitorOutlined,
-    UserOutlined,
     QuestionOutlined,
-    GlobalOutlined,
+    UserOutlined
 } from "@ant-design/icons"
-import {Avatar, Layout, Menu, Space, Tag, Tooltip, theme} from "antd"
+import {Avatar, Layout, Menu, MenuProps, Space, Tag, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 
@@ -52,6 +49,71 @@ const Sidebar: React.FC = () => {
         }
     }
 
+    const isPageNameUndefined = typeof page_name === "undefined";
+    const menuItems: MenuProps['items'] = [
+        {
+            key: "apps",
+            icon: <AppstoreOutlined />,
+            label: "App Management",
+            // tooltip: "Create new applications or switch between your existing projects.",
+            onClick: () => navigate("apps"),
+        },
+        {
+            key: "playground",
+            icon: <RocketOutlined />,
+            label: "Playground",
+            // tooltip: "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.",
+            onClick: () => navigate("playground"),
+        },
+        {
+            key: "testsets",
+            icon: <DatabaseOutlined />,
+            label: "Test Sets",
+            // tooltip: "Create and manage testsets for evaluation purposes.",
+            onClick: () => navigate("testsets"),
+        },
+        {
+            key: "evaluations",
+            icon: <LineChartOutlined />,
+            label: "Evaluate",
+            // tooltip: "Perform 1-to-1 variant comparisons on testsets to identify superior options.",
+            onClick: () => navigate("evaluations"),
+        },
+        {
+            key: "results",
+            icon: <BarChartOutlined />,
+            label: "Results",
+            // tooltip: "Analyze the evaluation outcomes to determine the most effective variants.",
+            onClick: () => navigate("results"),
+        },
+        {
+            key: "endpoints",
+            icon: <CloudUploadOutlined />,
+            label: "Endpoints",
+            // tooltip: "Monitor production logs to ensure seamless operations.",
+            onClick: () => navigate("endpoints"),
+        },
+    ];
+    const filteredMenuItems = isPageNameUndefined ? [menuItems[0]] : menuItems.slice(1);
+
+    const BottomMenuItems: MenuProps['items'] = [
+        {
+            key: "help",
+            icon: <QuestionOutlined />,
+            label: "Help",
+            // tooltip: "Create new applications or switch between your existing projects.",
+            onClick: () => window.open("https://docs.agenta.ai", "_blank"),
+        },
+        {
+            key: "user",
+            icon: <Avatar size={"small"} style={{ backgroundColor: '#87d068'}} icon={<UserOutlined />} />,
+            label: "Foulen",
+            // tooltip: "Create new applications or switch between your existing projects.",
+            onClick: () => {},
+        },
+    ]
+    const filteredBottomMenuItems = isPageNameUndefined ? [BottomMenuItems[0]] : BottomMenuItems.slice(2)
+
     return (
         <Sider
             theme="light"
@@ -75,91 +137,7 @@ const Sidebar: React.FC = () => {
                 >
                     <Logo />
                 </div>
-                <Menu mode="inline" selectedKeys={initialSelectedKeys} style={{borderRight: 0}}>
-                    <Menu.Item
-                        key="apps"
-                        icon={<AppstoreOutlined />}
-                        onClick={() => navigate("apps")}
-                    >
-                        <Tooltip
-                            placement="right"
-                            title="Create new applications or switch between your existing projects."
-                        >
-                            <div style={{width: "100%"}}>App Management</div>
-                        </Tooltip>
-                    </Menu.Item>
-                    {page_name && (
-                        <>
-                            <Menu.Item
-                                key="playground"
-                                icon={<RocketOutlined />}
-                                onClick={() => navigate("playground")}
-                            >
-                                <Tooltip
-                                    placement="right"
-                                    title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
-                                >
-                                    <div style={{width: "100%"}}>Playground</div>
-                                </Tooltip>
-                            </Menu.Item>
-
-                            <Menu.Item
-                                key="testsets"
-                                icon={<DatabaseOutlined />}
-                                onClick={() => navigate("testsets")}
-                            >
-                                <Tooltip
-                                    placement="right"
-                                    title="Create and manage testsets for evaluation purposes."
-                                >
-                                    <div style={{width: "100%"}}>Test Sets</div>
-                                </Tooltip>
-                            </Menu.Item>
-
-                            <Menu.Item
-                                key="evaluations"
-                                icon={<LineChartOutlined />}
-                                onClick={() => navigate("evaluations")}
-                            >
-                                <Tooltip
-                                    placement="right"
-                                    title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                >
-                                    <div style={{width: "100%"}}>Evaluate</div>
-                                </Tooltip>
-                            </Menu.Item>
-                            <Menu.Item
-                                key="results"
-                                icon={<BarChartOutlined />}
-                                onClick={() => navigate("results")}
-                            >
-                                <Tooltip
-                                    placement="right"
-                                    title="Analyze the evaluation outcomes to determine the most effective variants."
-                                >
-                                    <div style={{width: "100%"}}>Results</div>
-                                </Tooltip>
-                            </Menu.Item>
-
-                            <Menu.Item
-                                key="endpoints"
-                                icon={<CloudUploadOutlined />}
-                                onClick={() => navigate("endpoints")}
-                            >
-                                <Tooltip
-                                    placement="right"
-                                    title="Monitor production logs to ensure seamless operations."
-                                >
-                                    <div style={{width: "100%"}}>
-                                        <Space>
-                                            <span>Endpoints</span>
-                                        </Space>
-                                    </div>
-                                </Tooltip>
-                            </Menu.Item>
-                        </>
-                    )}
-                </Menu>
+                <Menu mode="inline" selectedKeys={[page_name || "apps"]} style={{ borderRight: 0 }} items={filteredMenuItems} />
 
                 <div style={{flex: 1}} />
 
@@ -167,22 +145,8 @@ const Sidebar: React.FC = () => {
                     mode="vertical"
                     style={{paddingBottom: 40, borderRight: 0}}
                     selectedKeys={selectedKeys}
-                >
-                    <Menu.Item
-                        key="help"
-                        icon={<QuestionOutlined />}
-                        onClick={() => window.open("https://docs.agenta.ai", "_blank")}
-                    >
-                        Help
-                    </Menu.Item>
-                    {/* <Menu.Item key="user">
-                        <Space>
-                            <Avatar size="small" style={{ backgroundColor: '#87d068' }} icon={<UserOutlined />} />
-                            <span>Foulen</span>
-                        </Space>
-
-                    </Menu.Item> */}
-                </Menu>
+                    items={filteredBottomMenuItems}
+                />
             </div>
         </Sider>
     )
