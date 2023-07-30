@@ -6,7 +6,7 @@ import {ColumnsType} from "antd/es/table"
 import {Variant} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
-import {EvaluationType} from "@/lib/enums"
+import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 
 interface EvaluationListTableDataType {
     key: string
@@ -16,6 +16,7 @@ interface EvaluationListTableDataType {
         name: string
     }
     evaluationType: string
+    status: EvaluationFlow
     // votesData: {
     //     variants_votes_data: {
     //         number_of_votes: number,
@@ -43,17 +44,13 @@ export default function EvaluationsList() {
             try {
                 const result = await loadAppEvaluations(app_name)
                 let newList = result
-                    .filter(
-                        (obj: any) =>
-                            obj.evaluationType === "human_a_b_testing" ||
-                            obj.evaluationType === "human_scoring",
-                    )
                     .map((obj: any) => {
                         let newObj: EvaluationListTableDataType = {
                             key: obj.id,
                             dataset: obj.dataset,
                             variants: obj.variants,
                             evaluationType: obj.evaluationType,
+                            status: obj.status,
                             createdAt: obj.createdAt,
                         }
                         return newObj
@@ -77,7 +74,9 @@ export default function EvaluationsList() {
         if (evaluationType === EvaluationType.auto_exact_match) {
             router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/auto_exact_match`)
         } else if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/human_a_b_testing`)
+                router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/human_a_b_testing`)
+        } else if (evaluationType === EvaluationType.auto_similarity_match) {
+            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/auto_similarity_match`)
         }
     }
 
@@ -137,10 +136,14 @@ export default function EvaluationsList() {
             dataIndex: "action",
             key: "action",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                let actionText = "Open evaluation"
+                if(record.status !== EvaluationFlow.EVALUATION_FINISHED) {
+                    actionText = "Continue evaluation"
+                }
                 return (
                     <div className="hover-button-wrapper">
                         <Button type="primary" onClick={() => onCompleteEvaluation(record)}>
-                            Continue evaluation
+                            {actionText}
                         </Button>
                     </div>
                 )

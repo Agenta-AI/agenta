@@ -49,6 +49,7 @@ export interface AppEvaluationResponseType {
         flag_votes: {number_of_votes: number; percentage: number}
     }
     app_name: string
+    status: string
     evaluation_type: string
     evaluation_type_settings: {
         similarity_threshold?: number
