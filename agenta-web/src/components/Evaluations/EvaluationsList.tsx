@@ -43,18 +43,17 @@ export default function EvaluationsList() {
         const fetchAppEvaluations = async () => {
             try {
                 const result = await loadAppEvaluations(app_name)
-                let newList = result
-                    .map((obj: any) => {
-                        let newObj: EvaluationListTableDataType = {
-                            key: obj.id,
-                            dataset: obj.dataset,
-                            variants: obj.variants,
-                            evaluationType: obj.evaluationType,
-                            status: obj.status,
-                            createdAt: obj.createdAt,
-                        }
-                        return newObj
-                    })
+                let newList = result.map((obj: any) => {
+                    let newObj: EvaluationListTableDataType = {
+                        key: obj.id,
+                        dataset: obj.dataset,
+                        variants: obj.variants,
+                        evaluationType: obj.evaluationType,
+                        status: obj.status,
+                        createdAt: obj.createdAt,
+                    }
+                    return newObj
+                })
                 setAppEvaluationsList(newList)
                 setDeletingLoading(false)
             } catch (error) {
@@ -74,7 +73,7 @@ export default function EvaluationsList() {
         if (evaluationType === EvaluationType.auto_exact_match) {
             router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/auto_exact_match`)
         } else if (evaluationType === EvaluationType.human_a_b_testing) {
-                router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/human_a_b_testing`)
         } else if (evaluationType === EvaluationType.auto_similarity_match) {
             router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/auto_similarity_match`)
         }
@@ -137,7 +136,7 @@ export default function EvaluationsList() {
             key: "action",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 let actionText = "Open evaluation"
-                if(record.status !== EvaluationFlow.EVALUATION_FINISHED) {
+                if (record.status !== EvaluationFlow.EVALUATION_FINISHED) {
                     actionText = "Continue evaluation"
                 }
                 return (

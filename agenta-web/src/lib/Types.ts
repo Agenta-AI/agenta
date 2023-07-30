@@ -1,4 +1,4 @@
-import { EvaluationType } from "./enums"
+import {EvaluationType} from "./enums"
 
 export interface Dataset {
     _id: string
