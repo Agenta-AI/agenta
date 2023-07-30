@@ -1,16 +1,16 @@
-import {Modal, Tooltip, Card, Avatar} from "antd"
-import {DeleteOutlined} from "@ant-design/icons"
-import {removeApp} from "@/lib/services/api"
-import useSWR, {mutate} from "swr"
-import {useState} from "react"
+import { Modal, Tooltip, Card, Avatar } from "antd"
+import { DeleteOutlined } from "@ant-design/icons"
+import { removeApp } from "@/lib/services/api"
+import useSWR, { mutate } from "swr"
+import { useState } from "react"
 import Link from "next/link"
-import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import { renameVariablesCapitalizeAll } from "@/lib/helpers/utils"
 
-const DeleteModal = ({visible, handleOk, handleCancel, appName, confirmLoading}) => {
+const DeleteModal = ({ open, handleOk, handleCancel, appName, confirmLoading }) => {
     return (
         <Modal
             title="Are you sure?"
-            visible={visible}
+            open={open}
             onOk={handleOk}
             confirmLoading={confirmLoading} // add this line
             onCancel={handleCancel}
@@ -22,7 +22,7 @@ const DeleteModal = ({visible, handleOk, handleCancel, appName, confirmLoading})
     )
 }
 
-const AppCard: React.FC<string> = ({appName, index}) => {
+const AppCard: React.FC<string> = ({ appName, index }) => {
     const [visibleDelete, setVisibleDelete] = useState(false)
     const [confirmLoading, setConfirmLoading] = useState(false) // add this line
     const showDeleteModal = () => {
@@ -72,7 +72,7 @@ const AppCard: React.FC<string> = ({appName, index}) => {
                 actions={[
                     <DeleteOutlined
                         key="delete"
-                        style={{color: "red"}}
+                        style={{ color: "red" }}
                         onClick={showDeleteModal}
                     />,
                 ]}
@@ -86,14 +86,14 @@ const AppCard: React.FC<string> = ({appName, index}) => {
                             justifyContent: "center",
                         }}
                         title={
-                            <div style={{textAlign: "center"}}>
+                            <div style={{ textAlign: "center" }}>
                                 {renameVariablesCapitalizeAll(appName)}
                             </div>
                         }
                         avatar={
                             <Avatar
                                 size="large"
-                                style={{backgroundImage: gradients[index % gradients.length]}}
+                                style={{ backgroundImage: gradients[index % gradients.length] }}
                             >
                                 {appName.charAt(0).toUpperCase()}
                             </Avatar>
@@ -103,7 +103,7 @@ const AppCard: React.FC<string> = ({appName, index}) => {
             </Card>
 
             <DeleteModal
-                visible={visibleDelete}
+                open={visibleDelete}
                 handleOk={handleDeleteOk}
                 handleCancel={handleDeleteCancel}
                 appName={appName}
