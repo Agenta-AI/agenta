@@ -19,10 +19,10 @@ export interface Variant {
 
 // Define the interface for the tabs item in playground page
 export interface PlaygroundTabsItem {
-    key: string;
-    label: string;
-    children: JSX.Element;
-    closable: boolean;
+    key: string
+    label: string
+    children: JSX.Element
+    closable: boolean
 }
 
 export interface AppEvaluation {
