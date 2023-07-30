@@ -1,5 +1,5 @@
 import {useState, useEffect} from "react"
-import {Button, Col, Dropdown, MenuProps, Radio, RadioChangeEvent, Row, Tag, message} from "antd"
+import {Button, Col, Dropdown, MenuProps, Radio, RadioChangeEvent, Row, Tag, Slider, message} from "antd"
 import {DownOutlined} from "@ant-design/icons"
 import {fetchVariants, getVariantParameters, loadDatasetsList} from "@/lib/services/api"
 import {useRouter} from "next/router"
@@ -8,6 +8,7 @@ import EvaluationsList from "./EvaluationsList"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import Title from "antd/es/typography/Title"
+import Text from "antd/es/typography/Text"
 
 export default function Evaluations() {
     const router = useRouter()
@@ -35,6 +36,8 @@ export default function Evaluations() {
     const {datasets, isDatasetsLoading, isDatasetsLoadingError} = loadDatasetsList(appName)
 
     const [variantInputs, setVariantInputs] = useState<string[]>([])
+
+    const [sliderValue, setSliderValue] = useState(0.3)
 
     useEffect(() => {
         if (variants.length > 0) {
@@ -76,9 +79,7 @@ export default function Evaluations() {
     }, [datasets, isDatasetsLoadingError])
 
     // TODO: move to api.ts
-    const createNewAppEvaluation = async (evaluationType: string, inputs: string[]) => {
-        console.log("evaluationType")
-        console.log(evaluationType)
+    const createNewAppEvaluation = async (evaluationType: string, evaluationTypeSettings: any, inputs: string[]) => {
         const postData = async (url = "", data = {}) => {
             const response = await fetch(url, {
                 method: "POST",
@@ -100,6 +101,7 @@ export default function Evaluations() {
             app_name: appName,
             inputs: inputs,
             evaluation_type: evaluationType,
+            evaluation_type_settings: evaluationTypeSettings,
             dataset: {
                 _id: selectedDataset._id,
                 name: selectedDataset.name,
@@ -189,8 +191,14 @@ export default function Evaluations() {
         }
 
         // 2. We create a new app evaluation
+        const evaluationTypeSettings:any = {};
+        if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
+            evaluationTypeSettings["similarity_threshold"] = sliderValue;
+        }
+
         const evaluationTableId = await createNewAppEvaluation(
             EvaluationType[selectedEvaluationType],
+            evaluationTypeSettings,
             variantInputs,
         )
 
@@ -201,6 +209,8 @@ export default function Evaluations() {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_exact_match`)
         } else if (selectedEvaluationType === EvaluationType.human_a_b_testing) {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/human_a_b_testing`)
+        } else if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
+            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/similarity_match`)
         }
     }
 
@@ -221,6 +231,10 @@ export default function Evaluations() {
             ),
         )
     }
+
+    const onChangeSlider = (value: number) => {
+        setSliderValue(value);
+    };
 
     return (
         <div>
@@ -269,6 +283,18 @@ export default function Evaluations() {
                             >
                                 {EvaluationTypeLabels[EvaluationType.auto_exact_match]}
                             </Radio.Button>
+                            <Radio.Button
+                                value={EvaluationType.auto_similarity_match}
+                                style={{ display: "block", marginBottom: "10px" }}
+                            >
+                                {EvaluationTypeLabels[EvaluationType.auto_similarity_match]}
+                            </Radio.Button>
+                            {selectedEvaluationType === EvaluationType.auto_similarity_match && (
+                                <div style={{paddingLeft: 10, paddingRight: 10}}>
+                                    <Text >Similarity threshold</Text>
+                                    <Slider min={0} max={1} step={0.01} defaultValue={sliderValue} onChange={onChangeSlider} />
+                                </div>
+                            )}
                             <Radio.Button
                                 value={EvaluationType.auto_ai_critique}
                                 disabled
