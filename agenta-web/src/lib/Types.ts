@@ -1,3 +1,5 @@
+import { EvaluationType } from "./enums"
+
 export interface Dataset {
     _id: string
     name: string
@@ -59,3 +61,18 @@ export interface AppEvaluationResponseType {
 }
 
 export type LanguageItem = {displayName: string; languageKey: string}
+
+export interface ResultsTableDataType {
+    id: string
+    variants: string[]
+    votesData?: {
+        variants_votes_data: {
+            number_of_votes: number
+            percentage: number
+        }
+        flag_votes: {number_of_votes: number; percentage: number}
+    }
+    scoresData?: any
+    evaluationType: EvaluationType
+    createdAt?: string
+}
