@@ -7,15 +7,15 @@ import {updateEvaluationRow, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
-import {evaluateWithExactMatch} from "@/lib/services/evaluations"
+import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
 
-interface ExactMatchEvaluationTableProps {
+interface SimilarityMatchEvaluationTableProps {
     appEvaluation: any
     columnsCount: number
-    evaluationRows: ExactMatchEvaluationTableRow[]
+    evaluationRows: SimilarityMatchEvaluationTableRow[]
 }
 
-interface ExactMatchEvaluationTableRow {
+interface SimilarityMatchEvaluationTableRow {
     id?: string
     inputs: {
         input_name: string
@@ -38,13 +38,14 @@ interface ExactMatchEvaluationTableRow {
  * @returns
  */
 
-const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
+const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTableProps> = ({
     appEvaluation,
     evaluationRows,
     columnsCount,
 }) => {
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name) ? router.query.app_name[0] : router.query.app_name || "";
+
     const variants = appEvaluation.variants
 
     const variantData = variants.map((variant: Variant) => {
@@ -59,9 +60,9 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
         }
     })
 
-    const [rows, setRows] = useState<ExactMatchEvaluationTableRow[]>([])
-    const [wrongAnswers, setWrongAnswers] = useState<number>(0)
-    const [correctAnswers, setCorrectAnswers] = useState<number>(0)
+    const [rows, setRows] = useState<SimilarityMatchEvaluationTableRow[]>([])
+    const [dissimilarAnswers, setDissimilarAnswers] = useState<number>(0)
+    const [similarAnswers, setSimilarAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
 
     useEffect(() => {
@@ -71,20 +72,20 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     }, [evaluationRows])
 
     useEffect(() => {
-        if (correctAnswers + wrongAnswers > 0) {
-            setAccuracy((correctAnswers / (correctAnswers + wrongAnswers)) * 100)
+        if (similarAnswers + dissimilarAnswers > 0) {
+            setAccuracy((similarAnswers / (similarAnswers + dissimilarAnswers)) * 100)
         } else {
             setAccuracy(0)
         }
-    }, [correctAnswers, wrongAnswers])
+    }, [similarAnswers, dissimilarAnswers])
 
     useEffect(() => {
-        const correct = rows.filter((row) => row.score === "correct").length
-        const wrong = rows.filter((row) => row.score === "wrong").length
-        const accuracy = correct + wrong > 0 ? (correct / (correct + wrong)) * 100 : 0
+        const similar = rows.filter((row) => row.score === "true").length
+        const dissimilar = rows.filter((row) => row.score === "false").length
+        const accuracy = similar + dissimilar > 0 ? (similar / (similar + dissimilar)) * 100 : 0
 
-        setCorrectAnswers(correct)
-        setWrongAnswers(wrong)
+        setSimilarAnswers(similar)
+        setDissimilarAnswers(dissimilar)
         setAccuracy(accuracy)
     }, [rows])
 
@@ -141,24 +142,29 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
      * @param rowNumber
      *
      * This method will:
-     * 1. perform an exact match evaluation for the given row number
+     * 1. perform an similarity match evaluation for the given row number
      * 2. update the evaluation row with the result
      * 3. update the score column in the table
      */
     const evaluate = (rowNumber: number) => {
-        const isCorrect = evaluateWithExactMatch(
+        const similarity = evaluateWithSimilarityMatch(
             rows[rowNumber].columnData0,
             rows[rowNumber].correctAnswer,
         )
+        const isSimilar =
+            similarity >= appEvaluation.evaluationTypeSettings.similarityThreshold
+                ? "true"
+                : "false"
 
         const evaluation_row_id = rows[rowNumber].id
+
         // TODO: we need to improve this and make it dynamic
         const appVariantNameX = variants[0].variantName
         const outputVariantX = rows[rowNumber].columnData0
 
         if (evaluation_row_id) {
             const data = {
-                score: isCorrect ? "correct" : "wrong",
+                score: isSimilar,
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
             }
 
@@ -170,10 +176,10 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             )
                 .then((data) => {
                     setRowValue(rowNumber, "score", data.score)
-                    if (isCorrect) {
-                        setCorrectAnswers((prevCorrect) => prevCorrect + 1)
+                    if (isSimilar) {
+                        setSimilarAnswers((prevSimilar) => prevSimilar + 1)
                     } else {
-                        setWrongAnswers((prevWrong) => prevWrong + 1)
+                        setDissimilarAnswers((prevDissimilar) => prevDissimilar + 1)
                     }
                 })
                 .catch((err) => {
@@ -184,7 +190,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     const setRowValue = (
         rowIndex: number,
-        columnKey: keyof ExactMatchEvaluationTableRow,
+        columnKey: keyof SimilarityMatchEvaluationTableRow,
         value: any,
     ) => {
         const newRows = [...rows]
@@ -192,7 +198,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
         setRows(newRows)
     }
 
-    const dynamicColumns: ColumnType<ExactMatchEvaluationTableRow>[] = Array.from(
+    const dynamicColumns: ColumnType<SimilarityMatchEvaluationTableRow>[] = Array.from(
         {length: columnsCount},
         (_, i) => {
             const columnKey = `columnData${i}`
@@ -215,7 +221,11 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 dataIndex: columnKey,
                 key: columnKey,
                 width: "25%",
-                render: (text: any, record: ExactMatchEvaluationTableRow, rowIndex: number) => {
+                render: (
+                    text: any,
+                    record: SimilarityMatchEvaluationTableRow,
+                    rowIndex: number,
+                ) => {
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
                             (output: any) => output.variant_name === variants[i].variantName,
@@ -250,7 +260,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 </div>
             ),
             dataIndex: "inputs",
-            render: (text: any, record: ExactMatchEvaluationTableRow, rowIndex: number) => (
+            render: (text: any, record: SimilarityMatchEvaluationTableRow, rowIndex: number) => (
                 <div>
                     {record &&
                         record.inputs &&
@@ -284,9 +294,9 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             align: "center" as "left" | "right" | "center",
             render: (text: any, record: any, rowIndex: number) => {
                 let tagColor = ""
-                if (record.score === "correct") {
+                if (record.score === "true") {
                     tagColor = "green"
-                } else if (record.score === "wrong") {
+                } else if (record.score === "false") {
                     tagColor = "red"
                 }
                 return (
@@ -308,7 +318,13 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     return (
         <div>
-            <h1>Exact match Evaluation</h1>
+            <h1>
+                Similarity match Evaluation (Threshold:{" "}
+                {appEvaluation.evaluationTypeSettings.similarityThreshold})
+            </h1>
+            <div style={{marginBottom: 20}}>
+                This evaluation type is calculating the similarity using Jaccard similarity.
+            </div>
             <div>
                 <Row align="middle">
                     <Col span={12}>
@@ -327,15 +343,15 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                             <Row justify="end">
                                 <Col span={10}>
                                     <Statistic
-                                        title="Correct answers:"
-                                        value={`${correctAnswers} out of ${rows.length}`}
+                                        title="Similar answers:"
+                                        value={`${similarAnswers} out of ${rows.length}`}
                                         valueStyle={{color: "#3f8600"}}
                                     />
                                 </Col>
                                 <Col span={10}>
                                     <Statistic
-                                        title="Wrong answers:"
-                                        value={`${wrongAnswers} out of ${rows.length}`}
+                                        title="Dissimilar answers:"
+                                        value={`${dissimilarAnswers} out of ${rows.length}`}
                                         valueStyle={{color: "#cf1322"}}
                                     />
                                 </Col>
@@ -365,4 +381,4 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     )
 }
 
-export default ExactMatchEvaluationTable
+export default SimilarityMatchEvaluationTable

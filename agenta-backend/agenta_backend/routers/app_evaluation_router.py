@@ -40,6 +40,11 @@ async def create_comparison_table(newComparisonTableData: NewComparisonTable = B
                 if "correct_answer" in datum:
                     evaluation_row["correct_answer"] = datum["correct_answer"]
 
+            if newComparisonTableData.evaluation_type == EvaluationType.auto_similarity_match:
+                evaluation_row["score"] = ""
+                if "correct_answer" in datum:
+                    evaluation_row["correct_answer"] = datum["correct_answer"]
+
             if newComparisonTableData.evaluation_type == EvaluationType.human_a_b_testing:
                 evaluation_row["vote"] = ""
 
@@ -116,7 +121,8 @@ async def update_evaluation_row(evaluation_row_id: str, evaluation_row: Evaluati
         'outputs': evaluation_row_dict["outputs"]
     }
 
-    if evaluation_type == EvaluationType.auto_exact_match:
+    if (evaluation_type == EvaluationType.auto_exact_match or
+        evaluation_type == EvaluationType.auto_similarity_match):
         new_evaluation_set["score"] = evaluation_row_dict["score"]
     elif evaluation_type == EvaluationType.human_a_b_testing:
         new_evaluation_set["vote"] = evaluation_row_dict["vote"]
@@ -205,6 +211,10 @@ async def fetch_results(comparison_table_id: str):
         results = await fetch_results_for_auto_exact_match_evaluation(comparison_table_id, comparison_table.get("variant", []))
         return {"scores_data": results}
 
+    elif (comparison_table["evaluation_type"]== EvaluationType.auto_similarity_match):
+        results = await fetch_results_for_auto_similarity_match_evaluation(comparison_table_id, comparison_table.get("variant", []))
+        return {"scores_data": results}
+
 async def fetch_results_for_human_a_b_testing_evaluation(comparison_table_id: str, variants: list):
     results = {}
     comparison_table_rows_nb = await evaluation_rows.count_documents({
@@ -263,4 +273,31 @@ async def fetch_results_for_auto_exact_match_evaluation(comparison_table_id: str
     results["scores"] = {}
     results["scores"]["correct"] = correct_scores_nb
     results["scores"]["wrong"] = wrong_scores_nb
+    return results
+
+async def fetch_results_for_auto_similarity_match_evaluation(comparison_table_id: str, variant: str):
+    results = {}
+    comparison_table_rows_nb = await evaluation_rows.count_documents({
+        'comparison_table_id': comparison_table_id,
+        'score': {'$ne': ''}
+    })
+
+    if comparison_table_rows_nb == 0:
+        return results
+
+    results["variant"] = variant
+    results["nb_of_rows"] = comparison_table_rows_nb
+
+    similar_scores_nb: int = await evaluation_rows.count_documents({
+        'score': 'true',
+        'comparison_table_id': comparison_table_id
+    })
+
+    dissimilar_scores_nb: int = await evaluation_rows.count_documents({
+        'score': 'false',
+        'comparison_table_id': comparison_table_id
+    })
+    results["scores"] = {}
+    results["scores"]["true"] = similar_scores_nb
+    results["scores"]["false"] = dissimilar_scores_nb
     return results
