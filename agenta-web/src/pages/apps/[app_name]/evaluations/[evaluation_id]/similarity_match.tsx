@@ -1,4 +1,4 @@
-import ExactMatchEvaluationTable from "../../../../../components/EvaluationTable/SimilarityMatchEvaluationTable"
+import SimilarityMatchEvaluationTable from "../../../../../components/EvaluationTable/SimilarityMatchEvaluationTable"
 import {AppEvaluation} from "@/lib/Types"
 import {loadAppEvaluation, loadEvaluationsRows} from "@/lib/services/api"
 import {useRouter} from "next/router"
@@ -48,7 +48,7 @@ export default function Evaluation() {
     return (
         <div style={{marginBottom: "200px"}}>
             {evaluationTableId && evaluationRows && appEvaluation && (
-                <ExactMatchEvaluationTable
+                <SimilarityMatchEvaluationTable
                     columnsCount={columnsCount}
                     evaluationRows={evaluationRows}
                     appEvaluation={appEvaluation}
