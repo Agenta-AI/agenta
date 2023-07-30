@@ -88,11 +88,11 @@ Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different v
 
 - 🪄 **Playground:** With just a few lines of code, define the parameters and prompts you wish to experiment with. You and your team can quickly experiment and test new variants on the web UI.
 
-https://github.com/Agenta-AI/agenta/assets/4510758/f99221a1-1159-4fb9-9ca2-0bbdf6aac9eb
+https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95efc69134c
 
 - 📊 **Version Evaluation:** Define test sets, the evaluate manually or programmatically your different variants.
 
-https://github.com/Agenta-AI/agenta/assets/4510758/7d6f1e76-47ad-408e-8e95-5de9ee9351e4
+https://github.com/Agenta-AI/agenta/assets/4510758/f8a2a423-c0a9-40df-9c00-52908cac165a
 
 - 🚀 **API Deployment Made Easy:** When you are ready, deploy your LLM applications as APIs in one click.
   
