@@ -85,6 +85,9 @@ async def remove_app(app: App):
             for app_variant in app_variants:
                 remove_app_variant(app_variant)
                 logger.info(f"App variant {app_variant.app_name}/{app_variant.variant_name} deleted")
+            
+            await remove_app_datasets(app_name)
+            logger.info(f"Datasets for {app_name} app deleted")
         except Exception as e:
             logger.error(f"Error deleting app variants: {str(e)}")
             raise
