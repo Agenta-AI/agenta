@@ -12,6 +12,11 @@ export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResp
         return variant
     })
 
+    let evaluationTypeSettings = {};
+    if (item.evaluation_type_settings?.similarity_threshold) {
+            evaluationTypeSettings["similarityThreshold"] = item.evaluation_type_settings.similarity_threshold
+    }
+
     return {
         id: item.id,
         createdAt: formatDate(item.created_at),
@@ -19,6 +24,7 @@ export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResp
         dataset: item.dataset,
         appName: item.app_name,
         evaluationType: item.evaluation_type,
+        evaluationTypeSettings: evaluationTypeSettings
     }
 }
 

@@ -48,6 +48,9 @@ export interface AppEvaluationResponseType {
     }
     app_name: string
     evaluation_type: string
+    evaluation_type_settings: {
+        similarity_threshold?: number
+    }
     dataset: {
         _id: string
         name: string
