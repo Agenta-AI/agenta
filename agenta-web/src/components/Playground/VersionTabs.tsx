@@ -151,16 +151,16 @@ const VersionTabs: React.FC = () => {
         key: variant.variantName,
         label: `Variant ${variant.variantName}`,
         children: (
-        <ViewNavigation
-            variant={variant}
-            handlePersistVariant={handlePersistVariant}
-            setRemovalVariantName={setRemovalVariantName}
-            setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
-            isDeleteLoading={isDeleteLoading}
-        />
+            <ViewNavigation
+                variant={variant}
+                handlePersistVariant={handlePersistVariant}
+                setRemovalVariantName={setRemovalVariantName}
+                setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
+                isDeleteLoading={isDeleteLoading}
+            />
         ),
         closable: !variant.persistent,
-    }));
+    }))
 
     return (
         <div>

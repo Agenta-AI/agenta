@@ -26,7 +26,7 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
         {displayName: "cURL", languageKey: "bash"},
         {displayName: "TypeScript", languageKey: "typescript"},
     ]
-    const [selectedLanguage, setSelectedLanguage] = useState(supportedLanguages[0]);
+    const [selectedLanguage, setSelectedLanguage] = useState(supportedLanguages[0])
 
     const items: MenuProps["items"] = supportedLanguages.map((languageItem, index) => ({
         key: (index + 1).toString(),
