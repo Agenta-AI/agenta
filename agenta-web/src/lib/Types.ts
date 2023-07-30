@@ -23,6 +23,7 @@ export interface AppEvaluation {
     id: string
     createdAt: string
     variants: Variant[]
+    evaluationType: string
     dataset: {
         _id: string
         name: string
