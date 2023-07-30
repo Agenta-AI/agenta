@@ -7,13 +7,11 @@ import {Variant, Parameter} from "@/lib/Types"
 import EvaluationsList from "./EvaluationsList"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
-import { Typography } from "antd";
-
-
+import {Typography} from "antd"
 
 export default function Evaluations() {
     const router = useRouter()
-    const { Title } = Typography
+    const {Title} = Typography
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
