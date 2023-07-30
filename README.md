@@ -45,24 +45,29 @@ Write the code using any framework, library, or model you want. Add the `agenta.
 _Example simple application that generates baby names_
 ```python
 import agenta as ag
-
-from jinja2 import Template
-import openai
+from langchain.chains import LLMChain
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
 
 default_prompt = "Give me five cool names for a baby from {{country}} with this gender {{gender}}!!!!"
 
+
 @ag.post
-def generate(country: str,
-             gender: str,
-             temperature: ag.FloatParam = 0.9,
-             prompt_template: ag.TextParam = default_prompt) -> str:
+def generate(
+    country: str,
+    gender: str,
+    temperature: ag.FloatParam = 0.9,
+    prompt_template: ag.TextParam = default_prompt,
+) -> str:
+    llm = OpenAI(temperature=temperature)
+    prompt = PromptTemplate(
+        input_variables=["country", "gender"],
+        template=prompt_template,
+    )
+    chain = LLMChain(llm=llm, prompt=prompt)
+    output = chain.run(country=country, gender=gender)
 
-    template = Template(prompt_template)
-    prompt = template.render(country=country, gender=gender)
-    chat_completion = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}])
-
-    return chat_completion.choices[0].message.content
+    return output
 ```
 
 
