@@ -326,6 +326,9 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 Similarity match Evaluation (Threshold:{" "}
                 {appEvaluation.evaluationTypeSettings.similarityThreshold})
             </h1>
+            <div style={{marginBottom: 20}}>
+                This evaluation type is calculating the similarity using Jaccard similarity.
+            </div>
             <div>
                 <Row align="middle">
                     <Col span={12}>
