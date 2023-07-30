@@ -7,6 +7,7 @@ import {updateEvaluationRow, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
+import { evaluateWithExactMatch } from "@/lib/services/evaluations"
 
 interface ExactMatchEvaluationTableProps {
     appEvaluation: any
@@ -133,7 +134,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
-                evaluateWithExactMatch(rowIndex)
+                evaluate(rowIndex)
             } catch (e) {
                 console.error("Error:", e)
             }
@@ -149,8 +150,9 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
      * 2. update the evaluation row with the result
      * 3. update the score column in the table
      */
-    const evaluateWithExactMatch = (rowNumber: number) => {
-        const isCorrect = rows[rowNumber].columnData0 === rows[rowNumber].correctAnswer
+    const evaluate = (rowNumber: number) => {
+        const isCorrect = evaluateWithExactMatch(rows[rowNumber].columnData0, rows[rowNumber].correctAnswer)
+
         const evaluation_row_id = rows[rowNumber].id
         // TODO: we need to improve this and make it dynamic
         const appVariantNameX = variants[0].variantName
