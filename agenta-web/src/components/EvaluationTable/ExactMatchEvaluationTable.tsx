@@ -44,7 +44,9 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     columnsCount,
 }) => {
     const router = useRouter()
-    const appName = Array.isArray(router.query.app_name) ? router.query.app_name[0] : router.query.app_name || "";
+    const appName = Array.isArray(router.query.app_name)
+        ? router.query.app_name[0]
+        : router.query.app_name || ""
     const variants = appEvaluation.variants
 
     const variantData = variants.map((variant: Variant) => {

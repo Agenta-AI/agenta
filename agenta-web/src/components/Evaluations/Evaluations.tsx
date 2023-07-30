@@ -23,7 +23,6 @@ import {Typography} from "antd"
 export default function Evaluations() {
     const {Text, Title} = Typography
     const router = useRouter()
-    const {Title} = Typography
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
