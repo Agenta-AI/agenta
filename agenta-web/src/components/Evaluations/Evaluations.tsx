@@ -1,5 +1,16 @@
 import {useState, useEffect} from "react"
-import {Button, Col, Dropdown, MenuProps, Radio, RadioChangeEvent, Row, Tag, Slider, message} from "antd"
+import {
+    Button,
+    Col,
+    Dropdown,
+    MenuProps,
+    Radio,
+    RadioChangeEvent,
+    Row,
+    Tag,
+    Slider,
+    message,
+} from "antd"
 import {DownOutlined} from "@ant-design/icons"
 import {fetchVariants, getVariantParameters, loadDatasetsList} from "@/lib/services/api"
 import {useRouter} from "next/router"
@@ -79,7 +90,11 @@ export default function Evaluations() {
     }, [datasets, isDatasetsLoadingError])
 
     // TODO: move to api.ts
-    const createNewAppEvaluation = async (evaluationType: string, evaluationTypeSettings: any, inputs: string[]) => {
+    const createNewAppEvaluation = async (
+        evaluationType: string,
+        evaluationTypeSettings: any,
+        inputs: string[],
+    ) => {
         const postData = async (url = "", data = {}) => {
             const response = await fetch(url, {
                 method: "POST",
@@ -191,9 +206,9 @@ export default function Evaluations() {
         }
 
         // 2. We create a new app evaluation
-        const evaluationTypeSettings:any = {};
+        const evaluationTypeSettings: any = {}
         if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
-            evaluationTypeSettings["similarity_threshold"] = sliderValue;
+            evaluationTypeSettings["similarity_threshold"] = sliderValue
         }
 
         const evaluationTableId = await createNewAppEvaluation(
@@ -233,8 +248,8 @@ export default function Evaluations() {
     }
 
     const onChangeSlider = (value: number) => {
-        setSliderValue(value);
-    };
+        setSliderValue(value)
+    }
 
     return (
         <div>
@@ -285,14 +300,20 @@ export default function Evaluations() {
                             </Radio.Button>
                             <Radio.Button
                                 value={EvaluationType.auto_similarity_match}
-                                style={{ display: "block", marginBottom: "10px" }}
+                                style={{display: "block", marginBottom: "10px"}}
                             >
                                 {EvaluationTypeLabels[EvaluationType.auto_similarity_match]}
                             </Radio.Button>
                             {selectedEvaluationType === EvaluationType.auto_similarity_match && (
                                 <div style={{paddingLeft: 10, paddingRight: 10}}>
-                                    <Text >Similarity threshold</Text>
-                                    <Slider min={0} max={1} step={0.01} defaultValue={sliderValue} onChange={onChangeSlider} />
+                                    <Text>Similarity threshold</Text>
+                                    <Slider
+                                        min={0}
+                                        max={1}
+                                        step={0.01}
+                                        defaultValue={sliderValue}
+                                        onChange={onChangeSlider}
+                                    />
                                 </div>
                             )}
                             <Radio.Button

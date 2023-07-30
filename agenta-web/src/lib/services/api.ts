@@ -307,7 +307,10 @@ export const deleteAppEvaluations = async (ids: string[]) => {
     }
 }
 
-export const loadEvaluationsRows = async (evaluationTableId: string, appEvaluation: AppEvaluation) => {
+export const loadEvaluationsRows = async (
+    evaluationTableId: string,
+    appEvaluation: AppEvaluation,
+) => {
     try {
         return await eval_endpoint
             .get(`${evaluationTableId}/evaluation_rows`)

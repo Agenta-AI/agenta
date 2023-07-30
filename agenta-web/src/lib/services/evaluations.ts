@@ -1,12 +1,12 @@
-export const evaluateWithExactMatch = (string1: string, string2: string) : Boolean => {
+export const evaluateWithExactMatch = (string1: string, string2: string): Boolean => {
     return string1 === string2
 }
 
-export const evaluateWithSimilarityMatch = (string1: string, string2: string) : number => {
-    let set1 = new Set(string1.split(' '));
-    let set2 = new Set(string2.split(' '));
-    let intersect = new Set([...set1].filter(x => set2.has(x)));
-    let union = new Set([...set1, ...set2]);
+export const evaluateWithSimilarityMatch = (string1: string, string2: string): number => {
+    let set1 = new Set(string1.split(" "))
+    let set2 = new Set(string2.split(" "))
+    let intersect = new Set([...set1].filter((x) => set2.has(x)))
+    let union = new Set([...set1, ...set2])
 
     const similarity = intersect.size / union.size
     return similarity
