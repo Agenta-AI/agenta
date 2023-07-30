@@ -2,10 +2,10 @@
   "$schema": "https://mintlify.com/schema.json",
   "name": "Agenta AI",
   "logo": {
-    "dark": "docs/logo/dark-complete-transparent-CROPPED.png",
-    "light": "docs/logo/light-complete-transparent-CROPPED.png"
+    "dark": "logo/dark-complete-transparent-CROPPED.png",
+    "light": "logo/light-complete-transparent-CROPPED.png"
   },
-  "favicon": "docs/logo/favicon.png",
+  "favicon": "logo/favicon.png",
   "colors": {
     "primary": "#32bf40",
     "light": "#00FF19",
@@ -40,13 +40,13 @@
     {
       "group": "Quickstart",
       "pages": [
-        "docs/introduction",
-        "docs/getting-started",
+        "introduction",
+        "getting-started",
         {
           "group": "Installation",
           "pages": [
-            "docs/installation/local-installation/local-installation",
-            "docs/installation/self-hosting/self-hosted-installation"
+            "installation/local-installation/local-installation",
+            "installation/self-hosting/self-hosted-installation"
           ]
         }
       ]
@@ -54,34 +54,34 @@
     {
       "group": "Tutorials",
       "pages": [
-        "docs/tutorials/your-first-llm-app"
+        "tutorials/your-first-llm-app"
       ]
     },
     {
       "group": "How-to Guides",
       "pages": [
-        "docs/howto/creating-multiple-app-variants",
-        "docs/howto/how-to-debug"
+        "howto/creating-multiple-app-variants",
+        "howto/how-to-debug"
       ]
     },
     {
       "group": "Conceptual Guides",
       "pages": [
-        "docs/conceptual/concepts",
-        "docs/conceptual/architecture"
+        "conceptual/concepts",
+        "conceptual/architecture"
       ]
     },
     {
       "group": "Contributing",
       "pages": [
-        "docs/contributing/getting-started",
-        "docs/contributing/development-mode"
+        "contributing/getting-started",
+        "contributing/development-mode"
       ]
     },
     {
       "group": "Reference",
       "pages": [
-        "docs/reference/agenta-cli"
+        "reference/agenta-cli"
       ]
     }
   ],
