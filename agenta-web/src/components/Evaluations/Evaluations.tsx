@@ -18,10 +18,10 @@ import {Variant, Parameter} from "@/lib/Types"
 import EvaluationsList from "./EvaluationsList"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
-import Title from "antd/es/typography/Title"
-import Text from "antd/es/typography/Text"
+import {Typography} from "antd"
 
 export default function Evaluations() {
+    const {Text, Title} = Typography
     const router = useRouter()
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
