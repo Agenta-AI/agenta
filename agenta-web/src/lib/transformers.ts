@@ -1,4 +1,5 @@
-import {AppEvaluationResponseType, Variant} from "./Types"
+import {AppEvaluation, AppEvaluationResponseType, Variant} from "./Types"
+import { EvaluationType } from "./enums"
 import {formatDate} from "./helpers/dateTimeHelper"
 
 export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResponseType) => {
@@ -29,12 +30,19 @@ export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResp
     }
 }
 
-export const fromEvaluationsRowsResponseToEvaluationsRows = (item: any) => {
-    return {
+export const fromEvaluationsRowsResponseToEvaluationsRows = (item: any, appEvaluation: AppEvaluation) => {
+    let evaluationRow = {
         id: item.id,
         inputs: item.inputs,
         outputs: item.outputs,
         vote: item.vote,
         correctAnswer: item.correct_answer,
     }
+
+    if (appEvaluation.evaluationType === EvaluationType.human_a_b_testing) {
+        evaluationRow = { ...evaluationRow, vote: item.vote };
+    } else if (appEvaluation.evaluationType === EvaluationType.auto_exact_match || appEvaluation.evaluationType === EvaluationType.auto_similarity_match) {
+        evaluationRow = { ...evaluationRow, score: item.score };
+    }
+    return evaluationRow
 }

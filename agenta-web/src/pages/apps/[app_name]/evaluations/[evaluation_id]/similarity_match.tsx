@@ -16,12 +16,15 @@ export default function Evaluation() {
     const columnsCount = 1
 
     useEffect(() => {
+        if (!appEvaluation) {
+            return
+        }
         const init = async () => {
-            const data = await loadEvaluationsRows(evaluationTableId)
+            const data = await loadEvaluationsRows(evaluationTableId, appEvaluation)
             setEvaluationRows(data)
         }
         init()
-    }, [])
+    }, [appEvaluation])
 
     useEffect(() => {
         if (!evaluationTableId) {

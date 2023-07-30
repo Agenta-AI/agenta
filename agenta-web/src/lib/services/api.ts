@@ -1,7 +1,7 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, AppEvaluationResponseType} from "@/lib/Types"
+import {Variant, Parameter, AppEvaluationResponseType, AppEvaluation} from "@/lib/Types"
 import {
     fromAppEvaluationResponseToAppEvaluation,
     fromEvaluationsRowsResponseToEvaluationsRows,
@@ -307,13 +307,13 @@ export const deleteAppEvaluations = async (ids: string[]) => {
     }
 }
 
-export const loadEvaluationsRows = async (evaluationTableId: string) => {
+export const loadEvaluationsRows = async (evaluationTableId: string, appEvaluation: AppEvaluation) => {
     try {
         return await eval_endpoint
             .get(`${evaluationTableId}/evaluation_rows`)
             .then((responseData) => {
                 const evaluationsRows = responseData.data.map((item: any) => {
-                    return fromEvaluationsRowsResponseToEvaluationsRows(item)
+                    return fromEvaluationsRowsResponseToEvaluationsRows(item, appEvaluation)
                 })
 
                 return evaluationsRows
