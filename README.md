@@ -32,9 +32,9 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 ## Getting Started
 
 Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
-- [Installation](https://docs.agenta.ai/docs/installation)
-- [Getting Started](https://docs.agenta.ai/docs/getting-started)
-- [Tutorials](https://docs.agenta.ai/docs/tutorials)
+- [Installation](https://docs.agenta.ai/installation)
+- [Getting Started](https://docs.agenta.ai/getting-started)
+- [Tutorials](https://docs.agenta.ai/tutorials)
 
 ## How Agenta works:
 
