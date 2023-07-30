@@ -4,16 +4,21 @@ from datetime import datetime
 from enum import Enum
 
 # ComparisonTableTypes = ["app_evaluation"]
+class EvaluationTypeSettings(BaseModel):
+    similarity_threshold: Optional[float]
 
 class EvaluationType(str, Enum):
     auto_exact_match = "auto_exact_match"
+    auto_similarity_match = "auto_similarity_match"
     auto_ai_critique = "auto_ai_critique"
     human_a_b_testing = "human_a_b_testing"
     human_scoring = "human_scoring"
 
 class ComparisonTable(BaseModel):
     id: str
+    status: str
     evaluation_type: EvaluationType
+    evaluation_type_settings: Optional[EvaluationTypeSettings]
     variants: Optional[List[str]]
     app_name: str
     dataset: Dict[str, str] = Field(...)
@@ -46,9 +51,9 @@ class EvaluationRowUpdate(BaseModel):
     score: Optional[str]
     outputs: List[EvaluationRowOutput]
 
-
 class NewComparisonTable(BaseModel):
     evaluation_type: EvaluationType
+    evaluation_type_settings: Optional[EvaluationTypeSettings]
     app_name: str
     variants: List[str]
     inputs: List[str]

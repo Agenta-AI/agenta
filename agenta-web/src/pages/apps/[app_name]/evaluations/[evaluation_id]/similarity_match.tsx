@@ -1,4 +1,4 @@
-import EvaluationTable from "@/components/EvaluationTable/EvaluationTable"
+import SimilarityMatchEvaluationTable from "../../../../../components/EvaluationTable/SimilarityMatchEvaluationTable"
 import {AppEvaluation} from "@/lib/Types"
 import {loadAppEvaluation, loadEvaluationsRows} from "@/lib/services/api"
 import {useRouter} from "next/router"
@@ -13,7 +13,7 @@ export default function Evaluation() {
     const [evaluationRows, setEvaluationRows] = useState([])
     const [appEvaluation, setAppEvaluation] = useState<AppEvaluation | undefined>()
     const appName = router.query.app_name as unknown as string
-    const columnsCount = 2
+    const columnsCount = 1
 
     useEffect(() => {
         if (!appEvaluation) {
@@ -51,7 +51,7 @@ export default function Evaluation() {
     return (
         <div style={{marginBottom: "200px"}}>
             {evaluationTableId && evaluationRows && appEvaluation && (
-                <EvaluationTable
+                <SimilarityMatchEvaluationTable
                     columnsCount={columnsCount}
                     evaluationRows={evaluationRows}
                     appEvaluation={appEvaluation}
