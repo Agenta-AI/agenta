@@ -6,11 +6,11 @@ import {useState} from "react"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 
-const DeleteModal = ({visible, handleOk, handleCancel, appName, confirmLoading}) => {
+const DeleteModal = ({open, handleOk, handleCancel, appName, confirmLoading}) => {
     return (
         <Modal
             title="Are you sure?"
-            visible={visible}
+            open={open}
             onOk={handleOk}
             confirmLoading={confirmLoading} // add this line
             onCancel={handleCancel}
@@ -103,7 +103,7 @@ const AppCard: React.FC<string> = ({appName, index}) => {
             </Card>
 
             <DeleteModal
-                visible={visibleDelete}
+                open={visibleDelete}
                 handleOk={handleDeleteOk}
                 handleCancel={handleDeleteCancel}
                 appName={appName}
