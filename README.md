@@ -49,7 +49,7 @@ from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 
-default_prompt = "Give me five cool names for a baby from {{country}} with this gender {{gender}}!!!!"
+default_prompt = "Give me five cool names for a baby from {country} with this gender {gender}!!!!"
 
 
 @ag.post
