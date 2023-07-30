@@ -23,6 +23,7 @@ export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResp
         variants: variants,
         dataset: item.dataset,
         appName: item.app_name,
+        status: item.status,
         evaluationType: item.evaluation_type,
         evaluationTypeSettings: evaluationTypeSettings
     }

@@ -16,6 +16,7 @@ class EvaluationType(str, Enum):
 
 class ComparisonTable(BaseModel):
     id: str
+    status: str
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
     variants: Optional[List[str]]
