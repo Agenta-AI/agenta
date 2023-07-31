@@ -108,7 +108,7 @@ https://github.com/Agenta-AI/agenta/assets/4510758/f8a2a423-c0a9-40df-9c00-52908
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
 
-Check out our [Contributing Guide](https://docs.agenta.ai/docs/contributing/getting-started) for more information.
+Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-started) for more information.
 
 
 ## Contributors ✨
