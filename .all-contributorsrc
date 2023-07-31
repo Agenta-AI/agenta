@@ -13,7 +13,8 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/57623556?v=4",
       "profile": "https://github.com/SamMethnani",
       "contributions": [
-        "code"
+        "code",
+        "doc"
       ]
     },
     {
@@ -43,6 +44,15 @@
       "contributions": [
         "code",
         "doc"
+      ]
+    },
+    {
+      "login": "vernu",
+      "name": "Israel Abebe",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7479824?v=4",
+      "profile": "http://israelabebe.com",
+      "contributions": [
+        "bug"
       ]
     }
   ],

@@ -5,7 +5,7 @@ OPENAI_API_KEY=sk-xxxxxxx
 
 You can find your keys [here](https://platform.openai.com/account/api-keys)
 
-Go back to the [Getting started tutorial](https://docs.agenta.ai/docs/getting-started) to continue
+Go back to the [Getting started tutorial](https://docs.agenta.ai/getting-started) to continue
 
 ## Example Prompts
 
