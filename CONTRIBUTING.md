@@ -4,11 +4,11 @@ Hello, thank you for your interest in contributing to our project. We value your
 
 ## Getting Started
 
-1. **Local Installation:** Before you start contributing, please install the project locally. You can find the necessary steps in our [Local Installation Guide](https://docs.agenta.ai/docs/installation/local-installation/local-installation).
+1. **Local Installation:** Before you start contributing, please install the project locally. You can find the necessary steps in our [Local Installation Guide](https://docs.agenta.ai/installation/local-installation/local-installation).
 
-2. **Understanding the Project:** Please take some time to read through our [Conceptual Guide](https://docs.agenta.ai/docs/conceptual/concepts) and [Architecture Guide](https://docs.agenta.ai/docs/conceptual/architecture) to understand the underlying principles and architecture of our project.
+2. **Understanding the Project:** Please take some time to read through our [Conceptual Guide](https://docs.agenta.ai/conceptual/concepts) and [Architecture Guide](https://docs.agenta.ai/conceptual/architecture) to understand the underlying principles and architecture of our project.
 
-3. **Start Development** Once you have a local installation and a good understanding of the project, you can start contributing. You can read the following tutorial to learn how to run the code in development mode: [Development Mode Tutorial](https://docs.agenta.ai/docs/contributing/development-mode).
+3. **Start Development** Once you have a local installation and a good understanding of the project, you can start contributing. You can read the following tutorial to learn how to run the code in development mode: [Development Mode Tutorial](https://docs.agenta.ai/contributing/development-mode).
 
 ## Contribution Steps
 
