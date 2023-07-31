@@ -167,7 +167,7 @@ const Sidebar: React.FC = () => {
                         key="help"
                         icon={<QuestionOutlined />}
                     >
-                        <Link href={getNavigationPath('https://docs.agenta.ai')} target='_blank'>Help</Link>
+                        <Link href='https://docs.agenta.ai' target='_blank'>Help</Link>
                     </Menu.Item>
                     {/* <Menu.Item key="user">
                         <Space>
