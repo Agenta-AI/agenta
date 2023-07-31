@@ -9,6 +9,7 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
             - agenta-network
+            
     backend:
         build: ./agenta-backend
         environment:
@@ -31,6 +32,8 @@ services:
 
         networks:
             - agenta-network
+        ports:
+            - 8000:8000
         command:
             [
                 "uvicorn",
