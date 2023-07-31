@@ -16,6 +16,7 @@ import {
 import {Avatar, Layout, Menu, Space, Tag, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
+import Link from 'next/link'
 
 const {Sider} = Layout
 
@@ -44,11 +45,11 @@ const Sidebar: React.FC = () => {
         setSelectedKeys(initialSelectedKeys)
     }, [page_name])
 
-    const navigate = (path: string) => {
+    const getNavigationPath = (path: string) => {
         if (path === "apps") {
-            router.push(`/apps`)
+            return '/apps'
         } else {
-            router.push(`/apps/${app_name}/${path}`)
+            return `/apps/${app_name}/${path}`
         }
     }
 
@@ -79,13 +80,12 @@ const Sidebar: React.FC = () => {
                     <Menu.Item
                         key="apps"
                         icon={<AppstoreOutlined />}
-                        onClick={() => navigate("apps")}
                     >
                         <Tooltip
                             placement="right"
                             title="Create new applications or switch between your existing projects."
                         >
-                            <div style={{width: "100%"}}>App Management</div>
+                            <Link href={getNavigationPath('apps')} style={{width: "100%"}}>App Management</Link>
                         </Tooltip>
                     </Menu.Item>
                     {page_name && (
@@ -93,68 +93,63 @@ const Sidebar: React.FC = () => {
                             <Menu.Item
                                 key="playground"
                                 icon={<RocketOutlined />}
-                                onClick={() => navigate("playground")}
                             >
                                 <Tooltip
                                     placement="right"
                                     title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                 >
-                                    <div style={{width: "100%"}}>Playground</div>
+                                    <Link href={getNavigationPath('playground')} style={{width: "100%"}}>Playground</Link>
                                 </Tooltip>
                             </Menu.Item>
 
                             <Menu.Item
                                 key="testsets"
                                 icon={<DatabaseOutlined />}
-                                onClick={() => navigate("testsets")}
                             >
                                 <Tooltip
                                     placement="right"
                                     title="Create and manage testsets for evaluation purposes."
                                 >
-                                    <div style={{width: "100%"}}>Test Sets</div>
+                                    <Link href={getNavigationPath('testsets')} style={{width: "100%"}}>Test Sets</Link>
                                 </Tooltip>
                             </Menu.Item>
 
                             <Menu.Item
                                 key="evaluations"
                                 icon={<LineChartOutlined />}
-                                onClick={() => navigate("evaluations")}
                             >
                                 <Tooltip
                                     placement="right"
                                     title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
                                 >
-                                    <div style={{width: "100%"}}>Evaluate</div>
+                                    <Link href={getNavigationPath('evaluations')} style={{width: "100%"}}>Evaluate</Link>
                                 </Tooltip>
                             </Menu.Item>
                             <Menu.Item
                                 key="results"
                                 icon={<BarChartOutlined />}
-                                onClick={() => navigate("results")}
                             >
                                 <Tooltip
                                     placement="right"
                                     title="Analyze the evaluation outcomes to determine the most effective variants."
                                 >
-                                    <div style={{width: "100%"}}>Results</div>
+                                    <Link href={getNavigationPath('results')} style={{width: "100%"}}>Results</Link>
                                 </Tooltip>
                             </Menu.Item>
 
                             <Menu.Item
                                 key="endpoints"
                                 icon={<CloudUploadOutlined />}
-                                onClick={() => navigate("endpoints")}
                             >
                                 <Tooltip
                                     placement="right"
                                     title="Monitor production logs to ensure seamless operations."
                                 >
-                                    <div style={{width: "100%"}}>
+                                    <Link href={getNavigationPath('endpoints')} style={{width: "100%"}}>
                                         <Space>
                                             <span>Endpoints</span>
                                         </Space>
-                                    </div>
+                                    </Link>
                                 </Tooltip>
                             </Menu.Item>
                         </>
@@ -171,9 +166,8 @@ const Sidebar: React.FC = () => {
                     <Menu.Item
                         key="help"
                         icon={<QuestionOutlined />}
-                        onClick={() => window.open("https://docs.agenta.ai", "_blank")}
                     >
-                        Help
+                        <Link href='https://docs.agenta.ai' target='_blank'>Help</Link>
                     </Menu.Item>
                     {/* <Menu.Item key="user">
                         <Space>
