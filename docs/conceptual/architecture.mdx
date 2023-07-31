@@ -5,10 +5,12 @@ description: "An overview of the architecture of Agenta"
 
 Agenta is an assembly of four integral components:
 
-Python SDK: This is a library necessary for implementing Agenta in your Python apps.
-Command Line Interface (CLI): A tool for serving and deploying your apps with Agenta.
-Backend: Handles tasks like deployment, app management, and data management.
-Frontend: A web interface to assess, test, and monitor your apps. 
+- **Python SDK**: This is a library necessary for implementing Agenta in your Python apps. The code for the sdk is under `agenta-cli/agenta/sdk/`.
+- **Command Line Interface**: A tool for serving and deploying your apps with Agenta. The code for the cli is under `agenta-cli/agenta/cli`.
+- **Backend**: Handles tasks like deployment, app management, and data management. The code for the backend is under `agenta-backend`. We use FastAPI for the backend.
+- **Frontend**: The code for the frontend is under `agenta-web`. We use React and nextjs for the frontend.
+
+In addition, we use `mongodb` for our database.
 
 ## App Lifecycle
 Before we delve into how these Agenta components interact, let's understand the user's perspective of creating and deploying a app.
@@ -32,5 +34,5 @@ To incorporate their code into Agenta, users need to import the Agenta SDK and a
 
 Applying the @post decorator automatically makes the function's inputs, outputs, and parameters accessible to the command line. Users can locally test their code using python script.py.
 
-To serve the code locally as an API, users can execute the `agenta serve` command in the CLI. Upon successful serving, the user receives the URL of their API. The API, created automatically, includes a single endpoint `/generate` with the same inputs, outputs, and parameters as the `generate` function in the code.
+To serve the code locally as an API, users can execute the `agenta variant serve` command in the CLI. Upon successful serving, the user receives the URL of their API. The API, created automatically, includes a single endpoint `/generate` with the same inputs, outputs, and parameters as the `generate` function in the code.
 
