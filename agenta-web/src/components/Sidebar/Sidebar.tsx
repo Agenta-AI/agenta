@@ -60,6 +60,7 @@ const Sidebar: React.FC = () => {
                 paddingRight: "10px",
                 background: colorBgContainer,
                 border: "0.01px solid #ddd",
+                overflow: "hidden",
             }}
             width={225}
         >
