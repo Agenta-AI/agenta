@@ -188,7 +188,7 @@ def update_variant_image(app_variant: AppVariant, image: Image):
         app_variant -- the app variant to update
         image -- the image to update
     """
-    if app_variant.app_name in ["", None] or app_variant.variant_name == ["", None]:
+    if app_variant.app_name in ["", None] or app_variant.variant_name in ["", None]:
         msg = "App name and variant name cannot be empty"
         logger.error(msg)
         raise ValueError(msg)
@@ -214,6 +214,8 @@ def update_variant_image(app_variant: AppVariant, image: Image):
             docker_utils.delete_container(container_id)
             logger.info(f"Container {container_id} deleted")
         db_manager.remove_app_variant(old_variant)
+        docker_utils.delete_image(old_image)
+        logger.info(f"Old image {old_image} deleted")
     except Exception as e:
         logger.error(f"Error removing old variant: {str(e)}")
         logger.error(
