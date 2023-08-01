@@ -45,6 +45,7 @@ export interface Parameter {
     input: boolean
     required: boolean
     default?: any
+    enum?: Array<string>
 }
 
 export interface AppEvaluationResponseType {
