@@ -163,7 +163,7 @@ async def remove_app(app: App):
         app -- App to remove
     """
     try:
-        app_manager.remove_app(app)
+        await app_manager.remove_app(app)
     except SQLAlchemyError as e:
         detail = f"Database error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
