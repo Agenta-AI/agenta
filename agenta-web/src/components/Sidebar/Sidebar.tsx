@@ -61,6 +61,8 @@ const Sidebar: React.FC = () => {
                 paddingRight: "10px",
                 background: colorBgContainer,
                 border: "0.01px solid #ddd",
+                height: "100vh",
+                position: "fixed",
             }}
             width={225}
         >
