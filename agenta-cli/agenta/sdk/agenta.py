@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .context import get_contexts, save_context
-from .types import FloatParam, InFile, TextParam, Context
+from .types import FloatParam, InFile, TextParam, Context, MultipleChoiceParam
 from .router import router as router
 
 app = FastAPI()
@@ -132,13 +132,19 @@ def ingest(func: Callable[..., Any]):
 def post(func: Callable[..., Any]):
     sig = inspect.signature(func)
     func_params = sig.parameters
-
+    
     # find the optional parameters for the app
-    app_params = {name: param for name, param in func_params.items()
-                  if param.annotation in {TextParam, FloatParam}}
+    app_params = {
+        name: param
+        for name, param in func_params.items()
+        if param.annotation in {TextParam, FloatParam, MultipleChoiceParam}
+    }
+
     # find the default values for the optional parameters
     for name, param in app_params.items():
-        default_value = param.default if param.default is not param.empty else None
+        default_value = (
+            param.default if param.default is not param.empty else None
+        )
         app_params[name] = default_value
 
     @functools.wraps(func)
@@ -151,29 +157,47 @@ def post(func: Callable[..., Any]):
             return result
         except Exception as e:
             if sys.version_info.major == 3 and sys.version_info.minor < 10:
-                traceback_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
+                traceback_str = "".join(
+                    traceback.format_exception(None, e, e.__traceback__)
+                )
             else:
-                traceback_str = ''.join(traceback.format_exception(e, value=e, tb=e.__traceback__))
-            return JSONResponse(status_code=500, content={"error": str(e), "traceback": traceback_str})
+                traceback_str = "".join(
+                    traceback.format_exception(e, value=e, tb=e.__traceback__)
+                )
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e), "traceback": traceback_str},
+            )
+
     new_params = []
     for name, param in sig.parameters.items():
         if name in app_params:
-            new_params.append(
-                inspect.Parameter(
-                    name,
-                    inspect.Parameter.KEYWORD_ONLY,
-                    default=Body(app_params[name]),
-                    annotation=Optional[param.annotation]
+            if param.annotation is MultipleChoiceParam:
+                params_dict = inspect.Parameter(
+                        name,
+                        inspect.Parameter.KEYWORD_ONLY,
+                        default=Body(app_params[name]),
+                        annotation=Optional[param.annotation],
+                    )
+                new_params.append(
+                    params_dict
                 )
-            )
+            else:
+                new_params.append(
+                    inspect.Parameter(
+                        name,
+                        inspect.Parameter.KEYWORD_ONLY,
+                        default=Body(app_params[name]),
+                        annotation=Optional[param.annotation],
+                    )
+                )
         else:
             new_params.append(
                 inspect.Parameter(
                     name,
                     inspect.Parameter.KEYWORD_ONLY,
                     default=Body(...),
-                    annotation=param.annotation
-
+                    annotation=param.annotation,
                 )
             )
 
@@ -181,16 +205,27 @@ def post(func: Callable[..., Any]):
 
     route = "/generate"
     app.post(route)(wrapper)
+    schema = app.openapi()  # or app.openapi_schema
+    schemas = schema["components"]["schemas"]["Body_query_generate_post"]["properties"]
+    
+    # Update schema for multichoice objects
+    override_schema_for_multichoice(schemas)
 
     # check if the module is being run as the main script
-    if os.path.splitext(os.path.basename(sys.argv[0]))[0] == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]:
+    if (
+        os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]
+    ):
         parser = argparse.ArgumentParser()
         # add arguments to the command-line parser
         for name, param in sig.parameters.items():
             if name in app_params:
                 # For optional parameters, we add them as options
-                parser.add_argument(f"--{name}", type=type(param.default),
-                                    default=param.default)
+                parser.add_argument(
+                    f"--{name}",
+                    type=type(param.default),
+                    default=param.default,
+                )
             else:
                 # For required parameters, we add them as arguments
                 parser.add_argument(name, type=param.annotation)
@@ -199,3 +234,11 @@ def post(func: Callable[..., Any]):
         print(func(**vars(args)))
 
     return wrapper
+
+
+def override_schema_for_multichoice(parameters: dict):
+    for _, value in parameters.items():
+        if isinstance(value, dict) and value.get("x-parameter") == "choice":
+            value["enum"] = value["default"]
+            value["default"] = value["default"][0]
+            
