@@ -1,4 +1,6 @@
 import agenta as ag
+from pydantic import Field
+from agenta.types import MultipleChoiceParam
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
@@ -28,25 +30,31 @@ Salesperson: You're welcome! It was my pleasure assisting you. Have a wonderful 
 
 
 default_prompt1 = "summarize the following {text} "
-default_prompt2 = "these are summaries of a long text {text}\n please summarize them"
+default_prompt2 = (
+    "these are summaries of a long text {text}\n please summarize them"
+)
+
 
 
 @ag.post
-def generate(
+def query(
     transcript: str,
     temperature: ag.FloatParam = 0.9,
     chunk_size: ag.FloatParam = 1000,
+    model: MultipleChoiceParam = MultipleChoiceParam(
+        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
+    ),
     prompt_chunks: ag.TextParam = default_prompt1,
     prompt_final: ag.TextParam = default_prompt2,
 ) -> str:
-
-    # Cut transcript into chunks of 1000 characters
-    transcript_chunks = [transcript[i:i+int(chunk_size)] for i in range(0, len(transcript), int(chunk_size))]
+    transcript_chunks = [
+        transcript[i : i + int(chunk_size)]
+        for i in range(0, len(transcript), int(chunk_size))
+    ]
 
     outputs = []
     for chunk in transcript_chunks:
-        # Generate a summary using the summarization function
-        llm = OpenAI(temperature=temperature)
+        llm = OpenAI(model=model, temperature=temperature)
         prompt = PromptTemplate(
             input_variables=["text"],
             template=prompt_chunks,
@@ -56,11 +64,11 @@ def generate(
         outputs.append(output)
 
     outputs = "\n".join(outputs)
-    llm = OpenAI(temperature=temperature)
+    llm = OpenAI(model=model, temperature=temperature)
     prompt = PromptTemplate(
         input_variables=["text"],
         template=prompt_final,
     )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(text=outputs)
-    return output
+    return str(output)
