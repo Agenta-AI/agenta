@@ -12,7 +12,7 @@ import {
     message,
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
-import {fetchVariants, getVariantParameters, useLoadtestsetsList} from "@/lib/services/api"
+import {fetchVariants, getVariantParameters, useLoadTestsetsList} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {Variant, Parameter} from "@/lib/Types"
 import EvaluationsList from "./EvaluationsList"
@@ -27,11 +27,11 @@ export default function Evaluations() {
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
     const [columnsCount, setColumnsCount] = useState(2)
-    const [selectedtestset, setSelectedtestset] = useState<{
+    const [selectedtestSet, setSelectedtestSet] = useState<{
         _id?: string
         name: string
     }>({name: "Select a Test set"})
-    const [testsetsList, settestsetsList] = useState<any[]>([])
+    const [testSetsList, settestSetsList] = useState<any[]>([])
 
     const [selectedVariants, setSelectedVariants] = useState<Variant[]>(
         new Array(1).fill({variantName: "Select a variant"}),
@@ -44,7 +44,7 @@ export default function Evaluations() {
 
     const appName = router.query.app_name?.toString() || ""
 
-    const {testsets, istestsetsLoading, istestsetsLoadingError} = useLoadtestsetsList(appName)
+    const {testSets, istestSetsLoading, istestSetsLoadingError} = useLoadTestsetsList(appName)
 
     const [variantInputs, setVariantInputs] = useState<string[]>([])
 
@@ -84,10 +84,10 @@ export default function Evaluations() {
     }, [appName])
 
     useEffect(() => {
-        if (!istestsetsLoadingError && testsets) {
-            settestsetsList(testsets)
+        if (!istestSetsLoadingError && testSets) {
+            settestSetsList(testSets)
         }
-    }, [testsets, istestsetsLoadingError])
+    }, [testSets, istestSetsLoadingError])
 
     // TODO: move to api.ts
     const createNewAppEvaluation = async (
@@ -117,9 +117,9 @@ export default function Evaluations() {
             inputs: inputs,
             evaluation_type: evaluationType,
             evaluation_type_settings: evaluationTypeSettings,
-            testset: {
-                _id: selectedtestset._id,
-                name: selectedtestset.name,
+            testSet: {
+                _id: selectedtestSet._id,
+                name: selectedtestSet.name,
             },
             status: EvaluationFlow.EVALUATION_FINISHED,
         }
@@ -133,15 +133,15 @@ export default function Evaluations() {
             })
     }
 
-    const ontestsetSelect = (selectedtestsetIndexIntestsetsList: number) => {
-        setSelectedtestset(testsetsList[selectedtestsetIndexIntestsetsList])
+    const ontestSetSelect = (selectedtestSetIndexIntestSetsList: number) => {
+        setSelectedtestSet(testSetsList[selectedtestSetIndexIntestSetsList])
     }
 
     const getTestSetDropdownMenu = (): MenuProps => {
-        const items: MenuProps["items"] = testsetsList.map((testset, index) => {
+        const items: MenuProps["items"] = testSetsList.map((testSet, index) => {
             return {
-                label: testset.name,
-                key: `${testset.name}-${testset._id}`,
+                label: testSet.name,
+                key: `${testSet.name}-${testSet._id}`,
             }
         })
 
@@ -149,7 +149,7 @@ export default function Evaluations() {
             items,
             onClick: ({key}) => {
                 const index = items.findIndex((item) => item.key === key)
-                ontestsetSelect(index)
+                ontestSetSelect(index)
             },
         }
 
@@ -197,8 +197,8 @@ export default function Evaluations() {
 
     const onStartEvaluation = async () => {
         // 1. We check all data is provided
-        if (selectedtestset === undefined || selectedtestset.name === "Select a testset") {
-            message.error("Please select a testset")
+        if (selectedtestSet === undefined || selectedtestSet.name === "Select a testSet") {
+            message.error("Please select a testSet")
             return
         } else if (selectedVariants[0].variantName === "Select a variant") {
             message.error("Please select a variant")
@@ -358,7 +358,7 @@ export default function Evaluations() {
                         </div>
                     </Col>
                     <Col span={8}>
-                        <Title level={4}>3. Which testset you want to use?</Title>
+                        <Title level={4}>3. Which testSet you want to use?</Title>
 
                         <Dropdown menu={getTestSetDropdownMenu()}>
                             <Button style={{marginRight: 10, marginTop: 40, width: "100%"}}>
@@ -370,7 +370,7 @@ export default function Evaluations() {
                                         width: "100%",
                                     }}
                                 >
-                                    {selectedtestset.name}
+                                    {selectedtestSet.name}
 
                                     <DownOutlined />
                                 </div>
