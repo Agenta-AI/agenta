@@ -80,9 +80,9 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
     }
 
     const handleVoteClick = (rowIndex: number, vote: string) => {
-        const evaluation_row_id = rows[rowIndex].id
+        const evaluation_scenario_id = rows[rowIndex].id
 
-        if (evaluation_row_id) {
+        if (evaluation_scenario_id) {
             setRowValue(rowIndex, "vote", "loading")
             // TODO: improve this to make it dynamic
             const appVariantNameX = variants[0].variantName
@@ -99,7 +99,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
 
             updateEvaluationScenario(
                 appEvaluation.id,
-                evaluation_row_id,
+                evaluation_scenario_id,
                 data,
                 appEvaluation.evaluationType,
             )

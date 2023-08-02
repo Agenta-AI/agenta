@@ -153,12 +153,12 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             rows[rowNumber].correctAnswer,
         )
 
-        const evaluation_row_id = rows[rowNumber].id
+        const evaluation_scenario_id = rows[rowNumber].id
         // TODO: we need to improve this and make it dynamic
         const appVariantNameX = variants[0].variantName
         const outputVariantX = rows[rowNumber].columnData0
 
-        if (evaluation_row_id) {
+        if (evaluation_scenario_id) {
             const data = {
                 score: isCorrect ? "correct" : "wrong",
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
@@ -166,7 +166,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
             updateEvaluationScenario(
                 appEvaluation.id,
-                evaluation_row_id,
+                evaluation_scenario_id,
                 data,
                 appEvaluation.evaluationType,
             )
