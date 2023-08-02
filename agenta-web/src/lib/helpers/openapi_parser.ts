@@ -39,7 +39,7 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
 
 const determineType = (xParam: any): string => {
     switch (xParam) {
-        case "text" || "choice":
+        case "text":
             return "string"
         case "choice":
             return "array"
