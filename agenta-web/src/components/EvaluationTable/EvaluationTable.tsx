@@ -3,7 +3,7 @@ import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {Button, Input, Space, Spin, Table} from "antd"
 import {Variant, Parameter} from "@/lib/Types"
-import {updateEvaluationRow, callVariant} from "@/lib/services/api"
+import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -12,7 +12,7 @@ import {fetchVariants} from "@/lib/services/api"
 interface EvaluationTableProps {
     appEvaluation: any
     columnsCount: number
-    evaluationRows: EvaluationTableRow[]
+    evaluationScenarios: EvaluationTableRow[]
 }
 
 interface EvaluationTableRow {
@@ -33,14 +33,14 @@ interface EvaluationTableRow {
 /**
  *
  * @param appEvaluation - Evaluation object
- * @param evaluationRows - Evaluation rows
+ * @param evaluationScenarios - Evaluation rows
  * @param columnsCount - Number of variants to compare face to face (per default 2)
  * @returns
  */
 
 const EvaluationTable: React.FC<EvaluationTableProps> = ({
     appEvaluation,
-    evaluationRows,
+    evaluationScenarios,
     columnsCount,
 }) => {
     const router = useRouter()
@@ -64,10 +64,10 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
     const [rows, setRows] = useState<EvaluationTableRow[]>([])
 
     useEffect(() => {
-        if (evaluationRows) {
-            setRows(evaluationRows)
+        if (evaluationScenarios) {
+            setRows(evaluationScenarios)
         }
-    }, [evaluationRows])
+    }, [evaluationScenarios])
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
@@ -97,7 +97,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
                 ],
             }
 
-            updateEvaluationRow(
+            updateEvaluationScenario(
                 appEvaluation.id,
                 evaluation_row_id,
                 data,

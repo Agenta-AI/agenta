@@ -3,7 +3,7 @@ import type {ColumnType} from "antd/es/table"
 import {LineChartOutlined} from "@ant-design/icons"
 import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag} from "antd"
 import {Variant} from "@/lib/Types"
-import {updateEvaluationRow, callVariant} from "@/lib/services/api"
+import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -12,7 +12,7 @@ import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
 interface SimilarityMatchEvaluationTableProps {
     appEvaluation: any
     columnsCount: number
-    evaluationRows: SimilarityMatchEvaluationTableRow[]
+    evaluationScenarios: SimilarityMatchEvaluationTableRow[]
 }
 
 interface SimilarityMatchEvaluationTableRow {
@@ -33,14 +33,14 @@ interface SimilarityMatchEvaluationTableRow {
 /**
  *
  * @param appEvaluation - Evaluation object
- * @param evaluationRows - Evaluation rows
+ * @param evaluationScenarios - Evaluation rows
  * @param columnsCount - Number of variants to compare face to face (per default 2)
  * @returns
  */
 
 const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTableProps> = ({
     appEvaluation,
-    evaluationRows,
+    evaluationScenario,
     columnsCount,
 }) => {
     const router = useRouter()
@@ -68,10 +68,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [accuracy, setAccuracy] = useState<number>(0)
 
     useEffect(() => {
-        if (evaluationRows) {
-            setRows(evaluationRows)
+        if (evaluationScenarios) {
+            setRows(evaluationScenarios)
         }
-    }, [evaluationRows])
+    }, [evaluationScenarios])
 
     useEffect(() => {
         if (similarAnswers + dissimilarAnswers > 0) {
@@ -170,7 +170,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
             }
 
-            updateEvaluationRow(
+            updateEvaluationScenario(
                 appEvaluation.id,
                 evaluation_row_id,
                 data,

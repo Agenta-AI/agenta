@@ -332,20 +332,20 @@ export const updateAppEvaluations = async (evaluationTableId: string, data) => {
     return response.data
 }
 
-export const updateEvaluationRow = async (
+export const updateEvaluationScenario = async (
     evaluationTableId: string,
-    evaluationRowId: string,
+    evaluationScenarioId: string,
     data,
     evaluationType: EvaluationType,
 ) => {
     const response = await eval_endpoint.put(
-        `${evaluationTableId}/evaluation_row/${evaluationRowId}/${evaluationType}`,
+        `${evaluationTableId}/evaluation_row/${evaluationScenarioId}/${evaluationType}`,
         data,
     )
     return response.data
 }
 
-export const postEvaluationRow = async (evaluationTableId: string, data) => {
+export const postEvaluationScenario = async (evaluationTableId: string, data) => {
     const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_row`, data)
     return response.data
 }
