@@ -37,7 +37,7 @@ default_prompt2 = (
 
 
 @ag.post
-def query(
+def generate(
     transcript: str,
     temperature: ag.FloatParam = 0.9,
     chunk_size: ag.FloatParam = 1000,
