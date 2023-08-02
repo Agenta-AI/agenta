@@ -108,6 +108,10 @@ export default function Evaluations() {
                 body: JSON.stringify(data),
             })
 
+            if (!response.ok) {
+                throw new Error((await response.json())?.detail)
+            }
+
             return response.json()
         }
 
@@ -129,7 +133,7 @@ export default function Evaluations() {
                 return data.id
             })
             .catch((err) => {
-                console.error(err)
+                message.error(err.message)
             })
     }
 
@@ -216,6 +220,9 @@ export default function Evaluations() {
             evaluationTypeSettings,
             variantInputs,
         )
+        if (!evaluationTableId) {
+            return
+        }
 
         // 3 We set the variants
         setVariants(selectedVariants)

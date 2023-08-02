@@ -27,9 +27,13 @@ async def create_comparison_table(newComparisonTableData: NewComparisonTable = B
         dataset = await datasets.find_one({"_id": ObjectId(datasetId)})
         csvdata = dataset["csvdata"]
         for datum in csvdata:
+            try:
+                inputs = [{'input_name': name, 'input_value': datum[name]} for name in comparison_table["inputs"]]
+            except KeyError:
+                raise HTTPException(status_code=400, detail="columns in the test set should match the names of the inputs in the variant")
             evaluation_row = {
                 "comparison_table_id": str(newComparisonTable.inserted_id),
-                "inputs": [{'input_name': name, 'input_value': datum[name]} for name in comparison_table["inputs"]],
+                "inputs": inputs,
                 "outputs": [],
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
