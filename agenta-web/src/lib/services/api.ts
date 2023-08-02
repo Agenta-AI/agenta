@@ -193,8 +193,8 @@ export const useLoadTestsetsList = (app_name: string) => {
     )
     return {
         testsets: data,
-        istestsetsLoading: !error && !data,
-        istestsetsLoadingError: error,
+        isTestsetsLoading: !error && !data,
+        isTestsetsLoadingError: error,
     }
 }
 
