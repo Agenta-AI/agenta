@@ -29,7 +29,7 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
                 type: param["x-parameter"] ? determineType(param["x-parameter"]) : "string",
                 required: schema.components.schemas[bodySchemaName].required.includes(name),
                 default: param.default,
-                enum: param.enum,
+                enum: param["enum"] ? param.enum : [],
             })
         })
     }
