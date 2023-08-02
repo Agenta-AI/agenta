@@ -313,7 +313,7 @@ export const loadEvaluationsRows = async (
 ) => {
     try {
         return await eval_endpoint
-            .get(`${evaluationTableId}/evaluation_rows`)
+            .get(`${evaluationTableId}/evaluation_scenarios`)
             .then((responseData) => {
                 const evaluationsRows = responseData.data.map((item: any) => {
                     return fromEvaluationsRowsResponseToEvaluationsRows(item, appEvaluation)
@@ -339,13 +339,13 @@ export const updateEvaluationScenario = async (
     evaluationType: EvaluationType,
 ) => {
     const response = await eval_endpoint.put(
-        `${evaluationTableId}/evaluation_row/${evaluationScenarioId}/${evaluationType}`,
+        `${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}`,
         data,
     )
     return response.data
 }
 
 export const postEvaluationScenario = async (evaluationTableId: string, data) => {
-    const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_row`, data)
+    const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_scenario`, data)
     return response.data
 }
