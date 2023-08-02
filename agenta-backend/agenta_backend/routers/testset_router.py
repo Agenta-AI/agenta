@@ -3,7 +3,7 @@ from agenta_backend.services.db_mongo import testsets
 from agenta_backend.models.api.testset_model import (
     UploadResponse,
     Deletetestsets,
-    Newtestset,
+    NewTestset,
 )
 from datetime import datetime
 from typing import Optional, List
@@ -66,7 +66,7 @@ async def upload_file(
 
 
 @router.post("/{app_name}")
-async def create_testset(app_name: str, csvdata: Newtestset):
+async def create_testset(app_name: str, csvdata: NewTestset):
     """
     Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -95,13 +95,13 @@ async def create_testset(app_name: str, csvdata: Newtestset):
 
 
 @router.put("/{testset_id}")
-async def update_testset(testset_id: str, csvdata: Newtestset):
+async def update_testset(testset_id: str, csvdata: NewTestset):
     """
     Update a testset with given id, update the testset in MongoDB.
 
     Args:
     testset_id (str): id of the test set to be updated.
-    csvdata (Newtestset): New data to replace the old testset.
+    csvdata (NewTestset): New data to replace the old testset.
 
     Returns:
     str: The id of the test set updated.

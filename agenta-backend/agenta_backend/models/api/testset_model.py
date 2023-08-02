@@ -29,7 +29,7 @@ class Deletetestsets(BaseModel):
     testset_ids: List[str]
 
 
-# The Newtestset class represents a new data set.
+# The NewTestset class represents a new data set.
 # Each row is a dictionary with column names as keys and column values as values.
 # csvdata = [
 #    {
@@ -38,6 +38,6 @@ class Deletetestsets(BaseModel):
 #        "column3": "data3",
 #    }
 # ]
-class Newtestset(BaseModel):
+class NewTestset(BaseModel):
     name: str
     csvdata: List[Dict[str, str]]
