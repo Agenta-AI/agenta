@@ -173,14 +173,13 @@ def post(func: Callable[..., Any]):
     for name, param in sig.parameters.items():
         if name in app_params:
             if param.annotation is MultipleChoiceParam:
-                params_dict = inspect.Parameter(
+                new_params.append(
+                    inspect.Parameter(
                         name,
                         inspect.Parameter.KEYWORD_ONLY,
                         default=Body(app_params[name]),
                         annotation=Optional[param.annotation],
                     )
-                new_params.append(
-                    params_dict
                 )
             else:
                 new_params.append(
