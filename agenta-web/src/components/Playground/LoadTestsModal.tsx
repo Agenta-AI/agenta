@@ -1,4 +1,4 @@
-import {loadDataset, useLoadDatasetsList} from "@/lib/services/api"
+import {loadtestset, useLoadtestsetsList} from "@/lib/services/api"
 import {Button, Divider, Dropdown, Modal, Select} from "antd"
 import {useRouter} from "next/router"
 import {PropsWithChildren, useState} from "react"
@@ -16,22 +16,22 @@ const LoadTestsModal: React.FC<Props> = (props) => {
 
     const appName = router.query.app_name?.toString() || ""
 
-    const {datasets, isDatasetsLoading, isDatasetsLoadingError} = useLoadDatasetsList(appName)
+    const {testsets, istestsetsLoading, istestsetsLoadingError} = useLoadtestsetsList(appName)
 
-    const options = datasets?.map((item: Record<string, any>) => ({
+    const options = testsets?.map((item: Record<string, any>) => ({
         label: item.name,
         value: item._id,
     }))
 
     const handleAddData = () => {
-        loadDataset(selectedSet).then((data) => {
+        loadtestset(selectedSet).then((data) => {
             addNewTests(data.csvdata)
         })
         setIsOpen(false)
     }
 
     const handleSetData = () => {
-        loadDataset(selectedSet).then((data) => {
+        loadtestset(selectedSet).then((data) => {
             setNewTests(data.csvdata)
         })
         setIsOpen(false)
@@ -76,7 +76,7 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                 type="primary"
                 size="middle"
                 onClick={() => setIsOpen(true)}
-                loading={isDatasetsLoading}
+                loading={istestsetsLoading}
             >
                 Load Test sets
             </Button>
