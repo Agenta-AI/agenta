@@ -5,7 +5,7 @@ export default function tsCode(uri: string, params: string): string {
 
 const url = '${uri}';
 const data = {
-    name: 'your_dataset_name',
+    name: 'your_testset_name',
     csvdata: [
         {column1: 'value1', column2: 'value2'},
         {column1: 'value3', column2: 'value4'}

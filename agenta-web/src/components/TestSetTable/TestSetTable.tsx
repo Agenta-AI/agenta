@@ -7,7 +7,7 @@ import TestSetMusHaveNameModal from "./InsertTestSetNameModal"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {ConsoleSqlOutlined, DeleteOutlined, PlusOutlined} from "@ant-design/icons"
-import {createNewTestSet, loadDataset, updateTestSet} from "@/lib/services/api"
+import {createNewTestSet, loadtestset, updateTestSet} from "@/lib/services/api"
 import {useRouter} from "next/router"
 
 type TestSetTableProps = {
@@ -48,7 +48,7 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
     useEffect(() => {
         // If in edit mode, load the existing test set
         if (mode === "edit" && testset_id) {
-            loadDataset(testset_id).then((data) => {
+            loadtestset(testset_id).then((data) => {
                 setTestSetName(data.name)
                 setRowData(data.csvdata)
                 setColumnDefs(Object.keys(data.csvdata[0]).map((key) => ({field: key})))
@@ -59,7 +59,7 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
     useEffect(() => {
         // If in edit mode, load the existing test set
         if (mode === "edit" && testset_id) {
-            loadDataset(testset_id).then((data) => {
+            loadtestset(testset_id).then((data) => {
                 setTestSetName(data.name)
                 setRowData(data.csvdata)
 
@@ -77,7 +77,7 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
 
     useEffect(() => {
         if (mode === "edit" && testset_id) {
-            loadDataset(testset_id).then((data) => {
+            loadtestset(testset_id).then((data) => {
                 setTestSetName(data.name)
                 setRowData(data.csvdata)
 

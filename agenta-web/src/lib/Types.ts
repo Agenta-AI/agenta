@@ -1,6 +1,6 @@
 import {EvaluationType} from "./enums"
 
-export interface Dataset {
+export interface testset {
     _id: string
     name: string
     created_at: string
@@ -32,7 +32,7 @@ export interface AppEvaluation {
     createdAt: string
     variants: Variant[]
     evaluationType: string
-    dataset: {
+    testset: {
         _id: string
         name: string
     }
@@ -63,7 +63,7 @@ export interface AppEvaluationResponseType {
     evaluation_type_settings: {
         similarity_threshold?: number
     }
-    dataset: {
+    testset: {
         _id: string
         name: string
     }

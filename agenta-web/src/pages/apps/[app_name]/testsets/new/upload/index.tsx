@@ -21,8 +21,8 @@ export default function AddANewTestset() {
         if (file && file.length > 0) {
             const formData = new FormData()
             formData.append("file", file[0].originFileObj)
-            if (values.datasetName && values.datasetName.trim() !== "") {
-                formData.append("dataset_name", values.datasetName)
+            if (values.testsetName && values.testsetName.trim() !== "") {
+                formData.append("testset_name", values.testsetName)
             }
             formData.append("app_name", app_name?.toString() || "")
 
@@ -30,7 +30,7 @@ export default function AddANewTestset() {
                 setUploadLoading(true)
                 // TODO: move to api.ts
                 const response = await axios.post(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/upload`,
+                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/upload`,
                     formData,
                     {
                         headers: {
@@ -43,7 +43,7 @@ export default function AddANewTestset() {
                     // File uploaded successfully
                     const data = response.data
 
-                    // setDataset(data);
+                    // settestset(data);
                     setUploadLoading(false)
                     form.resetFields()
 
@@ -92,7 +92,7 @@ export default function AddANewTestset() {
 
             <Spin spinning={uploadLoading}>
                 <Form onFinish={onFinish} form={form} style={{maxWidth: 600}} {...layout}>
-                    <Form.Item name="datasetName" label="Test set name" rules={[{type: "string"}]}>
+                    <Form.Item name="testsetName" label="Test set name" rules={[{type: "string"}]}>
                         <Input maxLength={25} />
                     </Form.Item>
                     <Form.Item
