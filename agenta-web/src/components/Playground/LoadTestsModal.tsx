@@ -16,9 +16,9 @@ const LoadTestsModal: React.FC<Props> = (props) => {
 
     const appName = router.query.app_name?.toString() || ""
 
-    const {testSets, istestSetsLoading, istestSetsLoadingError} = useLoadTestsetsList(appName)
+    const {testsets, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appName)
 
-    const options = testSets?.map((item: Record<string, any>) => ({
+    const options = testsets?.map((item: Record<string, any>) => ({
         label: item.name,
         value: item._id,
     }))
@@ -76,7 +76,7 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                 type="primary"
                 size="middle"
                 onClick={() => setIsOpen(true)}
-                loading={istestSetsLoading}
+                loading={isTestsetsLoading}
             >
                 Load Test sets
             </Button>

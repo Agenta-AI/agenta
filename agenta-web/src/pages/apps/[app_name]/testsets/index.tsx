@@ -7,7 +7,7 @@ import {ColumnsType} from "antd/es/table"
 import {useState, useEffect} from "react"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {DeleteOutlined} from "@ant-design/icons"
-import {deletetestsets} from "@/lib/services/api"
+import {deleteTestsets} from "@/lib/services/api"
 
 type testsetTableDatatype = {
     key: string
@@ -23,7 +23,7 @@ const fetchData = async (url: string): Promise<any> => {
 export default function testsets() {
     const router = useRouter()
     const {app_name} = router.query
-    const [testsetsList, settestsetsList] = useState<testsetTableDatatype[]>([])
+    const [testsetsList, setTestsetsList] = useState<testsetTableDatatype[]>([])
     const [loading, setLoading] = useState<boolean>(true)
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -35,7 +35,7 @@ export default function testsets() {
         // TODO: move to api.ts
         fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`)
             .then((data) => {
-                let newtestsetsList = data.map((obj: testset) => {
+                let newTestsetsList = data.map((obj: testset) => {
                     let newObj: testsetTableDatatype = {
                         key: obj._id,
                         created_at: obj.created_at,
@@ -44,7 +44,7 @@ export default function testsets() {
                     return newObj
                 })
                 setLoading(false)
-                settestsetsList(newtestsetsList)
+                setTestsetsList(newTestsetsList)
             })
             .catch((error) => {
                 console.log(error)
@@ -77,9 +77,9 @@ export default function testsets() {
         const testsetsIds = selectedRowKeys.map((key) => key.toString())
         setLoading(true)
         try {
-            const deletedIds = await deletetestsets(testsetsIds)
-            settestsetsList((prevtestsetsList) =>
-                prevtestsetsList.filter((testset) => !deletedIds.includes(testset.key)),
+            const deletedIds = await deleteTestsets(testsetsIds)
+            setTestsetsList((prevTestsetsList) =>
+                prevTestsetsList.filter((testset) => !deletedIds.includes(testset.key)),
             )
 
             setSelectedRowKeys([])
