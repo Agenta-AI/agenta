@@ -198,13 +198,13 @@ export const useLoadTestsetsList = (app_name: string) => {
     }
 }
 
-export async function createNewTestSet(appName: string, testSetName: string, testSetData: any) {
+export async function createNewTestset(appName: string, testsetName: string, testsetData: any) {
     try {
         const response = await axios.post(
             `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${appName}`,
             {
-                name: testSetName,
-                csvdata: testSetData,
+                name: testsetName,
+                csvdata: testsetData,
             },
         )
         return response
@@ -214,13 +214,13 @@ export async function createNewTestSet(appName: string, testSetName: string, tes
     }
 }
 
-export async function updateTestSet(testSetId: String, testSetName: string, testSetData: any) {
+export async function updateTestset(testsetId: String, testsetName: string, testsetData: any) {
     try {
         const response = await axios.put(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testSetId}`,
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}`,
             {
-                name: testSetName,
-                csvdata: testSetData,
+                name: testsetName,
+                csvdata: testsetData,
             },
         )
         return response
@@ -230,7 +230,7 @@ export async function updateTestSet(testSetId: String, testSetName: string, test
     }
 }
 
-export const loadtestset = async (testsetId: string) => {
+export const loadTestset = async (testsetId: string) => {
     return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}`, {
         headers: {
             "Content-Type": "application/json",
@@ -245,7 +245,7 @@ export const loadtestset = async (testsetId: string) => {
         })
 }
 
-export const deletetestsets = async (ids: string[]) => {
+export const deleteTestsets = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",

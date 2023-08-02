@@ -10,7 +10,7 @@ import tsCodeUpload from "../../../../../../code_snippets/testsets/create_with_u
 import {Typography} from "antd"
 import {useRouter} from "next/router"
 
-export default function NewTestSetWithAPI() {
+export default function NewTestsetWithAPI() {
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
 

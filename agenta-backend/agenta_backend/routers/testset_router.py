@@ -2,7 +2,7 @@ from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Body
 from agenta_backend.services.db_mongo import testsets
 from agenta_backend.models.api.testset_model import (
     UploadResponse,
-    Deletetestsets,
+    DeleteTestsets,
     NewTestset,
 )
 from datetime import datetime
@@ -171,7 +171,7 @@ async def get_testset(testset_id: str):
 
 
 @router.delete("/", response_model=List[str])
-async def delete_testsets(deletetestsets: Deletetestsets):
+async def delete_testsets(delete_testsets: DeleteTestsets):
     """
     Delete specific testsets based on their unique IDs.
 
@@ -183,7 +183,7 @@ async def delete_testsets(deletetestsets: Deletetestsets):
     """
     deleted_ids = []
 
-    for testset_id in deletetestsets.testset_ids:
+    for testset_id in delete_testsets.testset_ids:
         testset = await testsets.find_one({"_id": ObjectId(testset_id)})
 
         if testset is not None:

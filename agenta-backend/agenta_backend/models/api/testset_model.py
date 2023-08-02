@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Any, List, Dict
 
 
-class testsetModel(BaseModel):
+class TestsetModel(BaseModel):
     column_name: str = Field(...)
     column_value: Any = Field(...)
     testset_id: str = Field(...)
@@ -25,7 +25,7 @@ class UploadResponse(BaseModel):
     created_at: str
 
 
-class Deletetestsets(BaseModel):
+class DeleteTestsets(BaseModel):
     testset_ids: List[str]
 
 
