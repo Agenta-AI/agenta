@@ -1,5 +1,4 @@
 import agenta as ag
-from pydantic import Field
 from agenta.types import MultipleChoiceParam
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
