@@ -10,7 +10,7 @@ export default function Evaluation() {
     const evaluationTableId = router.query.evaluation_id
         ? router.query.evaluation_id.toString()
         : ""
-    const [evaluationRows, setEvaluationRows] = useState([])
+    const [evaluationScenarios, setEvaluationScenarios] = useState([])
     const [appEvaluation, setAppEvaluation] = useState<AppEvaluation | undefined>()
     const appName = router.query.app_name as unknown as string
     const columnsCount = 1
@@ -21,7 +21,7 @@ export default function Evaluation() {
         }
         const init = async () => {
             const data = await loadEvaluationsRows(evaluationTableId, appEvaluation)
-            setEvaluationRows(data)
+            setEvaluationScenarios(data)
         }
         init()
     }, [appEvaluation])
@@ -50,10 +50,10 @@ export default function Evaluation() {
 
     return (
         <div style={{marginBottom: "200px"}}>
-            {evaluationTableId && evaluationRows && appEvaluation && (
+            {evaluationTableId && evaluationScenarios && appEvaluation && (
                 <ExactMatchEvaluationTable
                     columnsCount={columnsCount}
-                    evaluationRows={evaluationRows}
+                    evaluationScenarios={evaluationScenarios}
                     appEvaluation={appEvaluation}
                 />
             )}

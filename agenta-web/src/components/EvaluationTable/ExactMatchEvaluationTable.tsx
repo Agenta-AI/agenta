@@ -3,7 +3,7 @@ import type {ColumnType} from "antd/es/table"
 import {LineChartOutlined} from "@ant-design/icons"
 import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag} from "antd"
 import {Variant} from "@/lib/Types"
-import {updateEvaluationRow, callVariant} from "@/lib/services/api"
+import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -12,7 +12,7 @@ import {evaluateWithExactMatch} from "@/lib/services/evaluations"
 interface ExactMatchEvaluationTableProps {
     appEvaluation: any
     columnsCount: number
-    evaluationRows: ExactMatchEvaluationTableRow[]
+    evaluationScenarios: ExactMatchEvaluationTableRow[]
 }
 
 interface ExactMatchEvaluationTableRow {
@@ -33,14 +33,14 @@ interface ExactMatchEvaluationTableRow {
 /**
  *
  * @param appEvaluation - Evaluation object
- * @param evaluationRows - Evaluation rows
+ * @param evaluationScenarios - Evaluation rows
  * @param columnsCount - Number of variants to compare face to face (per default 2)
  * @returns
  */
 
 const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     appEvaluation,
-    evaluationRows,
+    evaluationScenarios,
     columnsCount,
 }) => {
     const router = useRouter()
@@ -67,10 +67,10 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     const [accuracy, setAccuracy] = useState<number>(0)
 
     useEffect(() => {
-        if (evaluationRows) {
-            setRows(evaluationRows)
+        if (evaluationScenarios) {
+            setRows(evaluationScenarios)
         }
-    }, [evaluationRows])
+    }, [evaluationScenarios])
 
     useEffect(() => {
         if (correctAnswers + wrongAnswers > 0) {
@@ -164,7 +164,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
             }
 
-            updateEvaluationRow(
+            updateEvaluationScenario(
                 appEvaluation.id,
                 evaluation_row_id,
                 data,
