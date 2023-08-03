@@ -3,7 +3,10 @@ from agenta.types import MultipleChoiceParam
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
-
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import (
+    HumanMessage,
+)
 
 sample_sales_transcript = """
 Salesperson: Good morning! My name is Alex, and I'm from XYZ Solutions. How can I assist you today?
@@ -34,40 +37,58 @@ default_prompt2 = (
 )
 
 
+def call_llm(model, temperature, prompt, **kwargs):
+    # import ipdb
+    # ipdb.set_trace()
+    if model == "text-davinci-003":
+        llm = OpenAI(model=model, temperature=temperature)
+        chain = LLMChain(llm=llm, prompt=prompt)
+        output = chain.run(**kwargs)
+    elif model in ["gpt-3.5-turbo", "gpt-4"]:
+        chat = ChatOpenAI(model=model,
+                          temperature=temperature)
+        messages = [
+            HumanMessage(content=prompt.format(**kwargs))
+        ]
+        output = chat(messages,
+                      ).content
+    return output
+
 
 @ag.post
 def generate(
     transcript: str,
     temperature: ag.FloatParam = 0.9,
-    chunk_size: ag.FloatParam = 1000,
     model: MultipleChoiceParam = MultipleChoiceParam(
+        "text-davinci-003",
         ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
+    ),
+    chunk_size: MultipleChoiceParam = MultipleChoiceParam(
+        "1000",
+        ["1000", "2000", "3000"]
     ),
     prompt_chunks: ag.TextParam = default_prompt1,
     prompt_final: ag.TextParam = default_prompt2,
 ) -> str:
     transcript_chunks = [
-        transcript[i : i + int(chunk_size)]
+        transcript[i: i + int(chunk_size)]
         for i in range(0, len(transcript), int(chunk_size))
     ]
 
     outputs = []
+    prompt = PromptTemplate(
+        input_variables=["text"],
+        template=prompt_chunks,
+    )
+
     for chunk in transcript_chunks:
-        llm = OpenAI(model=model, temperature=temperature)
-        prompt = PromptTemplate(
-            input_variables=["text"],
-            template=prompt_chunks,
-        )
-        chain = LLMChain(llm=llm, prompt=prompt)
-        output = chain.run(text=chunk)
-        outputs.append(output)
+        outputs.append(call_llm(model=model, temperature=temperature, prompt=prompt, text=chunk))
 
     outputs = "\n".join(outputs)
-    llm = OpenAI(model=model, temperature=temperature)
+
     prompt = PromptTemplate(
         input_variables=["text"],
         template=prompt_final,
     )
-    chain = LLMChain(llm=llm, prompt=prompt)
-    output = chain.run(text=outputs)
-    return str(output)
+    final_out = call_llm(model=model, temperature=temperature, prompt=prompt, text=outputs)
+    return str(final_out)
