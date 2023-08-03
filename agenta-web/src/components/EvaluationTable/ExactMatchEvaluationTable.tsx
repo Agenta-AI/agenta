@@ -1,7 +1,7 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {LineChartOutlined} from "@ant-design/icons"
-import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag} from "antd"
+import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, Typography} from "antd"
 import {Variant} from "@/lib/Types"
 import {updateEvaluationRow, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -65,6 +65,8 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     const [wrongAnswers, setWrongAnswers] = useState<number>(0)
     const [correctAnswers, setCorrectAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
+
+    const {Title} = Typography
 
     useEffect(() => {
         if (evaluationRows) {
@@ -206,6 +208,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
@@ -241,6 +244,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
@@ -310,7 +314,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     return (
         <div>
-            <h1>Exact match Evaluation</h1>
+            <Title>Exact match Evaluation</Title>
             <div>
                 <Row align="middle">
                     <Col span={12}>
