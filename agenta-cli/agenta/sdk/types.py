@@ -25,31 +25,22 @@ class FloatParam(float):
 
 
 class MultipleChoiceParam(list):
-    @classmethod    def __repr__(self):
-        if type(self) == MultipleChoiceParam:
-            return self[0]
-        else:
-            return self
-
-    def __int__(self):
-        if type(self) == MultipleChoiceParam:
-            return int(self[0])
-        else:
-            return int(self)
+    
+    def __init__(self, default: str = None, choices: list = []):
+        self.default = default
+        self.choices = choices
+    
+    def __repr__(self):
+        if not self.default and self.choices:
+            return self.choices[0]
+        return self.default
 
     def __eq__(self, other):
-        if type(self) == MultipleChoiceParam:
-            return self[0] == other
-        else:
-            return self == other
+        if not self.default and self.choices:
+            return self.choices[0]
+        return self.default
 
-    def __str__(self):
-        if type(self) == MultipleChoiceParam:
-            return self[0]
-        else:
-            return self
-
-
+    @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any]):
         field_schema.update(
             {
