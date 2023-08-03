@@ -264,7 +264,7 @@ def override_schema_for_multichoice(
                 and value_title == param_name
             ):
                 choices = param_instance.choices
-                default = param_instance.default
+                default = str(param_instance)
 
                 value["enum"] = choices
                 value["default"] = (
