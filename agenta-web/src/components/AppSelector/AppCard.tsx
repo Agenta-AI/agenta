@@ -4,7 +4,7 @@ import {removeApp} from "@/lib/services/api"
 import useSWR, {mutate} from "swr"
 import {useState} from "react"
 import Link from "next/link"
-import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import { renameVariablesCapitalizeAll } from "@/lib/helpers/utils"
 
 const DeleteModal = ({open, handleOk, handleCancel, appName, confirmLoading}) => {
     return (
