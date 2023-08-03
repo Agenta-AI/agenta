@@ -11,14 +11,7 @@ const Logo: React.FC = () => {
                 : "/assets/light-complete-transparent-CROPPED.png",
         [appTheme],
     )
-    return (
-        <Image
-            src={logoSrc}
-            alt="Agenta Logo"
-            width={129}
-            height={42.5}
-        />
-    )
+    return <Image src={logoSrc} alt="Agenta Logo" width={129} height={42.5} />
 }
 
 export default Logo
