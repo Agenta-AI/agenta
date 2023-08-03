@@ -64,7 +64,7 @@ const Sidebar: React.FC = () => {
                 paddingLeft: "10px",
                 paddingRight: "10px",
                 background: colorBgContainer,
-                border: "0.01px solid #ddd",
+                border: `0.01px solid ${appTheme ==='dark' ? '#222': '#ddd'}`,
                 height: "100vh",
                 position: "fixed",
             }}
@@ -78,8 +78,6 @@ const Sidebar: React.FC = () => {
                         marginRight: "20px",
                         display: "flex",
                         justifyContent: "center",
-                        background: "#ffffff77",
-                        borderRadius: "5px"
                     }}
                 >
                     <Logo />
