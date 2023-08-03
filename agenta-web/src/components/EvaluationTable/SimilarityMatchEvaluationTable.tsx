@@ -8,6 +8,7 @@ import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
+import {Typography} from "antd"
 
 interface SimilarityMatchEvaluationTableProps {
     appEvaluation: any
@@ -66,6 +67,8 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [dissimilarAnswers, setDissimilarAnswers] = useState<number>(0)
     const [similarAnswers, setSimilarAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
+
+    const {Title, Text} = Typography
 
     useEffect(() => {
         if (evaluationRows) {
@@ -212,6 +215,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
@@ -251,6 +255,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
@@ -320,12 +325,14 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     return (
         <div>
-            <h1>
+            <Title>
                 Similarity match Evaluation (Threshold:{" "}
                 {appEvaluation.evaluationTypeSettings.similarityThreshold})
-            </h1>
+            </Title>
             <div style={{marginBottom: 20}}>
-                This evaluation type is calculating the similarity using Jaccard similarity.
+                <Text>
+                    This evaluation type is calculating the similarity using Jaccard similarity.
+                </Text>
             </div>
             <div>
                 <Row align="middle">
