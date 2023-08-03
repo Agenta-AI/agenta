@@ -8,7 +8,9 @@ from agenta_backend.routers import container_manager
 origins = [
     "http://localhost:3000",
     "http://localhost:3001",
-    "http:demo.agenta.ai"
+    "http:demo.agenta.ai",
+    "http://0.0.0.0:3000",
+    "http://0.0.0.0:3001"
 ]
 
 # this is the prefix in which we are reverse proxying the api
@@ -25,7 +27,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.on_event("startup")
 async def startup_event():
