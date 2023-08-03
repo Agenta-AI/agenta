@@ -30,6 +30,7 @@ async def create_comparison_table(newComparisonTableData: NewComparisonTable = B
             try:
                 inputs = [{'input_name': name, 'input_value': datum[name]} for name in comparison_table["inputs"]]
             except KeyError:
+                await comparison_tables.delete_one({"_id": newComparisonTable.inserted_id})
                 raise HTTPException(status_code=400, detail="columns in the test set should match the names of the inputs in the variant")
             evaluation_row = {
                 "comparison_table_id": str(newComparisonTable.inserted_id),
