@@ -1,6 +1,7 @@
 name: Prettier
 
 on: pull_request
+  types: [opened, synchronize, reopened]
   paths:
     - 'agenta-web/**'
 
