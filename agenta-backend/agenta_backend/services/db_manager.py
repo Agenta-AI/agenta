@@ -187,13 +187,13 @@ def remove_app_variant(app_variant: AppVariant):
             (AppVariantDB.app_name == app_variant.app_name) & (AppVariantDB.variant_name == app_variant.variant_name)).first()
         if app_variant_db is None:
             raise ValueError("App variant not found")
-
-        if app_variant_db.previous_variant_name is not None:  # forked variant
+        
+        if app_variant_db is not None or check_is_last_variant(app_variant_db):  # forked variant or # last variant using the image, okay to delete
             session.delete(app_variant_db)
-        elif check_is_last_variant(app_variant_db):  # last variant using the image, okay to delete
-            session.delete(app_variant_db)
+            logger.info(f"Delete App variant {app_variant_db.variant_name}")
         else:
             app_variant_db.is_deleted = True  # soft deletion
+            logger.info(f"soft deletion")
         session.commit()
 
 

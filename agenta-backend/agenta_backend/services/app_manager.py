@@ -228,3 +228,9 @@ def update_variant_image(app_variant: AppVariant, image: Image):
         start_variant(app_variant)
     except:
         raise
+    try:
+        db_manager.remove_image(old_image)
+        logger.info(f"Old image {old_image.docker_id} deleted")
+    except:
+        raise
+        
