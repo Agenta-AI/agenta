@@ -8,12 +8,7 @@ interface Props {
     message: string
 }
 
-const EvaluationErrorModal: React.FC<Props> = ({
-    isModalOpen,
-    onClose,
-    handleNavigate,
-    message,
-}) => {
+const EvaluationErrorModal: React.FC<Props> = ({isModalOpen, onClose, handleNavigate, message}) => {
     const handleCloseModal = () => onClose()
 
     const handleCTAClick = () => {
