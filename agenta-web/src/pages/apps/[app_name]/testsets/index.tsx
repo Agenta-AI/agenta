@@ -1,15 +1,15 @@
 import {Button, Dropdown, MenuProps, Space, Spin, Table} from "antd"
 
-import {Dataset} from "@/lib/Types"
+import {testset} from "@/lib/Types"
 import Link from "next/link"
 import {useRouter} from "next/router"
 import {ColumnsType} from "antd/es/table"
 import {useState, useEffect} from "react"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {DeleteOutlined} from "@ant-design/icons"
-import {deleteDatasets} from "@/lib/services/api"
+import {deleteTestsets} from "@/lib/services/api"
 
-type DatasetTableDatatype = {
+type testsetTableDatatype = {
     key: string
     created_at: string
     name: string
@@ -20,10 +20,10 @@ const fetchData = async (url: string): Promise<any> => {
     return response.json()
 }
 
-export default function Datasets() {
+export default function testsets() {
     const router = useRouter()
     const {app_name} = router.query
-    const [datasetsList, setDatasetsList] = useState<DatasetTableDatatype[]>([])
+    const [testsetsList, setTestsetsList] = useState<testsetTableDatatype[]>([])
     const [loading, setLoading] = useState<boolean>(true)
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -33,10 +33,10 @@ export default function Datasets() {
             return
         }
         // TODO: move to api.ts
-        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets?app_name=${app_name}`)
+        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`)
             .then((data) => {
-                let newDatasetsList = data.map((obj: Dataset) => {
-                    let newObj: DatasetTableDatatype = {
+                let newTestsetsList = data.map((obj: testset) => {
+                    let newObj: testsetTableDatatype = {
                         key: obj._id,
                         created_at: obj.created_at,
                         name: obj.name,
@@ -44,14 +44,14 @@ export default function Datasets() {
                     return newObj
                 })
                 setLoading(false)
-                setDatasetsList(newDatasetsList)
+                setTestsetsList(newTestsetsList)
             })
             .catch((error) => {
                 console.log(error)
             })
     }, [app_name])
 
-    const columns: ColumnsType<DatasetTableDatatype> = [
+    const columns: ColumnsType<testsetTableDatatype> = [
         {
             title: "Name",
             dataIndex: "name",
@@ -68,18 +68,18 @@ export default function Datasets() {
     ]
 
     const rowSelection = {
-        onChange: (selectedRowKeys: React.Key[], selectedRows: DatasetTableDatatype[]) => {
+        onChange: (selectedRowKeys: React.Key[], selectedRows: testsetTableDatatype[]) => {
             setSelectedRowKeys(selectedRowKeys)
         },
     }
 
     const onDelete = async () => {
-        const datasetsIds = selectedRowKeys.map((key) => key.toString())
+        const testsetsIds = selectedRowKeys.map((key) => key.toString())
         setLoading(true)
         try {
-            const deletedIds = await deleteDatasets(datasetsIds)
-            setDatasetsList((prevDatasetsList) =>
-                prevDatasetsList.filter((dataset) => !deletedIds.includes(dataset.key)),
+            const deletedIds = await deleteTestsets(testsetsIds)
+            setTestsetsList((prevTestsetsList) =>
+                prevTestsetsList.filter((testset) => !deletedIds.includes(testset.key)),
             )
 
             setSelectedRowKeys([])
@@ -147,7 +147,7 @@ export default function Datasets() {
                             ...rowSelection,
                         }}
                         columns={columns}
-                        dataSource={datasetsList}
+                        dataSource={testsetsList}
                         loading={loading}
                         onRow={(record, rowIndex) => {
                             return {

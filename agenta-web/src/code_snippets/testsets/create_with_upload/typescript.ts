@@ -7,12 +7,12 @@ export default function tsCode(uri: string, appName: string): string {
 
     const url = '${uri}';
     const filePath = './cypress/data/countries-genders.csv';
-    const datasetName = 'tribalafa';
+    const testsetName = 'tribalafa';
     const appName = '${appName}';
 
     const formData = new FormData();
     formData.append('file', fs.createReadStream(filePath));
-    formData.append('dataset_name', datasetName);
+    formData.append('testset_name', testsetName);
     formData.append('app_name', appName);
 
     const config = {
