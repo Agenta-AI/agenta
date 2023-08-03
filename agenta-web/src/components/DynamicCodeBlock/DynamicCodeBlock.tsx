@@ -3,6 +3,7 @@ import {MenuProps, Dropdown, Button, Space} from "antd"
 import {DownOutlined, ApiOutlined} from "@ant-design/icons"
 import {useState} from "react"
 import {LanguageItem, Variant} from "@/lib/Types"
+import {Typography} from "antd"
 
 interface DynamicCodeBlockProps {
     codeSnippets: {[key: string]: string}
@@ -61,22 +62,27 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
             console.error("Failed to copy text to clipboard")
         }
     }
+
+    const {Text, Title} = Typography
+
     return (
         <div
             style={{
-                backgroundColor: "#FFFFFF",
                 borderRadius: 10,
                 display: "flex",
                 flexDirection: "column",
             }}
         >
-            <div style={{fontSize: "1.5em", marginBottom: "25px"}}>
-                {" "}
-                {/* Large font similar to h3 */}
-                <ApiOutlined /> API endpoint
+            <div style={{marginBottom: "25px"}}>
+                <Title level={3}>
+                    <ApiOutlined />
+                    API endpoint
+                </Title>
             </div>
             <div style={{margin: "5px 0px"}}>
-                Select a variant then use this endpoint to send requests to the LLM app.
+                <Text>
+                    Select a variant then use this endpoint to send requests to the LLM app.
+                </Text>
             </div>
             <div
                 style={{
@@ -96,7 +102,9 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
                 >
                     {" "}
                     {/* Larger font */}
-                    <div style={{marginRight: "10px"}}>Variant:</div>
+                    <div style={{marginRight: "10px", minWidth: "55px"}}>
+                        <Text>Variant: </Text>
+                    </div>
                     {includeVariantsDropdown && (
                         <Dropdown menu={{items: variantsItems, onClick: handleVariantClick}}>
                             <Button style={{marginLeft: 5, width: "100%"}} size="small">
@@ -124,7 +132,9 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
                         marginRight: "10px",
                     }}
                 >
-                    <div style={{fontSize: "1em", marginRight: "10px"}}>Language:</div>
+                    <div style={{fontSize: "1em", marginRight: "10px"}}>
+                        <Text>Language:</Text>
+                    </div>
                     {selectedLanguage && (
                         <Dropdown menu={{items, onClick: handleMenuClick}} placement="bottomLeft">
                             <Button size="small">

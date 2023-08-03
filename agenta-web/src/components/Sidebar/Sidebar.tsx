@@ -12,11 +12,13 @@ import {
     UserOutlined,
     QuestionOutlined,
     GlobalOutlined,
+    DashboardOutlined,
 } from "@ant-design/icons"
 import {Avatar, Layout, Menu, Space, Tag, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from 'next/link'
+import { useAppTheme } from '../Layout/ThemeContextProvider'
 
 const {Sider} = Layout
 
@@ -30,6 +32,8 @@ const Sidebar: React.FC = () => {
     const {
         token: {colorBgContainer},
     } = theme.useToken()
+
+    const { appTheme, toggleAppTheme } = useAppTheme()
 
     let initialSelectedKeys: string[] = []
     if (typeof page_name === "string") {
@@ -60,7 +64,7 @@ const Sidebar: React.FC = () => {
                 paddingLeft: "10px",
                 paddingRight: "10px",
                 background: colorBgContainer,
-                border: "0.01px solid #ddd",
+                border: `0.01px solid ${appTheme ==='dark' ? '#222': '#ddd'}`,
                 height: "100vh",
                 position: "fixed",
             }}
@@ -165,6 +169,13 @@ const Sidebar: React.FC = () => {
                     style={{paddingBottom: 40, borderRight: 0}}
                     selectedKeys={selectedKeys}
                 >
+                    <Menu.Item
+                        key="theme"
+                        icon={<DashboardOutlined />}
+                        onClick={toggleAppTheme}
+                    >
+                        <span>{appTheme === 'light' ? 'Dark mode' : 'Light mode'}</span>
+                    </Menu.Item>
                     <Menu.Item
                         key="help"
                         icon={<QuestionOutlined />}
