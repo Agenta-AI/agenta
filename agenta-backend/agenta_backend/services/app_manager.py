@@ -214,8 +214,6 @@ def update_variant_image(app_variant: AppVariant, image: Image):
             docker_utils.delete_container(container_id)
             logger.info(f"Container {container_id} deleted")
         db_manager.remove_app_variant(old_variant)
-        docker_utils.delete_image(old_image)
-        logger.info(f"Old image {old_image} deleted")
     except Exception as e:
         logger.error(f"Error removing old variant: {str(e)}")
         logger.error(
