@@ -104,8 +104,9 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         value={results}
                         rows={6}
                         placeholder="Results will be shown here"
+                        disabled
                         style={{
-                            background: "rgb(249 250 251)",
+                            // background: "rgb(249 250 251)",
                             height: "100%",
                             width: "100%",
                         }}

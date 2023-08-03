@@ -9,6 +9,7 @@ import "ag-grid-community/styles/ag-theme-alpine.css"
 import {ConsoleSqlOutlined, DeleteOutlined, PlusOutlined} from "@ant-design/icons"
 import {createNewTestset, loadTestset, updateTestset} from "@/lib/services/api"
 import {useRouter} from "next/router"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 type testsetTableProps = {
     mode: "create" | "edit"
@@ -231,6 +232,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         }
     }
 
+    const {appTheme} = useAppTheme()
+
     return (
         <div>
             <Typography.Title level={5} style={{marginBottom: "20px"}}>
@@ -308,7 +311,10 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 </div>
             </div>
 
-            <div className="ag-theme-alpine" style={{height: 500}}>
+            <div
+                className={`${appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
+                style={{height: 500}}
+            >
                 <AgGridReact
                     onGridReady={(params) => (gridRef.current = params.api)}
                     rowData={rowData}
