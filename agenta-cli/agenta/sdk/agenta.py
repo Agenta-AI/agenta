@@ -264,8 +264,9 @@ def override_schema_for_multichoice(
                 and value.get("x-parameter") == "choice"
                 and value_title == param_name
             ):
-                choices = param_instance.choices
                 default = str(param_instance)
+                param_choices = param_instance.choices
+                choices = [default] + param_choices if default not in param_choices else param_choices
 
                 value["enum"] = choices
                 value["default"] = (
