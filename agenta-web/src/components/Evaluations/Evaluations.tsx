@@ -210,6 +210,12 @@ export default function Evaluations() {
         } else if (selectedVariants[0].variantName === "Select a variant") {
             message.error("Please select a variant")
             return
+        } else if (selectedEvaluationType === "Select an evaluation type") {
+            message.error("Please select an evaluation type")
+            return
+        } else if (selectedDataset?.name === "Select a Test set") {
+            message.error("Please select a testset")
+            return
         }
 
         // 2. We create a new app evaluation
