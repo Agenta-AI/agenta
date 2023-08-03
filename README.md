@@ -30,7 +30,7 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 
 ## Migration
 
-Migrate data from `dataset` to `testset` collection. follow the documentation [here](docs/migration.md)
+Migrate data from `dataset` to `testset` collection. follow the documentation [here](https://docs.agenta.ai/migration/migration)
 
 ## Getting Started
 
