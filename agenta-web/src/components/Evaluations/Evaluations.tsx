@@ -19,6 +19,7 @@ import EvaluationsList from "./EvaluationsList"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {Typography} from "antd"
+import EvaluationErrorModal from "./EvaluationErrorModal"
 
 export default function Evaluations() {
     const {Text, Title} = Typography
@@ -49,6 +50,8 @@ export default function Evaluations() {
     const [variantInputs, setVariantInputs] = useState<string[]>([])
 
     const [sliderValue, setSliderValue] = useState(0.3)
+
+    const [evaluationError, setEvaluationError] = useState("")
 
     useEffect(() => {
         if (variants.length > 0) {
@@ -108,6 +111,10 @@ export default function Evaluations() {
                 body: JSON.stringify(data),
             })
 
+            if (!response.ok) {
+                throw new Error((await response.json())?.detail ?? "Failed to create evaluation")
+            }
+
             return response.json()
         }
 
@@ -129,7 +136,7 @@ export default function Evaluations() {
                 return data.id
             })
             .catch((err) => {
-                console.error(err)
+                setEvaluationError(err.message)
             })
     }
 
@@ -203,6 +210,12 @@ export default function Evaluations() {
         } else if (selectedVariants[0].variantName === "Select a variant") {
             message.error("Please select a variant")
             return
+        } else if (selectedEvaluationType === "Select an evaluation type") {
+            message.error("Please select an evaluation type")
+            return
+        } else if (selectedDataset?.name === "Select a Test set") {
+            message.error("Please select a testset")
+            return
         }
 
         // 2. We create a new app evaluation
@@ -216,6 +229,9 @@ export default function Evaluations() {
             evaluationTypeSettings,
             variantInputs,
         )
+        if (!evaluationTableId) {
+            return
+        }
 
         // 3 We set the variants
         setVariants(selectedVariants)
@@ -388,6 +404,12 @@ export default function Evaluations() {
                     </Col>
                 </Row>
             </div>
+            <EvaluationErrorModal
+                isModalOpen={!!evaluationError}
+                onClose={() => setEvaluationError("")}
+                handleNavigate={() => router.push(`/apps/${appName}/testsets`)}
+                message={evaluationError}
+            />
 
             <EvaluationsList />
         </div>
