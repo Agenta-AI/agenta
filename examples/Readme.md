@@ -1,6 +1,5 @@
 # List of examples
 
-## Working
 - baby_name_generator
 Simple baby name generator using one prompt, jinja2 and openai
 - Job info extractor
@@ -13,19 +12,3 @@ Simple app with one prompt that takes a receipe and finds the most dominant ingr
 App using llama_index to answer questions on a sales call based on embeddings
 - sales_call_summarizer
 App using langchain to summarize a sales call
-
-noteGPT
-product_pains_analyzer
-recipes_and_ingredients
-sales_call_analyzer
-sales_call_question_answering
-sales_transcript_summarizer
-startup_outreach
-summarizer
-
-## Experimental
-- earning_call_analyzer
-Q&A bot over a pdf using llama_index (not persisting the pdf)
-
-- ingestion_v0
-Q&A bot over a pdf using llama_index (persisting the pdf)
