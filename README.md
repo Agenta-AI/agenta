@@ -22,7 +22,6 @@
 
 ### **The Open-source Developer-first LLMOps Platform**
 
-
 Building production-ready LLM-powered applications is currently very difficult. It involves countless iterations of prompt engineering, parameter tuning, and architectures.
 
 Agenta provides you with the tools to quickly 🔄 **iterate**, 🧪 **experiment**, and ⚖️ **evaluate** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
@@ -32,6 +31,7 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 ## Getting Started
 
 Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
+
 - [Installation](https://docs.agenta.ai/installation)
 - [Getting Started](https://docs.agenta.ai/getting-started)
 - [Tutorials](https://docs.agenta.ai/tutorials)
@@ -43,6 +43,7 @@ Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
 Write the code using any framework, library, or model you want. Add the `agenta.post` decorator and put the inputs and parameters in the function call just like in this example:
 
 _Example simple application that generates baby names_
+
 ```python
 import agenta as ag
 from langchain.chains import LLMChain
@@ -70,19 +71,16 @@ def generate(
     return output
 ```
 
-
 **2.Deploy your app using the Agenta CLI.**
 
 <img width="722" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
 
-
-**3. Go to agenta at localhost:3000** 
+**3. Go to agenta at localhost:3000**
 
 Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different versions of your app (with your code!) in the web platform.</summary>
-  <br/>
+<br/>
 
 <img width="1501" alt="Screenshot 2023-06-25 at 21 08 53" src="https://github.com/Agenta-AI/agenta/assets/57623556/7e07a988-a36a-4fb5-99dd-9cc13a678434">
-
 
 ## Features
 
@@ -95,7 +93,7 @@ https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95ef
 https://github.com/Agenta-AI/agenta/assets/4510758/f8a2a423-c0a9-40df-9c00-52908cac165a
 
 - 🚀 **API Deployment Made Easy:** When you are ready, deploy your LLM applications as APIs in one click.
-  
+
 ## Why choose Agenta for building LLM-apps?
 
 - 🔨 **Build quickly**: You need to iterate many times on different architectures and prompts to bring apps to production. We streamline this process and allow you to do this in days instead of weeks.
@@ -104,16 +102,22 @@ https://github.com/Agenta-AI/agenta/assets/4510758/f8a2a423-c0a9-40df-9c00-52908
 - 🌐 **Solution-Agnostic**: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
 - 🔒 **Privacy-First**: We respect your privacy and do not proxy your data through third-party services. The platform and the data are hosted on your infrastructure.
 
+## Migration
+
+Migrate data from `dataset` to `testset` collection. follow the documentation [here](https://docs.agenta.ai/migration/migration)
+
 ## Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
 
 Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-started) for more information.
 
-
 ## Contributors ✨
+
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+
 [![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
+
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):

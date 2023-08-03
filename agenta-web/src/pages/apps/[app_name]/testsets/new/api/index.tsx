@@ -10,12 +10,12 @@ import tsCodeUpload from "../../../../../../code_snippets/testsets/create_with_u
 import {Typography} from "antd"
 import {useRouter} from "next/router"
 
-export default function NewTestSetWithAPI() {
+export default function NewTestsetWithAPI() {
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
 
-    const uploadURI = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/upload`
-    const jsonURI = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${appName}`
+    const uploadURI = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/upload`
+    const jsonURI = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${appName}`
 
     const params = `{
     "name": "testset_name",}`
