@@ -170,9 +170,12 @@ def post(func: Callable[..., Any]):
             )
 
     new_params = []
+    instances_to_override = []
     for name, param in sig.parameters.items():
         if name in app_params:
             if param.annotation is MultipleChoiceParam:
+                # Append the instance and its name to the list
+                instances_to_override.append((name, app_params[name]))
                 new_params.append(
                     inspect.Parameter(
                         name,
@@ -208,7 +211,7 @@ def post(func: Callable[..., Any]):
     schemas = schema["components"]["schemas"]["Body_query_generate_post"]["properties"]
     
     # Update schema for multichoice objects
-    override_schema_for_multichoice(schemas)
+    override_schema_for_multichoice(schemas, instances_to_override)
 
     # check if the module is being run as the main script
     if (
@@ -219,12 +222,19 @@ def post(func: Callable[..., Any]):
         # add arguments to the command-line parser
         for name, param in sig.parameters.items():
             if name in app_params:
-                # For optional parameters, we add them as options
-                parser.add_argument(
-                    f"--{name}",
-                    type=type(param.default),
-                    default=param.default,
-                )
+                if param.annotation is MultipleChoiceParam:
+                    parser.add_argument(
+                        f"--{name}",
+                        type=str,
+                        default=param.default,
+                        choices=param.default.choices
+                    )
+                else:
+                    parser.add_argument(
+                        f"--{name}",
+                        type=type(param.default),
+                        default=param.default,
+                    )
             else:
                 # For required parameters, we add them as arguments
                 parser.add_argument(name, type=param.annotation)
@@ -235,9 +245,28 @@ def post(func: Callable[..., Any]):
     return wrapper
 
 
-def override_schema_for_multichoice(parameters: dict):
-    for _, value in parameters.items():
-        if isinstance(value, dict) and value.get("x-parameter") == "choice":
-            value["enum"] = value["default"]
-            value["default"] = value["default"][0]
-            
+
+def override_schema_for_multichoice(
+    parameters: dict, instances_to_override: list
+):
+    for param_name, param_instance in instances_to_override:
+        for _, value in parameters.items():
+            value_title_lower = str(value.get("title")).lower()
+            value_title = (
+                "_".join(value_title_lower.split())
+                if len(value_title_lower.split()) >= 2
+                else value_title_lower
+            )
+
+            if (
+                isinstance(value, dict)
+                and value.get("x-parameter") == "choice"
+                and value_title == param_name
+            ):
+                choices = param_instance.choices
+                default = param_instance.default
+
+                value["enum"] = choices
+                value["default"] = (
+                    default if default in choices else choices[0]
+                )
