@@ -213,7 +213,7 @@ export default function Evaluations() {
         } else if (selectedEvaluationType === "Select an evaluation type") {
             message.error("Please select an evaluation type")
             return
-        } else if (selectedDataset?.name === "Select a Test set") {
+        } else if (selectedTestset?.name === "Select a Test set") {
             message.error("Please select a testset")
             return
         }
