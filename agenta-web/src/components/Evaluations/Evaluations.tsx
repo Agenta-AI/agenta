@@ -358,7 +358,7 @@ export default function Evaluations() {
                         </div>
                     </Col>
                     <Col span={8}>
-                        <Title level={4}>3. Which testSet you want to use?</Title>
+                        <Title level={4}>3. Which testset you want to use?</Title>
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
                             <Button style={{marginRight: 10, marginTop: 40, width: "100%"}}>
