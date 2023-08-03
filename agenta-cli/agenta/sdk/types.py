@@ -24,21 +24,11 @@ class FloatParam(float):
 
 
 
-class MultipleChoiceParam(list):
-    
-    def __init__(self, default: str = None, choices: list = []):
-        self.default = default
-        self.choices = choices
-    
-    def __repr__(self):
-        if not self.default and self.choices:
-            return self.choices[0]
-        return self.default
-
-    def __eq__(self, other):
-        if not self.default and self.choices:
-            return self.choices[0]
-        return self.default
+class MultipleChoiceParam(str):
+    def __new__(cls, default, choices=[]):
+        instance = super().__new__(cls, default)
+        instance.choices = choices
+        return instance
 
     @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any]):
@@ -49,18 +39,6 @@ class MultipleChoiceParam(list):
                 "enum": [],
             }
         )
-    
-    @classmethod
-    def __get_validators__(cls):
-        # Override the validators to treat 
-        # MultipleChoiceParam as a string type
-        yield cls.validate_multiple_choice_param
-
-    @classmethod
-    def validate_multiple_choice_param(cls, v):
-        if isinstance(v, MultipleChoiceParam):
-            return v[0]  # Return the first element as a string
-        return v
 
 
 class Context(BaseModel):
