@@ -65,6 +65,12 @@
       ]
     },
     {
+      "group": "Migration Guides",
+      "pages": [
+        "migration/migration"
+      ]
+    },
+    {
       "group": "Conceptual Guides",
       "pages": [
         "conceptual/concepts",
