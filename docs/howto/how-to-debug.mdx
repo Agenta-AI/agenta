@@ -9,6 +9,7 @@ title: Troubleshooting
     2. [Missing API Key](#missing-api-key)
     3. [Failure Running Serve](#failure-running-serve)
     4. [Web UI Errors](#web-ui-errors)
+    5. [Gateway Error](#gateway-error)
 4. [Reporting Issues](#Reporting-Issues)
 
 ## Introduction
@@ -111,6 +112,26 @@ AppSelector.tsx:7     GET http://localhost/api/app_variant/list_apps/ net::ERR_F
 ```
 
 If none of these checks solve the problem, there might be an issue with the web UI. Please report it or contact us directly.
+
+### Gateway Error
+
+When accessing the backend server, you may encounter a "502 Bad Gateway" error. 
+One possible cause of this issue is that an application is running on the default backend server port (8000), resulting in the gateway error. .
+
+To resolve this issue:
+
+1. Verify Traefik Configuration: check the Traefik configuration to confirm that it is correctly forwarding requests to the backend server on the `/api` route. 
+Verify that the relevant Traefik rule in the `docker-compose.yml` file is properly configured.
+
+2. Prune Docker Resources: kindly follow the commands below to stop and remove all the agenta containers; and to finally prune all the volumes associated with it. 
+- docker stop $(docker ps -q -f "name=agenta-*")
+- docker rm $(docker ps -aq -f "name=agenta-*")
+- docker volume ls -q -f "name=agenta-*"
+- docker volume rm VOLUME_NAME
+
+Once you have completed these steps, start the application again by running `docker-compose up` and access the backend server by making requests to `http://localhost:8000`. 
+If the issue persists after following these troubleshooting steps, it's essential to investigate further into the Traefik configuration and the interaction between Traefik and the backend server.
+
 
 ## Reporting Issues
 
