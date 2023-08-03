@@ -183,28 +183,28 @@ export async function removeVariant(appName: string, variantName: string) {
     }
 }
 /**
- * Loads the list of datasets
+ * Loads the list of testsets
  * @returns
  */
-export const useLoadDatasetsList = (app_name: string) => {
+export const useLoadTestsetsList = (app_name: string) => {
     const {data, error} = useSWR(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets?app_name=${app_name}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`,
         fetcher,
     )
     return {
-        datasets: data,
-        isDatasetsLoading: !error && !data,
-        isDatasetsLoadingError: error,
+        testsets: data,
+        isTestsetsLoading: !error && !data,
+        isTestsetsLoadingError: error,
     }
 }
 
-export async function createNewTestSet(appName: string, testSetName: string, testSetData: any) {
+export async function createNewTestset(appName: string, testsetName: string, testsetData: any) {
     try {
         const response = await axios.post(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${appName}`,
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${appName}`,
             {
-                name: testSetName,
-                csvdata: testSetData,
+                name: testsetName,
+                csvdata: testsetData,
             },
         )
         return response
@@ -214,13 +214,13 @@ export async function createNewTestSet(appName: string, testSetName: string, tes
     }
 }
 
-export async function updateTestSet(testSetId: String, testSetName: string, testSetData: any) {
+export async function updateTestset(testsetId: String, testsetName: string, testsetData: any) {
     try {
         const response = await axios.put(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${testSetId}`,
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}`,
             {
-                name: testSetName,
-                csvdata: testSetData,
+                name: testsetName,
+                csvdata: testsetData,
             },
         )
         return response
@@ -230,8 +230,8 @@ export async function updateTestSet(testSetId: String, testSetName: string, test
     }
 }
 
-export const loadDataset = async (datasetId: string) => {
-    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${datasetId}`, {
+export const loadTestset = async (testsetId: string) => {
+    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}`, {
         headers: {
             "Content-Type": "application/json",
         },
@@ -245,12 +245,12 @@ export const loadDataset = async (datasetId: string) => {
         })
 }
 
-export const deleteDatasets = async (ids: string[]) => {
+export const deleteTestsets = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",
-            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets`,
-            data: {dataset_ids: ids},
+            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets`,
+            data: {testset_ids: ids},
         })
         if (response.status === 200) {
             return response.data

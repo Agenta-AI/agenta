@@ -7,7 +7,7 @@ interface Props {
     setIsModalOpen: (value: boolean) => void
 }
 
-const TestSetMusHaveNameModal: React.FC<Props> = ({isModalOpen, setIsModalOpen}) => {
+const testsetMusHaveNameModal: React.FC<Props> = ({isModalOpen, setIsModalOpen}) => {
     const handleCloseModal = () => setIsModalOpen(false)
 
     const handleDismiss = () => {
@@ -41,4 +41,4 @@ const TestSetMusHaveNameModal: React.FC<Props> = ({isModalOpen, setIsModalOpen})
     )
 }
 
-export default TestSetMusHaveNameModal
+export default testsetMusHaveNameModal

@@ -2,25 +2,25 @@ import React, {useState, useRef, useEffect} from "react"
 import {AgGridReact} from "ag-grid-react"
 
 import {Button, Input, Typography} from "antd"
-import TestSetMusHaveNameModal from "./InsertTestSetNameModal"
+import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {ConsoleSqlOutlined, DeleteOutlined, PlusOutlined} from "@ant-design/icons"
-import {createNewTestSet, loadDataset, updateTestSet} from "@/lib/services/api"
+import {createNewTestset, loadTestset, updateTestset} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
-type TestSetTableProps = {
+type testsetTableProps = {
     mode: "create" | "edit"
 }
 
-const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
+const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
     const {testset_id} = router.query
 
-    const [testSetName, setTestSetName] = useState("")
+    const [testsetName, setTestsetName] = useState("")
     const [rowData, setRowData] = useState([
         {column1: "data1"},
         {column1: "data1"},
@@ -49,8 +49,8 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
     useEffect(() => {
         // If in edit mode, load the existing test set
         if (mode === "edit" && testset_id) {
-            loadDataset(testset_id).then((data) => {
-                setTestSetName(data.name)
+            loadTestset(testset_id).then((data) => {
+                setTestsetName(data.name)
                 setRowData(data.csvdata)
                 setColumnDefs(Object.keys(data.csvdata[0]).map((key) => ({field: key})))
             })
@@ -60,8 +60,8 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
     useEffect(() => {
         // If in edit mode, load the existing test set
         if (mode === "edit" && testset_id) {
-            loadDataset(testset_id).then((data) => {
-                setTestSetName(data.name)
+            loadTestset(testset_id).then((data) => {
+                setTestsetName(data.name)
                 setRowData(data.csvdata)
 
                 // Create the column definitions from the data keys
@@ -78,8 +78,8 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
 
     useEffect(() => {
         if (mode === "edit" && testset_id) {
-            loadDataset(testset_id).then((data) => {
-                setTestSetName(data.name)
+            loadTestset(testset_id).then((data) => {
+                setTestsetName(data.name)
                 setRowData(data.csvdata)
 
                 // Create the column definitions from the data keys
@@ -167,19 +167,19 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
         try {
             let response
             if (mode === "create") {
-                if (!testSetName) {
+                if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    response = await createNewTestSet(appName, testSetName, rowData)
+                    response = await createNewTestset(appName, testsetName, rowData)
                     if (response.status === 200) {
                         router.push(`/apps/${appName}/testsets`)
                     }
                 }
             } else if (mode === "edit") {
-                if (!testSetName) {
+                if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    response = await updateTestSet(testset_id, testSetName, rowData)
+                    response = await updateTestset(testset_id, testsetName, rowData)
                     if (response.status === 200) {
                         router.push(`/apps/${appName}/testsets`)
                     }
@@ -192,7 +192,7 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
     }
 
     const handleChange = (e) => {
-        setTestSetName(e.target.value)
+        setTestsetName(e.target.value)
     }
 
     const onDeleteRow = () => {
@@ -250,7 +250,7 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
                 }}
             >
                 <Input
-                    value={testSetName}
+                    value={testsetName}
                     onChange={handleChange}
                     style={{marginRight: "10px"}}
                     placeholder="Test Set Name"
@@ -342,9 +342,9 @@ const TestSetTable: React.FC<TestSetTableProps> = ({mode}) => {
                 </div>
             </div>
 
-            <TestSetMusHaveNameModal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} />
+            <TestsetMusHaveNameModal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} />
         </div>
     )
 }
 
-export default TestSetTable
+export default TestsetTable
