@@ -28,9 +28,9 @@ Agenta provides you with the tools to quickly 🔄 **iterate**, 🧪 **experimen
 
 https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-67475e4ce9ed
 
-## News
+## Migration
 
-1. 3rd August 2023 - In order to maintain naming conventions consistent across both frontend and backend, improving thus code readability, we have renamed 'datasets' to 'testsets'. Also, the 'datasets collection' has been renamed to 'testsets collection'. For migration of your data from the 'dataset collection' to 'testset', please execute the provided script located at `extras/migration/mongodb/001_dataset_to_testset.py`.
+Migrate data from `dataset` to `testset` collection. follow the documentation [here](docs/migration.md)
 
 ## Getting Started
 
