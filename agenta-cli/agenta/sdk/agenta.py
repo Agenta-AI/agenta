@@ -206,9 +206,10 @@ def post(func: Callable[..., Any]):
     wrapper.__signature__ = sig.replace(parameters=new_params)
 
     route = "/generate"
+    func_name = func.__name__
     app.post(route)(wrapper)
     schema = app.openapi()  # or app.openapi_schema
-    schemas = schema["components"]["schemas"]["Body_query_generate_post"]["properties"]
+    schemas = schema["components"]["schemas"][f"Body_{func_name}_generate_post"]["properties"]
     
     # Update schema for multichoice objects
     override_schema_for_multichoice(schemas, instances_to_override)
