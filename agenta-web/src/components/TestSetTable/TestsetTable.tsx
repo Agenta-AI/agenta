@@ -165,24 +165,17 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     const onSaveData = async () => {
         try {
-            let response
             if (mode === "create") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    response = await createNewTestset(appName, testsetName, rowData)
-                    if (response.status === 200) {
-                        router.push(`/apps/${appName}/testsets`)
-                    }
+                    await createNewTestset(appName, testsetName, rowData)
                 }
             } else if (mode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    response = await updateTestset(testset_id, testsetName, rowData)
-                    if (response.status === 200) {
-                        router.push(`/apps/${appName}/testsets`)
-                    }
+                    await updateTestset(testset_id, testsetName, rowData)
                 }
             }
         } catch (error) {
