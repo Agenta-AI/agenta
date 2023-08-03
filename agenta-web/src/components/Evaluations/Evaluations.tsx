@@ -19,6 +19,7 @@ import EvaluationsList from "./EvaluationsList"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {Typography} from "antd"
+import EvaluationErrorModal from "./EvaluationErrorModal"
 
 export default function Evaluations() {
     const {Text, Title} = Typography
@@ -49,6 +50,8 @@ export default function Evaluations() {
     const [variantInputs, setVariantInputs] = useState<string[]>([])
 
     const [sliderValue, setSliderValue] = useState(0.3)
+
+    const [evaluationError, setEvaluationError] = useState("")
 
     useEffect(() => {
         if (variants.length > 0) {
@@ -109,7 +112,7 @@ export default function Evaluations() {
             })
 
             if (!response.ok) {
-                throw new Error((await response.json())?.detail)
+                throw new Error((await response.json())?.detail ?? "Failed to create evaluation")
             }
 
             return response.json()
@@ -133,7 +136,7 @@ export default function Evaluations() {
                 return data.id
             })
             .catch((err) => {
-                message.error(err.message)
+                setEvaluationError(err.message)
             })
     }
 
@@ -395,6 +398,12 @@ export default function Evaluations() {
                     </Col>
                 </Row>
             </div>
+            <EvaluationErrorModal
+                isModalOpen={!!evaluationError}
+                onClose={() => setEvaluationError("")}
+                handleNavigate={() => router.push(`/apps/${appName}/testsets`)}
+                message={evaluationError}
+            />
 
             <EvaluationsList />
         </div>
