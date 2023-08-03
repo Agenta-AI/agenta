@@ -28,10 +28,6 @@ Agenta provides you with the tools to quickly 🔄 **iterate**, 🧪 **experimen
 
 https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-67475e4ce9ed
 
-## Migration
-
-Migrate data from `dataset` to `testset` collection. follow the documentation [here](https://docs.agenta.ai/migration/migration)
-
 ## Getting Started
 
 Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
@@ -105,6 +101,10 @@ https://github.com/Agenta-AI/agenta/assets/4510758/f8a2a423-c0a9-40df-9c00-52908
 - 👨‍💻 **Developer-centric**: We cater to complex LLM-apps and pipelines that require more than one simple prompt. We allow you to experiment and iterate on apps that have complex integration, business logic, and many prompts.
 - 🌐 **Solution-Agnostic**: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
 - 🔒 **Privacy-First**: We respect your privacy and do not proxy your data through third-party services. The platform and the data are hosted on your infrastructure.
+
+## Migration
+
+Migrate data from `dataset` to `testset` collection. follow the documentation [here](https://docs.agenta.ai/migration/migration)
 
 ## Contributing
 
