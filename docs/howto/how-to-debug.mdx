@@ -104,6 +104,11 @@ If the application runs correctly in the CLI and seems to serve correctly, but y
 1. Check if the Docker container is running.
 2. Verify if the API is running by checking if `http://localhost/{app_name}/{variant_name}/openapi.json` exists.
 3. If the API isn't running, the issue might be with the reverse proxy (Traefik). To check, visit `localhost:8080`.
+4. If you are getting `failed to load variants` and in the console you see a `cors` error similar to the one below, try accessing the web UI using `localhost` instead of `0.0.0.0`.
+```
+apps:1 Access to fetch at 'http://localhost/api/app_variant/list_apps/' from origin 'http://0.0.0.0' has been blocked by CORS policy: The request client is not a secure context and the resource is in more-private address space `local`.
+AppSelector.tsx:7     GET http://localhost/api/app_variant/list_apps/ net::ERR_FAILED
+```
 
 If none of these checks solve the problem, there might be an issue with the web UI. Please report it or contact us directly.
 

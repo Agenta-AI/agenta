@@ -29,6 +29,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             paddingRight: "24px",
                             background: colorBgContainer,
                             minHeight: "100vh",
+                            marginLeft: 225
                         }}
                     >
                         <Breadcrumb
