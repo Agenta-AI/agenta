@@ -4,6 +4,7 @@
 import logging
 
 from agenta_backend.config import settings
+from agenta_backend.services.db_mongo import datasets
 from agenta_backend.models.api.api_models import URI, App, AppVariant, Image
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
@@ -56,7 +57,7 @@ def remove_app_variant(app_variant: AppVariant):
             raise
 
 
-def remove_app(app: App):
+async def remove_app(app: App):
     """Removes all app variants from db, if it is the last one using an image, then
     deletes the image from the db, shutdowns the container, deletes it and remove 
     the image from the registry
@@ -84,9 +85,40 @@ def remove_app(app: App):
             for app_variant in app_variants:
                 remove_app_variant(app_variant)
                 logger.info(f"App variant {app_variant.app_name}/{app_variant.variant_name} deleted")
+            
+            await remove_app_datasets(app_name)
+            logger.info(f"Datasets for {app_name} app deleted")
         except Exception as e:
             logger.error(f"Error deleting app variants: {str(e)}")
             raise
+
+
+async def remove_app_datasets(app_name: str):
+    """Returns a list of datasets owned by an app.
+
+    Args:
+        app_name (str): The name of the app
+
+    Returns:
+        int: The number of datasets deleted
+    """
+
+    # Find datasets owned by the app
+    cursor = datasets.find({"app_name": app_name})
+    documents = await cursor.to_list(length=100)
+
+    # Prepare a list of ObjectIds for bulk deletion
+    dataset_ids = [document['_id'] for document in documents]
+
+    # Perform bulk deletion if there are datasets to delete
+    if dataset_ids:
+        result = await datasets.delete_many({'_id': {'$in': dataset_ids}})
+        deleted_count = result.deleted_count
+        logger.info(f"{deleted_count} dataset(s) deleted for app {app_name}")
+        return deleted_count
+    else:
+        logger.info(f"No datasets found for app {app_name}")
+        return 0
 
 
 def start_variant(app_variant: AppVariant) -> URI:
