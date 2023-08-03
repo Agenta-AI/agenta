@@ -249,7 +249,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                                 borderRadius: 5,
                             }}
                         >
-                            {appEvaluation.dataset.name}
+                            {appEvaluation.testset.name}
                         </span>
                         <span> )</span>
                     </div>

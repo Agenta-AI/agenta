@@ -1,8 +1,8 @@
 import React, {useState, useEffect} from "react"
-import TestSetTable from "@/components/TestSetTable/TestSetTable"
+import TestsetTable from "@/components/TestSetTable/TestsetTable"
 
-const TestSetDisplay = () => {
-    return <TestSetTable mode="edit" />
+const testsetDisplay = () => {
+    return <TestsetTable mode="edit" />
 }
 
-export default TestSetDisplay
+export default testsetDisplay
