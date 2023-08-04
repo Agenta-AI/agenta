@@ -46,6 +46,7 @@ async def list_apps() -> List[App]:
         List[App]
     """
     try:
+        print("\n\n\n\n\n I am here \n\n\n\n\n")
         apps = db_manager.list_apps()
         return apps
     except Exception as e:
@@ -68,7 +69,9 @@ async def add_variant_from_image(app_variant: AppVariant, image: Image):
 
     if not image.tags.startswith(settings.registry):
         raise HTTPException(
-            status_code=500, detail="Image should have a tag starting with the registry name (agenta-server)")
+            status_code=500,
+            detail="Image should have a tag starting with the registry name (agenta-server)",
+        )
     elif image not in docker_utils.list_images():
         raise HTTPException(status_code=500, detail="Image not found")
 
@@ -79,7 +82,11 @@ async def add_variant_from_image(app_variant: AppVariant, image: Image):
 
 
 @router.post("/add/from_previous/")
-async def add_variant_from_previous(previous_app_variant: AppVariant, new_variant_name: str = Body(...), parameters: Dict[str, Any] = Body(...)):
+async def add_variant_from_previous(
+    previous_app_variant: AppVariant,
+    new_variant_name: str = Body(...),
+    parameters: Dict[str, Any] = Body(...),
+):
     """Add a variant to the server based on a previous variant.
 
     Arguments:
@@ -90,11 +97,15 @@ async def add_variant_from_previous(previous_app_variant: AppVariant, new_varian
     Raises:
         HTTPException: If there is a problem adding the app variant
     """
-    print(f"previous_app_variant: {previous_app_variant}, type: {type(previous_app_variant)}")
+    print(
+        f"previous_app_variant: {previous_app_variant}, type: {type(previous_app_variant)}"
+    )
     print(f"new_variant_name: {new_variant_name}, type: {type(new_variant_name)}")
     print(f"parameters: {parameters}, type: {type(parameters)}")
     try:
-        db_manager.add_variant_based_on_previous(previous_app_variant, new_variant_name, parameters)
+        db_manager.add_variant_based_on_previous(
+            previous_app_variant, new_variant_name, parameters
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

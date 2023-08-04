@@ -1,4 +1,4 @@
-import {deleteAppEvaluations, loadAppEvaluations} from "@/lib/services/api"
+import {deleteEvaluations, loadEvaluations} from "@/lib/services/api"
 import {Button, Table} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
@@ -29,7 +29,7 @@ interface EvaluationListTableDataType {
 
 export default function EvaluationsList() {
     const router = useRouter()
-    const [appEvaluationsList, setAppEvaluationsList] = useState<EvaluationListTableDataType[]>([])
+    const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [deletingLoading, setDeletingLoading] = useState<boolean>(true)
@@ -40,9 +40,9 @@ export default function EvaluationsList() {
         if (!app_name) {
             return
         }
-        const fetchAppEvaluations = async () => {
+        const fetchEvaluations = async () => {
             try {
-                const result = await loadAppEvaluations(app_name)
+                const result = await loadEvaluations(app_name)
                 let newList = result.map((obj: any) => {
                     let newObj: EvaluationListTableDataType = {
                         key: obj.id,
@@ -54,7 +54,7 @@ export default function EvaluationsList() {
                     }
                     return newObj
                 })
-                setAppEvaluationsList(newList)
+                setEvaluationsList(newList)
                 setDeletingLoading(false)
             } catch (error) {
                 console.log(error)
@@ -62,20 +62,20 @@ export default function EvaluationsList() {
             }
         }
 
-        fetchAppEvaluations()
+        fetchEvaluations()
     }, [app_name])
 
-    const onCompleteEvaluation = (appEvaluation: any) => {
+    const onCompleteEvaluation = (evaluation: any) => {
         // TODO: improve type
         const evaluationType =
-            EvaluationType[appEvaluation.evaluationType as keyof typeof EvaluationType]
+            EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.auto_exact_match) {
-            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/auto_exact_match`)
+            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_exact_match`)
         } else if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/human_a_b_testing`)
         } else if (evaluationType === EvaluationType.auto_similarity_match) {
-            router.push(`/apps/${app_name}/evaluations/${appEvaluation.key}/auto_similarity_match`)
+            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_similarity_match`)
         }
     }
 
@@ -157,14 +157,12 @@ export default function EvaluationsList() {
     }
 
     const onDelete = async () => {
-        const appEvaluationsIds = selectedRowKeys.map((key) => key.toString())
+        const evaluationsIds = selectedRowKeys.map((key) => key.toString())
         setDeletingLoading(true)
         try {
-            const deletedIds = await deleteAppEvaluations(appEvaluationsIds)
-            setAppEvaluationsList((prevAppEvaluationsList) =>
-                prevAppEvaluationsList.filter(
-                    (appEvaluation) => !deletedIds.includes(appEvaluation.key),
-                ),
+            const deletedIds = await deleteEvaluations(evaluationsIds)
+            setEvaluationsList((prevEvaluationsList) =>
+                prevEvaluationsList.filter((evaluation) => !deletedIds.includes(evaluation.key)),
             )
 
             setSelectedRowKeys([])
@@ -190,7 +188,7 @@ export default function EvaluationsList() {
                     ...rowSelection,
                 }}
                 columns={columns}
-                dataSource={appEvaluationsList}
+                dataSource={evaluationsList}
                 // loading={loading}
             />
         </div>
