@@ -22,7 +22,7 @@ def variant():
     pass
 
 
-def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -> str:
+def add_variant(app_folder: str, file_name: str, host: str) -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
     Args:
@@ -38,6 +38,7 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
     config_file = app_path / 'config.toml'
     config = toml.load(config_file)
     app_name = config['app-name']
+    variant_name = file_name.removesuffix(".py")
 
     # check files in folder
     app_file = app_path / file_name
@@ -61,18 +62,11 @@ def add_variant(variant_name: str, app_folder: str, file_name: str, host: str) -
             click.echo("Operation cancelled.")
             sys.exit(0)
 
-    # Ask for variant name and validate.
-    if not variant_name:
-        while True:
-            variant_name = questionary.text('Please enter the variant name').ask()
-            if variant_name and re.match('^[a-zA-Z0-9_]+$', variant_name):
-                break
-            else:
-                if variant_name is None:  # User pressed Ctrl+C
-                    sys.exit(0)
-                else:
-                    print("Invalid input. Please use only alphanumeric characters without spaces.")
-
+    # Validate variant name
+    if not re.match('^[a-zA-Z0-9_]+$', variant_name):
+        click.echo(click.style("Invalid input. Please use only alphanumeric characters without spaces.", fg='red'))
+        sys.exit(0)
+        
     # update the config file with the variant names from the backend
     overwrite = False
     if variant_name in config['variants']:
@@ -258,13 +252,20 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 
 @variant.command(name='serve')
 @click.option('--app_folder', default='.')
-@click.option('--file_name', default='app.py', help="The name of the file to run")
+@click.option('--file_name', help="The name of the file to run")
 def serve_cli(app_folder: str, file_name: str):
     """Adds a variant to the web ui and serves the api locally."""
+    
+    if not file_name:
+        error_msg = "To serve variant, kindly provide the filename and run:\n"
+        error_msg += ">>> agenta variant serve --file_name <filename>.py"
+        click.echo(click.style(f"{error_msg}", fg='red'))
+        sys.exit(0)
+        
     try:
         config_check(app_folder)
         host = get_host(app_folder)
-        variant_name = add_variant(variant_name='', app_folder=app_folder, file_name=file_name, host=host)
+        variant_name = add_variant(app_folder=app_folder, file_name=file_name, host=host)
         if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
             start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
     except ConnectionError:
