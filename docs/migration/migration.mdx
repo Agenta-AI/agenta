@@ -1,0 +1,12 @@
+## Migration
+
+### dataset to testset
+
+In order to maintain naming conventions consistent across both frontend and backend, improving thus code readability, we have renamed 'datasets' to 'testsets'. Also, the 'datasets collection' has been renamed to 'testsets collection'. For migration of your data from the 'dataset collection' to 'testset', please execute the provided script located at `extras/migration/mongodb/001_dataset_to_testset.py`.
+
+Follow these steps:
+
+1. activate your virtual environment
+2. `pip install pymongo`
+3. `cd agenta-backend/db/migration/mongodb/`
+4. `python 001_dataset_to_testset.py`

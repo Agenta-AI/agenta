@@ -5,4 +5,4 @@ database = client["agenta"]
 
 evaluation_scenarios = database["evaluation_scenarios"]
 comparison_tables = database["comparison_tables"]
-datasets = database["datasets"]
+testsets = database["testsets"]

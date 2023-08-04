@@ -4,7 +4,7 @@
 import logging
 
 from agenta_backend.config import settings
-from agenta_backend.services.db_mongo import datasets
+from agenta_backend.services.db_mongo import testsets
 from agenta_backend.models.api.api_models import URI, App, AppVariant, Image
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 def remove_app_variant(app_variant: AppVariant):
     """Removes appvariant from db, if it is the last one using an image, then
-    deletes the image from the db, shutdowns the container, deletes it and remove 
+    deletes the image from the db, shutdowns the container, deletes it and remove
     the image from the registry
 
     Arguments:
@@ -49,7 +49,9 @@ def remove_app_variant(app_variant: AppVariant):
                     docker_utils.delete_image(image)
                     logger.info(f"Image {image.tags} deleted")
                 except:
-                    logger.warning(f"Warning: Error deleting image {image.tags}. Probably multiple variants using it.")
+                    logger.warning(
+                        f"Warning: Error deleting image {image.tags}. Probably multiple variants using it."
+                    )
                 db_manager.remove_image(image)
             db_manager.remove_app_variant(app_variant)
         except Exception as e:
@@ -59,7 +61,7 @@ def remove_app_variant(app_variant: AppVariant):
 
 async def remove_app(app: App):
     """Removes all app variants from db, if it is the last one using an image, then
-    deletes the image from the db, shutdowns the container, deletes it and remove 
+    deletes the image from the db, shutdowns the container, deletes it and remove
     the image from the registry
 
     Arguments:
@@ -72,7 +74,9 @@ async def remove_app(app: App):
         logger.error(msg)
         raise ValueError(msg)
     try:
-        app_variants = db_manager.list_app_variants(app_name=app_name, show_soft_deleted=True)
+        app_variants = db_manager.list_app_variants(
+            app_name=app_name, show_soft_deleted=True
+        )
     except Exception as e:
         logger.error(f"Error fetching app variants from the database: {str(e)}")
         raise
@@ -84,40 +88,42 @@ async def remove_app(app: App):
         try:
             for app_variant in app_variants:
                 remove_app_variant(app_variant)
-                logger.info(f"App variant {app_variant.app_name}/{app_variant.variant_name} deleted")
-            
-            await remove_app_datasets(app_name)
-            logger.info(f"Datasets for {app_name} app deleted")
+                logger.info(
+                    f"App variant {app_variant.app_name}/{app_variant.variant_name} deleted"
+                )
+
+            await remove_app_testsets(app_name)
+            logger.info(f"Tatasets for {app_name} app deleted")
         except Exception as e:
             logger.error(f"Error deleting app variants: {str(e)}")
             raise
 
 
-async def remove_app_datasets(app_name: str):
-    """Returns a list of datasets owned by an app.
+async def remove_app_testsets(app_name: str):
+    """Returns a list of testsets owned by an app.
 
     Args:
         app_name (str): The name of the app
 
     Returns:
-        int: The number of datasets deleted
+        int: The number of testsets deleted
     """
 
-    # Find datasets owned by the app
-    cursor = datasets.find({"app_name": app_name})
+    # Find testsets owned by the app
+    cursor = testsets.find({"app_name": app_name})
     documents = await cursor.to_list(length=100)
 
     # Prepare a list of ObjectIds for bulk deletion
-    dataset_ids = [document['_id'] for document in documents]
+    testset_ids = [document["_id"] for document in documents]
 
-    # Perform bulk deletion if there are datasets to delete
-    if dataset_ids:
-        result = await datasets.delete_many({'_id': {'$in': dataset_ids}})
+    # Perform bulk deletion if there are testsets to delete
+    if testset_ids:
+        result = await testsets.delete_many({"_id": {"$in": testset_ids}})
         deleted_count = result.deleted_count
-        logger.info(f"{deleted_count} dataset(s) deleted for app {app_name}")
+        logger.info(f"{deleted_count} testset(s) deleted for app {app_name}")
         return deleted_count
     else:
-        logger.info(f"No datasets found for app {app_name}")
+        logger.info(f"No testsets found for app {app_name}")
         return 0
 
 
@@ -142,20 +148,28 @@ def start_variant(app_variant: AppVariant) -> URI:
         image: Image = db_manager.get_image(app_variant)
     except Exception as e:
         logger.error(
-            f"Error fetching image for app variant {app_variant.app_name}/{app_variant.variant_name} from database: {str(e)}")
+            f"Error fetching image for app variant {app_variant.app_name}/{app_variant.variant_name} from database: {str(e)}"
+        )
         raise ValueError(
-            f"Image for app variant {app_variant.app_name}/{app_variant.variant_name} not found in database") from e
+            f"Image for app variant {app_variant.app_name}/{app_variant.variant_name} not found in database"
+        ) from e
 
     try:
         uri: URI = docker_utils.start_container(
-            image_name=image.tags, app_name=app_variant.app_name, variant_name=app_variant.variant_name)
+            image_name=image.tags,
+            app_name=app_variant.app_name,
+            variant_name=app_variant.variant_name,
+        )
         logger.info(
-            f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}")
+            f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
+        )
     except Exception as e:
         logger.error(
-            f"Error starting Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}: {str(e)}")
+            f"Error starting Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}: {str(e)}"
+        )
         raise RuntimeError(
-            f"Failed to start Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}") from e
+            f"Failed to start Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}"
+        ) from e
 
     return uri
 
@@ -177,7 +191,9 @@ def update_variant_parameters(app_variant: AppVariant):
     try:
         db_manager.update_variant_parameters(app_variant, app_variant.parameters)
     except:
-        logger.error(f"Error updating app variant {app_variant.app_name}/{app_variant.variant_name}")
+        logger.error(
+            f"Error updating app variant {app_variant.app_name}/{app_variant.variant_name}"
+        )
         raise
 
 
@@ -197,9 +213,13 @@ def update_variant_image(app_variant: AppVariant, image: Image):
         logger.error(msg)
         raise ValueError(msg)
     if not image.tags.startswith(settings.registry):
-        raise ValueError("Image should have a tag starting with the registry name (agenta-server)")
+        raise ValueError(
+            "Image should have a tag starting with the registry name (agenta-server)"
+        )
     if image not in docker_utils.list_images():
-        raise DockerException(f"Image {image.docker_id} with tags {image.tags} not found")
+        raise DockerException(
+            f"Image {image.docker_id} with tags {image.tags} not found"
+        )
 
     if db_manager.get_variant_from_db(app_variant) is None:
         msg = f"App variant {app_variant.app_name}/{app_variant.variant_name} not found in DB"
@@ -217,14 +237,19 @@ def update_variant_image(app_variant: AppVariant, image: Image):
     except Exception as e:
         logger.error(f"Error removing old variant: {str(e)}")
         logger.error(
-            f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}")
+            f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}"
+        )
         logger.error("Previous variant removed but new variant not added. Rolling back")
         db_manager.add_variant_based_on_image(old_variant, old_image)
         raise
     try:
-        logger.info(f"Updating variant {app_variant.app_name}/{app_variant.variant_name}")
+        logger.info(
+            f"Updating variant {app_variant.app_name}/{app_variant.variant_name}"
+        )
         db_manager.add_variant_based_on_image(app_variant, image)
-        logger.info(f"Starting variant {app_variant.app_name}/{app_variant.variant_name}")
+        logger.info(
+            f"Starting variant {app_variant.app_name}/{app_variant.variant_name}"
+        )
         start_variant(app_variant)
     except:
         raise

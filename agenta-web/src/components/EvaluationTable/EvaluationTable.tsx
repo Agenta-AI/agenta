@@ -165,6 +165,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
@@ -199,11 +200,12 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
                         >
-                            {appEvaluation.dataset.name}
+                            {appEvaluation.testset.name}
                         </span>
                         <span> )</span>
                     </div>

@@ -1,43 +1,43 @@
 {
-  "name": "dashboard",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "test": "yarn cypress run",
-    "format": "prettier src/ --check",
-    "format-fix": "prettier --write src/"
-  },
-  "dependencies": {
-    "@ant-design/colors": "^7.0.0",
-    "@ant-design/icons": "^5.0.1",
-    "@heroicons/react": "^2.0.17",
-    "@types/node": "18.16.3",
-    "@types/react": "18.2.0",
-    "@types/react-dom": "18.2.1",
-    "ag-grid-react": "^30.0.3",
-    "antd": "^5.4.7",
-    "autoprefixer": "10.4.14",
-    "axios": "^1.4.0",
-    "classnames": "^2.3.2",
-    "eslint": "8.39.0",
-    "eslint-config-next": "13.3.4",
-    "js-beautify": "^1.14.8",
-    "next": "13.3.4",
-    "postcss": "8.4.23",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-syntax-highlighter": "^15.5.0",
-    "swr": "^2.1.5",
-    "typescript": "5.0.4"
-  },
-  "devDependencies": {
-    "cypress": "^12.11.0",
-    "eslint-config-prettier": "^8.8.0",
-    "node-mocks-http": "^1.12.2",
-    "prettier": "^3.0.0"
-  }
+    "name": "dashboard",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint",
+        "test": "yarn cypress run",
+        "format": "prettier --check",
+        "format-fix": "prettier --write ."
+    },
+    "dependencies": {
+        "@ant-design/colors": "^7.0.0",
+        "@ant-design/icons": "^5.0.1",
+        "@heroicons/react": "^2.0.17",
+        "@types/node": "18.16.3",
+        "@types/react": "18.2.0",
+        "@types/react-dom": "18.2.1",
+        "ag-grid-react": "^30.0.3",
+        "antd": "^5.4.7",
+        "autoprefixer": "10.4.14",
+        "axios": "^1.4.0",
+        "classnames": "^2.3.2",
+        "eslint": "8.39.0",
+        "eslint-config-next": "13.3.4",
+        "js-beautify": "^1.14.8",
+        "next": "13.3.4",
+        "postcss": "8.4.23",
+        "react": "18.2.0",
+        "react-dom": "18.2.0",
+        "react-syntax-highlighter": "^15.5.0",
+        "swr": "^2.1.5",
+        "typescript": "5.0.4"
+    },
+    "devDependencies": {
+        "cypress": "^12.11.0",
+        "eslint-config-prettier": "^8.8.0",
+        "node-mocks-http": "^1.12.2",
+        "prettier": "^3.0.0"
+    }
 }
