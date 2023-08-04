@@ -48,6 +48,12 @@
             "installation/local-installation/local-installation",
             "installation/self-hosting/self-hosted-installation"
           ]
+        },
+        {
+          "group": "Upgrading",
+          "pages": [
+            "installation/migration/migration"
+          ]
         }
       ]
     },
@@ -62,12 +68,6 @@
       "pages": [
         "howto/creating-multiple-app-variants",
         "howto/how-to-debug"
-      ]
-    },
-    {
-      "group": "Migration Guides",
-      "pages": [
-        "migration/migration"
       ]
     },
     {
