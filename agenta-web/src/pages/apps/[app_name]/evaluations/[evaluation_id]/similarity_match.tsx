@@ -1,6 +1,6 @@
 import SimilarityMatchEvaluationTable from "../../../../../components/EvaluationTable/SimilarityMatchEvaluationTable"
 import {AppEvaluation} from "@/lib/Types"
-import {loadAppEvaluation, loadEvaluationsRows} from "@/lib/services/api"
+import {loadAppEvaluation, loadEvaluationsScenarios} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {fetchVariants} from "@/lib/services/api"
@@ -20,7 +20,7 @@ export default function Evaluation() {
             return
         }
         const init = async () => {
-            const data = await loadEvaluationsRows(evaluationTableId, appEvaluation)
+            const data = await loadEvaluationsScenarios(evaluationTableId, appEvaluation)
             setEvaluationScenarios(data)
         }
         init()
