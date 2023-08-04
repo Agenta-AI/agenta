@@ -1,13 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    output: 'standalone',
+    output: "standalone",
     reactStrictMode: true,
 
     async redirects() {
         return [
             {
-                source: '/',
-                destination: '/apps',
+                source: "/",
+                destination: "/apps",
                 permanent: true,
             },
         ]
