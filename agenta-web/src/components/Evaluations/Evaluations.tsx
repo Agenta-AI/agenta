@@ -100,12 +100,6 @@ export default function Evaluations() {
         }
     }, [screenSize])
 
-    useEffect(() => {
-        if (window) {
-            setScreenSize(window.innerWidth.toString())
-        }
-    }, [])
-
     // TODO: move to api.ts
     const createNewEvaluation = async (
         evaluationType: string,
