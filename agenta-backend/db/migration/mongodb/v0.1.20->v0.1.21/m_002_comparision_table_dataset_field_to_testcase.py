@@ -12,7 +12,7 @@ client = MongoClient("mongodb://username:password@0.0.0.0:27017")
 db = client["agenta"]
 
 # Specify the source and target collections
-source_collection = db["comparison_tables"]
+source_collection = db["evaluations"]
 
 # Fetch all documents from the source collection
 source_documents = source_collection.find()
