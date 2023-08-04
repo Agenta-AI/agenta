@@ -272,15 +272,15 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 def serve_cli(app_folder: str, file_name: str):
     """Adds a variant to the web ui and serves the api locally."""
     
-    click.echo(
-        click.style(f"Serving variant {file_name.removesuffix('.py')} to Playground...", fg="yellow")
-    )
     if not file_name:
         error_msg = "To serve variant, kindly provide the filename and run:\n"
         error_msg += ">>> agenta variant serve --file_name <filename>.py"
         click.echo(click.style(f"{error_msg}", fg='red'))
         sys.exit(0)
         
+    click.echo(
+        click.style(f"Serving variant {file_name.removesuffix('.py')} to Playground...", fg="yellow")
+    )
     try:
         config_check(app_folder)
         host = get_host(app_folder)
