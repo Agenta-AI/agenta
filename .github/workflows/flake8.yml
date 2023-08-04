@@ -1,0 +1,31 @@
+name: Prettier
+
+on:
+  pull_request:
+    paths:
+      - 'agenta-cli/**'
+      - 'agenta-backend/**'
+      - 'agenta-examples/**'
+
+jobs:
+  flake8-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          . venv/bin/activate
+          pip install flake8
+
+      - name: Run Flake8
+        run: |
+          . venv/bin/activate
+          flake8 .
