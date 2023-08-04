@@ -1,5 +1,5 @@
 import {useState, useEffect, useRef} from "react"
-import {Button, Dropdown, Input, Menu, Space, Table} from "antd"
+import {Button, Dropdown, Input, Menu, Space, Table, Typography} from "antd"
 import {AppVariant} from "@/lib/Types"
 import type {ColumnType} from "antd/es/table"
 import {DislikeOutlined, DownOutlined, LikeOutlined} from "@ant-design/icons"
@@ -25,6 +25,8 @@ const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({
     const [isSelected, setIsSelected] = useState<boolean[]>(Array(columnsCount).fill(false))
     const [inputData, setInputData] = useState("")
     const inputRef = useRef<any>(null)
+
+    const {Text} = Typography
 
     const handleMenuClick =
         (columnIndex: number) =>
@@ -79,7 +81,7 @@ const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({
             return {
                 title: (
                     <div style={{display: "flex", justifyContent: "space-between"}}>
-                        App Variant:
+                        <Text>App Variant: </Text>
                         <Dropdown
                             overlay={menu}
                             placement="bottomRight"

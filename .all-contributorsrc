@@ -45,6 +45,35 @@
         "code",
         "doc"
       ]
+    },
+    {
+      "login": "vernu",
+      "name": "Israel Abebe",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7479824?v=4",
+      "profile": "http://israelabebe.com",
+      "contributions": [
+        "bug",
+        "design",
+        "code"
+      ]
+    },
+    {
+      "login": "SohaibAnwaar",
+      "name": "Master X",
+      "avatar_url": "https://avatars.githubusercontent.com/u/29427728?v=4",
+      "profile": "https://github.com/SohaibAnwaar",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "witehound",
+      "name": "corinthian",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26417477?v=4",
+      "profile": "https://main-portfolio-26wv6oglp-witehound.vercel.app/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

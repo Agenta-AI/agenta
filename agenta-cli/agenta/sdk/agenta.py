@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .context import get_contexts, save_context
-from .types import FloatParam, InFile, TextParam, Context
+from .types import FloatParam, InFile, TextParam, Context, MultipleChoiceParam
 from .router import router as router
 
 app = FastAPI()
@@ -22,6 +22,8 @@ app = FastAPI()
 origins = [
     "http://localhost:3000",
     "http://localhost:3001",
+    "http://0.0.0.0:3000",
+    "http://0.0.0.0:3001"
 ]
 
 app.add_middleware(
@@ -134,11 +136,17 @@ def post(func: Callable[..., Any]):
     func_params = sig.parameters
 
     # find the optional parameters for the app
-    app_params = {name: param for name, param in func_params.items()
-                  if param.annotation in {TextParam, FloatParam}}
+    app_params = {
+        name: param
+        for name, param in func_params.items()
+        if param.annotation in {TextParam, FloatParam, MultipleChoiceParam}
+    }
+
     # find the default values for the optional parameters
     for name, param in app_params.items():
-        default_value = param.default if param.default is not param.empty else None
+        default_value = (
+            param.default if param.default is not param.empty else None
+        )
         app_params[name] = default_value
 
     @functools.wraps(func)
@@ -151,46 +159,85 @@ def post(func: Callable[..., Any]):
             return result
         except Exception as e:
             if sys.version_info.major == 3 and sys.version_info.minor < 10:
-                traceback_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
+                traceback_str = "".join(
+                    traceback.format_exception(None, e, e.__traceback__)
+                )
             else:
-                traceback_str = ''.join(traceback.format_exception(e, value=e, tb=e.__traceback__))
-            return JSONResponse(status_code=500, content={"error": str(e), "traceback": traceback_str})
+                traceback_str = "".join(
+                    traceback.format_exception(e, value=e, tb=e.__traceback__)
+                )
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e), "traceback": traceback_str},
+            )
+
     new_params = []
+    instances_to_override = []
     for name, param in sig.parameters.items():
         if name in app_params:
-            new_params.append(
-                inspect.Parameter(
-                    name,
-                    inspect.Parameter.KEYWORD_ONLY,
-                    default=Body(app_params[name]),
-                    annotation=Optional[param.annotation]
+            if param.annotation is MultipleChoiceParam:
+                # we save the MultipleChoiceParams for later to update the openai schema
+                instances_to_override.append((name, app_params[name]))
+                new_params.append(
+                    inspect.Parameter(
+                        name,
+                        inspect.Parameter.KEYWORD_ONLY,
+                        default=Body(app_params[name]),
+                        annotation=Optional[param.annotation],
+                    )
                 )
-            )
+            else:
+                new_params.append(
+                    inspect.Parameter(
+                        name,
+                        inspect.Parameter.KEYWORD_ONLY,
+                        default=Body(app_params[name]),
+                        annotation=Optional[param.annotation],
+                    )
+                )
         else:
             new_params.append(
                 inspect.Parameter(
                     name,
                     inspect.Parameter.KEYWORD_ONLY,
                     default=Body(...),
-                    annotation=param.annotation
-
+                    annotation=param.annotation,
                 )
             )
 
     wrapper.__signature__ = sig.replace(parameters=new_params)
 
     route = "/generate"
+    func_name = func.__name__
     app.post(route)(wrapper)
+    schema = app.openapi()  # or app.openapi_schema
+    schemas = schema["components"]["schemas"][f"Body_{func_name}_generate_post"]["properties"]
+
+    # Update schema for multichoice objects
+    override_schema_for_multichoice(schemas, instances_to_override)
 
     # check if the module is being run as the main script
-    if os.path.splitext(os.path.basename(sys.argv[0]))[0] == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]:
+    if (
+        os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]
+    ):
         parser = argparse.ArgumentParser()
         # add arguments to the command-line parser
         for name, param in sig.parameters.items():
             if name in app_params:
-                # For optional parameters, we add them as options
-                parser.add_argument(f"--{name}", type=type(param.default),
-                                    default=param.default)
+                if param.annotation is MultipleChoiceParam:
+                    parser.add_argument(
+                        f"--{name}",
+                        type=str,
+                        default=param.default,
+                        choices=param.default.choices
+                    )
+                else:
+                    parser.add_argument(
+                        f"--{name}",
+                        type=type(param.default),
+                        default=param.default,
+                    )
             else:
                 # For required parameters, we add them as arguments
                 parser.add_argument(name, type=param.annotation)
@@ -199,3 +246,43 @@ def post(func: Callable[..., Any]):
         print(func(**vars(args)))
 
     return wrapper
+
+
+def override_schema_for_multichoice(
+        parameters: dict, instances_to_override: list):
+    """
+    This function updates the "enum" and "default" values of each MultiChoiceParam instance in the dictionary based 
+    on its choices and default value. If the default value is not present in the choices, it adds the default 
+    value to the beginning of the choices list and sets it as the new default value. 
+
+    This ensures that the generated API documentation reflects the available choices and default values for 
+    MultiChoiceParam instances.
+
+    Arguments:
+        parameters -- A dictionary containing parameter schema. Keys are parameter names, values hold parameter details.
+        instances_to_override -- A list of tuples each containing a parameter name (param_name) and its instance
+        (param_instance).
+    """
+
+    for param_name, param_instance in instances_to_override:
+        for _, value in parameters.items():
+            value_title_lower = str(value.get("title")).lower()
+            value_title = (
+                "_".join(value_title_lower.split())
+                if len(value_title_lower.split()) >= 2
+                else value_title_lower
+            )
+
+            if (
+                isinstance(value, dict)
+                and value.get("x-parameter") == "choice"
+                and value_title == param_name
+            ):
+                default = str(param_instance)
+                param_choices = param_instance.choices
+                choices = [default] + param_choices if default not in param_choices else param_choices
+
+                value["enum"] = choices
+                value["default"] = (
+                    default if default in choices else choices[0]
+                )

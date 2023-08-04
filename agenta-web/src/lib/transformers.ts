@@ -1,8 +1,8 @@
-import {AppEvaluation, AppEvaluationResponseType, Variant} from "./Types"
+import {Evaluation, EvaluationResponseType, Variant} from "./Types"
 import {EvaluationType} from "./enums"
 import {formatDate} from "./helpers/dateTimeHelper"
 
-export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResponseType) => {
+export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
     const variants: Variant[] = item.variants.map((variantName: string) => {
         const variant: Variant = {
             variantName: variantName,
@@ -23,7 +23,7 @@ export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResp
         id: item.id,
         createdAt: formatDate(item.created_at),
         variants: variants,
-        dataset: item.dataset,
+        testset: item.testset,
         appName: item.app_name,
         status: item.status,
         evaluationType: item.evaluation_type,
@@ -31,11 +31,8 @@ export const fromAppEvaluationResponseToAppEvaluation = (item: AppEvaluationResp
     }
 }
 
-export const fromEvaluationsRowsResponseToEvaluationsRows = (
-    item: any,
-    appEvaluation: AppEvaluation,
-) => {
-    let evaluationRow = {
+export const fromEvaluationsRowsResponseToEvaluationsRows = (item: any, evaluation: Evaluation) => {
+    let evaluationScenario = {
         id: item.id,
         inputs: item.inputs,
         outputs: item.outputs,
@@ -43,13 +40,13 @@ export const fromEvaluationsRowsResponseToEvaluationsRows = (
         correctAnswer: item.correct_answer,
     }
 
-    if (appEvaluation.evaluationType === EvaluationType.human_a_b_testing) {
-        evaluationRow = {...evaluationRow, vote: item.vote}
+    if (evaluation.evaluationType === EvaluationType.human_a_b_testing) {
+        evaluationScenario = {...evaluationScenario, vote: item.vote}
     } else if (
-        appEvaluation.evaluationType === EvaluationType.auto_exact_match ||
-        appEvaluation.evaluationType === EvaluationType.auto_similarity_match
+        evaluation.evaluationType === EvaluationType.auto_exact_match ||
+        evaluation.evaluationType === EvaluationType.auto_similarity_match
     ) {
-        evaluationRow = {...evaluationRow, score: item.score}
+        evaluationScenario = {...evaluationScenario, score: item.score}
     }
-    return evaluationRow
+    return evaluationScenario
 }

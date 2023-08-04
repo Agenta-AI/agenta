@@ -1,5 +1,5 @@
-import TestSetTable from "@/components/TestSetTable/TestSetTable"
+import TestsetTable from "@/components/TestSetTable/TestsetTable"
 
-export default function TestSetCreatePage() {
-    return <TestSetTable mode="create" />
+export default function testsetCreatePage() {
+    return <TestsetTable mode="create" />
 }

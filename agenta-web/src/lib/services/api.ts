@@ -1,9 +1,9 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, AppEvaluationResponseType, AppEvaluation} from "@/lib/Types"
+import {Variant, Parameter, EvaluationResponseType, Evaluation} from "@/lib/Types"
 import {
-    fromAppEvaluationResponseToAppEvaluation,
+    fromEvaluationResponseToEvaluation,
     fromEvaluationsRowsResponseToEvaluationsRows,
 } from "../transformers"
 import {EvaluationType} from "../enums"
@@ -183,28 +183,28 @@ export async function removeVariant(appName: string, variantName: string) {
     }
 }
 /**
- * Loads the list of datasets
+ * Loads the list of testsets
  * @returns
  */
-export const useLoadDatasetsList = (app_name: string) => {
+export const useLoadTestsetsList = (app_name: string) => {
     const {data, error} = useSWR(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets?app_name=${app_name}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`,
         fetcher,
     )
     return {
-        datasets: data,
-        isDatasetsLoading: !error && !data,
-        isDatasetsLoadingError: error,
+        testsets: data,
+        isTestsetsLoading: !error && !data,
+        isTestsetsLoadingError: error,
     }
 }
 
-export async function createNewTestSet(appName: string, testSetName: string, testSetData: any) {
+export async function createNewTestset(appName: string, testsetName: string, testsetData: any) {
     try {
         const response = await axios.post(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${appName}`,
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${appName}`,
             {
-                name: testSetName,
-                csvdata: testSetData,
+                name: testsetName,
+                csvdata: testsetData,
             },
         )
         return response
@@ -214,13 +214,13 @@ export async function createNewTestSet(appName: string, testSetName: string, tes
     }
 }
 
-export async function updateTestSet(testSetId: String, testSetName: string, testSetData: any) {
+export async function updateTestset(testsetId: String, testsetName: string, testsetData: any) {
     try {
         const response = await axios.put(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${testSetId}`,
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}`,
             {
-                name: testSetName,
-                csvdata: testSetData,
+                name: testsetName,
+                csvdata: testsetData,
             },
         )
         return response
@@ -230,8 +230,8 @@ export async function updateTestSet(testSetId: String, testSetName: string, test
     }
 }
 
-export const loadDataset = async (datasetId: string) => {
-    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets/${datasetId}`, {
+export const loadTestset = async (testsetId: string) => {
+    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}`, {
         headers: {
             "Content-Type": "application/json",
         },
@@ -245,12 +245,12 @@ export const loadDataset = async (datasetId: string) => {
         })
 }
 
-export const deleteDatasets = async (ids: string[]) => {
+export const deleteTestsets = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",
-            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/datasets`,
-            data: {dataset_ids: ids},
+            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets`,
+            data: {testset_ids: ids},
         })
         if (response.status === 200) {
             return response.data
@@ -265,14 +265,14 @@ const eval_endpoint = axios.create({
     baseURL: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations`,
 })
 
-export const loadAppEvaluations = async (app_name: string) => {
+export const loadEvaluations = async (app_name: string) => {
     try {
         return await eval_endpoint.get(`?app_name=${app_name}`).then((responseData) => {
-            const appEvaluations = responseData.data.map((item: AppEvaluationResponseType) => {
-                return fromAppEvaluationResponseToAppEvaluation(item)
+            const evaluations = responseData.data.map((item: EvaluationResponseType) => {
+                return fromEvaluationResponseToEvaluation(item)
             })
 
-            return appEvaluations
+            return evaluations
         })
     } catch (error) {
         console.error(error)
@@ -280,10 +280,10 @@ export const loadAppEvaluations = async (app_name: string) => {
     }
 }
 
-export const loadAppEvaluation = async (appEvaluationId: string) => {
+export const loadEvaluation = async (evaluationId: string) => {
     try {
-        return await eval_endpoint.get(appEvaluationId).then((responseData) => {
-            return fromAppEvaluationResponseToAppEvaluation(responseData.data)
+        return await eval_endpoint.get(evaluationId).then((responseData) => {
+            return fromEvaluationResponseToEvaluation(responseData.data)
         })
     } catch (error) {
         console.error(error)
@@ -291,12 +291,12 @@ export const loadAppEvaluation = async (appEvaluationId: string) => {
     }
 }
 
-export const deleteAppEvaluations = async (ids: string[]) => {
+export const deleteEvaluations = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",
             url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations`,
-            data: {comparison_tables_ids: ids},
+            data: {evaluations_ids: ids},
         })
         if (response.status === 200) {
             return response.data
@@ -307,16 +307,16 @@ export const deleteAppEvaluations = async (ids: string[]) => {
     }
 }
 
-export const loadEvaluationsRows = async (
+export const loadEvaluationsScenarios = async (
     evaluationTableId: string,
-    appEvaluation: AppEvaluation,
+    evaluation: Evaluation,
 ) => {
     try {
         return await eval_endpoint
-            .get(`${evaluationTableId}/evaluation_rows`)
+            .get(`${evaluationTableId}/evaluation_scenarios`)
             .then((responseData) => {
                 const evaluationsRows = responseData.data.map((item: any) => {
-                    return fromEvaluationsRowsResponseToEvaluationsRows(item, appEvaluation)
+                    return fromEvaluationsRowsResponseToEvaluationsRows(item, evaluation)
                 })
 
                 return evaluationsRows
@@ -327,25 +327,25 @@ export const loadEvaluationsRows = async (
     }
 }
 
-export const updateAppEvaluations = async (evaluationTableId: string, data) => {
+export const updateEvaluations = async (evaluationTableId: string, data) => {
     const response = await eval_endpoint.put(`${evaluationTableId}`, data)
     return response.data
 }
 
-export const updateEvaluationRow = async (
+export const updateEvaluationScenario = async (
     evaluationTableId: string,
-    evaluationRowId: string,
+    evaluationScenarioId: string,
     data,
     evaluationType: EvaluationType,
 ) => {
     const response = await eval_endpoint.put(
-        `${evaluationTableId}/evaluation_row/${evaluationRowId}/${evaluationType}`,
+        `${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}`,
         data,
     )
     return response.data
 }
 
-export const postEvaluationRow = async (evaluationTableId: string, data) => {
-    const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_row`, data)
+export const postEvaluationScenario = async (evaluationTableId: string, data) => {
+    const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_scenario`, data)
     return response.data
 }
