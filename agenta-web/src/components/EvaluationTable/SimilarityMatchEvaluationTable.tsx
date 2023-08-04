@@ -157,9 +157,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             rows[rowNumber].correctAnswer,
         )
         const isSimilar =
-            similarity >= evaluation.evaluationTypeSettings.similarityThreshold
-                ? "true"
-                : "false"
+            similarity >= evaluation.evaluationTypeSettings.similarityThreshold ? "true" : "false"
 
         const evaluation_scenario_id = rows[rowNumber].id
 
