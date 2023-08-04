@@ -162,9 +162,7 @@ export default function EvaluationsList() {
         try {
             const deletedIds = await deleteEvaluations(evaluationsIds)
             setEvaluationsList((prevEvaluationsList) =>
-                prevEvaluationsList.filter(
-                    (evaluation) => !deletedIds.includes(evaluation.key),
-                ),
+                prevEvaluationsList.filter((evaluation) => !deletedIds.includes(evaluation.key)),
             )
 
             setSelectedRowKeys([])

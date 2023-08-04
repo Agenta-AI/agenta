@@ -31,10 +31,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
     }
 }
 
-export const fromEvaluationsRowsResponseToEvaluationsRows = (
-    item: any,
-    evaluation: Evaluation,
-) => {
+export const fromEvaluationsRowsResponseToEvaluationsRows = (item: any, evaluation: Evaluation) => {
     let evaluationScenario = {
         id: item.id,
         inputs: item.inputs,
