@@ -79,8 +79,13 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     if not overwrite:
         config['variants'].append(variant_name)
     try:
+        click.echo(click.style(f"\n\nPreparing variant {variant_name} into a tar file...", fg="yellow"))
         tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
+        click.echo(click.style(f"Successfully prepared variant {variant_name} into a tar file!", fg="green"))
+        
+        click.echo(click.style(f"\n\nBuilding variant {variant_name} into a docker image...", fg="yellow"))
         image: Image = client.send_docker_tar(app_name, variant_name, tar_path, host)
+        click.echo(click.style(f"Successfully built variant {variant_name} into a docker image!", fg="green"))
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
@@ -88,9 +93,13 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
         return None
     try:
         if overwrite:
+            click.echo(click.style(f"\n\nUpdating variant {variant_name} image...", fg="yellow"))
             client.update_variant_image(app_name, variant_name, image, host)
+            click.echo(click.style(f"Successfully updated and added variant {variant_name} to server!", fg="green"))
         else:
+            click.echo(click.style(f"\n\nAdding variant {variant_name} to server...", fg="yellow"))
             client.add_variant_to_server(app_name, variant_name, image, host)
+            click.echo(click.style(f"Successfully added variant {variant_name} to server!\n\n", fg="green"))
     except Exception as ex:
         if overwrite:
             click.echo(click.style(f"Error while updating variant: {ex}", fg='red'))
@@ -217,6 +226,8 @@ def config_check(app_folder: str):
     Arguments:
         app_folder -- the app folder 
     """
+    
+    click.echo(click.style("\n\nChecking and updating config file...", fg="yellow"))
     app_folder = Path(app_folder)
     config_file = app_folder / 'config.toml'
     if not config_file.exists():
@@ -226,11 +237,14 @@ def config_check(app_folder: str):
     host = get_host(app_folder)  # TODO: Refactor the whole config thing
 
     helper.update_config_from_backend(config_file, host=host)
+    click.echo(click.style("Successfully updated config from backend!", fg="green"))
 
 
 def get_host(app_folder: str) -> str:
     """Fetches the host from the config
     """
+    
+    click.echo(click.style("Fetching host from the config file...", fg="yellow"))
     app_folder = Path(app_folder)
     config_file = app_folder / 'config.toml'
     config = toml.load(config_file)
@@ -238,6 +252,8 @@ def get_host(app_folder: str) -> str:
         host = "http://localhost"
     else:
         host = config['backend_host']
+    
+    click.echo(click.style("Successfully fetched host from the config file!", fg="green"))
     return host
 
 
@@ -256,6 +272,9 @@ def remove_variant_cli(variant_name: str, app_folder: str):
 def serve_cli(app_folder: str, file_name: str):
     """Adds a variant to the web ui and serves the api locally."""
     
+    click.echo(
+        click.style(f"Serving variant {file_name.removesuffix('.py')} to Playground...", fg="yellow")
+    )
     if not file_name:
         error_msg = "To serve variant, kindly provide the filename and run:\n"
         error_msg += ">>> agenta variant serve --file_name <filename>.py"
