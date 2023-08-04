@@ -2,10 +2,10 @@ name: Prettier
 
 on:
   pull_request:
-    paths:
-      - 'agenta-cli/**'
-      - 'agenta-backend/**'
-      - 'agenta-examples/**'
+    # paths:
+    #   - 'agenta-cli/**'
+    #   - 'agenta-backend/**'
+    #   - 'agenta-examples/**'
 
 jobs:
   flake8-lint:
