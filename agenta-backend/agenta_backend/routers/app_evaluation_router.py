@@ -23,9 +23,6 @@ router = APIRouter()
 async def create_comparison_table(
     newComparisonTableData: NewComparisonTable = Body(...),
 ):
-async def create_comparison_table(
-    newComparisonTableData: NewComparisonTable = Body(...),
-):
     """Creates a new comparison table document
 
     Raises:
@@ -44,6 +41,19 @@ async def create_comparison_table(
         testset = await testsets.find_one({"_id": ObjectId(testsetId)})
         csvdata = testset["csvdata"]
         for datum in csvdata:
+            try:
+                inputs = [
+                    {"input_name": name, "input_value": datum[name]}
+                    for name in comparison_table["inputs"]
+                ]
+            except KeyError:
+                await comparison_tables.delete_one(
+                    {"_id": newComparisonTable.inserted_id}
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="columns in the test set should match the names of the inputs in the variant",
+                )
             evaluation_scenario = {
                 "comparison_table_id": str(newComparisonTable.inserted_id),
                 "inputs": inputs,
@@ -56,7 +66,7 @@ async def create_comparison_table(
                 newComparisonTableData.evaluation_type
                 == EvaluationType.auto_exact_match
             ):
-                evaluation_row["score"] = ""
+                evaluation_scenario["score"] = ""
                 if "correct_answer" in datum:
                     evaluation_scenario["correct_answer"] = datum["correct_answer"]
 
@@ -64,7 +74,7 @@ async def create_comparison_table(
                 newComparisonTableData.evaluation_type
                 == EvaluationType.auto_similarity_match
             ):
-                evaluation_row["score"] = ""
+                evaluation_scenario["score"] = ""
                 if "correct_answer" in datum:
                     evaluation_scenario["correct_answer"] = datum["correct_answer"]
 
@@ -72,9 +82,9 @@ async def create_comparison_table(
                 newComparisonTableData.evaluation_type
                 == EvaluationType.human_a_b_testing
             ):
-                evaluation_row["vote"] = ""
+                evaluation_scenario["vote"] = ""
 
-            await evaluation_rows.insert_one(evaluation_row)
+            await evaluation_scenarios.insert_one(evaluation_scenario)
 
         comparison_table["id"] = str(newComparisonTable.inserted_id)
         return comparison_table
@@ -85,9 +95,10 @@ async def create_comparison_table(
 
 
 @router.get(
-    "/{comparison_table_id}/evaluation_rows", response_model=List[EvaluationRow]
+    "/{comparison_table_id}/evaluation_scenarios",
+    response_model=List[EvaluationScenario],
 )
-async def fetch_evaluation_rows(comparison_table_id: str):
+async def fetch_evaluation_scenarios(comparison_table_id: str):
     """Creates an empty evaluation row
 
     Arguments:
@@ -99,15 +110,17 @@ async def fetch_evaluation_rows(comparison_table_id: str):
     Returns:
         _description_
     """
-    cursor = evaluation_rows.find({"comparison_table_id": comparison_table_id})
+    cursor = evaluation_scenarios.find({"comparison_table_id": comparison_table_id})
     items = await cursor.to_list(length=100)  # limit length to 100 for the example
     for item in items:
         item["id"] = str(item["_id"])
     return items
 
 
-@router.post("/{comparison_table_id}/evaluation_row", response_model=EvaluationRow)
-async def create_evaluation_row(evaluation_row: EvaluationRow):
+@router.post(
+    "/{comparison_table_id}/evaluation_scenario", response_model=EvaluationScenario
+)
+async def create_evaluation_scenario(evaluation_scenario: EvaluationScenario):
     """Creates an empty evaluation row
 
     Arguments:
@@ -122,10 +135,10 @@ async def create_evaluation_row(evaluation_row: EvaluationRow):
     evaluation_scenario_dict = evaluation_scenario.dict()
     evaluation_scenario_dict.pop("id", None)
 
-    evaluation_row_dict["created_at"] = evaluation_row_dict[
+    evaluation_scenario_dict["created_at"] = evaluation_scenario_dict[
         "updated_at"
     ] = datetime.utcnow()
-    result = await evaluation_rows.insert_one(evaluation_row_dict)
+    result = await evaluation_scenarios.insert_one(evaluation_scenario_dict)
     if result.acknowledged:
         evaluation_scenario_dict["id"] = str(result.inserted_id)
         return evaluation_scenario_dict
@@ -136,11 +149,11 @@ async def create_evaluation_row(evaluation_row: EvaluationRow):
 
 
 @router.put(
-    "/{comparison_table_id}/evaluation_row/{evaluation_row_id}/{evaluation_type}"
+    "/{comparison_table_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}"
 )
-async def update_evaluation_row(
-    evaluation_row_id: str,
-    evaluation_row: EvaluationRowUpdate,
+async def update_evaluation_scenario(
+    evaluation_scenario_id: str,
+    evaluation_scenario: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
 ):
     """Updates an evaluation row with a vote
@@ -158,18 +171,18 @@ async def update_evaluation_row(
     evaluation_scenario_dict = evaluation_scenario.dict()
     evaluation_scenario_dict["updated_at"] = datetime.utcnow()
 
-    new_evaluation_set = {"outputs": evaluation_row_dict["outputs"]}
+    new_evaluation_set = {"outputs": evaluation_scenario_dict["outputs"]}
 
     if (
         evaluation_type == EvaluationType.auto_exact_match
         or evaluation_type == EvaluationType.auto_similarity_match
     ):
-        new_evaluation_set["score"] = evaluation_row_dict["score"]
+        new_evaluation_set["score"] = evaluation_scenario_dict["score"]
     elif evaluation_type == EvaluationType.human_a_b_testing:
         new_evaluation_set["vote"] = evaluation_scenario_dict["vote"]
 
-    result = await evaluation_rows.update_one(
-        {"_id": ObjectId(evaluation_row_id)}, {"$set": new_evaluation_set}
+    result = await evaluation_scenarios.update_one(
+        {"_id": ObjectId(evaluation_scenario_id)}, {"$set": new_evaluation_set}
     )
     if result.acknowledged:
         return evaluation_scenario_dict
@@ -283,7 +296,7 @@ async def fetch_results_for_human_a_b_testing_evaluation(
     comparison_table_id: str, variants: list
 ):
     results = {}
-    comparison_table_rows_nb = await evaluation_rows.count_documents(
+    comparison_table_rows_nb = await evaluation_scenarios.count_documents(
         {"comparison_table_id": comparison_table_id, "vote": {"$ne": ""}}
     )
 
@@ -294,7 +307,7 @@ async def fetch_results_for_human_a_b_testing_evaluation(
     results["variants_votes_data"] = {}
     results["nb_of_rows"] = comparison_table_rows_nb
 
-    flag_votes_nb = await evaluation_rows.count_documents(
+    flag_votes_nb = await evaluation_scenarios.count_documents(
         {"vote": "0", "comparison_table_id": comparison_table_id}
     )
     results["flag_votes"] = {}
@@ -307,7 +320,7 @@ async def fetch_results_for_human_a_b_testing_evaluation(
 
     for item in variants:
         results["variants_votes_data"][item] = {}
-        variant_votes_nb: int = await evaluation_rows.count_documents(
+        variant_votes_nb: int = await evaluation_scenarios.count_documents(
             {"vote": item, "comparison_table_id": comparison_table_id}
         )
         results["variants_votes_data"][item]["number_of_votes"] = variant_votes_nb
@@ -323,7 +336,7 @@ async def fetch_results_for_auto_exact_match_evaluation(
     comparison_table_id: str, variant: str
 ):
     results = {}
-    comparison_table_rows_nb = await evaluation_rows.count_documents(
+    comparison_table_rows_nb = await evaluation_scenarios.count_documents(
         {"comparison_table_id": comparison_table_id, "score": {"$ne": ""}}
     )
 
@@ -334,11 +347,11 @@ async def fetch_results_for_auto_exact_match_evaluation(
     # results["variants_scores_data"] = {}
     results["nb_of_rows"] = comparison_table_rows_nb
 
-    correct_scores_nb: int = await evaluation_rows.count_documents(
+    correct_scores_nb: int = await evaluation_scenarios.count_documents(
         {"score": "correct", "comparison_table_id": comparison_table_id}
     )
 
-    wrong_scores_nb: int = await evaluation_rows.count_documents(
+    wrong_scores_nb: int = await evaluation_scenarios.count_documents(
         {"score": "wrong", "comparison_table_id": comparison_table_id}
     )
     results["scores"] = {}
@@ -351,7 +364,7 @@ async def fetch_results_for_auto_similarity_match_evaluation(
     comparison_table_id: str, variant: str
 ):
     results = {}
-    comparison_table_rows_nb = await evaluation_rows.count_documents(
+    comparison_table_rows_nb = await evaluation_scenarios.count_documents(
         {"comparison_table_id": comparison_table_id, "score": {"$ne": ""}}
     )
 
@@ -361,11 +374,11 @@ async def fetch_results_for_auto_similarity_match_evaluation(
     results["variant"] = variant
     results["nb_of_rows"] = comparison_table_rows_nb
 
-    similar_scores_nb: int = await evaluation_rows.count_documents(
+    similar_scores_nb: int = await evaluation_scenarios.count_documents(
         {"score": "true", "comparison_table_id": comparison_table_id}
     )
 
-    dissimilar_scores_nb: int = await evaluation_rows.count_documents(
+    dissimilar_scores_nb: int = await evaluation_scenarios.count_documents(
         {"score": "false", "comparison_table_id": comparison_table_id}
     )
     results["scores"] = {}
