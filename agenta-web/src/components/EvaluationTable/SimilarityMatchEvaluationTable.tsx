@@ -41,7 +41,7 @@ interface SimilarityMatchEvaluationTableRow {
 
 const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTableProps> = ({
     appEvaluation,
-    evaluationScenario,
+    evaluationScenarios,
     columnsCount,
 }) => {
     const router = useRouter()
