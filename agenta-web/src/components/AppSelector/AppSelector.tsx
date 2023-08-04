@@ -3,8 +3,6 @@ import {useRouter} from "next/router"
 import {Input, Space, Modal} from "antd"
 import useSWR from "swr"
 import AppCard from "./AppCard"
-import Head from "next/head"
-import useLogo from "@/lib/hooks/useLogo"
 
 const fetcher = (...args) => fetch(...args).then((res) => res.json())
 
@@ -25,8 +23,6 @@ const AppSelector: React.FC = () => {
         setIsModalOpen(false)
     }
 
-    const logoSrc = useLogo()
-
     // TODO: move to api.ts
     const {data, error, isLoading} = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
@@ -38,10 +34,6 @@ const AppSelector: React.FC = () => {
 
     return (
         <div>
-            <Head>
-                <title>Agenta: The LLMOps platform.</title>
-                <link rel="shortcut icon" href={logoSrc} />
-            </Head>
             <div style={{margin: "20px 20px"}}>
                 <Space size={20} wrap direction="horizontal">
                     {Array.isArray(data) &&
