@@ -29,3 +29,16 @@ jobs:
         run: |
           . venv/bin/activate
           flake8 .
+        working-directory: agenta-cli
+
+      - name: Run Flake8
+        run: |
+          . venv/bin/activate
+          flake8 .
+        working-directory: agenta-backend
+
+      - name: Run Flake8
+        run: |
+          . venv/bin/activate
+          flake8 .
+        working-directory: examples
