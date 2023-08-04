@@ -65,6 +65,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "witehound",
+      "name": "corinthian",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26417477?v=4",
+      "profile": "https://main-portfolio-26wv6oglp-witehound.vercel.app/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
