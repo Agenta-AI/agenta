@@ -307,7 +307,7 @@ export const deleteAppEvaluations = async (ids: string[]) => {
     }
 }
 
-export const loadEvaluationsRows = async (
+export const loadEvaluationsScenarios = async (
     evaluationTableId: string,
     appEvaluation: AppEvaluation,
 ) => {
