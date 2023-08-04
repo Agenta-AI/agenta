@@ -27,7 +27,7 @@ export interface PlaygroundTabsItem {
     closable: boolean
 }
 
-export interface AppEvaluation {
+export interface Evaluation {
     id: string
     createdAt: string
     variants: Variant[]
@@ -47,7 +47,7 @@ export interface Parameter {
     default?: any
 }
 
-export interface AppEvaluationResponseType {
+export interface EvaluationResponseType {
     id: string
     variants: string[]
     votes_data: {
