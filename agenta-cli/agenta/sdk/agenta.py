@@ -174,7 +174,11 @@ def post(func: Callable[..., Any]):
     for name, param in sig.parameters.items():
         if name in app_params:
             if param.annotation is MultipleChoiceParam:
-                # Append the instance and its name to the list
+                """
+                If the parameter's annotation is of type MultipleChoiceParam,
+                we need to include it in the instances_to_override list, 
+                which is later used to update the API documentation's schema.
+                """
                 instances_to_override.append((name, app_params[name]))
                 new_params.append(
                     inspect.Parameter(
@@ -250,6 +254,24 @@ def post(func: Callable[..., Any]):
 def override_schema_for_multichoice(
     parameters: dict, instances_to_override: list
 ):
+    """
+    This function updates the "enum" and "default" values of each MultiChoiceParam instance in the dictionary based 
+    on its choices and default value. If the default value is not present in the choices, it adds the default 
+    value to the beginning of the choices list and sets it as the new default value. 
+    
+    This ensures that the generated API documentation reflects the available choices and default values for 
+    MultiChoiceParam instances.
+    
+    :param parameters: The `parameters` parameter is a dictionary that contains the schema for a set of
+    parameters. Each key in the dictionary represents a parameter name, and the corresponding value is a
+    dictionary that contains information about that parameter
+    :type parameters: dict
+    
+    :param instances_to_override: The `instances_to_override` parameter is a list of tuples. Each tuple
+    contains two elements: the name of a parameter (`param_name`) and an instance of that parameter
+    (`param_instance`)
+    :type instances_to_override: list
+    """
     for param_name, param_instance in instances_to_override:
         for _, value in parameters.items():
             value_title_lower = str(value.get("title")).lower()
