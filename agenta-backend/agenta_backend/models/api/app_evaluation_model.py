@@ -28,30 +28,31 @@ class ComparisonTable(BaseModel):
     updated_at: datetime
 
 
-class EvaluationRowInput(BaseModel):
+class EvaluationScenarioInput(BaseModel):
     input_name: str
     input_value: str
 
 
-class EvaluationRowOutput(BaseModel):
+class EvaluationScenarioOutput(BaseModel):
     variant_name: str
     variant_output: str
 
 
-class EvaluationRow(BaseModel):
+class EvaluationScenario(BaseModel):
     comparison_table_id: str
-    inputs: List[EvaluationRowInput]
-    outputs: List[EvaluationRowOutput]
+    inputs: List[EvaluationScenarioInput]
+    outputs: List[EvaluationScenarioOutput]
     vote: Optional[str]
     score: Optional[str]
     correct_answer: Optional[str]
     id: Optional[str]
 
 
-class EvaluationRowUpdate(BaseModel):
+class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
     score: Optional[str]
-    outputs: List[EvaluationRowOutput]
+    outputs: List[EvaluationScenarioOutput]
+
 
 
 class NewComparisonTable(BaseModel):

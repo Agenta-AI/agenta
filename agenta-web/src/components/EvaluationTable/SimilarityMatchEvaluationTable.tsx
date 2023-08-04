@@ -3,7 +3,7 @@ import type {ColumnType} from "antd/es/table"
 import {LineChartOutlined} from "@ant-design/icons"
 import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag} from "antd"
 import {Variant} from "@/lib/Types"
-import {updateEvaluationRow, callVariant} from "@/lib/services/api"
+import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -13,7 +13,7 @@ import {Typography} from "antd"
 interface SimilarityMatchEvaluationTableProps {
     appEvaluation: any
     columnsCount: number
-    evaluationRows: SimilarityMatchEvaluationTableRow[]
+    evaluationScenarios: SimilarityMatchEvaluationTableRow[]
 }
 
 interface SimilarityMatchEvaluationTableRow {
@@ -34,14 +34,14 @@ interface SimilarityMatchEvaluationTableRow {
 /**
  *
  * @param appEvaluation - Evaluation object
- * @param evaluationRows - Evaluation rows
+ * @param evaluationScenarios - Evaluation rows
  * @param columnsCount - Number of variants to compare face to face (per default 2)
  * @returns
  */
 
 const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTableProps> = ({
     appEvaluation,
-    evaluationRows,
+    evaluationScenarios,
     columnsCount,
 }) => {
     const router = useRouter()
@@ -71,10 +71,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const {Title, Text} = Typography
 
     useEffect(() => {
-        if (evaluationRows) {
-            setRows(evaluationRows)
+        if (evaluationScenarios) {
+            setRows(evaluationScenarios)
         }
-    }, [evaluationRows])
+    }, [evaluationScenarios])
 
     useEffect(() => {
         if (similarAnswers + dissimilarAnswers > 0) {
@@ -161,21 +161,21 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 ? "true"
                 : "false"
 
-        const evaluation_row_id = rows[rowNumber].id
+        const evaluation_scenario_id = rows[rowNumber].id
 
         // TODO: we need to improve this and make it dynamic
         const appVariantNameX = variants[0].variantName
         const outputVariantX = rows[rowNumber].columnData0
 
-        if (evaluation_row_id) {
+        if (evaluation_scenario_id) {
             const data = {
                 score: isSimilar,
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
             }
 
-            updateEvaluationRow(
+            updateEvaluationScenario(
                 appEvaluation.id,
-                evaluation_row_id,
+                evaluation_scenario_id,
                 data,
                 appEvaluation.evaluationType,
             )
