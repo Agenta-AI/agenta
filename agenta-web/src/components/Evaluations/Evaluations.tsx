@@ -27,7 +27,7 @@ export default function Evaluations() {
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
-    const [screenSize, setScreenSize] = useState("")
+    const [screenSize, setScreenSize] = useState<string>("56px")
     const [columnsCount, setColumnsCount] = useState(2)
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
@@ -99,6 +99,12 @@ export default function Evaluations() {
             window.removeEventListener("resize", detectSize)
         }
     }, [screenSize])
+
+    useEffect(() => {
+        if (window) {
+            setScreenSize(window.innerWidth.toString())
+        }
+    }, [])
 
     // TODO: move to api.ts
     const createNewEvaluation = async (
@@ -276,6 +282,7 @@ export default function Evaluations() {
     }
 
     const detectSize = () => {
+        if (!window) return
         setScreenSize(
             window.innerWidth < 850 ? "120px" : window.innerWidth < 1030 ? "100px" : "56px",
         )
@@ -362,7 +369,7 @@ export default function Evaluations() {
                         <Title
                             level={4}
                             style={{
-                                minHeight: screenSize,
+                                height: screenSize,
                             }}
                         >
                             2. Which variants would you like to evaluate
@@ -395,7 +402,7 @@ export default function Evaluations() {
                         <Title
                             level={4}
                             style={{
-                                minHeight: screenSize,
+                                height: screenSize,
                             }}
                         >
                             3. Which testset you want to use?
