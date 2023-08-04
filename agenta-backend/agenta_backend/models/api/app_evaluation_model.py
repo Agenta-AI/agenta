@@ -23,7 +23,7 @@ class ComparisonTable(BaseModel):
     evaluation_type_settings: Optional[EvaluationTypeSettings]
     variants: Optional[List[str]]
     app_name: str
-    dataset: Dict[str, str] = Field(...)
+    testset: Dict[str, str] = Field(...)
     created_at: datetime
     updated_at: datetime
 
@@ -54,13 +54,14 @@ class EvaluationScenarioUpdate(BaseModel):
     outputs: List[EvaluationScenarioOutput]
 
 
+
 class NewComparisonTable(BaseModel):
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
     app_name: str
     variants: List[str]
     inputs: List[str]
-    dataset: Dict[str, str] = Field(...)
+    testset: Dict[str, str] = Field(...)
     status: str = Field(...)
 
 

@@ -11,7 +11,7 @@ import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 interface EvaluationListTableDataType {
     key: string
     variants: string[]
-    dataset: {
+    testset: {
         _id: string
         name: string
     }
@@ -46,7 +46,7 @@ export default function EvaluationsList() {
                 let newList = result.map((obj: any) => {
                     let newObj: EvaluationListTableDataType = {
                         key: obj.id,
-                        dataset: obj.dataset,
+                        testset: obj.testset,
                         variants: obj.variants,
                         evaluationType: obj.evaluationType,
                         status: obj.status,
@@ -87,11 +87,11 @@ export default function EvaluationsList() {
             },
         },
         {
-            title: "Dataset",
-            dataIndex: "datasetName",
-            key: "datasetName",
+            title: "testset",
+            dataIndex: "testsetName",
+            key: "testsetName",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                return <span>{record.dataset.name}</span>
+                return <span>{record.testset.name}</span>
             },
         },
         {
