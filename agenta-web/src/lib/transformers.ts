@@ -35,7 +35,7 @@ export const fromEvaluationsRowsResponseToEvaluationsRows = (
     item: any,
     appEvaluation: AppEvaluation,
 ) => {
-    let evaluationRow = {
+    let evaluationScenario = {
         id: item.id,
         inputs: item.inputs,
         outputs: item.outputs,
@@ -44,12 +44,12 @@ export const fromEvaluationsRowsResponseToEvaluationsRows = (
     }
 
     if (appEvaluation.evaluationType === EvaluationType.human_a_b_testing) {
-        evaluationRow = {...evaluationRow, vote: item.vote}
+        evaluationScenario = {...evaluationScenario, vote: item.vote}
     } else if (
         appEvaluation.evaluationType === EvaluationType.auto_exact_match ||
         appEvaluation.evaluationType === EvaluationType.auto_similarity_match
     ) {
-        evaluationRow = {...evaluationRow, score: item.score}
+        evaluationScenario = {...evaluationScenario, score: item.score}
     }
-    return evaluationRow
+    return evaluationScenario
 }

@@ -1,6 +1,6 @@
 import ExactMatchEvaluationTable from "../../../../../components/EvaluationTable/ExactMatchEvaluationTable"
 import {AppEvaluation} from "@/lib/Types"
-import {loadAppEvaluation, loadEvaluationsRows} from "@/lib/services/api"
+import {loadAppEvaluation, loadEvaluationsScenarios} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {fetchVariants} from "@/lib/services/api"
@@ -10,7 +10,7 @@ export default function Evaluation() {
     const evaluationTableId = router.query.evaluation_id
         ? router.query.evaluation_id.toString()
         : ""
-    const [evaluationRows, setEvaluationRows] = useState([])
+    const [evaluationScenarios, setEvaluationScenarios] = useState([])
     const [appEvaluation, setAppEvaluation] = useState<AppEvaluation | undefined>()
     const appName = router.query.app_name as unknown as string
     const columnsCount = 1
@@ -20,8 +20,8 @@ export default function Evaluation() {
             return
         }
         const init = async () => {
-            const data = await loadEvaluationsRows(evaluationTableId, appEvaluation)
-            setEvaluationRows(data)
+            const data = await loadEvaluationsScenarios(evaluationTableId, appEvaluation)
+            setEvaluationScenarios(data)
         }
         init()
     }, [appEvaluation])
@@ -50,10 +50,10 @@ export default function Evaluation() {
 
     return (
         <div style={{marginBottom: "200px"}}>
-            {evaluationTableId && evaluationRows && appEvaluation && (
+            {evaluationTableId && evaluationScenarios && appEvaluation && (
                 <ExactMatchEvaluationTable
                     columnsCount={columnsCount}
-                    evaluationRows={evaluationRows}
+                    evaluationScenarios={evaluationScenarios}
                     appEvaluation={appEvaluation}
                 />
             )}
