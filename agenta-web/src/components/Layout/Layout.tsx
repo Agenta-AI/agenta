@@ -1,10 +1,11 @@
 import React from "react"
-import {Breadcrumb, Layout, theme} from "antd"
+import {Breadcrumb, ConfigProvider, Layout, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {HeartTwoTone} from "@ant-design/icons"
 import {useRouter} from "next/router"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {useAppTheme} from "./ThemeContextProvider"
 type LayoutProps = {
     children: React.ReactNode
 }
@@ -14,12 +15,17 @@ const {Content, Footer} = Layout
 const App: React.FC<LayoutProps> = ({children}) => {
     const router = useRouter()
     const {app_name: appName} = router.query
+    const {appTheme} = useAppTheme()
     const {
         token: {colorBgContainer},
     } = theme.useToken()
     const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || "")
     return (
-        <Layout>
+        <ConfigProvider
+            theme={{
+                algorithm: appTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
+            }}
+        >
             <Layout hasSider>
                 <Sidebar />
                 <Content>
@@ -27,8 +33,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         style={{
                             paddingLeft: "24px",
                             paddingRight: "24px",
-                            background: colorBgContainer,
+                            background: appTheme === "dark" ? "#141414" : "#ffffff",
                             minHeight: "100vh",
+                            marginLeft: 225,
                         }}
                     >
                         <Breadcrumb
@@ -52,7 +59,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     <span>in Berlin.</span>
                 </div>
             </Footer>
-        </Layout>
+        </ConfigProvider>
     )
 }
 

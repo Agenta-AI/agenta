@@ -3,16 +3,17 @@ import type {ColumnType} from "antd/es/table"
 import {LineChartOutlined} from "@ant-design/icons"
 import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag} from "antd"
 import {Variant} from "@/lib/Types"
-import {updateEvaluationRow, callVariant} from "@/lib/services/api"
+import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
+import {Typography} from "antd"
 
 interface SimilarityMatchEvaluationTableProps {
-    appEvaluation: any
+    evaluation: any
     columnsCount: number
-    evaluationRows: SimilarityMatchEvaluationTableRow[]
+    evaluationScenarios: SimilarityMatchEvaluationTableRow[]
 }
 
 interface SimilarityMatchEvaluationTableRow {
@@ -32,15 +33,15 @@ interface SimilarityMatchEvaluationTableRow {
 }
 /**
  *
- * @param appEvaluation - Evaluation object
- * @param evaluationRows - Evaluation rows
+ * @param evaluation - Evaluation object
+ * @param evaluationScenarios - Evaluation rows
  * @param columnsCount - Number of variants to compare face to face (per default 2)
  * @returns
  */
 
 const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTableProps> = ({
-    appEvaluation,
-    evaluationRows,
+    evaluation,
+    evaluationScenarios,
     columnsCount,
 }) => {
     const router = useRouter()
@@ -48,7 +49,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         ? router.query.app_name[0]
         : router.query.app_name || ""
 
-    const variants = appEvaluation.variants
+    const variants = evaluation.variants
 
     const variantData = variants.map((variant: Variant) => {
         const {optParams, URIPath, isLoading, isError, error} = useVariant(appName, variant)
@@ -67,11 +68,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [similarAnswers, setSimilarAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
 
+    const {Title, Text} = Typography
+
     useEffect(() => {
-        if (evaluationRows) {
-            setRows(evaluationRows)
+        if (evaluationScenarios) {
+            setRows(evaluationScenarios)
         }
-    }, [evaluationRows])
+    }, [evaluationScenarios])
 
     useEffect(() => {
         if (similarAnswers + dissimilarAnswers > 0) {
@@ -154,27 +157,25 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             rows[rowNumber].correctAnswer,
         )
         const isSimilar =
-            similarity >= appEvaluation.evaluationTypeSettings.similarityThreshold
-                ? "true"
-                : "false"
+            similarity >= evaluation.evaluationTypeSettings.similarityThreshold ? "true" : "false"
 
-        const evaluation_row_id = rows[rowNumber].id
+        const evaluation_scenario_id = rows[rowNumber].id
 
         // TODO: we need to improve this and make it dynamic
         const appVariantNameX = variants[0].variantName
         const outputVariantX = rows[rowNumber].columnData0
 
-        if (evaluation_row_id) {
+        if (evaluation_scenario_id) {
             const data = {
                 score: isSimilar,
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
             }
 
-            updateEvaluationRow(
-                appEvaluation.id,
-                evaluation_row_id,
+            updateEvaluationScenario(
+                evaluation.id,
+                evaluation_scenario_id,
                 data,
-                appEvaluation.evaluationType,
+                evaluation.evaluationType,
             )
                 .then((data) => {
                     setRowValue(rowNumber, "score", data.score)
@@ -212,6 +213,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
@@ -251,11 +253,12 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
                         >
-                            {appEvaluation.dataset.name}
+                            {evaluation.testset.name}
                         </span>
                         <span> )</span>
                     </div>
@@ -320,12 +323,14 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     return (
         <div>
-            <h1>
+            <Title>
                 Similarity match Evaluation (Threshold:{" "}
-                {appEvaluation.evaluationTypeSettings.similarityThreshold})
-            </h1>
+                {evaluation.evaluationTypeSettings.similarityThreshold})
+            </Title>
             <div style={{marginBottom: 20}}>
-                This evaluation type is calculating the similarity using Jaccard similarity.
+                <Text>
+                    This evaluation type is calculating the similarity using Jaccard similarity.
+                </Text>
             </div>
             <div>
                 <Row align="middle">

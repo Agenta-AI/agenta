@@ -1,6 +1,6 @@
 import {EvaluationType} from "./enums"
 
-export interface Dataset {
+export interface testset {
     _id: string
     name: string
     created_at: string
@@ -27,12 +27,12 @@ export interface PlaygroundTabsItem {
     closable: boolean
 }
 
-export interface AppEvaluation {
+export interface Evaluation {
     id: string
     createdAt: string
     variants: Variant[]
     evaluationType: string
-    dataset: {
+    testset: {
         _id: string
         name: string
     }
@@ -45,9 +45,10 @@ export interface Parameter {
     input: boolean
     required: boolean
     default?: any
+    enum?: Array<string>
 }
 
-export interface AppEvaluationResponseType {
+export interface EvaluationResponseType {
     id: string
     variants: string[]
     votes_data: {
@@ -63,7 +64,7 @@ export interface AppEvaluationResponseType {
     evaluation_type_settings: {
         similarity_threshold?: number
     }
-    dataset: {
+    testset: {
         _id: string
         name: string
     }

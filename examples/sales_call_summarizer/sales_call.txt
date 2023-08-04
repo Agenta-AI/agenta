@@ -1,0 +1,757 @@
+Foulan Faltani
+
+    Hey.
+
+Max Mustermann
+
+    Hi. Can you hear me?
+
+Foulan Faltani
+
+    Hey, madam, I can hear you. Could you give me the meeting ID? I'm just logging in from another laptop that has zoom, because the other laptop is corporate.
+
+    I couldn't download zoom. What's the meeting ID?
+
+Max Mustermann
+
+    Okay, that's the password, I think. No, okay, I'm not using an ID, I think or just using a link in the past.
+
+    Actually, the password don't need it. Usually the link should be enough.
+
+Foulan Faltani
+
+    Okay, sorry, just give me a second.
+
+Max Mustermann
+
+    Because this laptop actually, I see the ID 1 second. Let me show you the that's the ID showing.
+
+Foulan Faltani
+
+    Meeting. Okay.
+
+Max Mustermann
+
+    What?
+
+Foulan Faltani
+
+    Just 1 second to update soon. Oh my God. Okay, wait. It should be quick. It's almost done. Sorry. I'm not usually using zoom.
+
+Max Mustermann
+
+    Yeah. Google. Is that right?
+
+Foulan Faltani
+
+    Yes.
+
+Max Mustermann
+
+    They probably don't allow you to use yeah, that's the thing.
+
+Foulan Faltani
+
+    So that's why I just got my personal laptop, which I haven't used for a month. So it starts really slow.
+
+    The battery is at zero, so that's why it's taking me a bit of time. I can also, by the way, give you access to Club View.
+
+Max Mustermann
+
+    I don't mind at all. Sure you can do it. I can share screens. In the meantime, I can generate the global reports for you as well.
+
+    Yeah, access to this email, actually. Info@ecommerce.com. Endless access. Yeah. Not marketer or manager or admin or.
+
+Foulan Faltani
+
+    So that's from could you remind me, how do I do that?
+
+Max Mustermann
+
+    What does that mean?
+
+Foulan Faltani
+
+    Where do I find the users?
+
+Max Mustermann
+
+    You mean, like the assignment? Like access?
+
+Foulan Faltani
+
+    Yes. Within settings?
+
+Max Mustermann
+
+    Yeah. You go to Settings.
+
+Foulan Faltani
+
+    Add new user analyst info at Ecom maniacs.com done.
+
+Max Mustermann
+
+    Let me see.
+
+SCREEN SHARING
+Ahmed started screen sharing
+
+    I'm launching zoom on my laptop. So I should be switching to my laptop any minute. Okay, meeting passcode 661400.
+
+    It's giving me the wrong password, by the way, for some reason, for the passcode for the call, I you go to the calls instructions.
+
+    Let me just click on the link. Give me a second.
+
+Max Mustermann
+
+    Yeah, it's not the same password. Yeah, I have your account, so looking. You don't need to kind of.
+
+Foulan Faltani
+
+    I'm in anyway. I can see the screen better. So if you can just let me in.
+
+Max Mustermann
+
+    What do you mean? So you share screen?
+
+Foulan Faltani
+
+    Let me into the zoom call from my laptop. You should have a notification on zoom to let me in.
+
+Max Mustermann
+
+    I still don't see it.
+
+Foulan Faltani
+
+    The host has another meeting in progress.
+
+Max Mustermann
+
+    So the problem was with the sharing, right? Or with not being able to see the screen?
+
+Foulan Faltani
+
+    I can see it. I'm on my mobile now. But I can see your screen. That's fine.
+
+Max Mustermann
+
+    Okay, let's carry on. This problem is solved. Usually everything is clear. Should I zoom in more? I'm okay, so usually we look at the performance between flows and campaigns and usually when I aim at 50 50 split.
+
+    First and foremost, the wrong metric to check. Usually one of the there's no shopify to WooCommerce store, right?
+
+Foulan Faltani
+
+    Yeah, it is WooCommerce.
+
+Max Mustermann
+
+    This is the metric, really, that's going to show you the numbers, the revenue numbers, I assume the currency. Actually, I've seen on your website.
+
+    The currency is what's? Storage currency, like standard currency, their hubs. Okay, so Clavier should have also been as the currency, otherwise it's going to be a bit messed up in terms of tracking and stuff.
+
+    We want to look into that later. But anyway yeah, looking at the performance here, you want to see a 50 50 split between so you see the whole revenue.
+
+    That's actually pretty close. You have those 6% and 15%. However, the total what email is responsible for here is 40%, which is almost half of what we see with most of the clients that we work with.
+
+    So you want to aim at, like, 25% to 30%, usually, and ten to 15 from each part flows and campaigns.
+
+Foulan Faltani
+
+    Sorry, the total revenue, is that everything including non emain?
+
+Max Mustermann
+
+    No, I'm talking about revenue share from Clayview.
+
+Foulan Faltani
+
+    Okay.
+
+Max Mustermann
+
+    Could be 30% of the total store revenue.
+
+Foulan Faltani
+
+    Yeah, that's what I mean. So the total revenue on the left is total store revenue?
+
+Max Mustermann
+
+    Yes. Again, I'm assuming I suspect there's a problem with the currency here. This might be a bit off inflated.
+
+Foulan Faltani
+
+    I think that's dollars, that should be about right. Okay, fine.
+
+Max Mustermann
+
+    Okay, cool. Now, in terms of the flow, I'll go over the other one. Create meter. I'll leave that for now.
+
+    It seems like you've sent one campaign in the last month or so. We'll look into this. Actually, let's quickly quote the emails just to get a sense of how sophisticated the open rate is.
+
+    Fine. But the click rate is a bit low, so people are not clicking, which is probably an indicator of.
+
+    Okay. This is very simple. Okay, so it's user generated content?
+
+Foulan Faltani
+
+    Kind of, yeah.
+
+Max Mustermann
+
+    Design wise, it's not the most sophisticated thing. Copy wise, I think it's a bit so do you like using emojis and stuff?
+
+    Because there's a lot of colors, there's a lot of emojis, there's captions, and then there's too much.
+
+Foulan Faltani
+
+    I think we can do better.
+
+Max Mustermann
+
+    Of course, yeah. I'm just curious if that's something you want to have.
+
+Foulan Faltani
+
+    So what this agency did is they did an A B test, and they realized that, okay, a simple email with image on top and, like, a body of text performs better.
+
+    But I don't buy this because our base is too small and the AB test is not conclusive at all.
+
+Max Mustermann
+
+    Right. Actually, we're was that recording the AV test? Because I only see. The campaign?
+
+Foulan Faltani
+
+    I have no clue there.
+
+Max Mustermann
+
+    Yeah, see, the click rate is 2.3%. The last one was less than 1%. The click create is definitely low than usual.
+
+    You want to aim at like up to 10% even. What's the difference? How many orders here significance? Yeah, the click rate is higher.
+
+    Yeah, makes sense. For example, actually, there's a very famous I know a German brand that is actually very successful in your niche called Snot.
+
+    And they're doing every year like, 30 million or so. And they actually on top of our like they started a couple of years ago, and they started with another wear, and they went into socks.
+
+    And I mean, literally not that different. And, yeah, the cool thing is they do a lot of flights. Maybe testing and segmentations and all that stuff.
+
+    Do you work with them? No, I haven't. But I know the founders and I know the people who work with them.
+
+    They basically build in public. I can show you like a couple of people that are like reporting on their experiments on and basically you could see a B test they're running and actually one of them, actually a lot of brand owners that I worked with, I would refer them to check the product pages of these guys, the product pages, they are quite optimized optimization.
+
+    You could see that you almost have almost everything you need to make a purchase. All questions answered, details are there, all questions answered.
+
+    You can see here it's going to be within one to two days. They have not also like people with faces kind of.
+
+    Like the ID, like, feature. Yeah, free shipping starting from 14 and three tours. You can check the color, the size, and he's like, hey, actually, they used to have, like, 97% as expected or something like that.
+
+    So that like, people know, okay, it's accurate.
+
+Foulan Faltani
+
+    And these people measure these things. We are implementing those changes, by the way, now on our side to have people choose the pair.
+
+    So, yeah, the UX and CRO, that's a big stream that's currently ongoing. We're not very happy with our site, and a lot is going to change.
+
+Max Mustermann
+
+    So that's going to help us with our email as well. Perfect. Yeah, I know antilock is paid. Against having a hole, like in the spot.
+
+Foulan Faltani
+
+    Okay, got you.
+
+Max Mustermann
+
+    That's amazing.
+
+Foulan Faltani
+
+    I love that. Definitely. We'll take it. I actually bought if I'm not mistaken, I bought some stocks from these guys like some running stocks.
+
+Max Mustermann
+
+    Oh, really? Okay. These guys actually are Germany based but I think yesterday I was checking 1 second. I got to find someone for you.
+
+    I think it's a very good brand.
+
+Foulan Faltani
+
+    How many are you?
+
+Max Mustermann
+
+    The team? Yeah, we have one full time copy with. Peters. One project manager, two designers and I would say that's pretty much it.
+
+    And then we have an external developer who is working on the custom integration of the stores with the custom codes that we use for the tracking, usually including website.
+
+    Then we have also another deliverability expert that we use for everything related to deliverability and every now and then is like freelancers for translation German and Arabic.
+
+Foulan Faltani
+
+    Very cool. Okay, what did you want to show me?
+
+Max Mustermann
+
+    I wanted to actually show you another software that was referred to a couple of days ago. It was good.
+
+    I wanted to share with you this one. Yeah. I also want to check this one. It's in the top space, but it's pretty close.
+
+Foulan Faltani
+
+    Nice.
+
+Max Mustermann
+
+    Anyway, going back to where we I wanted to show you the design quality that you should expect. Actually, those guys are good references.
+
+    What does Milan note? Is it design software that you use for the emails? No, it's kind of a portfolio tool just to collect digitally.
+
+Foulan Faltani
+
+    Okay.
+
+Max Mustermann
+
+    Yeah. So we built more of an internal library for inspiration for our designers. And let me see if there's any.
+
+    Probably we could find better for sure.
+
+Foulan Faltani
+
+    These are your designs or publicly available design?
+
+Max Mustermann
+
+    No, these are actually taken from there are resources online that feature a lot of very good high quality designs.
+
+    So what we've done is we categorize those in libraries and we implemented this as a part of our onboarding.
+
+    So as soon as we on board you, you will be prompted to we will create category for you and then you'll be asked with things or different place that you like to build a mood board.
+
+    Usually designers, all you need to do is just select. What you like just to build collection of stuff you want like with headers, with footers, with structure, color grading, with contract do you want it imagery, focus, or I don't know, more X?
+
+    What's the percentage? Do you want icons? How do you want the footage to be structured? And so on and so forth?
+
+    So this is something we discussed is this based on preference or would you guys advise us based on what can perform best?
+
+    Based on both first, of course, there's a branding part right in the branding part it seems to be consistent with your overall website branding, which is our designers will definitely check your website side and you yourself, you know what you want and what you don't want in terms.
+
+    As a part of the on boarding, you'll be selecting stuff that is consistent with your branding. On top of that, as a part of the on boarding call, we'll discuss with you what we would recommend.
+
+    Then, of course, you can discuss more or less, you can't tell exactly how which one is going to perform better.
+
+    Usually those things happen with over, like a B test and stuff. First, you start with your best kind of guess, and then you a B test from there.
+
+    Okay, but anyway, so moving back to your account nor to explore here, I would not spend the most of the time now here, by the way, just because you touched on it.
+
+Foulan Faltani
+
+    Point in your scope. Our confirmation order confirmation emails or other shift emails, they are really shit. They come out from WooCommerce.
+
+    They look like really bad and they're the standard WooCommerce emails. They're horrible. So that's definitely something that we want to change.
+
+Max Mustermann
+
+    Yes, we can do that for you. It's actually one of the 100% of our clients actually wanted to have those order confirmation shipping confirmation sent from Clavio, which is a bit tricky.
+
+    Like you need to go and make sure that those are working. And actually with WooCommerce, there's usually like some glitches and stuff.
+
+    In most cases, including stuff.
+
+Foulan Faltani
+
+    How do people do it? Like the people who use WooCommerce, how do they send out proper order confirmation emails that they're that look as nice as the shopify emails?
+
+Max Mustermann
+
+    But the shopify emails also don't look that great. Actually. Most of our clients again, they move over those emails to Fabio have the flexibility to send those.
+
+Foulan Faltani
+
+    I mean it's alternative.
+
+Max Mustermann
+
+    Like for me, the shopify looks way better than the yeah, have probably way better, but then if you have them custom branded through your brand guidelines, I think then okay, yeah, sorry, go ahead.
+
+    Yeah, so I'm looking at what's the average of the value? Actually it's about 250 diamonds.
+
+Foulan Faltani
+
+    So that's like, I don't know, $60.
+
+Max Mustermann
+
+    $60. Okay. Not bad. And what is the trial do you give up for trial?
+
+Foulan Faltani
+
+    I don't know what you're talking about.
+
+Max Mustermann
+
+    I see trial here. Trial for new subscribers. I usually don't use trial. I mean, trial is like software.
+
+Foulan Faltani
+
+    You try it out. Yeah. So we were trying to create some flows, but we did not finish the job because we did not like the design of the email.
+
+    But the idea was to have a flow for people who subscribe to our newsletter but don't buy and to have an automated flow to get them to buy at least a pair and try it.
+
+Max Mustermann
+
+    Okay, that's all the pre purchase flows that I mentioned. Like, those are sent to those who still didn't buy.
+
+Foulan Faltani
+
+    Yes.
+
+Max Mustermann
+
+    Anyway, let me quickly go over the list when I get the sense of how these are. So usually, then we go reports, engagement.
+
+    Engagement reports. Take some time soon.
+
+Foulan Faltani
+
+    How do we know that we're growing our subscriber base?
+
+Max Mustermann
+
+    Well, that's a good question. So what is? Well, on average okay, so I'm going to give you the industry average is like 67%.
+
+    The cravings average 67%. Yeah. So you see here the submit rate. This is when you have a pop up and people submit from 100 people who see the pop up, six of them submit the information in exchange, usually for an incentive.
+
+    I can see here you had this is probably yeah. So is this new or because. Just 86 lifetime over.
+
+Foulan Faltani
+
+    How long?
+
+Max Mustermann
+
+    Okay, so it's not lifetime, probably. You can see here it's excellent. Sorry. The industry average is like, two to 3% or one to 3%.
+
+    Clavio's recommended or Clavio says we could get up to six 7%. However, with really strong offer and aggressive, I would say you could even get it up to 10%.
+
+    We've seen it with a lot of our clients. We implemented up to, like we got them up to 10%.
+
+    And there are many ways to test them until then. Get created with the office. I want to quickly check the list growth.
+
+    Why? Is it okay? Yeah. So this is your list. In the last two days, 1700, only 34% on gates.
+
+    Very engaged and 11% didn't receive any emails. And the 54% who received emails did not leave. You can see it here, which means that you're struggling with engagement here.
+
+    And that's why I told you earlier the click rate is a bit low. The open rate was fine, but the open rate is basically, I mean, I assume you're sending to the engaged audiences, open from engaged, you're sending to 400, not the $1,700 you're sending to the most engaged.
+
+    And those are the three 4%. Yeah. So that means that there's room for improvement in terms of engaging your list or removing some dead wood in your list, because there might be some people that out of nowhere subscribe and now they're going to mess up their data.
+
+    Let's quickly go over the benchmark.
+
+Foulan Faltani
+
+    I want to ask you before I forget, what should we expect in terms of revenue contribution of the email channel?
+
+    If we do it properly and we do it with you, I think you've done it probably so many times to tell us what to expect.
+
+    I don't know. Whatever you can share.
+
+Max Mustermann
+
+    Yeah. So in terms of the expectation, as I said earlier, what you want to see is on the performance side of things here, what you want to see is 30% come from email, additional revenue.
+
+    So what you're seeing here, let's say you're making seven k or six k per month from that, that's going to be two k, right?
+
+    So that's going to add so you're going to be making two k here and. That's going to push this a bit more.
+
+Foulan Faltani
+
+    We're investing more in media. So I expect the nine K to become 40K exactly.
+
+Max Mustermann
+
+    The cool thing about email, especially the pre purchase flows they make you're or paid ads campaign is more effective.
+
+    Why? Because these pre purchase flows that I mentioned to you earlier so you have the pop up flow that captures people more effectively.
+
+    So you're collecting these website visitors emails. You have the abandonment checkout which triggers more aggressively with email. SMS, you have the abandonment card which triggers you have the browser bandit which triggers browse bandits.
+
+    Maybe when people view a product page and don't proceed to add the card. More or less one step earlier and this one step earlier and then you have the back in stock.
+
+    This is when you run out of stock and you want to collect people emails. You can allow them to submit their emails in exchange for them being modified when the product is back in stock.
+
+    So this will help you with converting more of your website visitors into actual customers. So this is going to help your ads become more effective, which means it's going to give you more you're going to be more comfortable spending on ads because you have a robust system, kind of robust set of retention that will cover you up.
+
+    Now as I said, so if you ramp up your ad spend then I'm pretty sure you should be seeing three k or so from your total store revenue should be come from email.
+
+    Regardless of how big your revenue is. I mean, we have some, but the range, the average is between 25 and 35.
+
+Foulan Faltani
+
+    And from that, the bulk of it comes from the flows or also from campaigns I mentioned earlier.
+
+Max Mustermann
+
+    So you want to aim at 50 50 split.
+
+Foulan Faltani
+
+    Okay.
+
+Max Mustermann
+
+    Yeah. Your products are actually consumable in some sense. If I bought from you, I don't know, six months ago, I would still want to buy some boxes or something.
+
+    Actually, I'm curious, how high is the repurchase? Do you guys have a number on that?
+
+Foulan Faltani
+
+    Pretty high. It's about 40% to 50%.
+
+Max Mustermann
+
+    Amazing. Yeah. So that means there's room for a lot of campaigns and yeah. So actually I should expect then campaign.
+
+    Flows.
+
+Foulan Faltani
+
+    Okay. And when you say campaigns, like, how many campaigns per month?
+
+Max Mustermann
+
+    Yes. So right now, your list is small. If you have 1 million subscribers in your list and you have 100 categories, I would still be creative enough to actually we send, I don't know, 30, 40 campaigns per month.
+
+    But in your case, since the list is small, we'd be talking about a maximum twelve or 16.
+
+Foulan Faltani
+
+    Yeah. Problem is, we also have a very limited product range, so we don't have a lot of news.
+
+Max Mustermann
+
+    So I don't know. How many SKUs do you have?
+
+Foulan Faltani
+
+    We have seven times three. That's 21. So 21 products. But each product can be impacts. So we have three packs.
+
+    B six and nine for so, yeah, multiply the 20 by, I think, maybe about 60.
+
+Max Mustermann
+
+    SKUs okay. That's I think enough for us to send campaigns or eight campaigns a month, but I want to keep it, like, conservative in terms of ideation for the campaigns.
+
+    We have a bunch of types of campaigns you can see here. These are literally all types of campaigns that you could send from a national holiday to refer friends.
+
+    You're inviting people to join your list. Do, like, the best out of campaign to give away campaign to BGC campaign.
+
+    I don't know. Gifts, guys.
+
+Foulan Faltani
+
+    I see how I see how detailed and organized you are. That's amazing. Ahmed. How much? Like, what's your retention rate in terms of the client that start working with you and keep working with you?
+
+Max Mustermann
+
+    Yeah, actually, it's usually between six and nine months, but largely depends on the revenue of the brands like yours, which are doing less than 20K.
+
+    Usually they work with us for a couple of months, three months or so, and then they can't afford us that much.
+
+    And I actually personally tell them, hey, you probably can't afford it right now, so how about you do a proper robust setup system like I told you earlier, like we mentioned, flows.
+
+    You set up the flows properly, and then actually, I have a couple of clients. I did exactly this to them last month.
+
+    I told them, how about we actually come up with template? That are more or less evergreen. I actually mentioned that to you earlier.
+
+    You said you're looking for someone to take care of this, like evergreen or on a retainer. And I told you, probably you can't afford it because the here is to actually create evergreen campaigns or templates.
+
+    Like, we can, for example, create they almost sold out campaign with your branding, but only once. And then all you need to do moving forward is just update that picture or hire someone like an intern or someone that can just fix it, and they can resend the same campaign.
+
+    In that case, it's much more efficient on your end. And, yeah, that's probably our plan, is to reach a run rate of $30,000 of revenue by December.
+
+Foulan Faltani
+
+    So let's see if we manage to do that. But what happens?
+
+Max Mustermann
+
+    In general, there's Q Four, so there's seasonality, right? Hello.
+
+Foulan Faltani
+
+    Yeah, we don't have a lot of seasonality in terms of underwear, but I'm talking about like a monthly run rate of $30,000 to reach that by December and then by the following April to each $100,000 of monthly investment.
+
+Max Mustermann
+
+    Here's the thing. From my experience, that's why I was asking. Most of the brands, they do like their best to end of year, and then there's like a dip in sales in January and February because basically you go crazy with the offers and stuff during Q Four, because everyone does to have a great cup for you after you offer, like, something special in future to her customers.
+
+    So in that case, Yeah. A lot of brands sell very well. They make large revenues during November, December, and then in January there's always seasonal dip because there's audience or buyer's fatigue.
+
+    And they won't to buy from you after they bought from you in November and December. Yeah. So expect a dip in sales during January and February.
+
+    You might have a solid recovery in March, April, but that's to be expected though. At least that's what I'm seeing across industry and most of the ecommerce brands.
+
+    I know you don't have that much analysis, but still before it's, the different people want to kind of take advantage of offers and stuff, and you can't afford not to take part in that.
+
+    Anyway. So does that answer your question in terms of, like, how people work with us and how long they stay with us?
+
+Foulan Faltani
+
+    Yeah, it does.
+
+Max Mustermann
+
+    I actually currently working on an offer to teach brands how to do this in house. For example, you mentioned, like, hey, we're organized and we're resourceful and all that stuff.
+
+    We can actually teach your internal team to do this internally. If it's cheaper, of course.
+
+Foulan Faltani
+
+    If it's not, then, yeah. Just so you know, maybe I mentioned this at the beginning. We are two people doing this on the side.
+
+Max Mustermann
+
+    Got you.
+
+Foulan Faltani
+
+    At the moment. So until we go and raise funds, we're not hiring any full time employees. So I think for the foreseeable future, we will need to outsource.
+
+Max Mustermann
+
+    This was good. Cool. Anyway, so let's. To another part, which is important part, which is the Benchmarks part. I noticed.
+
+    It seems like you haven't set up the it seems like you haven't set up the the industry. I don't have access to this.
+
+    Can you check on your end to see the settings and see whether you selected that? I think you didn't whether you selected the right industry?
+
+Foulan Faltani
+
+    Where do I see that? Settings?
+
+Max Mustermann
+
+    Yeah. So you see here, when I clicked on Benchmarks, they told me, welcome to Benchmarks Loading. Ask me exactly it's.
+
+    Select the industry. I can't right now because I'm not admin. Where do I select the industry? Go to benchmarks.
+
+Foulan Faltani
+
+    Benchmarks is where?
+
+Max Mustermann
+
+    Right below analytics.
+
+Foulan Faltani
+
+    Okay, benchmarks.
+
+Max Mustermann
+
+    You need to select the right industry.
+
+Foulan Faltani
+
+    Do I click on Overview Dashboard or Create Dashboard?
+
+Max Mustermann
+
+    No, don't click on that word or anything.
+
+Foulan Faltani
+
+    Usually benchmarks. Welcome to benchmarks. Select industry.
+
+Max Mustermann
+
+    What do I choose exactly? Yeah, so it should be, I think, something close to clothes and then underwear.
+
+Foulan Faltani
+
+    There is underwear. Okay, wait, no, I can't find underwear.
+
+Max Mustermann
+
+    There is apparel and accessories. Yeah, that's the closest you can get there's.
+
+Foulan Faltani
+
+    Fashion? No, there's no fashion. Clothing, e commerce? Apparel? Vertical. Okay, under vertical. Maybe there's underwear. Active wear? Fast fashion?
+
+    Hot footwear. Maternity swimwear or other?
+
+Max Mustermann
+
+    Yeah, probably other you're not interested in. I guess so.
+
+Foulan Faltani
+
+    Okay. Suspension marks? Yeah, done.
+
+Max Mustermann
+
+    Refresh. Here's the thing with the benchmarks. Usually it takes time to actually update them. Because if you see here, it's like an estimate.
+
+    These numbers are not 100% reliable. Because, as I said, you didn't to have the benchmarks like the industry set up and usually.
+
+    They make these benchmarks based off the niche you're in, the vertical, you're in like industry vertical and then your revenue numbers, your time between orders, like the average time between orders, the repeat purchase rate, open rates and stuff like that.
+
+    A lot of geometrics actually you should be able to see it somewhere here they usually have a link meeting to explain to you like what the peer group is.
+
+    Usually these benchmarks are made of in comparison to your peer group which is again a selection of 100 brands that are similar to you in terms of the criteria that we discussed.
+
+    But yeah, this is quite informative in terms of telling you where you're underperforming compared to your competitors and where you're over performing compared to your competitors.
+
+    For example, here business in general, for example, your average. Card size is there. The median is 1.6 while you're at 1.5 days.
+
+    But again, this is not reliable. We need to wait usually 30 days actually, to have the right data LinkedIn, because right now this is outdated data.
+
+    Average. I mean, yeah, straight forward, I guess. But the campaigns click rate, as I mentioned earlier, is a bit low.
+
+    Here it is. The click through rate is also low. So that's something to work on. And this is a clear indication that the emails themselves are not very engaging.
+
+    Or if you see people subject lines are fine, they open the emails, they expect something. Again, you have a nice running on the website and things look awesome here, but the emails don't reflect the same feel.
+
+    I feel I probably people are somehow disappointed or disabled. See the email and it's not great or also I think we need to have a look at the emails and the mobile version to see how they look on mobile because there are 90% of people using mobile so that's something to explore.
+
+    Livability wise, they're under performing by far. The subway is quite high, so there might be yeah, you probably didn't set up the unsubs in a way that people who probably don't have the question rule, people who don't engage over a certain amount of time, they need to be suppressed to keep it clean and the unsubs rate is actually quite as high as the median look into that.
+
+    But again, this is also a strong integration that people don't. Like your emails or they're not expecting them or they just don't like them, which we need to explore and learn more about.
+
+    Now, in terms of flows, usually the flow, especially if you don't have that many, they usually have a high engagement rate because most people set up only the core flow, which you currently do.
+
+    Like, you have the product abandonment and the welcome series. That's the most important stuff. Right. 1 second, you have the abandonment, product reviews, site abandonment, and wait, so you don't have like a post purchase?
+
+    We don't have a World Series, but yeah, still, these are this and this and this are high intent, but this one is there's not that much in it for them, so I'm.
+
+    This might have lower rates and engagement rates in general, but also the rose abandoned. The abandoned cart is probably the one that is bringing the metrics a bit higher.
+
+    Okay. But yeah, still active rates are for both, I feel like. No, I get it, because these flows that you're sending the browser abandoned is not the highest intent.
+
+    And the product review cross sell, actually, I don't know why they're mixing them up. Usually we have two kind of lows for each.
+
+    One for a review flow and one for cross selling. And then the site abandoned is also low intent. So basically if you have the whole spectrum of things, the numbers even themselves out and in this case, you only have the leads.
+
+    Intent or lower intent flows, which has a negative impact on the overall metric. And so you have low engagement rates and low rates.
+
+    I think I have a clear idea now. So we checked the list growth sorry, the list engagement not very engaged.
+
+    We check the benchmarks. Obviously, the click through rate and the other flows are missing in terms of the flow side of things and the campaign side of things.
+
+    Also, the fixed rates are low. So engagement wise, the design and the copy is not the best. And in terms of the sign up forms, so far so good.
+
+    Three or six. Or you have six years, it's fine. Although it needs to be a bit more aggressive because the room is not.
+
+    Yeah, I mean, actually, it seems like it has been updated recently. If this is the case or you don't have that much traffic.
+
+    We're driving a lot of traffic to the site, so yeah, I'm just wondering what's going on there. Yeah, that's weird.
+
+    Maybe the number is off and sometimes the views might be I don't know, maybe not a lot of people are viewing it for some reason.
+

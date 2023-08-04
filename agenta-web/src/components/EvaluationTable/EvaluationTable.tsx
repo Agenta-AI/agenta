@@ -3,16 +3,16 @@ import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {Button, Input, Space, Spin, Table} from "antd"
 import {Variant, Parameter} from "@/lib/Types"
-import {updateEvaluationRow, callVariant} from "@/lib/services/api"
+import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {fetchVariants} from "@/lib/services/api"
 
 interface EvaluationTableProps {
-    appEvaluation: any
+    evaluation: any
     columnsCount: number
-    evaluationRows: EvaluationTableRow[]
+    evaluationScenarios: EvaluationTableRow[]
 }
 
 interface EvaluationTableRow {
@@ -32,22 +32,22 @@ interface EvaluationTableRow {
 }
 /**
  *
- * @param appEvaluation - Evaluation object
- * @param evaluationRows - Evaluation rows
+ * @param evaluation - Evaluation object
+ * @param evaluationScenarios - Evaluation rows
  * @param columnsCount - Number of variants to compare face to face (per default 2)
  * @returns
  */
 
 const EvaluationTable: React.FC<EvaluationTableProps> = ({
-    appEvaluation,
-    evaluationRows,
+    evaluation,
+    evaluationScenarios,
     columnsCount,
 }) => {
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
         : router.query.app_name || ""
-    const variants = appEvaluation.variants
+    const variants = evaluation.variants
 
     const variantData = variants.map((variant: Variant) => {
         const {optParams, URIPath, isLoading, isError, error} = useVariant(appName, variant)
@@ -64,10 +64,10 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
     const [rows, setRows] = useState<EvaluationTableRow[]>([])
 
     useEffect(() => {
-        if (evaluationRows) {
-            setRows(evaluationRows)
+        if (evaluationScenarios) {
+            setRows(evaluationScenarios)
         }
-    }, [evaluationRows])
+    }, [evaluationScenarios])
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
@@ -80,9 +80,9 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
     }
 
     const handleVoteClick = (rowIndex: number, vote: string) => {
-        const evaluation_row_id = rows[rowIndex].id
+        const evaluation_scenario_id = rows[rowIndex].id
 
-        if (evaluation_row_id) {
+        if (evaluation_scenario_id) {
             setRowValue(rowIndex, "vote", "loading")
             // TODO: improve this to make it dynamic
             const appVariantNameX = variants[0].variantName
@@ -97,11 +97,11 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
                 ],
             }
 
-            updateEvaluationRow(
-                appEvaluation.id,
-                evaluation_row_id,
+            updateEvaluationScenario(
+                evaluation.id,
+                evaluation_scenario_id,
                 data,
-                appEvaluation.evaluationType,
+                evaluation.evaluationType,
             )
                 .then((data) => {
                     setRowValue(rowIndex, "vote", vote)
@@ -165,6 +165,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
@@ -199,11 +200,12 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
                         <span
                             style={{
                                 backgroundColor: "rgb(201 255 216)",
+                                color: "rgb(0 0 0)",
                                 padding: 4,
                                 borderRadius: 5,
                             }}
                         >
-                            {appEvaluation.dataset.name}
+                            {evaluation.testset.name}
                         </span>
                         <span> )</span>
                     </div>

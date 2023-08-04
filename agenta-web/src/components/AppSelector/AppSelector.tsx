@@ -33,25 +33,27 @@ const AppSelector: React.FC = () => {
     if (isLoading) return <div>loading...</div>
 
     return (
-        <div style={{margin: "20px 20px"}}>
-            <Space size={20} wrap direction="horizontal">
-                {Array.isArray(data) &&
-                    data.map((app: any, index: number) => (
-                        <AppCard appName={app.app_name} key={index} index={index} />
-                    ))}
-            </Space>
-            <Modal
-                title="Add new app from template"
-                open={isModalOpen}
-                onOk={handleAddOk}
-                onCancel={handleAddCancel}
-            >
-                <Input
-                    placeholder="New app name"
-                    value={newApp}
-                    onChange={(e) => setNewApp(e.target.value)}
-                />
-            </Modal>
+        <div>
+            <div style={{margin: "20px 20px"}}>
+                <Space size={20} wrap direction="horizontal">
+                    {Array.isArray(data) &&
+                        data.map((app: any, index: number) => (
+                            <AppCard appName={app.app_name} key={index} index={index} />
+                        ))}
+                </Space>
+                <Modal
+                    title="Add new app from template"
+                    open={isModalOpen}
+                    onOk={handleAddOk}
+                    onCancel={handleAddCancel}
+                >
+                    <Input
+                        placeholder="New app name"
+                        value={newApp}
+                        onChange={(e) => setNewApp(e.target.value)}
+                    />
+                </Modal>
+            </div>
         </div>
     )
 }

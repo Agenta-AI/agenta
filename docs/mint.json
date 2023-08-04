@@ -48,6 +48,12 @@
             "installation/local-installation/local-installation",
             "installation/self-hosting/self-hosted-installation"
           ]
+        },
+        {
+          "group": "Upgrading",
+          "pages": [
+            "installation/migration/migration"
+          ]
         }
       ]
     },

@@ -112,7 +112,10 @@ const VersionTabs: React.FC = () => {
     const handleBackendRemove = async () => {
         if (removalVariantName) {
             setIsDeleteLoading(true)
-            await removeVariant(appName, removalVariantName)
+            // only call the backend if the variant is persistent
+            if (variants.find((variant) => variant.variantName === removalVariantName)?.persistent)
+                await removeVariant(appName, removalVariantName)
+
             removeTab(setActiveKey, setVariants, variants, removalVariantName)
             setIsDeleteLoading(false)
         }
@@ -156,7 +159,7 @@ const VersionTabs: React.FC = () => {
                 handlePersistVariant={handlePersistVariant}
                 setRemovalVariantName={setRemovalVariantName}
                 setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
-                isDeleteLoading={isDeleteLoading}
+                isDeleteLoading={isDeleteLoading && removalVariantName === variant.variantName}
             />
         ),
         closable: !variant.persistent,
