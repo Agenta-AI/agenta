@@ -94,7 +94,8 @@ async def add_variant_from_previous(previous_app_variant: AppVariant, new_varian
     print(f"new_variant_name: {new_variant_name}, type: {type(new_variant_name)}")
     print(f"parameters: {parameters}, type: {type(parameters)}")
     try:
-        db_manager.add_variant_based_on_previous(previous_app_variant, new_variant_name, parameters)
+        update_new_variant_name = previous_app_variant.app_name + f".{new_variant_name}"
+        db_manager.add_variant_based_on_previous(previous_app_variant, update_new_variant_name, parameters)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
