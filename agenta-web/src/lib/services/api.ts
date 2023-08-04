@@ -1,9 +1,9 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, AppEvaluationResponseType, AppEvaluation} from "@/lib/Types"
+import {Variant, Parameter, EvaluationResponseType, Evaluation} from "@/lib/Types"
 import {
-    fromAppEvaluationResponseToAppEvaluation,
+    fromEvaluationResponseToEvaluation,
     fromEvaluationsRowsResponseToEvaluationsRows,
 } from "../transformers"
 import {EvaluationType} from "../enums"
@@ -265,14 +265,14 @@ const eval_endpoint = axios.create({
     baseURL: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations`,
 })
 
-export const loadAppEvaluations = async (app_name: string) => {
+export const loadEvaluations = async (app_name: string) => {
     try {
         return await eval_endpoint.get(`?app_name=${app_name}`).then((responseData) => {
-            const appEvaluations = responseData.data.map((item: AppEvaluationResponseType) => {
-                return fromAppEvaluationResponseToAppEvaluation(item)
+            const evaluations = responseData.data.map((item: EvaluationResponseType) => {
+                return fromEvaluationResponseToEvaluation(item)
             })
 
-            return appEvaluations
+            return evaluations
         })
     } catch (error) {
         console.error(error)
@@ -280,10 +280,10 @@ export const loadAppEvaluations = async (app_name: string) => {
     }
 }
 
-export const loadAppEvaluation = async (appEvaluationId: string) => {
+export const loadEvaluation = async (evaluationId: string) => {
     try {
-        return await eval_endpoint.get(appEvaluationId).then((responseData) => {
-            return fromAppEvaluationResponseToAppEvaluation(responseData.data)
+        return await eval_endpoint.get(evaluationId).then((responseData) => {
+            return fromEvaluationResponseToEvaluation(responseData.data)
         })
     } catch (error) {
         console.error(error)
@@ -291,7 +291,7 @@ export const loadAppEvaluation = async (appEvaluationId: string) => {
     }
 }
 
-export const deleteAppEvaluations = async (ids: string[]) => {
+export const deleteEvaluations = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",
@@ -309,14 +309,14 @@ export const deleteAppEvaluations = async (ids: string[]) => {
 
 export const loadEvaluationsScenarios = async (
     evaluationTableId: string,
-    appEvaluation: AppEvaluation,
+    evaluation: Evaluation,
 ) => {
     try {
         return await eval_endpoint
             .get(`${evaluationTableId}/evaluation_scenarios`)
             .then((responseData) => {
                 const evaluationsRows = responseData.data.map((item: any) => {
-                    return fromEvaluationsRowsResponseToEvaluationsRows(item, appEvaluation)
+                    return fromEvaluationsRowsResponseToEvaluationsRows(item, evaluation)
                 })
 
                 return evaluationsRows
@@ -327,7 +327,7 @@ export const loadEvaluationsScenarios = async (
     }
 }
 
-export const updateAppEvaluations = async (evaluationTableId: string, data) => {
+export const updateEvaluations = async (evaluationTableId: string, data) => {
     const response = await eval_endpoint.put(`${evaluationTableId}`, data)
     return response.data
 }

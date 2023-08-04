@@ -10,7 +10,7 @@ import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithExactMatch} from "@/lib/services/evaluations"
 
 interface ExactMatchEvaluationTableProps {
-    appEvaluation: any
+    evaluation: any
     columnsCount: number
     evaluationScenarios: ExactMatchEvaluationTableRow[]
 }
@@ -32,14 +32,14 @@ interface ExactMatchEvaluationTableRow {
 }
 /**
  *
- * @param appEvaluation - Evaluation object
+ * @param evaluation - Evaluation object
  * @param evaluationScenarios - Evaluation rows
  * @param columnsCount - Number of variants to compare face to face (per default 2)
  * @returns
  */
 
 const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
-    appEvaluation,
+    evaluation,
     evaluationScenarios,
     columnsCount,
 }) => {
@@ -47,7 +47,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
         : router.query.app_name || ""
-    const variants = appEvaluation.variants
+    const variants = evaluation.variants
 
     const variantData = variants.map((variant: Variant) => {
         const {optParams, URIPath, isLoading, isError, error} = useVariant(appName, variant)
@@ -167,10 +167,10 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             }
 
             updateEvaluationScenario(
-                appEvaluation.id,
+                evaluation.id,
                 evaluation_scenario_id,
                 data,
-                appEvaluation.evaluationType,
+                evaluation.evaluationType,
             )
                 .then((data) => {
                     setRowValue(rowNumber, "score", data.score)
@@ -249,7 +249,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                                 borderRadius: 5,
                             }}
                         >
-                            {appEvaluation.testset.name}
+                            {evaluation.testset.name}
                         </span>
                         <span> )</span>
                     </div>
