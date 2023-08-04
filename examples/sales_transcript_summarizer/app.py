@@ -60,12 +60,12 @@ def generate(
     transcript: str,
     temperature: ag.FloatParam = 0.9,
     model: MultipleChoiceParam = MultipleChoiceParam(
+        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"],
         "text-davinci-003",
-        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
     ),
     chunk_size: MultipleChoiceParam = MultipleChoiceParam(
+        ["1000", "2000", "3000"],
         "1000",
-        ["1000", "2000", "3000"]
     ),
     prompt_chunks: ag.TextParam = default_prompt1,
     prompt_final: ag.TextParam = default_prompt2,
