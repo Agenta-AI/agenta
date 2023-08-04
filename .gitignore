@@ -39,3 +39,4 @@ self-host/*/*.tfstate
 self-host/*/*.tfstate.backup
 
 todo.md
+agenta-web/package-lock.json

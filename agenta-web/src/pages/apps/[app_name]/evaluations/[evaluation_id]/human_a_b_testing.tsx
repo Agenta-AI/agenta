@@ -1,6 +1,6 @@
 import EvaluationTable from "@/components/EvaluationTable/EvaluationTable"
-import {AppEvaluation} from "@/lib/Types"
-import {loadAppEvaluation, loadEvaluationsScenarios} from "@/lib/services/api"
+import {Evaluation} from "@/lib/Types"
+import {loadEvaluation, loadEvaluationsScenarios} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {fetchVariants} from "@/lib/services/api"
@@ -11,38 +11,38 @@ export default function Evaluation() {
         ? router.query.evaluation_id.toString()
         : ""
     const [evaluationScenarios, setEvaluationScenarios] = useState([])
-    const [appEvaluation, setAppEvaluation] = useState<AppEvaluation | undefined>()
+    const [evaluation, setEvaluation] = useState<Evaluation | undefined>()
     const appName = router.query.app_name as unknown as string
     const columnsCount = 2
 
     useEffect(() => {
-        if (!appEvaluation) {
+        if (!evaluation) {
             return
         }
         const init = async () => {
-            const data = await loadEvaluationsScenarios(evaluationTableId, appEvaluation)
+            const data = await loadEvaluationsScenarios(evaluationTableId, evaluation)
             setEvaluationScenarios(data)
         }
         init()
-    }, [appEvaluation])
+    }, [evaluation])
 
     useEffect(() => {
         if (!evaluationTableId) {
             return
         }
         const init = async () => {
-            const appEvaluation: AppEvaluation = await loadAppEvaluation(evaluationTableId)
+            const evaluation: Evaluation = await loadEvaluation(evaluationTableId)
             const backendVariants = await fetchVariants(appName)
             // Create a map for faster access to first array elements
             let backendVariantsMap = new Map()
             backendVariants.forEach((obj) => backendVariantsMap.set(obj.variantName, obj))
 
             // Update variants in second object
-            appEvaluation.variants = appEvaluation.variants.map((variant) => {
+            evaluation.variants = evaluation.variants.map((variant) => {
                 let backendVariant = backendVariantsMap.get(variant.variantName)
                 return backendVariant ? backendVariant : variant
             })
-            setAppEvaluation(appEvaluation)
+            setEvaluation(evaluation)
         }
 
         init()
@@ -50,11 +50,11 @@ export default function Evaluation() {
 
     return (
         <div style={{marginBottom: "200px"}}>
-            {evaluationTableId && evaluationScenarios && appEvaluation && (
+            {evaluationTableId && evaluationScenarios && evaluation && (
                 <EvaluationTable
                     columnsCount={columnsCount}
                     evaluationScenarios={evaluationScenarios}
-                    appEvaluation={appEvaluation}
+                    evaluation={evaluation}
                 />
             )}
         </div>
