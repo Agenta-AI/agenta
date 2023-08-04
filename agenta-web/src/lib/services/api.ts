@@ -296,7 +296,7 @@ export const deleteAppEvaluations = async (ids: string[]) => {
         const response = await axios({
             method: "delete",
             url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations`,
-            data: {comparison_tables_ids: ids},
+            data: {evaluations_ids: ids},
         })
         if (response.status === 200) {
             return response.data
