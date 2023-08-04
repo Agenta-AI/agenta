@@ -3,6 +3,8 @@ import {useRouter} from "next/router"
 import {Input, Space, Modal} from "antd"
 import useSWR from "swr"
 import AppCard from "./AppCard"
+import Head from "next/head"
+import useLogo from "@/lib/hooks/useLogo"
 
 const fetcher = (...args) => fetch(...args).then((res) => res.json())
 
@@ -23,6 +25,8 @@ const AppSelector: React.FC = () => {
         setIsModalOpen(false)
     }
 
+    const logoSrc = useLogo()
+
     // TODO: move to api.ts
     const {data, error, isLoading} = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
@@ -33,25 +37,31 @@ const AppSelector: React.FC = () => {
     if (isLoading) return <div>loading...</div>
 
     return (
-        <div style={{margin: "20px 20px"}}>
-            <Space size={20} wrap direction="horizontal">
-                {Array.isArray(data) &&
-                    data.map((app: any, index: number) => (
-                        <AppCard appName={app.app_name} key={index} index={index} />
-                    ))}
-            </Space>
-            <Modal
-                title="Add new app from template"
-                open={isModalOpen}
-                onOk={handleAddOk}
-                onCancel={handleAddCancel}
-            >
-                <Input
-                    placeholder="New app name"
-                    value={newApp}
-                    onChange={(e) => setNewApp(e.target.value)}
-                />
-            </Modal>
+        <div>
+            <Head>
+                <title>Agenta: The LLMOps platform.</title>
+                <link rel="shortcut icon" href={logoSrc} />
+            </Head>
+            <div style={{margin: "20px 20px"}}>
+                <Space size={20} wrap direction="horizontal">
+                    {Array.isArray(data) &&
+                        data.map((app: any, index: number) => (
+                            <AppCard appName={app.app_name} key={index} index={index} />
+                        ))}
+                </Space>
+                <Modal
+                    title="Add new app from template"
+                    open={isModalOpen}
+                    onOk={handleAddOk}
+                    onCancel={handleAddCancel}
+                >
+                    <Input
+                        placeholder="New app name"
+                        value={newApp}
+                        onChange={(e) => setNewApp(e.target.value)}
+                    />
+                </Modal>
+            </div>
         </div>
     )
 }
