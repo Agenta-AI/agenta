@@ -49,9 +49,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     </div>
                 </Content>
             </Layout>
-            <Footer style={{textAlign: "center", padding: "10px 50px"}}>
+            <Footer style={{textAlign: "center", padding: "7px", marginLeft: "225px", maxHeight: "30px"}}>
                 <div>
-                    <span>Agenta © 2023. Made with</span>
+                    <span>Agenta © {new Date().getFullYear()}. Made with</span>
                     <span>
                         {" "}
                         <HeartTwoTone twoToneColor="#eb2f96" />{" "}
