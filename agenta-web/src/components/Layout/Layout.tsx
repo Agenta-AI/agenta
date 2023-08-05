@@ -49,7 +49,14 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     </div>
                 </Content>
             </Layout>
-            <Footer style={{textAlign: "center", padding: "7px", marginLeft: "225px", maxHeight: "30px"}}>
+            <Footer
+                style={{
+                    textAlign: "center",
+                    padding: "7px",
+                    marginLeft: "225px",
+                    maxHeight: "30px",
+                }}
+            >
                 <div>
                     <span>Agenta © {new Date().getFullYear()}. Made with</span>
                     <span>
