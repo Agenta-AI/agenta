@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def build_image_job(app_name: str, variant_name: str, tar_path: Path, image_name: str, temp_dir: Path) -> Image:
+def build_image_job(
+    app_name: str, variant_name: str, tar_path: Path, image_name: str, temp_dir: Path
+) -> Image:
     """Business logic for building a docker image from a tar file
     TODO: This should be a background task
     TODO: This should be somewhere else
@@ -46,8 +48,10 @@ def build_image_job(app_name: str, variant_name: str, tar_path: Path, image_name
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
-            buildargs={"ROOT_PATH": f"/{app_name}/{variant_name}"},  # needed for /docs to work
-            rm=True  # Remove intermediate containers after a successful build
+            buildargs={
+                "ROOT_PATH": f"/{app_name}/{variant_name}"
+            },  # needed for /docs to work
+            rm=True,  # Remove intermediate containers after a successful build
         )
         # response = [line for line in build_log]
         for line in build_log:
@@ -60,7 +64,7 @@ def build_image_job(app_name: str, variant_name: str, tar_path: Path, image_name
         for line in ex.build_log:
             log += str(line) + "\n"
         logger.error(log)
-        raise HTTPException(status_code=500, detail=str(ex)+"\n"+log)
+        raise HTTPException(status_code=500, detail=str(ex) + "\n" + log)
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
 
@@ -83,7 +87,7 @@ async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) ->
 
     # Save uploaded file to the temporary directory
     tar_path = temp_dir / tar_file.filename
-    with tar_path.open('wb') as buffer:
+    with tar_path.open("wb") as buffer:
         buffer.write(await tar_file.read())
 
     image_name = f"agenta-server/{app_name.lower()}_{variant_name.lower()}:latest"
