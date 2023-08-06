@@ -102,6 +102,12 @@ https://github.com/Agenta-AI/agenta/assets/4510758/f8a2a423-c0a9-40df-9c00-52908
 - 🌐 **Solution-Agnostic**: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
 - 🔒 **Privacy-First**: We respect your privacy and do not proxy your data through third-party services. The platform and the data are hosted on your infrastructure.
 
+
+## Onboarding and support
+
+Are you interested in using Agenta in your business? We'd love to talk to you about your needs and show you how agenta can help.
+[Book a meeting with the founders here](https://cal.com/mahmoud-mabrouk-ogzgey/demo) to start the conversation.
+
 ## Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
