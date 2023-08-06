@@ -32,7 +32,10 @@ def list_images() -> List[Image]:
     """
     all_images = client.images.list()
     registry_images = [
-        Image(docker_id=image.id, tags=image.tags[0]) for image in all_images if len(image.tags) > 0 and image.tags[0].startswith(settings.registry)]
+        Image(docker_id=image.id, tags=image.tags[0])
+        for image in all_images
+        if len(image.tags) > 0 and image.tags[0].startswith(settings.registry)
+    ]
     return registry_images
 
 
@@ -49,15 +52,24 @@ def start_container(image_name, app_name, variant_name) -> URI:
 
     rules = {
         "development": f"PathPrefix(`/{app_name}/{variant_name}`)",
-        "production": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)"
+        "production": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)",
     }
 
-    labels.update({
-        f"traefik.http.routers.{app_name}-{variant_name}.rule": rules[os.environ["ENVIRONMENT"]]
-    })
+    labels.update(
+        {
+            f"traefik.http.routers.{app_name}-{variant_name}.rule": rules[
+                os.environ["ENVIRONMENT"]
+            ]
+        }
+    )
 
     container = client.containers.run(
-        image, detach=True, labels=labels, network="agenta-network", name=f"{app_name}-{variant_name}")
+        image,
+        detach=True,
+        labels=labels,
+        network="agenta-network",
+        name=f"{app_name}-{variant_name}",
+    )
     return URI(uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}")
 
 
@@ -79,10 +91,14 @@ def stop_containers_based_on_image(image: Image) -> List[str]:
             try:
                 container.stop()
                 stopped_container_ids.append(container.id)
-                logger.info(f'Stopped container with id: {container.id}')
+                logger.info(f"Stopped container with id: {container.id}")
             except docker.errors.APIError as ex:
-                logger.error(f'Error stopping container with id: {container.id}. Error: {str(ex)}')
-                raise RuntimeError(f'Error stopping container with id: {container.id}') from ex
+                logger.error(
+                    f"Error stopping container with id: {container.id}. Error: {str(ex)}"
+                )
+                raise RuntimeError(
+                    f"Error stopping container with id: {container.id}"
+                ) from ex
     return stopped_container_ids
 
 
@@ -98,10 +114,12 @@ def delete_container(container_id: str):
     try:
         container = client.containers.get(container_id)
         container.remove()
-        logger.info(f'Deleted container with id: {container.id}')
+        logger.info(f"Deleted container with id: {container.id}")
     except docker.errors.APIError as ex:
-        logger.error(f'Error deleting container with id: {container.id}. Error: {str(ex)}')
-        raise RuntimeError(f'Error deleting container with id: {container.id}') from ex
+        logger.error(
+            f"Error deleting container with id: {container.id}. Error: {str(ex)}"
+        )
+        raise RuntimeError(f"Error deleting container with id: {container.id}") from ex
 
 
 def delete_image(image: Image):
@@ -115,10 +133,12 @@ def delete_image(image: Image):
     """
     try:
         client.images.remove(image.docker_id)
-        logger.info(f'Deleted image with id: {image.docker_id}')
+        logger.info(f"Deleted image with id: {image.docker_id}")
     except docker.errors.APIError as ex:
-        logger.error(f'Error deleting image with id: {image.docker_id}. Error: {str(ex)}')
-        raise RuntimeError(f'Error deleting image with id: {image.docker_id}') from ex
+        logger.error(
+            f"Error deleting image with id: {image.docker_id}. Error: {str(ex)}"
+        )
+        raise RuntimeError(f"Error deleting image with id: {image.docker_id}") from ex
 
 
 def experimental_pull_image(image_name: str):

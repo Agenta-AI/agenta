@@ -74,6 +74,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Pajko97",
+      "name": "Pavle Janjusevic",
+      "avatar_url": "https://avatars.githubusercontent.com/u/25198892?v=4",
+      "profile": "https://github.com/Pajko97",
+      "contributions": [
+        "infra"
+      ]
     }
   ],
   "contributorsPerLine": 7,

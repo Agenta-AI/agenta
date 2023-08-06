@@ -32,9 +32,7 @@ Salesperson: You're welcome! It was my pleasure assisting you. Have a wonderful 
 
 
 default_prompt1 = "summarize the following {text} "
-default_prompt2 = (
-    "these are summaries of a long text {text}\n please summarize them"
-)
+default_prompt2 = "these are summaries of a long text {text}\n please summarize them"
 
 
 def call_llm(model, temperature, prompt, **kwargs):
@@ -45,13 +43,11 @@ def call_llm(model, temperature, prompt, **kwargs):
         chain = LLMChain(llm=llm, prompt=prompt)
         output = chain.run(**kwargs)
     elif model in ["gpt-3.5-turbo", "gpt-4"]:
-        chat = ChatOpenAI(model=model,
-                          temperature=temperature)
-        messages = [
-            HumanMessage(content=prompt.format(**kwargs))
-        ]
-        output = chat(messages,
-                      ).content
+        chat = ChatOpenAI(model=model, temperature=temperature)
+        messages = [HumanMessage(content=prompt.format(**kwargs))]
+        output = chat(
+            messages,
+        ).content
     return output
 
 
@@ -60,18 +56,18 @@ def generate(
     transcript: str,
     temperature: ag.FloatParam = 0.9,
     model: MultipleChoiceParam = MultipleChoiceParam(
-        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"],
         "text-davinci-003",
+        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"],
     ),
     chunk_size: MultipleChoiceParam = MultipleChoiceParam(
-        ["1000", "2000", "3000"],
         "1000",
+        ["1000", "2000", "3000"],
     ),
     prompt_chunks: ag.TextParam = default_prompt1,
     prompt_final: ag.TextParam = default_prompt2,
 ) -> str:
     transcript_chunks = [
-        transcript[i: i + int(chunk_size)]
+        transcript[i : i + int(chunk_size)]
         for i in range(0, len(transcript), int(chunk_size))
     ]
 
@@ -82,7 +78,9 @@ def generate(
     )
 
     for chunk in transcript_chunks:
-        outputs.append(call_llm(model=model, temperature=temperature, prompt=prompt, text=chunk))
+        outputs.append(
+            call_llm(model=model, temperature=temperature, prompt=prompt, text=chunk)
+        )
 
     outputs = "\n".join(outputs)
 
@@ -90,5 +88,7 @@ def generate(
         input_variables=["text"],
         template=prompt_final,
     )
-    final_out = call_llm(model=model, temperature=temperature, prompt=prompt, text=outputs)
+    final_out = call_llm(
+        model=model, temperature=temperature, prompt=prompt, text=outputs
+    )
     return str(final_out)
