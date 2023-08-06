@@ -33,6 +33,9 @@ class FloatParam(float):
 
 class MultipleChoiceParam(str):
     def __new__(cls, default: str = None, choices: List[str] = None):
+        if type(default) is list:
+            raise ValueError(
+                "The order of the parameters for MultipleChoiceParam is wrong! It's MultipleChoiceParam(default, choices) and not the opposite")
         if default is None and choices:
             # if a default value is not provided,
             # uset the first value in the choices list
