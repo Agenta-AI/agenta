@@ -147,7 +147,7 @@ def post(func: Callable[..., Any]):
     app_params = {
         name: param.default if param.default is not param.empty else None
         for name, param in func_params.items()
-        if param.annotation in {TextParam, FloatParam, MultipleChoiceParam}
+        if param.annotation in {TextParam, FloatParam, IntParam, MultipleChoiceParam}
     }
 
     @functools.wraps(func)
