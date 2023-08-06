@@ -30,6 +30,8 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
                 required: schema.components.schemas[bodySchemaName].required.includes(name),
                 default: param.default,
                 enum: param["enum"] ? param.enum : [],
+                minimum: param["minimum"] ? param.minimum : 0,
+                maximum: param["maximum"] ? param.maximum : 1,
             })
         })
     }
