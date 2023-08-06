@@ -1,5 +1,5 @@
 name: black-action
-on: [push, pull_request]
+on: [push]
 jobs:
   linter_name:
     name: runner / black
