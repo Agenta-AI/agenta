@@ -1,5 +1,11 @@
 import agenta
-from llama_index import VectorStoreIndex, SimpleDirectoryReader, load_index_from_storage, StorageContext, Prompt
+from llama_index import (
+    VectorStoreIndex,
+    SimpleDirectoryReader,
+    load_index_from_storage,
+    StorageContext,
+    Prompt,
+)
 import os
 from pathlib import Path
 import agenta as ag
@@ -25,7 +31,9 @@ def test(index, question):
 def ingest(file1: ag.InFile, file2: ag.InFile, question: str):
     persist_dir = f"./storage/{file1.file_name}_{file2.file_name}"
     if not os.path.exists(persist_dir):
-        documents = SimpleDirectoryReader(input_files=[file1.file_path, file2.file_path]).load_data()
+        documents = SimpleDirectoryReader(
+            input_files=[file1.file_path, file2.file_path]
+        ).load_data()
         index = VectorStoreIndex.from_documents(documents)
         index.storage_context.persist(persist_dir=persist_dir)
     else:
