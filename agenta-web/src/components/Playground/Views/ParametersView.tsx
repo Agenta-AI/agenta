@@ -179,8 +179,8 @@ const ParametersView: React.FC<Props> = ({
                                     <Col span={8}>
                                         {param.type === "number" && (
                                             <Slider
-                                                min={0}
-                                                max={1}
+                                                min={param.minimum}
+                                                max={param.maximum}
                                                 value={
                                                     typeof param.default === "number"
                                                         ? param.default
