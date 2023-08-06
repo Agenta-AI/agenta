@@ -1,6 +1,12 @@
 import os
 import agenta as ag
-from llama_index import VectorStoreIndex, SimpleDirectoryReader, load_index_from_storage, StorageContext, Prompt
+from llama_index import (
+    VectorStoreIndex,
+    SimpleDirectoryReader,
+    load_index_from_storage,
+    StorageContext,
+    Prompt,
+)
 
 
 @ag.ingest
@@ -24,13 +30,16 @@ default_prompt = (
 
 
 @ag.post
-def query(question: str, context: ag.Context, prompt: ag.TextParam
-          = default_prompt,     temperature: ag.FloatParam = 0.9,
-          ) -> str:
+def query(
+    question: str,
+    context: ag.Context,
+    prompt: ag.TextParam = default_prompt,
+    temperature: ag.FloatParam = 0.9,
+) -> str:
     persist_dir = context.persist_dir
     storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
     index = load_index_from_storage(storage_context)
 
     query_engine = index.as_query_engine(text_qa_template=Prompt(prompt))
     response = query_engine.query(question)
-    return str(response)+"\n"+str(temperature)
+    return str(response) + "\n" + str(temperature)

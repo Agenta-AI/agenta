@@ -20,8 +20,9 @@ def create_dockerfile(out_folder: Path):
         out_folder -- Folder in which to create the Dockerfile.
     """
     assert Path(out_folder).exists(), f"Folder {out_folder} does not exist."
-    dockerfile_template = Path(__file__).parent / \
-        "docker-assets" / "Dockerfile.template"
+    dockerfile_template = (
+        Path(__file__).parent / "docker-assets" / "Dockerfile.template"
+    )
     dockerfile_path = out_folder / "Dockerfile"
     shutil.copy(dockerfile_template, dockerfile_path)
     return dockerfile_path
@@ -39,29 +40,28 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
     tarfile_path = folder / "docker.tar.gz"  # output file
     if tarfile_path.exists():
         tarfile_path.unlink()
-        
+
     dockerfile_path = create_dockerfile(folder)
-    shutil.copytree(Path(__file__).parent.parent / "sdk", folder / "agenta", dirs_exist_ok=True)
-    shutil.copy(Path(__file__).parent /
-                "docker-assets" / "main.py", folder)
-    shutil.copy(Path(__file__).parent /
-                "docker-assets" / "entrypoint.sh", folder)
-            
+    shutil.copytree(
+        Path(__file__).parent.parent / "sdk", folder / "agenta", dirs_exist_ok=True
+    )
+    shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", folder)
+    shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", folder)
+
     # Read the contents of .gitignore file
     gitignore_content = ""
     gitignore_file_path = folder / ".gitignore"
     if gitignore_file_path.exists():
-        with open(gitignore_file_path, 'r') as gitignore_file:
+        with open(gitignore_file_path, "r") as gitignore_file:
             gitignore_content = gitignore_file.read()
-            
+
     # Create a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
-        
+
         # Clean - remove '/' from every files and folders in the gitignore contents
         sanitized_patterns = [
-            pattern.replace("/", "") 
-            for pattern in gitignore_content.splitlines()
+            pattern.replace("/", "") for pattern in gitignore_content.splitlines()
         ]
 
         # Function to ignore files based on the patterns
@@ -77,12 +77,14 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         # Create the tar.gz file
         with tarfile.open(tarfile_path, "w:gz") as tar:
             tar.add(temp_path, arcname=folder.name)
-            
+
     # dockerfile_path.unlink()
     return tarfile_path
 
 
-def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str) -> Image:
+def build_and_upload_docker_image(
+    folder: Path, variant_name: str, app_name: str
+) -> Image:
     """
     DEPRECATED
     Builds an image from the folder and returns the path
@@ -103,11 +105,12 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
         # Create a Dockerfile for the app
         # TODO: Later do this in the temp dir
         dockerfile_path = create_dockerfile(folder)
-        shutil.copytree(Path(__file__).parent.parent / "sdk", folder / "agenta",)
-        shutil.copy(Path(__file__).parent /
-                    "docker-assets" / "main.py", folder)
-        shutil.copy(Path(__file__).parent /
-                    "docker-assets" / "entrypoint.sh", folder)
+        shutil.copytree(
+            Path(__file__).parent.parent / "sdk",
+            folder / "agenta",
+        )
+        shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", folder)
+        shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", folder)
 
         # Copy the app files to a temporary directory
         shutil.copytree(folder, temp_dir, dirs_exist_ok=True)
@@ -121,7 +124,7 @@ def build_and_upload_docker_image(folder: Path, variant_name: str, app_name: str
                 path=temp_dir,
                 tag=tag,
                 buildargs={"ROOT_PATH": f"/{app_name}/{variant_name}"},
-                rm=True  # Remove intermediate containers after a successful build
+                rm=True,  # Remove intermediate containers after a successful build
             )
 
         except docker.errors.BuildError as ex:

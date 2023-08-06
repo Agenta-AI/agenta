@@ -18,12 +18,14 @@ REMOVE ALL NEWLINE CHARACTER, LINE BREAK, ENDOF LINE (EOL) OR "\n"
 
 
 @post
-def generate(recipe_name: str, prompt_template: TextParam = default_prompt, temperature: FloatParam = 0.5) -> str:
+def generate(
+    recipe_name: str,
+    prompt_template: TextParam = default_prompt,
+    temperature: FloatParam = 0.5,
+) -> str:
     load_dotenv()
     llm = OpenAI(temperature=temperature)
-    prompt = PromptTemplate(
-        input_variables=["recipe_name"],
-        template=prompt_template)
+    prompt = PromptTemplate(input_variables=["recipe_name"], template=prompt_template)
 
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(recipe_name=recipe_name)
