@@ -16,6 +16,7 @@ uvicorn = "^0.22.0"
 sqlmodel = "^0.0.8"
 motor = "^3.1.2"
 python-multipart = "^0.0.6"
+aiodocker = "^0.21.0"
 
 
 [tool.poetry.group.dev.dependencies]
