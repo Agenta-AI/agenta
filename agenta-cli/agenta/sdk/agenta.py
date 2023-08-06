@@ -23,7 +23,7 @@ origins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "http://0.0.0.0:3000",
-    "http://0.0.0.0:3001"
+    "http://0.0.0.0:3001",
 ]
 
 app.add_middleware(
@@ -34,15 +34,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router, prefix='')
+app.include_router(router, prefix="")
 
 
 def ingest_file(upfile: UploadFile):
     temp_file = NamedTemporaryFile(delete=False)
     temp_file.write(upfile.file.read())
     temp_file.close()
-    return InFile(file_name=upfile.filename,
-                  file_path=temp_file.name)
+    return InFile(file_name=upfile.filename, file_path=temp_file.name)
 
 
 def ingest(func: Callable[..., Any]):
@@ -50,15 +49,19 @@ def ingest(func: Callable[..., Any]):
     func_params = sig.parameters
 
     # find the optional parameters for the app
-    app_params = {name: param for name, param in func_params.items()
-                  if param.annotation in {TextParam, FloatParam}}
+    app_params = {
+        name: param
+        for name, param in func_params.items()
+        if param.annotation in {TextParam, FloatParam}
+    }
     # find the default values for the optional parameters
     for name, param in app_params.items():
         default_value = param.default if param.default is not param.empty else None
         app_params[name] = default_value
 
-    ingestible_files = {name: param for name, param in func_params.items()
-                        if param.annotation is InFile}
+    ingestible_files = {
+        name: param for name, param in func_params.items() if param.annotation is InFile
+    }
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -68,8 +71,12 @@ def ingest(func: Callable[..., Any]):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            traceback_str = ''.join(traceback.format_exception(None, e, e.__traceback__))
-            return JSONResponse(status_code=500, content={"error": str(e), "traceback": traceback_str})
+            traceback_str = "".join(
+                traceback.format_exception(None, e, e.__traceback__)
+            )
+            return JSONResponse(
+                status_code=500, content={"error": str(e), "traceback": traceback_str}
+            )
 
     new_params = []
     for name, param in sig.parameters.items():
@@ -79,17 +86,12 @@ def ingest(func: Callable[..., Any]):
                     name,
                     inspect.Parameter.KEYWORD_ONLY,
                     default=Body(app_params[name]),
-                    annotation=Optional[param.annotation]
-
+                    annotation=Optional[param.annotation],
                 )
             )
         elif name in ingestible_files:
             new_params.append(
-                inspect.Parameter(
-                    name,
-                    param.kind,
-                    annotation=UploadFile
-                )
+                inspect.Parameter(name, param.kind, annotation=UploadFile)
             )
         else:
             new_params.append(
@@ -97,7 +99,7 @@ def ingest(func: Callable[..., Any]):
                     name,
                     inspect.Parameter.KEYWORD_ONLY,
                     default=Body(...),
-                    annotation=param.annotation
+                    annotation=param.annotation,
                 )
             )
 
@@ -107,14 +109,18 @@ def ingest(func: Callable[..., Any]):
     app.post(route)(wrapper)
 
     # check if the module is being run as the main script
-    if os.path.splitext(os.path.basename(sys.argv[0]))[0] == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]:
+    if (
+        os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]
+    ):
         parser = argparse.ArgumentParser()
         # add arguments to the command-line parser
         for name, param in sig.parameters.items():
             if name in app_params:
                 # For optional parameters, we add them as options
-                parser.add_argument(f"--{name}", type=type(param.default),
-                                    default=param.default)
+                parser.add_argument(
+                    f"--{name}", type=type(param.default), default=param.default
+                )
             elif name in ingestible_files:
                 parser.add_argument(name, type=str)
             else:
@@ -124,30 +130,25 @@ def ingest(func: Callable[..., Any]):
         args = parser.parse_args()
         args_dict = vars(args)
         for name in ingestible_files:
-            args_dict[name] = InFile(file_name=Path(args_dict[name]).stem,
-                                     file_path=args_dict[name])
+            args_dict[name] = InFile(
+                file_name=Path(args_dict[name]).stem, file_path=args_dict[name]
+            )
         print(func(**vars(args)))
 
     return wrapper
 
 
 def post(func: Callable[..., Any]):
+    endpoint_name = "generate"
     sig = inspect.signature(func)
     func_params = sig.parameters
 
-    # find the optional parameters for the app
+    # determin the optional parameters for the app and save their default values
     app_params = {
-        name: param
+        name: param.default if param.default is not param.empty else None
         for name, param in func_params.items()
         if param.annotation in {TextParam, FloatParam, MultipleChoiceParam}
     }
-
-    # find the default values for the optional parameters
-    for name, param in app_params.items():
-        default_value = (
-            param.default if param.default is not param.empty else None
-        )
-        app_params[name] = default_value
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -174,28 +175,16 @@ def post(func: Callable[..., Any]):
     new_params = []
     instances_to_override = []
     for name, param in sig.parameters.items():
-        if name in app_params:
-            if param.annotation is MultipleChoiceParam:
-                # we save the MultipleChoiceParams for later to update the openai schema
-                instances_to_override.append((name, app_params[name]))
-                new_params.append(
-                    inspect.Parameter(
-                        name,
-                        inspect.Parameter.KEYWORD_ONLY,
-                        default=Body(app_params[name]),
-                        annotation=Optional[param.annotation],
-                    )
+        if name in app_params:  # optional parameters
+            new_params.append(
+                inspect.Parameter(
+                    name,
+                    inspect.Parameter.KEYWORD_ONLY,
+                    default=Body(app_params[name]),
+                    annotation=Optional[param.annotation],
                 )
-            else:
-                new_params.append(
-                    inspect.Parameter(
-                        name,
-                        inspect.Parameter.KEYWORD_ONLY,
-                        default=Body(app_params[name]),
-                        annotation=Optional[param.annotation],
-                    )
-                )
-        else:
+            )
+        else:  # required parameters
             new_params.append(
                 inspect.Parameter(
                     name,
@@ -207,14 +196,14 @@ def post(func: Callable[..., Any]):
 
     wrapper.__signature__ = sig.replace(parameters=new_params)
 
-    route = "/generate"
-    func_name = func.__name__
+    route = f"/{endpoint_name}"
     app.post(route)(wrapper)
-    schema = app.openapi()  # or app.openapi_schema
-    schemas = schema["components"]["schemas"][f"Body_{func_name}_generate_post"]["properties"]
-
-    # Update schema for multichoice objects
-    override_schema_for_multichoice(schemas, instances_to_override)
+    override_schema(
+        openapi_schema=app.openapi(),
+        func_name=func.__name__,
+        endpoint=endpoint_name,
+        app_params=app_params,
+    )
 
     # check if the module is being run as the main script
     if (
@@ -230,7 +219,7 @@ def post(func: Callable[..., Any]):
                         f"--{name}",
                         type=str,
                         default=param.default,
-                        choices=param.default.choices
+                        choices=param.default.choices,
                     )
                 else:
                     parser.add_argument(
@@ -248,24 +237,25 @@ def post(func: Callable[..., Any]):
     return wrapper
 
 
-def override_schema_for_multichoice(
-        parameters: dict, instances_to_override: list):
+def override_schema(
+    openapi_schema: dict, func_name: str, endpoint: str, app_params: dict
+):
     """
-    This function updates the "enum" and "default" values of each MultiChoiceParam instance in the dictionary based 
-    on its choices and default value. If the default value is not present in the choices, it adds the default 
-    value to the beginning of the choices list and sets it as the new default value. 
+    Overrides the default openai schema generated by fastapi with additional information about:
+    - The choices available for each MultipleChoiceParam instance
+    - The min and max values for each FloatParam instance
+    - ... [PLEASE ADD AT EACH CHANGE]
 
-    This ensures that the generated API documentation reflects the available choices and default values for 
-    MultiChoiceParam instances.
-
-    Arguments:
-        parameters -- A dictionary containing parameter schema. Keys are parameter names, values hold parameter details.
-        instances_to_override -- A list of tuples each containing a parameter name (param_name) and its instance
-        (param_instance).
+    Args:
+        openapi_schema (dict): The openapi schema generated by fastapi
+        func_name (str): The name of the function to override
+        endpoint (str): The name of the endpoint to override
+        app_params (dict(param_name, param_val)): The dictionary of optional parameters for the function
     """
 
-    for param_name, param_instance in instances_to_override:
-        for _, value in parameters.items():
+    def find_in_schema(schema: dict, param_name: str, xparam: str):
+        """Finds a parameter in the schema based on its name and x-parameter value"""
+        for _, value in schema.items():
             value_title_lower = str(value.get("title")).lower()
             value_title = (
                 "_".join(value_title_lower.split())
@@ -275,14 +265,29 @@ def override_schema_for_multichoice(
 
             if (
                 isinstance(value, dict)
-                and value.get("x-parameter") == "choice"
+                and value.get("x-parameter") == xparam
                 and value_title == param_name
             ):
-                default = str(param_instance)
-                param_choices = param_instance.choices
-                choices = [default] + param_choices if default not in param_choices else param_choices
+                return value
 
-                value["enum"] = choices
-                value["default"] = (
-                    default if default in choices else choices[0]
-                )
+    schema_to_override = openapi_schema["components"]["schemas"][
+        f"Body_{func_name}_{endpoint}_post"
+    ]["properties"]
+    for param_name, param_val in app_params.items():
+        if isinstance(param_val, MultipleChoiceParam):
+            subschema = find_in_schema(schema_to_override, param_name, "choice")
+            default = str(param_val)
+            param_choices = param_val.choices
+            choices = (
+                [default] + param_choices
+                if param_val not in param_choices
+                else param_choices
+            )
+
+            subschema["enum"] = choices
+            subschema["default"] = default if default in param_choices else choices[0]
+        if isinstance(param_val, FloatParam):
+            subschema = find_in_schema(schema_to_override, param_name, "float")
+            subschema["minimum"] = param_val.minval
+            subschema["maximum"] = param_val.maxval
+            subschema["default"] = param_val

@@ -6,10 +6,14 @@ import docker
 import pytest
 from agenta_backend.main import app
 from agenta_backend.models.api.api_models import AppVariant, Image
-from agenta_backend.services.db_manager import (add_variant_based_on_image, engine,
-                                                get_image, get_session,
-                                                list_app_variants,
-                                                remove_app_variant)
+from agenta_backend.services.db_manager import (
+    add_variant_based_on_image,
+    engine,
+    get_image,
+    get_session,
+    list_app_variants,
+    remove_app_variant,
+)
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
@@ -35,7 +39,7 @@ def docker_client():
 
 
 def random_string(length=10):
-    return ''.join(choice(ascii_letters) for _ in range(length))
+    return "".join(choice(ascii_letters) for _ in range(length))
 
 
 @pytest.fixture
@@ -61,8 +65,9 @@ def docker_test_image(docker_client):
     FROM python:3.9-slim
     """
 
-    image, _ = docker_client.images.build(fileobj=io.BytesIO(
-        dockerfile.encode('utf-8')), tag="agenta-server/test:latest")
+    image, _ = docker_client.images.build(
+        fileobj=io.BytesIO(dockerfile.encode("utf-8")), tag="agenta-server/test:latest"
+    )
     return image
 
 
@@ -89,10 +94,11 @@ def test_list_app_variant_after_manual_add(app_variant, image):
 
 
 def test_add_variant_from_image(app_variant, docker_test_image):
-    image = Image(docker_id=docker_test_image.id,
-                  tags=docker_test_image.tags[0])
+    image = Image(docker_id=docker_test_image.id, tags=docker_test_image.tags[0])
     response = client.post(
-        "app_variant/add/from_image/", json={"app_variant": app_variant.dict(), "image": image.dict()})
+        "app_variant/add/from_image/",
+        json={"app_variant": app_variant.dict(), "image": image.dict()},
+    )
     assert response.status_code == 200
     response = client.get("/app_variant/list_variants/")
     assert response.status_code == 200
@@ -104,29 +110,46 @@ def test_add_variant_from_image(app_variant, docker_test_image):
 
 def test_add_variant_with_wrong_image_tag(app_variant, image):
     response = client.post(
-        "app_variant/add/from_image/", json={"app_variant": app_variant.dict(), "image": image.dict()})
+        "app_variant/add/from_image/",
+        json={"app_variant": app_variant.dict(), "image": image.dict()},
+    )
     assert response.status_code == 500
 
 
 def test_add_variant_not_in_docker_registry(app_variant, image):
     image.tags = "agenta-server/notexist:latest"
     response = client.post(
-        "app_variant/add/from_image/", json={"app_variant": app_variant.dict(), "image": image.dict()})
+        "app_variant/add/from_image/",
+        json={"app_variant": app_variant.dict(), "image": image.dict()},
+    )
     assert response.status_code == 500
 
 
-def test_add_variant_from_template(app_variant, app_variant_parameters, docker_test_image):
+def test_add_variant_from_template(
+    app_variant, app_variant_parameters, docker_test_image
+):
     # First we add an initial variant from image
     image = Image(docker_id=docker_test_image.id, tags=docker_test_image.tags[0])
     response = client.post(
-        "/app_variant/add/from_image/", json={"app_variant": app_variant.dict(), "image": image.dict()})
+        "/app_variant/add/from_image/",
+        json={"app_variant": app_variant.dict(), "image": image.dict()},
+    )
     assert response.status_code == 200, response.content
 
-    app_variant2 = AppVariant(app_name=app_variant.app_name, variant_name=random_string(),
-                              parameters=app_variant_parameters)
+    app_variant2 = AppVariant(
+        app_name=app_variant.app_name,
+        variant_name=random_string(),
+        parameters=app_variant_parameters,
+    )
     # Now we add a second variant from the template of the first variant
     response = client.post(
-        "/app_variant/add/from_previous/", json={"previous_app_variant": app_variant.dict(), "new_variant_name": app_variant2.variant_name,  "parameters": app_variant_parameters})
+        "/app_variant/add/from_previous/",
+        json={
+            "previous_app_variant": app_variant.dict(),
+            "new_variant_name": app_variant2.variant_name,
+            "parameters": app_variant_parameters,
+        },
+    )
     assert response.status_code == 200, response.content
 
     # Verify that the new variant is listed
