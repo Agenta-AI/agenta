@@ -58,7 +58,6 @@ def generate(
     model: MultipleChoiceParam = MultipleChoiceParam(
         "text-davinci-003",
         ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"],
-
     ),
     chunk_size: MultipleChoiceParam = MultipleChoiceParam(
         "1000",
@@ -68,7 +67,7 @@ def generate(
     prompt_final: ag.TextParam = default_prompt2,
 ) -> str:
     transcript_chunks = [
-        transcript[i: i + int(chunk_size)]
+        transcript[i : i + int(chunk_size)]
         for i in range(0, len(transcript), int(chunk_size))
     ]
 
