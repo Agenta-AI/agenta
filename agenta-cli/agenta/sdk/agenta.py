@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .context import get_contexts, save_context
-from .types import FloatParam, InFile, TextParam, Context, MultipleChoiceParam
+from .types import FloatParam, InFile, IntParam, TextParam, Context, MultipleChoiceParam
 from .router import router as router
 
 app = FastAPI()
@@ -288,6 +288,11 @@ def override_schema(
             subschema["default"] = default if default in param_choices else choices[0]
         if isinstance(param_val, FloatParam):
             subschema = find_in_schema(schema_to_override, param_name, "float")
+            subschema["minimum"] = param_val.minval
+            subschema["maximum"] = param_val.maxval
+            subschema["default"] = param_val
+        if isinstance(param_val, IntParam):
+            subschema = find_in_schema(schema_to_override, param_name, "int")
             subschema["minimum"] = param_val.minval
             subschema["maximum"] = param_val.maxval
             subschema["default"] = param_val
