@@ -41,7 +41,6 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     config = toml.load(config_file)
     app_name = config['app-name']
     variant_name = file_name.removesuffix(".py")
-
     # check files in folder
     app_file = app_path / file_name
     if not app_file.exists():
