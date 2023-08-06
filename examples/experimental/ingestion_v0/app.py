@@ -1,4 +1,10 @@
-from llama_index import VectorStoreIndex, SimpleDirectoryReader, load_index_from_storage, StorageContext, Prompt
+from llama_index import (
+    VectorStoreIndex,
+    SimpleDirectoryReader,
+    load_index_from_storage,
+    StorageContext,
+    Prompt,
+)
 import agenta as ag
 
 import os
