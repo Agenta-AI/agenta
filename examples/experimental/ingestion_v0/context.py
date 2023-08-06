@@ -4,12 +4,14 @@ import json
 
 
 def setup_db():
-    conn = sqlite3.connect('context.db')
+    conn = sqlite3.connect("context.db")
     c = conn.cursor()
-    c.execute('''
+    c.execute(
+        """
     CREATE TABLE IF NOT EXISTS contexts
     (id INTEGER PRIMARY KEY AUTOINCREMENT, context TEXT)
-    ''')
+    """
+    )
     conn.commit()
     conn.close()
 
@@ -32,19 +34,22 @@ class Context:
 
 def get_contexts() -> List[Context]:
     contexts = []
-    conn = sqlite3.connect('context.db')
+    conn = sqlite3.connect("context.db")
     c = conn.cursor()
-    for row in c.execute('SELECT * FROM contexts'):
+    for row in c.execute("SELECT * FROM contexts"):
         contexts.append(Context.from_json(row[1]))
     conn.close()
     return contexts
 
 
 def save_context(result: Context):
-    conn = sqlite3.connect('context.db')
+    conn = sqlite3.connect("context.db")
     c = conn.cursor()
-    c.execute('''
+    c.execute(
+        """
     INSERT INTO contexts (context) VALUES (?)
-    ''', (result.to_json(),))
+    """,
+        (result.to_json(),),
+    )
     conn.commit()
     conn.close()
