@@ -14,7 +14,8 @@ class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
-def add_variant_to_server(app_name: str, variant_name: str, image: Image, host: str):
+def add_variant_to_server(app_name: str, variant_name: str,
+                          image: Image, host: str):
     """Adds a variant to the server.
 
     Arguments:
