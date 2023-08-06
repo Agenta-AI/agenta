@@ -24,7 +24,7 @@
 
 Building production-ready LLM-powered applications is currently very difficult. It involves countless iterations of prompt engineering, parameter tuning, and architectures.
 
-Agenta provides you with the tools to quickly 🔄 **iterate**, 🧪 **experiment**, and ⚖️ **evaluate** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
+Agenta provides you with the tools to quickly do prompt engineering and 🧪 **experiment**, ⚖️ **evaluate**, and :rocket: **deploy** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
 
 https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-67475e4ce9ed
 
@@ -102,13 +102,11 @@ https://github.com/Agenta-AI/agenta/assets/4510758/f8a2a423-c0a9-40df-9c00-52908
 - 🌐 **Solution-Agnostic**: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
 - 🔒 **Privacy-First**: We respect your privacy and do not proxy your data through third-party services. The platform and the data are hosted on your infrastructure.
 
-## Migration
-
-Migrate data from `dataset` to `testset` collection. follow the documentation [here](https://docs.agenta.ai/migration/migration)
-
 ## Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
+
+We are usually hanging in our Slack. Feel free to [join our slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA)
 
 Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-started) for more information.
 
