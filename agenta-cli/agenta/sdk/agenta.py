@@ -281,3 +281,8 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, app_par
 
             subschema["enum"] = choices
             subschema["default"] = default if default in param_choices else choices[0]
+        if isinstance(param_val, FloatParam):
+            subschema = find_in_schema(schema_to_override, param_name, "float")
+            subschema["minimum"] = param_val.minval
+            subschema["maximum"] = param_val.maxval
+            subschema["default"] = param_val
