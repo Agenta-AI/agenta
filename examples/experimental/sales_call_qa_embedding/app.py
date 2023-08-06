@@ -1,11 +1,17 @@
-from llama_index import VectorStoreIndex, SimpleDirectoryReader, load_index_from_storage, StorageContext, Prompt
+from llama_index import (
+    VectorStoreIndex,
+    SimpleDirectoryReader,
+    load_index_from_storage,
+    StorageContext,
+    Prompt,
+)
 from agenta import post, FloatParam, TextParam
 import os
 
 
 def ingest():
     if not os.path.exists("./storage"):
-        documents = SimpleDirectoryReader('data').load_data()
+        documents = SimpleDirectoryReader("data").load_data()
         index = VectorStoreIndex.from_documents(documents)
         index.storage_context.persist()
     else:

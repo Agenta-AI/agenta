@@ -36,7 +36,11 @@ Here is the text:
 
 
 @post
-def generate(text: str, temperature: FloatParam = 0.9, prompt_template: TextParam = default_prompt) -> str:
+def generate(
+    text: str,
+    temperature: FloatParam = 0.9,
+    prompt_template: TextParam = default_prompt,
+) -> str:
     llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
         input_variables=["text"],
