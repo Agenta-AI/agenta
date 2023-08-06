@@ -38,9 +38,9 @@ function addTab(
     const newTemplateVariantName = templateVariant.templateVariantName
         ? templateVariant.templateVariantName
         : templateVariantName
-
+        
     const newVariant: Variant = {
-        variantName: newVariantName,
+        variantName: `${templateVariant.variantName}.${newVariantName}`,
         templateVariantName: newTemplateVariantName,
         persistent: false,
         parameters: templateVariant.parameters,
