@@ -18,6 +18,7 @@ import {
 import type {CollapseProps} from "antd"
 import {renameVariables} from "@/lib/helpers/utils"
 import {is} from "cypress/types/bluebird"
+import {Column} from "ag-grid-community"
 interface Props {
     variantName: string // The name of the variant
     optParams: Parameter[] | null // The optional parameters
@@ -181,15 +182,36 @@ const ParametersView: React.FC<Props> = ({
                                     headStyle={{minHeight: 44, padding: "0px 12px"}}
                                     title={renameVariables(param.name)}
                                 >
-                                    <Input.TextArea
-                                        rows={5}
-                                        defaultValue={param.default}
-                                        onChange={(e) =>
-                                            handleParamChange(param.name, e.target.value)
-                                        }
-                                        bordered={false}
-                                        style={{padding: "0px 0px"}}
-                                    />
+                                    <Row
+                                        style={{
+                                            alignItems: "center",
+                                            marginTop: 12,
+                                            marginBottom: 12,
+                                        }}
+                                    >
+                                        <Col span={4}>
+                                            <Input.TextArea
+                                                rows={1}
+                                                placeholder={"variable name"}
+                                                maxLength={200}
+                                                autoSize={false}
+                                                size="small"
+                                            />
+                                        </Col>
+                                        <Col span={4}>
+                                            <Button
+                                                type="default"
+                                                danger
+                                                style={{margin: "0px 24px"}}
+                                            >
+                                                {" "}
+                                                Delete
+                                            </Button>
+                                        </Col>
+                                    </Row>
+                                    <Button type="default" style={{margin: "12px 0px"}}>
+                                        + Add variable
+                                    </Button>
                                 </Card>
                             </Row>
                         ))}
