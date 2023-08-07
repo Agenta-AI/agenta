@@ -3,6 +3,7 @@ from pydantic import BaseSettings
 import os
 import toml
 from pathlib import Path
+
 # Load the settings from the .toml file
 toml_config = toml.load(f"{Path(__file__).parent}/config.toml")
 

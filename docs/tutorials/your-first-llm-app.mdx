@@ -146,11 +146,11 @@ To iterate and fine-tune this app in the playground, we need to expose parameter
 
 ```python
 from agenta import post, TextParam, FloatParam
+from agenta.types import MultipleChoiceParam
 from dotenv import load_dotenv
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
-import os
 
 
 default_prompt = """
@@ -160,7 +160,15 @@ default_prompt = """
 
 
 @post
-def generate(startup_name: str, startup_idea: str, prompt_template: TextParam = default_prompt, temperature: FloatParam = 0.5) -> str:
+def generate(
+    startup_name: str, 
+    startup_idea: str, 
+    prompt_template: TextParam = default_prompt, 
+    temperature: FloatParam = 0.5, 
+    model: MultipleChoiceParam = MultipleChoiceParam(
+        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
+    )
+) -> str:
     llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
         input_variables=["startup_name", "startup_idea"],
@@ -171,9 +179,105 @@ def generate(startup_name: str, startup_idea: str, prompt_template: TextParam = 
     return output
 ```
 
-In this example, `startup_name` and `startup_idea` are required inputs, while `prompt` and `temperature` are optional parameters with default values. The types TextParam and FloatParam are used to indicate these are parameters rather than inputs, and they will be made available for tuning in the Agenta UI.
+In this example, `startup_name` and `startup_idea` are required inputs, while `prompt`, `temperature` and `model` are optional parameters with default values. 
+The types TextParam, FloatParam and MultipleChoiceParam are used to indicate these are parameters rather than inputs, and they will be made available for tuning in the Agenta UI.
+The type MultipleChoiceParam will allow the user to select from multiple choices of models, by default the model to use is `text-davinci-003` since a default model to use wasn't specified. 
+To specify a default model, modify the parameter to this:
 
-## 6. API Key Integration
+```python
+model: MultipleChoiceParam = MultipleChoiceParam(
+    "text-davinci-003",
+    ["gpt-3.5-turbo", "gpt-4"]    
+)
+```
+
+This will result to having the app use the `text-davinci-003` model.
+
+## 6. Text Generation Function - `call_llm`
+
+The provided code snippet below defines a function `call_llm` that uses the chosen language model to generate text output based on the provided parameters. 
+The function takes inputs such as model, temperature, and prompt, along with additional keyword arguments (kwargs) required for text generation.
+
+If the chosen model is `"text-davinci-003"`, it uses the OpenAI class from the LangChain library to run an LLMChain with the given parameters, producing text output based on the input prompt and the provided keyword arguments.
+
+If the model is either `"gpt-3.5-turbo"` or `"gpt-4"`, it uses the ChatOpenAI class from the LangChain library to generate text output in a conversational format. 
+The function prepares a list of messages with a single HumanMessage containing the content from the input prompt formatted with the provided keyword arguments. The generated text output is then returned.
+
+```python
+
+def call_llm(model, temperature, prompt, **kwargs):
+    if model == "text-davinci-003":
+        llm = OpenAI(model=model, temperature=temperature)
+        chain = LLMChain(llm=llm, prompt=prompt)
+        output = chain.run(**kwargs)
+    elif model in ["gpt-3.5-turbo", "gpt-4"]:
+        chat = ChatOpenAI(model=model,
+                          temperature=temperature)
+        messages = [
+            HumanMessage(content=prompt.format(**kwargs))
+        ]
+        output = chat(messages).content
+    return output
+```
+
+This function facilitates the text generation process using different language models, providing the necessary flexibility for users to choose the appropriate model for their specific needs. 
+
+## 7. Integration of the `call_llm` function
+
+The `call_llm` function is seamlessly integrated into the `generate` app to provide text generation capabilities based on user inputs and selected language models.
+
+```python
+# other imports here
+from agenta.types import MultipleChoiceParam
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage
+
+
+def call_llm(model, temperature, prompt, **kwargs):
+    if model == "text-davinci-003":
+        llm = OpenAI(model=model, temperature=temperature)
+        chain = LLMChain(llm=llm, prompt=prompt)
+        output = chain.run(**kwargs)
+    elif model in ["gpt-3.5-turbo", "gpt-4"]:
+        chat = ChatOpenAI(model=model,
+                          temperature=temperature)
+        message = HumanMessage(content=prompt.format(**kwargs))
+        output = chat(message).content
+    return output
+
+
+@post
+def generate(
+    startup_name: str, 
+    startup_idea: str, 
+    prompt_template: TextParam = default_prompt, 
+    temperature: FloatParam = 0.5, 
+    model: MultipleChoiceParam = MultipleChoiceParam(
+        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
+    )
+) -> str:
+    prompt = PromptTemplate(
+        input_variables=["startup_name", "startup_idea"],
+        template=prompt_template)
+
+    output = call_llm(
+        model=model, temperature=temperature, prompt=prompt, 
+        startup_name=startup_name, startup_idea=startup_idea
+    )
+    return output
+```
+
+The `generate` app function accepts parameters such as `startup_name`, `startup_idea`, `prompt_template`, `temperature`, and `model`.
+It initializes a `PromptTemplate` with `startup_name` and `startup_idea` as input variables, along with the provided `prompt_template`.
+The `call_llm` function is then invoked with the specified `model`, `temperature`, `prompt`, and keyword arguments (`startup_name` and `startup_idea`).
+
+The function utilizes the chosen language model to generate a LinkedIn message based on the `prompt_template` and input data (`startup_name` and `startup_idea`).
+The generated LinkedIn message is returned as the output of the generate app.
+
+**NOTE:** The `call_llm` function significantly enhances the capabilities of the generate app, providing a flexible and powerful mechanism for text generation with different language models. 
+Its seamless integration within the app allows users to easily fine-tune text generation based on their specific requirements and chosen models.
+
+## 8. API Key Integration
 
 To use openai or other APIs, you'll need appropriate keys.  Create an empty `.env` file and add your keys to it. Then, read the keys from the environment in your code:
 
@@ -188,7 +292,9 @@ from dotenv import load_dotenv
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
-import os
+from agenta.types import MultipleChoiceParam
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage
 
 
 default_prompt = """
@@ -197,21 +303,42 @@ default_prompt = """
     startup idea: {startup_idea}"""
 
 
+def call_llm(model, temperature, prompt, **kwargs):
+    if model == "text-davinci-003":
+        llm = OpenAI(model=model, temperature=temperature)
+        chain = LLMChain(llm=llm, prompt=prompt)
+        output = chain.run(**kwargs)
+    elif model in ["gpt-3.5-turbo", "gpt-4"]:
+        chat = ChatOpenAI(model=model,
+                          temperature=temperature)
+        message = HumanMessage(content=prompt.format(**kwargs))
+        output = chat(message).content
+    return output
+
+
 @post
-def generate(startup_name: str, startup_idea: str, prompt_template: TextParam = default_prompt, temperature: FloatParam = 0.5) -> str:
+def generate(
+    startup_name: str, 
+    startup_idea: str, 
+    prompt_template: TextParam = default_prompt, 
+    temperature: FloatParam = 0.5, 
+    model: MultipleChoiceParam = MultipleChoiceParam(
+        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
+    )
+) -> str:
     load_dotenv()
-    llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
         input_variables=["startup_name", "startup_idea"],
         template=prompt_template)
 
-    chain = LLMChain(llm=llm, prompt=prompt)
-    output = chain.run(startup_name=startup_name, startup_idea=startup_idea)
+    output = call_llm(
+        model=model, temperature=temperature, prompt=prompt, 
+        startup_name=startup_name, startup_idea=startup_idea
+    )
     return output
-
 ````
 
-## 7. Run the code in CLI
+## 9. Run the code in CLI
 The `@post` decorator allows the function to run in the Command Line Interface (CLI). Execute it using the command:
 
 ```bash
@@ -220,7 +347,16 @@ python app.py agenta "the open-source developer-first llmops platform"
 Hi there, I'm excited to tell you about Agenta, the open source Dev First LLMOPS Platform. It's a revolutionary way to simplify and streamline the development process, and I'm confident it will be a game changer in the industry. Let's chat soon!
 ```
 
-## 8. Deploying to Agenta
+If no default value was provided in the model (MultiChoiceParam) parameter, the code would still work because the app is using the first model in the list of models provided. 
+If you would like to specify which model to use, kindly provide the name of the model and run the command again:
+
+```bash
+python app agenta "the open-source developer-first llmops platform" --model gpt-3.5-turbo
+
+Hi [Investor's Name], I wanted to introduce you to Agenta, an open-source developer-first llmops platform. We believe it has the potential to revolutionize the way developers manage their llmops processes. Would love to discuss further if you're interested.
+```
+
+## 10. Deploying to Agenta
 Our app is still local. To make it available in the playground, add it to Agenta by running:
 
 ```bash
@@ -229,7 +365,7 @@ agenta variant serve
 
 This commands build a docker image of your app and push it to the Agenta registry. It also creates a new variant for your app in the Agenta UI. You can now go to the Agenta UI and start playing with your app.
 
-## 8. Iterative Improvement in the Playground
+## 11. Iterative Improvement in the Playground
 
 
 Your app is now accessible in the Agenta UI at localhost:3000. Interact with your app, experiment with different parameters, and fine-tune your app's behavior to achieve desired results.

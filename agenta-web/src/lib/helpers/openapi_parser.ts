@@ -6,6 +6,7 @@ export interface Parameter {
     input: boolean
     required: boolean
     default?: any
+    enum?: Array<string>
 }
 
 export const parseOpenApiSchema = (schema: any): Parameter[] => {
@@ -28,6 +29,9 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
                 type: param["x-parameter"] ? determineType(param["x-parameter"]) : "string",
                 required: schema.components.schemas[bodySchemaName].required.includes(name),
                 default: param.default,
+                enum: param["enum"] ? param.enum : [],
+                minimum: param["minimum"] ? param.minimum : 0,
+                maximum: param["maximum"] ? param.maximum : 1,
             })
         })
     }
@@ -39,6 +43,8 @@ const determineType = (xParam: any): string => {
     switch (xParam) {
         case "text":
             return "string"
+        case "choice":
+            return "array"
         case "float":
             return "number"
         default:
