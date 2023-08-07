@@ -17,13 +17,25 @@ class TextParam(str):
 
 
 class FloatParam(float):
+    def __new__(cls, default: float = 0.5, minval: float = 0.0, maxval: float = 1.0):
+        instance = super().__new__(cls, default)
+        instance.minval = minval
+        instance.maxval = maxval
+        return instance
+
     @classmethod
     def __modify_schema__(cls, field_schema):
-        field_schema.update({"x-parameter": "float"})
+        field_schema.update(
+            {"x-parameter": "float", "type": "number", "minimum": 0.0, "maximum": 1.0}
+        )
 
 
 class MultipleChoiceParam(str):
-    def __new__(cls, choices: list = [], default: str = None):
+    def __new__(cls, default: str = None, choices: List[str] = None):
+        if type(default) is list:
+            raise ValueError(
+                "The order of the parameters for MultipleChoiceParam is wrong! It's MultipleChoiceParam(default, choices) and not the opposite"
+            )
         if default is None and choices:
             # if a default value is not provided,
             # uset the first value in the choices list

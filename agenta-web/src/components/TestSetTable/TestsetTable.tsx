@@ -1,7 +1,7 @@
 import React, {useState, useRef, useEffect} from "react"
 import {AgGridReact} from "ag-grid-react"
 
-import {Button, Input, Typography} from "antd"
+import {Button, Input, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 
 import "ag-grid-community/styles/ag-grid.css"
@@ -20,6 +20,15 @@ type testsetTableProps = {
 }
 
 const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
+    const [messageApi, contextHolder] = message.useMessage()
+
+    const mssgModal = (type, content) => {
+        messageApi.open({
+            type,
+            content,
+        })
+    }
+
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
     const {testset_id} = router.query
@@ -190,6 +199,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 }
             }
         } catch (error) {
+            mssgModal("error", "Error saving test set")
             console.error("Error saving test set:", error)
             throw error
         }
@@ -241,6 +251,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     return (
         <div>
+            {contextHolder}
+
             <Typography.Title level={5} style={{marginBottom: "20px"}}>
                 Create a new Test Set
             </Typography.Title>
