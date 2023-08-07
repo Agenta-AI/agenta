@@ -83,6 +83,15 @@
       "contributions": [
         "infra"
       ]
+    },
+    {
+      "login": "bekossy",
+      "name": "Kaosi Ezealigo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/99529776?v=4",
+      "profile": "http://kaosiso-ezealigo.netlify.app",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
