@@ -68,7 +68,12 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             </Card> */}
 
             <Card
-                style={{marginTop: 16, border: "1px solid #ccc", marginRight: "24px"}}
+                style={{
+                    marginTop: 16,
+                    border: "1px solid #ccc",
+                    marginRight: "24px",
+                    marginLeft: "12px",
+                }}
                 bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
             >
                 <h4 style={{padding: "0px", marginTop: "8px", marginBottom: "0px"}}>
@@ -140,6 +145,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                     justifyContent: "space-between",
                     alignItems: "center",
                     marginRight: "24px",
+                    marginLeft: "12px",
                 }}
             >
                 <h2 style={{padding: "0px", marginBottom: "8px"}}>2. Preview and test</h2>
@@ -163,7 +169,12 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 size="large"
                 icon={<PlusOutlined />}
                 onClick={handleAddRow}
-                style={{marginTop: "16px", width: "200px", marginBottom: "24px"}}
+                style={{
+                    marginTop: "16px",
+                    width: "200px",
+                    marginBottom: "24px",
+                    marginLeft: "12px",
+                }}
             >
                 Add Row
             </Button>
