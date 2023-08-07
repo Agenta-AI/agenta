@@ -32,24 +32,18 @@ Salesperson: You're welcome! It was my pleasure assisting you. Have a wonderful 
 
 
 default_prompt1 = "summarize the following {text} "
-default_prompt2 = (
-    "these are summaries of a long text {text}\n please summarize them"
-)
+default_prompt2 = "these are summaries of a long text {text}\n please summarize them"
 
 
 def call_llm(model, temperature, max_tokens, prompt, **kwargs):
     # import ipdb
     # ipdb.set_trace()
     if model == "text-davinci-003":
-        llm = OpenAI(
-            model=model, temperature=temperature, max_tokens=max_tokens
-        )
+        llm = OpenAI(model=model, temperature=temperature, max_tokens=max_tokens)
         chain = LLMChain(llm=llm, prompt=prompt)
         output = chain.run(**kwargs)
     elif model in ["gpt-3.5-turbo", "gpt-4"]:
-        chat = ChatOpenAI(
-            model=model, temperature=temperature, max_tokens=max_tokens
-        )
+        chat = ChatOpenAI(model=model, temperature=temperature, max_tokens=max_tokens)
         messages = [HumanMessage(content=prompt.format(**kwargs))]
         output = chat(
             messages,
