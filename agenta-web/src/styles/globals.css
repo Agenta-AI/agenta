@@ -26,3 +26,21 @@ body {
 .ant-table-row:hover .hover-button-wrapper {
     opacity: 1;
 }
+
+@media screen and (max-width: 1572px) {
+    .evalaution-title {
+        min-height: 80px;
+    }
+}
+
+@media screen and (max-width: 1024px) {
+    .evalaution-title {
+        min-height: 100px;
+    }
+}
+
+@media screen and (max-width: 848px) {
+    .evalaution-title {
+        min-height: 120px;
+    }
+}
