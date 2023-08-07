@@ -27,7 +27,7 @@ export default function Evaluations() {
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
-    const [screenSize, setScreenSize] = useState<string>("56px")
+
     const [columnsCount, setColumnsCount] = useState(2)
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
@@ -92,13 +92,6 @@ export default function Evaluations() {
             setTestsetsList(testsets)
         }
     }, [testsets, isTestsetsLoadingError])
-
-    useEffect(() => {
-        window.addEventListener("resize", detectSize)
-        return () => {
-            window.removeEventListener("resize", detectSize)
-        }
-    }, [screenSize])
 
     // TODO: move to api.ts
     const createNewEvaluation = async (
@@ -275,13 +268,6 @@ export default function Evaluations() {
         setSliderValue(value)
     }
 
-    const detectSize = () => {
-        if (!window) return
-        setScreenSize(
-            window.innerWidth < 850 ? "120px" : window.innerWidth < 1030 ? "100px" : "56px",
-        )
-    }
-
     return (
         <div>
             <div>
@@ -360,14 +346,10 @@ export default function Evaluations() {
                         </Radio.Group>
                     </Col>
                     <Col span={8}>
-                        <Title
-                            level={4}
-                            style={{
-                                height: screenSize,
-                            }}
-                        >
-                            2. Which variants would you like to evaluate
-                        </Title>
+                        <div className="evalaution-title">
+                            <Title level={4}>2. Which variants would you like to evaluate</Title>
+                        </div>
+
                         {Array.from({length: numberOfVariants}).map((_, index) => (
                             <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
                                 <Button
@@ -393,14 +375,10 @@ export default function Evaluations() {
                         ))}
                     </Col>
                     <Col span={8}>
-                        <Title
-                            level={4}
-                            style={{
-                                height: screenSize,
-                            }}
-                        >
-                            3. Which testset you want to use?
-                        </Title>
+                        <div className="evalaution-title">
+                            {" "}
+                            <Title level={4}>3. Which testset you want to use?</Title>
+                        </div>
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
                             <Button style={{marginRight: 10, marginTop: 40, width: "100%"}}>
