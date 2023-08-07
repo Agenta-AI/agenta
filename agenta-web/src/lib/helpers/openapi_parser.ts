@@ -21,6 +21,7 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
 
         // get the actual schema for the body parameters
         const bodySchema = schema.components.schemas[bodySchemaName].properties
+        console.log("Body Schema: ", bodySchema)
 
         Object.entries(bodySchema).forEach(([name, param]: [string, any]) => {
             parameters.push({
@@ -48,7 +49,7 @@ const determineType = (xParam: any): string => {
         case "float":
             return "number"
         case "int":
-            return "number"
+            return "integer"
         default:
             return "string"
     }
