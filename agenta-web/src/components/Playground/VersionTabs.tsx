@@ -18,10 +18,9 @@ function addTab(
     templateVariantName: string,
     newVariantName: string,
 ) {
-    
     // Find the template variant
     const templateVariant = variants.find((variant) => variant.variantName === templateVariantName)
-    
+
     // Check if the template variant exists
     if (!templateVariant) {
         message.error("Template variant not found. Please choose a valid variant.")
@@ -33,7 +32,7 @@ function addTab(
         ? templateVariant.templateVariantName
         : templateVariantName
     const updateNewVariantName = `${newTemplateVariantName}.${newVariantName}`
-    
+
     // Check if variant with the same name already exists
     const existingVariant = variants.find((variant) => variant.variantName === updateNewVariantName)
 
@@ -42,7 +41,7 @@ function addTab(
         message.error("A variant with this name already exists. Please choose a different name.")
         return
     }
-        
+
     const newVariant: Variant = {
         variantName: updateNewVariantName,
         templateVariantName: newTemplateVariantName,
