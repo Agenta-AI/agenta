@@ -1,11 +1,11 @@
 import React from "react"
-import {Col, Row, Divider, Button, Tooltip} from "antd"
+import { Col, Row, Divider, Button, Tooltip } from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
-import {useVariant} from "@/lib/hooks/useVariant"
-import {Variant} from "@/lib/Types"
-import {useRouter} from "next/router"
-import {is} from "cypress/types/bluebird"
+import { useVariant } from "@/lib/hooks/useVariant"
+import { Variant } from "@/lib/Types"
+import { useRouter } from "next/router"
+import { is } from "cypress/types/bluebird"
 
 interface Props {
     variant: Variant
@@ -60,7 +60,6 @@ const ViewNavigation: React.FC<Props> = ({
                         </p>
                         <p>To debug this issue, please follow the steps below:</p>
                         <ul>
-                            <li>Run "agenta variant start"</li>
                             <li>
                                 Verify whether the API is up by checking if {apiAddress} is
                                 accessible.
@@ -72,13 +71,12 @@ const ViewNavigation: React.FC<Props> = ({
                         </ul>
                         <p>
                             {" "}
-                            In case the docker container is not running. Please simply start it
+                            In case the docker container is not running. Please check the logs from docker to understand the issue. Most of the time it is a missing requirements. Also, please attempt restarting it
                             (using cli or docker desktop)
                         </p>
                         <p>
                             {" "}
-                            If the issue persists please file an issue in github or directly contact
-                            us under team@agenta.ai
+                            If the issue persists please file an issue in github here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx
                         </p>
 
                         <Button
@@ -103,7 +101,7 @@ const ViewNavigation: React.FC<Props> = ({
 
     return (
         <div>
-            <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
+            <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]}>
                 <Col span={24}>
                     <ParametersView
                         variantName={variant.variantName}
@@ -120,7 +118,7 @@ const ViewNavigation: React.FC<Props> = ({
             </Row>
             <Divider />
 
-            <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]} style={{marginTop: "20px"}}>
+            <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]} style={{ marginTop: "20px" }}>
                 <Col span={24}>
                     <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
                 </Col>
