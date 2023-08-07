@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .context import get_contexts, save_context
-from .types import FloatParam, InFile, TextParam, Context, MultipleChoiceParam
+from .types import FloatParam, InFile, TextParam, Context, MultipleChoiceParam, DictInput
 from .router import router as router
 
 app = FastAPI()

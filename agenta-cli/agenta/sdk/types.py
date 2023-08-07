@@ -10,6 +10,12 @@ class InFile:
         self.file_path = file_path
 
 
+class DictInput(dict):
+    @classmethod
+    def __modify_schema__(cls, field_schema):
+        field_schema.update({"x-parameter": "dict"})
+
+
 class TextParam(str):
     @classmethod
     def __modify_schema__(cls, field_schema):
