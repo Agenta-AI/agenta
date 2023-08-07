@@ -1,6 +1,6 @@
 // NewVariantModal.tsx
 
-import React, { useState } from "react"
+import React, {useState} from "react"
 import {Modal, Input, Select, Space, Typography} from "antd"
 const {Text} = Typography
 
@@ -21,10 +21,11 @@ const NewVariantModal: React.FC<Props> = ({
     setNewVariantName,
     setTemplateVariantName,
 }) => {
-    const [variantPlaceHolder, setVariantPlaceHolder] = useState("New variant name")
+    const [variantPlaceHolder, setVariantPlaceHolder] = useState("Source Variant")
     const handleTemplateVariantChange = (value: string) => {
+        let newValue = value.includes(".") ? value.split(".")[0] : value
         setTemplateVariantName(value)
-        setVariantPlaceHolder(`${value}.<NewVariantName>`)
+        setVariantPlaceHolder(`${newValue}`)
     }
 
     return (
@@ -55,7 +56,7 @@ const NewVariantModal: React.FC<Props> = ({
                 <div>
                     <Text>Enter a unique name for the new variant:</Text>
                     <Input
-                        placeholder={variantPlaceHolder}
+                        addonBefore={variantPlaceHolder}
                         onChange={(e) => setNewVariantName(e.target.value)}
                     />
                 </div>
