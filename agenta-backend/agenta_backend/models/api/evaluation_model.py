@@ -4,7 +4,6 @@ from datetime import datetime
 from enum import Enum
 
 
-# EvaluationTypes = ["app_evaluation"]
 class EvaluationTypeSettings(BaseModel):
     similarity_threshold: Optional[float]
 
