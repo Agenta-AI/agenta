@@ -49,11 +49,15 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const gridRef = useRef(null)
 
     useBlockNavigation(unSavedChanges, {
-        title: "You have unsaved changes in your test set. Do you want to save these changes before leaving the page?",
-        onOk: () => {
-            onSaveData(false)
+        title: "Unsaved changes",
+        message:
+            "You have unsaved changes in your test set. Do you want to save these changes before leaving the page?",
+        okText: "Save",
+        onOk: async () => {
+            await onSaveData(false)
             return !!testsetName
         },
+        cancelText: "Proceed without saving",
     })
 
     useUpdateEffect(() => {
