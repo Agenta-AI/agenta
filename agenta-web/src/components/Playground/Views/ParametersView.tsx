@@ -161,7 +161,7 @@ const ParametersView: React.FC<Props> = ({
                             ?.filter(
                                 (param) =>
                                     !param.input &&
-                                    (param.type === "number" || param.type === "array"),
+                                    (param.type === "number" || param.type === "integer" || param.type === "array"),
                             )
                             .map((param, index) => (
                                 <Row
@@ -191,6 +191,20 @@ const ParametersView: React.FC<Props> = ({
                                                 style={{marginBottom: 8}}
                                             />
                                         )}
+                                        {param.type === "integer" && (
+                                            <Slider
+                                                min={0}
+                                                max={10000}
+                                                value={
+                                                    typeof param.default === "number"
+                                                        ? param.default
+                                                        : 1
+                                                }
+                                                step={1}
+                                                onChange={(value) => onChange(param, value)}
+                                                style={{marginBottom: 8}}
+                                            />
+                                        )}
                                         {param.type === "array" && (
                                             <Select
                                                 defaultValue={param.default}
@@ -209,6 +223,15 @@ const ParametersView: React.FC<Props> = ({
                                     </Col>
                                     <Col>
                                         {param.type === "number" && (
+                                            <InputNumber
+                                                min={0}
+                                                max={10000}
+                                                style={{margin: "0 16px", width: "100%"}}
+                                                value={param.default}
+                                                onChange={(value) => onChange(param, value)}
+                                            />
+                                        )}
+                                        {param.type === "integer" && (
                                             <InputNumber
                                                 min={0}
                                                 max={10000}
