@@ -193,8 +193,8 @@ const ParametersView: React.FC<Props> = ({
                                         )}
                                         {param.type === "integer" && (
                                             <Slider
-                                                min={0}
-                                                max={10000}
+                                                min={param.minimum}
+                                                max={param.maximum}
                                                 value={
                                                     typeof param.default === "number"
                                                         ? param.default
@@ -233,8 +233,8 @@ const ParametersView: React.FC<Props> = ({
                                         )}
                                         {param.type === "integer" && (
                                             <InputNumber
-                                                min={0}
-                                                max={10000}
+                                                min={param.minimum}
+                                                max={param.maximum}
                                                 style={{margin: "0 16px", width: "100%"}}
                                                 value={param.default}
                                                 onChange={(value) => onChange(param, value)}
