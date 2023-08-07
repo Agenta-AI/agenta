@@ -1,5 +1,7 @@
 name: black-action
-on: [push]
+  push:
+    branches:
+      - main
 jobs:
   linter_name:
     name: runner / black
