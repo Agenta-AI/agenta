@@ -13,6 +13,7 @@ import {
     QuestionOutlined,
     GlobalOutlined,
     DashboardOutlined,
+    LockOutlined,
 } from "@ant-design/icons"
 import {Avatar, Layout, Menu, Space, Tag, Tooltip, theme} from "antd"
 
@@ -161,6 +162,21 @@ const Sidebar: React.FC = () => {
                                     >
                                         <Space>
                                             <span>Endpoints</span>
+                                        </Space>
+                                    </Link>
+                                </Tooltip>
+                            </Menu.Item>
+                            <Menu.Item key="keys" icon={<LockOutlined />}>
+                                <Tooltip
+                                    placement="right"
+                                    title="Your api keys that are used in applications"
+                                >
+                                    <Link
+                                        href={getNavigationPath("apikeys")}
+                                        style={{width: "100%"}}
+                                    >
+                                        <Space>
+                                            <span>API keys</span>
                                         </Space>
                                     </Link>
                                 </Tooltip>

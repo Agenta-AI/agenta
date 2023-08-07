@@ -27,6 +27,7 @@ export default function Evaluations() {
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
+
     const [columnsCount, setColumnsCount] = useState(2)
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
@@ -131,7 +132,7 @@ export default function Evaluations() {
             status: EvaluationFlow.EVALUATION_FINISHED,
         }
 
-        return postData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations/`, data)
+        return postData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`, data)
             .then((data) => {
                 return data.id
             })
@@ -345,36 +346,39 @@ export default function Evaluations() {
                         </Radio.Group>
                     </Col>
                     <Col span={8}>
-                        <div>
+                        <div className="evalaution-title">
                             <Title level={4}>2. Which variants would you like to evaluate</Title>
-                            {Array.from({length: numberOfVariants}).map((_, index) => (
-                                <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
-                                    <Button
+                        </div>
+
+                        {Array.from({length: numberOfVariants}).map((_, index) => (
+                            <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
+                                <Button
+                                    style={{
+                                        marginRight: 10,
+                                        marginTop: index === 0 ? 40 : 10,
+                                        width: "100%",
+                                    }}
+                                >
+                                    <div
                                         style={{
-                                            marginRight: 10,
-                                            marginTop: index === 0 ? 40 : 10,
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
                                             width: "100%",
                                         }}
                                     >
-                                        <div
-                                            style={{
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                alignItems: "center",
-                                                width: "100%",
-                                            }}
-                                        >
-                                            {selectedVariants[index]?.variantName ||
-                                                "Select a variant"}
-                                            <DownOutlined />
-                                        </div>
-                                    </Button>
-                                </Dropdown>
-                            ))}
-                        </div>
+                                        {selectedVariants[index]?.variantName || "Select a variant"}
+                                        <DownOutlined />
+                                    </div>
+                                </Button>
+                            </Dropdown>
+                        ))}
                     </Col>
                     <Col span={8}>
-                        <Title level={4}>3. Which testset you want to use?</Title>
+                        <div className="evalaution-title">
+                            {" "}
+                            <Title level={4}>3. Which testset you want to use?</Title>
+                        </div>
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
                             <Button style={{marginRight: 10, marginTop: 40, width: "100%"}}>
