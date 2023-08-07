@@ -92,6 +92,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "albnunes",
+      "name": "Alberto Nunes",
+      "avatar_url": "https://avatars.githubusercontent.com/u/46302915?v=4",
+      "profile": "https://github.com/albnunes",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
