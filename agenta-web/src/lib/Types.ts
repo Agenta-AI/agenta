@@ -46,6 +46,8 @@ export interface Parameter {
     required: boolean
     default?: any
     enum?: Array<string>
+    minimum?: number
+    maximum?: number
 }
 
 export interface EvaluationResponseType {
