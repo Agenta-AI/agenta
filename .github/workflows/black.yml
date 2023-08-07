@@ -1,6 +1,7 @@
 name: black-action
+on: 
   push:
-    branches:
+    branches: 
       - main
 jobs:
   linter_name:
