@@ -1,7 +1,7 @@
 import React, {useState, useRef, useEffect} from "react"
 import {AgGridReact} from "ag-grid-react"
 
-import {Button, Input, Typography} from "antd"
+import {Button, Input, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 
 import "ag-grid-community/styles/ag-grid.css"
@@ -16,6 +16,15 @@ type testsetTableProps = {
 }
 
 const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
+    const [messageApi, contextHolder] = message.useMessage()
+
+    const mssgModal = (type, content) => {
+        messageApi.open({
+            type,
+            content,
+        })
+    }
+
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
     const {testset_id} = router.query
@@ -171,21 +180,18 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     setIsModalOpen(true)
                 } else {
                     response = await createNewTestset(appName, testsetName, rowData)
-                    if (response.status === 200) {
-                        router.push(`/apps/${appName}/testsets`)
-                    }
+                    mssgModal("success", "Changes saved successfully!")
                 }
             } else if (mode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
                     response = await updateTestset(testset_id, testsetName, rowData)
-                    if (response.status === 200) {
-                        router.push(`/apps/${appName}/testsets`)
-                    }
+                    mssgModal("success", "Changes saved successfully!")
                 }
             }
         } catch (error) {
+            mssgModal("error", "Error saving test set")
             console.error("Error saving test set:", error)
             throw error
         }
@@ -236,6 +242,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     return (
         <div>
+            {contextHolder}
+
             <Typography.Title level={5} style={{marginBottom: "20px"}}>
                 Create a new Test Set
             </Typography.Title>
