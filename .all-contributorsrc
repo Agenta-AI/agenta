@@ -65,6 +65,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "witehound",
+      "name": "corinthian",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26417477?v=4",
+      "profile": "https://main-portfolio-26wv6oglp-witehound.vercel.app/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Pajko97",
+      "name": "Pavle Janjusevic",
+      "avatar_url": "https://avatars.githubusercontent.com/u/25198892?v=4",
+      "profile": "https://github.com/Pajko97",
+      "contributions": [
+        "infra"
+      ]
     }
   ],
   "contributorsPerLine": 7,

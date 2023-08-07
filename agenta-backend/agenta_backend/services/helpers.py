@@ -1,4 +1,3 @@
-
 def print_app_variant(app_variant):
     print(f"App Variant ID: {app_variant.id}")
     print(f"App Variant Name: {app_variant.variant_name}")

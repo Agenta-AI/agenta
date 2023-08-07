@@ -15,7 +15,7 @@ DEFAULT_PROMPT = (
 
 
 def build_query_engine(transcript: str, prompt: str, temperature: float, model: str):
-    """ Build a LLamaIndex query engine from a transcript and prompt."""
+    """Build a LLamaIndex query engine from a transcript and prompt."""
     # define the structured prompt template
     prompt = Prompt(prompt)
     # build a vector store index from the transcript as message documents
@@ -40,15 +40,15 @@ def query(
     model: TextParam = "gpt-3.5-turbo",
     prompt: TextParam = DEFAULT_PROMPT,
 ) -> str:
-    """ Query a transcript with a question and return the answer. 
-        Args:
-            transcript (str): The transcript to query.
-            question (str): The question to ask.
-            temperature (float): The temperature to use for the OpenAI model.
-            model (str): The OpenAI model to use.
-            prompt (str): The prompt template to wrap around the context and query.
-        Returns:
-            str: The answer to the question.
+    """Query a transcript with a question and return the answer.
+    Args:
+        transcript (str): The transcript to query.
+        question (str): The question to ask.
+        temperature (float): The temperature to use for the OpenAI model.
+        model (str): The OpenAI model to use.
+        prompt (str): The prompt template to wrap around the context and query.
+    Returns:
+        str: The answer to the question.
     """
     query_engine = build_query_engine(transcript, prompt, temperature, model)
     response = query_engine.query(question)

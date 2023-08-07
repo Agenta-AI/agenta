@@ -14,9 +14,7 @@ class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
-def add_variant_to_server(
-    app_name: str, variant_name: str, image: Image, host: str
-):
+def add_variant_to_server(app_name: str, variant_name: str, image: Image, host: str):
     """Adds a variant to the server.
 
     Arguments:
@@ -24,9 +22,7 @@ def add_variant_to_server(
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(
-        app_name=app_name, variant_name=variant_name
-    )
+    app_variant: AppVariant = AppVariant(app_name=app_name, variant_name=variant_name)
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/add/from_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
@@ -110,9 +106,7 @@ def remove_variant(app_name: str, variant_name: str, host: str):
         )
 
 
-def update_variant_image(
-    app_name: str, variant_name: str, image: Image, host: str
-):
+def update_variant_image(app_name: str, variant_name: str, image: Image, host: str):
     """Adds a variant to the server.
 
     Arguments:
@@ -120,9 +114,7 @@ def update_variant_image(
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(
-        app_name=app_name, variant_name=variant_name
-    )
+    app_variant: AppVariant = AppVariant(app_name=app_name, variant_name=variant_name)
     response = requests.put(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/update_variant_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},

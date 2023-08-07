@@ -13,6 +13,7 @@ import {
     Space,
     Card,
     Collapse,
+    Select,
 } from "antd"
 import {renameVariables} from "@/lib/helpers/utils"
 interface Props {
@@ -157,7 +158,11 @@ const ParametersView: React.FC<Props> = ({
                         title="Model Parameters"
                     >
                         {optParams
-                            ?.filter((param) => !param.input && param.type === "number")
+                            ?.filter(
+                                (param) =>
+                                    !param.input &&
+                                    (param.type === "number" || param.type === "array"),
+                            )
                             .map((param, index) => (
                                 <Row
                                     key={index}
@@ -172,27 +177,46 @@ const ParametersView: React.FC<Props> = ({
                                         </h4>
                                     </Col>
                                     <Col span={8}>
-                                        <Slider
-                                            min={0}
-                                            max={1}
-                                            value={
-                                                typeof param.default === "number"
-                                                    ? param.default
-                                                    : 0
-                                            }
-                                            step={0.01}
-                                            onChange={(value) => onChange(param, value)}
-                                            style={{marginBottom: 8}}
-                                        />
+                                        {param.type === "number" && (
+                                            <Slider
+                                                min={param.minimum}
+                                                max={param.maximum}
+                                                value={
+                                                    typeof param.default === "number"
+                                                        ? param.default
+                                                        : 0
+                                                }
+                                                step={0.01}
+                                                onChange={(value) => onChange(param, value)}
+                                                style={{marginBottom: 8}}
+                                            />
+                                        )}
+                                        {param.type === "array" && (
+                                            <Select
+                                                defaultValue={param.default}
+                                                onChange={(value) =>
+                                                    handleParamChange(param.name, value)
+                                                }
+                                                style={{width: "100%"}}
+                                            >
+                                                {param.enum?.map((value: string, index: number) => (
+                                                    <Select.Option key={index} value={value}>
+                                                        {value}
+                                                    </Select.Option>
+                                                ))}
+                                            </Select>
+                                        )}
                                     </Col>
                                     <Col>
-                                        <InputNumber
-                                            min={0}
-                                            max={10000}
-                                            style={{margin: "0 16px"}}
-                                            value={param.default}
-                                            onChange={(value) => onChange(param, value)}
-                                        />
+                                        {param.type === "number" && (
+                                            <InputNumber
+                                                min={0}
+                                                max={10000}
+                                                style={{margin: "0 16px", width: "100%"}}
+                                                value={param.default}
+                                                onChange={(value) => onChange(param, value)}
+                                            />
+                                        )}
                                     </Col>
                                     <Row />
                                 </Row>
