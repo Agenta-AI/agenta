@@ -39,7 +39,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         }}
                     >
                         <Breadcrumb
-                            style={{paddingTop: "32px", paddingBottom: "24px"}}
+                            style={{paddingTop: "34px", paddingBottom: "24px"}}
                             items={[
                                 {title: <Link href="/apps">Apps</Link>},
                                 {title: capitalizedAppName},
