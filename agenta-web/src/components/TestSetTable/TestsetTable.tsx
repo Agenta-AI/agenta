@@ -227,6 +227,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         if (params.newValue === null) {
             params.data[params.colDef.field] = ""
         }
+        setUnSavedChanges(true)
     }
 
     const {appTheme} = useAppTheme()
