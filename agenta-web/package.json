@@ -18,6 +18,7 @@
         "@types/node": "18.16.3",
         "@types/react": "18.2.0",
         "@types/react-dom": "18.2.1",
+        "ag-grid-community": "^30.0.6",
         "ag-grid-react": "^30.0.3",
         "antd": "^5.4.7",
         "autoprefixer": "10.4.14",
