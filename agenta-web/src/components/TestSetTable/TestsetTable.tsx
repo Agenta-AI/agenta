@@ -13,6 +13,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
 import {useUpdateEffect} from "usehooks-ts"
 import useStateCallback from "@/hooks/useStateCallback"
+import {AxiosResponse} from "axios"
 
 type testsetTableProps = {
     mode: "create" | "edit"
@@ -22,18 +23,15 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
     const {testset_id} = router.query
-    const [unSavedChanges, setUnSavedChanges] = useState(false)
+    const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
     const [loading, setLoading] = useState(false)
-
     const [testsetName, setTestsetName] = useState("")
     const [rowData, setRowData] = useState([
         {column1: "data1"},
         {column1: "data1"},
         {column1: "data1"},
     ])
-
     const [isModalOpen, setIsModalOpen] = useState(false)
-
     const [columnDefs, setColumnDefs] = useState([
         {
             field: "",
@@ -45,7 +43,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         },
         {field: "column1"},
     ])
-
     const [inputValues, setInputValues] = useStateCallback(
         columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
     )
@@ -53,7 +50,10 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     useBlockNavigation(unSavedChanges, {
         title: "You have unsaved changes in your test set. Do you want to save these changes before leaving the page?",
-        onOk: () => onSaveData(false),
+        onOk: () => {
+            onSaveData(false)
+            return !!testsetName
+        },
     })
 
     useUpdateEffect(() => {
@@ -85,7 +85,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                         //set loading to false after the initial state has been settled
                         setTimeout(() => {
                             setLoading(false)
-                        }, 0)
+                        }, 100)
                     },
                 )
             })
@@ -160,26 +160,29 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     const onSaveData = async (redirect = true) => {
         try {
-            let response
+            const afterSave = (response: AxiosResponse) => {
+                if (response.status === 200) {
+                    setUnSavedChanges(false, () => {
+                        if (redirect) {
+                            router.push(`/apps/${appName}/testsets`)
+                        }
+                    })
+                }
+            }
+
             if (mode === "create") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    response = await createNewTestset(appName, testsetName, rowData)
-                    setUnSavedChanges(false)
-                    if (response.status === 200 && redirect) {
-                        router.push(`/apps/${appName}/testsets`)
-                    }
+                    const response = await createNewTestset(appName, testsetName, rowData)
+                    afterSave(response)
                 }
             } else if (mode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    response = await updateTestset(testset_id, testsetName, rowData)
-                    setUnSavedChanges(false)
-                    if (response.status === 200 && redirect) {
-                        router.push(`/apps/${appName}/testsets`)
-                    }
+                    const response = await updateTestset(testset_id, testsetName, rowData)
+                    afterSave(response)
                 }
             }
         } catch (error) {
