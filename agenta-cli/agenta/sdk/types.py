@@ -26,7 +26,7 @@ class IntParam(int):
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update(
-            {"x-parameter": "int", "type": "number", "minimum": 1, "maximum": 10}
+            {"x-parameter": "int", "type": "integer", "minimum": 1, "maximum": 10}
         )
 
 
