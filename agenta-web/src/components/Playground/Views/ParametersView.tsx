@@ -161,7 +161,9 @@ const ParametersView: React.FC<Props> = ({
                             ?.filter(
                                 (param) =>
                                     !param.input &&
-                                    (param.type === "number" || param.type === "integer" || param.type === "array"),
+                                    (param.type === "number" ||
+                                        param.type === "integer" ||
+                                        param.type === "array"),
                             )
                             .map((param, index) => (
                                 <Row
