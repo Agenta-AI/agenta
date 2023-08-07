@@ -24,7 +24,7 @@ const NewVariantModal: React.FC<Props> = ({
     const [variantPlaceHolder, setVariantPlaceHolder] = useState("New variant name")
     const handleTemplateVariantChange = (value: string) => {
         setTemplateVariantName(value)
-        setVariantPlaceHolder(value)
+        setVariantPlaceHolder(`${value}.<NewVariantName>`)
     }
 
     return (
