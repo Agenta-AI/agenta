@@ -6,10 +6,14 @@ import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
-import {ConsoleSqlOutlined, DeleteOutlined, PlusOutlined} from "@ant-design/icons"
+import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
 import {createNewTestset, loadTestset, updateTestset} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import useBlockNavigation from "@/hooks/useBlockNavigation"
+import {useUpdateEffect} from "usehooks-ts"
+import useStateCallback from "@/hooks/useStateCallback"
+import {AxiosResponse} from "axios"
 
 type testsetTableProps = {
     mode: "create" | "edit"
@@ -28,16 +32,15 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
     const {testset_id} = router.query
-
+    const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
+    const [loading, setLoading] = useState(false)
     const [testsetName, setTestsetName] = useState("")
     const [rowData, setRowData] = useState([
         {column1: "data1"},
         {column1: "data1"},
         {column1: "data1"},
     ])
-
     const [isModalOpen, setIsModalOpen] = useState(false)
-
     const [columnDefs, setColumnDefs] = useState([
         {
             field: "",
@@ -49,44 +52,32 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         },
         {field: "column1"},
     ])
-
-    const [inputValues, setInputValues] = useState(
+    const [inputValues, setInputValues] = useStateCallback(
         columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
     )
     const gridRef = useRef(null)
 
-    useEffect(() => {
-        // If in edit mode, load the existing test set
-        if (mode === "edit" && testset_id) {
-            loadTestset(testset_id).then((data) => {
-                setTestsetName(data.name)
-                setRowData(data.csvdata)
-                setColumnDefs(Object.keys(data.csvdata[0]).map((key) => ({field: key})))
-            })
+    useBlockNavigation(unSavedChanges, {
+        title: "Unsaved changes",
+        message:
+            "You have unsaved changes in your test set. Do you want to save these changes before leaving the page?",
+        okText: "Save",
+        onOk: async () => {
+            await onSaveData(false)
+            return !!testsetName
+        },
+        cancelText: "Proceed without saving",
+    })
+
+    useUpdateEffect(() => {
+        if (!loading) {
+            setUnSavedChanges(true)
         }
-    }, [mode, testset_id])
-
-    useEffect(() => {
-        // If in edit mode, load the existing test set
-        if (mode === "edit" && testset_id) {
-            loadTestset(testset_id).then((data) => {
-                setTestsetName(data.name)
-                setRowData(data.csvdata)
-
-                // Create the column definitions from the data keys
-                const columnsFromData = Object.keys(data.csvdata[0]).map((key) => ({
-                    field: key,
-                }))
-
-                // Merge with the existing column definitions (the checkbox column)
-                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData]
-                setColumnDefs(newColumnDefs)
-            })
-        }
-    }, [mode, testset_id])
+    }, [rowData, testsetName, columnDefs, inputValues])
 
     useEffect(() => {
         if (mode === "edit" && testset_id) {
+            setLoading(true)
             loadTestset(testset_id).then((data) => {
                 setTestsetName(data.name)
                 setRowData(data.csvdata)
@@ -101,7 +92,15 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 setColumnDefs(newColumnDefs)
 
                 // Update input values for column names
-                setInputValues(columnsFromData.map((colDef) => colDef.field))
+                setInputValues(
+                    columnsFromData.map((colDef) => colDef.field),
+                    () => {
+                        //set loading to false after the initial state has been settled
+                        setTimeout(() => {
+                            setLoading(false)
+                        }, 100)
+                    },
+                )
             })
         }
     }, [mode, testset_id])
@@ -172,22 +171,31 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         setRowData(updatedRowData)
     }
 
-    const onSaveData = async () => {
+    const onSaveData = async (redirect = true) => {
         try {
-            let response
+            const afterSave = (response: AxiosResponse) => {
+                if (response.status === 200) {
+                    setUnSavedChanges(false, () => {
+                        if (redirect) {
+                            router.push(`/apps/${appName}/testsets`)
+                        }
+                    })
+                }
+            }
+
             if (mode === "create") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    response = await createNewTestset(appName, testsetName, rowData)
-                    mssgModal("success", "Changes saved successfully!")
+                    const response = await createNewTestset(appName, testsetName, rowData)
+                    afterSave(response)
                 }
             } else if (mode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    response = await updateTestset(testset_id, testsetName, rowData)
-                    mssgModal("success", "Changes saved successfully!")
+                    const response = await updateTestset(testset_id, testsetName, rowData)
+                    afterSave(response)
                 }
             }
         } catch (error) {
@@ -236,6 +244,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         if (params.newValue === null) {
             params.data[params.colDef.field] = ""
         }
+        setUnSavedChanges(true)
     }
 
     const {appTheme} = useAppTheme()
@@ -263,7 +272,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     style={{marginRight: "10px"}}
                     placeholder="Test Set Name"
                 />
-                <Button onClick={onSaveData} type="primary">
+                <Button onClick={() => onSaveData(true)} type="primary">
                     Save Test Set
                 </Button>
             </div>
