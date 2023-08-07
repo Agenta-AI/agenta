@@ -3,7 +3,7 @@ import {useEffect} from "react"
 
 const useBlockNavigation = (
     blocking: boolean,
-    {title, onOk, onCancel}: {title: string; onOk?: () => void; onCancel?: () => void},
+    {title, onOk, onCancel}: {title: string; onOk?: () => boolean; onCancel?: () => boolean},
 ) => {
     useEffect(() => {
         if (blocking) {
@@ -11,11 +11,15 @@ const useBlockNavigation = (
             window.onbeforeunload = () => true
 
             const handler = () => {
-                if (confirm(title)) {
-                    onOk?.()
-                } else {
-                    onCancel?.()
+                let res = true
+                if (confirm(title) && onOk) {
+                    res = !!onOk()
+                } else if (onCancel) {
+                    res = !!onCancel()
                 }
+
+                // block navigation if onOk or onCancel returns false
+                if (!res) throw "cancelRouteChange"
             }
 
             // prevent from NextJS navigation
