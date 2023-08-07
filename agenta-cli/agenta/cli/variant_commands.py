@@ -39,7 +39,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     app_path = Path(app_folder)
     config_file = app_path / "config.toml"
     config = toml.load(config_file)
-    app_name = config['app-name']
+    app_name = config["app-name"]
     variant_name = file_name.removesuffix(".py")
     # check files in folder
     app_file = app_path / file_name
@@ -71,10 +71,15 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
             sys.exit(0)
 
     # Validate variant name
-    if not re.match('^[a-zA-Z0-9_]+$', variant_name):
-        click.echo(click.style("Invalid input. Please use only alphanumeric characters without spaces.", fg='red'))
+    if not re.match("^[a-zA-Z0-9_]+$", variant_name):
+        click.echo(
+            click.style(
+                "Invalid input. Please use only alphanumeric characters without spaces.",
+                fg="red",
+            )
+        )
         sys.exit(0)
-        
+
     # update the config file with the variant names from the backend
     overwrite = False
     if variant_name in config["variants"]:
@@ -88,10 +93,18 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     if not overwrite:
         config["variants"].append(variant_name)
     try:
-        click.echo(click.style(f"Preparing variant {variant_name} into a tar file...", fg="yellow"))
+        click.echo(
+            click.style(
+                f"Preparing variant {variant_name} into a tar file...", fg="yellow"
+            )
+        )
         tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
-        
-        click.echo(click.style(f"Building variant {variant_name} into a docker image...", fg="yellow"))
+
+        click.echo(
+            click.style(
+                f"Building variant {variant_name} into a docker image...", fg="yellow"
+            )
+        )
         image: Image = client.send_docker_tar(app_name, variant_name, tar_path, host)
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
@@ -100,10 +113,16 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
         return None
     try:
         if overwrite:
-            click.echo(click.style(f"Updating variant {variant_name} to server...", fg="yellow"))
+            click.echo(
+                click.style(
+                    f"Updating variant {variant_name} to server...", fg="yellow"
+                )
+            )
             client.update_variant_image(app_name, variant_name, image, host)
         else:
-            click.echo(click.style(f"Adding variant {variant_name} to server...", fg="yellow"))
+            click.echo(
+                click.style(f"Adding variant {variant_name} to server...", fg="yellow")
+            )
             client.add_variant_to_server(app_name, variant_name, image, host)
     except Exception as ex:
         if overwrite:
@@ -259,7 +278,7 @@ def config_check(app_folder: str):
     Arguments:
         app_folder -- the app folder
     """
-    
+
     click.echo(click.style("\nChecking and updating config file...", fg="yellow"))
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
@@ -298,23 +317,27 @@ def remove_variant_cli(variant_name: str, app_folder: str):
     )
 
 
-@variant.command(name='serve')
-@click.option('--app_folder', default='.')
-@click.option('--file_name', help="The name of the file to run")
+@variant.command(name="serve")
+@click.option("--app_folder", default=".")
+@click.option("--file_name", help="The name of the file to run")
 def serve_cli(app_folder: str, file_name: str):
     """Adds a variant to the web ui and serves the api locally."""
-    
+
     if not file_name:
         error_msg = "To serve variant, kindly provide the filename and run:\n"
         error_msg += ">>> agenta variant serve --file_name <filename>.py"
-        click.echo(click.style(f"{error_msg}", fg='red'))
+        click.echo(click.style(f"{error_msg}", fg="red"))
         sys.exit(0)
-        
+
     try:
         config_check(app_folder)
         host = get_host(app_folder)
-        variant_name = add_variant(app_folder=app_folder, file_name=file_name, host=host)
-        if variant_name:  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
+        variant_name = add_variant(
+            app_folder=app_folder, file_name=file_name, host=host
+        )
+        if (
+            variant_name
+        ):  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
             start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
     except ConnectionError:
         error_msg = (
