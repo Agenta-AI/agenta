@@ -21,7 +21,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const mssgModal = (type, content) => {
         messageApi.open({
             type,
-            content
+            content,
         })
     }
 
@@ -180,18 +180,18 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     setIsModalOpen(true)
                 } else {
                     response = await createNewTestset(appName, testsetName, rowData)
-                    mssgModal("success", "Changes saved successfully!");
+                    mssgModal("success", "Changes saved successfully!")
                 }
             } else if (mode === "edit") {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
                     response = await updateTestset(testset_id, testsetName, rowData)
-                    mssgModal("success", "Changes saved successfully!");
+                    mssgModal("success", "Changes saved successfully!")
                 }
             }
         } catch (error) {
-            mssgModal("error", "Error saving test set");
+            mssgModal("error", "Error saving test set")
             console.error("Error saving test set:", error)
             throw error
         }
