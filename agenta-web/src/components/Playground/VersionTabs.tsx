@@ -18,36 +18,40 @@ function addTab(
     templateVariantName: string,
     newVariantName: string,
 ) {
-    // 1) Check if variant with the same name already exists
-    const existingVariant = variants.find((variant) => variant.variantName === newVariantName)
-
-    if (existingVariant) {
-        message.error("A variant with this name already exists. Please choose a different name.")
-        return
-    }
-
+    
     // Find the template variant
     const templateVariant = variants.find((variant) => variant.variantName === templateVariantName)
-
+    
     // Check if the template variant exists
     if (!templateVariant) {
         message.error("Template variant not found. Please choose a valid variant.")
         return
     }
 
+    // Get TemplateVariant and Variant Name
     const newTemplateVariantName = templateVariant.templateVariantName
         ? templateVariant.templateVariantName
         : templateVariantName
+    const updateNewVariantName = `${newTemplateVariantName}.${newVariantName}`
+    
+    // Check if variant with the same name already exists
+    const existingVariant = variants.find((variant) => variant.variantName === updateNewVariantName)
+
+    // Check if the variant exists
+    if (existingVariant) {
+        message.error("A variant with this name already exists. Please choose a different name.")
+        return
+    }
         
     const newVariant: Variant = {
-        variantName: `${templateVariant.variantName}.${newVariantName}`,
+        variantName: updateNewVariantName,
         templateVariantName: newTemplateVariantName,
         persistent: false,
         parameters: templateVariant.parameters,
     }
 
-    setVariants((prevState) => [...prevState, newVariant])
-    setActiveKey(newVariantName)
+    setVariants((prevState: any) => [...prevState, newVariant])
+    setActiveKey(updateNewVariantName)
 }
 
 function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], activeKey: string) {
