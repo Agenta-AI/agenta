@@ -1,11 +1,12 @@
 import React from "react"
-import { Col, Row, Divider, Button, Tooltip } from "antd"
+import {Col, Row, Divider, Button, Tooltip} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
-import { useVariant } from "@/lib/hooks/useVariant"
-import { Variant } from "@/lib/Types"
-import { useRouter } from "next/router"
-import { is } from "cypress/types/bluebird"
+import {useVariant} from "@/lib/hooks/useVariant"
+import {Variant} from "@/lib/Types"
+import {useRouter} from "next/router"
+import {useState} from "react"
+import {is} from "cypress/types/bluebird"
 
 interface Props {
     variant: Variant
@@ -34,6 +35,7 @@ const ViewNavigation: React.FC<Props> = ({
         isParamSaveLoading,
         saveOptParams,
     } = useVariant(appName, variant)
+    const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
 
     if (isLoading) {
         return <div>Loading...</div>
@@ -71,12 +73,15 @@ const ViewNavigation: React.FC<Props> = ({
                         </ul>
                         <p>
                             {" "}
-                            In case the docker container is not running. Please check the logs from docker to understand the issue. Most of the time it is a missing requirements. Also, please attempt restarting it
-                            (using cli or docker desktop)
+                            In case the docker container is not running. Please check the logs from
+                            docker to understand the issue. Most of the time it is a missing
+                            requirements. Also, please attempt restarting it (using cli or docker
+                            desktop)
                         </p>
                         <p>
                             {" "}
-                            If the issue persists please file an issue in github here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx
+                            If the issue persists please file an issue in github here:
+                            https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx
                         </p>
 
                         <Button
@@ -101,7 +106,7 @@ const ViewNavigation: React.FC<Props> = ({
 
     return (
         <div>
-            <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]}>
+            <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
                         variantName={variant.variantName}
@@ -113,12 +118,14 @@ const ViewNavigation: React.FC<Props> = ({
                         setRemovalVariantName={setRemovalVariantName}
                         setRemovalWarningModalOpen={setRemovalWarningModalOpen}
                         isDeleteLoading={isDeleteLoading}
+                        isParamsCollapsed={isParamsCollapsed}
+                        setIsParamsCollapsed={setIsParamsCollapsed}
                     />
                 </Col>
             </Row>
             <Divider />
 
-            <Row gutter={[{ xs: 8, sm: 16, md: 24, lg: 32 }, 20]} style={{ marginTop: "20px" }}>
+            <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]} style={{marginTop: "20px"}}>
                 <Col span={24}>
                     <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
                 </Col>

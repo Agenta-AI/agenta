@@ -47,6 +47,8 @@ const determineType = (xParam: any): string => {
             return "array"
         case "float":
             return "number"
+        case "dict":
+            return "object"
         default:
             return "string"
     }
