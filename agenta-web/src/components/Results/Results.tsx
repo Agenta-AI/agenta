@@ -30,14 +30,12 @@ const Results: React.FC = () => {
     useEffect(() => {
         // TODO: move to api.ts
         setLoading(true)
-        fetchData(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations?app_name=${appName}`,
-        )
+        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations?app_name=${appName}`)
             .then((responseData) => {
                 const fetchPromises: Promise<ResultsTableDataType>[] = responseData.map(
                     (item: EvaluationResponseType) => {
                         return fetchData(
-                            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations/${item.id}/results`,
+                            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${item.id}/results`,
                         )
                             .then((results) => {
                                 if (item.evaluation_type === EvaluationType.human_a_b_testing) {

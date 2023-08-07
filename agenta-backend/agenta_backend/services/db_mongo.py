@@ -4,5 +4,5 @@ client = AsyncIOMotorClient("mongodb://username:password@mongo:27017")
 database = client["agenta"]
 
 evaluation_scenarios = database["evaluation_scenarios"]
-evaluations = database["evaluation"]
+evaluations = database["evaluations"]
 testsets = database["testsets"]

@@ -262,7 +262,7 @@ export const deleteTestsets = async (ids: string[]) => {
 }
 
 const eval_endpoint = axios.create({
-    baseURL: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations`,
+    baseURL: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations`,
 })
 
 export const loadEvaluations = async (app_name: string) => {
@@ -295,7 +295,7 @@ export const deleteEvaluations = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",
-            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_evaluations`,
+            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations`,
             data: {evaluations_ids: ids},
         })
         if (response.status === 200) {

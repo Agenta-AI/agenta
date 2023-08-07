@@ -1,5 +1,5 @@
 from fastapi import HTTPException, APIRouter, Body
-from agenta_backend.models.api.app_evaluation_model import (
+from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
     EvaluationScenarioUpdate,
@@ -227,9 +227,9 @@ async def delete_evaluations(delete_evaluations: DeleteEvaluation):
     deleted_ids = []
 
     for evaluations_id in delete_evaluations.evaluations_ids:
-        app_evaluation = await evaluations.find_one({"_id": ObjectId(evaluations_id)})
+        evaluation = await evaluations.find_one({"_id": ObjectId(evaluations_id)})
 
-        if app_evaluation is not None:
+        if evaluation is not None:
             result = await evaluations.delete_one({"_id": ObjectId(evaluations_id)})
             if result:
                 deleted_ids.append(evaluations_id)
