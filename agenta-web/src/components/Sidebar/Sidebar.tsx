@@ -173,7 +173,7 @@ const Sidebar: React.FC = () => {
 
                 <Menu
                     mode="vertical"
-                    style={{paddingBottom: 40, borderRight: 0}}
+                    style={{paddingBottom: 24, borderRight: 0}}
                     selectedKeys={selectedKeys}
                 >
                     <Menu.Item key="theme" icon={<DashboardOutlined />} onClick={toggleAppTheme}>
