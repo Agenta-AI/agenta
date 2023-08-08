@@ -115,25 +115,28 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
 
     const handleRun = async (testData: Record<string, string>, testIndex: number) => {
-        const newResultsList = [...resultsList]
-        setResultsList([(resultsList[testIndex] = "Loading...")])
-
         try {
+            const newResultsList = [...resultsList]
+            newResultsList[testIndex] = "Loading..."
+            setResultsList(newResultsList)
+
             const result = await callVariant(testData, optParams, URIPath)
+
             newResultsList[testIndex] = result
+            setResultsList(newResultsList)
         } catch (e) {
+            const newResultsList = [...resultsList]
             newResultsList[testIndex] =
                 "The code has resulted in the following error: \n\n --------------------- \n" +
                 e +
                 "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
+            setResultsList(newResultsList)
         }
-
-        setResultsList(newResultsList)
     }
 
     const handleRunAll = async () => {
         const newResultsList = testList.map(() => "Loading...")
-        setResultsList(testList.map(() => "Loading..."))
+        setResultsList(newResultsList)
 
         try {
             const resultsPromises = testList.map(async (testData, index) => {
@@ -142,19 +145,21 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
             const results = await Promise.all(resultsPromises)
 
+            const updatedResultsList = [...resultsList]
             results.forEach((result, index) => {
-                newResultsList[index] = result
+                updatedResultsList[index] = result
             })
+            setResultsList(updatedResultsList)
         } catch (e) {
+            const newResultsList = [...resultsList]
             newResultsList.forEach((_, index) => {
                 newResultsList[index] =
                     "The code has resulted in the following error: \n\n --------------------- \n" +
                     e +
                     "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
             })
+            setResultsList(newResultsList)
         }
-
-        setResultsList(newResultsList)
     }
 
     const handleAddRow = () => {
