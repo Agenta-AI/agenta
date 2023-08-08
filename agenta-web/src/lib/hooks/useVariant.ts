@@ -24,8 +24,8 @@ export function useVariant(appName: string, variant: Variant) {
             setIsError(false)
             try {
                 // get the parameters of the variant by parsing the openapi.json
+                console.log("variant parameters:", variant.parameters)
                 const {initOptParams, inputParams} = await getVariantParameters(appName, variant)
-
                 if (variant.parameters) {
                     const updatedInitOptParams = initOptParams.map((param) => {
                         return variant.parameters && variant.parameters.hasOwnProperty(param.name)
@@ -38,6 +38,7 @@ export function useVariant(appName: string, variant: Variant) {
                 }
 
                 setInputParams(inputParams)
+
                 setURIPath(
                     `${appName}/${
                         variant.templateVariantName
