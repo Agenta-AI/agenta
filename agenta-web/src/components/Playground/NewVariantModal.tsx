@@ -1,6 +1,6 @@
 // NewVariantModal.tsx
 
-import React from "react"
+import React, {useState} from "react"
 import {Modal, Input, Select, Space, Typography} from "antd"
 const {Text} = Typography
 
@@ -21,6 +21,13 @@ const NewVariantModal: React.FC<Props> = ({
     setNewVariantName,
     setTemplateVariantName,
 }) => {
+    const [variantPlaceHolder, setVariantPlaceHolder] = useState("Source Variant")
+    const handleTemplateVariantChange = (value: string) => {
+        let newValue = value.includes(".") ? value.split(".")[0] : value
+        setTemplateVariantName(value)
+        setVariantPlaceHolder(`${newValue}`)
+    }
+
     return (
         <Modal
             title="Create a New Variant"
@@ -34,23 +41,23 @@ const NewVariantModal: React.FC<Props> = ({
         >
             <Space direction="vertical" size={20}>
                 <div>
-                    <Text>Enter a unique name for the new variant:</Text>
-                    <Input
-                        placeholder="New variant name"
-                        onChange={(e) => setNewVariantName(e.target.value)}
-                    />
-                </div>
-
-                <div>
                     <Text>Select an existing variant to use as a template:</Text>
                     <Select
                         style={{width: "100%"}}
                         placeholder="Select a variant"
-                        onChange={setTemplateVariantName}
+                        onChange={handleTemplateVariantChange}
                         options={variants.map((variant) => ({
                             value: variant.variantName,
                             label: variant.variantName,
                         }))}
+                    />
+                </div>
+
+                <div>
+                    <Text>Enter a unique name for the new variant:</Text>
+                    <Input
+                        addonBefore={variantPlaceHolder}
+                        onChange={(e) => setNewVariantName(e.target.value)}
                     />
                 </div>
             </Space>
