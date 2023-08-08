@@ -2,6 +2,7 @@ html,
 body {
     padding: 0;
     margin: 0;
+    text-decoration: none;
 }
 
 .appSelectorMssg {
@@ -15,6 +16,16 @@ body {
 
 .appSelectorMssg h1 {
     font-weight: 500;
+}
+
+.appSelectorEmpty {
+    border-radius: 7px;
+    padding: 30px;
+    text-transform: capitalize;
+    max-width: 700px;
+    margin: 0 auto;
+    width: 100%;
+    line-height: 1.5;
 }
 
 @keyframes pulse {
