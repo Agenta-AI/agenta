@@ -51,7 +51,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     const handleRun = async () => {
         setResults("Loading..")
         try {
-            const result = await callVariant(testData, optParams, URIPath)
+            const result = await callVariant(testData, inputParams, optParams, URIPath)
             setResults(result)
         } catch (e) {
             setResults(

@@ -35,23 +35,46 @@ export async function fetchVariants(app: string): Promise<Variant[]> {
 
 export function callVariant(
     inputParametersDict: Record<string, string>,
+    inputParamDefinition: Parameter[],
     optionalParameters: Parameter[],
     URIPath: string,
 ) {
+    console.log("inputParametersDict", inputParametersDict)
+    // Separate input parameters into two dictionaries based on the 'input' property
+    const mainInputParams: Record<string, string> = {} // Parameters with input = true
+    const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
     const inputParams = Object.keys(inputParametersDict).reduce((acc: any, key) => {
         acc[key] = inputParametersDict[key]
         return acc
     }, {})
+    for (let key of Object.keys(inputParametersDict)) {
+        const paramDefinition = inputParamDefinition.find((param) => param.name === key)
+
+        // If parameter definition is found and its 'input' property is false,
+        // then it goes to 'secondaryInputParams', otherwise to 'mainInputParams'
+        if (paramDefinition && !paramDefinition.input) {
+            console.log("key", key, inputParametersDict[key])
+            secondaryInputParams[key] = inputParametersDict[key]
+        } else {
+            mainInputParams[key] = inputParametersDict[key]
+        }
+    }
+
     optionalParameters = optionalParameters || []
 
     const optParams = optionalParameters
         .filter((param) => param.default)
+        .filter((param) => param.type !== "object") // remove dics from optional parameters
         .reduce((acc: any, param) => {
             acc[param.name] = param.default
             return acc
         }, {})
+    const requestBody = {
+        ["inputs"]: secondaryInputParams,
+        ...mainInputParams,
+        ...optParams,
+    }
 
-    const requestBody = {...inputParams, ...optParams}
     return axios
         .post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, requestBody, {
             headers: {

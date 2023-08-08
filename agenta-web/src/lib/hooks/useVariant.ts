@@ -56,6 +56,46 @@ export function useVariant(appName: string, variant: Variant) {
         fetchParameters()
     }, [appName, variant])
 
+    const extractDefaultStrings = (params: Parameter[]): string[] => {
+        return params
+            .filter((param) => param.type === "object" && param.default)
+            .flatMap((param) => param.default)
+    }
+    const stringsToParameters = (strings: string[]): Parameter[] => {
+        return strings.map((value) => ({
+            name: value.name,
+            type: "string",
+            input: false,
+            required: false,
+        }))
+    }
+    const generateInputParams = (
+        optParams: Parameter[],
+        currentInputParams: Parameter[],
+    ): Parameter[] => {
+        // Extract combined list of strings
+        const defaultStrings = extractDefaultStrings(optParams)
+        console.log("defaultStrings:", defaultStrings)
+        // Convert them to Parameters
+        const newParams = stringsToParameters(defaultStrings)
+        console.log("newParams:", newParams)
+
+        // Filter out the existing inputParams which have input=true
+        const existingParams = currentInputParams.filter((param) => param.input)
+
+        return [...existingParams, ...newParams]
+    }
+
+    useEffect(() => {
+        if (optParams) {
+            const updatedInputParams = generateInputParams(optParams, inputParams || [])
+            setInputParams(updatedInputParams)
+        } else {
+            let newParams = [...(inputParams || [])]
+            setInputParams(newParams)
+        }
+    }, [optParams])
+
     /**
      * Saves new values for the optional parameters of the variant.
      * @param updatedOptParams
