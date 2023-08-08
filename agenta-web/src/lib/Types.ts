@@ -89,5 +89,3 @@ export interface ResultsTableDataType {
     evaluationType: EvaluationType
     createdAt?: string
 }
-
-export interface AppTemplate {}

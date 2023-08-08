@@ -1,9 +1,8 @@
 import {useState} from "react"
 import {useRouter} from "next/router"
-import {Space} from "antd"
+import {Input, Space, Modal} from "antd"
 import useSWR from "swr"
 import AppCard from "./AppCard"
-import CreateApp from "@/components/CreateApp/CreateApp"
 
 const fetcher = (...args) => fetch(...args).then((res) => res.json())
 
@@ -42,8 +41,18 @@ const AppSelector: React.FC = () => {
                             <AppCard appName={app.app_name} key={index} index={index} />
                         ))}
                 </Space>
-
-                <CreateApp />
+                <Modal
+                    title="Add new app from template"
+                    open={isModalOpen}
+                    onOk={handleAddOk}
+                    onCancel={handleAddCancel}
+                >
+                    <Input
+                        placeholder="New app name"
+                        value={newApp}
+                        onChange={(e) => setNewApp(e.target.value)}
+                    />
+                </Modal>
             </div>
         </div>
     )
