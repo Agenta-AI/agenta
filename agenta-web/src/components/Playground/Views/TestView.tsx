@@ -116,8 +116,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleRun = async (testData: Record<string, string>, testIndex: number) => {
         const newResultsList = [...resultsList]
-        // newResultsList[testIndex] = "Loading..."
-        setResultsList([...resultsList, (resultsList[testIndex] = "Loading...")])
+        setResultsList([(resultsList[testIndex] = "Loading...")])
 
         try {
             const result = await callVariant(testData, optParams, URIPath)
@@ -134,7 +133,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleRunAll = async () => {
         const newResultsList = testList.map(() => "Loading...")
-        setResultsList([...testList.map(() => "Loading...")])
+        setResultsList(testList.map(() => "Loading..."))
 
         try {
             const resultsPromises = testList.map(async (testData, index) => {
