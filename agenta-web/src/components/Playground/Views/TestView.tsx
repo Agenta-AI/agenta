@@ -86,9 +86,9 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                             icon={<CaretRightOutlined />}
                             onClick={() => handleRun(testData, testIndex)}
                             style={{width: "100px"}}
-                            disabled={resultsList[testIndex] === "Loading..."}
+                            loading={resultsList[testIndex] === "Loading..."}
                         >
-                            {resultsList[testIndex] == "Loading..." ? "Loading" : "Run"}
+                            Run
                         </Button>
                     </Col>
                 </Row>
@@ -116,7 +116,8 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleRun = async (testData: Record<string, string>, testIndex: number) => {
         const newResultsList = [...resultsList]
-        newResultsList[testIndex] = "Loading..."
+        // newResultsList[testIndex] = "Loading..."
+        setResultsList([...resultsList, (resultsList[testIndex] = "Loading...")])
 
         try {
             const result = await callVariant(testData, optParams, URIPath)
@@ -133,6 +134,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleRunAll = async () => {
         const newResultsList = testList.map(() => "Loading...")
+        setResultsList([...testList.map(() => "Loading...")])
 
         try {
             const resultsPromises = testList.map(async (testData, index) => {
