@@ -52,10 +52,7 @@ const ParametersView: React.FC<Props> = ({
         })
     }
     const onChangeCollapse = (key: string | string[]) => {
-        console.log("onChangeCollapse triggered with key:", key)
-
         const newValue = Array.isArray(key) && key.includes("1") ? "1" : ""
-        console.log("Setting isParamsCollapsed to:", newValue)
         setIsParamsCollapsed(newValue)
     }
     const items: CollapseProps["items"] = [
@@ -118,7 +115,7 @@ const ParametersView: React.FC<Props> = ({
             children: (
                 <div style={{width: "100%"}}>
                     <StringParameters optParams={optParams} handleParamChange={handleParamChange} />
-                    <ObjectParameters optParams={optParams} />
+                    <ObjectParameters optParams={optParams} handleParamChange={handleParamChange} />
 
                     <ModelParameters
                         optParams={optParams}
