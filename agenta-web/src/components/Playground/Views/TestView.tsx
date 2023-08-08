@@ -87,6 +87,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                             onClick={() => handleRun(testData, testIndex)}
                             style={{width: "100px"}}
                             loading={resultsList[testIndex] === "Loading..."}
+                            disabled={resultsList[testIndex] === "Loading..."}
                         >
                             Run
                         </Button>
@@ -136,30 +137,24 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleRunAll = async () => {
         const newResultsList = testList.map(() => "Loading...")
-        setResultsList(newResultsList)
-
+        setResultsList(testList.map(() => "Loading..."))
         try {
             const resultsPromises = testList.map(async (testData, index) => {
                 return await callVariant(testData, optParams, URIPath)
             })
-
             const results = await Promise.all(resultsPromises)
-
-            const updatedResultsList = [...resultsList]
             results.forEach((result, index) => {
-                updatedResultsList[index] = result
+                newResultsList[index] = result
             })
-            setResultsList(updatedResultsList)
         } catch (e) {
-            const newResultsList = [...resultsList]
             newResultsList.forEach((_, index) => {
                 newResultsList[index] =
                     "The code has resulted in the following error: \n\n --------------------- \n" +
                     e +
                     "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
             })
-            setResultsList(newResultsList)
         }
+        setResultsList(newResultsList)
     }
 
     const handleAddRow = () => {
