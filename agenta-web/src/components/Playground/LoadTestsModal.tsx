@@ -96,4 +96,3 @@ const LoadTestsModal: React.FC<Props> = (props) => {
 }
 
 export default LoadTestsModal
-
