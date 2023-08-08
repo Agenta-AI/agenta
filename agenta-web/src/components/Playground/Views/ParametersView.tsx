@@ -1,6 +1,6 @@
-import {useState} from "react"
+import { useState } from "react"
 import React from "react"
-import {Parameter} from "@/lib/Types"
+import { Parameter } from "@/lib/Types"
 import {
     Input,
     Slider,
@@ -15,10 +15,10 @@ import {
     Collapse,
     Select,
 } from "antd"
-import type {CollapseProps} from "antd"
-import {renameVariables} from "@/lib/helpers/utils"
-import {is} from "cypress/types/bluebird"
-import {Column} from "ag-grid-community"
+import type { CollapseProps } from "antd"
+import { renameVariables } from "@/lib/helpers/utils"
+import { is } from "cypress/types/bluebird"
+import { Column } from "ag-grid-community"
 interface Props {
     variantName: string // The name of the variant
     optParams: Parameter[] | null // The optional parameters
@@ -55,7 +55,7 @@ const ParametersView: React.FC<Props> = ({
     }
     const handleParamChange = (name: string, newVal: any) => {
         const newOptParams = optParams?.map((param) =>
-            param.name === name ? {...param, default: newVal} : param,
+            param.name === name ? { ...param, default: newVal } : param,
         )
         newOptParams && onOptParamsChange(newOptParams, false, false)
     }
@@ -77,12 +77,12 @@ const ParametersView: React.FC<Props> = ({
         {
             key: "1",
             label: (
-                <div style={{width: "100%"}}>
-                    <Row style={{marginTop: 16, marginBottom: 8}}>
+                <div style={{ width: "100%" }}>
+                    <Row style={{ marginTop: 16, marginBottom: 8 }}>
                         <Col span={12}>
-                            <h2 style={{padding: "0px", margin: "0px"}}>1. Modify Parameters</h2>
+                            <h2 style={{ padding: "0px", margin: "0px" }}>1. Modify Parameters</h2>
                         </Col>
-                        <Col span={12} style={{textAlign: "right", paddingRight: "25px"}}>
+                        <Col span={12} style={{ textAlign: "right", paddingRight: "25px" }}>
                             <Space>
                                 <Button
                                     type="primary"
@@ -131,13 +131,13 @@ const ParametersView: React.FC<Props> = ({
                 </div>
             ),
             children: (
-                <div style={{width: "100%"}}>
+                <div style={{ width: "100%" }}>
                     {optParams
                         ?.filter((param) => param.type === "string")
                         .map((param, index) => (
                             <Row
                                 gutter={0}
-                                style={{padding: "0px 0px", width: "100%", marginRight: "16px"}}
+                                style={{ padding: "0px 0px", width: "100%", marginRight: "16px" }}
                                 key={index}
                             >
                                 <Card
@@ -147,8 +147,8 @@ const ParametersView: React.FC<Props> = ({
                                         border: "1px solid #ccc",
                                         marginRight: "24px",
                                     }}
-                                    bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-                                    headStyle={{minHeight: 44, padding: "0px 12px"}}
+                                    bodyStyle={{ padding: "4px 16px", border: "0px solid #ccc" }}
+                                    headStyle={{ minHeight: 44, padding: "0px 12px" }}
                                     title={renameVariables(param.name)}
                                 >
                                     <Input.TextArea
@@ -158,7 +158,7 @@ const ParametersView: React.FC<Props> = ({
                                             handleParamChange(param.name, e.target.value)
                                         }
                                         bordered={false}
-                                        style={{padding: "0px 0px"}}
+                                        style={{ padding: "0px 0px" }}
                                     />
                                 </Card>
                             </Row>
@@ -168,7 +168,7 @@ const ParametersView: React.FC<Props> = ({
                         .map((param, index) => (
                             <Row
                                 gutter={0}
-                                style={{padding: "0px 0px", width: "100%", marginRight: "16px"}}
+                                style={{ padding: "0px 0px", width: "100%", marginRight: "16px" }}
                                 key={index}
                             >
                                 <Card
@@ -178,8 +178,8 @@ const ParametersView: React.FC<Props> = ({
                                         border: "1px solid #ccc",
                                         marginRight: "24px",
                                     }}
-                                    bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-                                    headStyle={{minHeight: 44, padding: "0px 12px"}}
+                                    bodyStyle={{ padding: "4px 16px", border: "0px solid #ccc" }}
+                                    headStyle={{ minHeight: 44, padding: "0px 12px" }}
                                     title={renameVariables(param.name)}
                                 >
                                     <Row
@@ -202,26 +202,22 @@ const ParametersView: React.FC<Props> = ({
                                             <Button
                                                 type="default"
                                                 danger
-                                                style={{margin: "0px 24px"}}
+                                                style={{ margin: "0px 24px" }}
                                             >
                                                 {" "}
                                                 Delete
                                             </Button>
                                         </Col>
                                     </Row>
-                                    <Button type="default" style={{margin: "12px 0px"}}>
+                                    <Button type="default" style={{ margin: "12px 0px" }}>
                                         + Add variable
                                     </Button>
                                 </Card>
                             </Row>
                         ))}
 
-                    {optParams?.filter((param) => !param.input && param.type === "number").length >
-                        0 && (
-                        <Row
-                            gutter={0}
-                            style={{padding: "0px 0px", width: "100%", marginTop: "16px"}}
-                        >
+                    {optParams?.filter((param) => !param.input && param.type === "number").length > 0 && (
+                        <Row gutter={0} style={{ padding: "0px 0px", width: "100%", marginTop: "16px" }}>
                             <Card
                                 style={{
                                     marginTop: 16,
@@ -234,14 +230,16 @@ const ParametersView: React.FC<Props> = ({
                                     margin: "16px 0px",
                                     border: "0px solid #ccc",
                                 }}
-                                headStyle={{minHeight: 44, padding: "0px 12px"}}
+                                headStyle={{ minHeight: 44, padding: "0px 12px" }}
                                 title="Model Parameters"
                             >
                                 {optParams
                                     ?.filter(
                                         (param) =>
                                             !param.input &&
-                                            (param.type === "number" || param.type === "array"),
+                                            (param.type === "number" ||
+                                                param.type === "integer" ||
+                                                param.type === "array"),
                                     )
                                     .map((param, index) => (
                                         <Row
@@ -252,13 +250,7 @@ const ParametersView: React.FC<Props> = ({
                                             }}
                                         >
                                             <Col span={6}>
-                                                <h4
-                                                    style={{
-                                                        margin: 0,
-                                                        padding: 0,
-                                                        textAlign: "left",
-                                                    }}
-                                                >
+                                                <h4 style={{ margin: 0, padding: 0, textAlign: "left" }}>
                                                     {renameVariables(param.name)}
                                                 </h4>
                                             </Col>
@@ -274,7 +266,21 @@ const ParametersView: React.FC<Props> = ({
                                                         }
                                                         step={0.01}
                                                         onChange={(value) => onChange(param, value)}
-                                                        style={{marginBottom: 8}}
+                                                        style={{ marginBottom: 8 }}
+                                                    />
+                                                )}
+                                                {param.type === "integer" && (
+                                                    <Slider
+                                                        min={param.minimum}
+                                                        max={param.maximum}
+                                                        value={
+                                                            typeof param.default === "number"
+                                                                ? param.default
+                                                                : 1
+                                                        }
+                                                        step={1}
+                                                        onChange={(value) => onChange(param, value)}
+                                                        style={{ marginBottom: 8 }}
                                                     />
                                                 )}
                                                 {param.type === "array" && (
@@ -283,18 +289,13 @@ const ParametersView: React.FC<Props> = ({
                                                         onChange={(value) =>
                                                             handleParamChange(param.name, value)
                                                         }
-                                                        style={{width: "100%"}}
+                                                        style={{ width: "100%" }}
                                                     >
-                                                        {param.enum?.map(
-                                                            (value: string, index: number) => (
-                                                                <Select.Option
-                                                                    key={index}
-                                                                    value={value}
-                                                                >
-                                                                    {value}
-                                                                </Select.Option>
-                                                            ),
-                                                        )}
+                                                        {param.enum?.map((value: string, index: number) => (
+                                                            <Select.Option key={index} value={value}>
+                                                                {value}
+                                                            </Select.Option>
+                                                        ))}
                                                     </Select>
                                                 )}
                                             </Col>
@@ -303,7 +304,16 @@ const ParametersView: React.FC<Props> = ({
                                                     <InputNumber
                                                         min={0}
                                                         max={10000}
-                                                        style={{margin: "0 16px", width: "100%"}}
+                                                        style={{ margin: "0 16px", width: "100%" }}
+                                                        value={param.default}
+                                                        onChange={(value) => onChange(param, value)}
+                                                    />
+                                                )}
+                                                {param.type === "integer" && (
+                                                    <InputNumber
+                                                        min={param.minimum}
+                                                        max={param.maximum}
+                                                        style={{ margin: "0 16px", width: "100%" }}
                                                         value={param.default}
                                                         onChange={(value) => onChange(param, value)}
                                                     />
@@ -329,10 +339,10 @@ const ParametersView: React.FC<Props> = ({
                 ghost
                 bordered={false}
                 expandIconPosition="end"
-                style={{padding: 0, width: "100%"}}
+                style={{ padding: 0, width: "100%" }}
                 onChange={onChangeCollapse}
             />
-        </div>
+        </div >
     )
 }
 export default ParametersView

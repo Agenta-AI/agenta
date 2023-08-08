@@ -1,5 +1,5 @@
 import agenta as ag
-from agenta.types import MultipleChoiceParam
+from agenta.types import MultipleChoiceParam, IntParam
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
@@ -35,15 +35,15 @@ default_prompt1 = "summarize the following {text} "
 default_prompt2 = "these are summaries of a long text {text}\n please summarize them"
 
 
-def call_llm(model, temperature, prompt, **kwargs):
+def call_llm(model, temperature, max_tokens, prompt, **kwargs):
     # import ipdb
     # ipdb.set_trace()
     if model == "text-davinci-003":
-        llm = OpenAI(model=model, temperature=temperature)
+        llm = OpenAI(model=model, temperature=temperature, max_tokens=max_tokens)
         chain = LLMChain(llm=llm, prompt=prompt)
         output = chain.run(**kwargs)
     elif model in ["gpt-3.5-turbo", "gpt-4"]:
-        chat = ChatOpenAI(model=model, temperature=temperature)
+        chat = ChatOpenAI(model=model, temperature=temperature, max_tokens=max_tokens)
         messages = [HumanMessage(content=prompt.format(**kwargs))]
         output = chat(
             messages,
@@ -63,6 +63,7 @@ def generate(
         "1000",
         ["1000", "2000", "3000"],
     ),
+    max_tokens: IntParam = IntParam(default=50),
     prompt_chunks: ag.TextParam = default_prompt1,
     prompt_final: ag.TextParam = default_prompt2,
 ) -> str:
@@ -79,7 +80,13 @@ def generate(
 
     for chunk in transcript_chunks:
         outputs.append(
-            call_llm(model=model, temperature=temperature, prompt=prompt, text=chunk)
+            call_llm(
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                prompt=prompt,
+                text=chunk,
+            )
         )
 
     outputs = "\n".join(outputs)
@@ -89,6 +96,10 @@ def generate(
         template=prompt_final,
     )
     final_out = call_llm(
-        model=model, temperature=temperature, prompt=prompt, text=outputs
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        prompt=prompt,
+        text=outputs,
     )
     return str(final_out)
