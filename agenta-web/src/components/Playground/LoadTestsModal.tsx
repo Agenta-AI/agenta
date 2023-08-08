@@ -6,10 +6,11 @@ import {PropsWithChildren, useState} from "react"
 interface Props extends PropsWithChildren {
     addNewTests: (tests: Record<string, string>[]) => void
     setNewTests: (tests: Record<string, string>[]) => void
+    handleRunAll: () => Promise<void>
 }
 
 const LoadTestsModal: React.FC<Props> = (props) => {
-    const {addNewTests, setNewTests} = props
+    const {addNewTests, setNewTests, handleRunAll} = props
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [selectedSet, setSelectedSet] = useState<string>("")
@@ -85,7 +86,7 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                     type="primary"
                     size="middle"
                     style={{backgroundColor: "green"}}
-                    onClick={() => setIsOpen(true)}
+                    onClick={handleRunAll}
                     loading={isTestsetsLoading}
                 >
                     Run all
