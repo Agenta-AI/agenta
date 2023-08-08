@@ -201,6 +201,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 setFocusedRowData(rowData[ix])
             },
         },
+        resizable: true,
     }
 
     const onAddRow = () => {
