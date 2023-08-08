@@ -232,6 +232,7 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
                         >
                             {param.default.map((val, index) => (
                                 <Row
+                                    key={index}
                                     style={{
                                         alignItems: "center",
                                         marginTop: 12,
