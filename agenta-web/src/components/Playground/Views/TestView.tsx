@@ -1,5 +1,5 @@
 import React, {Dispatch, SetStateAction, useContext, useState} from "react"
-import {Button, Input, Card, Row, Col} from "antd"
+import {Button, Input, Card, Row, Col, Space} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {Parameter} from "@/lib/Types"
@@ -44,9 +44,9 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 
     const handleInputParamValChange = (inputParamName: string, newValue: string) => {
         setTestList((prevState) => {
-            const newState = prevState.map((test, index) =>
-                index === testIndex ? {...test, [inputParamName]: newValue} : test,
-            )
+            const newState = [...prevState]
+
+            newState[testIndex] = {...newState[testIndex], [inputParamName]: newValue}
             return newState
         })
     }
@@ -123,8 +123,9 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
             const result = await callVariant(testData, optParams, URIPath)
 
-            newResultsList[testIndex] = result
-            setResultsList(newResultsList)
+            const newResultList2 = [...resultsList]
+            newResultList2[testIndex] = result
+            setResultsList(newResultList2)
         } catch (e) {
             const newResultsList = [...resultsList]
             newResultsList[testIndex] =
@@ -176,11 +177,21 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 }}
             >
                 <h2 style={{padding: "0px", marginBottom: "8px"}}>2. Preview and test</h2>
-                <LoadTestsModal
-                    handleRunAll={handleRunAll}
-                    setNewTests={handleSetNewTests}
-                    addNewTests={handleSetNewTests}
-                />
+                <Space size={10}>
+                    <LoadTestsModal
+                        setNewTests={handleSetNewTests}
+                        addNewTests={handleSetNewTests}
+                    />
+
+                    <Button
+                        type="primary"
+                        size="middle"
+                        style={{backgroundColor: "green"}}
+                        onClick={handleRunAll}
+                    >
+                        Run all
+                    </Button>
+                </Space>
             </div>
 
             {testList.map((testData, index) => (
