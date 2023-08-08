@@ -87,7 +87,6 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                     size="middle"
                     style={{backgroundColor: "green"}}
                     onClick={handleRunAll}
-                    loading={isTestsetsLoading}
                 >
                     Run all
                 </Button>
