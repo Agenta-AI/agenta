@@ -1,24 +1,9 @@
-import { useState } from "react"
+import {useState} from "react"
 import React from "react"
-import { Parameter } from "@/lib/Types"
-import {
-    Input,
-    Slider,
-    Row,
-    Col,
-    InputNumber,
-    Button,
-    Tooltip,
-    message,
-    Space,
-    Card,
-    Collapse,
-    Select,
-} from "antd"
-import type { CollapseProps } from "antd"
-import { renameVariables } from "@/lib/helpers/utils"
-import { is } from "cypress/types/bluebird"
-import { Column } from "ag-grid-community"
+import {Parameter} from "@/lib/Types"
+import {Input, Row, Col, Button, Tooltip, message, Space, Card, Collapse} from "antd"
+import type {CollapseProps} from "antd"
+import {ModelParameters, StringParameters, ObjectParameters} from "./ParametersCards"
 interface Props {
     variantName: string // The name of the variant
     optParams: Parameter[] | null // The optional parameters
@@ -29,8 +14,8 @@ interface Props {
     setRemovalWarningModalOpen: (value: boolean) => void
     isDeleteLoading: boolean
     isPersistent: boolean
-    isParamsCollapsed: "string"
-    setIsParamsCollapsed: (value: "string") => void
+    isParamsCollapsed: string
+    setIsParamsCollapsed: (value: string) => void
 }
 
 const ParametersView: React.FC<Props> = ({
@@ -55,7 +40,7 @@ const ParametersView: React.FC<Props> = ({
     }
     const handleParamChange = (name: string, newVal: any) => {
         const newOptParams = optParams?.map((param) =>
-            param.name === name ? { ...param, default: newVal } : param,
+            param.name === name ? {...param, default: newVal} : param,
         )
         newOptParams && onOptParamsChange(newOptParams, false, false)
     }
@@ -67,22 +52,22 @@ const ParametersView: React.FC<Props> = ({
         })
     }
     const onChangeCollapse = (key: string | string[]) => {
-        if (key.length > 0) {
-            setIsParamsCollapsed("1")
-        } else {
-            setIsParamsCollapsed("")
-        }
+        console.log("onChangeCollapse triggered with key:", key)
+
+        const newValue = Array.isArray(key) && key.includes("1") ? "1" : ""
+        console.log("Setting isParamsCollapsed to:", newValue)
+        setIsParamsCollapsed(newValue)
     }
     const items: CollapseProps["items"] = [
         {
             key: "1",
             label: (
-                <div style={{ width: "100%" }}>
-                    <Row style={{ marginTop: 16, marginBottom: 8 }}>
+                <div style={{width: "100%"}}>
+                    <Row style={{marginTop: 16, marginBottom: 8}}>
                         <Col span={12}>
-                            <h2 style={{ padding: "0px", margin: "0px" }}>1. Modify Parameters</h2>
+                            <h2 style={{padding: "0px", margin: "0px"}}>1. Modify Parameters</h2>
                         </Col>
-                        <Col span={12} style={{ textAlign: "right", paddingRight: "25px" }}>
+                        <Col span={12} style={{textAlign: "right", paddingRight: "25px"}}>
                             <Space>
                                 <Button
                                     type="primary"
@@ -131,216 +116,15 @@ const ParametersView: React.FC<Props> = ({
                 </div>
             ),
             children: (
-                <div style={{ width: "100%" }}>
-                    {optParams
-                        ?.filter((param) => param.type === "string")
-                        .map((param, index) => (
-                            <Row
-                                gutter={0}
-                                style={{ padding: "0px 0px", width: "100%", marginRight: "16px" }}
-                                key={index}
-                            >
-                                <Card
-                                    style={{
-                                        marginTop: 16,
-                                        width: "100%",
-                                        border: "1px solid #ccc",
-                                        marginRight: "24px",
-                                    }}
-                                    bodyStyle={{ padding: "4px 16px", border: "0px solid #ccc" }}
-                                    headStyle={{ minHeight: 44, padding: "0px 12px" }}
-                                    title={renameVariables(param.name)}
-                                >
-                                    <Input.TextArea
-                                        rows={5}
-                                        defaultValue={param.default}
-                                        onChange={(e) =>
-                                            handleParamChange(param.name, e.target.value)
-                                        }
-                                        bordered={false}
-                                        style={{ padding: "0px 0px" }}
-                                    />
-                                </Card>
-                            </Row>
-                        ))}
-                    {optParams
-                        ?.filter((param) => param.type === "object")
-                        .map((param, index) => (
+                <div style={{width: "100%"}}>
+                    <StringParameters optParams={optParams} handleParamChange={handleParamChange} />
+                    <ObjectParameters optParams={optParams} />
 
-                            <Row
-                                gutter={0}
-                                style={{ padding: "0px 0px", width: "100%", marginRight: "16px" }}
-                                key={index}
-                            >
-                                <Card
-                                    style={{
-                                        marginTop: 16,
-                                        width: "100%",
-                                        border: "1px solid #ccc",
-                                        marginRight: "24px",
-                                    }}
-                                    bodyStyle={{ padding: "4px 16px", border: "0px solid #ccc" }}
-                                    headStyle={{ minHeight: 44, padding: "0px 12px" }}
-                                    title={renameVariables(param.name)}
-                                >
-                                    <Row
-                                        style={{
-                                            alignItems: "center",
-                                            marginTop: 12,
-                                            marginBottom: 12,
-                                        }}
-                                    >
-                                        <Col span={4}>
-                                            <Input.TextArea
-                                                rows={1}
-                                                placeholder={"variable name"}
-                                                maxLength={200}
-                                                autoSize={false}
-                                                size="small"
-                                            />
-                                        </Col>
-                                        <Col span={4}>
-                                            <Button
-                                                type="default"
-                                                danger
-                                                style={{ margin: "0px 24px" }}
-                                            >
-                                                {" "}
-                                                Delete
-                                            </Button>
-                                        </Col>
-                                    </Row>
-                                    <Button type="default" style={{ margin: "12px 0px" }}>
-                                        + Add variable
-                                    </Button>
-                                </Card>
-                            </Row>
-                        ))}
-
-                    {optParams?.filter((param) => !param.input && param.type === "number").length >
-                        0 && (
-                            <Row
-                                gutter={0}
-                                style={{ padding: "0px 0px", width: "100%", marginTop: "16px" }}
-                            >
-                                <Card
-                                    style={{
-                                        marginTop: 16,
-                                        width: "100%",
-                                        border: "1px solid #ccc",
-                                        marginRight: "24px",
-                                    }}
-                                    bodyStyle={{
-                                        padding: "4px 16px",
-                                        margin: "16px 0px",
-                                        border: "0px solid #ccc",
-                                    }}
-                                    headStyle={{ minHeight: 44, padding: "0px 12px" }}
-                                    title="Model Parameters"
-                                >
-                                    {optParams
-                                        ?.filter(
-                                            (param) =>
-                                                !param.input &&
-                                                (param.type === "number" ||
-                                                    param.type === "integer" ||
-                                                    param.type === "array"),
-                                        )
-                                        .map((param, index) => (
-                                            <Row
-                                                key={index}
-                                                style={{
-                                                    alignItems: "center",
-                                                    marginBottom: 10,
-                                                }}
-                                            >
-                                                <Col span={6}>
-                                                    <h4
-                                                        style={{
-                                                            margin: 0,
-                                                            padding: 0,
-                                                            textAlign: "left",
-                                                        }}
-                                                    >
-                                                        {renameVariables(param.name)}
-                                                    </h4>
-                                                </Col>
-                                                <Col span={8}>
-                                                    {param.type === "number" && (
-                                                        <Slider
-                                                            min={param.minimum}
-                                                            max={param.maximum}
-                                                            value={
-                                                                typeof param.default === "number"
-                                                                    ? param.default
-                                                                    : 0
-                                                            }
-                                                            step={0.01}
-                                                            onChange={(value) => onChange(param, value)}
-                                                            style={{ marginBottom: 8 }}
-                                                        />
-                                                    )}
-                                                    {param.type === "integer" && (
-                                                        <Slider
-                                                            min={param.minimum}
-                                                            max={param.maximum}
-                                                            value={
-                                                                typeof param.default === "number"
-                                                                    ? param.default
-                                                                    : 1
-                                                            }
-                                                            step={1}
-                                                            onChange={(value) => onChange(param, value)}
-                                                            style={{ marginBottom: 8 }}
-                                                        />
-                                                    )}
-                                                    {param.type === "array" && (
-                                                        <Select
-                                                            defaultValue={param.default}
-                                                            onChange={(value) =>
-                                                                handleParamChange(param.name, value)
-                                                            }
-                                                            style={{ width: "100%" }}
-                                                        >
-                                                            {param.enum?.map(
-                                                                (value: string, index: number) => (
-                                                                    <Select.Option
-                                                                        key={index}
-                                                                        value={value}
-                                                                    >
-                                                                        {value}
-                                                                    </Select.Option>
-                                                                ),
-                                                            )}
-                                                        </Select>
-                                                    )}
-                                                </Col>
-                                                <Col>
-                                                    {param.type === "number" && (
-                                                        <InputNumber
-                                                            min={0}
-                                                            max={10000}
-                                                            style={{ margin: "0 16px", width: "100%" }}
-                                                            value={param.default}
-                                                            onChange={(value) => onChange(param, value)}
-                                                        />
-                                                    )}
-                                                    {param.type === "integer" && (
-                                                        <InputNumber
-                                                            min={param.minimum}
-                                                            max={param.maximum}
-                                                            style={{ margin: "0 16px", width: "100%" }}
-                                                            value={param.default}
-                                                            onChange={(value) => onChange(param, value)}
-                                                        />
-                                                    )}
-                                                </Col>
-                                                <Row />
-                                            </Row>
-                                        ))}
-                                </Card>
-                            </Row>
-                        )}
+                    <ModelParameters
+                        optParams={optParams}
+                        onChange={onChange}
+                        handleParamChange={handleParamChange}
+                    />
                 </div>
             ),
             showArrow: true,
@@ -351,11 +135,12 @@ const ParametersView: React.FC<Props> = ({
             {contextHolder}
             <Collapse
                 items={items}
+                defaultActiveKey={["1"]}
                 activeKey={isParamsCollapsed}
                 ghost
                 bordered={false}
                 expandIconPosition="end"
-                style={{ padding: 0, width: "100%" }}
+                style={{padding: 0, width: "100%"}}
                 onChange={onChangeCollapse}
             />
         </div>
