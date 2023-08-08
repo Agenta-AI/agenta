@@ -1,8 +1,9 @@
 import {Row, Card, Slider, Select, InputNumber, Col, Input, Button} from "antd"
-import React from "react"
+import React, {ParamHTMLAttributes} from "react"
 import {Parameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
 import {useEffect} from "react"
+import {DeleteFilled} from "@ant-design/icons"
 
 interface ModelParametersProps {
     optParams: Parameter[]
@@ -181,12 +182,33 @@ export const StringParameters: React.FC<StringParametersProps> = ({
 
 interface ObjectParametersProps {
     optParams: Parameter[]
+    handleParamChange: (name: string, value: number | string) => void
 }
 
-export const ObjectParameters: React.FC<ObjectParametersProps> = ({optParams}) => {
+export const ObjectParameters: React.FC<ObjectParametersProps> = ({
+    optParams,
+    handleParamChange,
+}) => {
     useEffect(() => {
         console.log(optParams)
     }, [optParams])
+
+    const handleAddVariable = (param: Parameter) => {
+        const updatedParams = [...param.default, {name: ""}]
+
+        handleParamChange(param.name, updatedParams)
+    }
+    const handleVariableNameChange = (param: Parameter, variableIndex: number, newName: string) => {
+        let updatedParams = [...param.default]
+        updatedParams[variableIndex].name = newName
+        handleParamChange(param.name, updatedParams)
+    }
+
+    const handleDeleteVariable = (param: Parameter, variableIndex: number) => {
+        let updatedParams = [...param.default]
+        updatedParams.splice(variableIndex, 1)
+        handleParamChange(param.name, updatedParams)
+    }
     return (
         <>
             {optParams
@@ -208,29 +230,48 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({optParams}) =
                             headStyle={{minHeight: 44, padding: "0px 12px"}}
                             title={renameVariables(param.name)}
                         >
-                            <Row
-                                style={{
-                                    alignItems: "center",
-                                    marginTop: 12,
-                                    marginBottom: 12,
-                                }}
+                            {param.default.map((val, index) => (
+                                <Row
+                                    style={{
+                                        alignItems: "center",
+                                        marginTop: 12,
+                                        marginBottom: 12,
+                                    }}
+                                >
+                                    <Col span={4}>
+                                        <Input.TextArea
+                                            rows={1}
+                                            value={val.name}
+                                            placeholder={"variable name"}
+                                            maxLength={200}
+                                            autoSize={false}
+                                            size="small"
+                                            onChange={(e) =>
+                                                handleVariableNameChange(
+                                                    param,
+                                                    index,
+                                                    e.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Col>
+                                    <Col span={4}>
+                                        <Button
+                                            type="default"
+                                            danger
+                                            style={{margin: "0px 24px"}}
+                                            onClick={() => handleDeleteVariable(param, index)}
+                                        >
+                                            Delete
+                                        </Button>
+                                    </Col>
+                                </Row>
+                            ))}
+                            <Button
+                                type="default"
+                                style={{margin: "12px 0px"}}
+                                onClick={() => handleAddVariable(param)}
                             >
-                                <Col span={4}>
-                                    <Input.TextArea
-                                        rows={1}
-                                        placeholder={"variable name"}
-                                        maxLength={200}
-                                        autoSize={false}
-                                        size="small"
-                                    />
-                                </Col>
-                                <Col span={4}>
-                                    <Button type="default" danger style={{margin: "0px 24px"}}>
-                                        Delete
-                                    </Button>
-                                </Col>
-                            </Row>
-                            <Button type="default" style={{margin: "12px 0px"}}>
                                 + Add variable
                             </Button>
                         </Card>
