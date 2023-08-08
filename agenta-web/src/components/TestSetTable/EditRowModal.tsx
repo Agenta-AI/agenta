@@ -1,9 +1,8 @@
 import {capitalize} from "@/lib/helpers/utils"
 import {AgGridReact} from "ag-grid-react"
-import {Modal} from "antd"
+import {Input, Modal} from "antd"
 import React, {forwardRef, useCallback, useImperativeHandle, useMemo, useState} from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import TextArea from "antd/es/input/TextArea"
 import useResizeObserver from "@/hooks/useResizeObserver"
 import {createUseStyles} from "react-jss"
 
@@ -25,6 +24,9 @@ const useStyles = createUseStyles({
         boxShadow: "none !important",
         background: "transparent",
         fontSize: 14,
+    },
+    gridContainer: {
+        height: "calc(100vh - 180px)",
     },
 })
 
@@ -56,7 +58,7 @@ const CellEditor = forwardRef((props: any, ref) => {
 
     return (
         <div ref={elemRef} className={classes.cellEditorContainer}>
-            <TextArea
+            <Input.TextArea
                 className={classes.textArea}
                 autoSize={{minRows: 1}}
                 autoFocus
@@ -74,6 +76,7 @@ type Props = React.ComponentProps<typeof Modal> & {
 
 const EditRowModal: React.FC<Props> = ({data, onCellValueChanged, ...props}) => {
     const {appTheme} = useAppTheme()
+    const classes = useStyles()
 
     const columnDefs = useMemo(() => {
         return Object.keys(data || {}).map((key) => ({
@@ -83,6 +86,7 @@ const EditRowModal: React.FC<Props> = ({data, onCellValueChanged, ...props}) => 
             headerName: capitalize(key),
             wrapText: true,
             autoHeight: true,
+            resizable: true,
             minWidth: 220,
             cellRenderer: CellRenderer,
             cellEditor: CellEditor,
@@ -92,8 +96,8 @@ const EditRowModal: React.FC<Props> = ({data, onCellValueChanged, ...props}) => 
 
     return (
         <Modal
-            width={600}
             title="Edit Row"
+            width="90vw"
             centered
             okButtonProps={{style: {display: "none"}}}
             cancelText="Close"
@@ -101,8 +105,9 @@ const EditRowModal: React.FC<Props> = ({data, onCellValueChanged, ...props}) => 
             open={!!data}
         >
             <div
-                style={{height: 250, maxHeight: "80vh"}}
-                className={`${appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
+                className={`${appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"} ${
+                    classes.gridContainer
+                }`}
             >
                 <AgGridReact
                     columnDefs={columnDefs}
