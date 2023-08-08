@@ -43,3 +43,11 @@ export const getOpenAIKey = (): string => {
 export const removeOpenAIKey = () => {
     localStorage.removeItem(openAItoken)
 }
+
+export const capitalize = (s: string) => {
+    if (typeof s !== "string") return ""
+    return s
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
+}
