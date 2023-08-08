@@ -16,6 +16,25 @@ class TextParam(str):
         field_schema.update({"x-parameter": "text"})
 
 
+class IntParam(int):
+    def __new__(cls, default: int = 6, minval: float = 1, maxval: float = 10):
+        instance = super().__new__(cls, default)
+        instance.minval = minval
+        instance.maxval = maxval
+        return instance
+
+    @classmethod
+    def __modify_schema__(cls, field_schema):
+        field_schema.update(
+            {
+                "x-parameter": "int",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+            }
+        )
+
+
 class FloatParam(float):
     def __new__(cls, default: float = 0.5, minval: float = 0.0, maxval: float = 1.0):
         instance = super().__new__(cls, default)
@@ -26,7 +45,12 @@ class FloatParam(float):
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update(
-            {"x-parameter": "float", "type": "number", "minimum": 0.0, "maximum": 1.0}
+            {
+                "x-parameter": "float",
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+            }
         )
 
 
