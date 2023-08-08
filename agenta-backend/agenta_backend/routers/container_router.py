@@ -17,13 +17,17 @@ async def build_image(
     """Takes a tar file and builds a docker image from it
 
     Arguments:
-        app_name -- _description_
-        variant_name -- _description_
-        tar_file -- _description_
+        app_name -- The `app_name` parameter is a string that represents the name of \
+            the application for which the docker image is being built
+        variant_name -- The `variant_name` parameter is a string that represents the \
+            name or type of the variant for which the docker image is being built.
+        tar_file -- The `tar_file` parameter is of type `UploadFile`. It represents the \
+            uploaded tar file that will be used to build the Docker image
 
     Returns:
-        _description_
+        an object of type `Image`.
     """
+    
     loop = asyncio.get_event_loop()
 
     # Create a ThreadPoolExecutor for running threads
