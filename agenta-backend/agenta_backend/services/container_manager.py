@@ -21,29 +21,32 @@ def build_image_job(
     temp_dir: Path
 ) -> Image:
     """Business logic for building a docker image from a tar file
+    
     TODO: This should be a background task
-    TODO: This should be somewhere else
-    TODO: We need to better handle the errors
-
+    
     Arguments:
-        app_name -- _description_
-        variant_name -- _description_
-        tar_path -- _description_
-        image_name -- _description_
-        temp_dir -- _description_
-
+        app_name --  The `app_name` parameter is a string that represents the name of the application
+        variant_name --  The `variant_name` parameter is a string that represents the variant of the \
+            application. It could be a specific version, configuration, or any other distinguishing \
+                factor for the application
+        tar_path --  The `tar_path` parameter is the path to the tar file that contains the source code \
+            or files needed to build the Docker image
+        image_name --  The `image_name` parameter is a string that represents the name of the Docker \
+            image that will be built. It is used as the tag for the image
+        temp_dir --  The `temp_dir` parameter is a `Path` object that represents the temporary directory
+            where the contents of the tar file will be extracted
+            
     Raises:
         HTTPException: _description_
         HTTPException: _description_
-
+        
     Returns:
-        _description_
+        an instance of the `Image` class.
     """
 
     # Extract the tar file
     shutil.unpack_archive(tar_path, temp_dir)
 
-    # Build the docker image
     try:
         image, build_log = client.images.build(
             path=str(temp_dir),
