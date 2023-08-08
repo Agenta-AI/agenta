@@ -1,5 +1,5 @@
 import {loadTestset, useLoadTestsetsList} from "@/lib/services/api"
-import {Button, Divider, Dropdown, Modal, Select} from "antd"
+import {Button, Divider, Dropdown, Modal, Select, Space} from "antd"
 import {useRouter} from "next/router"
 import {PropsWithChildren, useState} from "react"
 
@@ -72,14 +72,25 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                 <Divider style={{margin: "24px 0 0 0"}} />
             </Modal>
 
-            <Button
-                type="primary"
-                size="middle"
-                onClick={() => setIsOpen(true)}
-                loading={isTestsetsLoading}
-            >
-                Load Test sets
-            </Button>
+            <Space size={10}>
+                <Button
+                    type="primary"
+                    size="middle"
+                    onClick={() => setIsOpen(true)}
+                    loading={isTestsetsLoading}
+                >
+                    Load Test sets
+                </Button>
+                <Button
+                    type="primary"
+                    size="middle"
+                    style={{backgroundColor: "green"}}
+                    onClick={() => setIsOpen(true)}
+                    loading={isTestsetsLoading}
+                >
+                    Run all
+                </Button>
+            </Space>
         </div>
     )
 }
