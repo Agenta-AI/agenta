@@ -1,12 +1,9 @@
 import React, {useState, useRef, useEffect} from "react"
 import {AgGridReact} from "ag-grid-react"
-
-import {Button, Input, Typography, message} from "antd"
+import {createUseStyles} from "react-jss"
+import {Button, Input, Tooltip, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
-
-import "ag-grid-community/styles/ag-grid.css"
-import "ag-grid-community/styles/ag-theme-alpine.css"
-import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
+import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons"
 import {createNewTestset, loadTestset, updateTestset} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -14,9 +11,59 @@ import useBlockNavigation from "@/hooks/useBlockNavigation"
 import {useUpdateEffect} from "usehooks-ts"
 import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
+import EditRowModal from "./EditRowModal"
+
+const useStyles = createUseStyles({
+    cellContainer: {
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+        gap: 2,
+        height: "100%",
+
+        "&:hover>:nth-child(2)": {
+            display: "inline",
+        },
+    },
+    cellValue: {
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        flex: 1,
+    },
+    cellEditIcon: {
+        display: "none",
+    },
+})
 
 type testsetTableProps = {
     mode: "create" | "edit"
+}
+
+function CellRenderer(props: any) {
+    const classes = useStyles()
+    const cellValue = props.valueFormatted ? props.valueFormatted : props.value
+
+    return props.colDef.field ? (
+        <span
+            className={classes.cellContainer}
+            onClick={() =>
+                props.api.startEditingCell({
+                    rowIndex: props.node.rowIndex,
+                    colKey: props.colDef.field,
+                })
+            }
+        >
+            <span className={classes.cellValue}>{cellValue || ""}</span>
+            <span className={classes.cellEditIcon}>
+                <Tooltip title="Edit in focused mode">
+                    <EditOutlined
+                        onClick={() => props.colDef?.cellRendererParams?.onEdit(props.rowIndex)}
+                    />
+                </Tooltip>
+            </span>
+        </span>
+    ) : undefined
 }
 
 const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
@@ -55,6 +102,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const [inputValues, setInputValues] = useStateCallback(
         columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
     )
+    const [focusedRowData, setFocusedRowData] = useState<Record<string, any>>()
     const gridRef = useRef(null)
 
     useBlockNavigation(unSavedChanges, {
@@ -147,6 +195,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         flex: 1,
         minWidth: 100,
         editable: true,
+        cellRenderer: CellRenderer,
+        cellRendererParams: {
+            onEdit: (ix: number) => {
+                setFocusedRowData(rowData[ix])
+            },
+        },
     }
 
     const onAddRow = () => {
@@ -337,7 +391,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     rowData={rowData}
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
-                    singleClickEdit={true}
+                    singleClickEdit={false}
                     rowSelection={"multiple"}
                     suppressRowClickSelection={true}
                     onCellValueChanged={handleCellValueChanged}
@@ -360,6 +414,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             </div>
 
             <TestsetMusHaveNameModal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} />
+
+            <EditRowModal
+                onCancel={() => setFocusedRowData(undefined)}
+                data={focusedRowData}
+                onCellValueChanged={handleCellValueChanged}
+            />
         </div>
     )
 }
