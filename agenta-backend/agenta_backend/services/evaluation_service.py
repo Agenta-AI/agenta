@@ -50,8 +50,8 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
 
         evaluation_scenario = {
             **evaluation_scenario,
-            **add_evaluation(newEvaluationData.evaluation_type),
-            **add_correct_answer(newEvaluationData.evaluation_type, datum)
+            **extend_with_evaluation(newEvaluationData.evaluation_type),
+            **extend_with_correct_answer(newEvaluationData.evaluation_type, datum)
         }
 
         await evaluation_scenarios.insert_one(evaluation_scenario)
@@ -144,7 +144,7 @@ def evaluate_with_ai_critique(
     return output.strip()
 
 
-def add_evaluation(evaluation_type: EvaluationType):
+def extend_with_evaluation(evaluation_type: EvaluationType):
     evaluation = {}
     if (evaluation_type == EvaluationType.auto_exact_match or
             evaluation_type == EvaluationType.auto_similarity_match):
@@ -158,7 +158,7 @@ def add_evaluation(evaluation_type: EvaluationType):
     return evaluation
 
 
-def add_correct_answer(evaluation_type: EvaluationType, row: dict):
+def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     correct_answer = {}
     if (evaluation_type == EvaluationType.auto_exact_match or
             evaluation_type == EvaluationType.auto_similarity_match or
