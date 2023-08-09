@@ -36,6 +36,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             background: appTheme === "dark" ? "#141414" : "#ffffff",
                             height: "100%",
                             marginLeft: 225,
+                            minHeight: "100vh",
+                            marginBottom: "5%"
                         }}
                     >
                         <Breadcrumb
