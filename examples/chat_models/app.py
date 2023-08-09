@@ -36,11 +36,8 @@ CHAT_LLM_GPT = [
 def call_llm(model, temperature, prompt, **kwargs):
     # import ipdb
     # ipdb.set_trace()
-    if model == "text-davinci-003":
-        llm = OpenAI(model=model, temperature=temperature)
-        chain = LLMChain(llm=llm, prompt=prompt)
-        output = chain.run(**kwargs)
-    elif model in CHAT_LLM_GPT:
+
+    if model in CHAT_LLM_GPT:
         chat = ChatOpenAI(
             model=model,
             temperature=temperature,
