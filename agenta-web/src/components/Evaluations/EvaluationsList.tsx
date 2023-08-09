@@ -76,6 +76,8 @@ export default function EvaluationsList() {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/human_a_b_testing`)
         } else if (evaluationType === EvaluationType.auto_similarity_match) {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_similarity_match`)
+        } else if (evaluationType === EvaluationType.auto_ai_critique) {
+            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_ai_critique`)
         }
     }
 
