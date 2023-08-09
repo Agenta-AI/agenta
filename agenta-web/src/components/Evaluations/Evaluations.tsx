@@ -20,6 +20,11 @@ import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {Typography} from "antd"
 import EvaluationErrorModal from "./EvaluationErrorModal"
+import Image from 'next/image'
+import abTesting from '@/media/testing.png';
+import exactMatch from '@/media/target.png';
+import similarity from '@/media/transparency.png';
+import ai from '@/media/artificial-intelligence.png';
 
 export default function Evaluations() {
     const {Text, Title} = Typography
@@ -54,11 +59,15 @@ export default function Evaluations() {
 
     const [evaluationError, setEvaluationError] = useState("")
 
+    const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
+
     useEffect(() => {
         if (variants.length > 0) {
             const fetchAndSetSchema = async () => {
                 try {
-                    const {inputParams} = await getVariantParameters(appName, variants[0])
+                    const {initOptParams, inputParams} = await getVariantParameters(appName, variants[0])
+
+                    setLLMAppPromptTemplate(initOptParams.filter((param: Parameter) => param.name === "prompt_template")[0].default)
                     setVariantInputs(inputParams.map((inputParam: Parameter) => inputParam.name))
                 } catch (e) {
                     setIsError("Failed to fetch variants parameters")
@@ -98,6 +107,7 @@ export default function Evaluations() {
         evaluationType: string,
         evaluationTypeSettings: any,
         inputs: string[],
+        llmAppPromptTemplate?: string,
     ) => {
         const postData = async (url = "", data = {}) => {
             const response = await fetch(url, {
@@ -125,6 +135,7 @@ export default function Evaluations() {
             inputs: inputs,
             evaluation_type: evaluationType,
             evaluation_type_settings: evaluationTypeSettings,
+            llm_app_prompt_template: llmAppPromptTemplate,
             testset: {
                 _id: selectedTestset._id,
                 name: selectedTestset.name,
@@ -229,6 +240,7 @@ export default function Evaluations() {
             EvaluationType[selectedEvaluationType],
             evaluationTypeSettings,
             variantInputs,
+            llmAppPromptTemplate,
         )
         if (!evaluationTableId) {
             return
@@ -243,6 +255,8 @@ export default function Evaluations() {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/human_a_b_testing`)
         } else if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/similarity_match`)
+        } else if (selectedEvaluationType === EvaluationType.auto_ai_critique) {
+            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_ai_critique`)
         }
     }
 
@@ -288,14 +302,28 @@ export default function Evaluations() {
                         <Title level={5}>Human evaluation</Title>
                         <Radio.Group
                             onChange={(e) => onChangeEvaluationType(e)}
-                            style={{width: "100%"}}
+                            style={{width: "100%", }}
+                            size="large"
                         >
-                            <Radio.Button
-                                value={EvaluationType.human_a_b_testing}
-                                style={{display: "block", marginBottom: "10px"}}
-                            >
-                                {EvaluationTypeLabels[EvaluationType.human_a_b_testing]}
-                            </Radio.Button>
+
+                                <Radio.Button
+                                    value={EvaluationType.human_a_b_testing}
+                                    style={{ marginBottom: "10px", width: "100%"}}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <Image
+                                            src={abTesting}
+                                            width={34}
+                                            height={34}
+                                            alt="Picture of the author"
+                                            style={{ marginRight: "8px" }}  // Add some space between image and text
+                                        />
+
+                                        <span>{EvaluationTypeLabels[EvaluationType.human_a_b_testing]}</span>
+                                    </div>
+                                </Radio.Button>
+
+
                             <Radio.Button
                                 value={EvaluationType.human_scoring}
                                 disabled
@@ -313,13 +341,33 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_exact_match}
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                {EvaluationTypeLabels[EvaluationType.auto_exact_match]}
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <Image
+                                            src={exactMatch}
+                                            width={34}
+                                            height={34}
+                                            alt="Picture of the author"
+                                            style={{ marginRight: "8px" }}  // Add some space between image and text
+                                        />
+
+                                        <span>{EvaluationTypeLabels[EvaluationType.auto_exact_match]}</span>
+                                    </div>
                             </Radio.Button>
                             <Radio.Button
                                 value={EvaluationType.auto_similarity_match}
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                {EvaluationTypeLabels[EvaluationType.auto_similarity_match]}
+                                                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <Image
+                                            src={similarity}
+                                            width={34}
+                                            height={34}
+                                            alt="Picture of the author"
+                                            style={{ marginRight: "8px" }}  // Add some space between image and text
+                                        />
+
+                                        <span>{EvaluationTypeLabels[EvaluationType.auto_similarity_match]}</span>
+                                    </div>
                             </Radio.Button>
                             {selectedEvaluationType === EvaluationType.auto_similarity_match && (
                                 <div style={{paddingLeft: 10, paddingRight: 10}}>
@@ -335,13 +383,19 @@ export default function Evaluations() {
                             )}
                             <Radio.Button
                                 value={EvaluationType.auto_ai_critique}
-                                disabled
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                {EvaluationTypeLabels[EvaluationType.auto_ai_critique]}
-                                <Tag color="orange" bordered={false}>
-                                    soon
-                                </Tag>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <Image
+                                            src={ai}
+                                            width={34}
+                                            height={34}
+                                            alt="Picture of the author"
+                                            style={{ marginRight: "8px" }}  // Add some space between image and text
+                                        />
+
+                                        <span>{EvaluationTypeLabels[EvaluationType.auto_ai_critique]}</span>
+                                    </div>
                             </Radio.Button>
                         </Radio.Group>
                     </Col>
