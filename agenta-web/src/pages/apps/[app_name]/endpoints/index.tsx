@@ -88,7 +88,6 @@ export default function VariantEndpoint() {
 
     const handleVariantChange = (variantName: string) => {
         const selectedVariant = variants.find((variant) => variant.variantName === variantName)
-        console.log(selectedVariant)
         if (selectedVariant) {
             setVariant(selectedVariant)
         }

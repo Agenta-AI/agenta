@@ -36,7 +36,6 @@ const ParametersView: React.FC<Props> = ({
     const onChange = (param: Parameter, newValue: number) => {
         setInputValue(newValue)
         handleParamChange(param.name, newValue)
-        console.log(optParams)
     }
     const handleParamChange = (name: string, newVal: any) => {
         const newOptParams = optParams?.map((param) =>
@@ -69,14 +68,6 @@ const ParametersView: React.FC<Props> = ({
                                 <Button
                                     type="primary"
                                     onClick={async () => {
-                                        console.log(
-                                            "Calling onOptParamsChange with optParams: ",
-                                            optParams,
-                                            " and isPersistent: ",
-                                            true,
-                                            " and isPersistent: ",
-                                            isPersistent,
-                                        )
                                         await onOptParamsChange(optParams!, true, isPersistent)
                                         success()
                                     }}
