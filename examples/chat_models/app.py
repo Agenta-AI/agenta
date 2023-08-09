@@ -34,9 +34,6 @@ CHAT_LLM_GPT = [
 
 
 def call_llm(model, temperature, prompt, **kwargs):
-    # import ipdb
-    # ipdb.set_trace()
-
     if model in CHAT_LLM_GPT:
         chat = ChatOpenAI(
             model=model,
