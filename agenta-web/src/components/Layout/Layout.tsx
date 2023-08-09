@@ -1,11 +1,7 @@
 import React from "react"
 import {Breadcrumb, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
-import {
-    GithubFilled,
-    LinkedinFilled,
-    TwitterOutlined,
-} from "@ant-design/icons"
+import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
