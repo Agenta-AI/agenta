@@ -8,6 +8,7 @@ from langchain.schema import (
     HumanMessage,
 )
 import openai
+import replicate
 
 prompts = {
     "chat": {
@@ -22,7 +23,7 @@ REMOVE ALL NEWLINE CHARACTER, LINE BREAK, ENDOF LINE (EOL) OR "\n",""",
 }
 
 # ChatGpt 3.5 models
-gpt3_5 = [
+CHAT_LLM_GPT = [
     "gpt-3.5-turbo-16k-0613",
     "gpt-3.5-turbo-16k",
     "gpt-3.5-turbo-0613",
@@ -39,7 +40,7 @@ def call_llm(model, temperature, prompt, **kwargs):
         llm = OpenAI(model=model, temperature=temperature)
         chain = LLMChain(llm=llm, prompt=prompt)
         output = chain.run(**kwargs)
-    elif model in gpt3_5:
+    elif model in CHAT_LLM_GPT:
         chat = ChatOpenAI(
             model=model,
             temperature=temperature,
@@ -55,7 +56,19 @@ def call_llm(model, temperature, prompt, **kwargs):
         output = chat(
             messages,
         ).content
-    return output
+
+    # replicate
+    if model == "replicate":
+        output = replicate.run(
+            "a16z-infra/llama-2-7b-chat:4f0b260b6a13eb53a6b1891f089d57c08f41003ae79458be5011303d81a394dc",
+            input={"prompt": prompt.format(text=kwargs["text"])},
+            max_new_tokens=kwargs["maximum_length"],
+            temperature=temperature,
+            top_p=kwargs["top_p"],
+            repetition_penalty=kwargs["frequence_penalty"],
+        )
+
+    return "".join(list(output))
 
 
 @ag.post
@@ -65,7 +78,7 @@ def generate(
     temperature: ag.FloatParam = 0.9,
     model: MultipleChoiceParam = MultipleChoiceParam(
         "gpt-3.5-turbo",
-        gpt3_5,
+        CHAT_LLM_GPT + ["replicate"],
     ),
     # Min 1000, Max 4000
     maximum_length: ag.FloatParam = 3000,
