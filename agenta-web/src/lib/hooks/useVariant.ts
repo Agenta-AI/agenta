@@ -5,6 +5,7 @@ import {
     updateVariantParams,
 } from "@/lib/services/api"
 import {Variant, Parameter} from "@/lib/Types"
+import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 
 /**
  * Hook for using the variant.
@@ -27,32 +28,15 @@ export function useVariant(appName: string, variant: Variant) {
             setIsLoading(true)
             setIsError(false)
             try {
-                // get the parameters of the variant by parsing the openapi.json
-                const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(
+                const {parameters, inputs, URIPath} = await getAllVariantParameters(
                     appName,
                     variant,
                 )
-
-                if (variant.parameters) {
-                    const updatedInitOptParams = initOptParams.map((param) => {
-                        return variant.parameters && variant.parameters.hasOwnProperty(param.name)
-                            ? {...param, default: variant.parameters[param.name]}
-                            : param
-                    })
-                    setOptParams(updatedInitOptParams)
-                } else {
-                    setOptParams(initOptParams)
-                }
-
-                setInputParams(inputParams)
-
-                setURIPath(
-                    `${appName}/${
-                        variant.templateVariantName
-                            ? variant.templateVariantName
-                            : variant.variantName
-                    }`,
-                )
+                setOptParams(parameters)
+                setInputParams(inputs)
+                setURIPath(URIPath)
+                // console.log("useEffect", parameters, inputs, URIPath)
+                // console.log("useEffect", optParams, inputParams, URIPath)
             } catch (error: any) {
                 setIsError(true)
                 setError(error)
@@ -64,44 +48,9 @@ export function useVariant(appName: string, variant: Variant) {
         fetchParameters()
     }, [appName, variant])
 
-    const extractDefaultStrings = (params: Parameter[]): string[] => {
-        return params
-            .filter((param) => param.type === "object" && param.default)
-            .flatMap((param) => param.default)
-    }
-    const stringsToParameters = (strings: string[]): Parameter[] => {
-        return strings.map((value) => ({
-            name: value.name,
-            type: "string",
-            input: false,
-            required: false,
-        }))
-    }
-    const generateInputParams = (
-        optParams: Parameter[],
-        currentInputParams: Parameter[],
-    ): Parameter[] => {
-        // Extract combined list of strings
-        const defaultStrings = extractDefaultStrings(optParams)
-        console.log("defaultStrings:", defaultStrings)
-        // Convert them to Parameters
-        const newParams = stringsToParameters(defaultStrings)
-        console.log("newParams:", newParams)
-
-        // Filter out the existing inputParams which have input=true
-        const existingParams = currentInputParams.filter((param) => param.input)
-
-        return [...existingParams, ...newParams]
-    }
-
     useEffect(() => {
-        if (optParams) {
-            const updatedInputParams = generateInputParams(optParams, inputParams || [])
-            setInputParams(updatedInputParams)
-        } else {
-            let newParams = [...(inputParams || [])]
-            setInputParams(newParams)
-        }
+        const updatedInputParams = updateInputParams(optParams, inputParams || [])
+        setInputParams(updatedInputParams)
     }, [optParams])
 
     /**

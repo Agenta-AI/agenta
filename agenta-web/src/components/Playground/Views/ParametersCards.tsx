@@ -1,9 +1,8 @@
 import {Row, Card, Slider, Select, InputNumber, Col, Input, Button} from "antd"
 import React, {ParamHTMLAttributes} from "react"
-import {Parameter} from "@/lib/Types"
+import {Parameter, InputParameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
 import {useEffect} from "react"
-import {DeleteFilled} from "@ant-design/icons"
 
 interface ModelParametersProps {
     optParams: Parameter[]
@@ -194,18 +193,18 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
     }, [optParams])
 
     const handleAddVariable = (param: Parameter) => {
-        const updatedParams = [...param.default, {name: ""}]
+        const updatedParams: InputParameter[] = [...param.default, {name: ""}]
 
         handleParamChange(param.name, updatedParams)
     }
     const handleVariableNameChange = (param: Parameter, variableIndex: number, newName: string) => {
-        let updatedParams = [...param.default]
+        let updatedParams: InputParameter[] = [...param.default]
         updatedParams[variableIndex].name = newName
         handleParamChange(param.name, updatedParams)
     }
 
     const handleDeleteVariable = (param: Parameter, variableIndex: number) => {
-        let updatedParams = [...param.default]
+        let updatedParams: InputParameter[] = [...param.default]
         updatedParams.splice(variableIndex, 1)
         handleParamChange(param.name, updatedParams)
     }
