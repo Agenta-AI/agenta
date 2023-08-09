@@ -21,6 +21,7 @@ class Evaluation(BaseModel):
     status: str
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
+    llm_app_prompt_template: Optional[str]
     variants: Optional[List[str]]
     app_name: str
     testset: Dict[str, str] = Field(...)
@@ -52,6 +53,8 @@ class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
     score: Optional[str]
     outputs: List[EvaluationScenarioOutput]
+    evaluation_prompt_template: Optional[str]
+    open_ai_key: Optional[str]
 
 
 class NewEvaluation(BaseModel):
@@ -62,6 +65,7 @@ class NewEvaluation(BaseModel):
     inputs: List[str]
     testset: Dict[str, str] = Field(...)
     status: str = Field(...)
+    llm_app_prompt_template: Optional[str]
 
 
 class DeleteEvaluation(BaseModel):

@@ -66,6 +66,7 @@ export interface EvaluationResponseType {
     evaluation_type_settings: {
         similarity_threshold?: number
     }
+    llm_app_prompt_template?: string
     testset: {
         _id: string
         name: string
