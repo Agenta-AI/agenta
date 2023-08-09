@@ -1,9 +1,12 @@
 import uuid
 import asyncio
+from typing import List
 from pathlib import Path
-from fastapi import UploadFile, APIRouter
+from fastapi.responses import JSONResponse
 from concurrent.futures import ThreadPoolExecutor
-from agenta_backend.models.api.api_models import Image
+from fastapi import UploadFile, APIRouter, HTTPException
+from agenta_backend.services.db_manager import get_templates
+from agenta_backend.models.api.api_models import Image, Template
 from agenta_backend.services.container_manager import build_image_job
 
 
@@ -11,7 +14,9 @@ router = APIRouter()
 
 
 @router.post("/build_image/")
-async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) -> Image:
+async def build_image(
+    app_name: str, variant_name: str, tar_file: UploadFile
+) -> Image:
     """Takes a tar file and builds a docker image from it
 
     Arguments:
@@ -40,7 +45,9 @@ async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) ->
     with tar_path.open("wb") as buffer:
         buffer.write(await tar_file.read())
 
-    image_name = f"agenta-server/{app_name.lower()}_{variant_name.lower()}:latest"
+    image_name = (
+        f"agenta-server/{app_name.lower()}_{variant_name.lower()}:latest"
+    )
 
     # Use the thread pool to run the build_image_job function in a separate thread
     future = loop.run_in_executor(
@@ -52,3 +59,14 @@ async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) ->
     # Return immediately while the image build is in progress
     image_result = await asyncio.wrap_future(future)
     return image_result
+
+
+@router.get("/templates/")
+async def container_templates() -> List[Template]:
+    """Returns a list of container templates.
+    
+    Returns:
+        a list of `Template` objects.
+    """
+    templates = get_templates()
+    return templates
