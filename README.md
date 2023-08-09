@@ -1,10 +1,29 @@
-![37 copy](https://github.com/Agenta-AI/agenta/assets/4510758/762d4838-f56f-4773-94a7-38ae417ca439)
+<div align="center" style="margin: 30px;">
+<a href="https://agenta.ai/">
+  <img src="https://github.com/Agenta-AI/agenta/assets/4510758/762d4838-f56f-4773-94a7-38ae417ca439"   style="width:550px;" align="center" />
+</a>
+  <br />
+<br />
+<div align="center">
+    <a href="https://agenta.ai">Home Page</a> |
+    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a> |
+    <a href="https://docs.agenta.ai/">Documentation</a>
+</div>
+  </div>
+<br />
 
+<div align="center"><strong>Quickly iterate, debug, and evaluate your LLM apps</strong><br>The open-source LLMOps platform for prompt-engineering, evaluation and deployment.
+    </div>
+
+<br />
+<br />
 <p align="center">
   <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
+  <img src="https://img.shields.io/github/commit-activity/m/agenta-ai/agenta" alt="Commits per month">
 </br>
 </p>
+
 
 <p align="center">
 <a  href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
