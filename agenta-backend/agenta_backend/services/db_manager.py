@@ -1,12 +1,18 @@
 import os
 from typing import Dict, List, Optional, Any
 
-from agenta_backend.models.api.api_models import App, AppVariant, Image
+from agenta_backend.models.api.api_models import (
+    App,
+    AppVariant,
+    Image,
+    Template,
+)
 from agenta_backend.models.converters import (
     app_variant_db_to_pydantic,
     image_db_to_pydantic,
+    templates_db_to_pydantic
 )
-from agenta_backend.models.db_models import AppVariantDB, ImageDB
+from agenta_backend.models.db_models import AppVariantDB, ImageDB, TemplateDB
 from agenta_backend.services import helpers
 from sqlmodel import Session, SQLModel, create_engine, func, and_
 import logging
@@ -31,6 +37,28 @@ def get_session():
         yield session
 
 
+def get_templates() -> List[Template]:
+    with Session(engine) as session:
+        templates = session.query(TemplateDB).all()
+    return templates_db_to_pydantic(templates)
+
+
+def add_template(**kwargs: dict):
+    with Session(engine) as session:
+        existing_template = (
+            session.query(TemplateDB)
+            .filter_by(template_id=kwargs["template_id"])
+            .first()
+        )
+        if existing_template:
+            pass
+        else:
+            db_template = TemplateDB(**kwargs)
+            session.add(db_template)
+            session.commit()
+            session.refresh(db_template)
+
+
 def add_variant_based_on_image(app_variant: AppVariant, image: Image):
     """Adds an app variant based on an image. This the functionality called by the cli.
     Currently we are not using the parameters field, but it is there for future use.
@@ -53,7 +81,9 @@ def add_variant_based_on_image(app_variant: AppVariant, image: Image):
     ):
         raise ValueError("App variant or image is None")
     if app_variant.parameters is not None:
-        raise ValueError("Parameters are not supported when adding based on image")
+        raise ValueError(
+            "Parameters are not supported when adding based on image"
+        )
     already_exists = any(
         [
             av
@@ -71,14 +101,18 @@ def add_variant_based_on_image(app_variant: AppVariant, image: Image):
         session.commit()
         session.refresh(db_image)
         # Add app variant and link it to the app variant
-        db_app_variant = AppVariantDB(image_id=db_image.id, **app_variant.dict())
+        db_app_variant = AppVariantDB(
+            image_id=db_image.id, **app_variant.dict()
+        )
         session.add(db_app_variant)
         session.commit()
         session.refresh(db_app_variant)
 
 
 def add_variant_based_on_previous(
-    previous_app_variant: AppVariant, new_variant_name: str, parameters: Dict[str, Any]
+    previous_app_variant: AppVariant,
+    new_variant_name: str,
+    parameters: Dict[str, Any],
 ):
     """Adds a new variant from a previous/template one by changing the parameters.
 
@@ -107,7 +141,10 @@ def add_variant_based_on_previous(
             session.query(AppVariantDB)
             .filter(
                 (AppVariantDB.app_name == previous_app_variant.app_name)
-                & (AppVariantDB.variant_name == previous_app_variant.variant_name)
+                & (
+                    AppVariantDB.variant_name
+                    == previous_app_variant.variant_name
+                )
             )
             .first()
         )
@@ -146,7 +183,7 @@ def add_variant_based_on_previous(
 
 def list_app_variants(
     app_name: str = None, show_soft_deleted=False
-) -> List[AppVariant]:
+) -> List[Template]:
     """
     Lists all the app variants from the db
     Args:
@@ -269,13 +306,18 @@ def remove_image(image: Image):
     Arguments:
         image -- Image to remove
     """
-    if image is None or image.docker_id in [None, ""] or image.tags in [None, ""]:
+    if (
+        image is None
+        or image.docker_id in [None, ""]
+        or image.tags in [None, ""]
+    ):
         raise ValueError("Image is None")
     with Session(engine) as session:
         image_db = (
             session.query(ImageDB)
             .filter(
-                (ImageDB.docker_id == image.docker_id) & (ImageDB.tags == image.tags)
+                (ImageDB.docker_id == image.docker_id)
+                & (ImageDB.tags == image.tags)
             )
             .first()
         )
@@ -350,7 +392,9 @@ def clean_soft_deleted_variants():
     with Session(engine) as session:
         # Get all soft-deleted app variants
         soft_deleted_variants: List[AppVariantDB] = (
-            session.query(AppVariantDB).filter(AppVariantDB.is_deleted == True).all()
+            session.query(AppVariantDB)
+            .filter(AppVariantDB.is_deleted == True)
+            .all()
         )
 
         for variant in soft_deleted_variants:
@@ -371,7 +415,9 @@ def clean_soft_deleted_variants():
         session.commit()
 
 
-def update_variant_parameters(app_variant: AppVariant, parameters: Dict[str, Any]):
+def update_variant_parameters(
+    app_variant: AppVariant, parameters: Dict[str, Any]
+):
     """Updates the parameters of a specific variant
 
     Arguments:
