@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 
@@ -12,6 +13,21 @@ class AppVariant(BaseModel):
 class Image(BaseModel):
     docker_id: str
     tags: str
+    
+
+class TemplateImageInfo(BaseModel):
+    name: str
+    size: int
+    digest: str
+    status: str
+    last_pushed: datetime
+    repo_name: str
+    media_type: str
+    
+    
+class Template(BaseModel):
+    id: int
+    image: TemplateImageInfo
 
 
 class URI(BaseModel):
