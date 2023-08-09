@@ -1,3 +1,6 @@
 docker_registry_url="registry:5001"
 registry="agenta-server"
 database_url="sqlite:////db/deploy.db"
+docker_hub_url="https://hub.docker.com/v2/repositories/{}/{}/tags"
+docker_hub_repo_owner="agentaai"
+docker_hub_repo_name="templates"
