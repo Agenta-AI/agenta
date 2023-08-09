@@ -11,9 +11,7 @@ router = APIRouter()
 
 
 @router.post("/build_image/")
-async def build_image(
-    app_name: str, variant_name: str, tar_file: UploadFile
-) -> Image:
+async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) -> Image:
     """Takes a tar file and builds a docker image from it
 
     Arguments:
@@ -27,7 +25,7 @@ async def build_image(
     Returns:
         an object of type `Image`.
     """
-    
+
     loop = asyncio.get_event_loop()
 
     # Create a ThreadPoolExecutor for running threads
@@ -42,9 +40,7 @@ async def build_image(
     with tar_path.open("wb") as buffer:
         buffer.write(await tar_file.read())
 
-    image_name = (
-        f"agenta-server/{app_name.lower()}_{variant_name.lower()}:latest"
-    )
+    image_name = f"agenta-server/{app_name.lower()}_{variant_name.lower()}:latest"
 
     # Use the thread pool to run the build_image_job function in a separate thread
     future = loop.run_in_executor(
