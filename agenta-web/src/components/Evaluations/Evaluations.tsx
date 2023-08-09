@@ -13,6 +13,7 @@ import {
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
 import {fetchVariants, getVariantParameters, useLoadTestsetsList} from "@/lib/services/api"
+import {getOpenAIKey} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter} from "@/lib/Types"
 import EvaluationsList from "./EvaluationsList"
@@ -20,6 +21,7 @@ import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {Typography} from "antd"
 import EvaluationErrorModal from "./EvaluationErrorModal"
+
 import Image from 'next/image'
 import abTesting from '@/media/testing.png';
 import exactMatch from '@/media/target.png';
@@ -227,6 +229,9 @@ export default function Evaluations() {
             return
         } else if (selectedTestset?.name === "Select a Test set") {
             message.error("Please select a testset")
+            return
+        } else if (getOpenAIKey() === "") {
+            message.error("In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.")
             return
         }
 
