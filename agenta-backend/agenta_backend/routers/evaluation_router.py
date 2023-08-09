@@ -48,9 +48,14 @@ async def create_evaluation(
                 ]
             except KeyError:
                 await evaluations.delete_one({"_id": newEvaluation.inserted_id})
+                msg = f"""
+                Columns in the test set should match the names of the inputs in the variant.
+                Inputs names in variant are: {evaluation['inputs']} while
+                columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
+                """
                 raise HTTPException(
                     status_code=400,
-                    detail="columns in the test set should match the names of the inputs in the variant",
+                    detail=msg,
                 )
             evaluation_scenario = {
                 "evaluation_id": str(newEvaluation.inserted_id),
