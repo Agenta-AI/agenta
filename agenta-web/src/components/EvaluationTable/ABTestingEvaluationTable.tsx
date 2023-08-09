@@ -12,10 +12,10 @@ import {fetchVariants} from "@/lib/services/api"
 interface EvaluationTableProps {
     evaluation: any
     columnsCount: number
-    evaluationScenarios: EvaluationTableRow[]
+    evaluationScenarios: ABTestingEvaluationTableRow[]
 }
 
-interface EvaluationTableRow {
+interface ABTestingEvaluationTableRow {
     id?: string
     inputs: {
         input_name: string
@@ -38,7 +38,7 @@ interface EvaluationTableRow {
  * @returns
  */
 
-const EvaluationTable: React.FC<EvaluationTableProps> = ({
+const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
     columnsCount,
@@ -61,7 +61,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
         }
     })
 
-    const [rows, setRows] = useState<EvaluationTableRow[]>([])
+    const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -147,13 +147,13 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
         })
     }
 
-    const setRowValue = (rowIndex: number, columnKey: keyof EvaluationTableRow, value: any) => {
+    const setRowValue = (rowIndex: number, columnKey: keyof ABTestingEvaluationTableRow, value: any) => {
         const newRows = [...rows]
         newRows[rowIndex][columnKey] = value as never
         setRows(newRows)
     }
 
-    const dynamicColumns: ColumnType<EvaluationTableRow>[] = Array.from(
+    const dynamicColumns: ColumnType<ABTestingEvaluationTableRow>[] = Array.from(
         {length: columnsCount},
         (_, i) => {
             const columnKey = `columnData${i}`
@@ -177,7 +177,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
                 dataIndex: columnKey,
                 key: columnKey,
                 width: "20%",
-                render: (text: any, record: EvaluationTableRow, rowIndex: number) => {
+                render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
                             (output: any) => output.variant_name === variants[i].variantName,
@@ -215,7 +215,7 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
                 </div>
             ),
             dataIndex: "inputs",
-            render: (text: any, record: EvaluationTableRow, rowIndex: number) => (
+            render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => (
                 <div>
                     {record &&
                         record.inputs &&
@@ -313,4 +313,4 @@ const EvaluationTable: React.FC<EvaluationTableProps> = ({
     )
 }
 
-export default EvaluationTable
+export default ABTestingEvaluationTable
