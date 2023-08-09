@@ -59,6 +59,7 @@ def call_llm(model, temperature, prompt, **kwargs):
 
     # replicate
     if model == "replicate":
+        print("\n\n Input", prompt.format(text=kwargs["text"]))
         output = replicate.run(
             "a16z-infra/llama-2-7b-chat:4f0b260b6a13eb53a6b1891f089d57c08f41003ae79458be5011303d81a394dc",
             input={"prompt": prompt.format(text=kwargs["text"])},
