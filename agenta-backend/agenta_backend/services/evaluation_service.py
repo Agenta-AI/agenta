@@ -90,7 +90,7 @@ async def update_evaluation_scenario_service(
             app_variant_output=new_evaluation_set["outputs"][0]["variant_output"],
             evaluation_prompt_template=evaluation_scenario_dict["evaluation_prompt_template"],
             open_ai_key=evaluation_scenario_dict["open_ai_key"],
-            )
+        )
 
         new_evaluation_set["evaluation"] = evaluation
 
@@ -147,8 +147,7 @@ def evaluate_with_ai_critique(
 def add_evaluation(evaluation_type: EvaluationType):
     evaluation = {}
     if (evaluation_type == EvaluationType.auto_exact_match or
-            evaluation_type == EvaluationType.auto_similarity_match or
-            evaluation_type == EvaluationType.auto_ai_critique):
+            evaluation_type == EvaluationType.auto_similarity_match):
         evaluation["score"] = ""
 
     if evaluation_type == EvaluationType.human_a_b_testing:
