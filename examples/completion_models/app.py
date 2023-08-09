@@ -83,7 +83,7 @@ def generate(
         CHAT_LLM_GPT + ["replicate"],
     ),
     # Min 1000, Max 4000
-    maximum_length: ag.FloatParam = 3000,
+    maximum_length: ag.IntParam = 3000,
     stop_sequence: ag.TextParam = "\n",
     top_p: ag.FloatParam = 0.9,
     frequence_penalty: ag.FloatParam = 0.0,
