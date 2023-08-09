@@ -1,5 +1,7 @@
 import React, {useState, useRef, useEffect} from "react"
 import {AgGridReact} from "ag-grid-react"
+import "ag-grid-community/styles/ag-grid.css"
+import "ag-grid-community/styles/ag-theme-alpine.css"
 import {createUseStyles} from "react-jss"
 import {Button, Input, Tooltip, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
@@ -104,6 +106,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     )
     const [focusedRowData, setFocusedRowData] = useState<Record<string, any>>()
     const gridRef = useRef(null)
+
+    const [selectedRow, setSelectedRow] = useState([])
+
+    const onRowSelected = () => {
+        setSelectedRow(gridRef?.current?.getSelectedNodes())
+    }
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -397,6 +405,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     suppressRowClickSelection={true}
                     onCellValueChanged={handleCellValueChanged}
                     stopEditingWhenCellsLoseFocus={true}
+                    onRowSelected={onRowSelected}
                 />
             </div>
             <div
@@ -408,8 +417,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             >
                 <div>
                     <Button onClick={onAddRow}>Add Row</Button>
-                    <Button onClick={onDeleteRow} style={{marginLeft: 10}}>
-                        Delete Row
+                    <Button
+                        onClick={onDeleteRow}
+                        style={{marginLeft: 10}}
+                        disabled={selectedRow.length < 1}
+                    >
+                        Delete Row{selectedRow.length > 1 ? "s" : null}
                     </Button>
                 </div>
             </div>
