@@ -28,10 +28,8 @@ export const updateInputParams = (
     const additionalInputs: InputParameter[] = optParams
         .filter((param) => param.type === "object" && param.default)
         .flatMap((param) => param.default)
-    console.log("additionalInputs:", additionalInputs)
     // Convert them to InputParameters
     const newParams = inputParamsToParameters(additionalInputs)
-    console.log("newParams:", newParams)
 
     // Filter out the existing inputParams which have input=true
     const existingParams = currentInputParams.filter((param) => param.input)
@@ -51,7 +49,6 @@ export const getAllVariantParameters = async (appName: string, variant: Variant)
     let parameters: Parameter[] = []
     let inputs: Parameter[] = []
     const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(appName, variant)
-    // console.log("GetAllVariantParameters:", "initOptParams:", initOptParams, "inputParams:", inputParams)
     if (variant.parameters) {
         const updatedInitOptParams = initOptParams.map((param) => {
             return variant.parameters && variant.parameters.hasOwnProperty(param.name)
@@ -66,6 +63,5 @@ export const getAllVariantParameters = async (appName: string, variant: Variant)
     const URIPath = `${appName}/${
         variant.templateVariantName ? variant.templateVariantName : variant.variantName
     }`
-    // console.log("GetAllVariantParameters:", "parameters:", parameters, "inputs:", inputs, "URIPath:", URIPath)
     return {parameters, inputs, URIPath}
 }

@@ -61,7 +61,6 @@ export function callVariant(
         // If parameter definition is found and its 'input' property is false,
         // then it goes to 'secondaryInputParams', otherwise to 'mainInputParams'
         if (paramDefinition && !paramDefinition.input) {
-            console.log("key", key, inputParametersDict[key])
             secondaryInputParams[key] = inputParametersDict[key]
         } else {
             mainInputParams[key] = inputParametersDict[key]
@@ -147,11 +146,6 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
         app_name: appName,
         variant_name: variant.templateVariantName,
     }
-    console.log(
-        parameters.reduce((acc, param) => {
-            return {...acc, [param.name]: param.default}
-        }, {}),
-    )
     try {
         const response = await axios.post(
             `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_previous/`,
@@ -165,7 +159,6 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
         )
 
         // You can use the response here if needed
-        console.log(response.data)
     } catch (error) {
         console.error(error)
         // Handle error here

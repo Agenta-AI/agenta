@@ -35,8 +35,6 @@ export function useVariant(appName: string, variant: Variant) {
                 setOptParams(parameters)
                 setInputParams(inputs)
                 setURIPath(URIPath)
-                // console.log("useEffect", parameters, inputs, URIPath)
-                // console.log("useEffect", optParams, inputParams, URIPath)
             } catch (error: any) {
                 setIsError(true)
                 setError(error)
@@ -63,7 +61,6 @@ export function useVariant(appName: string, variant: Variant) {
         persist: boolean,
         updateVariant: boolean,
     ) => {
-        console.log(updatedOptParams)
         setIsParamSaveLoading(true)
         setIsError(false)
         try {

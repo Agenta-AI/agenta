@@ -240,7 +240,6 @@ export default function Evaluations() {
         if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
             evaluationTypeSettings["similarity_threshold"] = sliderValue
         }
-        console.log("variantsinputs", variantsInputs)
         const evaluationTableId = await createNewEvaluation(
             EvaluationType[selectedEvaluationType],
             evaluationTypeSettings,
