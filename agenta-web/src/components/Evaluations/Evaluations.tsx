@@ -303,25 +303,24 @@ export default function Evaluations() {
                         <Radio.Group
                             onChange={(e) => onChangeEvaluationType(e)}
                             style={{width: "100%", }}
-                            size="large"
                         >
 
-                                <Radio.Button
-                                    value={EvaluationType.human_a_b_testing}
-                                    style={{ marginBottom: "10px", width: "100%"}}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                                        <Image
-                                            src={abTesting}
-                                            width={34}
-                                            height={34}
-                                            alt="Picture of the author"
-                                            style={{ marginRight: "8px" }}  // Add some space between image and text
-                                        />
+                            <Radio.Button
+                                value={EvaluationType.human_a_b_testing}
+                                style={{display: "block", marginBottom: "10px"}}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <Image
+                                        src={abTesting}
+                                        width={24}
+                                        height={24}
+                                        alt="Picture of the author"
+                                        style={{ marginRight: "8px" }}
+                                    />
 
-                                        <span>{EvaluationTypeLabels[EvaluationType.human_a_b_testing]}</span>
-                                    </div>
-                                </Radio.Button>
+                                    <span>{EvaluationTypeLabels[EvaluationType.human_a_b_testing]}</span>
+                                </div>
+                            </Radio.Button>
 
 
                             <Radio.Button
@@ -341,33 +340,33 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_exact_match}
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                                        <Image
-                                            src={exactMatch}
-                                            width={34}
-                                            height={34}
-                                            alt="Picture of the author"
-                                            style={{ marginRight: "8px" }}  // Add some space between image and text
-                                        />
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <Image
+                                        src={exactMatch}
+                                        width={24}
+                                        height={24}
+                                        alt="Picture of the author"
+                                        style={{ marginRight: "8px" }}
+                                    />
 
-                                        <span>{EvaluationTypeLabels[EvaluationType.auto_exact_match]}</span>
-                                    </div>
+                                    <span>{EvaluationTypeLabels[EvaluationType.auto_exact_match]}</span>
+                                </div>
                             </Radio.Button>
                             <Radio.Button
                                 value={EvaluationType.auto_similarity_match}
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                                                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                                        <Image
-                                            src={similarity}
-                                            width={34}
-                                            height={34}
-                                            alt="Picture of the author"
-                                            style={{ marginRight: "8px" }}  // Add some space between image and text
-                                        />
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <Image
+                                        src={similarity}
+                                        width={24}
+                                        height={24}
+                                        alt="Picture of the author"
+                                        style={{ marginRight: "8px" }}
+                                    />
 
-                                        <span>{EvaluationTypeLabels[EvaluationType.auto_similarity_match]}</span>
-                                    </div>
+                                    <span>{EvaluationTypeLabels[EvaluationType.auto_similarity_match]}</span>
+                                </div>
                             </Radio.Button>
                             {selectedEvaluationType === EvaluationType.auto_similarity_match && (
                                 <div style={{paddingLeft: 10, paddingRight: 10}}>
@@ -385,17 +384,17 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_ai_critique}
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                                        <Image
-                                            src={ai}
-                                            width={34}
-                                            height={34}
-                                            alt="Picture of the author"
-                                            style={{ marginRight: "8px" }}  // Add some space between image and text
-                                        />
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <Image
+                                        src={ai}
+                                        width={24}
+                                        height={24}
+                                        alt="Picture of the author"
+                                        style={{ marginRight: "8px" }}
+                                    />
 
-                                        <span>{EvaluationTypeLabels[EvaluationType.auto_ai_critique]}</span>
-                                    </div>
+                                    <span>{EvaluationTypeLabels[EvaluationType.auto_ai_critique]}</span>
+                                </div>
                             </Radio.Button>
                         </Radio.Group>
                     </Col>
