@@ -130,6 +130,7 @@ const ParametersView: React.FC<Props> = ({
                 expandIconPosition="end"
                 style={{padding: 0, width: "100%"}}
                 onChange={onChangeCollapse}
+                collapsible="icon"
             />
         </div>
     )
