@@ -53,7 +53,7 @@ export default function Evaluations() {
 
     const {testsets, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appName)
 
-    const [variantInputs, setVariantInputs] = useState<string[][]>([])
+    const [variantsInputs, setVariantsInputs] = useState<Record<string, string[]>>({})
 
     const [sliderValue, setSliderValue] = useState(0.3)
 
@@ -81,16 +81,24 @@ export default function Evaluations() {
     useEffect(() => {
         if (variants.length > 0) {
             const fetchAndSetSchema = async () => {
-                try {
-                    const {inputParams} = await getVariantParametersFromOpenAPI(
-                        appName,
-                        variants[0],
-                    )
-                    setVariantInputs(inputParams.map((inputParam: Parameter) => inputParam.name))
-                } catch (e) {
-                    setIsError("Failed to fetch variants parameters")
+                // Create a new object to accumulate the results for each variant
+                const newVariantsInputs: Record<string, string[]> = {}
+
+                for (let variant of variants) {
+                    try {
+                        const {inputs} = await getAllVariantParameters(appName, variant)
+                        newVariantsInputs[variant.variantName] = inputs.map(
+                            (inputParam: Parameter) => inputParam.name,
+                        )
+                    } catch (e) {
+                        setIsError("Failed to fetch variants parameters for variant: " + variant)
+                    }
                 }
+
+                // Update the state once with the new accumulated results
+                setVariantsInputs(newVariantsInputs)
             }
+
             fetchAndSetSchema()
         }
     }, [appName, variants])
@@ -232,11 +240,11 @@ export default function Evaluations() {
         if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
             evaluationTypeSettings["similarity_threshold"] = sliderValue
         }
-
+        console.log("variantsinputs", variantsInputs)
         const evaluationTableId = await createNewEvaluation(
             EvaluationType[selectedEvaluationType],
             evaluationTypeSettings,
-            variantInputs,
+            variantsInputs[selectedVariants[0].variantName],
         )
         if (!evaluationTableId) {
             return
