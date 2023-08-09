@@ -1,3 +1,8 @@
+from agenta_backend.services.evaluation_service import (
+    UpdateEvaluationScenarioError,
+    update_evaluation_scenario_service,
+    create_new_evaluation
+)
 from fastapi import HTTPException, APIRouter, Body
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
@@ -20,69 +25,19 @@ router = APIRouter()
 
 
 @router.post("/", response_model=Evaluation)
-async def create_evaluation(
-    newEvaluationData: NewEvaluation = Body(...),
-):
+async def create_evaluation(newEvaluationData: NewEvaluation = Body(...)):
     """Creates a new comparison table document
-
     Raises:
         HTTPException: _description_
-
     Returns:
         _description_
     """
-    evaluation = newEvaluationData.dict()
-    evaluation["created_at"] = evaluation["updated_at"] = datetime.utcnow()
-
-    newEvaluation = await evaluations.insert_one(evaluation)
-
-    if newEvaluation.acknowledged:
-        testsetId = evaluation["testset"]["_id"]
-        testset = await testsets.find_one({"_id": ObjectId(testsetId)})
-        csvdata = testset["csvdata"]
-        for datum in csvdata:
-            try:
-                inputs = [
-                    {"input_name": name, "input_value": datum[name]}
-                    for name in evaluation["inputs"]
-                ]
-            except KeyError:
-                await evaluations.delete_one({"_id": newEvaluation.inserted_id})
-                raise HTTPException(
-                    status_code=400,
-                    detail="columns in the test set should match the names of the inputs in the variant",
-                )
-            evaluation_scenario = {
-                "evaluation_id": str(newEvaluation.inserted_id),
-                "inputs": inputs,
-                "outputs": [],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            }
-
-            if newEvaluationData.evaluation_type == EvaluationType.auto_exact_match:
-                evaluation_scenario["score"] = ""
-                if "correct_answer" in datum:
-                    evaluation_scenario["correct_answer"] = datum["correct_answer"]
-
-            if (
-                newEvaluationData.evaluation_type
-                == EvaluationType.auto_similarity_match
-            ):
-                evaluation_scenario["score"] = ""
-                if "correct_answer" in datum:
-                    evaluation_scenario["correct_answer"] = datum["correct_answer"]
-
-            if newEvaluationData.evaluation_type == EvaluationType.human_a_b_testing:
-                evaluation_scenario["vote"] = ""
-
-            await evaluation_scenarios.insert_one(evaluation_scenario)
-
-        evaluation["id"] = str(newEvaluation.inserted_id)
-        return evaluation
-    else:
+    try:
+        return await create_new_evaluation(newEvaluationData)
+    except KeyError:
         raise HTTPException(
-            status_code=500, detail="Failed to create evaluation_scenario"
+            status_code=400,
+            detail="columns in the test set should match the names of the inputs in the variant",
         )
 
 
@@ -158,28 +113,10 @@ async def update_evaluation_scenario(
     Returns:
         _description_
     """
-    evaluation_scenario_dict = evaluation_scenario.dict()
-    evaluation_scenario_dict["updated_at"] = datetime.utcnow()
-
-    new_evaluation_set = {"outputs": evaluation_scenario_dict["outputs"]}
-
-    if (
-        evaluation_type == EvaluationType.auto_exact_match
-        or evaluation_type == EvaluationType.auto_similarity_match
-    ):
-        new_evaluation_set["score"] = evaluation_scenario_dict["score"]
-    elif evaluation_type == EvaluationType.human_a_b_testing:
-        new_evaluation_set["vote"] = evaluation_scenario_dict["vote"]
-
-    result = await evaluation_scenarios.update_one(
-        {"_id": ObjectId(evaluation_scenario_id)}, {"$set": new_evaluation_set}
-    )
-    if result.acknowledged:
-        return evaluation_scenario_dict
-    else:
-        raise HTTPException(
-            status_code=500, detail="Failed to create evaluation_scenario"
-        )
+    try:
+        return await update_evaluation_scenario_service(evaluation_scenario_id, evaluation_scenario, evaluation_type)
+    except UpdateEvaluationScenarioError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/", response_model=List[Evaluation])
