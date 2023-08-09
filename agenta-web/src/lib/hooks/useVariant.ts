@@ -1,6 +1,10 @@
-import { useState, useEffect } from "react"
-import { getVariantParametersFromOpenAPI, saveNewVariant, updateVariantParams } from "@/lib/services/api"
-import { Variant, Parameter } from "@/lib/Types"
+import {useState, useEffect} from "react"
+import {
+    getVariantParametersFromOpenAPI,
+    saveNewVariant,
+    updateVariantParams,
+} from "@/lib/services/api"
+import {Variant, Parameter} from "@/lib/Types"
 
 /**
  * Hook for using the variant.
@@ -24,12 +28,15 @@ export function useVariant(appName: string, variant: Variant) {
             setIsError(false)
             try {
                 // get the parameters of the variant by parsing the openapi.json
-                const { initOptParams, inputParams } = await getVariantParametersFromOpenAPI(appName, variant)
+                const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(
+                    appName,
+                    variant,
+                )
 
                 if (variant.parameters) {
                     const updatedInitOptParams = initOptParams.map((param) => {
                         return variant.parameters && variant.parameters.hasOwnProperty(param.name)
-                            ? { ...param, default: variant.parameters[param.name] }
+                            ? {...param, default: variant.parameters[param.name]}
                             : param
                     })
                     setOptParams(updatedInitOptParams)
@@ -40,9 +47,10 @@ export function useVariant(appName: string, variant: Variant) {
                 setInputParams(inputParams)
 
                 setURIPath(
-                    `${appName}/${variant.templateVariantName
-                        ? variant.templateVariantName
-                        : variant.variantName
+                    `${appName}/${
+                        variant.templateVariantName
+                            ? variant.templateVariantName
+                            : variant.variantName
                     }`,
                 )
             } catch (error: any) {
@@ -117,7 +125,7 @@ export function useVariant(appName: string, variant: Variant) {
                     await updateVariantParams(appName, variant, updatedOptParams)
                 }
                 variant.parameters = updatedOptParams.reduce((acc, param) => {
-                    return { ...acc, [param.name]: param.default }
+                    return {...acc, [param.name]: param.default}
                 }, {})
             }
             setOptParams(updatedOptParams)
