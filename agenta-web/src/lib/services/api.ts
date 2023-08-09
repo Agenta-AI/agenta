@@ -1,12 +1,12 @@
 import useSWR from "swr"
 import axios from "axios"
-import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, EvaluationResponseType, Evaluation} from "@/lib/Types"
+import { parseOpenApiSchema } from "@/lib/helpers/openapi_parser"
+import { Variant, Parameter, EvaluationResponseType, Evaluation } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationsRowsResponseToEvaluationsRows,
 } from "../transformers"
-import {EvaluationType} from "../enums"
+import { EvaluationType } from "../enums"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -108,7 +108,7 @@ export function callVariant(
  * @param variantName
  * @returns
  */
-export const getVariantParameters = async (app: string, variant: Variant) => {
+export const getVariantParametersFromOpenAPI = async (app: string, variant: Variant) => {
     try {
         const sourceName = variant.templateVariantName
             ? variant.templateVariantName
@@ -125,7 +125,7 @@ export const getVariantParameters = async (app: string, variant: Variant) => {
         })
         const initOptParams = APIParams.filter((param) => !param.input) // contains the default values too!
         const inputParams = APIParams.filter((param) => param.input) // don't have input values
-        return {initOptParams, inputParams}
+        return { initOptParams, inputParams }
     } catch (error) {
         throw error
     }
@@ -141,7 +141,7 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
     }
     console.log(
         parameters.reduce((acc, param) => {
-            return {...acc, [param.name]: param.default}
+            return { ...acc, [param.name]: param.default }
         }, {}),
     )
     try {
@@ -151,7 +151,7 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
                 previous_app_variant: appVariant,
                 new_variant_name: variant.variantName,
                 parameters: parameters.reduce((acc, param) => {
-                    return {...acc, [param.name]: param.default}
+                    return { ...acc, [param.name]: param.default }
                 }, {}),
             },
         )
@@ -177,7 +177,7 @@ export async function updateVariantParams(
                 app_name: appName,
                 variant_name: variant.variantName,
                 parameters: parameters.reduce((acc, param) => {
-                    return {...acc, [param.name]: param.default}
+                    return { ...acc, [param.name]: param.default }
                 }, {}),
             },
         )
@@ -191,7 +191,7 @@ export async function removeApp(appName: string) {
     try {
         await axios.delete(
             `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/remove_app/`,
-            {data: {app_name: appName}},
+            { data: { app_name: appName } },
         )
         console.log("App removed: " + appName)
     } catch (error) {
@@ -204,7 +204,7 @@ export async function removeVariant(appName: string, variantName: string) {
     try {
         await axios.delete(
             `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/remove_variant/`,
-            {data: {app_name: appName, variant_name: variantName}},
+            { data: { app_name: appName, variant_name: variantName } },
         )
         console.log("Variant removed: " + variantName)
     } catch (error) {
@@ -217,7 +217,7 @@ export async function removeVariant(appName: string, variantName: string) {
  * @returns
  */
 export const useLoadTestsetsList = (app_name: string) => {
-    const {data, error} = useSWR(
+    const { data, error } = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`,
         fetcher,
     )
@@ -280,7 +280,7 @@ export const deleteTestsets = async (ids: string[]) => {
         const response = await axios({
             method: "delete",
             url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets`,
-            data: {testset_ids: ids},
+            data: { testset_ids: ids },
         })
         if (response.status === 200) {
             return response.data
@@ -326,7 +326,7 @@ export const deleteEvaluations = async (ids: string[]) => {
         const response = await axios({
             method: "delete",
             url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations`,
-            data: {evaluations_ids: ids},
+            data: { evaluations_ids: ids },
         })
         if (response.status === 200) {
             return response.data
