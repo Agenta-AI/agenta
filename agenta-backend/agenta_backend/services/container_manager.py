@@ -1,10 +1,14 @@
+import httpx
 import shutil
 import docker
 import logging
+import backoff
 from pathlib import Path
+from httpx import ConnectError
 from fastapi import HTTPException
+from typing import List, Tuple, Union
+from asyncio.exceptions import CancelledError
 from agenta_backend.models.api.api_models import Image
-
 
 client = docker.from_env()
 
@@ -14,7 +18,11 @@ logger.setLevel(logging.INFO)
 
 
 def build_image_job(
-    app_name: str, variant_name: str, tar_path: Path, image_name: str, temp_dir: Path
+    app_name: str,
+    variant_name: str,
+    tar_path: Path,
+    image_name: str,
+    temp_dir: Path,
 ) -> Image:
     """Business logic for building a docker image from a tar file
     
@@ -60,3 +68,37 @@ def build_image_job(
         raise HTTPException(status_code=500, detail=log)
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
+
+
+@backoff.on_exception(
+    backoff.expo, (ConnectError, CancelledError), max_tries=5
+)
+async def retrieve_templates_from_dockerhub(
+    url: str, repo_owner: str, repo_name: str
+) -> Tuple[bool, Union[List[dict], dict]]:
+    """
+    Business logic to retrieve templates from DockerHub.
+    
+    Arguments:
+        url -- The `url` parameter is a string that represents the URL endpoint for retrieving \
+            templates. It should contain placeholders `{}` for the `repo_owner` and `repo_name` values to be \
+            inserted. For example, if the URL endpoint is `https://hub.docker.com/v2/repositories/{}/{}/tags`
+        repo_owner -- The `repo_owner` parameter represents the owner or organization of the repository \
+            from which you want to retrieve templates
+        repo_name -- The `repo_name` parameter is the name of the repository. It is a string that \
+            represents the name of the repository where the templates are located
+        
+    Returns:
+        A tuple of containing two values
+    """
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            url.format(repo_owner, repo_name), timeout=10
+        )
+        if response.status_code == 200:
+            response_data = response.json()
+            return response_data
+
+        response_data = response.json()
+        return response_data
