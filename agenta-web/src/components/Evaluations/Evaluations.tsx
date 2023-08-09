@@ -24,6 +24,7 @@ import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {Typography} from "antd"
 import EvaluationErrorModal from "./EvaluationErrorModal"
+import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 
 export default function Evaluations() {
     const {Text, Title} = Typography
@@ -52,7 +53,7 @@ export default function Evaluations() {
 
     const {testsets, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appName)
 
-    const [variantInputs, setVariantInputs] = useState<string[]>([])
+    const [variantInputs, setVariantInputs] = useState<string[][]>([])
 
     const [sliderValue, setSliderValue] = useState(0.3)
 
