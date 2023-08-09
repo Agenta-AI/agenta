@@ -76,7 +76,7 @@ def generate(
         CHAT_LLM_GPT + ["replicate"],
     ),
     # Min 1000, Max 4000
-    maximum_length: ag.FloatParam = 3000,
+    maximum_length: ag.IntParam = 3000,
     stop_sequence: ag.TextParam = "\n",
     top_p: ag.FloatParam = 0.9,
     frequence_penalty: ag.FloatParam = 0.0,
@@ -84,31 +84,20 @@ def generate(
     prompt_chunks: ag.TextParam = prompts["chat"]["input_prompt"],
     prompt_final: ag.TextParam = prompts["chat"]["output_prompt"],
 ) -> str:
-    transcript_chunks = [
-        transcript[i : i + int(maximum_length)]
-        for i in range(0, len(transcript), int(maximum_length))
-    ]
-
-    outputs = []
     prompt = PromptTemplate(
         input_variables=["text"],
         template=prompt_chunks,
     )
 
-    for chunk in transcript_chunks:
-        outputs.append(
-            call_llm(
-                model=model,
-                temperature=temperature,
-                prompt=prompt,
-                text=chunk,
-                maximum_length=int(maximum_length),
-                stop_sequence=stop_sequence,
-                top_p=top_p,
-                frequence_penalty=frequence_penalty,
-                presence_penalty=presence_penalty,
-            )
-        )
-
-    outputs = "\n".join(outputs)
+    outputs = call_llm(
+        model=model,
+        temperature=temperature,
+        prompt=prompt,
+        text=transcript,
+        maximum_length=int(maximum_length),
+        stop_sequence=stop_sequence,
+        top_p=top_p,
+        frequence_penalty=frequence_penalty,
+        presence_penalty=presence_penalty,
+    )
     return str(outputs)
