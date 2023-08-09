@@ -1,20 +1,36 @@
+import json
+import redis
 import httpx
 import shutil
 import docker
 import logging
 import backoff
 from pathlib import Path
+from typing import List, Union
 from httpx import ConnectError
 from fastapi import HTTPException
-from typing import List, Tuple, Union
+from agenta_backend.config import settings
 from asyncio.exceptions import CancelledError
 from agenta_backend.models.api.api_models import Image
+
 
 client = docker.from_env()
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+def redis_connection() -> redis.Redis:
+    """Returns a Redis client object connected to a Redis server specified
+        by the `redis_url` setting.
+
+    Returns:
+        A Redis client object.
+    """
+
+    redis_client = redis.from_url(url=settings.redis_url)
+    return redis_client
 
 
 def build_image_job(
@@ -75,7 +91,7 @@ def build_image_job(
 )
 async def retrieve_templates_from_dockerhub(
     url: str, repo_owner: str, repo_name: str
-) -> Tuple[bool, Union[List[dict], dict]]:
+) -> Union[List[dict], dict]:
     """
     Business logic to retrieve templates from DockerHub.
     
@@ -102,3 +118,29 @@ async def retrieve_templates_from_dockerhub(
 
         response_data = response.json()
         return response_data
+
+
+async def retrieve_templates_from_dockerhub_cached():
+    """Retrieves templates from Docker Hub and caches the data in Redis for future use.
+
+    Returns:
+        List of tags data (cached or network-call)
+    """
+
+    r = redis_connection()
+
+    cached_data = r.get("templates_data")
+    if cached_data is not None:
+        return json.loads(cached_data.decode("utf-8"))
+
+    # If not cached, fetch data from Docker Hub and cache it in Redis
+    response = await retrieve_templates_from_dockerhub(
+        settings.docker_hub_url,
+        settings.docker_hub_repo_owner,
+        settings.docker_hub_repo_name,
+    )
+    response_data = response["results"]
+
+    # Cache the data in Redis for 60 minutes
+    r.set("templates_data", json.dumps(response_data), ex=3600)
+    return response_data
