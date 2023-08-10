@@ -9,19 +9,19 @@ from agenta_backend.models.api.evaluation_model import (
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
-    EvaluationStatus
+    EvaluationStatus,
 )
 from agenta_backend.services.results_service import (
     fetch_results_for_human_a_b_testing_evaluation,
     fetch_results_for_auto_exact_match_evaluation,
     fetch_results_for_auto_similarity_match_evaluation,
-    fetch_results_for_auto_ai_critique
+    fetch_results_for_auto_ai_critique,
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
     update_evaluation_scenario,
     update_evaluation_status,
-    create_new_evaluation
+    create_new_evaluation,
 )
 from agenta_backend.services.db_mongo import (
     evaluations,
@@ -49,7 +49,9 @@ async def create_evaluation(newEvaluationData: NewEvaluation = Body(...)):
 
 
 @router.put("/{evaluation_id}", response_model=Evaluation)
-async def update_evaluation_status_router(evaluation_id: str, update_data: EvaluationStatus = Body(...)):
+async def update_evaluation_status_router(
+    evaluation_id: str, update_data: EvaluationStatus = Body(...)
+):
     """Updates an evaluation status
     Raises:
         HTTPException: _description_
@@ -138,7 +140,9 @@ async def update_evaluation_scenario_router(
         _description_
     """
     try:
-        return await update_evaluation_scenario(evaluation_scenario_id, evaluation_scenario, evaluation_type)
+        return await update_evaluation_scenario(
+            evaluation_scenario_id, evaluation_scenario, evaluation_type
+        )
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -235,8 +239,5 @@ async def fetch_results(evaluation_id: str):
         return {"scores_data": results}
 
     elif evaluation["evaluation_type"] == EvaluationType.auto_ai_critique:
-        results = await fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
+        results = await fetch_results_for_auto_ai_critique(evaluation_id)
         return {"results_data": results}
-

@@ -5,7 +5,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationType,
     NewEvaluation,
     EvaluationScenarioUpdate,
-    EvaluationStatus
+    EvaluationStatus,
 )
 from fastapi import HTTPException
 from bson import ObjectId
@@ -22,6 +22,7 @@ from langchain.prompts import PromptTemplate
 
 class UpdateEvaluationScenarioError(Exception):
     """Custom exception for update evaluation scenario errors."""
+
     pass
 
 
@@ -57,7 +58,7 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
         evaluation_scenario = {
             **evaluation_scenario,
             **extend_with_evaluation(newEvaluationData.evaluation_type),
-            **extend_with_correct_answer(newEvaluationData.evaluation_type, datum)
+            **extend_with_correct_answer(newEvaluationData.evaluation_type, datum),
         }
 
         await evaluation_scenarios.insert_one(evaluation_scenario)
@@ -66,7 +67,9 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
     return evaluation
 
 
-async def update_evaluation_status(evaluation_id: str, status: EvaluationStatus) -> Evaluation:
+async def update_evaluation_status(
+    evaluation_id: str, status: EvaluationStatus
+) -> Evaluation:
     result = await evaluations.update_one(
         {"_id": ObjectId(evaluation_id)}, {"$set": {"status": status.value}}
     )
@@ -83,7 +86,7 @@ async def update_evaluation_status(evaluation_id: str, status: EvaluationStatus)
 async def update_evaluation_scenario(
     evaluation_scenario_id: str,
     evaluation_scenario_data: EvaluationScenarioUpdate,
-    evaluation_type: EvaluationType
+    evaluation_type: EvaluationType,
 ) -> Dict:
     evaluation_scenario_dict = evaluation_scenario_data.dict()
     evaluation_scenario_dict["updated_at"] = datetime.utcnow()
@@ -101,14 +104,18 @@ async def update_evaluation_scenario(
         current_evaluation_scenario = await evaluation_scenarios.find_one(
             {"_id": ObjectId(evaluation_scenario_id)}
         )
-        current_evaluation = await evaluations.find_one({"_id": ObjectId(current_evaluation_scenario["evaluation_id"])})
+        current_evaluation = await evaluations.find_one(
+            {"_id": ObjectId(current_evaluation_scenario["evaluation_id"])}
+        )
 
         evaluation = evaluate_with_ai_critique(
             llm_app_prompt_template=current_evaluation["llm_app_prompt_template"],
             llm_app_inputs=current_evaluation_scenario["inputs"],
             correct_answer=current_evaluation_scenario["correct_answer"],
             app_variant_output=new_evaluation_set["outputs"][0]["variant_output"],
-            evaluation_prompt_template=evaluation_scenario_dict["evaluation_prompt_template"],
+            evaluation_prompt_template=evaluation_scenario_dict[
+                "evaluation_prompt_template"
+            ],
             open_ai_key=evaluation_scenario_dict["open_ai_key"],
         )
 
@@ -118,7 +125,9 @@ async def update_evaluation_scenario(
         {"_id": ObjectId(evaluation_scenario_id)}, {"$set": new_evaluation_set}
     )
     if result.acknowledged:
-        evaluation_scenario = await evaluation_scenarios.find_one({"_id": ObjectId(evaluation_scenario_id)})
+        evaluation_scenario = await evaluation_scenarios.find_one(
+            {"_id": ObjectId(evaluation_scenario_id)}
+        )
 
         if evaluation_scenario:
             evaluation_scenario["id"] = str(evaluation_scenario["_id"])
@@ -129,33 +138,36 @@ async def update_evaluation_scenario(
 
 
 def evaluate_with_ai_critique(
-        llm_app_prompt_template: str,
-        llm_app_inputs: dict,
-        correct_answer: str,
-        app_variant_output: str,
-        evaluation_prompt_template: str,
-        open_ai_key: str,
-        temperature: float = 0.9) -> str:
-
+    llm_app_prompt_template: str,
+    llm_app_inputs: dict,
+    correct_answer: str,
+    app_variant_output: str,
+    evaluation_prompt_template: str,
+    open_ai_key: str,
+    temperature: float = 0.9,
+) -> str:
     llm = OpenAI(openai_api_key=open_ai_key, temperature=temperature)
 
-    input_variables = ["app_variant_output", "llm_app_prompt_template", "correct_answer"]
+    input_variables = [
+        "app_variant_output",
+        "llm_app_prompt_template",
+        "correct_answer",
+    ]
 
     for input_item in llm_app_inputs:
-        input_variables.append(input_item['input_name'])
+        input_variables.append(input_item["input_name"])
 
     chain_run_args = {
-        'llm_app_prompt_template': llm_app_prompt_template,
-        'correct_answer': correct_answer,
-        'app_variant_output': app_variant_output
+        "llm_app_prompt_template": llm_app_prompt_template,
+        "correct_answer": correct_answer,
+        "app_variant_output": app_variant_output,
     }
 
     for input_item in llm_app_inputs:
-        chain_run_args[input_item['input_name']] = input_item['input_value']
+        chain_run_args[input_item["input_name"]] = input_item["input_value"]
 
     prompt = PromptTemplate(
-        input_variables=input_variables,
-        template=evaluation_prompt_template
+        input_variables=input_variables, template=evaluation_prompt_template
     )
     chain = LLMChain(llm=llm, prompt=prompt)
 
@@ -166,24 +178,27 @@ def evaluate_with_ai_critique(
 
 def extend_with_evaluation(evaluation_type: EvaluationType):
     evaluation = {}
-    if (evaluation_type == EvaluationType.auto_exact_match or
-            evaluation_type == EvaluationType.auto_similarity_match):
+    if (
+        evaluation_type == EvaluationType.auto_exact_match
+        or evaluation_type == EvaluationType.auto_similarity_match
+    ):
         evaluation["score"] = ""
 
     if evaluation_type == EvaluationType.human_a_b_testing:
         evaluation["vote"] = ""
 
-    if (evaluation_type == EvaluationType.auto_ai_critique):
+    if evaluation_type == EvaluationType.auto_ai_critique:
         evaluation["evaluation"] = ""
     return evaluation
 
 
 def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     correct_answer = {}
-    if (evaluation_type == EvaluationType.auto_exact_match or
-            evaluation_type == EvaluationType.auto_similarity_match or
-            evaluation_type == EvaluationType.auto_ai_critique):
-
-        if (row["correct_answer"]):
+    if (
+        evaluation_type == EvaluationType.auto_exact_match
+        or evaluation_type == EvaluationType.auto_similarity_match
+        or evaluation_type == EvaluationType.auto_ai_critique
+    ):
+        if row["correct_answer"]:
             correct_answer["correct_answer"] = row["correct_answer"]
     return correct_answer
