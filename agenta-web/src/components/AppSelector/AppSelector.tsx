@@ -7,7 +7,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 
-const fetcher = (...args) => fetch(...args).then((res) => res.json())
+const fetcher = (...args: any[]) => fetch(...args).then((res) => res.json())
 
 const AppSelector: React.FC = () => {
     const [newApp, setNewApp] = useState("")
