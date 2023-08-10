@@ -60,7 +60,7 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
     return evaluation
 
 
-async def update_evaluation_scenario_service(
+async def update_evaluation_scenario(
     evaluation_scenario_id: str,
     evaluation_scenario_data: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType
