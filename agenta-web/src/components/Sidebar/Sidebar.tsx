@@ -89,7 +89,11 @@ const Sidebar: React.FC = () => {
                             placement="right"
                             title="Create new applications or switch between your existing projects."
                         >
-                            <Link href={getNavigationPath("apps")} style={{width: "100%"}}>
+                            <Link
+                                data-cy="app-management-link"
+                                href={getNavigationPath("apps")}
+                                style={{width: "100%"}}
+                            >
                                 App Management
                             </Link>
                         </Tooltip>
@@ -102,6 +106,7 @@ const Sidebar: React.FC = () => {
                                     title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                 >
                                     <Link
+                                        data-cy="app-playground-link"
                                         href={getNavigationPath("playground")}
                                         style={{width: "100%"}}
                                     >
@@ -116,6 +121,7 @@ const Sidebar: React.FC = () => {
                                     title="Create and manage testsets for evaluation purposes."
                                 >
                                     <Link
+                                        data-cy="app-testsets-link"
                                         href={getNavigationPath("testsets")}
                                         style={{width: "100%"}}
                                     >
@@ -130,6 +136,7 @@ const Sidebar: React.FC = () => {
                                     title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
                                 >
                                     <Link
+                                        data-cy="app-evaluations-link"
                                         href={getNavigationPath("evaluations")}
                                         style={{width: "100%"}}
                                     >
@@ -143,6 +150,7 @@ const Sidebar: React.FC = () => {
                                     title="Analyze the evaluation outcomes to determine the most effective variants."
                                 >
                                     <Link
+                                        data-cy="app-results-link"
                                         href={getNavigationPath("results")}
                                         style={{width: "100%"}}
                                     >
@@ -157,6 +165,7 @@ const Sidebar: React.FC = () => {
                                     title="Monitor production logs to ensure seamless operations."
                                 >
                                     <Link
+                                        data-cy="app-endpoints-link"
                                         href={getNavigationPath("endpoints")}
                                         style={{width: "100%"}}
                                     >
@@ -172,6 +181,7 @@ const Sidebar: React.FC = () => {
                                     title="Your api keys that are used in applications"
                                 >
                                     <Link
+                                        data-cy="app-apikeys-link"
                                         href={getNavigationPath("apikeys")}
                                         style={{width: "100%"}}
                                     >
