@@ -52,9 +52,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const variants = evaluation.variants
 
     const variantData = variants.map((variant: Variant) => {
-        const {optParams, URIPath, isLoading, isError, error} = useVariant(appName, variant)
+        const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
+            appName,
+            variant,
+        )
 
         return {
+            inputParams,
             optParams,
             URIPath,
             isLoading,
@@ -130,6 +134,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             try {
                 let result = await callVariant(
                     inputParamsDict,
+                    variantData[idx].inputParams,
                     variantData[idx].optParams,
                     variantData[idx].URIPath,
                 )

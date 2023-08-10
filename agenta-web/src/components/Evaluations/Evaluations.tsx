@@ -12,7 +12,11 @@ import {
     message,
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
-import {fetchVariants, getVariantParameters, useLoadTestsetsList} from "@/lib/services/api"
+import {
+    fetchVariants,
+    getVariantParametersFromOpenAPI,
+    useLoadTestsetsList,
+} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {Variant, Parameter} from "@/lib/Types"
 import EvaluationsList from "./EvaluationsList"
@@ -20,6 +24,7 @@ import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {Typography} from "antd"
 import EvaluationErrorModal from "./EvaluationErrorModal"
+import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 
 export default function Evaluations() {
     const {Text, Title} = Typography
@@ -48,25 +53,11 @@ export default function Evaluations() {
 
     const {testsets, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appName)
 
-    const [variantInputs, setVariantInputs] = useState<string[]>([])
+    const [variantsInputs, setVariantsInputs] = useState<Record<string, string[]>>({})
 
     const [sliderValue, setSliderValue] = useState(0.3)
 
     const [evaluationError, setEvaluationError] = useState("")
-
-    useEffect(() => {
-        if (variants.length > 0) {
-            const fetchAndSetSchema = async () => {
-                try {
-                    const {inputParams} = await getVariantParameters(appName, variants[0])
-                    setVariantInputs(inputParams.map((inputParam: Parameter) => inputParam.name))
-                } catch (e) {
-                    setIsError("Failed to fetch variants parameters")
-                }
-            }
-            fetchAndSetSchema()
-        }
-    }, [appName, variants])
 
     useEffect(() => {
         const fetchData = async () => {
@@ -86,6 +77,40 @@ export default function Evaluations() {
 
         fetchData()
     }, [appName])
+
+    useEffect(() => {
+        if (variants.length > 0) {
+            const fetchAndSetSchema = async () => {
+                try {
+                    // Map the variants to an array of promises
+                    const promises = variants.map((variant) =>
+                        getAllVariantParameters(appName, variant).then(({inputs}) => ({
+                            variantName: variant.variantName,
+                            inputs: inputs.map((inputParam: Parameter) => inputParam.name),
+                        })),
+                    )
+
+                    // Wait for all promises to complete and collect results
+                    const results = await Promise.all(promises)
+
+                    // Reduce the results into the desired newVariantsInputs object structure
+                    const newVariantsInputs: Record<string, string[]> = results.reduce(
+                        (acc, result) => {
+                            acc[result.variantName] = result.inputs
+                            return acc
+                        },
+                        {},
+                    )
+
+                    setVariantsInputs(newVariantsInputs)
+                } catch (e) {
+                    setIsError("Failed to fetch some variants parameters. Error: " + e.message)
+                }
+            }
+
+            fetchAndSetSchema()
+        }
+    }, [appName, variants])
 
     useEffect(() => {
         if (!isTestsetsLoadingError && testsets) {
@@ -224,11 +249,10 @@ export default function Evaluations() {
         if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
             evaluationTypeSettings["similarity_threshold"] = sliderValue
         }
-
         const evaluationTableId = await createNewEvaluation(
             EvaluationType[selectedEvaluationType],
             evaluationTypeSettings,
-            variantInputs,
+            variantsInputs[selectedVariants[0].variantName],
         )
         if (!evaluationTableId) {
             return

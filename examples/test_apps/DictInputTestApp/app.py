@@ -8,13 +8,15 @@ default_prompt = "What is a good name for a company that makes {product}?"
 
 @ag.post
 def generate(
-    product: str,
+    inputs: ag.DictInput,
     temperature: ag.FloatParam = 0.9,
     prompt_template: ag.TextParam = default_prompt,
 ) -> str:
     llm = OpenAI(temperature=temperature)
-    prompt = PromptTemplate(input_variables=["product"], template=prompt_template,)
+    prompt = PromptTemplate(
+        input_variables=list(inputs.keys()), template=prompt_template,
+    )
     chain = LLMChain(llm=llm, prompt=prompt)
-    output = chain.run(product=product)
+    output = chain.run(**inputs)
 
     return output

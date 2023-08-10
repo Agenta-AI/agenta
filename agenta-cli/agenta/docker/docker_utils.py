@@ -106,8 +106,7 @@ def build_and_upload_docker_image(
         # TODO: Later do this in the temp dir
         dockerfile_path = create_dockerfile(folder)
         shutil.copytree(
-            Path(__file__).parent.parent / "sdk",
-            folder / "agenta",
+            Path(__file__).parent.parent / "sdk", folder / "agenta",
         )
         shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", folder)
         shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", folder)
