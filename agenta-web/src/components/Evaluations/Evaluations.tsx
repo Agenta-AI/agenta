@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react"
+import { useState, useEffect } from "react"
 import {
     Button,
     Col,
@@ -11,23 +11,23 @@ import {
     Slider,
     message,
 } from "antd"
-import {DownOutlined} from "@ant-design/icons"
+import { DownOutlined } from "@ant-design/icons"
 import {
     fetchVariants,
     getVariantParametersFromOpenAPI,
     useLoadTestsetsList,
 } from "@/lib/services/api"
-import {useRouter} from "next/router"
-import {Variant, Parameter} from "@/lib/Types"
+import { useRouter } from "next/router"
+import { Variant, Parameter } from "@/lib/Types"
 import EvaluationsList from "./EvaluationsList"
-import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {EvaluationTypeLabels} from "@/lib/helpers/utils"
-import {Typography} from "antd"
+import { EvaluationFlow, EvaluationType } from "@/lib/enums"
+import { EvaluationTypeLabels } from "@/lib/helpers/utils"
+import { Typography } from "antd"
 import EvaluationErrorModal from "./EvaluationErrorModal"
-import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
+import { getAllVariantParameters } from "@/lib/helpers/variantHelper"
 
 export default function Evaluations() {
-    const {Text, Title} = Typography
+    const { Text, Title } = Typography
     const router = useRouter()
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
@@ -37,11 +37,11 @@ export default function Evaluations() {
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
         name: string
-    }>({name: "Select a Test set"})
+    }>({ name: "Select a Test set" })
     const [testsetsList, setTestsetsList] = useState<any[]>([])
 
     const [selectedVariants, setSelectedVariants] = useState<Variant[]>(
-        new Array(1).fill({variantName: "Select a variant"}),
+        new Array(1).fill({ variantName: "Select a variant" }),
     )
     const [numberOfVariants, setNumberOfVariants] = useState<number>(1)
 
@@ -51,7 +51,7 @@ export default function Evaluations() {
 
     const appName = router.query.app_name?.toString() || ""
 
-    const {testsets, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appName)
+    const { testsets, isTestsetsLoading, isTestsetsLoadingError } = useLoadTestsetsList(appName)
 
     const [variantsInputs, setVariantsInputs] = useState<Record<string, string[]>>({})
 
@@ -81,23 +81,30 @@ export default function Evaluations() {
     useEffect(() => {
         if (variants.length > 0) {
             const fetchAndSetSchema = async () => {
-                // Create a new object to accumulate the results for each variant
-                const newVariantsInputs: Record<string, string[]> = {}
+                try {
+                    // Map the variants to an array of promises
+                    const promises = variants.map(variant =>
+                        getAllVariantParameters(appName, variant).then(({ inputs }) => ({
+                            variantName: variant.variantName,
+                            inputs: inputs.map((inputParam: Parameter) => inputParam.name)
+                        }))
+                    );
 
-                for (let variant of variants) {
-                    try {
-                        const {inputs} = await getAllVariantParameters(appName, variant)
-                        newVariantsInputs[variant.variantName] = inputs.map(
-                            (inputParam: Parameter) => inputParam.name,
-                        )
-                    } catch (e) {
-                        setIsError("Failed to fetch variants parameters for variant: " + variant)
-                    }
+                    // Wait for all promises to complete and collect results
+                    const results = await Promise.all(promises);
+
+                    // Reduce the results into the desired newVariantsInputs object structure
+                    const newVariantsInputs: Record<string, string[]> = results.reduce((acc, result) => {
+                        acc[result.variantName] = result.inputs;
+                        return acc;
+                    }, {});
+
+                    setVariantsInputs(newVariantsInputs);
+
+                } catch (e) {
+                    setIsError("Failed to fetch some variants parameters. Error: " + e.message);
                 }
-
-                // Update the state once with the new accumulated results
-                setVariantsInputs(newVariantsInputs)
-            }
+            };
 
             fetchAndSetSchema()
         }
@@ -171,7 +178,7 @@ export default function Evaluations() {
 
         const menuProps: MenuProps = {
             items,
-            onClick: ({key}) => {
+            onClick: ({ key }) => {
                 const index = items.findIndex((item) => item.key === key)
                 onTestsetSelect(index)
             },
@@ -182,27 +189,27 @@ export default function Evaluations() {
 
     const handleAppVariantsMenuClick =
         (dropdownIndex: number) =>
-        ({key}: {key: string}) => {
-            const data = {
-                variants: [
-                    selectedVariants[dropdownIndex].variantName,
-                    selectedVariants[dropdownIndex].variantName,
-                ],
+            ({ key }: { key: string }) => {
+                const data = {
+                    variants: [
+                        selectedVariants[dropdownIndex].variantName,
+                        selectedVariants[dropdownIndex].variantName,
+                    ],
+                }
+
+                data.variants[dropdownIndex] = key
+                const selectedVariant = variants.find((variant) => variant.variantName === key)
+
+                if (!selectedVariant) {
+                    console.log("Error: No variant found")
+                }
+
+                setSelectedVariants((prevState) => {
+                    const newState = [...prevState]
+                    newState[dropdownIndex] = selectedVariant
+                    return newState
+                })
             }
-
-            data.variants[dropdownIndex] = key
-            const selectedVariant = variants.find((variant) => variant.variantName === key)
-
-            if (!selectedVariant) {
-                console.log("Error: No variant found")
-            }
-
-            setSelectedVariants((prevState) => {
-                const newState = [...prevState]
-                newState[dropdownIndex] = selectedVariant
-                return newState
-            })
-        }
 
     const getVariantsDropdownMenu = (index: number): MenuProps => {
         const items: MenuProps["items"] = variants.map((variant) => {
@@ -273,8 +280,8 @@ export default function Evaluations() {
         // set the selected variants array length based on numVariants
         setSelectedVariants(
             Array.from(
-                {length: nbOfVariants},
-                (_, i) => selectedVariants[i] || {variantName: "Select a variant"},
+                { length: nbOfVariants },
+                (_, i) => selectedVariants[i] || { variantName: "Select a variant" },
             ),
         )
     }
@@ -303,18 +310,18 @@ export default function Evaluations() {
                         <Title level={5}>Human evaluation</Title>
                         <Radio.Group
                             onChange={(e) => onChangeEvaluationType(e)}
-                            style={{width: "100%"}}
+                            style={{ width: "100%" }}
                         >
                             <Radio.Button
                                 value={EvaluationType.human_a_b_testing}
-                                style={{display: "block", marginBottom: "10px"}}
+                                style={{ display: "block", marginBottom: "10px" }}
                             >
                                 {EvaluationTypeLabels[EvaluationType.human_a_b_testing]}
                             </Radio.Button>
                             <Radio.Button
                                 value={EvaluationType.human_scoring}
                                 disabled
-                                style={{display: "block", marginBottom: "10px"}}
+                                style={{ display: "block", marginBottom: "10px" }}
                             >
                                 {EvaluationTypeLabels[EvaluationType.human_scoring]}
                                 <Tag color="orange" bordered={false}>
@@ -326,18 +333,18 @@ export default function Evaluations() {
 
                             <Radio.Button
                                 value={EvaluationType.auto_exact_match}
-                                style={{display: "block", marginBottom: "10px"}}
+                                style={{ display: "block", marginBottom: "10px" }}
                             >
                                 {EvaluationTypeLabels[EvaluationType.auto_exact_match]}
                             </Radio.Button>
                             <Radio.Button
                                 value={EvaluationType.auto_similarity_match}
-                                style={{display: "block", marginBottom: "10px"}}
+                                style={{ display: "block", marginBottom: "10px" }}
                             >
                                 {EvaluationTypeLabels[EvaluationType.auto_similarity_match]}
                             </Radio.Button>
                             {selectedEvaluationType === EvaluationType.auto_similarity_match && (
-                                <div style={{paddingLeft: 10, paddingRight: 10}}>
+                                <div style={{ paddingLeft: 10, paddingRight: 10 }}>
                                     <Text>Similarity threshold</Text>
                                     <Slider
                                         min={0}
@@ -351,7 +358,7 @@ export default function Evaluations() {
                             <Radio.Button
                                 value={EvaluationType.auto_ai_critique}
                                 disabled
-                                style={{display: "block", marginBottom: "10px"}}
+                                style={{ display: "block", marginBottom: "10px" }}
                             >
                                 {EvaluationTypeLabels[EvaluationType.auto_ai_critique]}
                                 <Tag color="orange" bordered={false}>
@@ -365,7 +372,7 @@ export default function Evaluations() {
                             <Title level={4}>2. Which variants would you like to evaluate</Title>
                         </div>
 
-                        {Array.from({length: numberOfVariants}).map((_, index) => (
+                        {Array.from({ length: numberOfVariants }).map((_, index) => (
                             <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
                                 <Button
                                     style={{
@@ -396,7 +403,7 @@ export default function Evaluations() {
                         </div>
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
-                            <Button style={{marginRight: 10, marginTop: 40, width: "100%"}}>
+                            <Button style={{ marginRight: 10, marginTop: 40, width: "100%" }}>
                                 <div
                                     style={{
                                         display: "flex",
@@ -416,7 +423,7 @@ export default function Evaluations() {
                 </Row>
 
                 <Row justify="end">
-                    <Col span={8} style={{display: "flex", justifyContent: "flex-end"}}>
+                    <Col span={8} style={{ display: "flex", justifyContent: "flex-end" }}>
                         <Button onClick={onStartEvaluation} type="primary">
                             Start a new evaluation
                         </Button>
