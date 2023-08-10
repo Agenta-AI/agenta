@@ -37,7 +37,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             height: "100%",
                             marginLeft: 225,
                             minHeight: "100vh",
-                            marginBottom: "5%"
+                            marginBottom: "5%",
                         }}
                     >
                         <Breadcrumb
@@ -61,7 +61,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     justifyContent: "space-between",
                     position: "fixed",
                     bottom: 0,
-                    width: "calc(100% - 225px)"
+                    width: "calc(100% - 225px)",
                 }}
             >
                 <Space style={{fontSize: 18, color: "#000"}} size={10}>

@@ -9,19 +9,21 @@ This backend takes care of the following:
 - Shutting down the containers
 
 What it does not take care of:
+
 - Running the evaluation against the containers
 
-
-
 ## Architecture
+
 This backend instanciate a docker registry and an api endpoint.
 The CLI builds the apps into docker container images and pushes them to the registry, then posts the container information to the api endpoint.
 This backend updates its local database with the new container information.
 
 The UI-backend lists the container information through the api endpoint.
-The 
+The
+
 ## API interface
 
 ### Add container
+
 api: POST /containers/add
 description: Add a container to the registry

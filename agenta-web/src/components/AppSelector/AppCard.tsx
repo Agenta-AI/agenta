@@ -124,4 +124,3 @@ const AppCard: React.FC<{
 }
 
 export default AppCard
-

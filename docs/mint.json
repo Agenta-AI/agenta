@@ -51,44 +51,29 @@
         },
         {
           "group": "Upgrading",
-          "pages": [
-            "installation/migration/migration"
-          ]
+          "pages": ["installation/migration/migration"]
         }
       ]
     },
     {
       "group": "Tutorials",
-      "pages": [
-        "tutorials/your-first-llm-app"
-      ]
+      "pages": ["tutorials/your-first-llm-app"]
     },
     {
       "group": "How-to Guides",
-      "pages": [
-        "howto/creating-multiple-app-variants",
-        "howto/how-to-debug"
-      ]
+      "pages": ["howto/creating-multiple-app-variants", "howto/how-to-debug"]
     },
     {
       "group": "Conceptual Guides",
-      "pages": [
-        "conceptual/concepts",
-        "conceptual/architecture"
-      ]
+      "pages": ["conceptual/concepts", "conceptual/architecture"]
     },
     {
       "group": "Contributing",
-      "pages": [
-        "contributing/getting-started",
-        "contributing/development-mode"
-      ]
+      "pages": ["contributing/getting-started", "contributing/development-mode"]
     },
     {
       "group": "Reference",
-      "pages": [
-        "reference/agenta-cli"
-      ]
+      "pages": ["reference/agenta-cli"]
     }
   ],
   "footerSocials": {

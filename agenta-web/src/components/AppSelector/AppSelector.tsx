@@ -2,7 +2,7 @@ import {useState} from "react"
 import {useRouter} from "next/router"
 import {Input, Modal, ConfigProvider, theme, Spin, Button} from "antd"
 import useSWR from "swr"
-import AppCard from "./AppCard";
+import AppCard from "./AppCard"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"

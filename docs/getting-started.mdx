@@ -1,6 +1,6 @@
 ---
 title: Getting Started
-description: 'Building your first Large Language Model Application in Agenta'
+description: "Building your first Large Language Model Application in Agenta"
 ---
 
 ## Introduction
@@ -24,15 +24,14 @@ agenta init
 
 Next, start a new project based on the `simple_prompt` [template](https://docs.agenta.ai/conceptual/concepts#templates)
 
-````
+```
 ? Please enter the app name: company_name_generator
 ? How do you want to initialize your app? Start from template
 ? Which template do you want to use? simple_prompt - Simple app that uses one prompt using langchain
 App initialized successfully
-````
+```
 
 This will generate many files for this project. The file containig the code is `app.py`. You can check a description of the generated code. Otherwise, continue to the next step.
-
 
 <Accordion title="Understand the Generated Code">
 
@@ -49,15 +48,19 @@ The initialization process generates the following files:
 Let's take a closer look at each:
 
 ### README.md
+
 This file provides a brief overview of your application.
 
 ### requirements.txt
+
 Here you'll find the dependencies required by the template.
 
 ### config.toml
+
 This file holds the configuration details of your application. Currently, it only contains the app name that you have chosen.
 
 ### app.py
+
 This is the main application file. The generated `app.py` file should look like this:
 
 ```python app.py
@@ -88,9 +91,10 @@ This code sets up a simple LLM-application using the OpenAI Python library. The 
 
 To run your LLM-application, you'll need to set the OpenAI API key in your environment. Here's how:
 
-1. Visit the [OpenAI API keys page](https://platform.openai.com/account/api-keys), and create a new key. 
+1. Visit the [OpenAI API keys page](https://platform.openai.com/account/api-keys), and create a new key.
 
 2. Create a file `.env` in your project folder and add the line:
+
 ```bash
 OPENAI_API_KEY=sk-xxxxxxx
 ```
@@ -134,6 +138,7 @@ agenta variant serve --file_name app.py
 ```
 
 This will do two things:
+
 1. It will create a docker image of the application, and start a container based on this image.
 2. The container will start a server exposing an endpoint /generate with the same parameters we specified in the application at `localhost/{app_name}/{variant_name}/openapi.json`.
 3. It will add the application to the web ui Agenta
@@ -143,14 +148,9 @@ This will do two things:
 Go to `localhost:3000`, select your app, and begin experimenting with different parameters in the playground.
 
 <Frame>
-  <img
-    className="rounded-md"
-    src="docs/images/playground.png"
-  />
+  <img className="rounded-md" src="docs/images/playground.png" />
 </Frame>
 
-The playground provides a platform to create new app variants from the one you just made, and to tweak the application parameters. 
+The playground provides a platform to create new app variants from the one you just made, and to tweak the application parameters.
 
 We hope you found this guide useful. Happy coding!
-
-
