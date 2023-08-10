@@ -1,10 +1,29 @@
-![37 copy](https://github.com/Agenta-AI/agenta/assets/4510758/762d4838-f56f-4773-94a7-38ae417ca439)
+<div align="center" style="margin: 30px;">
+<a href="https://agenta.ai/">
+  <img src="https://github.com/Agenta-AI/agenta/assets/4510758/762d4838-f56f-4773-94a7-38ae417ca439"   style="width:550px;" align="center" />
+</a>
+  <br />
+<br />
+<div align="center">
+    <a href="https://agenta.ai">Home Page</a> |
+    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a> |
+    <a href="https://docs.agenta.ai/">Documentation</a>
+</div>
+  </div>
+<br />
 
+<div align="center"><strong>Quickly iterate, debug, and evaluate your LLM apps</strong><br>The open-source LLMOps platform for prompt-engineering, evaluation and deployment.
+    </div>
+
+<br />
+<br />
 <p align="center">
   <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
+  <img src="https://img.shields.io/github/commit-activity/m/agenta-ai/agenta" alt="Commits per month">
 </br>
 </p>
+
 
 <p align="center">
 <a  href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
@@ -131,16 +150,16 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tbody>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/SamMethnani"><img src="https://avatars.githubusercontent.com/u/57623556?v=4?s=100" width="100px;" alt="Sameh Methnani"/><br /><sub><b>Sameh Methnani</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=SamMethnani" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=SamMethnani" title="Documentation">📖</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/suadsuljovic"><img src="https://avatars.githubusercontent.com/u/8658374?v=4?s=100" width="100px;" alt="Suad Suljovic"/><br /><sub><b>Suad Suljovic</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=suadsuljovic" title="Code">💻</a> <a href="#design-suadsuljovic" title="Design">🎨</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/suadsuljovic"><img src="https://avatars.githubusercontent.com/u/8658374?v=4?s=100" width="100px;" alt="Suad Suljovic"/><br /><sub><b>Suad Suljovic</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=suadsuljovic" title="Code">💻</a> <a href="#design-suadsuljovic" title="Design">🎨</a> <a href="#mentoring-suadsuljovic" title="Mentoring">🧑‍🏫</a> <a href="https://github.com/Agenta-AI/agenta/pulls?q=is%3Apr+reviewed-by%3Asuadsuljovic" title="Reviewed Pull Requests">👀</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/burtenshaw"><img src="https://avatars.githubusercontent.com/u/19620375?v=4?s=100" width="100px;" alt="burtenshaw"/><br /><sub><b>burtenshaw</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=burtenshaw" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://abram.tech"><img src="https://avatars.githubusercontent.com/u/55067204?v=4?s=100" width="100px;" alt="Abram"/><br /><sub><b>Abram</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=aybruhm" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=aybruhm" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://israelabebe.com"><img src="https://avatars.githubusercontent.com/u/7479824?v=4?s=100" width="100px;" alt="Israel Abebe"/><br /><sub><b>Israel Abebe</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Avernu" title="Bug reports">🐛</a> <a href="#design-vernu" title="Design">🎨</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=vernu" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/SohaibAnwaar"><img src="https://avatars.githubusercontent.com/u/29427728?v=4?s=100" width="100px;" alt="Master X"/><br /><sub><b>Master X</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=SohaibAnwaar" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://main-portfolio-26wv6oglp-witehound.vercel.app/"><img src="https://avatars.githubusercontent.com/u/26417477?v=4?s=100" width="100px;" alt="corinthian"/><br /><sub><b>corinthian</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=witehound" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://main-portfolio-26wv6oglp-witehound.vercel.app/"><img src="https://avatars.githubusercontent.com/u/26417477?v=4?s=100" width="100px;" alt="corinthian"/><br /><sub><b>corinthian</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=witehound" title="Code">💻</a> <a href="#design-witehound" title="Design">🎨</a></td>
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Pajko97"><img src="https://avatars.githubusercontent.com/u/25198892?v=4?s=100" width="100px;" alt="Pavle Janjusevic"/><br /><sub><b>Pavle Janjusevic</b></sub></a><br /><a href="#infra-Pajko97" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://kaosiso-ezealigo.netlify.app"><img src="https://avatars.githubusercontent.com/u/99529776?v=4?s=100" width="100px;" alt="Kaosi Ezealigo"/><br /><sub><b>Kaosi Ezealigo</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Abekossy" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://kaosiso-ezealigo.netlify.app"><img src="https://avatars.githubusercontent.com/u/99529776?v=4?s=100" width="100px;" alt="Kaosi Ezealigo"/><br /><sub><b>Kaosi Ezealigo</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Abekossy" title="Bug reports">🐛</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=bekossy" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/albnunes"><img src="https://avatars.githubusercontent.com/u/46302915?v=4?s=100" width="100px;" alt="Alberto Nunes"/><br /><sub><b>Alberto Nunes</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Aalbnunes" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/mohammed-maaz-6290b0116/"><img src="https://avatars.githubusercontent.com/u/17180132?v=4?s=100" width="100px;" alt="Maaz Bin Khawar"/><br /><sub><b>Maaz Bin Khawar</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=MohammedMaaz" title="Code">💻</a></td>
     </tr>
