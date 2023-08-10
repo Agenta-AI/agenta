@@ -111,7 +111,8 @@ async def add_variant_from_previous(
 
 
 @router.post("/start/")
-async def start_variant(app_variant: AppVariant, env_vars: Optional[DockerEnvVars]) -> URI:
+async def start_variant(app_variant: AppVariant, env_vars: Optional[DockerEnvVars] = {}) -> URI:
+    print(f"Starting variant {app_variant}")
     try:
         return app_manager.start_variant(app_variant, env_vars)
     except Exception as e:
