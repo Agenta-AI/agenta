@@ -146,6 +146,22 @@ def evaluate_with_ai_critique(
     open_ai_key: str,
     temperature: float = 0.9,
 ) -> str:
+    """Evaluate a response using an AI critique based on provided
+     - An evaluation prompt,
+     - An LLM App prompt,
+     - An LLM App output,
+     - a correct answer.
+
+    Args:
+        llm_app_prompt_template (str): the prompt template of the llm app variant
+        llm_app_inputs (dict): parameters
+        correct_answer (str): correct answer
+        app_variant_output (str): the output of an ll app variant with given parameters
+        evaluation_prompt_template (str): evaluation prompt set by an agenta user in the ai evaluation view
+
+    Returns:
+        str: returns an evaluation
+    """
     llm = OpenAI(openai_api_key=open_ai_key, temperature=temperature)
 
     input_variables = [
@@ -171,7 +187,6 @@ def evaluate_with_ai_critique(
     )
     chain = LLMChain(llm=llm, prompt=prompt)
 
-    # Use the ** operator to unpack the dynamic chain_run_args into the chain.run() function
     output = chain.run(**chain_run_args)
     return output.strip()
 
