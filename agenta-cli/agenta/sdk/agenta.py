@@ -14,7 +14,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .context import get_contexts, save_context
-from .types import FloatParam, InFile, TextParam, Context, MultipleChoiceParam, DictInput, IntParam
+from .types import (
+    FloatParam,
+    InFile,
+    TextParam,
+    Context,
+    MultipleChoiceParam,
+    DictInput,
+    IntParam,
+)
 from .router import router as router
 
 app = FastAPI()
@@ -168,8 +176,7 @@ def post(func: Callable[..., Any]):
                     traceback.format_exception(e, value=e, tb=e.__traceback__)
                 )
             return JSONResponse(
-                status_code=500,
-                content={"error": str(e), "traceback": traceback_str},
+                status_code=500, content={"error": str(e), "traceback": traceback_str},
             )
 
     new_params = []
@@ -223,9 +230,7 @@ def post(func: Callable[..., Any]):
                     )
                 else:
                     parser.add_argument(
-                        f"--{name}",
-                        type=type(param.default),
-                        default=param.default,
+                        f"--{name}", type=type(param.default), default=param.default,
                     )
             else:
                 # For required parameters, we add them as arguments
