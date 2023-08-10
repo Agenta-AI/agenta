@@ -1,16 +1,16 @@
-const withMDX = require('@next/mdx')({
+const withMDX = require("@next/mdx")({
     extension: /\.mdx?$/,
     options: {
-      remarkPlugins: [],
-      rehypePlugins: [],
+        remarkPlugins: [],
+        rehypePlugins: [],
     },
-  })
+})
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: "standalone",
     reactStrictMode: true,
-    pageExtensions: ['ts', 'tsx', 'js', 'jsx', 'md', 'mdx'],
+    pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
 
     async redirects() {
         return [
