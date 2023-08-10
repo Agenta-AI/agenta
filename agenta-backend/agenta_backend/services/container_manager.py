@@ -6,8 +6,9 @@ import docker
 import logging
 import backoff
 from pathlib import Path
-from typing import List, Union
+from aiodocker import Docker
 from httpx import ConnectError
+from typing import List, Union
 from fastapi import HTTPException
 from agenta_backend.config import settings
 from asyncio.exceptions import CancelledError
@@ -144,3 +145,22 @@ async def retrieve_templates_from_dockerhub_cached():
     # Cache the data in Redis for 60 minutes
     r.set("templates_data", json.dumps(response_data), ex=3600)
     return response_data
+
+
+async def pull_image_from_docker_hub(repo_name: str, tag: str) -> dict:
+    """Bussiness logic to asynchronously pulls an image from Docker Hub.
+    
+    Arguments:
+        repo_name -- The `repo_name` parameter represents the name of the repository
+            on Docker Hub from which you want to pull the image. It typically follows the format
+            `username/repository_name`
+        tag -- The `tag` parameter is used to specify a specific version or tag of the image to pull
+            from the Docker Hub repository.
+    
+    Returns:
+        an image object from Docker Hub.
+    """
+    
+    async with Docker() as docker:
+        image = await docker.images.pull(repo_name, tag=tag)
+        return image
