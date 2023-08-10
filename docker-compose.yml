@@ -97,9 +97,17 @@ services:
             mongo:
                 condition: service_healthy
 
+    redis:
+        image: redis:latest
+        networks:
+            - agenta-network
+        volumes:
+            - redis_data:/data
+
 networks:
     agenta-network:
         name: agenta-network
 
 volumes:
     mongodb_data:
+    redis_data:
