@@ -17,7 +17,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
 }) => {
     return (
         <>
-            {optParams?.filter((param) => !param.input && param.type === "number").length > 0 && (
+            {optParams?.some((param) => !param.input && param.type === "number") && (
                 <Row gutter={0} style={{padding: "0px 0px", width: "100%", marginTop: "16px"}}>
                     <Card
                         style={{
