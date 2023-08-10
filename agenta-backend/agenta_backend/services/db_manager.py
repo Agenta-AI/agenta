@@ -183,7 +183,7 @@ def add_variant_based_on_previous(
 
 def list_app_variants(
     app_name: str = None, show_soft_deleted=False
-) -> List[Template]:
+) -> List[AppVariant]:
     """
     Lists all the app variants from the db
     Args:
