@@ -2,8 +2,8 @@ import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {BarChartOutlined, LineChartOutlined} from "@ant-design/icons"
 import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, Typography} from "antd"
-import {Variant} from "@/lib/Types"
-import {updateEvaluationScenario, callVariant, useLoadResults} from "@/lib/services/api"
+import {Evaluation, Variant} from "@/lib/Types"
+import {updateEvaluationScenario, callVariant, useLoadResults, fetchEvaluationResults} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -11,7 +11,7 @@ import TextArea from "antd/es/input/TextArea"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 
 interface AICritiqueEvaluationTableProps {
-    evaluation: any
+    evaluation: Evaluation
     columnsCount: number
     evaluationScenarios: AICritiqueEvaluationTableRow[]
 }
@@ -51,7 +51,6 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
         : router.query.app_name || ""
 
     const variants = evaluation.variants
-    const { data: evaluationResults, isTestsetsLoading, isTestsetsLoadingError } = useLoadResults(evaluation.id);
 
     const variantData = variants.map((variant: Variant) => {
         const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(appName, variant)
@@ -81,8 +80,13 @@ Evaluate this: {app_variant_output}
 Answer ONLY with one of the given grading or evaluation options.
 `)
 
-    const [isResultsComponentDisplayed, setIsResultsComponentDisplayed] = useState<boolean>(false);
-    const [isResultsLoading, setIsResultsLoading] = useState<boolean>(false);
+
+    const [shouldFetchResults, setShouldFetchResults] = useState(false);
+    // const { data: evaluationResults, isResultsLoading, isResultsLoadingError } = useLoadResults(
+    //     shouldFetchResults ? evaluation.id : null,
+    // );
+    const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
+    const [evaluationResults, setEvaluationResults] = useState<any>(null)
 
     useEffect(() => {
         if (variantData && variantData[0] && variantData[0].inputParams){
@@ -97,6 +101,20 @@ Answer ONLY with one of the given grading or evaluation options.
         }
     }, [evaluationScenarios])
 
+    useEffect(() => {
+        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
+            fetchEvaluationResults(evaluation.id)
+        }
+    }, [evaluationStatus]);
+
+    useEffect(() => {
+        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
+            fetchEvaluationResults(evaluation.id)
+                .then(data => setEvaluationResults(data))
+                .catch(err => console.error('Failed to fetch results:', err));
+        }
+    }, [evaluationStatus, evaluation.id]);
+
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
         rowIndex: number,
@@ -109,7 +127,9 @@ Answer ONLY with one of the given grading or evaluation options.
 
     const runAllEvaluations = async () => {
         try {
+            setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED);
             await Promise.all(rows.map((_, rowIndex) => runEvaluation(rowIndex)));
+            setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED);
             console.log("All evaluations finished.");
         } catch (err) {
             console.error("An error occurred:", err);
@@ -126,17 +146,12 @@ Answer ONLY with one of the given grading or evaluation options.
         for (const [idx, columnName] of columnsDataNames.entries()) {
             try {
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED);
-                setIsResultsComponentDisplayed(true);
-                setIsResultsLoading(true);
 
                 let result = await callVariant(inputParamsDict, variantData[idx].optParams, variantData[idx].URIPath);
                 setRowValue(rowIndex, columnName, result);
                 await evaluate(rowIndex);
+                setShouldFetchResults(true);
 
-                // Fetch results after evaluation (add your fetch function here)
-                // const fetchedResults = await useLoadResults(evaluation.id);
-                console.log(evaluationResults);
-                // handleFetchedResults(fetchedResults);
 
             } catch (e) {
                 console.error("Error:", e);
@@ -207,7 +222,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     rowIndex: number,
                 ) => {
                     if (record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED) {
-                        return <center><Spin /></center> 
+                        return <center><Spin /></center>
                     }
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
@@ -343,36 +358,45 @@ Answer ONLY with one of the given grading or evaluation options.
                         >
                             Run Evaluation
                         </Button>
-                        <Button
-                            disabled={true}
-                            onClick={runAllEvaluations}
-                            icon={<BarChartOutlined />}
-                            size="large"
-                            style={{marginLeft: 10}}
-                        >
-                            Results
-                            {/* {evaluationResults && (
-                                <div>
-                                    {evaluationResults.}
-                                </div>
-                            )} */}
-                        </Button>
                     </Col>
                 </Row>
             </div>
-            {isResultsComponentDisplayed && (
-                <div style={{
-                        padding: 20,
-                        backgroundColor: 'rgb(244 244 244)',
-                        border: '1px solid #ccc',
-                        borderRadius: 5,
-                    }}>
-                    {isResultsLoading && (
-                        <center><Spin /></center>
-                        )
+            <div style={{
+                padding: "30px 10px",
+                marginBottom: 20,
+                backgroundColor: 'rgb(244 244 244)',
+                border: '1px solid #ccc',
+                borderRadius: 5,
+            }}>
+                <center>
+                    {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
+                        <div>Run evaluation to see results!</div>)
                     }
-                </div>
-            )}
+                    {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && (
+                        <Spin />
+                    )}
+                    { evaluationResults && evaluationResults.results_data && (
+                        <div>
+                            <h3 style={{marginTop: 0}}>Results Data:</h3>
+                            <Row gutter={8} justify="center" style={{ maxWidth: "100%", overflowX: "auto", whiteSpace: "nowrap" }}>
+                                {Object.entries(evaluationResults.results_data).map(([key, value], index) => {
+                                    return (
+                                        <Col key={index} style={{ display: 'inline-block' }}>
+                                            <Card bordered={false} style={{ width: 200, margin: "0 4px" }}>
+                                                <Statistic
+                                                    title={key}
+                                                    value={value}
+                                                    valueStyle={{ color: '#3f8600' }}
+                                                />
+                                            </Card>
+                                        </Col>
+                                    );
+                                })}
+                            </Row>
+                        </div>
+                    )}
+                </center>
+            </div>
             <div>
                 <Table
                     dataSource={rows}

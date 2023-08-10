@@ -349,3 +349,18 @@ export const postEvaluationScenario = async (evaluationTableId: string, data) =>
     const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_scenario`, data)
     return response.data
 }
+
+export const fetchEvaluationResults = async (evaluationId: string) => {
+    try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}/results`);
+        if (response.ok) {
+            const data = await response.json();
+            return data;
+        } else {
+            throw new Error('Failed to fetch results.');
+        }
+    } catch (error) {
+        console.error("Error fetching results:", error);
+        throw error;
+    }
+};
