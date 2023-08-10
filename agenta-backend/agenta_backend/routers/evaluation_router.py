@@ -1,9 +1,7 @@
-from agenta_backend.services.evaluation_service import (
-    UpdateEvaluationScenarioError,
-    update_evaluation_scenario_service,
-    create_new_evaluation
-)
 from fastapi import HTTPException, APIRouter, Body
+from datetime import datetime
+from bson import ObjectId
+from typing import List, Optional
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
@@ -12,14 +10,21 @@ from agenta_backend.models.api.evaluation_model import (
     DeleteEvaluation,
     EvaluationType,
 )
+from agenta_backend.services.results_service import (
+    fetch_results_for_human_a_b_testing_evaluation,
+    fetch_results_for_auto_exact_match_evaluation,
+    fetch_results_for_auto_similarity_match_evaluation,
+    fetch_results_for_auto_ai_critique
+)
+from agenta_backend.services.evaluation_service import (
+    UpdateEvaluationScenarioError,
+    update_evaluation_scenario,
+    create_new_evaluation
+)
 from agenta_backend.services.db_mongo import (
     evaluations,
     evaluation_scenarios,
-    testsets,
 )
-from datetime import datetime
-from bson import ObjectId
-from typing import List, Optional
 
 router = APIRouter()
 
@@ -96,7 +101,7 @@ async def create_evaluation_scenario(evaluation_scenario: EvaluationScenario):
 @router.put(
     "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}"
 )
-async def update_evaluation_scenario(
+async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
     evaluation_scenario: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
@@ -114,7 +119,7 @@ async def update_evaluation_scenario(
         _description_
     """
     try:
-        return await update_evaluation_scenario_service(evaluation_scenario_id, evaluation_scenario, evaluation_type)
+        return await update_evaluation_scenario(evaluation_scenario_id, evaluation_scenario, evaluation_type)
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -210,95 +215,9 @@ async def fetch_results(evaluation_id: str):
         )
         return {"scores_data": results}
 
-
-async def fetch_results_for_human_a_b_testing_evaluation(
-    evaluation_id: str, variants: list
-):
-    results = {}
-    evaluation_rows_nb = await evaluation_scenarios.count_documents(
-        {"evaluation_id": evaluation_id, "vote": {"$ne": ""}}
-    )
-
-    if evaluation_rows_nb == 0:
-        return results
-
-    results["variants"] = variants
-    results["variants_votes_data"] = {}
-    results["nb_of_rows"] = evaluation_rows_nb
-
-    flag_votes_nb = await evaluation_scenarios.count_documents(
-        {"vote": "0", "evaluation_id": evaluation_id}
-    )
-    results["flag_votes"] = {}
-    results["flag_votes"]["number_of_votes"] = flag_votes_nb
-    results["flag_votes"]["percentage"] = (
-        round(flag_votes_nb / evaluation_rows_nb * 100, 2) if evaluation_rows_nb else 0
-    )
-
-    for item in variants:
-        results["variants_votes_data"][item] = {}
-        variant_votes_nb: int = await evaluation_scenarios.count_documents(
-            {"vote": item, "evaluation_id": evaluation_id}
+    elif evaluation["evaluation_type"] == EvaluationType.auto_ai_critique:
+        results = await fetch_results_for_auto_ai_critique(
+            evaluation_id
         )
-        results["variants_votes_data"][item]["number_of_votes"] = variant_votes_nb
-        results["variants_votes_data"][item]["percentage"] = (
-            round(variant_votes_nb / evaluation_rows_nb * 100, 2)
-            if evaluation_rows_nb
-            else 0
-        )
-    return results
+        return {"results_data": results}
 
-
-async def fetch_results_for_auto_exact_match_evaluation(
-    evaluation_id: str, variant: str
-):
-    results = {}
-    evaluation_rows_nb = await evaluation_scenarios.count_documents(
-        {"evaluation_id": evaluation_id, "score": {"$ne": ""}}
-    )
-
-    if evaluation_rows_nb == 0:
-        return results
-
-    results["variant"] = variant
-    # results["variants_scores_data"] = {}
-    results["nb_of_rows"] = evaluation_rows_nb
-
-    correct_scores_nb: int = await evaluation_scenarios.count_documents(
-        {"score": "correct", "evaluation_id": evaluation_id}
-    )
-
-    wrong_scores_nb: int = await evaluation_scenarios.count_documents(
-        {"score": "wrong", "evaluation_id": evaluation_id}
-    )
-    results["scores"] = {}
-    results["scores"]["correct"] = correct_scores_nb
-    results["scores"]["wrong"] = wrong_scores_nb
-    return results
-
-
-async def fetch_results_for_auto_similarity_match_evaluation(
-    evaluation_id: str, variant: str
-):
-    results = {}
-    evaluation_rows_nb = await evaluation_scenarios.count_documents(
-        {"evaluation_id": evaluation_id, "score": {"$ne": ""}}
-    )
-
-    if evaluation_rows_nb == 0:
-        return results
-
-    results["variant"] = variant
-    results["nb_of_rows"] = evaluation_rows_nb
-
-    similar_scores_nb: int = await evaluation_scenarios.count_documents(
-        {"score": "true", "evaluation_id": evaluation_id}
-    )
-
-    dissimilar_scores_nb: int = await evaluation_scenarios.count_documents(
-        {"score": "false", "evaluation_id": evaluation_id}
-    )
-    results["scores"] = {}
-    results["scores"]["true"] = similar_scores_nb
-    results["scores"]["false"] = dissimilar_scores_nb
-    return results
