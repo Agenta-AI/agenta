@@ -142,7 +142,7 @@ export default function Evaluations() {
                 _id: selectedTestset._id,
                 name: selectedTestset.name,
             },
-            status: EvaluationFlow.EVALUATION_FINISHED,
+            status: EvaluationFlow.EVALUATION_INITIALIZED,
         }
 
         return postData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`, data)

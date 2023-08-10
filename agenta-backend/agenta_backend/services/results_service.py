@@ -97,7 +97,7 @@ async def fetch_results_for_auto_similarity_match_evaluation(
 
 async def fetch_results_for_auto_ai_critique(evaluation_id: str):
     pipeline = [
-        {"$match": {"evaluation_id": ObjectId(evaluation_id)}},
+        {"$match": {"evaluation_id": evaluation_id}},
         {"$group": {
             "_id": "$evaluation",
             "count": {"$sum": 1}
