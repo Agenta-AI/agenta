@@ -1,5 +1,5 @@
 import {getOpenAIKey, removeOpenAIKey, saveOpenAIKey} from "@/lib/helpers/utils"
-import {Button, Input, Space, Typography} from "antd"
+import {Button, Input, Space, Typography, message} from "antd"
 import {useState} from "react"
 
 export default function ApiKeys() {
@@ -8,11 +8,13 @@ export default function ApiKeys() {
     const savedOpenAiKey = getOpenAIKey()
 
     const [openAiKey, setOpenAiKey] = useState(savedOpenAiKey)
+    const [messageAPI, contextHolder] = message.useMessage()
 
     const saveDisabled = openAiKey === savedOpenAiKey
 
     return (
         <div>
+            {contextHolder}
             <Title level={3} style={{marginBottom: 30}}>
                 API tokens
             </Title>
@@ -41,13 +43,20 @@ export default function ApiKeys() {
                             visibilityToggle={false}
                             style={{minWidth: 300}}
                         />
-                        <Button disabled={saveDisabled} onClick={() => saveOpenAIKey(openAiKey)}>
+                        <Button
+                            disabled={saveDisabled}
+                            onClick={() => {
+                                saveOpenAIKey(openAiKey)
+                                messageAPI.success("The key is saved")
+                            }}
+                        >
                             Save
                         </Button>
                         <Button
                             onClick={() => {
                                 removeOpenAIKey()
                                 setOpenAiKey("")
+                                messageAPI.warning("The key is deleted")
                             }}
                         >
                             Delete
