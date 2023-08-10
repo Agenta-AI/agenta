@@ -20,3 +20,7 @@ class URI(BaseModel):
 
 class App(BaseModel):
     app_name: str
+
+
+class DockerEnvVars(BaseModel):
+    env_vars: Dict[str, str]
