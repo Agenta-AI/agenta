@@ -20,9 +20,7 @@ router = APIRouter()
 
 
 @router.post("/", response_model=Evaluation)
-async def create_evaluation(
-    newEvaluationData: NewEvaluation = Body(...),
-):
+async def create_evaluation(newEvaluationData: NewEvaluation = Body(...),):
     """Creates a new comparison table document
 
     Raises:
@@ -48,9 +46,13 @@ async def create_evaluation(
                 ]
             except KeyError:
                 await evaluations.delete_one({"_id": newEvaluation.inserted_id})
+                msg = f"""
+                Columns in the test set should match the names of the inputs in the variant.
+                Inputs names in variant are: {evaluation['inputs']} while
+                columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
+                """
                 raise HTTPException(
-                    status_code=400,
-                    detail="columns in the test set should match the names of the inputs in the variant",
+                    status_code=400, detail=msg,
                 )
             evaluation_scenario = {
                 "evaluation_id": str(newEvaluation.inserted_id),
@@ -87,8 +89,7 @@ async def create_evaluation(
 
 
 @router.get(
-    "/{evaluation_id}/evaluation_scenarios",
-    response_model=List[EvaluationScenario],
+    "/{evaluation_id}/evaluation_scenarios", response_model=List[EvaluationScenario],
 )
 async def fetch_evaluation_scenarios(evaluation_id: str):
     """Creates an empty evaluation row
@@ -235,8 +236,7 @@ async def delete_evaluations(delete_evaluations: DeleteEvaluation):
                 deleted_ids.append(evaluations_id)
         else:
             raise HTTPException(
-                status_code=404,
-                detail=f"Comparison table {evaluations_id} not found",
+                status_code=404, detail=f"Comparison table {evaluations_id} not found",
             )
 
     return deleted_ids

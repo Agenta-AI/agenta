@@ -4,9 +4,7 @@ from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chat_models import ChatOpenAI
-from langchain.schema import (
-    HumanMessage,
-)
+from langchain.schema import HumanMessage
 import openai
 import replicate
 
@@ -47,9 +45,7 @@ def call_llm(model, temperature, prompt, **kwargs):
             },
         )
         messages = [HumanMessage(content=prompt.format(text=kwargs["text"]))]
-        output = chat(
-            messages,
-        ).content
+        output = chat(messages,).content
 
     # replicate
     if model == "replicate":
@@ -72,8 +68,7 @@ def generate(
     # ----- ChatGPT 3.5 Params -----
     temperature: ag.FloatParam = 0.9,
     model: MultipleChoiceParam = MultipleChoiceParam(
-        "gpt-3.5-turbo",
-        CHAT_LLM_GPT + ["replicate"],
+        "gpt-3.5-turbo", CHAT_LLM_GPT + ["replicate"],
     ),
     # Min 1000, Max 4000
     maximum_length: ag.IntParam = 3000,
@@ -84,10 +79,7 @@ def generate(
     prompt_chunks: ag.TextParam = prompts["chat"]["input_prompt"],
     prompt_final: ag.TextParam = prompts["chat"]["output_prompt"],
 ) -> str:
-    prompt = PromptTemplate(
-        input_variables=["text"],
-        template=prompt_chunks,
-    )
+    prompt = PromptTemplate(input_variables=["text"], template=prompt_chunks,)
 
     outputs = call_llm(
         model=model,
