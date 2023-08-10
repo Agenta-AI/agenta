@@ -1,7 +1,8 @@
 """Converts db models to pydantic models
 """
-from agenta_backend.models.db_models import AppVariantDB, ImageDB
-from agenta_backend.models.api.api_models import AppVariant, Image
+from typing import List
+from agenta_backend.models.db_models import AppVariantDB, ImageDB, TemplateDB
+from agenta_backend.models.api.api_models import AppVariant, Image, Template, TemplateImageInfo
 
 
 def app_variant_db_to_pydantic(
@@ -17,3 +18,15 @@ def app_variant_db_to_pydantic(
 
 def image_db_to_pydantic(image_db: ImageDB) -> Image:
     return Image(docker_id=image_db.docker_id, tags=image_db.tags)
+
+
+def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
+    return [Template(id=template.id, image=TemplateImageInfo(
+        name=template.name,
+        size=template.size,
+        digest=template.digest,
+        status=template.status,
+        last_pushed=template.last_pushed,
+        repo_name=template.repo_name,
+        media_type=template.media_type
+    )) for template in templates_db]
