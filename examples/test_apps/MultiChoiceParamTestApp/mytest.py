@@ -7,12 +7,12 @@ default_prompt = "What is a good name for a company that makes {product}?"
 
 
 @ag.post
-def generate(
+def completion(
     product: str,
-    temperature: ag.FloatParam = 0.9,
     prompt_template: ag.TextParam = default_prompt,
+    model: ag.MultipleChoiceParam = ag.MultipleChoiceParam(1, [1, 2]),
 ) -> str:
-    llm = OpenAI(temperature=temperature)
+    llm = OpenAI()
     prompt = PromptTemplate(input_variables=["product"], template=prompt_template,)
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(product=product)

@@ -32,7 +32,7 @@ const testsetMusHaveNameModal: React.FC<Props> = ({isModalOpen, setIsModalOpen})
                 <ExclamationCircleOutlined
                     style={{fontSize: "24px", color: "#faad14", marginRight: "10px"}}
                 />
-                <p>
+                <p data-cy="testset-name-reqd-error">
                     You cannot create/update a test set with an empty name. Please provide a
                     descriptive name before proceeding.
                 </p>

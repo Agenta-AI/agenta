@@ -5,6 +5,7 @@ import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
+import {useState} from "react"
 import {is} from "cypress/types/bluebird"
 
 interface Props {
@@ -34,6 +35,7 @@ const ViewNavigation: React.FC<Props> = ({
         isParamSaveLoading,
         saveOptParams,
     } = useVariant(appName, variant)
+    const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
 
     if (isLoading) {
         return <div>Loading...</div>
@@ -60,7 +62,6 @@ const ViewNavigation: React.FC<Props> = ({
                         </p>
                         <p>To debug this issue, please follow the steps below:</p>
                         <ul>
-                            <li>Run "agenta variant start"</li>
                             <li>
                                 Verify whether the API is up by checking if {apiAddress} is
                                 accessible.
@@ -72,13 +73,15 @@ const ViewNavigation: React.FC<Props> = ({
                         </ul>
                         <p>
                             {" "}
-                            In case the docker container is not running. Please simply start it
-                            (using cli or docker desktop)
+                            In case the docker container is not running. Please check the logs from
+                            docker to understand the issue. Most of the time it is a missing
+                            requirements. Also, please attempt restarting it (using cli or docker
+                            desktop)
                         </p>
                         <p>
                             {" "}
-                            If the issue persists please file an issue in github or directly contact
-                            us under team@agenta.ai
+                            If the issue persists please file an issue in github here:
+                            https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx
                         </p>
 
                         <Button
@@ -115,6 +118,8 @@ const ViewNavigation: React.FC<Props> = ({
                         setRemovalVariantName={setRemovalVariantName}
                         setRemovalWarningModalOpen={setRemovalWarningModalOpen}
                         isDeleteLoading={isDeleteLoading}
+                        isParamsCollapsed={isParamsCollapsed}
+                        setIsParamsCollapsed={setIsParamsCollapsed}
                     />
                 </Col>
             </Row>

@@ -12,7 +12,7 @@
   </div>
 <br />
 
-<div align="center"><strong>Quickly iterate, debug, and evaluate your LLM apps</strong><br>The open-source LLMOps platform for prompt-engineering, evaluation and deployment.
+<div align="center"><strong>Quickly iterate, debug, and evaluate your LLM apps</strong><br>The open-source LLMOps platform for prompt-engineering, evaluation and deployment of complex LLM apps.
     </div>
 
 <br />
@@ -42,7 +42,7 @@
 
 Building production-ready LLM-powered applications is currently very difficult. It involves countless iterations of prompt engineering, parameter tuning, and architectures.
 
-Agenta provides you with the tools to quickly do prompt engineering and 🧪 **experiment**, ⚖️ **evaluate**, and :rocket: **deploy** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
+Agenta provides you with the tools to quickly do prompt engineering and 🧪 **experiment**, ⚖️ **evaluate**, and :rocket: **deploy** your LLM apps. All without imposing any restrictions on your choice of framework, library, or model. 
 
 https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-67475e4ce9ed
 

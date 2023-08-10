@@ -87,7 +87,7 @@ const AppCard: React.FC<{
                     />,
                 ]}
             >
-                <Link href={`/apps/${appName}/playground`}>
+                <Link data-cy="app-card-link" href={`/apps/${appName}/playground`}>
                     <Card.Meta
                         style={{
                             height: "90%", // adjust this as needed
