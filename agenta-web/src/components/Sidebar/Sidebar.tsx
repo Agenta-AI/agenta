@@ -15,7 +15,7 @@ import {
     DashboardOutlined,
     LockOutlined,
 } from "@ant-design/icons"
-import {Avatar, Layout, Menu, Space, Tag, Tooltip, theme} from "antd"
+import {Avatar, Layout, Menu, Modal, Space, Tag, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
@@ -45,6 +45,7 @@ const Sidebar: React.FC = () => {
         initialSelectedKeys = ["apps"]
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
+    const [isOpen, setIsOpen] = useState(false)
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
@@ -56,6 +57,10 @@ const Sidebar: React.FC = () => {
         } else {
             return `/apps/${app_name}/${path}`
         }
+    }
+
+    const handlOpenModal = () => {
+        setIsOpen(true)
     }
 
     return (
@@ -195,6 +200,9 @@ const Sidebar: React.FC = () => {
                     <Menu.Item key="theme" icon={<DashboardOutlined />} onClick={toggleAppTheme}>
                         <span>{appTheme === "light" ? "Dark mode" : "Light mode"}</span>
                     </Menu.Item>
+                    <Menu.Item key="language" icon={<GlobalOutlined />} onClick={handlOpenModal}>
+                        <span>Attributions</span>
+                    </Menu.Item>
                     <Menu.Item key="help" icon={<QuestionOutlined />}>
                         <Link href="https://docs.agenta.ai" target="_blank">
                             Help
@@ -209,6 +217,14 @@ const Sidebar: React.FC = () => {
                     </Menu.Item> */}
                 </Menu>
             </div>
+            <Modal
+                title="Attributions"
+                open={isOpen}
+                onCancel={() => setIsOpen(false)}
+                onOk={() => setIsOpen(false)}
+            >
+                <a href="https://www.flaticon.com/free-icons/testing" title="testing icons">Testing icons created by Freepik - Flaticon</a>
+            </Modal>
         </Sider>
     )
 }
