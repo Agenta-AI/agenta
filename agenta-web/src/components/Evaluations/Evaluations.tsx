@@ -22,11 +22,11 @@ import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {Typography} from "antd"
 import EvaluationErrorModal from "./EvaluationErrorModal"
 
-import Image from 'next/image'
-import abTesting from '@/media/testing.png';
-import exactMatch from '@/media/target.png';
-import similarity from '@/media/transparency.png';
-import ai from '@/media/artificial-intelligence.png';
+import Image from "next/image"
+import abTesting from "@/media/testing.png"
+import exactMatch from "@/media/target.png"
+import similarity from "@/media/transparency.png"
+import ai from "@/media/artificial-intelligence.png"
 
 export default function Evaluations() {
     const {Text, Title} = Typography
@@ -67,9 +67,16 @@ export default function Evaluations() {
         if (variants.length > 0) {
             const fetchAndSetSchema = async () => {
                 try {
-                    const {initOptParams, inputParams} = await getVariantParameters(appName, variants[0])
+                    const {initOptParams, inputParams} = await getVariantParameters(
+                        appName,
+                        variants[0],
+                    )
 
-                    setLLMAppPromptTemplate(initOptParams.filter((param: Parameter) => param.name === "prompt_template")[0].default)
+                    setLLMAppPromptTemplate(
+                        initOptParams.filter(
+                            (param: Parameter) => param.name === "prompt_template",
+                        )[0].default,
+                    )
                     setVariantInputs(inputParams.map((inputParam: Parameter) => inputParam.name))
                 } catch (e) {
                     setIsError("Failed to fetch variants parameters")
@@ -231,7 +238,9 @@ export default function Evaluations() {
             message.error("Please select a testset")
             return
         } else if (getOpenAIKey() === "") {
-            message.error("In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.")
+            message.error(
+                "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
+            )
             return
         }
 
@@ -307,26 +316,26 @@ export default function Evaluations() {
                         <Title level={5}>Human evaluation</Title>
                         <Radio.Group
                             onChange={(e) => onChangeEvaluationType(e)}
-                            style={{width: "100%", }}
+                            style={{width: "100%"}}
                         >
-
                             <Radio.Button
                                 value={EvaluationType.human_a_b_testing}
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div style={{display: "flex", alignItems: "center"}}>
                                     <Image
                                         src={abTesting}
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{ marginRight: "8px" }}
+                                        style={{marginRight: "8px"}}
                                     />
 
-                                    <span>{EvaluationTypeLabels[EvaluationType.human_a_b_testing]}</span>
+                                    <span>
+                                        {EvaluationTypeLabels[EvaluationType.human_a_b_testing]}
+                                    </span>
                                 </div>
                             </Radio.Button>
-
 
                             <Radio.Button
                                 value={EvaluationType.human_scoring}
@@ -345,32 +354,36 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_exact_match}
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div style={{display: "flex", alignItems: "center"}}>
                                     <Image
                                         src={exactMatch}
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{ marginRight: "8px" }}
+                                        style={{marginRight: "8px"}}
                                     />
 
-                                    <span>{EvaluationTypeLabels[EvaluationType.auto_exact_match]}</span>
+                                    <span>
+                                        {EvaluationTypeLabels[EvaluationType.auto_exact_match]}
+                                    </span>
                                 </div>
                             </Radio.Button>
                             <Radio.Button
                                 value={EvaluationType.auto_similarity_match}
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div style={{display: "flex", alignItems: "center"}}>
                                     <Image
                                         src={similarity}
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{ marginRight: "8px" }}
+                                        style={{marginRight: "8px"}}
                                     />
 
-                                    <span>{EvaluationTypeLabels[EvaluationType.auto_similarity_match]}</span>
+                                    <span>
+                                        {EvaluationTypeLabels[EvaluationType.auto_similarity_match]}
+                                    </span>
                                 </div>
                             </Radio.Button>
                             {selectedEvaluationType === EvaluationType.auto_similarity_match && (
@@ -389,16 +402,18 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_ai_critique}
                                 style={{display: "block", marginBottom: "10px"}}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div style={{display: "flex", alignItems: "center"}}>
                                     <Image
                                         src={ai}
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{ marginRight: "8px" }}
+                                        style={{marginRight: "8px"}}
                                     />
 
-                                    <span>{EvaluationTypeLabels[EvaluationType.auto_ai_critique]}</span>
+                                    <span>
+                                        {EvaluationTypeLabels[EvaluationType.auto_ai_critique]}
+                                    </span>
                                 </div>
                             </Radio.Button>
                         </Radio.Group>
