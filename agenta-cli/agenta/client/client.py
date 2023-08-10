@@ -45,6 +45,7 @@ def start_variant(app_name: str, variant_name: str, host: str) -> str:
     Returns:
         The endpoint of the container
     """
+    # return
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/start/",
         json={"app_name": app_name, "variant_name": variant_name},
