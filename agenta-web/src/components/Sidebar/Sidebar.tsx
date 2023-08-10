@@ -223,7 +223,9 @@ const Sidebar: React.FC = () => {
                 onCancel={() => setIsOpen(false)}
                 onOk={() => setIsOpen(false)}
             >
-                <a href="https://www.flaticon.com/free-icons/testing" title="testing icons">Testing icons created by Freepik - Flaticon</a>
+                <a href="https://www.flaticon.com/free-icons/testing" title="testing icons">
+                    Testing icons created by Freepik - Flaticon
+                </a>
             </Modal>
         </Sider>
     )

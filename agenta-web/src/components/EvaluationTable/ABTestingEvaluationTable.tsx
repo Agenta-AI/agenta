@@ -147,7 +147,11 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         })
     }
 
-    const setRowValue = (rowIndex: number, columnKey: keyof ABTestingEvaluationTableRow, value: any) => {
+    const setRowValue = (
+        rowIndex: number,
+        columnKey: keyof ABTestingEvaluationTableRow,
+        value: any,
+    ) => {
         const newRows = [...rows]
         newRows[rowIndex][columnKey] = value as never
         setRows(newRows)
