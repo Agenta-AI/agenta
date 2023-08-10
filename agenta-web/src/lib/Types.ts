@@ -1,4 +1,4 @@
-import {EvaluationType} from "./enums"
+import {EvaluationFlow, EvaluationType} from "./enums"
 
 export interface testset {
     _id: string
@@ -32,6 +32,7 @@ export interface Evaluation {
     createdAt: string
     variants: Variant[]
     evaluationType: string
+    status: EvaluationFlow
     testset: {
         _id: string
         name: string
