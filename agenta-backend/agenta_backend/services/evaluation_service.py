@@ -105,7 +105,7 @@ async def update_evaluation_scenario(
 
         evaluation = evaluate_with_ai_critique(
             llm_app_prompt_template=current_evaluation["llm_app_prompt_template"],
-            llmm_app_inputs=current_evaluation_scenario["inputs"],
+            llm_app_inputs=current_evaluation_scenario["inputs"],
             correct_answer=current_evaluation_scenario["correct_answer"],
             app_variant_output=new_evaluation_set["outputs"][0]["variant_output"],
             evaluation_prompt_template=evaluation_scenario_dict["evaluation_prompt_template"],
@@ -130,7 +130,7 @@ async def update_evaluation_scenario(
 
 def evaluate_with_ai_critique(
         llm_app_prompt_template: str,
-        llmm_app_inputs: dict,
+        llm_app_inputs: dict,
         correct_answer: str,
         app_variant_output: str,
         evaluation_prompt_template: str,
@@ -141,7 +141,7 @@ def evaluate_with_ai_critique(
 
     input_variables = ["app_variant_output", "llm_app_prompt_template", "correct_answer"]
 
-    for input_item in llmm_app_inputs:
+    for input_item in llm_app_inputs:
         input_variables.append(input_item['input_name'])
 
     chain_run_args = {
@@ -150,7 +150,7 @@ def evaluate_with_ai_critique(
         'app_variant_output': app_variant_output
     }
 
-    for input_item in llmm_app_inputs:
+    for input_item in llm_app_inputs:
         chain_run_args[input_item['input_name']] = input_item['input_value']
 
     prompt = PromptTemplate(
