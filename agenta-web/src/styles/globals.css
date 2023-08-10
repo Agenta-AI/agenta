@@ -5,6 +5,10 @@ body {
     text-decoration: none;
 }
 
+.mdxSlider img{
+    width: 100%;
+}
+
 @keyframes pulse {
     0% {
         box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.7);
