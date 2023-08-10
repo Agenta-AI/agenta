@@ -111,7 +111,6 @@ async def add_variant_from_previous(
 
 @router.post("/start/")
 async def start_variant(app_variant: AppVariant, env_vars: Optional[DockerEnvVars] = None) -> URI:
-    print("\n\n\n\n\n I am here \n\n\n\n\n")
     print(f"Starting variant {app_variant}")
     logger.info("Starting variant %s", app_variant)
     try:
