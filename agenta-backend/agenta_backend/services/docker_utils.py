@@ -4,7 +4,7 @@ from typing import List
 
 import docker
 from agenta_backend.config import settings
-from agenta_backend.models.api.api_models import URI, AppVariant, Image
+from agenta_backend.models.api.api_models import URI, AppVariant, Image, DockerEnvVars
 
 client = docker.from_env()
 
@@ -39,7 +39,19 @@ def list_images() -> List[Image]:
     return registry_images
 
 
-def start_container(image_name, app_name, variant_name) -> URI:
+def start_container(image_name: str, app_name: str, variant_name: str, env_vars: DockerEnvVars) -> URI:
+    """Starts the container for an app using local docker. Injects the env vars and sets up traefik
+    for reverse proxying.
+
+    Args:
+        image_name: image name to start
+        app_name: app name to start
+        variant_name: variant name to start
+        env_vars:  env vars to inject
+
+    Returns:
+        URI -- The URI of the container
+    """
     image = client.images.get(f"{image_name}")
 
     labels = {
@@ -62,13 +74,14 @@ def start_container(image_name, app_name, variant_name) -> URI:
             ]
         }
     )
-
-    container = client.containers.run(
+    env_vars = {} if env_vars is None else env_vars
+    client.containers.run(
         image,
         detach=True,
         labels=labels,
         network="agenta-network",
         name=f"{app_name}-{variant_name}",
+        environment=env_vars,
     )
     return URI(uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}")
 
