@@ -327,8 +327,8 @@ export const loadEvaluationsScenarios = async (
     }
 }
 
-export const updateEvaluations = async (evaluationTableId: string, data) => {
-    const response = await eval_endpoint.put(`${evaluationTableId}`, data)
+export const updateEvaluation = async (evaluationId: string, data) => {
+    const response = await eval_endpoint.put(`${evaluationId}`, data)
     return response.data
 }
 

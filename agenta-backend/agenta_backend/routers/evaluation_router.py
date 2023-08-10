@@ -9,6 +9,7 @@ from agenta_backend.models.api.evaluation_model import (
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
+    EvaluationStatus
 )
 from agenta_backend.services.results_service import (
     fetch_results_for_human_a_b_testing_evaluation,
@@ -19,6 +20,7 @@ from agenta_backend.services.results_service import (
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
     update_evaluation_scenario,
+    update_evaluation_status,
     create_new_evaluation
 )
 from agenta_backend.services.db_mongo import (
@@ -39,6 +41,23 @@ async def create_evaluation(newEvaluationData: NewEvaluation = Body(...)):
     """
     try:
         return await create_new_evaluation(newEvaluationData)
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail="columns in the test set should match the names of the inputs in the variant",
+        )
+
+
+@router.put("/{evaluation_id}", response_model=Evaluation)
+async def update_evaluation_status_router(evaluation_id: str, update_data: EvaluationStatus = Body(...)):
+    """Updates an evaluation status
+    Raises:
+        HTTPException: _description_
+    Returns:
+        _description_
+    """
+    try:
+        return await update_evaluation_status(evaluation_id, update_data.status)
     except KeyError:
         raise HTTPException(
             status_code=400,

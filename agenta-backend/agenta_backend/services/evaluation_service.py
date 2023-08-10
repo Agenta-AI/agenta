@@ -1,6 +1,12 @@
 from typing import Dict
 from datetime import datetime
-from agenta_backend.models.api.evaluation_model import Evaluation, EvaluationType, NewEvaluation, EvaluationScenarioUpdate
+from agenta_backend.models.api.evaluation_model import (
+    Evaluation,
+    EvaluationType,
+    NewEvaluation,
+    EvaluationScenarioUpdate,
+    EvaluationStatus
+)
 from fastapi import HTTPException
 from bson import ObjectId
 from agenta_backend.services.db_mongo import (
@@ -58,6 +64,20 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
 
     evaluation["id"] = str(newEvaluation.inserted_id)
     return evaluation
+
+
+async def update_evaluation_status(evaluation_id: str, status: EvaluationStatus) -> Evaluation:
+    result = await evaluations.update_one(
+        {"_id": ObjectId(evaluation_id)}, {"$set": {"status": status.value}}
+    )
+    if result.acknowledged:
+        doc = await evaluations.find_one({"_id": ObjectId(evaluation_id)})
+        if doc:
+            doc["id"] = str(doc["_id"])
+            del doc["_id"]
+            return Evaluation(**doc)
+    else:
+        raise UpdateEvaluationScenarioError("Failed to update evaluation status")
 
 
 async def update_evaluation_scenario(
