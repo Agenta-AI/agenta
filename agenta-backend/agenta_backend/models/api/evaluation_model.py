@@ -16,6 +16,17 @@ class EvaluationType(str, Enum):
     human_scoring = "human_scoring"
 
 
+class EvaluationStatusEnum(str, Enum):
+    EVALUATION_INITIALIZED = "EVALUATION_INITIALIZED"
+    EVALUATION_STARTED = "EVALUATION_STARTED"
+    COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
+    EVALUATION_FINISHED = "EVALUATION_FINISHED"
+
+
+class EvaluationStatus(BaseModel):
+    status: EvaluationStatusEnum
+
+
 class Evaluation(BaseModel):
     id: str
     status: str

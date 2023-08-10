@@ -7,6 +7,7 @@ import {
     updateEvaluationScenario,
     callVariant,
     fetchEvaluationResults,
+    updateEvaluation,
 } from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
@@ -112,13 +113,11 @@ Answer ONLY with one of the given grading or evaluation options.
     useEffect(() => {
         if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
             fetchEvaluationResults(evaluation.id)
-        }
-    }, [evaluationStatus])
-
-    useEffect(() => {
-        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
-            fetchEvaluationResults(evaluation.id)
                 .then((data) => setEvaluationResults(data))
+                .catch((err) => console.error("Failed to fetch results:", err))
+                .then(() => {
+                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
+                })
                 .catch((err) => console.error("Failed to fetch results:", err))
         }
     }, [evaluationStatus, evaluation.id])
