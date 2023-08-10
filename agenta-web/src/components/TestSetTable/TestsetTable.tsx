@@ -109,7 +109,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     const [selectedRow, setSelectedRow] = useState([])
 
-    const onRowSelected = () => {
+    const onRowSelectedOrDeselected = () => {
+        if (!gridRef?.current) return
         setSelectedRow(gridRef?.current?.getSelectedNodes())
     }
 
@@ -405,7 +406,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     suppressRowClickSelection={true}
                     onCellValueChanged={handleCellValueChanged}
                     stopEditingWhenCellsLoseFocus={true}
-                    onRowSelected={onRowSelected}
+                    onRowSelected={onRowSelectedOrDeselected}
+                    onRowDataUpdated={onRowSelectedOrDeselected}
                 />
             </div>
             <div
