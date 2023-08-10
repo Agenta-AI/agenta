@@ -4,7 +4,7 @@ import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
 import {Variant, Parameter, EvaluationResponseType, Evaluation} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
-    fromEvaluationsRowsResponseToEvaluationsRows,
+    fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationType} from "../enums"
 /**
@@ -316,7 +316,7 @@ export const loadEvaluationsScenarios = async (
             .get(`${evaluationTableId}/evaluation_scenarios`)
             .then((responseData) => {
                 const evaluationsRows = responseData.data.map((item: any) => {
-                    return fromEvaluationsRowsResponseToEvaluationsRows(item, evaluation)
+                    return fromEvaluationScenarioResponseToEvaluationScenario(item, evaluation)
                 })
 
                 return evaluationsRows

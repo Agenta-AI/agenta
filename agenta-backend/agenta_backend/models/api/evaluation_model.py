@@ -56,6 +56,7 @@ class EvaluationScenario(BaseModel):
     outputs: List[EvaluationScenarioOutput]
     vote: Optional[str]
     score: Optional[str]
+    evaluation: Optional[str]
     correct_answer: Optional[str]
     id: Optional[str]
 
