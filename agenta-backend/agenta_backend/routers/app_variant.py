@@ -46,7 +46,6 @@ async def list_apps() -> List[App]:
         List[App]
     """
     try:
-        print("\n\n\n\n\n I am here \n\n\n\n\n")
         apps = db_manager.list_apps()
         return apps
     except Exception as e:
@@ -111,9 +110,12 @@ async def add_variant_from_previous(
 
 
 @router.post("/start/")
-async def start_variant(app_variant: AppVariant, env_vars: Optional[DockerEnvVars] = {}) -> URI:
+async def start_variant(app_variant: AppVariant, env_vars: Optional[DockerEnvVars] = None) -> URI:
+    print("\n\n\n\n\n I am here \n\n\n\n\n")
     print(f"Starting variant {app_variant}")
+    logger.info("Starting variant %s", app_variant)
     try:
+        env_vars = {} if env_vars is None else env_vars.env_vars
         return app_manager.start_variant(app_variant, env_vars)
     except Exception as e:
         if db_manager.get_variant_from_db(app_variant) is not None:
