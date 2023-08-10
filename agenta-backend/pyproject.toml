@@ -18,6 +18,7 @@ motor = "^3.1.2"
 python-multipart = "^0.0.6"
 backoff = "^2.2.1"
 redis = "^4.6.0"
+aiodocker = "^0.21.0"
 
 
 [tool.poetry.group.dev.dependencies]
