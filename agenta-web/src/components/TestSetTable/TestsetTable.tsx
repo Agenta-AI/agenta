@@ -393,9 +393,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
                     <PlusOutlined />
                 </Button>
-                <Button onClick={updateTable}>
-                    Update Columns names
-                </Button>
+                <Button onClick={updateTable}>Update Columns names</Button>
             </div>
 
             <div
