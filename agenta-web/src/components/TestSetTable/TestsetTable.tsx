@@ -323,7 +323,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
             <div
                 style={{
-                    width: "50%",
+                    width: "100%",
                     marginBottom: 20,
                     display: "flex",
                     flexDirection: "row",
@@ -346,37 +346,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 </Button>
             </div>
 
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: "10px",
-                }}
-            >
-                {inputValues.map((value, index) => (
-                    <div key={index} style={{marginRight: "10px"}}>
-                        <Input
-                            value={value}
-                            onChange={(event) => handleInputChange(index, event)}
-                            suffix={
-                                <Button
-                                    type="text"
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => onDeleteColumn(index)}
-                                />
-                            }
-                        />
-                    </div>
-                ))}
-                <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
-                    <PlusOutlined />
-                </Button>
-                <Button onClick={updateTable} type="primary">
-                    Update Columns names
-                </Button>
-            </div>
-
             <div style={{marginBottom: 20}}>
                 <div>
                     <Typography.Text italic>Notes:</Typography.Text>
@@ -395,6 +364,38 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                         evaluations.
                     </Typography.Text>
                 </div>
+            </div>
+
+            <div
+                style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: "10px",
+                }}
+            >
+                {inputValues.map((value, index) => (
+                    <div key={index} style={{marginRight: "10px"}}>
+                        <Input
+                            value={value}
+                            onChange={(event) => handleInputChange(index, event)}
+                            size="small"
+                            suffix={
+                                <Button
+                                    type="text"
+                                    icon={<DeleteOutlined />}
+                                    onClick={() => onDeleteColumn(index)}
+                                />
+                            }
+                        />
+                    </div>
+                ))}
+                <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
+                    <PlusOutlined />
+                </Button>
+                <Button onClick={updateTable}>
+                    Update Columns names
+                </Button>
             </div>
 
             <div
