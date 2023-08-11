@@ -5,7 +5,7 @@ import logging
 
 from agenta_backend.config import settings
 from agenta_backend.services.db_mongo import testsets
-from agenta_backend.models.api.api_models import URI, App, AppVariant, Image
+from agenta_backend.models.api.api_models import URI, App, AppVariant, Image, DockerEnvVars
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
 
@@ -127,7 +127,7 @@ async def remove_app_testsets(app_name: str):
         return 0
 
 
-def start_variant(app_variant: AppVariant) -> URI:
+def start_variant(app_variant: AppVariant, env_vars: DockerEnvVars = None) -> URI:
     """
     Starts a Docker container for a given app variant.
 
@@ -136,6 +136,7 @@ def start_variant(app_variant: AppVariant) -> URI:
 
     Args:
         app_variant (AppVariant): The app variant for which a container is to be started.
+        env_vars (DockerEnvVars): (optional) The environment variables to be passed to the container.
 
     Returns:
         URI: The URI of the started Docker container.
@@ -159,6 +160,7 @@ def start_variant(app_variant: AppVariant) -> URI:
             image_name=image.tags,
             app_name=app_variant.app_name,
             variant_name=app_variant.variant_name,
+            env_vars=env_vars,
         )
         logger.info(
             f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
