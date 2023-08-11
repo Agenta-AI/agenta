@@ -63,7 +63,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 }}
             >
                 <Space style={{fontSize: 18, color: "#000"}} size={10}>
-                    <Link href={"https://github.com/agenta-ai"} target="_blank">
+                    <Link href={"https://github.com/Agenta-AI/agenta"} target="_blank">
                         <GithubFilled style={{color: appTheme === "dark" ? "#fff" : "#000"}} />
                     </Link>
                     <Link href={"https://www.linkedin.com/company/agenta-ai/"} target="_blank">
