@@ -398,8 +398,20 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
     }
 }
 
-// TODO: integrate with endpoint
-export const getTemplates = async () => {}
+export const getTemplates = async () => {
+    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/`, {
+        headers: {
+            "Content-Type": "application/json",
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        return data
+    })
+    .catch(error => {
+        console.error('Error fetching templates:', error);
+    });
+}
 
 // TODO: integrate with endpoint, improve templateObj type
 export const startTemplate = async (appName: string, templateObj: AppTemplate) => {}
