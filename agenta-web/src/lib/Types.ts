@@ -91,3 +91,10 @@ export interface ResultsTableDataType {
     evaluationType: EvaluationType
     createdAt?: string
 }
+
+/**
+ * Used to define the additional inputs the user can add to a variant through DictInput in the SDK
+ */
+export interface InputParameter {
+    name: string
+}

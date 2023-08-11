@@ -49,7 +49,6 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
-    const {Text} = Typography
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -89,14 +88,12 @@ Answer ONLY with one of the given grading or evaluation options.
 `)
 
     const [shouldFetchResults, setShouldFetchResults] = useState(false)
-    // const { data: evaluationResults, isResultsLoading, isResultsLoadingError } = useLoadResults(
-    //     shouldFetchResults ? evaluation.id : null,
-    // );
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
 
     useEffect(() => {
-        if (variantData && variantData[0] && variantData[0].inputParams) {
+        if (variantData && variantData[0] && variantData[0].inputParams && variantData[0].inputParams.length > 0) {
+
             const llmAppInputs = variantData[0].inputParams
                 .map((param) => `${param.name}: {${param.name}}`)
                 .join(", ")
@@ -156,6 +153,7 @@ Answer ONLY with one of the given grading or evaluation options.
 
                 let result = await callVariant(
                     inputParamsDict,
+                    variantData[idx].inputParams,
                     variantData[idx].optParams,
                     variantData[idx].URIPath,
                 )

@@ -1,6 +1,11 @@
 import {useState, useEffect} from "react"
-import {getVariantParameters, saveNewVariant, updateVariantParams} from "@/lib/services/api"
+import {
+    getVariantParametersFromOpenAPI,
+    saveNewVariant,
+    updateVariantParams,
+} from "@/lib/services/api"
 import {Variant, Parameter} from "@/lib/Types"
+import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
 
 /**
  * Hook for using the variant.
@@ -23,28 +28,13 @@ export function useVariant(appName: string, variant: Variant) {
             setIsLoading(true)
             setIsError(false)
             try {
-                // get the parameters of the variant by parsing the openapi.json
-                const {initOptParams, inputParams} = await getVariantParameters(appName, variant)
-
-                if (variant.parameters) {
-                    const updatedInitOptParams = initOptParams.map((param) => {
-                        return variant.parameters && variant.parameters.hasOwnProperty(param.name)
-                            ? {...param, default: variant.parameters[param.name]}
-                            : param
-                    })
-                    setOptParams(updatedInitOptParams)
-                } else {
-                    setOptParams(initOptParams)
-                }
-
-                setInputParams(inputParams)
-                setURIPath(
-                    `${appName}/${
-                        variant.templateVariantName
-                            ? variant.templateVariantName
-                            : variant.variantName
-                    }`,
+                const {parameters, inputs, URIPath} = await getAllVariantParameters(
+                    appName,
+                    variant,
                 )
+                setOptParams(parameters)
+                setInputParams(inputs)
+                setURIPath(URIPath)
             } catch (error: any) {
                 setIsError(true)
                 setError(error)
@@ -56,6 +46,11 @@ export function useVariant(appName: string, variant: Variant) {
         fetchParameters()
     }, [appName, variant])
 
+    useEffect(() => {
+        const updatedInputParams = updateInputParams(optParams, inputParams || [])
+        setInputParams(updatedInputParams)
+    }, [optParams])
+
     /**
      * Saves new values for the optional parameters of the variant.
      * @param updatedOptParams
@@ -66,7 +61,6 @@ export function useVariant(appName: string, variant: Variant) {
         persist: boolean,
         updateVariant: boolean,
     ) => {
-        console.log(updatedOptParams)
         setIsParamSaveLoading(true)
         setIsError(false)
         try {

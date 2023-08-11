@@ -42,10 +42,21 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
     csvdata = testset["csvdata"]
 
     for datum in csvdata:
-        inputs = [
-            {"input_name": name, "input_value": datum[name]}
-            for name in evaluation["inputs"]
-        ]
+        try:
+            inputs = [
+                {"input_name": name, "input_value": datum[name]}
+                for name in evaluation["inputs"]
+            ]
+        except KeyError:
+            await evaluations.delete_one({"_id": newEvaluation.inserted_id})
+            msg = f"""
+            Columns in the test set should match the names of the inputs in the variant.
+            Inputs names in variant are: {evaluation['inputs']} while
+            columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
+            """
+            raise HTTPException(
+                status_code=400, detail=msg,
+                )
 
         evaluation_scenario = {
             "evaluation_id": str(newEvaluation.inserted_id),
