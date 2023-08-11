@@ -1,9 +1,7 @@
 import uuid
-import secrets
 import asyncio
 from typing import List
 from pathlib import Path
-from requests.exceptions import HTTPError
 from fastapi import UploadFile, APIRouter
 from fastapi.responses import JSONResponse
 from agenta_backend.config import settings
@@ -66,9 +64,7 @@ async def build_image(
     with tar_path.open("wb") as buffer:
         buffer.write(await tar_file.read())
 
-    image_name = (
-        f"agentaai/{app_name.lower()}_{variant_name.lower()}:latest"
-    )
+    image_name = f"agentaai/{app_name.lower()}_{variant_name.lower()}:latest"
 
     # Use the thread pool to run the build_image_job function in a separate thread
     future = loop.run_in_executor(
@@ -95,6 +91,15 @@ async def container_templates() -> List[Template]:
 
 @router.get("/templates/{image_name}/images/")
 async def pull_image(image_name: str) -> dict:
+    """Pulls an image from Docker Hub using the provided configuration
+
+    Arguments:
+        image_name -- The name of the image to be pulled
+
+    Returns:
+        -- a JSON response with the image tag name and image ID
+        -- a JSON response with the pull_image exception error
+    """
     # Get docker hub config
     repo_owner = settings.docker_hub_repo_owner
     repo_name = settings.docker_hub_repo_name
@@ -121,17 +126,24 @@ async def pull_image(image_name: str) -> dict:
 
 @router.post("/variants/create/")
 async def create_app_variant_from_image(payload: CreateAppVariant):
-    #  Use response from image to create an app_variant and image instance(s)
-    variant_name = secrets.token_hex(3)
+    """Creates or updates an app variant based on the provided image and starts the variant
+
+    Arguments:
+        payload -- a data model that contains the necessary information to create an app variant from an image
+
+    Returns:
+        a JSON response with a message and data
+    """
+
+    # Create an AppVariant with the provided app name
     app_variant: AppVariant = AppVariant(
-        app_name=payload.app_name,
-        variant_name=f"default_{variant_name}",
+        app_name=payload.app_name, variant_name="v1"
     )
 
+    # Create an Image instance with the extracted image id, and defined image name
+    image_id = payload.image_id.split(":")[-1]
     image_name = f"agentaai/templates:{payload.image_tag}"
-    image: Image = Image(
-        docker_id=payload.image_id.split(":")[-1], tags=f"{image_name}"
-    )
+    image: Image = Image(docker_id=image_id, tags=f"{image_name}")
 
     variant_exist = get_variant_from_db(app_variant)
     if variant_exist is None:
@@ -142,15 +154,12 @@ async def create_app_variant_from_image(payload: CreateAppVariant):
         update_variant_image(app_variant, image)
 
     # Start variant
-    try:
-        variant_url = start_variant(app_variant)
-    except Exception as ext:
-        print("Exception => ", type(ext))
+    url = start_variant(app_variant)
 
     return {
         "message": "Variant created and running!",
         "data": {
-            "url": variant_url["url"],
+            "url": url.uri,
             "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",
         },
     }
