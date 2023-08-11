@@ -1,4 +1,4 @@
-import React, {useState} from "react"
+import React, {useEffect, useState} from "react"
 import {BulbFilled} from "@ant-design/icons"
 import {Space} from "antd"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -26,6 +26,16 @@ const TipsAndFeatures = () => {
 
         return imgSrc
     }
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setActiveIndex((prevIndex) => (prevIndex + 1) % slides.length)
+        }, 3000)
+
+        return () => {
+            clearInterval(interval)
+        }
+    }, [])
 
     return (
         <>
