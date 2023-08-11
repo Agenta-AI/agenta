@@ -92,8 +92,12 @@ Answer ONLY with one of the given grading or evaluation options.
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
 
     useEffect(() => {
-        if (variantData && variantData[0] && variantData[0].inputParams && variantData[0].inputParams.length > 0) {
-
+        if (
+            variantData &&
+            variantData[0] &&
+            variantData[0].inputParams &&
+            variantData[0].inputParams.length > 0
+        ) {
             const llmAppInputs = variantData[0].inputParams
                 .map((param) => `${param.name}: {${param.name}}`)
                 .join(", ")
