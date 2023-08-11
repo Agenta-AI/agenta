@@ -98,3 +98,5 @@ export interface ResultsTableDataType {
 export interface InputParameter {
     name: string
 }
+
+export interface AppTemplate {}

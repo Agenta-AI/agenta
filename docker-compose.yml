@@ -40,6 +40,8 @@ services:
                 "--port",
                 "8000",
                 "--reload",
+                "--log-level",
+                "info",
                 "--root-path",
                 "/api"
             ]

@@ -1,7 +1,7 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, EvaluationResponseType, Evaluation} from "@/lib/Types"
+import {Variant, Parameter, EvaluationResponseType, Evaluation, AppTemplate} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
@@ -397,3 +397,9 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
         throw error
     }
 }
+
+// TODO: integrate with endpoint
+export const getTemplates = async () => {}
+
+// TODO: integrate with endpoint, improve templateObj type
+export const startTemplate = async (appName: string, templateObj: AppTemplate) => {}
