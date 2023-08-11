@@ -59,8 +59,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    position: "fixed",
-                    bottom: 0,
                     width: "calc(100% - 225px)",
                 }}
             >
