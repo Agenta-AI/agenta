@@ -326,8 +326,13 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     onChange={handleChange}
                     style={{marginRight: "10px"}}
                     placeholder="Test Set Name"
+                    data-cy="testset-name-input"
                 />
-                <Button onClick={() => onSaveData(true)} type="primary">
+                <Button
+                    data-cy="testset-save-button"
+                    onClick={() => onSaveData(true)}
+                    type="primary"
+                >
                     Save Test Set
                 </Button>
             </div>

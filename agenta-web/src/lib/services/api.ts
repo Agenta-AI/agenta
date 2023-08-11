@@ -33,25 +33,55 @@ export async function fetchVariants(app: string): Promise<Variant[]> {
     return []
 }
 
+/**
+ * Calls the variant endpoint with the input parameters and the optional parameters and returns the response.
+ * @param inputParametersDict A dictionary of the input parameters to be passed to the variant endpoint
+ * @param inputParamDefinition A list of the parameters that are defined in the openapi.json (these are only part of the input params, the rest is defined by the user in the optparms)
+ * @param optionalParameters The optional parameters (prompt, models, AND DICTINPUTS WHICH ARE TO BE USED TO ADD INPUTS )
+ * @param URIPath
+ * @returns
+ */
 export function callVariant(
     inputParametersDict: Record<string, string>,
+    inputParamDefinition: Parameter[],
     optionalParameters: Parameter[],
     URIPath: string,
 ) {
+    console.log("inputParametersDict", inputParametersDict)
+    // Separate input parameters into two dictionaries based on the 'input' property
+    const mainInputParams: Record<string, string> = {} // Parameters with input = true
+    const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
     const inputParams = Object.keys(inputParametersDict).reduce((acc: any, key) => {
         acc[key] = inputParametersDict[key]
         return acc
     }, {})
+    for (let key of Object.keys(inputParametersDict)) {
+        const paramDefinition = inputParamDefinition.find((param) => param.name === key)
+
+        // If parameter definition is found and its 'input' property is false,
+        // then it goes to 'secondaryInputParams', otherwise to 'mainInputParams'
+        if (paramDefinition && !paramDefinition.input) {
+            secondaryInputParams[key] = inputParametersDict[key]
+        } else {
+            mainInputParams[key] = inputParametersDict[key]
+        }
+    }
+
     optionalParameters = optionalParameters || []
 
     const optParams = optionalParameters
         .filter((param) => param.default)
+        .filter((param) => param.type !== "object") // remove dics from optional parameters
         .reduce((acc: any, param) => {
             acc[param.name] = param.default
             return acc
         }, {})
+    const requestBody = {
+        ["inputs"]: secondaryInputParams,
+        ...mainInputParams,
+        ...optParams,
+    }
 
-    const requestBody = {...inputParams, ...optParams}
     return axios
         .post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, requestBody, {
             headers: {
@@ -85,14 +115,21 @@ export function callVariant(
  * @param variantName
  * @returns
  */
-export const getVariantParameters = async (app: string, variant: Variant) => {
+export const getVariantParametersFromOpenAPI = async (app: string, variant: Variant) => {
     try {
         const sourceName = variant.templateVariantName
             ? variant.templateVariantName
             : variant.variantName
         const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${app}/${sourceName}/openapi.json`
         const response = await axios.get(url)
-        const APIParams = parseOpenApiSchema(response.data)
+        let APIParams = parseOpenApiSchema(response.data)
+        // we create a new param for DictInput that will contain the name of the inputs
+        APIParams = APIParams.map((param) => {
+            if (param.type === "object") {
+                param.default = []
+            }
+            return param
+        })
         const initOptParams = APIParams.filter((param) => !param.input) // contains the default values too!
         const inputParams = APIParams.filter((param) => param.input) // don't have input values
         return {initOptParams, inputParams}
@@ -109,11 +146,6 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
         app_name: appName,
         variant_name: variant.templateVariantName,
     }
-    console.log(
-        parameters.reduce((acc, param) => {
-            return {...acc, [param.name]: param.default}
-        }, {}),
-    )
     try {
         const response = await axios.post(
             `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_previous/`,
@@ -127,7 +159,6 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
         )
 
         // You can use the response here if needed
-        console.log(response.data)
     } catch (error) {
         console.error(error)
         // Handle error here
