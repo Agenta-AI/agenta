@@ -12,7 +12,11 @@ import {
     message,
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
-import {fetchVariants, getVariantParametersFromOpenAPI, useLoadTestsetsList} from "@/lib/services/api"
+import {
+    fetchVariants,
+    getVariantParametersFromOpenAPI,
+    useLoadTestsetsList,
+} from "@/lib/services/api"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter} from "@/lib/Types"
@@ -265,7 +269,7 @@ export default function Evaluations() {
             EvaluationType[selectedEvaluationType],
             evaluationTypeSettings,
             variantsInputs[selectedVariants[0].variantName],
-            llmAppPromptTemplate
+            llmAppPromptTemplate,
         )
         if (!evaluationTableId) {
             return
