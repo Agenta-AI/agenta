@@ -2,6 +2,11 @@ html,
 body {
     padding: 0;
     margin: 0;
+    text-decoration: none;
+}
+
+.mdxSlider img {
+    width: 100%;
 }
 
 @keyframes pulse {
