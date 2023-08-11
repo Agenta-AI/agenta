@@ -70,23 +70,31 @@ export default function AddANewTestset() {
 
     return (
         <div>
-            <Space direction="vertical" style={{width: "70%"}}>
+            <Space direction="vertical" style={{width: "50%"}}>
                 <Alert
                     message="File format"
                     description={
                         <>
-                            In order to make the test set working correctly it should be:
+                            The test set should be in CSV format with the following requirements:
                             <br />
-                            - A CSV file.
+                            1. Comma separated values
                             <br />
-                            - The first row should contain the headers
+                            2. The first row should contain the headers
                             <br />
-                            - The next rows should contain the data
+                            <br />
+                            Here is an example of a valid CSV file:
+                            <br />
+                            <br />
+                            recipe_name,correct_answer
+                            <br />
+                            Chicken Parmesan,Chicken
+                            <br />
+                            "a, special, recipe",Beef
                             <br />
                         </>
                     }
                     type="info"
-                    style={{marginBottom: 40}}
+                    style={{marginTop: 20, marginBottom: 40}}
                 />
             </Space>
 

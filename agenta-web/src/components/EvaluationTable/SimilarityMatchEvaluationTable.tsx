@@ -52,9 +52,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const variants = evaluation.variants
 
     const variantData = variants.map((variant: Variant) => {
-        const {optParams, URIPath, isLoading, isError, error} = useVariant(appName, variant)
+        const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
+            appName,
+            variant,
+        )
 
         return {
+            inputParams,
             optParams,
             URIPath,
             isLoading,
@@ -68,7 +72,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [similarAnswers, setSimilarAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
 
-    const {Title, Text} = Typography
+    const {Text} = Typography
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -130,6 +134,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             try {
                 let result = await callVariant(
                     inputParamsDict,
+                    variantData[idx].inputParams,
                     variantData[idx].optParams,
                     variantData[idx].URIPath,
                 )
@@ -323,10 +328,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     return (
         <div>
-            <Title>
+            <h1>
                 Similarity match Evaluation (Threshold:{" "}
                 {evaluation.evaluationTypeSettings.similarityThreshold})
-            </Title>
+            </h1>
             <div style={{marginBottom: 20}}>
                 <Text>
                     This evaluation type is calculating the similarity using Jaccard similarity.
