@@ -143,24 +143,46 @@ async def retrieve_templates_from_dockerhub_cached():
     response_data = response["results"]
 
     # Cache the data in Redis for 60 minutes
-    r.set("templates_data", json.dumps(response_data), ex=3600)
+    r.set("templates_data", json.dumps(response_data), ex=900)
     return response_data
 
 
 async def pull_image_from_docker_hub(repo_name: str, tag: str) -> dict:
     """Bussiness logic to asynchronously pulls an image from Docker Hub.
-    
+
     Arguments:
         repo_name -- The `repo_name` parameter represents the name of the repository
             on Docker Hub from which you want to pull the image. It typically follows the format
             `username/repository_name`
         tag -- The `tag` parameter is used to specify a specific version or tag of the image to pull
             from the Docker Hub repository.
-    
+
     Returns:
         an image object from Docker Hub.
     """
-    
+
     async with Docker() as docker:
         image = await docker.images.pull(repo_name, tag=tag)
         return image
+
+
+async def get_image_details_from_docker_hub(
+    repo_owner: str, repo_name: str, image_name: str
+) -> str:
+    """Retrieves the image details (specifically the image ID) from Docker Hub.
+    
+    Arguments:
+        repo_owner -- The `repo_owner` parameter represents the owner or organization of the repository \
+            from which you want to retrieve templates
+        repo_name -- The `repo_name` parameter is the name of the repository
+        image_name -- The name of the Docker image you want to  retrieve details for
+    
+    Returns:
+        The "Id" of the image details obtained from Docker Hub.
+    """
+    
+    async with Docker() as docker:
+        image_details = await docker.images.inspect(
+            f"{repo_owner}/{repo_name}:{image_name}"
+        )
+        return image_details["Id"]
