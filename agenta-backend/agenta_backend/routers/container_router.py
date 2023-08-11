@@ -67,7 +67,7 @@ async def build_image(
         buffer.write(await tar_file.read())
 
     image_name = (
-        f"agenta-server/{app_name.lower()}_{variant_name.lower()}:latest"
+        f"agentaai/{app_name.lower()}_{variant_name.lower()}:latest"
     )
 
     # Use the thread pool to run the build_image_job function in a separate thread
