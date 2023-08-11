@@ -16,6 +16,8 @@ uvicorn = "^0.22.0"
 sqlmodel = "^0.0.8"
 motor = "^3.1.2"
 python-multipart = "^0.0.6"
+openai = "^0.27.8"
+langchain = "^0.0.256"
 
 
 [tool.poetry.group.dev.dependencies]

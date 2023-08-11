@@ -319,7 +319,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     return (
         <div>
-            <Title>Exact match Evaluation</Title>
+            <h1>Exact match Evaluation</h1>
             <div>
                 <Row align="middle">
                     <Col span={12}>
