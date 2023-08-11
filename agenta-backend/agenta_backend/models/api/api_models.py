@@ -13,7 +13,7 @@ class AppVariant(BaseModel):
 class Image(BaseModel):
     docker_id: str
     tags: str
-    
+
 
 class TemplateImageInfo(BaseModel):
     name: str
@@ -23,8 +23,8 @@ class TemplateImageInfo(BaseModel):
     last_pushed: datetime
     repo_name: str
     media_type: str
-    
-    
+
+
 class Template(BaseModel):
     id: int
     image: TemplateImageInfo
@@ -36,3 +36,9 @@ class URI(BaseModel):
 
 class App(BaseModel):
     app_name: str
+
+
+class CreateAppVariant(BaseModel):
+    app_name: str
+    image_id: str
+    image_tag: str
