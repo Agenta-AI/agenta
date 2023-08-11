@@ -15,7 +15,7 @@ import {
     DashboardOutlined,
     LockOutlined,
 } from "@ant-design/icons"
-import {Avatar, Layout, Menu, Space, Tag, Tooltip, theme} from "antd"
+import {Avatar, Layout, Menu, Modal, Space, Tag, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
@@ -45,6 +45,7 @@ const Sidebar: React.FC = () => {
         initialSelectedKeys = ["apps"]
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
+    const [isOpen, setIsOpen] = useState(false)
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
@@ -56,6 +57,10 @@ const Sidebar: React.FC = () => {
         } else {
             return `/apps/${app_name}/${path}`
         }
+    }
+
+    const handlOpenModal = () => {
+        setIsOpen(true)
     }
 
     return (
@@ -89,7 +94,11 @@ const Sidebar: React.FC = () => {
                             placement="right"
                             title="Create new applications or switch between your existing projects."
                         >
-                            <Link href={getNavigationPath("apps")} style={{width: "100%"}}>
+                            <Link
+                                data-cy="app-management-link"
+                                href={getNavigationPath("apps")}
+                                style={{width: "100%"}}
+                            >
                                 App Management
                             </Link>
                         </Tooltip>
@@ -102,6 +111,7 @@ const Sidebar: React.FC = () => {
                                     title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                 >
                                     <Link
+                                        data-cy="app-playground-link"
                                         href={getNavigationPath("playground")}
                                         style={{width: "100%"}}
                                     >
@@ -116,6 +126,7 @@ const Sidebar: React.FC = () => {
                                     title="Create and manage testsets for evaluation purposes."
                                 >
                                     <Link
+                                        data-cy="app-testsets-link"
                                         href={getNavigationPath("testsets")}
                                         style={{width: "100%"}}
                                     >
@@ -130,6 +141,7 @@ const Sidebar: React.FC = () => {
                                     title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
                                 >
                                     <Link
+                                        data-cy="app-evaluations-link"
                                         href={getNavigationPath("evaluations")}
                                         style={{width: "100%"}}
                                     >
@@ -143,6 +155,7 @@ const Sidebar: React.FC = () => {
                                     title="Analyze the evaluation outcomes to determine the most effective variants."
                                 >
                                     <Link
+                                        data-cy="app-results-link"
                                         href={getNavigationPath("results")}
                                         style={{width: "100%"}}
                                     >
@@ -157,6 +170,7 @@ const Sidebar: React.FC = () => {
                                     title="Monitor production logs to ensure seamless operations."
                                 >
                                     <Link
+                                        data-cy="app-endpoints-link"
                                         href={getNavigationPath("endpoints")}
                                         style={{width: "100%"}}
                                     >
@@ -172,6 +186,7 @@ const Sidebar: React.FC = () => {
                                     title="Your api keys that are used in applications"
                                 >
                                     <Link
+                                        data-cy="app-apikeys-link"
                                         href={getNavigationPath("apikeys")}
                                         style={{width: "100%"}}
                                     >
@@ -189,11 +204,14 @@ const Sidebar: React.FC = () => {
 
                 <Menu
                     mode="vertical"
-                    style={{paddingBottom: 40, borderRight: 0}}
+                    style={{paddingBottom: 24, borderRight: 0}}
                     selectedKeys={selectedKeys}
                 >
                     <Menu.Item key="theme" icon={<DashboardOutlined />} onClick={toggleAppTheme}>
                         <span>{appTheme === "light" ? "Dark mode" : "Light mode"}</span>
+                    </Menu.Item>
+                    <Menu.Item key="language" icon={<GlobalOutlined />} onClick={handlOpenModal}>
+                        <span>Attributions</span>
                     </Menu.Item>
                     <Menu.Item key="help" icon={<QuestionOutlined />}>
                         <Link href="https://docs.agenta.ai" target="_blank">
@@ -209,6 +227,16 @@ const Sidebar: React.FC = () => {
                     </Menu.Item> */}
                 </Menu>
             </div>
+            <Modal
+                title="Attributions"
+                open={isOpen}
+                onCancel={() => setIsOpen(false)}
+                onOk={() => setIsOpen(false)}
+            >
+                <a href="https://www.flaticon.com/free-icons/testing" title="testing icons">
+                    Testing icons created by Freepik - Flaticon
+                </a>
+            </Modal>
         </Sider>
     )
 }

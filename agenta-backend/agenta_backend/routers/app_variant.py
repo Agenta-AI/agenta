@@ -46,7 +46,6 @@ async def list_apps() -> List[App]:
         List[App]
     """
     try:
-        print("\n\n\n\n\n I am here \n\n\n\n\n")
         apps = db_manager.list_apps()
         return apps
     except Exception as e:

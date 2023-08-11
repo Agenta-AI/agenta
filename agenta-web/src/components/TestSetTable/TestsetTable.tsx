@@ -1,5 +1,7 @@
 import React, {useState, useRef, useEffect} from "react"
 import {AgGridReact} from "ag-grid-react"
+import "ag-grid-community/styles/ag-grid.css"
+import "ag-grid-community/styles/ag-theme-alpine.css"
 import {createUseStyles} from "react-jss"
 import {Button, Input, Tooltip, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
@@ -104,6 +106,13 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     )
     const [focusedRowData, setFocusedRowData] = useState<Record<string, any>>()
     const gridRef = useRef(null)
+
+    const [selectedRow, setSelectedRow] = useState([])
+
+    const onRowSelectedOrDeselected = () => {
+        if (!gridRef?.current) return
+        setSelectedRow(gridRef?.current?.getSelectedNodes())
+    }
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -314,7 +323,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
             <div
                 style={{
-                    width: "50%",
+                    width: "100%",
                     marginBottom: 20,
                     display: "flex",
                     flexDirection: "row",
@@ -326,40 +335,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     onChange={handleChange}
                     style={{marginRight: "10px"}}
                     placeholder="Test Set Name"
+                    data-cy="testset-name-input"
                 />
-                <Button onClick={() => onSaveData(true)} type="primary">
+                <Button
+                    data-cy="testset-save-button"
+                    onClick={() => onSaveData(true)}
+                    type="primary"
+                >
                     Save Test Set
-                </Button>
-            </div>
-
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: "10px",
-                }}
-            >
-                {inputValues.map((value, index) => (
-                    <div key={index} style={{marginRight: "10px"}}>
-                        <Input
-                            value={value}
-                            onChange={(event) => handleInputChange(index, event)}
-                            suffix={
-                                <Button
-                                    type="text"
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => onDeleteColumn(index)}
-                                />
-                            }
-                        />
-                    </div>
-                ))}
-                <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
-                    <PlusOutlined />
-                </Button>
-                <Button onClick={updateTable} type="primary">
-                    Update Columns names
                 </Button>
             </div>
 
@@ -384,6 +367,36 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             </div>
 
             <div
+                style={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: "10px",
+                }}
+            >
+                {inputValues.map((value, index) => (
+                    <div key={index} style={{marginRight: "10px"}}>
+                        <Input
+                            value={value}
+                            onChange={(event) => handleInputChange(index, event)}
+                            size="small"
+                            suffix={
+                                <Button
+                                    type="text"
+                                    icon={<DeleteOutlined />}
+                                    onClick={() => onDeleteColumn(index)}
+                                />
+                            }
+                        />
+                    </div>
+                ))}
+                <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
+                    <PlusOutlined />
+                </Button>
+                <Button onClick={updateTable}>Update Columns names</Button>
+            </div>
+
+            <div
                 className={`${appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
                 style={{height: 500}}
             >
@@ -397,6 +410,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     suppressRowClickSelection={true}
                     onCellValueChanged={handleCellValueChanged}
                     stopEditingWhenCellsLoseFocus={true}
+                    onRowSelected={onRowSelectedOrDeselected}
+                    onRowDataUpdated={onRowSelectedOrDeselected}
                 />
             </div>
             <div
@@ -408,8 +423,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             >
                 <div>
                     <Button onClick={onAddRow}>Add Row</Button>
-                    <Button onClick={onDeleteRow} style={{marginLeft: 10}}>
-                        Delete Row
+                    <Button
+                        onClick={onDeleteRow}
+                        style={{marginLeft: 10}}
+                        disabled={selectedRow.length < 1}
+                    >
+                        Delete Row{selectedRow.length > 1 ? "s" : null}
                     </Button>
                 </div>
             </div>

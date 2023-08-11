@@ -49,7 +49,7 @@ export default function VariantEndpoint() {
 
     useEffect(() => {
         if (variants.length > 0) {
-            setVariant(createVariant(variants[0].variantName))
+            setVariant(variants[0])
         }
     }, [variants, appName])
 
@@ -63,22 +63,31 @@ export default function VariantEndpoint() {
         optParams: Parameter[] | null,
         value: string | number,
     ) => {
-        let params: {[key: string]: string | number} = {}
+        let mainParams: {[key: string]: string | number} = {}
+        let secondaryParams: {[key: string]: string | number} = {}
 
         inputParams?.forEach((item) => {
-            params[item.name] = item.default || value
+            if (item.input) {
+                mainParams[item.name] = item.default || value
+            } else {
+                secondaryParams[item.name] = item.default || value
+            }
         })
+        if (Object.keys(secondaryParams).length > 0) {
+            mainParams["inputs"] = secondaryParams
+        }
 
-        optParams?.forEach((item) => {
-            params[item.name] = item.default
-        })
+        optParams
+            ?.filter((item) => item.type !== "object")
+            .forEach((item) => {
+                mainParams[item.name] = item.default
+            })
 
-        return JSON.stringify(params, null, 2)
+        return JSON.stringify(mainParams, null, 2)
     }
 
     const handleVariantChange = (variantName: string) => {
         const selectedVariant = variants.find((variant) => variant.variantName === variantName)
-        console.log(selectedVariant)
         if (selectedVariant) {
             setVariant(selectedVariant)
         }
