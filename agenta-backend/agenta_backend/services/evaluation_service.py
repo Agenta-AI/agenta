@@ -55,8 +55,9 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
             columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
             """
             raise HTTPException(
-                status_code=400, detail=msg,
-                )
+                status_code=400,
+                detail=msg,
+            )
 
         evaluation_scenario = {
             "evaluation_id": str(newEvaluation.inserted_id),
