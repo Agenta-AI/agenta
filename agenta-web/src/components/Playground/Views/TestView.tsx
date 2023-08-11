@@ -60,6 +60,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     marginTop: 16,
                     border: "1px solid #ccc",
                     marginRight: "24px",
+                    marginLeft: "12px",
                 }}
                 bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
             >
@@ -121,7 +122,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             newResultsList[testIndex] = "Loading..."
             setResultsList(newResultsList)
 
-            const result = await callVariant(testData, optParams, URIPath)
+            const result = await callVariant(testData, inputParams, optParams, URIPath)
 
             const newResultList2 = [...resultsList]
             newResultList2[testIndex] = result
@@ -141,9 +142,10 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
         setResultsList(testList.map(() => "Loading..."))
         try {
             const resultsPromises = testList.map(async (testData, index) => {
-                return await callVariant(testData, optParams, URIPath)
+                return await callVariant(testData, inputParams, optParams, URIPath)
             })
             const results = await Promise.all(resultsPromises)
+            console.log(results)
             results.forEach((result, index) => {
                 newResultsList[index] = result
             })
@@ -174,6 +176,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                     justifyContent: "space-between",
                     alignItems: "center",
                     marginRight: "24px",
+                    marginLeft: "12px",
                 }}
             >
                 <h2 style={{padding: "0px", marginBottom: "8px"}}>2. Preview and test</h2>
@@ -212,7 +215,12 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 size="large"
                 icon={<PlusOutlined />}
                 onClick={handleAddRow}
-                style={{marginTop: "16px", width: "200px", marginBottom: "24px"}}
+                style={{
+                    marginTop: "16px",
+                    width: "200px",
+                    marginBottom: "24px",
+                    marginLeft: "12px",
+                }}
             >
                 Add Row
             </Button>

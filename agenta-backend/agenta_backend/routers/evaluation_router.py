@@ -1,4 +1,7 @@
 from fastapi import HTTPException, APIRouter, Body
+from datetime import datetime
+from bson import ObjectId
+from typing import List, Optional
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
@@ -6,83 +9,61 @@ from agenta_backend.models.api.evaluation_model import (
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
+    EvaluationStatus,
+)
+from agenta_backend.services.results_service import (
+    fetch_results_for_human_a_b_testing_evaluation,
+    fetch_results_for_auto_exact_match_evaluation,
+    fetch_results_for_auto_similarity_match_evaluation,
+    fetch_results_for_auto_ai_critique,
+)
+from agenta_backend.services.evaluation_service import (
+    UpdateEvaluationScenarioError,
+    update_evaluation_scenario,
+    update_evaluation_status,
+    create_new_evaluation,
 )
 from agenta_backend.services.db_mongo import (
     evaluations,
     evaluation_scenarios,
-    testsets,
 )
-from datetime import datetime
-from bson import ObjectId
-from typing import List, Optional
 
 router = APIRouter()
 
 
 @router.post("/", response_model=Evaluation)
-async def create_evaluation(
-    newEvaluationData: NewEvaluation = Body(...),
-):
+async def create_evaluation(newEvaluationData: NewEvaluation = Body(...)):
     """Creates a new comparison table document
-
     Raises:
         HTTPException: _description_
-
     Returns:
         _description_
     """
-    evaluation = newEvaluationData.dict()
-    evaluation["created_at"] = evaluation["updated_at"] = datetime.utcnow()
-
-    newEvaluation = await evaluations.insert_one(evaluation)
-
-    if newEvaluation.acknowledged:
-        testsetId = evaluation["testset"]["_id"]
-        testset = await testsets.find_one({"_id": ObjectId(testsetId)})
-        csvdata = testset["csvdata"]
-        for datum in csvdata:
-            try:
-                inputs = [
-                    {"input_name": name, "input_value": datum[name]}
-                    for name in evaluation["inputs"]
-                ]
-            except KeyError:
-                await evaluations.delete_one({"_id": newEvaluation.inserted_id})
-                raise HTTPException(
-                    status_code=400,
-                    detail="columns in the test set should match the names of the inputs in the variant",
-                )
-            evaluation_scenario = {
-                "evaluation_id": str(newEvaluation.inserted_id),
-                "inputs": inputs,
-                "outputs": [],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            }
-
-            if newEvaluationData.evaluation_type == EvaluationType.auto_exact_match:
-                evaluation_scenario["score"] = ""
-                if "correct_answer" in datum:
-                    evaluation_scenario["correct_answer"] = datum["correct_answer"]
-
-            if (
-                newEvaluationData.evaluation_type
-                == EvaluationType.auto_similarity_match
-            ):
-                evaluation_scenario["score"] = ""
-                if "correct_answer" in datum:
-                    evaluation_scenario["correct_answer"] = datum["correct_answer"]
-
-            if newEvaluationData.evaluation_type == EvaluationType.human_a_b_testing:
-                evaluation_scenario["vote"] = ""
-
-            await evaluation_scenarios.insert_one(evaluation_scenario)
-
-        evaluation["id"] = str(newEvaluation.inserted_id)
-        return evaluation
-    else:
+    try:
+        return await create_new_evaluation(newEvaluationData)
+    except KeyError:
         raise HTTPException(
-            status_code=500, detail="Failed to create evaluation_scenario"
+            status_code=400,
+            detail="columns in the test set should match the names of the inputs in the variant",
+        )
+
+
+@router.put("/{evaluation_id}", response_model=Evaluation)
+async def update_evaluation_status_router(
+    evaluation_id: str, update_data: EvaluationStatus = Body(...)
+):
+    """Updates an evaluation status
+    Raises:
+        HTTPException: _description_
+    Returns:
+        _description_
+    """
+    try:
+        return await update_evaluation_status(evaluation_id, update_data.status)
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail="columns in the test set should match the names of the inputs in the variant",
         )
 
 
@@ -141,7 +122,7 @@ async def create_evaluation_scenario(evaluation_scenario: EvaluationScenario):
 @router.put(
     "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}"
 )
-async def update_evaluation_scenario(
+async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
     evaluation_scenario: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
@@ -158,28 +139,12 @@ async def update_evaluation_scenario(
     Returns:
         _description_
     """
-    evaluation_scenario_dict = evaluation_scenario.dict()
-    evaluation_scenario_dict["updated_at"] = datetime.utcnow()
-
-    new_evaluation_set = {"outputs": evaluation_scenario_dict["outputs"]}
-
-    if (
-        evaluation_type == EvaluationType.auto_exact_match
-        or evaluation_type == EvaluationType.auto_similarity_match
-    ):
-        new_evaluation_set["score"] = evaluation_scenario_dict["score"]
-    elif evaluation_type == EvaluationType.human_a_b_testing:
-        new_evaluation_set["vote"] = evaluation_scenario_dict["vote"]
-
-    result = await evaluation_scenarios.update_one(
-        {"_id": ObjectId(evaluation_scenario_id)}, {"$set": new_evaluation_set}
-    )
-    if result.acknowledged:
-        return evaluation_scenario_dict
-    else:
-        raise HTTPException(
-            status_code=500, detail="Failed to create evaluation_scenario"
+    try:
+        return await update_evaluation_scenario(
+            evaluation_scenario_id, evaluation_scenario, evaluation_type
         )
+    except UpdateEvaluationScenarioError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/", response_model=List[Evaluation])
@@ -273,95 +238,6 @@ async def fetch_results(evaluation_id: str):
         )
         return {"scores_data": results}
 
-
-async def fetch_results_for_human_a_b_testing_evaluation(
-    evaluation_id: str, variants: list
-):
-    results = {}
-    evaluation_rows_nb = await evaluation_scenarios.count_documents(
-        {"evaluation_id": evaluation_id, "vote": {"$ne": ""}}
-    )
-
-    if evaluation_rows_nb == 0:
-        return results
-
-    results["variants"] = variants
-    results["variants_votes_data"] = {}
-    results["nb_of_rows"] = evaluation_rows_nb
-
-    flag_votes_nb = await evaluation_scenarios.count_documents(
-        {"vote": "0", "evaluation_id": evaluation_id}
-    )
-    results["flag_votes"] = {}
-    results["flag_votes"]["number_of_votes"] = flag_votes_nb
-    results["flag_votes"]["percentage"] = (
-        round(flag_votes_nb / evaluation_rows_nb * 100, 2) if evaluation_rows_nb else 0
-    )
-
-    for item in variants:
-        results["variants_votes_data"][item] = {}
-        variant_votes_nb: int = await evaluation_scenarios.count_documents(
-            {"vote": item, "evaluation_id": evaluation_id}
-        )
-        results["variants_votes_data"][item]["number_of_votes"] = variant_votes_nb
-        results["variants_votes_data"][item]["percentage"] = (
-            round(variant_votes_nb / evaluation_rows_nb * 100, 2)
-            if evaluation_rows_nb
-            else 0
-        )
-    return results
-
-
-async def fetch_results_for_auto_exact_match_evaluation(
-    evaluation_id: str, variant: str
-):
-    results = {}
-    evaluation_rows_nb = await evaluation_scenarios.count_documents(
-        {"evaluation_id": evaluation_id, "score": {"$ne": ""}}
-    )
-
-    if evaluation_rows_nb == 0:
-        return results
-
-    results["variant"] = variant
-    # results["variants_scores_data"] = {}
-    results["nb_of_rows"] = evaluation_rows_nb
-
-    correct_scores_nb: int = await evaluation_scenarios.count_documents(
-        {"score": "correct", "evaluation_id": evaluation_id}
-    )
-
-    wrong_scores_nb: int = await evaluation_scenarios.count_documents(
-        {"score": "wrong", "evaluation_id": evaluation_id}
-    )
-    results["scores"] = {}
-    results["scores"]["correct"] = correct_scores_nb
-    results["scores"]["wrong"] = wrong_scores_nb
-    return results
-
-
-async def fetch_results_for_auto_similarity_match_evaluation(
-    evaluation_id: str, variant: str
-):
-    results = {}
-    evaluation_rows_nb = await evaluation_scenarios.count_documents(
-        {"evaluation_id": evaluation_id, "score": {"$ne": ""}}
-    )
-
-    if evaluation_rows_nb == 0:
-        return results
-
-    results["variant"] = variant
-    results["nb_of_rows"] = evaluation_rows_nb
-
-    similar_scores_nb: int = await evaluation_scenarios.count_documents(
-        {"score": "true", "evaluation_id": evaluation_id}
-    )
-
-    dissimilar_scores_nb: int = await evaluation_scenarios.count_documents(
-        {"score": "false", "evaluation_id": evaluation_id}
-    )
-    results["scores"] = {}
-    results["scores"]["true"] = similar_scores_nb
-    results["scores"]["false"] = dissimilar_scores_nb
-    return results
+    elif evaluation["evaluation_type"] == EvaluationType.auto_ai_critique:
+        results = await fetch_results_for_auto_ai_critique(evaluation_id)
+        return {"results_data": results}
