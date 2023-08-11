@@ -28,15 +28,18 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
         status: item.status,
         evaluationType: item.evaluation_type,
         evaluationTypeSettings: evaluationTypeSettings,
+        llmAppPromptTemplate: item.llm_app_prompt_template,
     }
 }
 
-export const fromEvaluationsRowsResponseToEvaluationsRows = (item: any, evaluation: Evaluation) => {
+export const fromEvaluationScenarioResponseToEvaluationScenario = (
+    item: any,
+    evaluation: Evaluation,
+) => {
     let evaluationScenario = {
         id: item.id,
         inputs: item.inputs,
         outputs: item.outputs,
-        vote: item.vote,
         correctAnswer: item.correct_answer,
     }
 
@@ -47,6 +50,8 @@ export const fromEvaluationsRowsResponseToEvaluationsRows = (item: any, evaluati
         evaluation.evaluationType === EvaluationType.auto_similarity_match
     ) {
         evaluationScenario = {...evaluationScenario, score: item.score}
+    } else if (evaluation.evaluationType === EvaluationType.auto_ai_critique) {
+        evaluationScenario = {...evaluationScenario, evaluation: item.evaluation}
     }
     return evaluationScenario
 }
