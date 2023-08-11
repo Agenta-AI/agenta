@@ -9,7 +9,7 @@ import slide2 from "./TipsMarkdown/tip2.mdx"
 import slide3 from "./TipsMarkdown/tip3.mdx"
 import slide4 from "./TipsMarkdown/tip4.mdx"
 
-const slides = [slide3, slide1, slide2, slide4]
+const slides: any[] = [slide1, slide2, slide3, slide4]
 
 const TipsAndFeatures = () => {
     const {appTheme} = useAppTheme()
@@ -43,21 +43,23 @@ const TipsAndFeatures = () => {
             </Space>
 
             <div style={{textAlign: "center", marginBottom: "20px"}}>
-                {slides.length ? slides.map((_, index) => (
-                    <span
-                        key={index}
-                        style={{
-                            display: "inline-block",
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background: index === activeIndex ? "#0e9c1a" : "#999",
-                            margin: "0 5px",
-                            cursor: "pointer",
-                        }}
-                        onClick={() => handleDotClick(index)}
-                    />
-                )):""}
+                {slides.length
+                    ? slides.map((_, index) => (
+                          <span
+                              key={index}
+                              style={{
+                                  display: "inline-block",
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: "50%",
+                                  background: index === activeIndex ? "#0e9c1a" : "#999",
+                                  margin: "0 5px",
+                                  cursor: "pointer",
+                              }}
+                              onClick={() => handleDotClick(index)}
+                          />
+                      ))
+                    : ""}
             </div>
 
             <div
@@ -71,15 +73,22 @@ const TipsAndFeatures = () => {
                 <MDXProvider
                     components={{img: (props) => <img {...props} src={getImagePath(props.src)} />}}
                 >
-                    {slides.length ? slides.map((Slide, index) => (
-                        <div
-                            key={index}
-                            style={{display: index === activeIndex ? "block" : "none"}}
-                            className="mdxSlider"
-                        >
-                            <Slide />
+                    {slides.length ? (
+                        slides.map((Slide, index) => (
+                            <div
+                                key={index}
+                                style={{display: index === activeIndex ? "block" : "none"}}
+                                className="mdxSlider"
+                            >
+                                <Slide />
+                            </div>
+                        ))
+                    ) : (
+                        <div style={{textAlign: "center"}}>
+                            No new features or tips are currently available. Check back later for
+                            updates!
                         </div>
-                    )) : <div style={{textAlign: "center"}}>No new features or tips are currently available. Check back later for updates!</div>}
+                    )}
                 </MDXProvider>
             </div>
         </div>
