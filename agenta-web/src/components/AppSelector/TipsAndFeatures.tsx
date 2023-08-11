@@ -29,62 +29,67 @@ const TipsAndFeatures = () => {
 
     return (
         <>
-        {slides.length ? <div
-            style={{
-                backgroundColor: appTheme === "dark" ? "#000" : "rgba(0,0,0,0.03)",
-                borderRadius: 10,
-                padding: 20,
-                width: "100%",
-                margin: "30px auto",
-            }}
-        >
-            <Space>
-                <BulbFilled style={{fontSize: 24, color: "rgb(255, 217, 0)"}} />
-                <h1 style={{margin: "8px 0"}}>Features and Tips</h1>
-            </Space>
-
-            <div style={{textAlign: "center", marginBottom: "20px"}}>
-                {slides.map((_, index) => (
-                          <span
-                              key={index}
-                              style={{
-                                  display: "inline-block",
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: "50%",
-                                  background: index === activeIndex ? "#0e9c1a" : "#999",
-                                  margin: "0 5px",
-                                  cursor: "pointer",
-                              }}
-                              onClick={() => handleDotClick(index)}
-                          />
-                      ))}
-            </div>
-
-            <div
-                style={{
-                    borderRadius: 10,
-                    margin: "10px auto",
-                    width: "100%",
-                    lineHeight: 1.6,
-                }}
-            >
-                <MDXProvider
-                    components={{img: (props) => <img {...props} src={getImagePath(props.src)} />}}
+            {slides.length ? (
+                <div
+                    style={{
+                        backgroundColor: appTheme === "dark" ? "#000" : "rgba(0,0,0,0.03)",
+                        borderRadius: 10,
+                        padding: 20,
+                        width: "100%",
+                        margin: "30px auto",
+                    }}
                 >
-                    {
-                        slides.map((Slide, index) => (
-                            <div
+                    <Space>
+                        <BulbFilled style={{fontSize: 24, color: "rgb(255, 217, 0)"}} />
+                        <h1 style={{margin: "8px 0"}}>Features and Tips</h1>
+                    </Space>
+
+                    <div style={{textAlign: "center", marginBottom: "20px"}}>
+                        {slides.map((_, index) => (
+                            <span
                                 key={index}
-                                style={{display: index === activeIndex ? "block" : "none"}}
-                                className="mdxSlider"
-                            >
-                                <Slide />
-                            </div>
+                                style={{
+                                    display: "inline-block",
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: "50%",
+                                    background: index === activeIndex ? "#0e9c1a" : "#999",
+                                    margin: "0 5px",
+                                    cursor: "pointer",
+                                }}
+                                onClick={() => handleDotClick(index)}
+                            />
                         ))}
-                </MDXProvider>
-            </div>
-        </div> : ""}
+                    </div>
+
+                    <div
+                        style={{
+                            borderRadius: 10,
+                            margin: "10px auto",
+                            width: "100%",
+                            lineHeight: 1.6,
+                        }}
+                    >
+                        <MDXProvider
+                            components={{
+                                img: (props) => <img {...props} src={getImagePath(props.src)} />,
+                            }}
+                        >
+                            {slides.map((Slide, index) => (
+                                <div
+                                    key={index}
+                                    style={{display: index === activeIndex ? "block" : "none"}}
+                                    className="mdxSlider"
+                                >
+                                    <Slide />
+                                </div>
+                            ))}
+                        </MDXProvider>
+                    </div>
+                </div>
+            ) : (
+                ""
+            )}
         </>
     )
 }
