@@ -16,11 +16,23 @@ class EvaluationType(str, Enum):
     human_scoring = "human_scoring"
 
 
+class EvaluationStatusEnum(str, Enum):
+    EVALUATION_INITIALIZED = "EVALUATION_INITIALIZED"
+    EVALUATION_STARTED = "EVALUATION_STARTED"
+    COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
+    EVALUATION_FINISHED = "EVALUATION_FINISHED"
+
+
+class EvaluationStatus(BaseModel):
+    status: EvaluationStatusEnum
+
+
 class Evaluation(BaseModel):
     id: str
     status: str
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
+    llm_app_prompt_template: Optional[str]
     variants: Optional[List[str]]
     app_name: str
     testset: Dict[str, str] = Field(...)
@@ -44,6 +56,7 @@ class EvaluationScenario(BaseModel):
     outputs: List[EvaluationScenarioOutput]
     vote: Optional[str]
     score: Optional[str]
+    evaluation: Optional[str]
     correct_answer: Optional[str]
     id: Optional[str]
 
@@ -52,6 +65,8 @@ class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
     score: Optional[str]
     outputs: List[EvaluationScenarioOutput]
+    evaluation_prompt_template: Optional[str]
+    open_ai_key: Optional[str]
 
 
 class NewEvaluation(BaseModel):
@@ -62,6 +77,7 @@ class NewEvaluation(BaseModel):
     inputs: List[str]
     testset: Dict[str, str] = Field(...)
     status: str = Field(...)
+    llm_app_prompt_template: Optional[str]
 
 
 class DeleteEvaluation(BaseModel):

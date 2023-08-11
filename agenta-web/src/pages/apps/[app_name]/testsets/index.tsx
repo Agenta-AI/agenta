@@ -90,18 +90,6 @@ export default function testsets() {
         }
     }
 
-    const handleCreateWithUploadClick = () => {
-        router.push(`/apps/${app_name}/testsets/new/upload`)
-    }
-
-    const handleCreateWithUIClick = () => {
-        router.push(`/apps/${app_name}/testsets/new/manual`)
-    }
-
-    const handleCreateWithApiClick = () => {
-        router.push(`/apps/${app_name}/testsets/new/api`)
-    }
-
     return (
         <div>
             <div style={{marginTop: 20, marginBottom: 40}}>
@@ -112,16 +100,25 @@ export default function testsets() {
                         marginTop: "20px",
                     }}
                 >
-                    <div>
-                        <Button onClick={handleCreateWithUploadClick} style={{marginRight: 10}}>
-                            Upload a test set
-                        </Button>
-                        <Button onClick={handleCreateWithUIClick} style={{marginRight: 10}}>
-                            Create a test set with UI
-                        </Button>
-                        <Button onClick={handleCreateWithApiClick}>
-                            Create a test set with API
-                        </Button>
+                    <div style={{display: "flex", gap: "10px"}}>
+                        <Link
+                            data-cy="testset-new-upload-link"
+                            href={`/apps/${app_name}/testsets/new/upload`}
+                        >
+                            <Button>Upload a test set</Button>
+                        </Link>
+                        <Link
+                            data-cy="testset-new-manual-link"
+                            href={`/apps/${app_name}/testsets/new/manual`}
+                        >
+                            <Button>Create a test set with UI</Button>
+                        </Link>
+                        <Link
+                            data-cy="testset-new-api-link"
+                            href={`/apps/${app_name}/testsets/new/api`}
+                        >
+                            <Button>Create a test set with API</Button>
+                        </Link>
                     </div>
 
                     <Link href={`/apps/${app_name}/evaluations`} style={{marginLeft: 10}}>
@@ -130,7 +127,11 @@ export default function testsets() {
                 </div>
 
                 {selectedRowKeys.length > 0 && (
-                    <Button style={{marginTop: 30}} onClick={onDelete}>
+                    <Button
+                        data-cy="app-testset-delete-button"
+                        style={{marginTop: 30}}
+                        onClick={onDelete}
+                    >
                         <DeleteOutlined key="delete" style={{color: "red"}} />
                         Delete
                     </Button>
@@ -142,6 +143,7 @@ export default function testsets() {
                     <Spin />
                 ) : (
                     <Table
+                        data-cy="app-testset-list"
                         rowSelection={{
                             type: selectionType,
                             ...rowSelection,

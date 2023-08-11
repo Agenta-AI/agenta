@@ -1,4 +1,4 @@
-import {EvaluationType} from "./enums"
+import {EvaluationFlow, EvaluationType} from "./enums"
 
 export interface testset {
     _id: string
@@ -32,6 +32,7 @@ export interface Evaluation {
     createdAt: string
     variants: Variant[]
     evaluationType: string
+    status: EvaluationFlow
     testset: {
         _id: string
         name: string
@@ -66,6 +67,7 @@ export interface EvaluationResponseType {
     evaluation_type_settings: {
         similarity_threshold?: number
     }
+    llm_app_prompt_template?: string
     testset: {
         _id: string
         name: string
@@ -88,4 +90,11 @@ export interface ResultsTableDataType {
     scoresData?: any
     evaluationType: EvaluationType
     createdAt?: string
+}
+
+/**
+ * Used to define the additional inputs the user can add to a variant through DictInput in the SDK
+ */
+export interface InputParameter {
+    name: string
 }
