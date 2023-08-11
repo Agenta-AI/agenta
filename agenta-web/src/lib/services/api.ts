@@ -4,7 +4,7 @@ import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
 import {Variant, Parameter, EvaluationResponseType, Evaluation} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
-    fromEvaluationsRowsResponseToEvaluationsRows,
+    fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationType} from "../enums"
 /**
@@ -347,7 +347,7 @@ export const loadEvaluationsScenarios = async (
             .get(`${evaluationTableId}/evaluation_scenarios`)
             .then((responseData) => {
                 const evaluationsRows = responseData.data.map((item: any) => {
-                    return fromEvaluationsRowsResponseToEvaluationsRows(item, evaluation)
+                    return fromEvaluationScenarioResponseToEvaluationScenario(item, evaluation)
                 })
 
                 return evaluationsRows
@@ -358,8 +358,8 @@ export const loadEvaluationsScenarios = async (
     }
 }
 
-export const updateEvaluations = async (evaluationTableId: string, data) => {
-    const response = await eval_endpoint.put(`${evaluationTableId}`, data)
+export const updateEvaluation = async (evaluationId: string, data) => {
+    const response = await eval_endpoint.put(`${evaluationId}`, data)
     return response.data
 }
 
@@ -379,4 +379,21 @@ export const updateEvaluationScenario = async (
 export const postEvaluationScenario = async (evaluationTableId: string, data) => {
     const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_scenario`, data)
     return response.data
+}
+
+export const fetchEvaluationResults = async (evaluationId: string) => {
+    try {
+        const response = await fetch(
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}/results`,
+        )
+        if (response.ok) {
+            const data = await response.json()
+            return data
+        } else {
+            throw new Error("Failed to fetch results.")
+        }
+    } catch (error) {
+        console.error("Error fetching results:", error)
+        throw error
+    }
 }
