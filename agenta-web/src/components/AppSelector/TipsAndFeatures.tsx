@@ -4,12 +4,10 @@ import {Space} from "antd"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {MDXProvider} from "@mdx-js/react"
 
-import slide1 from "./TipsMarkdown/tip1.mdx"
-import slide2 from "./TipsMarkdown/tip2.mdx"
-import slide3 from "./TipsMarkdown/tip3.mdx"
-import slide4 from "./TipsMarkdown/tip4.mdx"
+import slide1 from "../../welcome-highlights/tip1.mdx"
+import slide2 from "../../welcome-highlights/tip2.mdx"
 
-const slides: any[] = [slide1, slide2, slide3, slide4]
+const slides: any[] = [slide1, slide2]
 
 const TipsAndFeatures = () => {
     const {appTheme} = useAppTheme()
@@ -22,7 +20,7 @@ const TipsAndFeatures = () => {
     const getImagePath = (img: any) => {
         const theme = appTheme === "dark" ? "dark" : "light"
 
-        const imgSrc = `/assets/tipsImages/${img}-${theme}.png`
+        const imgSrc = `/assets/tips-images/${img}-${theme}.png`
 
         return imgSrc
     }
@@ -51,7 +49,7 @@ const TipsAndFeatures = () => {
                 >
                     <Space>
                         <BulbFilled style={{fontSize: 24, color: "rgb(255, 217, 0)"}} />
-                        <h1 style={{margin: "8px 0"}}>Features and Tips</h1>
+                        <h1 style={{margin: "8px 0"}}>Highlights</h1>
                     </Space>
 
                     <div style={{textAlign: "center", marginBottom: "20px"}}>
