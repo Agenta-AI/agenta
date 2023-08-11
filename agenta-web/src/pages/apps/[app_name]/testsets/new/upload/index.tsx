@@ -1,17 +1,17 @@
-import { UploadOutlined } from "@ant-design/icons"
-import { Alert, Button, Form, Input, Space, Spin, Upload, message } from "antd"
-import { useState } from "react"
+import {UploadOutlined} from "@ant-design/icons"
+import {Alert, Button, Form, Input, Space, Spin, Upload, message} from "antd"
+import {useState} from "react"
 import axios from "axios"
-import { useRouter } from "next/router"
+import {useRouter} from "next/router"
 
 export default function AddANewTestset() {
     const router = useRouter()
-    const { app_name } = router.query
+    const {app_name} = router.query
     const [form] = Form.useForm()
     const [uploadLoading, setUploadLoading] = useState(false)
 
     const onFinish = async (values: any) => {
-        const { file } = values
+        const {file} = values
 
         if (!values.file) {
             message.error("Please select a file to upload")
@@ -60,17 +60,17 @@ export default function AddANewTestset() {
     }
 
     const layout = {
-        labelCol: { span: 8 },
-        wrapperCol: { span: 16 },
+        labelCol: {span: 8},
+        wrapperCol: {span: 16},
     }
 
     const tailLayout = {
-        wrapperCol: { offset: 8, span: 16 },
+        wrapperCol: {offset: 8, span: 16},
     }
 
     return (
         <div>
-            <Space direction="vertical" style={{ width: "50%" }}>
+            <Space direction="vertical" style={{width: "50%"}}>
                 <Alert
                     message="File format"
                     description={
@@ -80,22 +80,27 @@ export default function AddANewTestset() {
                             1. Comma separated values
                             <br />
                             2. The first row should contain the headers
-                            <br /><br />
+                            <br />
+                            <br />
                             Here is an example of a valid CSV file:
-                            <br /><br />
-                            recipe_name,correct_answer<br />
-                            Chicken Parmesan,Chicken<br />
-                            "a, special, recipe",Beef<br />
+                            <br />
+                            <br />
+                            recipe_name,correct_answer
+                            <br />
+                            Chicken Parmesan,Chicken
+                            <br />
+                            "a, special, recipe",Beef
+                            <br />
                         </>
                     }
                     type="info"
-                    style={{ marginTop: 20, marginBottom: 40 }}
+                    style={{marginTop: 20, marginBottom: 40}}
                 />
             </Space>
 
             <Spin spinning={uploadLoading}>
-                <Form onFinish={onFinish} form={form} style={{ maxWidth: 600 }} {...layout}>
-                    <Form.Item name="testsetName" label="Test set name" rules={[{ type: "string" }]}>
+                <Form onFinish={onFinish} form={form} style={{maxWidth: 600}} {...layout}>
+                    <Form.Item name="testsetName" label="Test set name" rules={[{type: "string"}]}>
                         <Input maxLength={25} />
                     </Form.Item>
                     <Form.Item
