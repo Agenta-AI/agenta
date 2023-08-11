@@ -28,7 +28,8 @@ const TipsAndFeatures = () => {
     }
 
     return (
-        <div
+        <>
+        {slides.length ? <div
             style={{
                 backgroundColor: appTheme === "dark" ? "#000" : "rgba(0,0,0,0.03)",
                 borderRadius: 10,
@@ -43,8 +44,7 @@ const TipsAndFeatures = () => {
             </Space>
 
             <div style={{textAlign: "center", marginBottom: "20px"}}>
-                {slides.length
-                    ? slides.map((_, index) => (
+                {slides.map((_, index) => (
                           <span
                               key={index}
                               style={{
@@ -58,8 +58,7 @@ const TipsAndFeatures = () => {
                               }}
                               onClick={() => handleDotClick(index)}
                           />
-                      ))
-                    : ""}
+                      ))}
             </div>
 
             <div
@@ -73,7 +72,7 @@ const TipsAndFeatures = () => {
                 <MDXProvider
                     components={{img: (props) => <img {...props} src={getImagePath(props.src)} />}}
                 >
-                    {slides.length ? (
+                    {
                         slides.map((Slide, index) => (
                             <div
                                 key={index}
@@ -82,16 +81,11 @@ const TipsAndFeatures = () => {
                             >
                                 <Slide />
                             </div>
-                        ))
-                    ) : (
-                        <div style={{textAlign: "center"}}>
-                            No new features or tips are currently available. Check back later for
-                            updates!
-                        </div>
-                    )}
+                        ))}
                 </MDXProvider>
             </div>
-        </div>
+        </div> : ""}
+        </>
     )
 }
 
