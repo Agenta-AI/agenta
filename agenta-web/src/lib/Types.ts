@@ -100,10 +100,15 @@ export interface InputParameter {
 }
 
 export interface Template {
-    id: number;
+    id: number
     image: {
-        name: string;
-    };
+        name: string
+    }
+}
+
+export interface TemplateImage {
+    image_tag: string
+    image_id: string
 }
 
 export interface AppTemplate {
