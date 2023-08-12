@@ -1,7 +1,7 @@
 import {useState} from "react"
 import {useRouter} from "next/router"
 import {Space} from "antd"
-import useSWR from "swr"
+import { fetchApps } from "@/lib/services/api"
 import AppCard from "./AppCard"
 import CreateApp from "@/components/CreateApp/CreateApp"
 
@@ -24,11 +24,7 @@ const AppSelector: React.FC = () => {
         setIsModalOpen(false)
     }
 
-    // TODO: move to api.ts
-    const {data, error, isLoading} = useSWR(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
-        fetcher,
-    )
+    const {data, error, isLoading} = fetchApps()
 
     if (error) return <div>failed to load</div>
     if (isLoading) return <div>loading...</div>
