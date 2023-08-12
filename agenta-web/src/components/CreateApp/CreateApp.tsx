@@ -17,6 +17,7 @@ export default function CreateApp() {
     const [templates, setTemplates] = useState<Template[]>([])
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
 
+    const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
 
     const showCreateAppModal = () => {
@@ -99,8 +100,8 @@ export default function CreateApp() {
         if (response.status == 200) {
             notification.success({
                 message: 'Template Selection',
-                description: 'App created and running.',
-                duration: 5,
+                description: 'App has been created and will begin to run.',
+                duration: 15,
             });
             return response
         } else {
@@ -109,6 +110,7 @@ export default function CreateApp() {
                 description: 'An error occured when trying to start the variant. Ensure that you do not have a variant with the same app name.',
                 duration: 5,
             });
+            setFetchingTemplate(false)
         }
     }
 
@@ -125,13 +127,12 @@ export default function CreateApp() {
         
     };
 
-    const appNameExist = () => {
-        const { data, error, isLoading } = fetchApps();
+    const { data, error, isLoading } = fetchApps();
+    useEffect(() => {
         if (data) {
-            return data.some(app => app.app_name === newApp);
+            setAppNameExist(data.some(app => app.app_name === newApp));
         }
-        return false;
-    }
+    }, [data, newApp]);
 
     return (
         <div>
@@ -215,7 +216,7 @@ export default function CreateApp() {
                     onChange={(e) => setNewApp(e.target.value)}
                     style={{margin: "10px"}}
                 />
-                {appNameExist() === true && (
+                {appNameExist && (
                     <div style={{ color: 'red', marginLeft: "10px" }}>
                         App name already exist
                     </div>
@@ -247,11 +248,17 @@ export default function CreateApp() {
                             <AppTemplateCard 
                                 title={template.image.name} 
                                 onClick={() => {
-                                    if (fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
+                                    if (appNameExist) {
+                                        notification.warning({
+                                            message: 'Template Selection',
+                                            description: 'App name already exists. Please choose a different name.',
+                                            duration: 3,
+                                        });
+                                    } else if (fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
                                         notification.info({
                                             message: 'Template Selection',
                                             description: 'The template image is currently being fetched. Please wait...',
-                                            duration: 2,
+                                            duration: 3,
                                         });
                                     } else if (!fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
                                         notification.info({
