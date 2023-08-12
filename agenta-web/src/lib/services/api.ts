@@ -413,5 +413,38 @@ export const getTemplates = async () => {
     });
 }
 
-// TODO: integrate with endpoint, improve templateObj type
-export const startTemplate = async (appName: string, templateObj: AppTemplate) => {}
+export const pullTemplateImage = async (image_name: string) => {
+    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`, {
+        headers: {
+            "Content-Type": "application/json",
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        return data
+    })
+    .catch(error => {
+        console.error('Error fetching template image:', error);
+        throw error
+    });
+}
+
+export const startTemplate = async (templateObj: AppTemplate) => {
+    try {
+        const response = await axios.post(
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/variants/create/`,
+            templateObj,
+            {
+                headers: {
+                    accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+            }
+            
+        )
+        return response
+    } catch (error) {
+        console.error(error)
+        throw error
+    }
+}
