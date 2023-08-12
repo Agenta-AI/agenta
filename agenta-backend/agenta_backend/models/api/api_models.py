@@ -38,11 +38,14 @@ class App(BaseModel):
     app_name: str
 
 
+class DockerEnvVars(BaseModel):
+    env_vars: Dict[str, str]
+
+
 class CreateAppVariant(BaseModel):
     app_name: str
     image_id: str
     image_tag: str
+    env_vars: Dict[str, str]
 
       
-class DockerEnvVars(BaseModel):
-    env_vars: Dict[str, str]
