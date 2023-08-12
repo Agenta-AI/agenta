@@ -154,7 +154,7 @@ async def create_app_variant_from_image(payload: CreateAppVariant):
         update_variant_image(app_variant, image)
 
     # Start variant
-    url = start_variant(app_variant)
+    url = start_variant(app_variant, payload.env_vars)
 
     return {
         "message": "Variant created and running!",
