@@ -398,6 +398,18 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
     }
 }
 
+export const fetchApps = () => {
+    const {data, error, isLoading} = useSWR(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
+        fetcher,
+    )
+    return {
+        data: data,
+        error: error,
+        isLoading: isLoading
+    }
+}
+
 export const getTemplates = async () => {
     return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/`, {
         headers: {
