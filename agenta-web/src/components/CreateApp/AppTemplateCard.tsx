@@ -2,9 +2,10 @@ import {Card, Typography} from "antd"
 
 interface Props {
     title: string
+    onClick: () => void
 }
 
-const AppTemplateCard: React.FC<Props> = ({title}) => {
+const AppTemplateCard: React.FC<Props> = ({title, onClick}) => {
     const {Text} = Typography
     return (
         <Card
@@ -17,6 +18,7 @@ const AppTemplateCard: React.FC<Props> = ({title}) => {
                 justifyContent: "center",
                 cursor: "pointer",
             }}
+            onClick={onClick}
         >
             <Text>{title}</Text>
         </Card>
