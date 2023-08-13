@@ -2,9 +2,16 @@ import agenta as ag
 from dotenv import load_dotenv
 from llama_index import VectorStoreIndex, Document, Prompt, ServiceContext
 from llama_index.llms import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbeddingMode, OpenAIEmbeddingModelType, OpenAIEmbedding
+from llama_index.embeddings.openai import (
+    OpenAIEmbeddingMode,
+    OpenAIEmbeddingModelType,
+    OpenAIEmbedding,
+)
 from llama_index.node_parser import SimpleNodeParser
-from llama_index.langchain_helpers.text_splitter import TokenTextSplitter, SentenceSplitter
+from llama_index.langchain_helpers.text_splitter import (
+    TokenTextSplitter,
+    SentenceSplitter,
+)
 
 DEFAULT_PROMPT = (
     "Please provide an answer based solely on the provided sources. "
@@ -50,7 +57,7 @@ EMBEDDING_MODELS = {
 
 EMBEDDING_MODES = {
     "SIMILARITY_MODE": OpenAIEmbeddingMode.SIMILARITY_MODE,
-    "TEXT_SEARCH_MODE": OpenAIEmbeddingMode.TEXT_SEARCH_MODE
+    "TEXT_SEARCH_MODE": OpenAIEmbeddingMode.TEXT_SEARCH_MODE,
 }
 
 TEXT_SPLITTERS = {
@@ -68,11 +75,17 @@ def query(
     paragraph_separator: ag.TextParam = "\n\n\n",
     temperature: ag.FloatParam = 0.0,
     model: ag.MultipleChoiceParam = ag.MultipleChoiceParam(
-        "gpt-3.5-turbo", CHAT_LLM_GPT),
+        "gpt-3.5-turbo", CHAT_LLM_GPT
+    ),
     embedding_model: ag.MultipleChoiceParam = ag.MultipleChoiceParam(
-        "TEXT_EMBED_ADA_002", list(EMBEDDING_MODELS.keys())),
-    embedding_mode: ag.MultipleChoiceParam = ag.MultipleChoiceParam("TEXT_SEARCH_MODE", list(EMBEDDING_MODES.keys())),
-    text_splitter: ag.MultipleChoiceParam = ag.MultipleChoiceParam("TokenTextSplitter", list(TEXT_SPLITTERS.keys())),
+        "TEXT_EMBED_ADA_002", list(EMBEDDING_MODELS.keys())
+    ),
+    embedding_mode: ag.MultipleChoiceParam = ag.MultipleChoiceParam(
+        "TEXT_SEARCH_MODE", list(EMBEDDING_MODES.keys())
+    ),
+    text_splitter: ag.MultipleChoiceParam = ag.MultipleChoiceParam(
+        "TokenTextSplitter", list(TEXT_SPLITTERS.keys())
+    ),
     text_splitter_chunk_size: ag.IntParam = ag.IntParam(1024, 0, 10000),
     text_splitter_chunk_overlap: ag.IntParam = ag.IntParam(20, 0, 10000),
 ) -> str:
@@ -88,29 +101,31 @@ def query(
     """
     prompt = Prompt(prompt)
     if text_splitter == "TokenTextSplitter":
-        text_splitter = TEXT_SPLITTERS[text_splitter](separator=splitter_separator,
-                                                      chunk_size=text_splitter_chunk_size,
-                                                      chunk_overlap=text_splitter_chunk_overlap,
-                                                      )
+        text_splitter = TEXT_SPLITTERS[text_splitter](
+            separator=splitter_separator,
+            chunk_size=text_splitter_chunk_size,
+            chunk_overlap=text_splitter_chunk_overlap,
+        )
     elif text_splitter == "SentenceSplitter":
-        text_splitter = TEXT_SPLITTERS[text_splitter](separator=splitter_separator,
-                                                      chunk_size=text_splitter_chunk_size,
-                                                      chunk_overlap=text_splitter_chunk_overlap,
-                                                      paragraph_separator=text_splitter_chunk_overlap
-                                                      )
+        text_splitter = TEXT_SPLITTERS[text_splitter](
+            separator=splitter_separator,
+            chunk_size=text_splitter_chunk_size,
+            chunk_overlap=text_splitter_chunk_overlap,
+            paragraph_separator=text_splitter_chunk_overlap,
+        )
 
     # define a service context for the OpenAI to model and temperature
     service_context = ServiceContext.from_defaults(
         llm=OpenAI(temperature=temperature, model=model),
-        embed_model=OpenAIEmbedding(mode=EMBEDDING_MODES[embedding_mode],
-                                    model=EMBEDDING_MODELS[embedding_model]),
-        node_parser=SimpleNodeParser(text_splitter=text_splitter)
-
+        embed_model=OpenAIEmbedding(
+            mode=EMBEDDING_MODES[embedding_mode],
+            model=EMBEDDING_MODELS[embedding_model],
+        ),
+        node_parser=SimpleNodeParser(text_splitter=text_splitter),
     )
     # build a vector store index from the transcript as message documents
     index = VectorStoreIndex.from_documents(
-        documents=[Document(text=transcript)],
-        service_context=service_context
+        documents=[Document(text=transcript)], service_context=service_context
     )
 
     query_engine = index.as_query_engine(
