@@ -1,15 +1,30 @@
-import React from "react"
+import React, {Dispatch, SetStateAction} from "react"
 import {Modal, Button} from "antd"
 
 interface Props {
     isModalOpen: boolean
-    onClose: () => void
     handleNavigate: () => void
     message: string
+    btnText: string
+    closeBtnText: Dispatch<SetStateAction<string>>
+    closeEvalutionError: Dispatch<SetStateAction<string>>
+    closeEndpoint: Dispatch<SetStateAction<string>>
 }
 
-const EvaluationErrorModal: React.FC<Props> = ({isModalOpen, onClose, handleNavigate, message}) => {
-    const handleCloseModal = () => onClose()
+const EvaluationErrorModal: React.FC<Props> = ({
+    isModalOpen,
+    handleNavigate,
+    message,
+    btnText,
+    closeBtnText,
+    closeEvalutionError,
+    closeEndpoint,
+}) => {
+    const handleCloseModal = () => {
+        closeBtnText("")
+        closeEvalutionError("")
+        closeEndpoint("")
+    }
 
     const handleCTAClick = () => {
         handleNavigate()
@@ -24,7 +39,7 @@ const EvaluationErrorModal: React.FC<Props> = ({isModalOpen, onClose, handleNavi
                     Ok
                 </Button>
                 <Button type="primary" onClick={handleCTAClick}>
-                    Go to Test sets
+                    {btnText}
                 </Button>
             </div>
         </Modal>
