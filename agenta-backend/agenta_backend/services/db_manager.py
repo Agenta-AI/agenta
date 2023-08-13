@@ -10,7 +10,7 @@ from agenta_backend.models.api.api_models import (
 from agenta_backend.models.converters import (
     app_variant_db_to_pydantic,
     image_db_to_pydantic,
-    templates_db_to_pydantic
+    templates_db_to_pydantic,
 )
 from agenta_backend.models.db_models import AppVariantDB, ImageDB, TemplateDB
 from agenta_backend.services import helpers
@@ -37,9 +37,13 @@ def get_session():
         yield session
 
 
-def get_templates() -> List[Template]:
+def get_templates(arch: str) -> List[Template]:
     with Session(engine) as session:
-        templates = session.query(TemplateDB).all()
+        templates = (
+            session.query(TemplateDB)
+            .filter(TemplateDB.name.like(f"%{arch}%"))
+            .all()
+        )
     return templates_db_to_pydantic(templates)
 
 

@@ -99,4 +99,23 @@ export interface InputParameter {
     name: string
 }
 
-export interface AppTemplate {}
+export interface Template {
+    id: number
+    image: {
+        name: string
+    }
+}
+
+export interface TemplateImage {
+    image_tag: string
+    image_id: string
+}
+
+export interface AppTemplate {
+    app_name: string
+    image_id: string
+    image_tag: string
+    env_vars: {
+        OPENAI_API_KEY: string
+    }
+}
