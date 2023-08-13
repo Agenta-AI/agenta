@@ -2,11 +2,10 @@ import {PlusOutlined} from "@ant-design/icons"
 import {Card, Col, Input, Modal, Row, Typography, notification} from "antd"
 import {useState, useEffect} from "react"
 import YouTube from "react-youtube"
-import { Template, AppTemplate, TemplateImage } from "@/lib/Types"
-import { isAppNameInputValid } from "@/lib/helpers/utils"
+import {Template, AppTemplate, TemplateImage} from "@/lib/Types"
+import {isAppNameInputValid} from "@/lib/helpers/utils"
 import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
 import AppTemplateCard from "./AppTemplateCard"
-
 
 export default function CreateApp() {
     const {Text, Title} = Typography
@@ -50,11 +49,11 @@ export default function CreateApp() {
     useEffect(() => {
         const fetchTemplates = async () => {
             const data = await getTemplates()
-            setTemplates(data);
+            setTemplates(data)
         }
 
         fetchTemplates()
-    }, []);
+    }, [])
 
     const fetchTemplateImage = async (image_name: string) => {
         const response = await pullTemplateImage(image_name)
@@ -62,61 +61,65 @@ export default function CreateApp() {
             return response
         } else {
             notification.error({
-                message: 'Template Selection',
-                description: 'Failed to fetch template image. Please try again later.',
+                message: "Template Selection",
+                description: "Failed to fetch template image. Please try again later.",
                 duration: 5,
-            });
+            })
             return null
         }
     }
 
     const retrieveOpenAIKey = () => {
-        const apiKey = localStorage.getItem('openAiToken')
+        const apiKey = localStorage.getItem("openAiToken")
 
         if (apiKey) {
             return apiKey
         } else {
             notification.error({
-                message: 'OpenAI API Key Missing',
-                description: 'Please provide your OpenAI API key to access this feature.',
+                message: "OpenAI API Key Missing",
+                description: "Please provide your OpenAI API key to access this feature.",
                 duration: 5,
-            });
+            })
             return null
         }
     }
 
-    const createAppVariantFromTemplateImage = async (app_name: string, image_id: string, image_tag: string) => {
-
+    const createAppVariantFromTemplateImage = async (
+        app_name: string,
+        image_id: string,
+        image_tag: string,
+    ) => {
         const OpenAIKey = retrieveOpenAIKey() as string
         const variantData: AppTemplate = {
             app_name: app_name,
             image_id: image_id,
             image_tag: image_tag,
             env_vars: {
-                OPENAI_API_KEY: OpenAIKey
-            }
+                OPENAI_API_KEY: OpenAIKey,
+            },
         }
-        const response  = await startTemplate(variantData)
+        const response = await startTemplate(variantData)
         if (response.status == 200) {
             notification.success({
-                message: 'Template Selection',
-                description: 'App has been created and will begin to run.',
+                message: "Template Selection",
+                description: "App has been created and will begin to run.",
                 duration: 15,
-            });
+            })
             return response
         } else {
             notification.error({
-                message: 'Template Selection',
-                description: 'An error occured when trying to start the variant. Ensure that you do not have a variant with the same app name.',
+                message: "Template Selection",
+                description:
+                    "An error occured when trying to start the variant. Ensure that you do not have a variant with the same app name.",
                 duration: 5,
-            });
+            })
             setFetchingTemplate(false)
         }
     }
 
     const handleTemplateCardClick = async (image_name: string) => {
         setFetchingTemplate(true)
-        
+
         const data: TemplateImage = await fetchTemplateImage(image_name)
         await createAppVariantFromTemplateImage(newApp, data.image_id, data.image_tag)
 
@@ -124,15 +127,14 @@ export default function CreateApp() {
         handleCreateAppFromTemplateModalCancel()
         handleCreateAppModalCancel()
         setFetchingTemplate(false)
-        
-    };
+    }
 
-    const { data, error, isLoading } = fetchApps();
+    const {data, error, isLoading} = fetchApps()
     useEffect(() => {
         if (data) {
-            setAppNameExist(data.some(app => app.app_name === newApp));
+            setAppNameExist(data.some((app) => app.app_name === newApp))
         }
-    }, [data, newApp]);
+    }, [data, newApp])
 
     return (
         <div>
@@ -217,62 +219,73 @@ export default function CreateApp() {
                     style={{margin: "10px"}}
                 />
                 {appNameExist && (
-                    <div style={{ color: 'red', marginLeft: "10px" }}>
-                        App name already exist
-                    </div>
+                    <div style={{color: "red", marginLeft: "10px"}}>App name already exist</div>
                 )}
                 {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                    <div style={{ color: 'red', marginLeft: "10px" }}>
+                    <div style={{color: "red", marginLeft: "10px"}}>
                         App name must contain only letters, numbers, underscore, or dash
                     </div>
                 )}
 
                 <div
                     style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        justifyContent: 'space-evenly',
-                        padding: '10px',
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        justifyContent: "space-evenly",
+                        padding: "10px",
                     }}
-
                 >
-                    {templates.map(template => (
+                    {templates.map((template) => (
                         <div
                             key={template.id}
                             style={{
-                                cursor: newApp.length > 0 && isAppNameInputValid(newApp) ? 'pointer' : 'not-allowed',
+                                cursor:
+                                    newApp.length > 0 && isAppNameInputValid(newApp)
+                                        ? "pointer"
+                                        : "not-allowed",
                             }}
                         >
-                            <AppTemplateCard 
-                                title={template.image.name} 
+                            <AppTemplateCard
+                                title={template.image.name}
                                 onClick={() => {
                                     if (appNameExist) {
                                         notification.warning({
-                                            message: 'Template Selection',
-                                            description: 'App name already exists. Please choose a different name.',
+                                            message: "Template Selection",
+                                            description:
+                                                "App name already exists. Please choose a different name.",
                                             duration: 3,
-                                        });
-                                    } else if (fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
+                                        })
+                                    } else if (
+                                        fetchingTemplate &&
+                                        newApp.length > 0 &&
+                                        isAppNameInputValid(newApp)
+                                    ) {
                                         notification.info({
-                                            message: 'Template Selection',
-                                            description: 'The template image is currently being fetched. Please wait...',
+                                            message: "Template Selection",
+                                            description:
+                                                "The template image is currently being fetched. Please wait...",
                                             duration: 3,
-                                        });
-                                    } else if (!fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
+                                        })
+                                    } else if (
+                                        !fetchingTemplate &&
+                                        newApp.length > 0 &&
+                                        isAppNameInputValid(newApp)
+                                    ) {
                                         notification.info({
-                                            message: 'Template Selection',
-                                            description: 'Fetching template image...',
+                                            message: "Template Selection",
+                                            description: "Fetching template image...",
                                             duration: 10,
-                                        });
-                                        handleTemplateCardClick(template.image.name);
+                                        })
+                                        handleTemplateCardClick(template.image.name)
                                     } else {
                                         notification.warning({
-                                            message: 'Template Selection',
-                                            description: 'Please provide a valid app name to choose a template.',
+                                            message: "Template Selection",
+                                            description:
+                                                "Please provide a valid app name to choose a template.",
                                             duration: 3,
-                                        });
+                                        })
                                     }
                                 }}
                             />

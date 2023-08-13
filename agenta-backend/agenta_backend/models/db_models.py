@@ -26,11 +26,10 @@ class AppVariantDB(SQLModel, table=True):
 class TemplateDB(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     template_id: int = Field(...)
-    name : str = Field(...)
+    name: str = Field(...)
     repo_name: str = Field(...)
     size: int = Field(...)
     digest: str = Field(...)
     status: str = Field(...)
     media_type: str = Field()
     last_pushed: datetime = Field(...)
-    

@@ -47,5 +47,3 @@ class CreateAppVariant(BaseModel):
     image_id: str
     image_tag: str
     env_vars: Dict[str, str]
-
-      

@@ -5,9 +5,7 @@ from agenta_backend.routers import testset_router
 from fastapi.middleware.cors import CORSMiddleware
 from agenta_backend.routers import container_router
 from agenta_backend.routers import evaluation_router
-from agenta_backend.services.db_manager import (
-    add_template,
-)
+from agenta_backend.services.db_manager import add_template
 from agenta_backend.services.container_manager import (
     retrieve_templates_from_dockerhub_cached,
 )

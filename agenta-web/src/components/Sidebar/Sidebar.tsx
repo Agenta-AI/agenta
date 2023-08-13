@@ -55,7 +55,7 @@ const Sidebar: React.FC = () => {
         if (path === "apps") {
             return "/apps"
         } else if (path === "keys") {
-            return "/apikeys";
+            return "/apikeys"
         } else {
             return `/apps/${app_name}/${path}`
         }

@@ -5,7 +5,13 @@ import logging
 
 from agenta_backend.config import settings
 from agenta_backend.services.db_mongo import testsets
-from agenta_backend.models.api.api_models import URI, App, AppVariant, Image, DockerEnvVars
+from agenta_backend.models.api.api_models import (
+    URI,
+    App,
+    AppVariant,
+    Image,
+    DockerEnvVars,
+)
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
 
