@@ -39,7 +39,9 @@ def list_images() -> List[Image]:
     return registry_images
 
 
-def start_container(image_name: str, app_name: str, variant_name: str, env_vars: DockerEnvVars) -> URI:
+def start_container(
+    image_name: str, app_name: str, variant_name: str, env_vars: DockerEnvVars
+) -> URI:
     """Starts the container for an app using local docker. Injects the env vars and sets up traefik
     for reverse proxying.
 

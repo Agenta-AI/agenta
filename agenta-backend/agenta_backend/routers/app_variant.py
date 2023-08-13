@@ -5,7 +5,13 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from agenta_backend.config import settings
-from agenta_backend.models.api.api_models import URI, App, AppVariant, Image, DockerEnvVars
+from agenta_backend.models.api.api_models import (
+    URI,
+    App,
+    AppVariant,
+    Image,
+    DockerEnvVars,
+)
 from agenta_backend.services import app_manager, db_manager, docker_utils
 from docker.errors import DockerException
 from fastapi import APIRouter, Body, HTTPException
@@ -110,7 +116,9 @@ async def add_variant_from_previous(
 
 
 @router.post("/start/")
-async def start_variant(app_variant: AppVariant, env_vars: Optional[DockerEnvVars] = None) -> URI:
+async def start_variant(
+    app_variant: AppVariant, env_vars: Optional[DockerEnvVars] = None
+) -> URI:
     print(f"Starting variant {app_variant}")
     logger.info("Starting variant %s", app_variant)
     try:

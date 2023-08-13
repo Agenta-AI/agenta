@@ -1,12 +1,12 @@
-import { useState } from "react"
-import { useRouter } from "next/router"
-import { Input, Modal, ConfigProvider, theme, Spin, Button } from "antd"
+import {useState} from "react"
+import {useRouter} from "next/router"
+import {Input, Modal, ConfigProvider, theme, Spin, Button} from "antd"
 import useSWR from "swr"
 import AppCard from "./AppCard"
-import { useAppTheme } from "../Layout/ThemeContextProvider"
-import { CloseCircleFilled } from "@ant-design/icons"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
-import { fetchApps } from "@/lib/services/api"
+import {fetchApps} from "@/lib/services/api"
 import CreateApp from "@/components/CreateApp/CreateApp"
 
 const fetcher = (...args: any[]) => fetch(...args).then((res) => res.json())
@@ -15,7 +15,7 @@ const AppSelector: React.FC = () => {
     const [newApp, setNewApp] = useState("")
     const router = useRouter()
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const { appTheme } = useAppTheme()
+    const {appTheme} = useAppTheme()
 
     const showAddModal = () => {
         setIsModalOpen(true)
@@ -29,7 +29,7 @@ const AppSelector: React.FC = () => {
         setIsModalOpen(false)
     }
 
-    const { data, error, isLoading } = fetchApps()
+    const {data, error, isLoading} = fetchApps()
 
     return (
         <ConfigProvider
@@ -52,7 +52,7 @@ const AppSelector: React.FC = () => {
                     </div>
                 ) : error ? (
                     <div className="appSelectorMssg">
-                        <CloseCircleFilled style={{ fontSize: 20, color: "red" }} />
+                        <CloseCircleFilled style={{fontSize: 20, color: "red"}} />
                         <h1>failed to load</h1>
                     </div>
                 ) : Array.isArray(data) && data.length ? (
@@ -85,8 +85,8 @@ const AppSelector: React.FC = () => {
                 ) : (
                     <>
                         <div>
-                            <h1 style={{ fontSize: "42px", margin: "20px 0" }}>
-                                Welcome to <span style={{ color: "#0e9c1a" }}>Agenta</span>
+                            <h1 style={{fontSize: "42px", margin: "20px 0"}}>
+                                Welcome to <span style={{color: "#0e9c1a"}}>Agenta</span>
                             </h1>
                             <h2
                                 style={{
@@ -141,7 +141,7 @@ const AppSelector: React.FC = () => {
                                 backgroundColor: appTheme === "dark" ? "#111a2c" : "#e6f4ff",
                             }}
                         >
-                            <h1 style={{ fontSize: 20 }}>Get started creating your first LLM App</h1>
+                            <h1 style={{fontSize: 20}}>Get started creating your first LLM App</h1>
 
                             <p>
                                 This guide assumes you have completed the installation process. If

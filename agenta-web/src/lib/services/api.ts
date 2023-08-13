@@ -406,7 +406,7 @@ export const fetchApps = () => {
     return {
         data: data,
         error: error,
-        isLoading: isLoading
+        isLoading: isLoading,
     }
 }
 
@@ -416,29 +416,32 @@ export const getTemplates = async () => {
             "Content-Type": "application/json",
         },
     })
-    .then(response => response.json())
-    .then(data => {
-        return data
-    })
-    .catch(error => {
-        console.error('Error fetching templates:', error);
-    });
+        .then((response) => response.json())
+        .then((data) => {
+            return data
+        })
+        .catch((error) => {
+            console.error("Error fetching templates:", error)
+        })
 }
 
 export const pullTemplateImage = async (image_name: string) => {
-    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`, {
-        headers: {
-            "Content-Type": "application/json",
+    return fetch(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`,
+        {
+            headers: {
+                "Content-Type": "application/json",
+            },
         },
-    })
-    .then(response => response.json())
-    .then(data => {
-        return data
-    })
-    .catch(error => {
-        console.error('Error fetching template image:', error);
-        throw error
-    });
+    )
+        .then((response) => response.json())
+        .then((data) => {
+            return data
+        })
+        .catch((error) => {
+            console.error("Error fetching template image:", error)
+            throw error
+        })
 }
 
 export const startTemplate = async (templateObj: AppTemplate) => {
@@ -451,8 +454,7 @@ export const startTemplate = async (templateObj: AppTemplate) => {
                     accept: "application/json",
                     "Content-Type": "application/json",
                 },
-            }
-            
+            },
         )
         return response
     } catch (error) {

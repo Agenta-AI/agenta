@@ -34,9 +34,7 @@ router = APIRouter()
 
 
 @router.post("/build_image/")
-async def build_image(
-    app_name: str, variant_name: str, tar_file: UploadFile
-) -> Image:
+async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) -> Image:
     """Takes a tar file and builds a docker image from it
 
     Arguments:
@@ -123,9 +121,7 @@ async def pull_image(image_name: str) -> dict:
     image_id = await get_image_details_from_docker_hub(
         repo_owner, repo_name, image_tag_name
     )
-    return JSONResponse(
-        {"image_tag": image_tag_name, "image_id": image_id}, 200
-    )
+    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
 
 
 @router.post("/variants/create/")
@@ -140,9 +136,7 @@ async def create_app_variant_from_image(payload: CreateAppVariant):
     """
 
     # Create an AppVariant with the provided app name
-    app_variant: AppVariant = AppVariant(
-        app_name=payload.app_name, variant_name="v1"
-    )
+    app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
 
     # Create an Image instance with the extracted image id, and defined image name
     image_id = payload.image_id.split(":")[-1]
