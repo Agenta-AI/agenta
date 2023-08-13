@@ -317,6 +317,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 columns={columns}
                 pagination={false}
                 rowClassName={() => "editable-row"}
+                rowKey={(record) => record.id}
             />
         </div>
     )
