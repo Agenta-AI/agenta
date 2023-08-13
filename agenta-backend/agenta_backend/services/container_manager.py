@@ -121,7 +121,26 @@ async def retrieve_templates_from_dockerhub(
         return response_data
 
 
-async def retrieve_templates_from_dockerhub_cached():
+async def check_docker_arch() -> str:
+    """Checks the architecture of the Docker system.
+
+    Returns:
+        The architecture mapping for the Docker system.
+    """
+    async with Docker() as docker:
+        info = await docker.system.info()
+        arch_mapping = {
+            "x86_64": "amd",
+            "arm64": "arm",
+            "armhf": "arm",
+            "ppc64le": "ppc",
+            "s390x": "s390",
+            # Add more mappings as needed
+        }
+        return arch_mapping.get(info["Architecture"], "unknown")
+
+
+async def retrieve_templates_from_dockerhub_cached() -> List[dict]:
     """Retrieves templates from Docker Hub and caches the data in Redis for future use.
 
     Returns:
@@ -180,7 +199,7 @@ async def get_image_details_from_docker_hub(
     Returns:
         The "Id" of the image details obtained from Docker Hub.
     """
-    
+
     async with Docker() as docker:
         image_details = await docker.images.inspect(
             f"{repo_owner}/{repo_name}:{image_name}"

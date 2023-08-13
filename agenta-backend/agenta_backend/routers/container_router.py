@@ -24,6 +24,7 @@ from agenta_backend.models.api.api_models import (
 )
 from agenta_backend.services.container_manager import (
     build_image_job,
+    check_docker_arch,
     get_image_details_from_docker_hub,
     pull_image_from_docker_hub,
 )
@@ -85,7 +86,10 @@ async def container_templates() -> List[Template]:
     Returns:
         a list of `Template` objects.
     """
-    templates = get_templates()
+    docker_arch = await check_docker_arch()
+    if docker_arch == "unknown":
+        return []
+    templates = get_templates(docker_arch)
     return templates
 
 
@@ -154,7 +158,7 @@ async def create_app_variant_from_image(payload: CreateAppVariant):
         update_variant_image(app_variant, image)
 
     # Start variant
-    url = start_variant(app_variant)
+    url = start_variant(app_variant, payload.env_vars)
 
     return {
         "message": "Variant created and running!",
