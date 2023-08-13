@@ -7,7 +7,9 @@
         "build": "next build",
         "start": "next start",
         "lint": "next lint",
-        "test": "yarn cypress run",
+        "cypress:open": "cypress open",
+        "cypress:run": "cypress run",
+        "test": "cypress run",
         "format": "prettier --check",
         "format-fix": "prettier --write ."
     },

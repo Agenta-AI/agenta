@@ -7,5 +7,6 @@ from .sdk.types import (
     InFile,
     Context,
     MultipleChoiceParam,
+    DictInput,
 )
 from .sdk.context import save_context, get_contexts
