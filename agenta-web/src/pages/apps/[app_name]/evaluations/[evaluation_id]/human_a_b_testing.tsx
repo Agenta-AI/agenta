@@ -1,4 +1,4 @@
-import EvaluationTable from "@/components/EvaluationTable/EvaluationTable"
+import ABTestingEvaluationTable from "@/components/EvaluationTable/ABTestingEvaluationTable"
 import {Evaluation} from "@/lib/Types"
 import {loadEvaluation, loadEvaluationsScenarios} from "@/lib/services/api"
 import {useRouter} from "next/router"
@@ -51,7 +51,7 @@ export default function Evaluation() {
     return (
         <div style={{marginBottom: "200px"}}>
             {evaluationTableId && evaluationScenarios && evaluation && (
-                <EvaluationTable
+                <ABTestingEvaluationTable
                     columnsCount={columnsCount}
                     evaluationScenarios={evaluationScenarios}
                     evaluation={evaluation}

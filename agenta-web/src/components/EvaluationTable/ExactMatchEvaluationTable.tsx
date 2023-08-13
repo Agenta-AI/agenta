@@ -50,9 +50,13 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     const variants = evaluation.variants
 
     const variantData = variants.map((variant: Variant) => {
-        const {optParams, URIPath, isLoading, isError, error} = useVariant(appName, variant)
+        const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
+            appName,
+            variant,
+        )
 
         return {
+            inputParams,
             optParams,
             URIPath,
             isLoading,
@@ -128,6 +132,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             try {
                 let result = await callVariant(
                     inputParamsDict,
+                    variantData[idx].inputParams,
                     variantData[idx].optParams,
                     variantData[idx].URIPath,
                 )
@@ -314,7 +319,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     return (
         <div>
-            <Title>Exact match Evaluation</Title>
+            <h1>Exact match Evaluation</h1>
             <div>
                 <Row align="middle">
                     <Col span={12}>

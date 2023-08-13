@@ -25,7 +25,5 @@ def generate(
     )
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=transcript)]
 
-    response = chat(
-        messages,
-    ).content
+    response = chat(messages,).content
     return response
