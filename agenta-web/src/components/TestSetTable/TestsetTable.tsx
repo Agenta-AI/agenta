@@ -3,7 +3,7 @@ import {AgGridReact} from "ag-grid-react"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {createUseStyles} from "react-jss"
-import {Button, Input, Tooltip, Typography, message} from "antd"
+import {Button, Input, Modal, Tooltip, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons"
 import {createNewTestset, loadTestset, updateTestset} from "@/lib/services/api"
@@ -146,7 +146,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
                 // Merge with the existing column definitions (the checkbox column)
                 const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData]
-                setColumnDefs(newColumnDefs)
+
+                setColumnDefs([...newColumnDefs, {field: ""}])
 
                 // Update input values for column names
                 setInputValues(
@@ -162,13 +163,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         }
     }, [mode, testset_id])
 
-    const handleInputChange = (index, event) => {
-        const values = [...inputValues]
-        values[index] = event.target.value
-        setInputValues(values)
-    }
-
-    const updateTable = () => {
+    const updateTable = (inputValues: string[]) => {
         const checkboxColumn = columnDefs.find((colDef) => colDef.field === "")
         const dataColumns = columnDefs.filter((colDef) => colDef.field !== "")
 
@@ -178,7 +173,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
 
-        const newColumnDefs = [checkboxColumn, ...newDataColumns]
+        const newColumnDefs = [checkboxColumn, ...newDataColumns, {field: ""}]
 
         const keyMap = dataColumns.reduce((acc, colDef, index) => {
             acc[colDef.field] = newDataColumns[index].field
@@ -194,9 +189,121 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         })
 
         setColumnDefs(newColumnDefs)
+
         setRowData(newRowData)
         if (gridRef.current) {
             gridRef.current.setColumnDefs(newColumnDefs)
+        }
+    }
+
+    const HeaderComponent = (params: any) => {
+        const {eGridHeader} = params
+        const [scopedInputValues, setScopedInputValues] = useState(
+            columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
+        )
+        const [index, setIndex] = useState(eGridHeader.attributes[4].nodeValue - 2)
+
+        const [displayName, setDisplayName] = useState(
+            inputValues[eGridHeader.attributes[4].nodeValue - 2],
+        )
+
+        const [error, setError] = useState<string | undefined>(undefined)
+
+        const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false)
+        const handleOpenIsEditModalOpen = () => {
+            setIsEditModalOpen(true)
+        }
+
+        const handleCloseIsEditModalOpen = () => {
+            setScopedInputValues(inputValues)
+            setIsEditModalOpen(false)
+        }
+
+        const handleSave = () => {
+            if (inputValues.includes(scopedInputValues[index])) {
+                setError("Column name already exist!")
+            } else {
+                setError(undefined)
+                setInputValues(scopedInputValues)
+                updateTable(scopedInputValues)
+            }
+        }
+
+        const handleInputChange = (index, event) => {
+            const values = [...inputValues]
+            values[index] = event.target.value
+            setScopedInputValues(values)
+        }
+
+        const onAddColumn = () => {
+            const newColumnName = `column${columnDefs.length}`
+            // Update each row to include the new column
+            const updatedRowData = rowData.map((row) => ({
+                ...row,
+                [newColumnName]: "", // set the initial value of the new column to an empty string
+            }))
+
+            setInputValues([...inputValues, newColumnName])
+            setColumnDefs([...columnDefs, {field: newColumnName}])
+            setRowData(updatedRowData)
+        }
+
+        useEffect(() => {
+            setScopedInputValues(inputValues)
+        }, [columnDefs])
+
+        if (displayName === undefined) {
+            return (
+                <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
+                    <PlusOutlined />
+                </Button>
+            )
+        } else {
+            return (
+                <>
+                    <div
+                        style={{
+                            width: "100%",
+                            height: "100% ",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                        }}
+                    >
+                        {displayName}
+                        <div>
+                            <Button
+                                type="text"
+                                icon={<EditOutlined />}
+                                onClick={handleOpenIsEditModalOpen}
+                            />
+                            <Button
+                                type="text"
+                                icon={<DeleteOutlined />}
+                                onClick={() => onDeleteColumn(index)}
+                            />
+                        </div>
+                    </div>
+                    <Modal
+                        open={isEditModalOpen}
+                        title="Edit column name"
+                        onCancel={handleCloseIsEditModalOpen}
+                        onOk={handleSave}
+                    >
+                        {error && <p style={{fontSize: "10px", color: "red"}}>{error}</p>}
+                        <Input
+                            value={scopedInputValues[index]}
+                            onChange={(event) => handleInputChange(index, event)}
+                            size="small"
+                            style={{
+                                marginTop: "10px",
+                                marginBottom: "10px",
+                                height: "30px",
+                            }}
+                        />
+                    </Modal>
+                </>
+            )
         }
     }
 
@@ -210,6 +317,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 setFocusedRowData(rowData[ix])
             },
         },
+        headerComponent: HeaderComponent,
         resizable: true,
     }
 
@@ -221,18 +329,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
         setRowData([...rowData, newRow])
-    }
-
-    const onAddColumn = () => {
-        const newColumnName = `column${columnDefs.length}`
-        // Update each row to include the new column
-        const updatedRowData = rowData.map((row) => ({
-            ...row,
-            [newColumnName]: "", // set the initial value of the new column to an empty string
-        }))
-        setInputValues([...inputValues, newColumnName])
-        setColumnDefs([...columnDefs, {field: newColumnName}])
-        setRowData(updatedRowData)
     }
 
     const onSaveData = async (redirect = true) => {
@@ -374,26 +470,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     marginBottom: "10px",
                 }}
             >
-                {inputValues.map((value, index) => (
-                    <div key={index} style={{marginRight: "10px"}}>
-                        <Input
-                            value={value}
-                            onChange={(event) => handleInputChange(index, event)}
-                            size="small"
-                            suffix={
-                                <Button
-                                    type="text"
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => onDeleteColumn(index)}
-                                />
-                            }
-                        />
-                    </div>
-                ))}
-                <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
-                    <PlusOutlined />
-                </Button>
-                <Button onClick={updateTable}>Update Columns names</Button>
+                <Button onClick={() => updateTable(inputValues)}>Update Columns names</Button>
             </div>
 
             <div
