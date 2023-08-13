@@ -463,17 +463,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             </div>
 
             <div
-                style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: "10px",
-                }}
-            >
-                <Button onClick={() => updateTable(inputValues)}>Update Columns names</Button>
-            </div>
-
-            <div
                 className={`${appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
                 style={{height: 500}}
             >
@@ -491,24 +480,26 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     onRowDataUpdated={onRowSelectedOrDeselected}
                 />
             </div>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginTop: "20px",
-                }}
-            >
-                <div>
-                    <Button onClick={onAddRow}>Add Row</Button>
-                    <Button
-                        onClick={onDeleteRow}
-                        style={{marginLeft: 10}}
-                        disabled={selectedRow.length < 1}
-                    >
-                        Delete Row{selectedRow.length > 1 ? "s" : null}
-                    </Button>
+            {selectedRow && (
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginTop: "20px",
+                    }}
+                >
+                    <div>
+                        <Button onClick={onAddRow}>Add Row</Button>
+                        <Button
+                            onClick={onDeleteRow}
+                            style={{marginLeft: 10}}
+                            disabled={selectedRow.length < 1}
+                        >
+                            Delete Row{selectedRow.length > 1 ? "s" : null}
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <TestsetMusHaveNameModal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} />
 
