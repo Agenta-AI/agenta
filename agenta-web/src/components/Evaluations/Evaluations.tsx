@@ -354,7 +354,7 @@ export default function Evaluations() {
                                     </span>
                                 </div>
                             </Radio.Button>
-
+                            {/* 
                             <Radio.Button
                                 value={EvaluationType.human_scoring}
                                 disabled
@@ -364,7 +364,7 @@ export default function Evaluations() {
                                 <Tag color="orange" bordered={false}>
                                     soon
                                 </Tag>
-                            </Radio.Button>
+                            </Radio.Button> */}
 
                             <Title level={5}>Automatic evaluation</Title>
 
