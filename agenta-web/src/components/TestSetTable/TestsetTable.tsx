@@ -255,9 +255,11 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
         if (displayName === undefined) {
             return (
-                <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
-                    <PlusOutlined />
-                </Button>
+                <div style={{width: "100%", display: "flex", justifyContent: "end"}}>
+                    <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
+                        <PlusOutlined />
+                    </Button>
+                </div>
             )
         } else {
             return (
