@@ -105,7 +105,7 @@ export default function EvaluationsList() {
                     <div>
                         {value.map((variant: Variant, index: number) => {
                             return (
-                                <span>
+                                <span key={index}>
                                     <span>{variant.variantName}</span>
                                     {index < value.length - 1 && <span> | </span>}
                                 </span>
