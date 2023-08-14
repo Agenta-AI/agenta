@@ -7,21 +7,8 @@ from fastapi.responses import JSONResponse
 from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
-from agenta_backend.services.app_manager import (
-    start_variant,
-    update_variant_image,
-)
-from agenta_backend.services.db_manager import (
-    get_templates,
-    add_variant_based_on_image,
-    get_variant_from_db,
-)
-from agenta_backend.models.api.api_models import (
-    Image,
-    Template,
-    AppVariant,
-    CreateAppVariant,
-)
+from agenta_backend.services.db_manager import get_templates
+from agenta_backend.models.api.api_models import Image, Template
 from agenta_backend.services.container_manager import (
     build_image_job,
     check_docker_arch,
@@ -34,7 +21,9 @@ router = APIRouter()
 
 
 @router.post("/build_image/")
-async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) -> Image:
+async def build_image(
+    app_name: str, variant_name: str, tar_file: UploadFile
+) -> Image:
     """Takes a tar file and builds a docker image from it
 
     Arguments:
@@ -121,43 +110,6 @@ async def pull_image(image_name: str) -> dict:
     image_id = await get_image_details_from_docker_hub(
         repo_owner, repo_name, image_tag_name
     )
-    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
-
-
-@router.post("/variants/create/")
-async def create_app_variant_from_image(payload: CreateAppVariant):
-    """Creates or updates an app variant based on the provided image and starts the variant
-
-    Arguments:
-        payload -- a data model that contains the necessary information to create an app variant from an image
-
-    Returns:
-        a JSON response with a message and data
-    """
-
-    # Create an AppVariant with the provided app name
-    app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
-
-    # Create an Image instance with the extracted image id, and defined image name
-    image_id = payload.image_id.split(":")[-1]
-    image_name = f"agentaai/templates:{payload.image_tag}"
-    image: Image = Image(docker_id=image_id, tags=f"{image_name}")
-
-    variant_exist = get_variant_from_db(app_variant)
-    if variant_exist is None:
-        # Save variant based on the image to database
-        add_variant_based_on_image(app_variant, image)
-    else:
-        # Update variant based on the image
-        update_variant_image(app_variant, image)
-
-    # Start variant
-    url = start_variant(app_variant, payload.env_vars)
-
-    return {
-        "message": "Variant created and running!",
-        "data": {
-            "url": url.uri,
-            "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",
-        },
-    }
+    return JSONResponse(
+        {"image_tag": image_tag_name, "image_id": image_id}, 200
+    )

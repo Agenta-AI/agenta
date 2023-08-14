@@ -11,6 +11,7 @@ from agenta_backend.models.api.api_models import (
     AppVariant,
     Image,
     DockerEnvVars,
+    CreateAppVariant
 )
 from agenta_backend.services import app_manager, db_manager, docker_utils
 from docker.errors import DockerException
@@ -238,3 +239,42 @@ async def update_variant_image(app_variant: AppVariant, image: Image):
     except Exception as e:
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/add/from_template/")
+async def add_app_variant_from_template(payload: CreateAppVariant):
+    """Creates or updates an app variant based on the provided image and starts the variant
+    
+    Arguments:
+        payload -- a data model that contains the necessary information to create an app variant from an image
+
+    Returns:
+        a JSON response with a message and data
+    """
+
+    # Create an AppVariant with the provided app name
+    app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
+
+    # Create an Image instance with the extracted image id, and defined image name
+    image_id = payload.image_id.split(":")[-1]
+    image_name = f"agentaai/templates:{payload.image_tag}"
+    image: Image = Image(docker_id=image_id, tags=f"{image_name}")
+
+    variant_exist = db_manager.get_variant_from_db(app_variant)
+    if variant_exist is None:
+        # Save variant based on the image to database
+        db_manager.add_variant_based_on_image(app_variant, image)
+    else:
+        # Update variant based on the image
+        app_manager.update_variant_image(app_variant, image)
+
+    # Start variant
+    url = app_manager.start_variant(app_variant, payload.env_vars)
+
+    return {
+        "message": "Variant created and running!",
+        "data": {
+            "url": url.uri,
+            "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",
+        },
+    }
