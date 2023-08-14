@@ -3,7 +3,7 @@ import {AgGridReact} from "ag-grid-react"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {createUseStyles} from "react-jss"
-import {Button, Input, Modal, Tooltip, Typography, message} from "antd"
+import {Button, Input, Tooltip, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons"
 import {createNewTestset, loadTestset, updateTestset} from "@/lib/services/api"
@@ -208,23 +208,24 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             inputValues[eGridHeader.attributes[4].nodeValue - 2],
         )
 
-        const [error, setError] = useState<string | undefined>(undefined)
-
-        const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false)
-        const handleOpenIsEditModalOpen = () => {
-            setIsEditModalOpen(true)
+        const [isEditInputOpen, setIsEditInputOpen] = useState<boolean>(false)
+        const handleOpenEditInput = () => {
+            setIsEditInputOpen(true)
         }
 
-        const handleCloseIsEditModalOpen = () => {
+        const handleCloseIsEditInputOpen = () => {
             setScopedInputValues(inputValues)
-            setIsEditModalOpen(false)
+            setIsEditInputOpen(false)
         }
 
         const handleSave = () => {
-            if (inputValues.includes(scopedInputValues[index])) {
-                setError("Column name already exist!")
+            if (inputValues.includes(scopedInputValues[index]) || scopedInputValues[index] == "") {
+                message.error(
+                    scopedInputValues[index] == ""
+                        ? "Invalid column name"
+                        : "Column name already exist!",
+                )
             } else {
-                setError(undefined)
                 setInputValues(scopedInputValues)
                 updateTable(scopedInputValues)
             }
@@ -238,14 +239,17 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
         const onAddColumn = () => {
             const newColumnName = `column${columnDefs.length - 1}`
+            const newColmnDef = columnDefs
             // Update each row to include the new column
             const updatedRowData = rowData.map((row) => ({
                 ...row,
                 [newColumnName]: "", // set the initial value of the new column to an empty string
             }))
 
+            newColmnDef.pop()
+
             setInputValues([...inputValues, newColumnName])
-            setColumnDefs([...columnDefs, {field: newColumnName}])
+            setColumnDefs([...columnDefs, {field: newColumnName}, emptyData])
             setRowData(updatedRowData)
         }
 
@@ -273,13 +277,41 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                             justifyContent: "space-between",
                         }}
                     >
-                        {displayName}
-                        <div>
-                            <Button
-                                type="text"
-                                icon={<EditOutlined />}
-                                onClick={handleOpenIsEditModalOpen}
+                        {isEditInputOpen ? (
+                            <Input
+                                value={scopedInputValues[index]}
+                                onChange={(event) => handleInputChange(index, event)}
+                                size="small"
+                                style={{
+                                    marginTop: "10px",
+                                    marginBottom: "10px",
+                                    height: "30px",
+                                    marginRight: "3px",
+                                    outline: "red",
+                                }}
                             />
+                        ) : (
+                            displayName
+                        )}
+
+                        <div>
+                            {isEditInputOpen ? (
+                                <Button
+                                    icon="Save"
+                                    onClick={handleSave}
+                                    type="default"
+                                    style={{
+                                        width: "45px",
+                                    }}
+                                />
+                            ) : (
+                                <Button
+                                    icon={<EditOutlined />}
+                                    onClick={handleOpenEditInput}
+                                    type="text"
+                                />
+                            )}
+
                             <Button
                                 type="text"
                                 icon={<DeleteOutlined />}
@@ -287,24 +319,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                             />
                         </div>
                     </div>
-                    <Modal
-                        open={isEditModalOpen}
-                        title="Edit column name"
-                        onCancel={handleCloseIsEditModalOpen}
-                        onOk={handleSave}
-                    >
-                        {error && <p style={{fontSize: "10px", color: "red"}}>{error}</p>}
-                        <Input
-                            value={scopedInputValues[index]}
-                            onChange={(event) => handleInputChange(index, event)}
-                            size="small"
-                            style={{
-                                marginTop: "10px",
-                                marginBottom: "10px",
-                                height: "30px",
-                            }}
-                        />
-                    </Modal>
                 </>
             )
         }
