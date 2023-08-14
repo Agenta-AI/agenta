@@ -56,6 +56,7 @@ export default function testsets() {
             title: "Name",
             dataIndex: "name",
             key: "name",
+            className: "testset-column",
         },
         {
             title: "Creation date",
@@ -64,6 +65,7 @@ export default function testsets() {
             render: (date: string) => {
                 return formatDate(date)
             },
+            className: "testset-column",
         },
     ]
 
