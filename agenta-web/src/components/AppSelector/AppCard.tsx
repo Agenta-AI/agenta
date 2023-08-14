@@ -6,7 +6,13 @@ import {useState} from "react"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 
-const DeleteModal = ({open, handleOk, handleCancel, appName, confirmLoading}) => {
+const DeleteModal: React.FC<{
+    open: boolean
+    handleOk: () => Promise<void>
+    handleCancel: () => void
+    appName: string
+    confirmLoading: boolean
+}> = ({open, handleOk, handleCancel, appName, confirmLoading}) => {
     return (
         <Modal
             title="Are you sure?"
@@ -22,7 +28,11 @@ const DeleteModal = ({open, handleOk, handleCancel, appName, confirmLoading}) =>
     )
 }
 
-const AppCard: React.FC<string> = ({appName, index}) => {
+const AppCard: React.FC<{
+    appName: string
+    key: number
+    index: number
+}> = ({appName, index}) => {
     const [visibleDelete, setVisibleDelete] = useState(false)
     const [confirmLoading, setConfirmLoading] = useState(false) // add this line
     const showDeleteModal = () => {

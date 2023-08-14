@@ -361,14 +361,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         setRowData([...rowData, newRow])
     }
 
-    const onSaveData = async (redirect = true) => {
+    const onSaveData = async () => {
         try {
             const afterSave = (response: AxiosResponse) => {
                 if (response.status === 200) {
                     setUnSavedChanges(false, () => {
-                        if (redirect) {
-                            router.push(`/apps/${appName}/testsets`)
-                        }
+                        mssgModal("success", "Changes saved successfully!")
                     })
                 }
             }

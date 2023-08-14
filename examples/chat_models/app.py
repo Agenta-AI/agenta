@@ -22,7 +22,8 @@ REMOVE ALL NEWLINE CHARACTER, LINE BREAK, ENDOF LINE (EOL) OR "\n",""",
 replicate_dict = {
     "replicate/llama-2-7b-chat": "a16z-infra/llama-2-7b-chat:4f0b260b6a13eb53a6b1891f089d57c08f41003ae79458be5011303d81a394dc",
     "replicate/llama-2-70b-chat": "replicate/llama-2-70b-chat:2c1608e18606fad2812020dc541930f2d0495ce32eee50074220b87300bc16e1",
-    "replicate/llama-2-13b-chat": "a16z-infra/llama-2-13b-chat:2a7f981751ec7fdf87b5b91ad4db53683a98082e9ff7bfd12c8cd5ea85980a52"}
+    "replicate/llama-2-13b-chat": "a16z-infra/llama-2-13b-chat:2a7f981751ec7fdf87b5b91ad4db53683a98082e9ff7bfd12c8cd5ea85980a52",
+}
 
 # ChatGpt 3.5 models
 CHAT_LLM_GPT = [
@@ -48,20 +49,24 @@ def call_llm(model, temperature, prompt_system, prompt_human, **kwargs):
                 "presence_penalty": kwargs["presence_penalty"],
             },
         )
-        messages = [SystemMessage(content=prompt_system),
-                    HumanMessage(content=prompt_human)]
+        messages = [
+            SystemMessage(content=prompt_system),
+            HumanMessage(content=prompt_human),
+        ]
         output = chat(messages,).content
 
     # replicate
     if model.startswith("replicate"):
         output = replicate.run(
             replicate_dict[model],
-            input={"prompt": prompt_human,
-                   "system_prompt": prompt_system,
-                   "max_new_tokens": kwargs["maximum_length"],
-                   "temperature": temperature,
-                   "top_p": kwargs["top_p"],
-                   "repetition_penalty": kwargs["frequence_penalty"]}
+            input={
+                "prompt": prompt_human,
+                "system_prompt": prompt_system,
+                "max_new_tokens": kwargs["maximum_length"],
+                "temperature": temperature,
+                "top_p": kwargs["top_p"],
+                "repetition_penalty": kwargs["frequence_penalty"],
+            },
         )
 
     return "".join(list(output))
@@ -83,11 +88,15 @@ def generate(
     presence_penalty: ag.FloatParam = 0.0,
 ) -> str:
     try:
-        prompt_human = PromptTemplate(input_variables=list(inputs.keys()), template=prompt_human).format(**inputs)
+        prompt_human = PromptTemplate(
+            input_variables=list(inputs.keys()), template=prompt_human
+        ).format(**inputs)
     except Exception as e:
         prompt_human = prompt_human
     try:
-        prompt_system = PromptTemplate(input_variables=list(inputs.keys()), template=prompt_system).format(**inputs)
+        prompt_system = PromptTemplate(
+            input_variables=list(inputs.keys()), template=prompt_system
+        ).format(**inputs)
     except Exception as e:
         prompt_system = prompt_system
 
