@@ -1,7 +1,7 @@
 import uuid
 import asyncio
-from typing import List
 from pathlib import Path
+from typing import List, Union
 from fastapi import UploadFile, APIRouter
 from fastapi.responses import JSONResponse
 from agenta_backend.config import settings
@@ -78,15 +78,15 @@ async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) ->
 
 
 @router.get("/templates/")
-async def container_templates() -> List[Template]:
+async def container_templates() -> Union[List[Template], str]:
     """Returns a list of container templates.
 
     Returns:
         a list of `Template` objects.
     """
-    docker_arch = await check_docker_arch()
+    docker_arch =  await check_docker_arch()
     if docker_arch == "unknown":
-        return []
+        return "No templates were found, this is a mistake, please fill an issue"
     templates = get_templates(docker_arch)
     return templates
 

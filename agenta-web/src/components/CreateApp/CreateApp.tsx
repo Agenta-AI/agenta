@@ -6,16 +6,20 @@ import {Template, AppTemplate, TemplateImage} from "@/lib/Types"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
 import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
 import AppTemplateCard from "./AppTemplateCard"
+import { useRouter } from "next/router"
 
 export default function CreateApp() {
     const {Text, Title} = Typography
 
+    const router = useRouter()
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
+    const [templateMessage, setTemplateMessage] = useState("")
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
 
+    const [hasApiKey, setHasApiKey] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
 
@@ -49,7 +53,11 @@ export default function CreateApp() {
     useEffect(() => {
         const fetchTemplates = async () => {
             const data = await getTemplates()
-            setTemplates(data)
+            if (typeof(data) == "object") {
+                setTemplates(data)
+            } else {
+                setTemplateMessage(data)
+            }
         }
 
         fetchTemplates()
@@ -72,30 +80,23 @@ export default function CreateApp() {
     const retrieveOpenAIKey = () => {
         const apiKey = localStorage.getItem("openAiToken")
 
-        if (apiKey) {
-            return apiKey
-        } else {
-            notification.error({
-                message: "OpenAI API Key Missing",
-                description: "Please provide your OpenAI API key to access this feature.",
-                duration: 5,
-            })
-            return null
-        }
+        console.log("API Key => ", apiKey)
+        return apiKey
     }
 
     const createAppVariantFromTemplateImage = async (
         app_name: string,
         image_id: string,
         image_tag: string,
+        api_key: string
     ) => {
-        const OpenAIKey = retrieveOpenAIKey() as string
+
         const variantData: AppTemplate = {
             app_name: app_name,
             image_id: image_id,
             image_tag: image_tag,
             env_vars: {
-                OPENAI_API_KEY: OpenAIKey,
+                OPENAI_API_KEY: api_key,
             },
         }
         const response = await startTemplate(variantData)
@@ -120,8 +121,26 @@ export default function CreateApp() {
     const handleTemplateCardClick = async (image_name: string) => {
         setFetchingTemplate(true)
 
+        const OpenAIKey = retrieveOpenAIKey() as string
+        console.log("No API Key => ", hasApiKey)
+        if (OpenAIKey === null) {
+            notification.error({
+                message: "OpenAI API Key Missing",
+                description: "Please provide your OpenAI API key to access this feature.",
+                duration: 5,
+            })
+            router.push("/apikeys")
+            return
+        }
+
+        notification.info({
+            message: "Template Selection",
+            description: "Fetching template image...",
+            duration: 10,
+        })
+
         const data: TemplateImage = await fetchTemplateImage(image_name)
-        await createAppVariantFromTemplateImage(newApp, data.image_id, data.image_tag)
+        await createAppVariantFromTemplateImage(newApp, data.image_id, data.image_tag, OpenAIKey)
 
         setNewApp("")
         handleCreateAppFromTemplateModalCancel()
@@ -237,7 +256,17 @@ export default function CreateApp() {
                         padding: "10px",
                     }}
                 >
-                    {templates.map((template) => (
+
+                    {templates.length === 0 ? (
+                        <div>
+                            <AppTemplateCard
+                                title="No Templates Available"
+                                body={templateMessage}
+                                noTemplate={true}
+                            >
+                            </AppTemplateCard>
+                        </div>
+                    )  : templates.map((template) => (
                         <div
                             key={template.id}
                             style={{
@@ -249,6 +278,7 @@ export default function CreateApp() {
                         >
                             <AppTemplateCard
                                 title={template.image.name}
+                                body=""
                                 onClick={() => {
                                     if (appNameExist) {
                                         notification.warning({
@@ -273,11 +303,6 @@ export default function CreateApp() {
                                         newApp.length > 0 &&
                                         isAppNameInputValid(newApp)
                                     ) {
-                                        notification.info({
-                                            message: "Template Selection",
-                                            description: "Fetching template image...",
-                                            duration: 10,
-                                        })
                                         handleTemplateCardClick(template.image.name)
                                     } else {
                                         notification.warning({
@@ -288,6 +313,7 @@ export default function CreateApp() {
                                         })
                                     }
                                 }}
+                                noTemplate={false}
                             />
                         </div>
                     ))}
