@@ -89,6 +89,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         {column1: "data1"},
         {column1: "data1"},
     ])
+    const emptyData = {field: "", editable: false}
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [columnDefs, setColumnDefs] = useState([
         {
@@ -145,9 +146,9 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 }))
 
                 // Merge with the existing column definitions (the checkbox column)
-                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData]
+                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData, emptyData]
 
-                setColumnDefs([...newColumnDefs, {field: ""}])
+                setColumnDefs([...newColumnDefs])
 
                 // Update input values for column names
                 setInputValues(
@@ -173,7 +174,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
 
-        const newColumnDefs = [checkboxColumn, ...newDataColumns, {field: ""}]
+        const newColumnDefs = [checkboxColumn, ...newDataColumns, emptyData]
 
         const keyMap = dataColumns.reduce((acc, colDef, index) => {
             acc[colDef.field] = newDataColumns[index].field
