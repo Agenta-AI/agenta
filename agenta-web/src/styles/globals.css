@@ -2,6 +2,19 @@ html,
 body {
     padding: 0;
     margin: 0;
+    text-decoration: none;
+}
+
+.mdxSlider img {
+    width: 100%;
+}
+
+.testset-column {
+    cursor: pointer;
+}
+
+.testset-column a {
+    color: inherit;
 }
 
 @keyframes pulse {
