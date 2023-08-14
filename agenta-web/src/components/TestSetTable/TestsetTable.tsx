@@ -236,7 +236,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         }
 
         const onAddColumn = () => {
-            const newColumnName = `column${columnDefs.length}`
+            const newColumnName = `column${columnDefs.length - 1}`
             // Update each row to include the new column
             const updatedRowData = rowData.map((row) => ({
                 ...row,
