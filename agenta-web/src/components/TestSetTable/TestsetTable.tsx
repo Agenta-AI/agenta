@@ -89,7 +89,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         {column1: "data1"},
         {column1: "data1"},
     ])
-    const emptyData = {field: "", editable: false}
+    const emptyData = {field: "", editable: false, maxWidth: 100}
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [columnDefs, setColumnDefs] = useState([
         {
@@ -213,12 +213,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             setIsEditInputOpen(true)
         }
 
-        const handleCloseIsEditInputOpen = () => {
-            setScopedInputValues(inputValues)
-            setIsEditInputOpen(false)
-        }
-
         const handleSave = () => {
+            if (scopedInputValues[index] == inputValues[index]) {
+                setIsEditInputOpen(false)
+                console.log("here")
+                return
+            }
             if (inputValues.includes(scopedInputValues[index]) || scopedInputValues[index] == "") {
                 message.error(
                     scopedInputValues[index] == ""
@@ -228,6 +228,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             } else {
                 setInputValues(scopedInputValues)
                 updateTable(scopedInputValues)
+                setIsEditInputOpen(false)
             }
         }
 
@@ -256,6 +257,18 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         useEffect(() => {
             setScopedInputValues(inputValues)
         }, [columnDefs])
+
+        useEffect(() => {
+            const handleEscape = (e: KeyboardEvent) => {
+                if (e.key == "Enter") {
+                    if (isEditInputOpen) {
+                        handleSave()
+                    }
+                }
+            }
+            window.addEventListener("keydown", handleEscape)
+            return () => window.removeEventListener("keydown", handleEscape)
+        }, [isEditInputOpen, scopedInputValues])
 
         if (displayName === undefined) {
             return (
