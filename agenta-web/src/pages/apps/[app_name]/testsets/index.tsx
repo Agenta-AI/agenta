@@ -57,9 +57,6 @@ export default function testsets() {
             dataIndex: "name",
             key: "name",
             className: "testset-column",
-            render: (text: string, record: testsetTableDatatype) => (
-                <Link href={`/apps/${app_name}/testsets/${record.key}`}>{text}</Link>
-            ),
         },
         {
             title: "Creation date",
@@ -156,6 +153,12 @@ export default function testsets() {
                         columns={columns}
                         dataSource={testsetsList}
                         loading={loading}
+                        onRow={(record, rowIndex) => {
+                            return {
+                                onClick: () =>
+                                    router.push(`/apps/${app_name}/testsets/${record.key}`),
+                            }
+                        }}
                     />
                 )}
             </div>
