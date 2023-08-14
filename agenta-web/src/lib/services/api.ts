@@ -447,7 +447,7 @@ export const pullTemplateImage = async (image_name: string) => {
 export const startTemplate = async (templateObj: AppTemplate) => {
     try {
         const response = await axios.post(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/variants/create/`,
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_template/`,
             templateObj,
             {
                 headers: {
@@ -458,7 +458,7 @@ export const startTemplate = async (templateObj: AppTemplate) => {
         )
         return response
     } catch (error) {
-        console.error(error)
+        console.error("Start Template Error => ", error)
         throw error
     }
 }
