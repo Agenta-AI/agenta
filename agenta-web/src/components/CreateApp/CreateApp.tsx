@@ -22,8 +22,6 @@ export default function CreateApp() {
     const [templateName, setTemplateName] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
-
-    const [hasApiKey, setHasApiKey] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
 
@@ -66,7 +64,14 @@ export default function CreateApp() {
     }
 
     const handleNavigation = () => {
-        router.push(`/apps/${newApp}/playground`)
+        notification.success({
+            message: "Template Selection",
+            description: "Once your app is up and running, you'll be redirected to the app playground.",
+            duration: 15,
+        })
+        setTimeout(() => {
+            router.push(`/apps/${newApp}/playground`)
+        }, 6000)
     }
 
     useEffect(() => {
@@ -98,8 +103,6 @@ export default function CreateApp() {
 
     const retrieveOpenAIKey = () => {
         const apiKey = localStorage.getItem("openAiToken")
-
-        console.log("API Key => ", apiKey)
         return apiKey
     }
 
@@ -122,17 +125,18 @@ export default function CreateApp() {
             notification.success({
                 message: "Template Selection",
                 description: "App has been created and will begin to run.",
-                duration: 15,
+                duration: 5,
             })
             return response
         } else {
             notification.error({
                 message: "Template Selection",
                 description:
-                    "An error occured when trying to start the variant. Ensure that you do not have a variant with the same app name.",
+                    "An error occured when trying to start the variant.",
                 duration: 5,
             })
             setFetchingTemplate(false)
+            return
         }
     }
 
@@ -140,7 +144,6 @@ export default function CreateApp() {
         setFetchingTemplate(true)
 
         const OpenAIKey = retrieveOpenAIKey() as string
-        console.log("No API Key => ", hasApiKey)
         if (OpenAIKey === null) {
             notification.error({
                 message: "OpenAI API Key Missing",
@@ -158,16 +161,20 @@ export default function CreateApp() {
         })
 
         const data: TemplateImage = await fetchTemplateImage(image_name)
-        await createAppVariantFromTemplateImage(newApp, data.image_id, data.image_tag, OpenAIKey)
+        await createAppVariantFromTemplateImage(newApp, data.image_id, data.image_tag, OpenAIKey).finally(
+            () => {
 
-        handleCreateAppFromTemplateModalCancel()
-        handleCreateAppModalCancel()
-        setFetchingTemplate(false)
+                handleCreateAppFromTemplateModalCancel()
+                handleCreateAppModalCancel()
+                setFetchingTemplate(false)
+        
+                handleInputTemplateModalCancel()
+                handleNavigation()
+                setNewApp("")
+                setTemplateName(undefined)
+            }
+        )
 
-        handleInputTemplateModalCancel()
-        handleNavigation()
-        setNewApp("")
-        setTemplateName(undefined)
     }
 
     const {data, error, isLoading} = fetchApps()
@@ -270,6 +277,7 @@ export default function CreateApp() {
                                 title="No Templates Available"
                                 body={templateMessage}
                                 noTemplate={true}
+                                onClick={() => {}}
                             ></AppTemplateCard>
                         </div>
                     ) : (
