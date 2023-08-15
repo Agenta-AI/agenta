@@ -205,40 +205,40 @@ export default function CreateApp() {
                 algorithm: appTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
             }}
         >
-
-            {typeof data === undefined || (typeof data === "object" && data.length === 0) && (
-                <div
-                    className="appSelectorEmpty"
-                    style={{
-                        padding: "20px",
-                        backgroundColor: appTheme === "dark" ? "#111a2c" : "#e6f4ff",
-                    }}
-                >
-                    <h1 style={{fontSize: 20, marginTop: "0px"}}>
-                        Get started creating your first LLM App
-                    </h1>
-
-                    <p>
-                        This guide assumes you have completed the installation process. If not,
-                        please follow our{" "}
-                        <a href="https://docs.agenta.ai/installation" target="_blank">
-                            installation guide
-                        </a>
-                        .
-                    </p>
-
-                    <Button
+            {typeof data === undefined ||
+                (typeof data === "object" && data.length === 0 && (
+                    <div
+                        className="appSelectorEmpty"
                         style={{
-                            backgroundColor: "#1677ff",
-                            border: "none",
-                            color: "#fff",
+                            padding: "20px",
+                            backgroundColor: appTheme === "dark" ? "#111a2c" : "#e6f4ff",
                         }}
-                        onClick={showCreateAppModal}
                     >
-                        Create New App
-                    </Button>
-                </div>
-            )}
+                        <h1 style={{fontSize: 20, marginTop: "0px"}}>
+                            Get started creating your first LLM App
+                        </h1>
+
+                        <p>
+                            This guide assumes you have completed the installation process. If not,
+                            please follow our{" "}
+                            <a href="https://docs.agenta.ai/installation" target="_blank">
+                                installation guide
+                            </a>
+                            .
+                        </p>
+
+                        <Button
+                            style={{
+                                backgroundColor: "#1677ff",
+                                border: "none",
+                                color: "#fff",
+                            }}
+                            onClick={showCreateAppModal}
+                        >
+                            Create New App
+                        </Button>
+                    </div>
+                ))}
 
             <div>
                 <Modal
