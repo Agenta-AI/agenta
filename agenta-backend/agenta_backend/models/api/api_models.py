@@ -20,6 +20,9 @@ class TemplateImageInfo(BaseModel):
     size: int
     digest: str
     status: str
+    architecture: str
+    title: str
+    description: str
     last_pushed: datetime
     repo_name: str
     media_type: str
