@@ -1,5 +1,3 @@
-import json
-import redis
 import httpx
 import shutil
 import docker
@@ -10,7 +8,7 @@ from aiodocker import Docker
 from httpx import ConnectError
 from typing import List, Union
 from fastapi import HTTPException
-from agenta_backend.config import settings
+
 from asyncio.exceptions import CancelledError
 from agenta_backend.models.api.api_models import Image
 
@@ -21,17 +19,6 @@ client = docker.from_env()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
-def redis_connection() -> redis.Redis:
-    """Returns a Redis client object connected to a Redis server specified
-        by the `redis_url` setting.
-
-    Returns:
-        A Redis client object.
-    """
-
-    redis_client = redis.from_url(url=settings.redis_url)
-    return redis_client
 
 
 def build_image_job(
@@ -104,7 +91,33 @@ async def retrieve_templates_from_dockerhub(
     """
 
     async with httpx.AsyncClient() as client:
-        response = await client.get(url.format(repo_owner, repo_name), timeout=10)
+        response = await client.get(f"{url.format(repo_owner, repo_name)}/tags", timeout=10)
+        if response.status_code == 200:
+            response_data = response.json()
+            return response_data
+
+        response_data = response.json()
+        return response_data
+    
+
+async def get_templates_info(url: str, repo_owner: str, repo_name: str) -> dict:
+    """
+    Business logic to retrieve templates info from DockerHub.
+
+    Arguments:
+        url -- The `url` parameter is a string that represents the URL endpoint for retrieving \
+            templates. It should contain placeholders `{}` for the `repo_owner` and `repo_name` values to be \
+            inserted. For example, if the URL endpoint is `https://hub.docker.com/v2/repositories/{}/{}/`
+        repo_owner -- The `repo_owner` parameter represents the owner or organization of the repository \
+            from which you want to retrieve templates
+        repo_name -- The `repo_name` parameter is the name of the repository. It is a string that \
+            represents the name of the repository where the templates are located
+
+    Returns:
+        A tuple of containing two values
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{url.format(repo_owner, repo_name)}/", timeout=10)
         if response.status_code == 200:
             response_data = response.json()
             return response_data
@@ -132,32 +145,6 @@ async def check_docker_arch() -> str:
             # Add more mappings as needed
         }
         return arch_mapping.get(info["Architecture"], "unknown")
-
-
-async def retrieve_templates_from_dockerhub_cached() -> List[dict]:
-    """Retrieves templates from Docker Hub and caches the data in Redis for future use.
-
-    Returns:
-        List of tags data (cached or network-call)
-    """
-
-    r = redis_connection()
-
-    cached_data = r.get("templates_data")
-    if cached_data is not None and False:
-        return json.loads(cached_data.decode("utf-8"))
-
-    # If not cached, fetch data from Docker Hub and cache it in Redis
-    response = await retrieve_templates_from_dockerhub(
-        settings.docker_hub_url,
-        settings.docker_hub_repo_owner,
-        settings.docker_hub_repo_name,
-    )
-    response_data = response["results"]
-
-    # Cache the data in Redis for 60 minutes
-    r.set("templates_data", json.dumps(response_data), ex=900)
-    return response_data
 
 
 async def pull_image_from_docker_hub(repo_name: str, tag: str) -> dict:
