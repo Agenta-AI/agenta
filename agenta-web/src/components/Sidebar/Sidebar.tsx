@@ -177,22 +177,6 @@ const Sidebar: React.FC = () => {
                                     </Link>
                                 </Tooltip>
                             </Menu.Item>
-                            <Menu.Item key="keys" icon={<LockOutlined />}>
-                                <Tooltip
-                                    placement="right"
-                                    title="Your api keys that are used in applications"
-                                >
-                                    <Link
-                                        data-cy="app-apikeys-link"
-                                        href={getNavigationPath("apikeys")}
-                                        style={{width: "100%"}}
-                                    >
-                                        <Space>
-                                            <span>API keys</span>
-                                        </Space>
-                                    </Link>
-                                </Tooltip>
-                            </Menu.Item>
                         </>
                     )}
                 </Menu>

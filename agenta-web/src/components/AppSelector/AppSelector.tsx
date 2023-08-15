@@ -75,9 +75,9 @@ const AppSelector: React.FC = () => {
                         >
                             {Array.isArray(data) &&
                                 data.map((app: any, index: number) => (
-                                    <>
+                                    <div key={index}>
                                         <AppCard appName={app.app_name} key={index} index={index} />
-                                    </>
+                                    </div>
                                 ))}
                         </div>
                         <TipsAndFeatures />
