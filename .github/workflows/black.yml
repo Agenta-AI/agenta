@@ -1,10 +1,5 @@
 name: black-check-action
 on:
-  push:
-    paths:
-      - "agenta-backend/**"
-      - "agenta-cli/**"
-      - "examples/**"
   pull_request:
     paths:
       - "agenta-backend/**"
@@ -16,8 +11,5 @@ jobs:
     name: runner / black check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Check files using the black formatter
-        uses: rickstaa/action-black@v1
-        with:
-          black_args: ". --check"
+      - uses: actions/checkout@v3
+      - uses: psf/black@stable
