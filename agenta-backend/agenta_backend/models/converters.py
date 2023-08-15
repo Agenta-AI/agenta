@@ -35,7 +35,7 @@ def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
                 digest=template.digest,
                 title=template.title,
                 description=template.description,
-                architectue=template.architecture,
+                architecture=template.architecture,
                 status=template.status,
                 last_pushed=template.last_pushed,
                 repo_name=template.repo_name,
