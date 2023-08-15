@@ -199,14 +199,14 @@ export default function CreateApp() {
     }, [data, newApp])
 
     const {appTheme} = useAppTheme()
-
     return (
         <ConfigProvider
             theme={{
                 algorithm: appTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
             }}
         >
-            {(typeof data === undefined || data.length) <= 0 && (
+
+            {typeof data === undefined || (typeof data === "object" && data.length === 0) && (
                 <div
                     className="appSelectorEmpty"
                     style={{
