@@ -12,10 +12,11 @@ const AppTemplateCard: React.FC<Props> = ({title, onClick, body, noTemplate}) =>
     return (
         <Card
             style={{
-                width: "210px",
-                height: "160px",
-                margin: "10px",
+                width: "50%",
+                height: "180px",
+                margin: "auto",
                 display: "flex",
+                padding: "10px",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
@@ -30,11 +31,7 @@ const AppTemplateCard: React.FC<Props> = ({title, onClick, body, noTemplate}) =>
                 flexDirection: "column",
             }}
         >
-            <Text
-                style={{
-                    marginTop: "0px",
-                }}
-            >
+            <Text>
                 {title}
             </Text>
 
@@ -45,7 +42,9 @@ const AppTemplateCard: React.FC<Props> = ({title, onClick, body, noTemplate}) =>
             ) : (
                 <div>
                     <p>{body}</p>
-                    <Button onClick={onClick}>Create App</Button>
+                    <Button onClick={onClick} style={{
+                        width: "100%"
+                    }}>Create App</Button>
                 </div>
             )}
         </Card>
