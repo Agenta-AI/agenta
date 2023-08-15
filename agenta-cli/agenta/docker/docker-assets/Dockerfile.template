@@ -13,4 +13,3 @@ EXPOSE 80
 
 CMD ["./entrypoint.sh"]
 # uvicorn agenta_backend.main:app --reload --host 0.0.0.0 --port 8881
-# TODO: add root_path as env variable and give it to the docker to solve the docs issue
