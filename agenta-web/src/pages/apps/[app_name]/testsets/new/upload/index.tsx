@@ -9,6 +9,7 @@ export default function AddANewTestset() {
     const {app_name} = router.query
     const [form] = Form.useForm()
     const [uploadLoading, setUploadLoading] = useState(false)
+    const [uploadType, setUploadType] = useState<"JSON" | "CSV" | undefined>("CSV")
 
     const onFinish = async (values: any) => {
         const {file} = values
@@ -18,8 +19,9 @@ export default function AddANewTestset() {
             return
         }
 
-        if (file && file.length > 0) {
+        if (file && file.length > 0 && uploadType) {
             const formData = new FormData()
+            formData.append("upload_type", uploadType)
             formData.append("file", file[0].originFileObj)
             if (values.testsetName && values.testsetName.trim() !== "") {
                 formData.append("testset_name", values.testsetName)
@@ -70,27 +72,67 @@ export default function AddANewTestset() {
 
     return (
         <div>
+            <div style={{display: "flex", gap: "25px"}}>
+                <Button
+                    type={uploadType == "CSV" ? "primary" : "default"}
+                    onClick={() => {
+                        setUploadType("CSV")
+                    }}
+                >
+                    csv
+                </Button>
+                <Button
+                    type={uploadType == "JSON" ? "primary" : "default"}
+                    onClick={() => {
+                        setUploadType("JSON")
+                    }}
+                >
+                    json
+                </Button>
+            </div>
             <Space direction="vertical" style={{width: "50%"}}>
                 <Alert
                     message="File format"
                     description={
                         <>
-                            The test set should be in CSV format with the following requirements:
+                            The test set should be in {uploadType} format with the following
+                            requirements:
                             <br />
-                            1. Comma separated values
-                            <br />
-                            2. The first row should contain the headers
-                            <br />
-                            <br />
-                            Here is an example of a valid CSV file:
-                            <br />
-                            <br />
-                            recipe_name,correct_answer
-                            <br />
-                            Chicken Parmesan,Chicken
-                            <br />
-                            "a, special, recipe",Beef
-                            <br />
+                            {uploadType == "CSV" && (
+                                <>
+                                    1. Comma separated values
+                                    <br />
+                                    2. The first row should contain the headers
+                                    <br />
+                                    <br />
+                                    Here is an example of a valid CSV file:
+                                    <br />
+                                    <br />
+                                    recipe_name,correct_answer
+                                    <br />
+                                    Chicken Parmesan,Chicken
+                                    <br />
+                                    "a, special, recipe",Beef
+                                    <br />
+                                </>
+                            )}
+                            {uploadType == "JSON" && (
+                                <>
+                                    1. A json file with an array of rows
+                                    <br />
+                                    2. Each row in the array should be an object
+                                    <br />
+                                    of column header name as key and row data as value
+                                    <br />
+                                    <br />
+                                    Here is an example of a valid JSON file:
+                                    <br />
+                                    <br />
+                                    {`[{ recipe_name : "Chicken Parmesan" , correct_answer : "Chicken" },`}
+                                    <br />
+                                    {`{ recipe_name : "a, special, recipe" , correct_answer : "Beef" }]`}
+                                </>
+                            )}
                         </>
                     }
                     type="info"
@@ -109,12 +151,17 @@ export default function AddANewTestset() {
                         getValueFromEvent={(e) => e.fileList}
                         label="Test set source"
                     >
-                        <Upload.Dragger name="file" accept=".csv" multiple={false} maxCount={1}>
+                        <Upload.Dragger
+                            name="file"
+                            accept={uploadType == "CSV" ? ".csv" : ".json"}
+                            multiple={false}
+                            maxCount={1}
+                        >
                             <p className="ant-upload-drag-icon">
                                 <UploadOutlined />
                             </p>
                             <p className="ant-upload-text">
-                                Click or drag a CSV file to this area to upload
+                                Click or drag a {uploadType} file to this area to upload
                             </p>
                         </Upload.Dragger>
                     </Form.Item>
