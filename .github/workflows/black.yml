@@ -1,9 +1,16 @@
 name: black-check-action
-on: [push, pull_request]
+on:
+  push:
     paths:
       - "agenta-backend/**"
       - "agenta-cli/**"
       - "examples/**"
+  pull_request:
+    paths:
+      - "agenta-backend/**"
+      - "agenta-cli/**"
+      - "examples/**"
+
 jobs:
   linter_name:
     name: runner / black check

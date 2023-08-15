@@ -89,6 +89,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         {column1: "data1"},
         {column1: "data1"},
     ])
+    const emptyData = {field: "", editable: false, maxWidth: 100}
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [columnDefs, setColumnDefs] = useState([
         {
@@ -145,8 +146,9 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 }))
 
                 // Merge with the existing column definitions (the checkbox column)
-                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData]
-                setColumnDefs(newColumnDefs)
+                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData, emptyData]
+
+                setColumnDefs([...newColumnDefs])
 
                 // Update input values for column names
                 setInputValues(
@@ -162,13 +164,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         }
     }, [mode, testset_id])
 
-    const handleInputChange = (index, event) => {
-        const values = [...inputValues]
-        values[index] = event.target.value
-        setInputValues(values)
-    }
-
-    const updateTable = () => {
+    const updateTable = (inputValues: string[]) => {
         const checkboxColumn = columnDefs.find((colDef) => colDef.field === "")
         const dataColumns = columnDefs.filter((colDef) => colDef.field !== "")
 
@@ -178,7 +174,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
 
-        const newColumnDefs = [checkboxColumn, ...newDataColumns]
+        const newColumnDefs = [checkboxColumn, ...newDataColumns, emptyData]
 
         const keyMap = dataColumns.reduce((acc, colDef, index) => {
             acc[colDef.field] = newDataColumns[index].field
@@ -194,9 +190,148 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         })
 
         setColumnDefs(newColumnDefs)
+
         setRowData(newRowData)
         if (gridRef.current) {
             gridRef.current.setColumnDefs(newColumnDefs)
+        }
+    }
+
+    const HeaderComponent = (params: any) => {
+        const {attributes} = params.eGridHeader
+        const [scopedInputValues, setScopedInputValues] = useState(
+            columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
+        )
+        const [index, setIndex] = useState(attributes["aria-colindex"].nodeValue - 2)
+
+        const [displayName, setDisplayName] = useState(params.displayName)
+
+        const [isEditInputOpen, setIsEditInputOpen] = useState<boolean>(false)
+        const handleOpenEditInput = () => {
+            setIsEditInputOpen(true)
+        }
+
+        const handleSave = () => {
+            if (scopedInputValues[index] == inputValues[index]) {
+                setIsEditInputOpen(false)
+
+                return
+            }
+            if (inputValues.includes(scopedInputValues[index]) || scopedInputValues[index] == "") {
+                message.error(
+                    scopedInputValues[index] == ""
+                        ? "Invalid column name"
+                        : "Column name already exist!",
+                )
+            } else {
+                setInputValues(scopedInputValues)
+                updateTable(scopedInputValues)
+                setIsEditInputOpen(false)
+            }
+        }
+
+        const handleInputChange = (index, event) => {
+            const values = [...inputValues]
+            values[index] = event.target.value
+            setScopedInputValues(values)
+        }
+
+        const onAddColumn = () => {
+            const newColumnName = `column${columnDefs.length - 1}`
+            const newColmnDef = columnDefs
+            // Update each row to include the new column
+            const updatedRowData = rowData.map((row) => ({
+                ...row,
+                [newColumnName]: "", // set the initial value of the new column to an empty string
+            }))
+
+            newColmnDef.pop()
+
+            setInputValues([...inputValues, newColumnName])
+            setColumnDefs([...columnDefs, {field: newColumnName}, emptyData])
+            setRowData(updatedRowData)
+        }
+
+        useEffect(() => {
+            setScopedInputValues(inputValues)
+        }, [columnDefs])
+
+        useEffect(() => {
+            const handleEscape = (e: KeyboardEvent) => {
+                if (e.key == "Enter") {
+                    if (isEditInputOpen) {
+                        handleSave()
+                    }
+                }
+            }
+            window.addEventListener("keydown", handleEscape)
+            return () => window.removeEventListener("keydown", handleEscape)
+        }, [isEditInputOpen, scopedInputValues])
+
+        if (displayName === "") {
+            return (
+                <div style={{width: "100%", display: "flex", justifyContent: "end"}}>
+                    <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
+                        <PlusOutlined />
+                    </Button>
+                </div>
+            )
+        } else {
+            return (
+                <>
+                    <div
+                        style={{
+                            width: "100%",
+                            height: "100% ",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                        }}
+                    >
+                        {isEditInputOpen ? (
+                            <Input
+                                value={scopedInputValues[index]}
+                                onChange={(event) => handleInputChange(index, event)}
+                                size="small"
+                                style={{
+                                    marginTop: "10px",
+                                    marginBottom: "10px",
+                                    height: "30px",
+                                    marginRight: "3px",
+                                    outline: "red",
+                                }}
+                            />
+                        ) : (
+                            displayName
+                        )}
+
+                        <div>
+                            {isEditInputOpen ? (
+                                <Button
+                                    icon="Save"
+                                    onClick={handleSave}
+                                    type="default"
+                                    style={{
+                                        width: "45px",
+                                    }}
+                                />
+                            ) : (
+                                <Button
+                                    icon={<EditOutlined />}
+                                    onClick={handleOpenEditInput}
+                                    type="text"
+                                />
+                            )}
+
+                            <Button
+                                type="text"
+                                icon={<DeleteOutlined />}
+                                onClick={() => onDeleteColumn(index)}
+                            />
+                        </div>
+                    </div>
+                </>
+            )
         }
     }
 
@@ -210,6 +345,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 setFocusedRowData(rowData[ix])
             },
         },
+        headerComponent: HeaderComponent,
         resizable: true,
     }
 
@@ -221,18 +357,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
         setRowData([...rowData, newRow])
-    }
-
-    const onAddColumn = () => {
-        const newColumnName = `column${columnDefs.length}`
-        // Update each row to include the new column
-        const updatedRowData = rowData.map((row) => ({
-            ...row,
-            [newColumnName]: "", // set the initial value of the new column to an empty string
-        }))
-        setInputValues([...inputValues, newColumnName])
-        setColumnDefs([...columnDefs, {field: newColumnName}])
-        setRowData(updatedRowData)
     }
 
     const onSaveData = async () => {
@@ -365,36 +489,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             </div>
 
             <div
-                style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: "10px",
-                }}
-            >
-                {inputValues.map((value, index) => (
-                    <div key={index} style={{marginRight: "10px"}}>
-                        <Input
-                            value={value}
-                            onChange={(event) => handleInputChange(index, event)}
-                            size="small"
-                            suffix={
-                                <Button
-                                    type="text"
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => onDeleteColumn(index)}
-                                />
-                            }
-                        />
-                    </div>
-                ))}
-                <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
-                    <PlusOutlined />
-                </Button>
-                <Button onClick={updateTable}>Update Columns names</Button>
-            </div>
-
-            <div
                 className={`${appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"}`}
                 style={{height: 500}}
             >
@@ -412,24 +506,26 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     onRowDataUpdated={onRowSelectedOrDeselected}
                 />
             </div>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginTop: "20px",
-                }}
-            >
-                <div>
-                    <Button onClick={onAddRow}>Add Row</Button>
-                    <Button
-                        onClick={onDeleteRow}
-                        style={{marginLeft: 10}}
-                        disabled={selectedRow.length < 1}
-                    >
-                        Delete Row{selectedRow.length > 1 ? "s" : null}
-                    </Button>
+            {selectedRow && (
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginTop: "20px",
+                    }}
+                >
+                    <div>
+                        <Button onClick={onAddRow}>Add Row</Button>
+                        <Button
+                            onClick={onDeleteRow}
+                            style={{marginLeft: 10}}
+                            disabled={selectedRow.length < 1}
+                        >
+                            Delete Row{selectedRow.length > 1 ? "s" : null}
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <TestsetMusHaveNameModal isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen} />
 
