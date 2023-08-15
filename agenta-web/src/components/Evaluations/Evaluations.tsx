@@ -32,10 +32,12 @@ import abTesting from "@/media/testing.png"
 import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import ai from "@/media/artificial-intelligence.png"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 export default function Evaluations() {
     const {Text, Title} = Typography
     const router = useRouter()
+    const {appTheme} = useAppTheme()
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
@@ -349,7 +351,10 @@ export default function Evaluations() {
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{marginRight: "8px"}}
+                                        style={{
+                                            marginRight: "8px",
+                                            filter: appTheme === "dark" ? "invert(1)" : "none",
+                                        }}
                                     />
 
                                     <span>
@@ -381,7 +386,10 @@ export default function Evaluations() {
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{marginRight: "8px"}}
+                                        style={{
+                                            marginRight: "8px",
+                                            filter: appTheme === "dark" ? "invert(1)" : "none",
+                                        }}
                                     />
 
                                     <span>
@@ -399,7 +407,10 @@ export default function Evaluations() {
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{marginRight: "8px"}}
+                                        style={{
+                                            marginRight: "8px",
+                                            filter: appTheme === "dark" ? "invert(1)" : "none",
+                                        }}
                                     />
 
                                     <span>
@@ -429,7 +440,10 @@ export default function Evaluations() {
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{marginRight: "8px"}}
+                                        style={{
+                                            marginRight: "8px",
+                                            filter: appTheme === "dark" ? "invert(1)" : "none",
+                                        }}
                                     />
 
                                     <span>
