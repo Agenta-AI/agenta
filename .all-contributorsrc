@@ -116,6 +116,15 @@
         "review",
         "mentoring"
       ]
+    },
+    {
+      "login": "devgenix",
+      "name": "Nehemiah Onyekachukwu Emmanuel",
+      "avatar_url": "https://avatars.githubusercontent.com/u/56418363?v=4",
+      "profile": "https://github.com/devgenix",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
