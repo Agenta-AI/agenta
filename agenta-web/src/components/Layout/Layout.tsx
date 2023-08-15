@@ -26,14 +26,16 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 algorithm: appTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
             }}
         >
-            <Layout hasSider>
+            <Layout
+                hasSider
+                style={{display: "flex", background: appTheme === "dark" ? "#141414" : "#ffffff"}}
+            >
                 <Sidebar />
-                <Content>
+                <Content style={{height: "100%", flex: 1}}>
                     <div
                         style={{
                             paddingLeft: "24px",
                             paddingRight: "24px",
-                            background: appTheme === "dark" ? "#141414" : "#ffffff",
                             height: "100%",
                             marginLeft: 225,
                             minHeight: "100vh",
