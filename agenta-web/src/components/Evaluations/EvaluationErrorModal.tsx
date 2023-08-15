@@ -3,12 +3,19 @@ import {Modal, Button} from "antd"
 
 interface Props {
     isModalOpen: boolean
-    onClose: () => void
     handleNavigate: () => void
     message: string
+    btnText: string
+    onClose: () => void
 }
 
-const EvaluationErrorModal: React.FC<Props> = ({isModalOpen, onClose, handleNavigate, message}) => {
+const EvaluationErrorModal: React.FC<Props> = ({
+    isModalOpen,
+    handleNavigate,
+    message,
+    btnText,
+    onClose,
+}) => {
     const handleCloseModal = () => onClose()
 
     const handleCTAClick = () => {
@@ -24,7 +31,7 @@ const EvaluationErrorModal: React.FC<Props> = ({isModalOpen, onClose, handleNavi
                     Ok
                 </Button>
                 <Button type="primary" onClick={handleCTAClick}>
-                    Go to Test sets
+                    {btnText}
                 </Button>
             </div>
         </Modal>
