@@ -84,7 +84,7 @@ export default function CreateApp() {
         })
         setTimeout(() => {
             router.push(`/apps/${newApp}/playground`)
-        }, 6000)
+        }, 8000)
     }
 
     useEffect(() => {
