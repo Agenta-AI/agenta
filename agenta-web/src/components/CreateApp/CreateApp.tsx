@@ -17,10 +17,13 @@ export default function CreateApp() {
     const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
+
+    const [templateMessage, setTemplateMessage] = useState("")
     const [templateName, setTemplateName] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
 
+    const [hasApiKey, setHasApiKey] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
 
@@ -69,7 +72,11 @@ export default function CreateApp() {
     useEffect(() => {
         const fetchTemplates = async () => {
             const data = await getTemplates()
-            setTemplates(data)
+            if (typeof data == "object") {
+                setTemplates(data)
+            } else {
+                setTemplateMessage(data)
+            }
         }
 
         fetchTemplates()
@@ -92,30 +99,22 @@ export default function CreateApp() {
     const retrieveOpenAIKey = () => {
         const apiKey = localStorage.getItem("openAiToken")
 
-        if (apiKey) {
-            return apiKey
-        } else {
-            notification.error({
-                message: "OpenAI API Key Missing",
-                description: "Please provide your OpenAI API key to access this feature.",
-                duration: 5,
-            })
-            return null
-        }
+        console.log("API Key => ", apiKey)
+        return apiKey
     }
 
     const createAppVariantFromTemplateImage = async (
         app_name: string,
         image_id: string,
         image_tag: string,
+        api_key: string,
     ) => {
-        const OpenAIKey = retrieveOpenAIKey() as string
         const variantData: AppTemplate = {
             app_name: app_name,
             image_id: image_id,
             image_tag: image_tag,
             env_vars: {
-                OPENAI_API_KEY: OpenAIKey,
+                OPENAI_API_KEY: api_key,
             },
         }
         const response = await startTemplate(variantData)
@@ -140,13 +139,32 @@ export default function CreateApp() {
     const handleTemplateCardClick = async (image_name: string) => {
         setFetchingTemplate(true)
 
+        const OpenAIKey = retrieveOpenAIKey() as string
+        console.log("No API Key => ", hasApiKey)
+        if (OpenAIKey === null) {
+            notification.error({
+                message: "OpenAI API Key Missing",
+                description: "Please provide your OpenAI API key to access this feature.",
+                duration: 5,
+            })
+            router.push("/apikeys")
+            return
+        }
+
+        notification.info({
+            message: "Template Selection",
+            description: "Fetching template image...",
+            duration: 10,
+        })
+
         const data: TemplateImage = await fetchTemplateImage(image_name)
-        await createAppVariantFromTemplateImage(newApp, data.image_id, data.image_tag)
+        await createAppVariantFromTemplateImage(newApp, data.image_id, data.image_tag, OpenAIKey)
 
         handleCreateAppFromTemplateModalCancel()
         handleCreateAppModalCancel()
         setFetchingTemplate(false)
 
+        handleInputTemplateModalCancel()
         handleNavigation()
         setNewApp("")
         setTemplateName(undefined)
@@ -236,15 +254,6 @@ export default function CreateApp() {
                     padding: "10px",
                 }}
             >
-                {appNameExist && (
-                    <div style={{color: "red", marginLeft: "10px"}}>App name already exist</div>
-                )}
-                {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                    <div style={{color: "red", marginLeft: "10px"}}>
-                        App name must contain only letters, numbers, underscore, or dash
-                    </div>
-                )}
-
                 <div
                     style={{
                         width: "100%",
@@ -255,28 +264,50 @@ export default function CreateApp() {
                         padding: "10px",
                     }}
                 >
-                    {templates.map((template) => (
+                    {templates.length === 0 ? (
+                        <div>
+                            <AppTemplateCard
+                                title="No Templates Available"
+                                body={templateMessage}
+                                noTemplate={true}
+                            ></AppTemplateCard>
+                        </div>
+                    ) : (
                         <div
-                            key={template.id}
                             style={{
-                                cursor:
-                                    newApp.length > 0 && isAppNameInputValid(newApp)
-                                        ? "pointer"
-                                        : "not-allowed",
+                                width: "100%",
+                                display: "flex",
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                                justifyContent: "space-evenly",
+                                padding: "10px",
                             }}
                         >
-                            <AppTemplateCard
-                                title={template.image.name}
-                                onClick={() => {
-                                    showInputTemplateModal()
-                                    setTemplateName(template.image.name)
-                                }}
-                            />
+                            {templates.map((template) => (
+                                <div
+                                    key={template.id}
+                                    style={{
+                                        cursor:
+                                            newApp.length > 0 && isAppNameInputValid(newApp)
+                                                ? "pointer"
+                                                : "not-allowed",
+                                    }}
+                                >
+                                    <AppTemplateCard
+                                        title={template.image.name}
+                                        body=""
+                                        noTemplate={false}
+                                        onClick={() => {
+                                            showInputTemplateModal()
+                                            setTemplateName(template.image.name)
+                                        }}
+                                    />
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    )}
                 </div>
             </Modal>
-
             <Modal
                 title="Input app name"
                 open={isInputTemplateModalOpen}
@@ -291,6 +322,14 @@ export default function CreateApp() {
                     style={{margin: "10px"}}
                     disabled={fetchingTemplate}
                 />
+                {appNameExist && (
+                    <div style={{color: "red", marginLeft: "10px"}}>App name already exist</div>
+                )}
+                {newApp.length > 0 && !isAppNameInputValid(newApp) && (
+                    <div style={{color: "red", marginLeft: "10px"}}>
+                        App name must contain only letters, numbers, underscore, or dash
+                    </div>
+                )}
                 <Button
                     style={{margin: "10px"}}
                     loading={fetchingTemplate}
@@ -318,11 +357,6 @@ export default function CreateApp() {
                             newApp.length > 0 &&
                             isAppNameInputValid(newApp)
                         ) {
-                            notification.info({
-                                message: "Template Selection",
-                                description: "Fetching template image...",
-                                duration: 10,
-                            })
                             handleTemplateCardClick(templateName)
                         } else {
                             notification.warning({

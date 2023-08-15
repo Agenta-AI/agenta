@@ -3,9 +3,11 @@ import {Button, Card, Typography} from "antd"
 interface Props {
     title: string
     onClick: () => void
+    body: string
+    noTemplate: boolean
 }
 
-const AppTemplateCard: React.FC<Props> = ({title, onClick}) => {
+const AppTemplateCard: React.FC<Props> = ({title, onClick, body, noTemplate}) => {
     const {Text} = Typography
     return (
         <Card
@@ -28,8 +30,24 @@ const AppTemplateCard: React.FC<Props> = ({title, onClick}) => {
                 flexDirection: "column",
             }}
         >
-            <Text>{title}</Text>
-            <Button onClick={onClick}>Create App</Button>
+            <Text
+                style={{
+                    marginTop: "0px",
+                }}
+            >
+                {title}
+            </Text>
+
+            {noTemplate ? (
+                <p>
+                    {body} <a href="https://github.com/Agenta-AI/agenta/issues/new">here</a>.
+                </p>
+            ) : (
+                <div>
+                    <p>{body}</p>
+                    <Button onClick={onClick}>Create App</Button>
+                </div>
+            )}
         </Card>
     )
 }
