@@ -4,7 +4,12 @@ from typing import List
 
 import docker
 from agenta_backend.config import settings
-from agenta_backend.models.api.api_models import URI, AppVariant, Image, DockerEnvVars
+from agenta_backend.models.api.api_models import (
+    URI,
+    AppVariant,
+    Image,
+    DockerEnvVars,
+)
 
 client = docker.from_env()
 
@@ -85,7 +90,9 @@ def start_container(
         name=f"{app_name}-{variant_name}",
         environment=env_vars,
     )
-    return URI(uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}")
+    return URI(
+        uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}"
+    )
 
 
 def stop_containers_based_on_image(image: Image) -> List[str]:
@@ -117,6 +124,27 @@ def stop_containers_based_on_image(image: Image) -> List[str]:
     return stopped_container_ids
 
 
+def stop_container(container_id: str):
+    """Stop a container based on its id
+    Arguments:
+        container_id -- _description_
+
+    Raises:
+        RuntimeError: _description_
+    """
+    try:
+        container = client.containers.get(container_id)
+        container.stop()
+        logger.info(f"Stopped container with id: {container.id}")
+    except docker.errors.APIError as ex:
+        logger.error(
+            f"Error stopping container with id: {container.id}. Error: {str(ex)}"
+        )
+        raise RuntimeError(
+            f"Error stopping container with id: {container.id}"
+        ) from ex
+
+
 def delete_container(container_id: str):
     """Delete a container based on its id
 
@@ -134,7 +162,9 @@ def delete_container(container_id: str):
         logger.error(
             f"Error deleting container with id: {container.id}. Error: {str(ex)}"
         )
-        raise RuntimeError(f"Error deleting container with id: {container.id}") from ex
+        raise RuntimeError(
+            f"Error deleting container with id: {container.id}"
+        ) from ex
 
 
 def delete_image(image: Image):
@@ -153,7 +183,9 @@ def delete_image(image: Image):
         logger.error(
             f"Error deleting image with id: {image.docker_id}. Error: {str(ex)}"
         )
-        raise RuntimeError(f"Error deleting image with id: {image.docker_id}") from ex
+        raise RuntimeError(
+            f"Error deleting image with id: {image.docker_id}"
+        ) from ex
 
 
 def experimental_pull_image(image_name: str):
@@ -173,7 +205,9 @@ def experimental_pull_image(image_name: str):
         image = client.images.pull(image_name)
         return image
     except docker.errors.APIError as e:
-        raise RuntimeError(f"An error occurred while pulling the image: {str(e)}")
+        raise RuntimeError(
+            f"An error occurred while pulling the image: {str(e)}"
+        )
 
 
 def experimental_is_image_pulled(image_name: str) -> bool:
