@@ -198,15 +198,13 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     }
 
     const HeaderComponent = (params: any) => {
-        const {eGridHeader} = params
+        const {attributes} = params.eGridHeader
         const [scopedInputValues, setScopedInputValues] = useState(
             columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
         )
-        const [index, setIndex] = useState(eGridHeader.attributes[4].nodeValue - 2)
+        const [index, setIndex] = useState(attributes["aria-colindex"].nodeValue - 2)
 
-        const [displayName, setDisplayName] = useState(
-            inputValues[eGridHeader.attributes[4].nodeValue - 2],
-        )
+        const [displayName, setDisplayName] = useState(params.displayName)
 
         const [isEditInputOpen, setIsEditInputOpen] = useState<boolean>(false)
         const handleOpenEditInput = () => {
@@ -216,7 +214,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         const handleSave = () => {
             if (scopedInputValues[index] == inputValues[index]) {
                 setIsEditInputOpen(false)
-                console.log("here")
+
                 return
             }
             if (inputValues.includes(scopedInputValues[index]) || scopedInputValues[index] == "") {
@@ -270,7 +268,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             return () => window.removeEventListener("keydown", handleEscape)
         }, [isEditInputOpen, scopedInputValues])
 
-        if (displayName === undefined) {
+        if (displayName === "") {
             return (
                 <div style={{width: "100%", display: "flex", justifyContent: "end"}}>
                     <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
