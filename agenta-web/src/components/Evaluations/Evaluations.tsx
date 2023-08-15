@@ -64,7 +64,7 @@ export default function Evaluations() {
 
     const [sliderValue, setSliderValue] = useState(0.3)
 
-    const [evaluationError, setEvaluationError] = useState("")
+    const [error, setError] = useState({message: "", btnText: "", endpoint: ""})
 
     const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
 
@@ -173,7 +173,7 @@ export default function Evaluations() {
                 return data.id
             })
             .catch((err) => {
-                setEvaluationError(err.message)
+                setError({message: err.message, btnText: "Go to Test sets", endpoint: "testsets"})
             })
     }
 
@@ -257,9 +257,12 @@ export default function Evaluations() {
             getOpenAIKey() === "" &&
             selectedEvaluationType === EvaluationType.auto_ai_critique
         ) {
-            message.error(
-                "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
-            )
+            setError({
+                message:
+                    "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
+                btnText: "Go to API Keys",
+                endpoint: "apikeys",
+            })
             return
         }
 
@@ -500,10 +503,11 @@ export default function Evaluations() {
                 </Row>
             </div>
             <EvaluationErrorModal
-                isModalOpen={!!evaluationError}
-                onClose={() => setEvaluationError("")}
-                handleNavigate={() => router.push(`/apps/${appName}/testsets`)}
-                message={evaluationError}
+                isModalOpen={!!error.message}
+                onClose={() => setError({message: "", btnText: "", endpoint: ""})}
+                handleNavigate={() => router.push(`/apps/${appName}/${error.endpoint}`)}
+                message={error.message}
+                btnText={error.btnText}
             />
 
             <EvaluationsList />
