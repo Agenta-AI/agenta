@@ -1,4 +1,4 @@
-import {Card, Typography} from "antd"
+import {Button, Card, Typography} from "antd"
 
 interface Props {
     title: string
@@ -18,9 +18,18 @@ const AppTemplateCard: React.FC<Props> = ({title, onClick}) => {
                 justifyContent: "center",
                 cursor: "pointer",
             }}
-            onClick={onClick}
+            bodyStyle={{
+                width: "100%",
+                height: "100%",
+                padding: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-evenly",
+                flexDirection: "column",
+            }}
         >
             <Text>{title}</Text>
+            <Button onClick={onClick}>Create App</Button>
         </Card>
     )
 }

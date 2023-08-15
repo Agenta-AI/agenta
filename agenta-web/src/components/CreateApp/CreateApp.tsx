@@ -1,19 +1,24 @@
 import {PlusOutlined} from "@ant-design/icons"
-import {Card, Col, Input, Modal, Row, Typography, notification} from "antd"
+import {Button, Card, Col, Input, Modal, Row, Typography, notification} from "antd"
 import {useState, useEffect} from "react"
 import YouTube from "react-youtube"
 import {Template, AppTemplate, TemplateImage} from "@/lib/Types"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
 import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
 import AppTemplateCard from "./AppTemplateCard"
+import {useRouter} from "next/router"
 
 export default function CreateApp() {
     const {Text, Title} = Typography
+
+    const router = useRouter()
 
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
+    const [templateName, setTemplateName] = useState<string | undefined>(undefined)
+    const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
 
     const [appNameExist, setAppNameExist] = useState(false)
@@ -33,9 +38,13 @@ export default function CreateApp() {
         setIsWriteAppModalOpen(true)
     }
 
+    const showInputTemplateModal = () => {
+        setIsCreateAppFromTemplateModalOpen(false)
+        setIsInputTemplateModalOpen(true)
+    }
+
     const handleCreateAppFromTemplateModalCancel = () => {
         setIsCreateAppFromTemplateModalOpen(false)
-        setIsCreateAppModalOpen(true)
     }
 
     const handleWriteApppModalCancel = () => {
@@ -44,6 +53,17 @@ export default function CreateApp() {
 
     const handleCreateAppModalCancel = () => {
         setIsCreateAppModalOpen(false)
+    }
+
+    const handleInputTemplateModalCancel = () => {
+        if (fetchingTemplate) return
+        setIsInputTemplateModalOpen(false)
+        setNewApp("")
+        setTemplateName(undefined)
+    }
+
+    const handleNavigation = () => {
+        router.push(`/apps/${newApp}/playground`)
     }
 
     useEffect(() => {
@@ -123,13 +143,17 @@ export default function CreateApp() {
         const data: TemplateImage = await fetchTemplateImage(image_name)
         await createAppVariantFromTemplateImage(newApp, data.image_id, data.image_tag)
 
-        setNewApp("")
         handleCreateAppFromTemplateModalCancel()
         handleCreateAppModalCancel()
         setFetchingTemplate(false)
+
+        handleNavigation()
+        setNewApp("")
+        setTemplateName(undefined)
     }
 
     const {data, error, isLoading} = fetchApps()
+
     useEffect(() => {
         if (data) {
             setAppNameExist(data.some((app) => app.app_name === newApp))
@@ -212,12 +236,6 @@ export default function CreateApp() {
                     padding: "10px",
                 }}
             >
-                <Input
-                    placeholder="New app name (e.g., chat-app)"
-                    value={newApp}
-                    onChange={(e) => setNewApp(e.target.value)}
-                    style={{margin: "10px"}}
-                />
                 {appNameExist && (
                     <div style={{color: "red", marginLeft: "10px"}}>App name already exist</div>
                 )}
@@ -250,48 +268,74 @@ export default function CreateApp() {
                             <AppTemplateCard
                                 title={template.image.name}
                                 onClick={() => {
-                                    if (appNameExist) {
-                                        notification.warning({
-                                            message: "Template Selection",
-                                            description:
-                                                "App name already exists. Please choose a different name.",
-                                            duration: 3,
-                                        })
-                                    } else if (
-                                        fetchingTemplate &&
-                                        newApp.length > 0 &&
-                                        isAppNameInputValid(newApp)
-                                    ) {
-                                        notification.info({
-                                            message: "Template Selection",
-                                            description:
-                                                "The template image is currently being fetched. Please wait...",
-                                            duration: 3,
-                                        })
-                                    } else if (
-                                        !fetchingTemplate &&
-                                        newApp.length > 0 &&
-                                        isAppNameInputValid(newApp)
-                                    ) {
-                                        notification.info({
-                                            message: "Template Selection",
-                                            description: "Fetching template image...",
-                                            duration: 10,
-                                        })
-                                        handleTemplateCardClick(template.image.name)
-                                    } else {
-                                        notification.warning({
-                                            message: "Template Selection",
-                                            description:
-                                                "Please provide a valid app name to choose a template.",
-                                            duration: 3,
-                                        })
-                                    }
+                                    showInputTemplateModal()
+                                    setTemplateName(template.image.name)
                                 }}
                             />
                         </div>
                     ))}
                 </div>
+            </Modal>
+
+            <Modal
+                title="Input app name"
+                open={isInputTemplateModalOpen}
+                onCancel={handleInputTemplateModalCancel}
+                width={"500px"}
+                footer={null}
+            >
+                <Input
+                    placeholder="New app name (e.g., chat-app)"
+                    value={newApp}
+                    onChange={(e) => setNewApp(e.target.value)}
+                    style={{margin: "10px"}}
+                    disabled={fetchingTemplate}
+                />
+                <Button
+                    style={{margin: "10px"}}
+                    loading={fetchingTemplate}
+                    onClick={() => {
+                        if (appNameExist) {
+                            notification.warning({
+                                message: "Template Selection",
+                                description:
+                                    "App name already exists. Please choose a different name.",
+                                duration: 3,
+                            })
+                        } else if (
+                            fetchingTemplate &&
+                            newApp.length > 0 &&
+                            isAppNameInputValid(newApp)
+                        ) {
+                            notification.info({
+                                message: "Template Selection",
+                                description:
+                                    "The template image is currently being fetched. Please wait...",
+                                duration: 3,
+                            })
+                        } else if (
+                            !fetchingTemplate &&
+                            newApp.length > 0 &&
+                            isAppNameInputValid(newApp)
+                        ) {
+                            notification.info({
+                                message: "Template Selection",
+                                description: "Fetching template image...",
+                                duration: 10,
+                            })
+                            handleTemplateCardClick(templateName)
+                        } else {
+                            notification.warning({
+                                message: "Template Selection",
+                                description:
+                                    "Please provide a valid app name to choose a template.",
+                                duration: 3,
+                            })
+                        }
+                    }}
+                >
+                    Create
+                </Button>
             </Modal>
 
             <Modal
