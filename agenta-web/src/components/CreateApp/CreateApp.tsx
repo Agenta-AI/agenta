@@ -206,7 +206,7 @@ export default function CreateApp() {
                 algorithm: appTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
             }}
         >
-            {data.length <= 0 && (
+            {(typeof data === undefined || data.length) <= 0 && (
                 <div
                     className="appSelectorEmpty"
                     style={{
