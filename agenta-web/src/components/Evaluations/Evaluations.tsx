@@ -64,9 +64,7 @@ export default function Evaluations() {
 
     const [sliderValue, setSliderValue] = useState(0.3)
 
-    const [evaluationError, setEvaluationError] = useState("")
-    const [btnText, setBtnText] = useState("")
-    const [endpoint, setEndpoint] = useState("")
+    const [error, setError] = useState({message: "", btnText: "", endpoint: ""})
 
     const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
 
@@ -175,9 +173,7 @@ export default function Evaluations() {
                 return data.id
             })
             .catch((err) => {
-                setEvaluationError(err.message)
-                setBtnText("Go to Test sets")
-                setEndpoint("testsets")
+                setError({message: err.message, btnText: "Go to Test sets", endpoint: "testsets"})
             })
     }
 
@@ -261,11 +257,12 @@ export default function Evaluations() {
             getOpenAIKey() === "" &&
             selectedEvaluationType === EvaluationType.auto_ai_critique
         ) {
-            setEndpoint("apikeys")
-            setBtnText("Go to API Keys")
-            setEvaluationError(
-                "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
-            )
+            setError({
+                message:
+                    "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
+                btnText: "Go to API Keys",
+                endpoint: "apikeys",
+            })
             return
         }
 
@@ -506,13 +503,11 @@ export default function Evaluations() {
                 </Row>
             </div>
             <EvaluationErrorModal
-                isModalOpen={!!evaluationError}
-                closeEvalutionError={setEvaluationError}
-                closeBtnText={setBtnText}
-                closeEndpoint={setEndpoint}
-                handleNavigate={() => router.push(`/apps/${appName}/${endpoint}`)}
-                message={evaluationError}
-                btnText={btnText}
+                isModalOpen={!!error.message}
+                onClose={() => setError({message: "", btnText: "", endpoint: ""})}
+                handleNavigate={() => router.push(`/apps/${appName}/${error.endpoint}`)}
+                message={error.message}
+                btnText={error.btnText}
             />
 
             <EvaluationsList />

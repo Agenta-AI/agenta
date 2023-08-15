@@ -1,4 +1,4 @@
-import React, {Dispatch, SetStateAction} from "react"
+import React from "react"
 import {Modal, Button} from "antd"
 
 interface Props {
@@ -6,9 +6,7 @@ interface Props {
     handleNavigate: () => void
     message: string
     btnText: string
-    closeBtnText: Dispatch<SetStateAction<string>>
-    closeEvalutionError: Dispatch<SetStateAction<string>>
-    closeEndpoint: Dispatch<SetStateAction<string>>
+    onClose: () => void
 }
 
 const EvaluationErrorModal: React.FC<Props> = ({
@@ -16,15 +14,9 @@ const EvaluationErrorModal: React.FC<Props> = ({
     handleNavigate,
     message,
     btnText,
-    closeBtnText,
-    closeEvalutionError,
-    closeEndpoint,
+    onClose,
 }) => {
-    const handleCloseModal = () => {
-        closeBtnText("")
-        closeEvalutionError("")
-        closeEndpoint("")
-    }
+    const handleCloseModal = () => onClose()
 
     const handleCTAClick = () => {
         handleNavigate()
