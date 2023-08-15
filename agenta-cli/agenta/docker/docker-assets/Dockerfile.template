@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM agentaai/templates:main
 
 ARG ROOT_PATH=/
 ENV ROOT_PATH=${ROOT_PATH}
@@ -7,12 +7,9 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
 
-RUN pip install fastapi uvicorn python-dotenv
 EXPOSE 80
 
 CMD ["./entrypoint.sh"]
 # uvicorn agenta_backend.main:app --reload --host 0.0.0.0 --port 8881
-# TODO: add root_path as env variable and give it to the docker to solve the docs issue

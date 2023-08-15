@@ -112,6 +112,17 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/17180132?v=4",
       "profile": "https://www.linkedin.com/in/mohammed-maaz-6290b0116/",
       "contributions": [
+        "code",
+        "review",
+        "mentoring"
+      ]
+    },
+    {
+      "login": "devgenix",
+      "name": "Nehemiah Onyekachukwu Emmanuel",
+      "avatar_url": "https://avatars.githubusercontent.com/u/56418363?v=4",
+      "profile": "https://github.com/devgenix",
+      "contributions": [
         "code"
       ]
     }
