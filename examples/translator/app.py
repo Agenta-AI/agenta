@@ -25,8 +25,8 @@ def generate(
     load_dotenv()
     llm = OpenAI(temperature=temperature)
     prompt = PromptTemplate(
-        input_variables=["text", "language"],
-        template=prompt_template)
+        input_variables=["text", "language"], template=prompt_template
+    )
 
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(text=text, language=language)

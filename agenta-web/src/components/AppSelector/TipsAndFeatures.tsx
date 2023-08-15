@@ -7,7 +7,7 @@ import {MDXProvider} from "@mdx-js/react"
 import slide1 from "../../welcome-highlights/tip1.mdx"
 import slide2 from "../../welcome-highlights/tip2.mdx"
 
-const slides: any[] = [slide1, slide2]
+const slides: any[] = []
 
 const TipsAndFeatures = () => {
     const {appTheme} = useAppTheme()
