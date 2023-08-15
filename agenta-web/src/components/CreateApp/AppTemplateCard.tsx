@@ -31,9 +31,7 @@ const AppTemplateCard: React.FC<Props> = ({title, onClick, body, noTemplate}) =>
                 flexDirection: "column",
             }}
         >
-            <Text>
-                {title}
-            </Text>
+            <Text>{title}</Text>
 
             {noTemplate ? (
                 <p>
@@ -42,9 +40,14 @@ const AppTemplateCard: React.FC<Props> = ({title, onClick, body, noTemplate}) =>
             ) : (
                 <div>
                     <p>{body}</p>
-                    <Button onClick={onClick} style={{
-                        width: "100%"
-                    }}>Create App</Button>
+                    <Button
+                        onClick={onClick}
+                        style={{
+                            width: "100%",
+                        }}
+                    >
+                        Create App
+                    </Button>
                 </div>
             )}
         </Card>
