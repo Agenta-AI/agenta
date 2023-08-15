@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM devgenix/agenta-llm-template:latest
 
 ARG ROOT_PATH=/
 ENV ROOT_PATH=${ROOT_PATH}
@@ -7,10 +7,8 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-RUN pip install fastapi uvicorn python-dotenv
 EXPOSE 80
 
 CMD ["./entrypoint.sh"]
