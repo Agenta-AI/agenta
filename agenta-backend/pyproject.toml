@@ -18,6 +18,7 @@ motor = "^3.1.2"
 python-multipart = "^0.0.6"
 openai = "^0.27.8"
 langchain = "^0.0.256"
+supertokens-python = "^0.14.8"
 
 
 [tool.poetry.group.dev.dependencies]
