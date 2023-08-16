@@ -1,4 +1,4 @@
-import React from "react"
+import React, {ReactNode} from "react"
 import {Modal, ModalFuncProps} from "antd"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
 
@@ -16,7 +16,7 @@ function handleCb(cb: AlertPopupProps["onOk"]) {
 }
 
 export type AlertPopupProps = ModalFuncProps & {
-    message: string
+    message: ReactNode
     cancellable?: boolean
 }
 
@@ -28,9 +28,10 @@ export default function AlertPopup({
     onOk,
     onCancel,
     cancellable = true,
+    type,
     ...ModalProps
 }: AlertPopupProps) {
-    return Modal.confirm({
+    return Modal[type || "confirm"]({
         title,
         content: message,
         okText,
