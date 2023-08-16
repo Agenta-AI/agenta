@@ -1,13 +1,12 @@
-import React, {Dispatch, SetStateAction, useContext, useMemo, useState} from "react"
+import React, {Dispatch, SetStateAction, useContext, useState} from "react"
 import {Button, Input, Card, Row, Col, Space} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
-import {callVariant, useLoadTestsetsList} from "@/lib/services/api"
-import {Parameter, testset} from "@/lib/Types"
+import {callVariant} from "@/lib/services/api"
+import {Parameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
 import {TestContext} from "../TestContextProvider"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
-import {useRouter} from "next/router"
 
 interface TestViewProps {
     URIPath: string | null
@@ -23,7 +22,7 @@ interface BoxComponentProps {
     handleRun: (testData: Record<string, string>, testIndex: number) => Promise<void>
     results: string
     resultsList: string[]
-    testsets: testset[]
+    onAddToTestset: (params: Record<string, string>) => void
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -34,10 +33,9 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     handleRun,
     results,
     resultsList,
-    testsets,
+    onAddToTestset,
 }) => {
     const {TextArea} = Input
-    const [drawerOpen, setDrawerOpen] = useState(false)
 
     if (!inputParams) {
         return <div>Loading...</div>
@@ -54,14 +52,15 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
         })
     }
 
-    const params = useMemo(() => {
-        const obj: Record<string, string> = {}
+    const handleAddToTestset = () => {
+        const params: Record<string, string> = {}
         inputParamsNames.forEach((name) => {
-            obj[name] = testData[name] || ""
+            params[name] = testData[name] || ""
         })
-        obj.correct_answer = results
-        return obj
-    }, [testData, inputParamsNames, results])
+        params.correct_answer = results
+
+        onAddToTestset(params)
+    }
 
     return (
         <Card
@@ -93,11 +92,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     span={24}
                     style={{justifyContent: "flex-end", display: "flex", gap: "0.75rem"}}
                 >
-                    <Button
-                        shape="round"
-                        icon={<PlusOutlined />}
-                        onClick={() => setDrawerOpen(true)}
-                    >
+                    <Button shape="round" icon={<PlusOutlined />} onClick={handleAddToTestset}>
                         Add to Test Set
                     </Button>
                     <Button
@@ -125,13 +120,6 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     }}
                 />
             </Row>
-            <AddToTestSetDrawer
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-                destroyOnClose
-                testsets={testsets}
-                params={params}
-            />
         </Card>
     )
 }
@@ -139,10 +127,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
     const {testList, setTestList} = useContext(TestContext)
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
-
-    const router = useRouter()
-    const appName = router.query.app_name?.toString() || ""
-    const {testsets} = useLoadTestsetsList(appName)
+    const [params, setParams] = useState<Record<string, string> | null>(null)
 
     const handleRun = async (testData: Record<string, string>, testIndex: number) => {
         try {
@@ -234,7 +219,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                     handleRun={(testData) => handleRun(testData, index)}
                     results={resultsList[index]}
                     resultsList={resultsList}
-                    testsets={testsets || []}
+                    onAddToTestset={setParams}
                 />
             ))}
             <Button
@@ -251,6 +236,13 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             >
                 Add Row
             </Button>
+
+            <AddToTestSetDrawer
+                open={!!params}
+                onClose={() => setParams(null)}
+                destroyOnClose
+                params={params || {}}
+            />
         </div>
     )
 }
