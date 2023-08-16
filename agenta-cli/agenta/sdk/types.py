@@ -11,6 +11,13 @@ class InFile:
 
 
 class DictInput(dict):
+    def __new__(cls, default_keys=None):
+        instance = super().__new__(cls, default_keys)
+        if default_keys is None:
+            default_keys = []
+        instance.data = {key: "" for key in default_keys}
+        return instance
+        
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update({"x-parameter": "dict"})
