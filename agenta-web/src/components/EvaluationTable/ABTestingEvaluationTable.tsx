@@ -8,20 +8,20 @@ import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {fetchVariants} from "@/lib/services/api"
-import { createUseStyles } from "react-jss"
+import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles({
-    evaluationContainer:{
-        "& > h1":{
+    evaluationContainer: {
+        "& > h1": {
             textAlign: "center",
-        }
+        },
     },
-    evaluationView:{
+    evaluationView: {
         display: "flex",
         margin: "20px 0",
         alignItems: "center",
     },
-    evaluationBox:{
+    evaluationBox: {
         flex: 1,
         border: "1px solid #000",
         borderRadius: 10,
@@ -65,7 +65,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
-    const classes = useStyles();
+    const classes = useStyles()
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -351,74 +351,53 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     return (
         <>
-         <div>
-            <Table
-                dataSource={rows}
-                columns={columns}
-                pagination={false}
-                rowClassName={() => "editable-row"}
-                rowKey={(record) => record.id}
-            />
-        </div>
-        <div>
-            {evaluationScenarios.length ? (
-                <div className={classes.evaluationContainer}>
-                    <h1>
-                        Evaluation {currentSlide + 1}/{evaluationScenarios.length}
-                    </h1>
+            <div>
+                <Table
+                    dataSource={rows}
+                    columns={columns}
+                    pagination={false}
+                    rowClassName={() => "editable-row"}
+                    rowKey={(record) => record.id}
+                />
+            </div>
+            <div>
+                {evaluationScenarios.length ? (
+                    <div className={classes.evaluationContainer}>
+                        <h1>
+                            Evaluation {currentSlide + 1}/{evaluationScenarios.length}
+                        </h1>
 
-                    <div className={classes.evaluationView}>
-                        <Button
-                            onClick={handlePreviousSlide}
-                            icon={<LeftOutlined />}
-                            disabled={currentSlide === 0}
-                        />
+                        <div className={classes.evaluationView}>
+                            <Button
+                                onClick={handlePreviousSlide}
+                                icon={<LeftOutlined />}
+                                disabled={currentSlide === 0}
+                            />
 
-                        <div
-                        className={classes.evaluationBox}
-                            
-                        >
-                            {currentScenario.inputs.map((input, index) => (
-                                <>
-                                    <div style={{marginBottom: 10}} key={index}>
+                            <div className={classes.evaluationBox}>
+                                <div style={{flex: 1}}>
+                                    {currentScenario.inputs.map((input) => (
                                         <Input
-                                            placeholder={input.input_name}
-                                            value={input.input_value}
-                                            onChange={(e) =>
-                                                handleInputChange(e, currentSlide, index)
-                                            }
-                                        />
-                                        <Button
-                                            onClick={() => runEvaluation(index)}
-                                            icon={<CaretRightOutlined />}
-                                            style={{marginLeft: 10}}
-                                        >
-                                            Run
-                                        </Button>
-                                    </div>
-                                </>
-                            ))}
+                                        placeholder={input.input_name}
+                                        value={input.input_value}
+                                        onChange={(e) => handleInputChange(e, rowIndex, index)}
+                                    />
+                                    ))}
+                                </div>
+                                <div style={{flex: 1}}>ncowencioe</div>
+                            </div>
 
-                            {/* <div>
-                                {rows.map((row) => (
-                                    <div>{row.outputs.map((row) => (
-                                        <div>{row.variant_output}</div>
-                                    ))}</div>
-                                ))}
-                            </div> */}
+                            <Button
+                                onClick={handleNextSlide}
+                                icon={<RightOutlined />}
+                                disabled={currentSlide === evaluationScenarios.length - 1}
+                            />
                         </div>
-
-                        <Button
-                            onClick={handleNextSlide}
-                            icon={<RightOutlined />}
-                            disabled={currentSlide === evaluationScenarios.length - 1}
-                        />
                     </div>
-                </div>
-            ) : (
-                "hello"
-            )}
-        </div>
+                ) : (
+                    "hello"
+                )}
+            </div>
         </>
     )
 }
