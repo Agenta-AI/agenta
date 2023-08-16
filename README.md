@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation#aws">
-    <img src=".github/images/deploy-aws-button.png" width="160" />
+    <img src=".github/images/deploy-aws-button.png" width="180" />
   </a>
 </p>
 
