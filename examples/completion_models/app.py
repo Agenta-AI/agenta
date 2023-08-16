@@ -8,6 +8,7 @@ import os
 from langchain.schema import HumanMessage
 import openai
 import replicate
+from litellm import completion
 
 prompts = {
     "chat": {
@@ -39,37 +40,26 @@ CHAT_LLM_GPT = [
 
 
 def call_llm(model, temperature, prompt, **kwargs):
-    if model in CHAT_LLM_GPT:
-        prompt = prompts["chat"]["input_prompt"].format(text=kwargs["text"])
-        openai.api_key = os.environ.get("OPENAI_API_KEY")
-        chat_completion = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,  # Controls the creativity of the generated response
-            max_tokens=kwargs[
-                "maximum_length"
-            ],  # Controls the maximum length of the generated response
-            n=1,  # How many completions to generate
-            stop=kwargs["stop_sequence"],
-            top_p=kwargs["top_p"],
-            frequency_penalty=kwargs["frequence_penalty"],
-            presence_penalty=kwargs["presence_penalty"],
-        )
-        result = chat_completion.choices[0].message.content
-        return result
-    # replicate
+    selected_model = "gpt-3.5-turbo" # default to gpt-3.5-turbo
     if model == "replicate":
-        output = replicate.run(
-            "replicate/llama-7b:ac808388e2e9d8ed35a5bf2eaa7d83f0ad53f9e3df31a42e4eb0a0c3249b3165",
-            input={"prompt": prompt.format(text=kwargs["text"])},
-            max_new_tokens=kwargs["maximum_length"],
-            temperature=temperature,
-            top_p=kwargs["top_p"],
-            repetition_penalty=kwargs["frequence_penalty"],
-        )
-
-        return "".join(list(output))
-
+        selected_model = "replicate/llama-7b:ac808388e2e9d8ed35a5bf2eaa7d83f0ad53f9e3df31a42e4eb0a0c3249b3165"
+    prompt = prompts["chat"]["input_prompt"].format(text=kwargs["text"])
+    openai.api_key = os.environ.get("OPENAI_API_KEY")
+    chat_completion = completion(
+        model=selected_model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,  # Controls the creativity of the generated response
+        max_tokens=kwargs[
+            "maximum_length"
+        ],  # Controls the maximum length of the generated response
+        n=1,  # How many completions to generate
+        stop=kwargs["stop_sequence"],
+        top_p=kwargs["top_p"],
+        frequency_penalty=kwargs["frequence_penalty"],
+        presence_penalty=kwargs["presence_penalty"],
+    )
+    result = chat_completion['choices'][0]['message']['content']
+    return result
 
 @ag.post
 def generate(

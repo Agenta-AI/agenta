@@ -1,6 +1,7 @@
 import os
 
 import openai
+from litellm import completion
 from agenta import FloatParam, TextParam, post
 from fastapi import Body
 from jinja2 import Template
@@ -19,9 +20,9 @@ def generate(
     prompt = template.render(country=country, gender=gender)
 
     openai.api_key = os.environ.get("OPENAI_API_KEY")  # make sure to set this manually!
-    chat_completion = openai.ChatCompletion.create(
+    chat_completion = completion(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
 
-    result = chat_completion.choices[0].message.content
+    result = chat_completion['choices'][0]['message']['content']
     return result
