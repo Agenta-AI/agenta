@@ -55,7 +55,8 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
             columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
             """
             raise HTTPException(
-                status_code=400, detail=msg,
+                status_code=400,
+                detail=msg,
             )
 
         evaluation_scenario = {
@@ -175,14 +176,20 @@ def evaluate_with_ai_critique(
     """
     llm = OpenAI(openai_api_key=open_ai_key, temperature=temperature)
 
-    input_variables = [
-        "app_variant_output",
-        "llm_app_prompt_template",
-        "correct_answer",
-    ]
+    input_variables = []
 
+    # List of default variables
+    default_vars = ["app_variant_output", "llm_app_prompt_template", "correct_answer"]
+
+    # Check default variables
+    for var in default_vars:
+        if "{%s}" % var in evaluation_prompt_template:
+            input_variables.append(var)
+
+    # Iterate over llm_app_inputs and check if the variable name exists in the evaluation_prompt_template
     for input_item in llm_app_inputs:
-        input_variables.append(input_item["input_name"])
+        if "{%s}" % input_item["input_name"] in evaluation_prompt_template:
+            input_variables.append(input_item["input_name"])
 
     chain_run_args = {
         "llm_app_prompt_template": llm_app_prompt_template,
@@ -193,9 +200,7 @@ def evaluate_with_ai_critique(
     for input_item in llm_app_inputs:
         chain_run_args[input_item["input_name"]] = input_item["input_value"]
 
-    prompt = PromptTemplate(
-        input_variables=input_variables, template=evaluation_prompt_template
-    )
+    prompt = PromptTemplate(input_variables=input_variables, template=evaluation_prompt_template)
     chain = LLMChain(llm=llm, prompt=prompt)
 
     output = chain.run(**chain_run_args)
