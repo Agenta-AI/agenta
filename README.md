@@ -3,12 +3,11 @@
   <img src="https://github.com/Agenta-AI/agenta/assets/4510758/762d4838-f56f-4773-94a7-38ae417ca439"   style="width:550px;" align="center" />
 </a>
   <br />
-<br />
-<div align="center">
+<h4 align="center">
     <a href="https://agenta.ai">Home Page</a> |
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a> |
     <a href="https://docs.agenta.ai/">Documentation</a>
-</div>
+</h4>
   </div>
 <br />
 
@@ -19,17 +18,16 @@
 <br />
 
 <p align="center">
-  <a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation#aws">
-    <img src=".github/images/deploy-aws-button.png" width="180" />
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license." />
+  <a href="https://github.com/Agenta-AI/agenta/blob/main/CONTRIBUTING.md">
+    <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs welcome" />
   </a>
-</p>
-
-<p align="center">
   <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
   <img src="https://img.shields.io/github/commit-activity/m/agenta-ai/agenta" alt="Commits per month">
 </br>
 </p>
+
 
 
 <p align="center">
@@ -61,6 +59,13 @@ Please go to [docs.agenta.ai](https://docs.agenta.ai) for full documentation on:
 - [Installation](https://docs.agenta.ai/installation)
 - [Getting Started](https://docs.agenta.ai/getting-started)
 - [Tutorials](https://docs.agenta.ai/tutorials)
+
+### Deploy to AWS
+<a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation#aws">
+<img src=".github/images/deploy-aws-button.png" width="180" />
+</a>
+
+
 
 ## How Agenta works:
 
