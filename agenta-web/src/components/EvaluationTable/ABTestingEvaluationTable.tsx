@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {CaretRightOutlined} from "@ant-design/icons"
+import {CaretRightOutlined, LeftOutlined, RightOutlined} from "@ant-design/icons"
 import {Button, Input, Space, Spin, Table} from "antd"
 import {Variant, Parameter} from "@/lib/Types"
 import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
@@ -8,6 +8,28 @@ import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {fetchVariants} from "@/lib/services/api"
+import { createUseStyles } from "react-jss"
+
+const useStyles = createUseStyles({
+    evaluationContainer:{
+        "& > h1":{
+            textAlign: "center",
+        }
+    },
+    evaluationView:{
+        display: "flex",
+        margin: "20px 0",
+        alignItems: "center",
+    },
+    evaluationBox:{
+        flex: 1,
+        border: "1px solid #000",
+        borderRadius: 10,
+        height: 500,
+        margin: 10,
+        display: "flex",
+    },
+})
 
 interface EvaluationTableProps {
     evaluation: any
@@ -43,6 +65,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
+    const classes = useStyles();
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -64,6 +87,22 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             error,
         }
     })
+
+    const [currentSlide, setCurrentSlide] = useState(0)
+
+    const handlePreviousSlide = () => {
+        if (currentSlide > 0) {
+            setCurrentSlide(currentSlide - 1)
+        }
+    }
+
+    const handleNextSlide = () => {
+        if (currentSlide < evaluationScenarios.length - 1) {
+            setCurrentSlide(currentSlide + 1)
+        }
+    }
+
+    const currentScenario = evaluationScenarios[currentSlide]
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
 
@@ -311,7 +350,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     ]
 
     return (
-        <div>
+        <>
+         <div>
             <Table
                 dataSource={rows}
                 columns={columns}
@@ -320,6 +360,66 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 rowKey={(record) => record.id}
             />
         </div>
+        <div>
+            {evaluationScenarios.length ? (
+                <div className={classes.evaluationContainer}>
+                    <h1>
+                        Evaluation {currentSlide + 1}/{evaluationScenarios.length}
+                    </h1>
+
+                    <div className={classes.evaluationView}>
+                        <Button
+                            onClick={handlePreviousSlide}
+                            icon={<LeftOutlined />}
+                            disabled={currentSlide === 0}
+                        />
+
+                        <div
+                        className={classes.evaluationBox}
+                            
+                        >
+                            {currentScenario.inputs.map((input, index) => (
+                                <>
+                                    <div style={{marginBottom: 10}} key={index}>
+                                        <Input
+                                            placeholder={input.input_name}
+                                            value={input.input_value}
+                                            onChange={(e) =>
+                                                handleInputChange(e, currentSlide, index)
+                                            }
+                                        />
+                                        <Button
+                                            onClick={() => runEvaluation(index)}
+                                            icon={<CaretRightOutlined />}
+                                            style={{marginLeft: 10}}
+                                        >
+                                            Run
+                                        </Button>
+                                    </div>
+                                </>
+                            ))}
+
+                            {/* <div>
+                                {rows.map((row) => (
+                                    <div>{row.outputs.map((row) => (
+                                        <div>{row.variant_output}</div>
+                                    ))}</div>
+                                ))}
+                            </div> */}
+                        </div>
+
+                        <Button
+                            onClick={handleNextSlide}
+                            icon={<RightOutlined />}
+                            disabled={currentSlide === evaluationScenarios.length - 1}
+                        />
+                    </div>
+                </div>
+            ) : (
+                "hello"
+            )}
+        </div>
+        </>
     )
 }
 
