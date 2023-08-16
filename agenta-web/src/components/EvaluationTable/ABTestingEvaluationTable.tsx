@@ -28,6 +28,40 @@ const useStyles = createUseStyles({
         height: 500,
         margin: 10,
         display: "flex",
+        padding: 20,
+        gap: 10,
+        "& > div:nth-child(1)": {
+            display: "flex",
+            alignItems: "flex-start",
+            flexDirection: "column",
+            "& input":{
+                width: "100%"
+            }
+        },
+        "& > div:nth-child(2)": {
+            flex: 1,
+        },
+    },
+    evaluationBtns: {
+        alignItems: "center",
+        justifyContent: "center",
+        display: "flex",
+    },
+    variantBox: {
+        display: "flex",
+        gap: 10,
+    },
+    variantData: {
+        height: 300,
+        border: "1px solid",
+        borderRadius: 10,
+        margin: "20px auto",
+        maxWidth: 500,
+        width: "100%",
+        overflowY: "auto",
+        padding: 10,
+        display: "grid",
+        placeItems: "center",
     },
 })
 
@@ -186,6 +220,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
             } catch (e) {
+                setRowValue(rowIndex, columnName, `Error: ${e}`)
                 console.error("Error:", e)
             }
         })
@@ -351,53 +386,166 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     return (
         <>
-            <div>
+            {/* <div>
                 <Table
-                    dataSource={rows}
+                    // dataSource={rows}
                     columns={columns}
                     pagination={false}
                     rowClassName={() => "editable-row"}
                     rowKey={(record) => record.id}
                 />
-            </div>
-            <div>
-                {evaluationScenarios.length ? (
-                    <div className={classes.evaluationContainer}>
-                        <h1>
-                            Evaluation {currentSlide + 1}/{evaluationScenarios.length}
-                        </h1>
+            </div> */}
 
-                        <div className={classes.evaluationView}>
-                            <Button
-                                onClick={handlePreviousSlide}
-                                icon={<LeftOutlined />}
-                                disabled={currentSlide === 0}
-                            />
+            {evaluationScenarios.length ? (
+                <div className={classes.evaluationContainer}>
+                    <h1>
+                        Evaluation {currentSlide + 1}/{evaluationScenarios.length}
+                    </h1>
 
-                            <div className={classes.evaluationBox}>
-                                <div style={{flex: 1}}>
-                                    {currentScenario.inputs.map((input) => (
+                    <div className={classes.evaluationView}>
+                        <Button
+                            onClick={handlePreviousSlide}
+                            icon={<LeftOutlined />}
+                            disabled={currentSlide === 0}
+                        />
+
+                        <div className={classes.evaluationBox}>
+                            <div>
+                                <p>
+                                    <span> Inputs (Test set: </span>
+                                    <span
+                                        style={{
+                                            backgroundColor: "rgb(201 255 216)",
+                                            color: "rgb(0 0 0)",
+                                            padding: 4,
+                                            borderRadius: 5,
+                                        }}
+                                    >
+                                        {evaluation.testset.name}
+                                    </span>
+                                    <span> )</span>
+                                </p>
+                                {currentScenario.inputs.map((input, index) => (
+                                    <div key={index}>
                                         <Input
-                                        placeholder={input.input_name}
-                                        value={input.input_value}
-                                        onChange={(e) => handleInputChange(e, rowIndex, index)}
-                                    />
-                                    ))}
-                                </div>
-                                <div style={{flex: 1}}>ncowencioe</div>
+                                            placeholder={input.input_name}
+                                            value={input.input_value}
+                                            onChange={(e) =>
+                                                handleInputChange(e, currentSlide, index)
+                                            }
+                                        />
+                                        <Button
+                                            onClick={() => runEvaluation(currentSlide, index)}
+                                            icon={<CaretRightOutlined />}
+                                        >
+                                            Run
+                                        </Button>
+                                    </div>
+                                ))}
                             </div>
 
-                            <Button
-                                onClick={handleNextSlide}
-                                icon={<RightOutlined />}
-                                disabled={currentSlide === evaluationScenarios.length - 1}
-                            />
+                            <div>
+                                <div className={classes.variantBox}>
+                                    <div style={{width: "100%", maxWidth: 400, margin: "0 auto"}}>
+                                        <p style={{textAlign: "center"}}>
+                                            App variant:{" "}
+                                            <span
+                                                style={{
+                                                    backgroundColor: "rgb(201 255 216)",
+                                                    color: "rgb(0 0 0)",
+                                                    padding: 4,
+                                                    borderRadius: 5,
+                                                }}
+                                            >
+                                                {variants[0].variantName}
+                                            </span>
+                                        </p>
+
+                                        <div className={classes.variantData}>
+                                            {rows[currentSlide]?.columnData0}
+                                        </div>
+                                    </div>
+                                    <div style={{width: "100%", maxWidth: 400, margin: "0 auto"}}>
+                                        <p style={{textAlign: "center"}}>
+                                            App variant:{" "}
+                                            <span
+                                                style={{
+                                                    backgroundColor: "rgb(201 255 216)",
+                                                    color: "rgb(0 0 0)",
+                                                    padding: 4,
+                                                    borderRadius: 5,
+                                                }}
+                                            >
+                                                {variants[1].variantName}
+                                            </span>
+                                        </p>
+
+                                        <div className={classes.variantData}>
+                                            {rows[currentSlide]?.columnData1}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <Spin spinning={rows[currentSlide]?.vote === "loading"}>
+                                    <Space className={classes.evaluationBtns} size={20}>
+                                        {variants.map((variant, idx) => (
+                                            <Button
+                                                key={idx}
+                                                type={
+                                                    rows[currentSlide]?.vote === variant.variantName
+                                                        ? "primary"
+                                                        : "default"
+                                                }
+                                                disabled={
+                                                    rows[currentSlide]?.evaluationFlow ===
+                                                        EvaluationFlow.COMPARISON_RUN_STARTED ||
+                                                    rows[currentSlide]?.vote !== ""
+                                                        ? false
+                                                        : true
+                                                }
+                                                onClick={() =>
+                                                    handleVoteClick(
+                                                        currentSlide,
+                                                        variant?.variantName,
+                                                    )
+                                                }
+                                            >
+                                                {`Variant: ${variant.variantName}`}
+                                            </Button>
+                                        ))}
+                                        <Button
+                                            type={
+                                                rows[currentSlide]?.vote === "0"
+                                                    ? "primary"
+                                                    : "default"
+                                            }
+                                            disabled={
+                                                rows[currentSlide]?.evaluationFlow ===
+                                                    EvaluationFlow.COMPARISON_RUN_STARTED ||
+                                                rows[currentSlide]?.vote !== ""
+                                                    ? false
+                                                    : true
+                                            }
+                                            danger
+                                            onClick={() => handleVoteClick(currentSlide, "0")}
+                                        >
+                                            Both are bad
+                                        </Button>
+                                    </Space>
+                                </Spin>
+                            </div>
                         </div>
+
+                        <Button
+                            onClick={handleNextSlide}
+                            icon={<RightOutlined />}
+                            disabled={currentSlide === evaluationScenarios.length - 1}
+                        />
                     </div>
-                ) : (
-                    "hello"
-                )}
-            </div>
+                </div>
+            ) : (
+                "Empty"
+            )}
         </>
     )
 }
