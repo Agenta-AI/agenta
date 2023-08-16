@@ -1,5 +1,5 @@
 import React, {Dispatch, SetStateAction, useContext, useState} from "react"
-import {Button, Input, Card, Row, Col, Space} from "antd"
+import {Button, Input, Card, Row, Col, Space, message} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {Parameter} from "@/lib/Types"
@@ -22,6 +22,7 @@ interface BoxComponentProps {
     handleRun: (testData: Record<string, string>, testIndex: number) => Promise<void>
     results: string
     resultsList: string[]
+    error: boolean
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -33,6 +34,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     handleRun,
     results,
     resultsList,
+    error,
 }) => {
     const {TextArea} = Input
 
@@ -53,8 +55,6 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 
     return (
         <>
-            {/* </Card> */}
-
             <Card
                 style={{
                     marginTop: 16,
@@ -103,6 +103,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         style={{
                             height: "100%",
                             width: "100%",
+                            color: error ? "red" : undefined,
                         }}
                     />
                 </Row>
@@ -116,47 +117,75 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
 
+    const [errorList, setErrorList] = useState<boolean[]>(testList.map(() => false))
+
     const handleRun = async (testData: Record<string, string>, testIndex: number) => {
         try {
             const newResultsList = [...resultsList]
             newResultsList[testIndex] = "Loading..."
+            const newErrorList = [...errorList]
+            newErrorList[testIndex] = false
+
             setResultsList(newResultsList)
+            setErrorList(newErrorList)
 
             const result = await callVariant(testData, inputParams, optParams, URIPath)
 
             const newResultList2 = [...resultsList]
             newResultList2[testIndex] = result
             setResultsList(newResultList2)
-        } catch (e) {
+        } catch (e: any) {
             const newResultsList = [...resultsList]
-            newResultsList[testIndex] =
-                "The code has resulted in the following error: \n\n --------------------- \n" +
-                e +
-                "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
+            const newErrorList = [...errorList]
+
+            Object.entries(OpenAiErrors).map(([key, value]) => {
+                if (e.toString().includes(key)) {
+                    newResultsList[testIndex] = value
+                    newErrorList[testIndex] = true
+                    message.error(`${value} at row ${testIndex + 1}`)
+                }
+            })
+
             setResultsList(newResultsList)
+            setErrorList(newErrorList)
         }
     }
 
     const handleRunAll = async () => {
         const newResultsList = testList.map(() => "Loading...")
+
         setResultsList(testList.map(() => "Loading..."))
+
+        setErrorList(errorList.map(() => false))
+
         try {
             const resultsPromises = testList.map(async (testData, index) => {
                 return await callVariant(testData, inputParams, optParams, URIPath)
             })
+
             const results = await Promise.all(resultsPromises)
-            console.log(results)
+
             results.forEach((result, index) => {
                 newResultsList[index] = result
             })
-        } catch (e) {
+        } catch (e: any) {
+            const messageError: string[] = []
+            const newErrorList = [...errorList]
             newResultsList.forEach((_, index) => {
-                newResultsList[index] =
-                    "The code has resulted in the following error: \n\n --------------------- \n" +
-                    e +
-                    "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
+                Object.entries(OpenAiErrors).map(([key, value]) => {
+                    if (e.toString().includes(key)) {
+                        newResultsList[index] = value
+                        newErrorList[index] = true
+                        if (!messageError.includes(value)) messageError.push(value)
+                    }
+                })
             })
+            messageError.forEach((msg) => {
+                message.error(`${msg} at some rows`)
+            })
+            setErrorList(newErrorList)
         }
+
         setResultsList(newResultsList)
     }
 
@@ -208,6 +237,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                     handleRun={(testData) => handleRun(testData, index)}
                     results={resultsList[index]}
                     resultsList={resultsList}
+                    error={errorList[index]}
                 />
             ))}
             <Button
@@ -229,3 +259,9 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 }
 
 export default App
+
+const OpenAiErrors = {
+    "Error: You exceeded your current quota, please check your plan and billing details":
+        "You exceeded your current quota, please check your plan and billing details.",
+    "Error: Error communicating with OpenAI": "Error communicating with OpenAI.",
+}
