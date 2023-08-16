@@ -45,7 +45,6 @@ export default function AddANewTestset() {
                     // File uploaded successfully
                     const data = response.data
 
-                    // settestset(data);
                     setUploadLoading(false)
                     form.resetFields()
 
@@ -128,9 +127,9 @@ export default function AddANewTestset() {
                                     Here is an example of a valid JSON file:
                                     <br />
                                     <br />
-                                    {`[{ recipe_name : "Chicken Parmesan" , correct_answer : "Chicken" },`}
+                                    {`[{ "recipe_name": "Chicken Parmesan","correct_answer": "Chicken" },`}
                                     <br />
-                                    {`{ recipe_name : "a, special, recipe" , correct_answer : "Beef" }]`}
+                                    {`{ "recipe_name": "a, special, recipe","correct_answer": "Beef" }]`}
                                 </>
                             )}
                         </>
