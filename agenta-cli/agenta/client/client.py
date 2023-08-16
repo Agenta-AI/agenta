@@ -147,4 +147,5 @@ def send_docker_tar(
 
     response.raise_for_status()
     image = Image.parse_obj(response.json())
+
     return image
