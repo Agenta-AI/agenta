@@ -17,6 +17,13 @@
 
 <br />
 <br />
+
+<p align="center">
+  <a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation#aws">
+    <img src=".github/images/deploy-aws-button.png" width="137" />
+  </a>
+</p>
+
 <p align="center">
   <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
