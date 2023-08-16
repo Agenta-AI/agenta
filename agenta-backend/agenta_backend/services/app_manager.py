@@ -150,9 +150,9 @@ def start_variant(app_variant: AppVariant) -> URI:
         logger.error(
             f"Error fetching image for app variant {app_variant.app_name}/{app_variant.variant_name} from database: {str(e)}"
         )
-        raise ValueError(
-            f"Image for app variant {app_variant.app_name}/{app_variant.variant_name} not found in database"
-        ) from e
+        raise Exception(
+            f"Image for app variant {app_variant.app_name}/{app_variant.variant_name} not found in database \n {str(e)}"
+        )
 
     try:
         uri: URI = docker_utils.start_container(
@@ -163,15 +163,19 @@ def start_variant(app_variant: AppVariant) -> URI:
         logger.info(
             f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
         )
+        
+        return uri
+
     except Exception as e:
         logger.error(
             f"Error starting Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}: {str(e)}"
         )
-        raise RuntimeError(
-            f"Failed to start Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}"
-        ) from e
-
-    return uri
+        # raise RuntimeError(
+        #     f"Failed to start Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}"
+        # ) from e
+        raise Exception(
+            f"Failed to start Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} \n {str(e)}"
+        )
 
 
 def update_variant_parameters(app_variant: AppVariant):

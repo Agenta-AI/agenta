@@ -40,37 +40,46 @@ def list_images() -> List[Image]:
 
 
 def start_container(image_name, app_name, variant_name) -> URI:
-    image = client.images.get(f"{image_name}")
+    try:
+        image = client.images.get(f"{image_name}")
 
-    labels = {
-        f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
-        f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
-        f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
-        f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}-strip-prefix",
-        f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
-    }
-
-    rules = {
-        "development": f"PathPrefix(`/{app_name}/{variant_name}`)",
-        "production": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)",
-    }
-
-    labels.update(
-        {
-            f"traefik.http.routers.{app_name}-{variant_name}.rule": rules[
-                os.environ["ENVIRONMENT"]
-            ]
+        labels = {
+            f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
+            f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
+            f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
+            f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}-strip-prefix",
+            f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
         }
-    )
 
-    container = client.containers.run(
-        image,
-        detach=True,
-        labels=labels,
-        network="agenta-network",
-        name=f"{app_name}-{variant_name}",
-    )
-    return URI(uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}")
+        rules = {
+            "development": f"PathPrefix(`/{app_name}/{variant_name}`)",
+            "production": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)",
+        }
+
+        labels.update(
+            {
+                f"traefik.http.routers.{app_name}-{variant_name}.rule": rules[
+                    os.environ["ENVIRONMENT"]
+                ]
+            }
+        )
+
+        container = client.containers.run(
+            image,
+            detach=True,
+            labels=labels,
+            network="agenta-network",
+            name=f"{app_name}-{variant_name}",
+        )
+        return URI(uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}")
+    except docker.errors.APIError as error:
+        # Container failed to run, get the logs
+        try:
+            failed_container = client.containers.get(f"{app_name}-{variant_name}")
+            logs = failed_container.logs().decode('utf-8')
+            raise Exception(f"Docker Logs: {logs}") from error
+        except Exception as e:
+            return f"Failed to fetch logs: {str(e)} \n Exception Error: {str(error)}"
 
 
 def stop_containers_based_on_image(image: Image) -> List[str]:
