@@ -32,10 +32,12 @@ import abTesting from "@/media/testing.png"
 import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import ai from "@/media/artificial-intelligence.png"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 export default function Evaluations() {
     const {Text, Title} = Typography
     const router = useRouter()
+    const {appTheme} = useAppTheme()
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
@@ -64,7 +66,7 @@ export default function Evaluations() {
 
     const [sliderValue, setSliderValue] = useState(0.3)
 
-    const [evaluationError, setEvaluationError] = useState("")
+    const [error, setError] = useState({message: "", btnText: "", endpoint: ""})
 
     const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
 
@@ -173,7 +175,7 @@ export default function Evaluations() {
                 return data.id
             })
             .catch((err) => {
-                setEvaluationError(err.message)
+                setError({message: err.message, btnText: "Go to Test sets", endpoint: "testsets"})
             })
     }
 
@@ -257,9 +259,12 @@ export default function Evaluations() {
             getOpenAIKey() === "" &&
             selectedEvaluationType === EvaluationType.auto_ai_critique
         ) {
-            message.error(
-                "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
-            )
+            setError({
+                message:
+                    "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
+                btnText: "Go to API Keys",
+                endpoint: "apikeys",
+            })
             return
         }
 
@@ -346,7 +351,10 @@ export default function Evaluations() {
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{marginRight: "8px"}}
+                                        style={{
+                                            marginRight: "8px",
+                                            filter: appTheme === "dark" ? "invert(1)" : "none",
+                                        }}
                                     />
 
                                     <span>
@@ -354,7 +362,7 @@ export default function Evaluations() {
                                     </span>
                                 </div>
                             </Radio.Button>
-
+                            {/* 
                             <Radio.Button
                                 value={EvaluationType.human_scoring}
                                 disabled
@@ -364,7 +372,7 @@ export default function Evaluations() {
                                 <Tag color="orange" bordered={false}>
                                     soon
                                 </Tag>
-                            </Radio.Button>
+                            </Radio.Button> */}
 
                             <Title level={5}>Automatic evaluation</Title>
 
@@ -378,7 +386,10 @@ export default function Evaluations() {
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{marginRight: "8px"}}
+                                        style={{
+                                            marginRight: "8px",
+                                            filter: appTheme === "dark" ? "invert(1)" : "none",
+                                        }}
                                     />
 
                                     <span>
@@ -396,7 +407,10 @@ export default function Evaluations() {
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{marginRight: "8px"}}
+                                        style={{
+                                            marginRight: "8px",
+                                            filter: appTheme === "dark" ? "invert(1)" : "none",
+                                        }}
                                     />
 
                                     <span>
@@ -426,7 +440,10 @@ export default function Evaluations() {
                                         width={24}
                                         height={24}
                                         alt="Picture of the author"
-                                        style={{marginRight: "8px"}}
+                                        style={{
+                                            marginRight: "8px",
+                                            filter: appTheme === "dark" ? "invert(1)" : "none",
+                                        }}
                                     />
 
                                     <span>
@@ -500,10 +517,11 @@ export default function Evaluations() {
                 </Row>
             </div>
             <EvaluationErrorModal
-                isModalOpen={!!evaluationError}
-                onClose={() => setEvaluationError("")}
-                handleNavigate={() => router.push(`/apps/${appName}/testsets`)}
-                message={evaluationError}
+                isModalOpen={!!error.message}
+                onClose={() => setError({message: "", btnText: "", endpoint: ""})}
+                handleNavigate={() => router.push(`/apps/${appName}/${error.endpoint}`)}
+                message={error.message}
+                btnText={error.btnText}
             />
 
             <EvaluationsList />
