@@ -155,7 +155,7 @@ def evaluate_with_ai_critique(
     app_variant_output: str,
     evaluation_prompt_template: str,
     open_ai_key: str,
-    temperature: float = 0.9,
+    temperature: float = 0,
 ) -> str:
     """Evaluate a response using an AI critique based on provided
      - An evaluation prompt,
