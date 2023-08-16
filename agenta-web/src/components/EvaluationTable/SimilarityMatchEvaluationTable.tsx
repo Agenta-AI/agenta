@@ -341,13 +341,14 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     tagColor = "red"
                 }
 
+                const similarity = rows[rowIndex].similarity
                 return (
-                    <Spin spinning={rows[rowIndex].score === "loading" ? true : false}>
+                    <Spin spinning={similarity ? false : true}>
                         <Space>
                             <div>
-                                {rows[rowIndex].similarity != undefined && (
+                                {similarity != undefined && (
                                     <Tag color={tagColor} style={{fontSize: "14px"}}>
-                                        {rows[rowIndex].similarity.toFixed(5)}
+                                        {similarity.toFixed(5)}
                                     </Tag>
                                 )}
                             </div>
