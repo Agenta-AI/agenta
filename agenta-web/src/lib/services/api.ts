@@ -218,14 +218,16 @@ export async function removeVariant(appName: string, variantName: string) {
  * @returns
  */
 export const useLoadTestsetsList = (app_name: string) => {
-    const {data, error} = useSWR(
+    const {data, error, mutate} = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`,
         fetcher,
+        {revalidateOnFocus: false},
     )
     return {
         testsets: data,
         isTestsetsLoading: !error && !data,
         isTestsetsLoadingError: error,
+        mutate,
     }
 }
 
