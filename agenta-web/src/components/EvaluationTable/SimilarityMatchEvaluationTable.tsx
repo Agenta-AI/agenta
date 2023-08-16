@@ -29,6 +29,7 @@ interface SimilarityMatchEvaluationTableRow {
     columnData0: string
     correctAnswer: string
     score: string
+    similarity: number
     evaluationFlow: EvaluationFlow
 }
 /**
@@ -183,6 +184,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 evaluation.evaluationType,
             )
                 .then((data) => {
+                    setRowValue(rowNumber, "similarity", similarity)
                     setRowValue(rowNumber, "score", data.score)
                     if (isSimilar) {
                         setSimilarAnswers((prevSimilar) => prevSimilar + 1)
@@ -309,6 +311,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 } else if (record.score === "false") {
                     tagColor = "red"
                 }
+
                 return (
                     <Spin spinning={rows[rowIndex].score === "loading" ? true : false}>
                         <Space>
@@ -316,6 +319,35 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                                 {rows[rowIndex].score !== "" && (
                                     <Tag color={tagColor} style={{fontSize: "14px"}}>
                                         {record.score}
+                                    </Tag>
+                                )}
+                            </div>
+                        </Space>
+                    </Spin>
+                )
+            },
+        },
+        {
+            title: "Similarity",
+            dataIndex: "similarity",
+            key: "similarity",
+            width: 200,
+            align: "center" as "left" | "right" | "center",
+            render: (text: any, record: any, rowIndex: number) => {
+                let tagColor = ""
+                if (record.score === "true") {
+                    tagColor = "green"
+                } else if (record.score === "false") {
+                    tagColor = "red"
+                }
+
+                return (
+                    <Spin spinning={rows[rowIndex].score === "loading" ? true : false}>
+                        <Space>
+                            <div>
+                                {rows[rowIndex].similarity != undefined && (
+                                    <Tag color={tagColor} style={{fontSize: "14px"}}>
+                                        {rows[rowIndex].similarity.toFixed(5)}
                                     </Tag>
                                 )}
                             </div>
