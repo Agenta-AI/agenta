@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
-    upload_type : str = Form(None),
+    upload_type: str = Form(None),
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
     app_name: str = Form(None),
@@ -30,7 +30,7 @@ async def upload_file(
     upload_type : Either a json or csv file.
         file (UploadFile): The CSV or JSON file to upload.
         testset_name (Optional): the name of the testset if provided.
-        
+
     Returns:
         dict: The result of the upload process.
     """
@@ -42,26 +42,26 @@ async def upload_file(
             "name": testset_name if testset_name else file.filename,
             "app_name": app_name,
             "csvdata": [],
-         }
-        
+        }
+
         if upload_type == "JSON":
             # Read and parse the JSON file
             json_data = await file.read()
             json_text = json_data.decode("utf-8")
             json_object = json.loads(json_text)
 
-             # Populate the document with column names and values
+            # Populate the document with column names and values
             for row in json_object:
                 document["csvdata"].append(row)
 
-        else : 
-             # Read and parse the CSV file
+        else:
+            # Read and parse the CSV file
             csv_data = await file.read()
             csv_text = csv_data.decode("utf-8")
             csv_reader = csv.reader(csv_text.splitlines())
             columns = next(csv_reader)  # Get the column names
 
-             # Populate the document with column names and values
+            # Populate the document with column names and values
             for row in csv_reader:
                 row_data = {}
                 for i, value in enumerate(row):
@@ -81,7 +81,6 @@ async def upload_file(
         print(e)
         raise HTTPException(status_code=500, detail="Failed to process file") from e
 
-   
 
 @router.post("/{app_name}")
 async def create_testset(app_name: str, csvdata: NewTestset):
