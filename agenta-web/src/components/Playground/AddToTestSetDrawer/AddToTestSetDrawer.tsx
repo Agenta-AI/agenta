@@ -2,10 +2,10 @@ import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {testset} from "@/lib/Types"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {renameVariables} from "@/lib/helpers/utils"
-import {createNewTestset, loadTestset, updateTestset} from "@/lib/services/api"
+import {createNewTestset, loadTestset, updateTestset, useLoadTestsetsList} from "@/lib/services/api"
 import {Button, Drawer, Form, Input, Modal, Select, Typography, message} from "antd"
 import {useRouter} from "next/router"
-import React, {useCallback, useState} from "react"
+import React, {useCallback, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
 
@@ -22,24 +22,47 @@ const useStyles = createUseStyles({
 })
 
 type Props = React.ComponentProps<typeof Drawer> & {
-    testsets: testset[]
     params: Record<string, string>
 }
 
-const AddToTestSetDrawer: React.FC<Props> = ({testsets, params, ...props}) => {
+const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
     const classes = useStyles()
     const [form] = Form.useForm()
     const [selectedTestset, setSelectedTestset] = useState<string>()
     const [newTesetModalOpen, setNewTestsetModalOpen] = useState(false)
     const [loading, setLoading] = useState(false)
+    const dirty = useRef(false)
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
     const isNew = selectedTestset === "-1"
 
+    const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} =
+        useLoadTestsetsList(appName)
+
     // reset the form to load latest initialValues on drawer open
     useUpdateEffect(() => {
-        if (props.open) form.resetFields()
+        if (props.open) {
+            mutate()
+            form.resetFields()
+        } else dirty.current = false
     }, [props.open])
+
+    useUpdateEffect(() => {
+        if (isTestsetsLoadingError) globalErrorHandler(isTestsetsLoadingError)
+    }, [isTestsetsLoadingError])
+
+    const onClose = useCallback(() => {
+        if (dirty.current) {
+            AlertPopup({
+                title: "Unsaved changes",
+                message:
+                    "You have unsaved changes in your form that will be lost. Do you still want to close it?",
+                onOk: props.onClose,
+            })
+        } else {
+            props.onClose?.({} as any)
+        }
+    }, [props.onClose])
 
     const addToTestSet = useCallback(
         (name: string, csvdata: Record<string, string>[], rowData: Record<string, string>) => {
@@ -145,12 +168,16 @@ const AddToTestSetDrawer: React.FC<Props> = ({testsets, params, ...props}) => {
                         className={classes.selector}
                         value={selectedTestset}
                         onChange={setSelectedTestset}
+                        loading={isTestsetsLoading || isTestsetsLoadingError}
                         options={[
                             {
                                 value: "-1",
                                 label: <Typography.Link>+ Add new</Typography.Link>,
                             },
-                            ...testsets.map((item) => ({label: item.name, value: item._id})),
+                            ...(testsets || []).map((item: testset) => ({
+                                label: item.name,
+                                value: item._id,
+                            })),
                         ]}
                     />
                     <Button
@@ -164,8 +191,15 @@ const AddToTestSetDrawer: React.FC<Props> = ({testsets, params, ...props}) => {
                 </div>
             }
             {...props}
+            onClose={onClose}
         >
-            <Form form={form} initialValues={params} layout="vertical" onFinish={onFinish}>
+            <Form
+                onValuesChange={() => (dirty.current = true)}
+                form={form}
+                initialValues={params}
+                layout="vertical"
+                onFinish={onFinish}
+            >
                 {Object.keys(params).map((name) => (
                     <Form.Item key={name} label={renameVariables(name)} name={name}>
                         <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
