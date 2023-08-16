@@ -42,7 +42,10 @@ def generate(
     prompt_template: TextParam = default_prompt,
 ) -> str:
     llm = OpenAI(temperature=temperature)
-    prompt = PromptTemplate(input_variables=["text"], template=prompt_template,)
+    prompt = PromptTemplate(
+        input_variables=["text"],
+        template=prompt_template,
+    )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(text=text)
 

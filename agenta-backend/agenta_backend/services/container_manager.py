@@ -57,6 +57,6 @@ def build_image_job(
         log = "Error building Docker image:\n"
         log += str(ex) + "\n"
         logger.error(log)
-        raise HTTPException(status_code=500, detail=log)
+        raise HTTPException(status_code=500, detail=str(ex))
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))

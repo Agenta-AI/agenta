@@ -13,7 +13,10 @@ def completion(
     model: ag.MultipleChoiceParam = ag.MultipleChoiceParam(1, [1, 2]),
 ) -> str:
     llm = OpenAI()
-    prompt = PromptTemplate(input_variables=["product"], template=prompt_template,)
+    prompt = PromptTemplate(
+        input_variables=["product"],
+        template=prompt_template,
+    )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(product=product)
 
