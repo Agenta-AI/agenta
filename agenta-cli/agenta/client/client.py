@@ -29,7 +29,7 @@ def add_variant_to_server(app_name: str, variant_name: str, image: Image, host: 
         timeout=600,
     )
     if response.status_code != 200:
-        error_message = response.text
+        error_message = response.json()["detail"]
         raise APIRequestError(
             f"Request to app_variant endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
@@ -51,7 +51,7 @@ def start_variant(app_name: str, variant_name: str, host: str) -> str:
         timeout=600,
     )
     if response.status_code != 200:
-        error_message = response.text
+        error_message = response.json()["detail"]
         raise APIRequestError(
             f"Request to start variant endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
@@ -74,7 +74,7 @@ def list_variants(app_name: str, host: str) -> List[AppVariant]:
 
     # Check for successful request
     if response.status_code != 200:
-        error_message = response.text
+        error_message = response.json()["detail"]
         raise APIRequestError(
             f"Request to list_variants endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
@@ -100,7 +100,7 @@ def remove_variant(app_name: str, variant_name: str, host: str):
 
     # Check for successful request
     if response.status_code != 200:
-        error_message = response.text
+        error_message = response.json()["detail"]
         raise APIRequestError(
             f"Request to remove_variant endpoint failed with status code {response.status_code} and error message: {error_message}"
         )
@@ -121,7 +121,7 @@ def update_variant_image(app_name: str, variant_name: str, image: Image, host: s
         timeout=600,
     )
     if response.status_code != 200:
-        error_message = response.text
+        error_message = response.json()["detail"]
         raise APIRequestError(
             f"Request to update app_variant failed with status code {response.status_code} and error message: {error_message}."
         )
@@ -140,12 +140,14 @@ def send_docker_tar(
         )
 
     if response.status_code == 500:
-        error_msg = "Serving the variant failed. Here's how you can solve the issue:\n"
+        response_error = response.json()["detail"]
+        error_msg = "Serving the variant failed.\n"
+        error_msg += f"Log: {response_error}\n"
+        error_msg += "Here's how you may be able to solve the issue:\n"
         error_msg += "- First, make sure that the requirements.txt file has all the dependencies that you need.\n"
         error_msg += "- Second, check the Docker logs for the backend image to see the error when running the Docker container."
         raise Exception(error_msg)
 
     response.raise_for_status()
     image = Image.parse_obj(response.json())
-
     return image

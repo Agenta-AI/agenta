@@ -6,6 +6,7 @@ import {Parameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
 import {TestContext} from "../TestContextProvider"
 import LoadTestsModal from "../LoadTestsModal"
+import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 
 interface TestViewProps {
     URIPath: string | null
@@ -15,19 +16,18 @@ interface TestViewProps {
 
 interface BoxComponentProps {
     inputParams: Parameter[] | null
-    URIPath: string | null
     testData: Record<string, string>
     testIndex: number
     setTestList: Dispatch<SetStateAction<Record<string, string>[]>>
     handleRun: (testData: Record<string, string>, testIndex: number) => Promise<void>
     results: string
     resultsList: string[]
+    onAddToTestset: (params: Record<string, string>) => void
     error: boolean
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
     inputParams,
-    URIPath,
     testData,
     testIndex,
     setTestList,
@@ -35,6 +35,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     results,
     resultsList,
     error,
+    onAddToTestset,
 }) => {
     const {TextArea} = Input
 
@@ -51,6 +52,16 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             newState[testIndex] = {...newState[testIndex], [inputParamName]: newValue}
             return newState
         })
+    }
+
+    const handleAddToTestset = () => {
+        const params: Record<string, string> = {}
+        inputParamsNames.forEach((name) => {
+            params[name] = testData[name] || ""
+        })
+        params.correct_answer = results
+
+        onAddToTestset(params)
     }
 
     return (
@@ -80,7 +91,13 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     ))}
                 </Row>
                 <Row style={{marginTop: "16px"}}>
-                    <Col span={24} style={{textAlign: "right"}}>
+                    <Col
+                        span={24}
+                        style={{justifyContent: "flex-end", display: "flex", gap: "0.75rem"}}
+                    >
+                        <Button shape="round" icon={<PlusOutlined />} onClick={handleAddToTestset}>
+                            Add to Test Set
+                        </Button>
                         <Button
                             type="primary"
                             shape="round"
@@ -114,8 +131,8 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 
 const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
     const {testList, setTestList} = useContext(TestContext)
-
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
+    const [params, setParams] = useState<Record<string, string> | null>(null)
 
     const [errorList, setErrorList] = useState<boolean[]>(testList.map(() => false))
 
@@ -164,7 +181,6 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             })
 
             const results = await Promise.all(resultsPromises)
-
             results.forEach((result, index) => {
                 newResultsList[index] = result
             })
@@ -230,7 +246,6 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 <BoxComponent
                     key={index}
                     inputParams={inputParams}
-                    URIPath={URIPath}
                     testData={testData}
                     testIndex={index}
                     setTestList={setTestList}
@@ -238,6 +253,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                     results={resultsList[index]}
                     resultsList={resultsList}
                     error={errorList[index]}
+                    onAddToTestset={setParams}
                 />
             ))}
             <Button
@@ -254,6 +270,13 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             >
                 Add Row
             </Button>
+
+            <AddToTestSetDrawer
+                open={!!params}
+                onClose={() => setParams(null)}
+                destroyOnClose
+                params={params || {}}
+            />
         </div>
     )
 }
