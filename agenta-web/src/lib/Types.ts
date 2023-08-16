@@ -103,6 +103,8 @@ export interface Template {
     id: number
     image: {
         name: string
+        title: string
+        description: string
     }
 }
 
