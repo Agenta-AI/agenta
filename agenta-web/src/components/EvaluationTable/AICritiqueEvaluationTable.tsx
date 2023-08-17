@@ -177,9 +177,8 @@ Answer ONLY with one of the given grading or evaluation options.
                 setRowValue(rowIndex, columnName, result)
                 await evaluate(rowIndex)
                 setShouldFetchResults(true)
-            } catch (e: any) {
-                console.error("Error:", e)
-                message.error(e.cause)
+            } catch (e) {
+                message.error("Oops! Something went wrong")
             }
         }
     }

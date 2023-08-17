@@ -141,9 +141,9 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
                 evaluate(rowIndex)
-            } catch (e: any) {
-                console.error("Error:", e)
-                message.error(e.cause)
+            } catch (e) {
+                setRowValue(rowIndex, columnName, "")
+                message.error("Oops! Something went wrong")
             }
         })
     }
