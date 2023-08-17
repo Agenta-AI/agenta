@@ -25,15 +25,8 @@ const ViewNavigation: React.FC<Props> = ({
 }) => {
     const router = useRouter()
     const appName = router.query.app_name as unknown as string
-    const {
-        inputParams,
-        optParams,
-        URIPath,
-        isError,
-        error,
-        isParamSaveLoading,
-        saveOptParams,
-    } = useVariant(appName, variant)
+    const {inputParams, optParams, URIPath, isError, error, isParamSaveLoading, saveOptParams} =
+        useVariant(appName, variant)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
 
     if (isError) {
