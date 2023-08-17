@@ -72,6 +72,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [dissimilarAnswers, setDissimilarAnswers] = useState<number>(0)
     const [similarAnswers, setSimilarAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
+    const [loadSpinner, setLoadingSpinners] = useState(false)
 
     const {Text} = Typography
 
@@ -110,6 +111,9 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     }
 
     const runAllEvaluations = async () => {
+
+        // start loading spinner 
+        setLoadingSpinners(true)
         const promises: Promise<void>[] = []
 
         for (let i = 0; i < rows.length; i++) {
@@ -146,6 +150,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 console.error("Error:", e)
             }
         })
+
     }
 
     /**
@@ -184,7 +189,9 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 evaluation.evaluationType,
             )
                 .then((data) => {
+                    // NOTE: both rows are set in the UI and neither of them disrupt the other
                     setRowValue(rowNumber, "similarity", similarity)
+                    setRowValue(rowNumber, "score", data.score)
                     if (isSimilar) {
                         setSimilarAnswers((prevSimilar) => prevSimilar + 1)
                     } else {
@@ -312,10 +319,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 }
 
                 return (
-                    <Spin spinning={rows[rowIndex].score === "loading" ? true : false}>
+                    <Spin spinning={loadSpinner}>
                         <Space>
                             <div>
-                                {rows[rowIndex].score !== "" && (
+                                {!loadSpinner && rows[rowIndex].score !== "" && (
                                     <Tag color={tagColor} style={{fontSize: "14px"}}>
                                         {record.score}
                                     </Tag>
@@ -341,11 +348,16 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 }
 
                 const similarity = text
+                if (similarity !== undefined) {
+                    setTimeout(() => {
+                        setLoadingSpinners(false)
+                    }, 4000)
+                }
                 return (
-                    <Spin spinning={similarity ? false : true}>
+                    <Spin spinning={loadSpinner}>
                         <Space>
                             <div>
-                                {similarity !== undefined && (
+                                {!loadSpinner && similarity !== undefined && (
                                     <Tag color={tagColor} style={{fontSize: "14px"}}>
                                         {similarity.toFixed(5)}
                                     </Tag>
