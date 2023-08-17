@@ -185,7 +185,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             )
                 .then((data) => {
                     setRowValue(rowNumber, "similarity", similarity)
-                    setRowValue(rowNumber, "score", data.score)
                     if (isSimilar) {
                         setSimilarAnswers((prevSimilar) => prevSimilar + 1)
                     } else {
@@ -340,13 +339,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 } else if (record.score === "false") {
                     tagColor = "red"
                 }
-
-                const similarity = rows[rowIndex].similarity
+                
+                const similarity = text
                 return (
                     <Spin spinning={similarity ? false : true}>
                         <Space>
                             <div>
-                                {similarity != undefined && (
+                                {similarity !== undefined && (
                                     <Tag color={tagColor} style={{fontSize: "14px"}}>
                                         {similarity.toFixed(5)}
                                     </Tag>
