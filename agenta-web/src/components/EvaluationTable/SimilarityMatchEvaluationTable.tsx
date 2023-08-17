@@ -111,8 +111,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     }
 
     const runAllEvaluations = async () => {
-
-        // start loading spinner 
+        // start loading spinner
         setLoadingSpinners(true)
         const promises: Promise<void>[] = []
 
@@ -150,7 +149,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 console.error("Error:", e)
             }
         })
-
     }
 
     /**
