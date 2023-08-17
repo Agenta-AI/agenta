@@ -1,5 +1,6 @@
 import logging
 import os
+from time import sleep
 from typing import List
 
 import docker
@@ -71,12 +72,20 @@ def start_container(image_name, app_name, variant_name) -> URI:
             network="agenta-network",
             name=f"{app_name}-{variant_name}",
         )
-        return URI(uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}")
+        # Check the container's status
+        sleep(0.5)
+        container.reload()  # Refresh container data
+        if container.status == "exited":
+            logs = container.logs().decode("utf-8")
+            raise Exception(f"Container exited immediately. Docker Logs: {logs}")
+        return URI(
+            uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}"
+        )
     except docker.errors.APIError as error:
         # Container failed to run, get the logs
         try:
             failed_container = client.containers.get(f"{app_name}-{variant_name}")
-            logs = failed_container.logs().decode('utf-8')
+            logs = failed_container.logs().decode("utf-8")
             raise Exception(f"Docker Logs: {logs}") from error
         except Exception as e:
             return f"Failed to fetch logs: {str(e)} \n Exception Error: {str(error)}"
