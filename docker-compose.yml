@@ -95,6 +95,54 @@ services:
             mongo:
                 condition: service_healthy
 
+    postgres:
+        image: 'postgres:latest'
+        environment:
+            POSTGRES_USER: supertokens_user
+            POSTGRES_PASSWORD: somePassword
+            POSTGRES_DB: supertokens
+        ports:
+            - 5432:5432
+        networks:
+            - agenta-network
+        restart: unless-stopped
+        healthcheck:
+            test: ['CMD', 'pg_isready', '-U', 'supertokens_user', '-d', 'supertokens']
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    supertokens:
+        image: registry.supertokens.io/supertokens/supertokens-postgresql:6.0
+        depends_on:
+            mongo:
+                condition: service_healthy
+        ports:
+            - 3567:3567
+        environment:
+            POSTGRESQL_CONNECTION_URI: "postgresql://supertokens_user:somePassword@postgres:5432/supertokens"
+        networks:
+            - agenta-network
+        restart: unless-stopped
+        healthcheck:
+          test: >
+            bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+    pgadmin:
+        container_name: pgadmin4_container
+        image: dpage/pgadmin4
+        restart: always
+        environment:
+            PGADMIN_DEFAULT_EMAIL: admin@admin.com
+            PGADMIN_DEFAULT_PASSWORD: root
+        ports:
+            - "5050:80"
+        networks:
+            - agenta-network
+
 networks:
     agenta-network:
         name: agenta-network

@@ -1,6 +1,9 @@
 """Routes for image-related operations (push, remove).
 Does not deal with the instanciation of the images
 """
+from supertokens_python.recipe.session.framework.fastapi import verify_session
+from supertokens_python.recipe.session import SessionContainer
+
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -8,7 +11,7 @@ from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import URI, App, AppVariant, Image
 from agenta_backend.services import app_manager, db_manager, docker_utils
 from docker.errors import DockerException
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Depends
 from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter()
@@ -36,7 +39,7 @@ async def list_app_variants(app_name: Optional[str] = None):
 
 
 @router.get("/list_apps/", response_model=List[App])
-async def list_apps() -> List[App]:
+async def list_apps(session: SessionContainer = Depends(verify_session())) -> List[App]:
     """Lists the apps from our repository.
 
     Raises:
@@ -46,6 +49,8 @@ async def list_apps() -> List[App]:
         List[App]
     """
     try:
+        user_id = session.get_user_id()
+        print(user_id)
         apps = db_manager.list_apps()
         return apps
     except Exception as e:
