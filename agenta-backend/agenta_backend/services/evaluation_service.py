@@ -55,8 +55,7 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
             columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
             """
             raise HTTPException(
-                status_code=400,
-                detail=msg,
+                status_code=400, detail=msg,
             )
 
         evaluation_scenario = {
@@ -200,7 +199,9 @@ def evaluate_with_ai_critique(
     for input_item in llm_app_inputs:
         chain_run_args[input_item["input_name"]] = input_item["input_value"]
 
-    prompt = PromptTemplate(input_variables=input_variables, template=evaluation_prompt_template)
+    prompt = PromptTemplate(
+        input_variables=input_variables, template=evaluation_prompt_template
+    )
     chain = LLMChain(llm=llm, prompt=prompt)
 
     output = chain.run(**chain_run_args)

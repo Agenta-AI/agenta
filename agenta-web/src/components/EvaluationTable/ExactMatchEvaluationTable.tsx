@@ -152,10 +152,9 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
                 evaluate(rowIndex)
-            } catch (e: any) {
+            } catch (e) {
                 setRowValue(rowIndex, columnName, "")
-                console.error("Error:", e)
-                message.error(e.cause)
+                message.error("Oops! Something went wrong")
             }
         })
     }
