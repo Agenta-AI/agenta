@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {CaretRightOutlined, LeftOutlined, RightOutlined} from "@ant-design/icons"
+import {CaretRightOutlined, ContainerOutlined, LeftOutlined, RightOutlined} from "@ant-design/icons"
 import {Button, Input, Space, Spin, Table} from "antd"
 import {Variant, Parameter} from "@/lib/Types"
 import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
@@ -25,7 +25,6 @@ const useStyles = createUseStyles({
         flex: 1,
         border: "1px solid #000",
         borderRadius: 10,
-        height: 500,
         margin: 10,
         display: "flex",
         padding: 20,
@@ -34,9 +33,10 @@ const useStyles = createUseStyles({
             display: "flex",
             alignItems: "flex-start",
             flexDirection: "column",
-            "& input":{
-                width: "100%"
-            }
+            "& input": {
+                width: "100%",
+                marginBottom: 10,
+            },
         },
         "& > div:nth-child(2)": {
             flex: 1,
@@ -51,17 +51,31 @@ const useStyles = createUseStyles({
         display: "flex",
         gap: 10,
     },
+    variant: {
+        width: "100%",
+        maxWidth: 400,
+        margin: "0 auto",
+    },
     variantData: {
-        height: 300,
-        border: "1px solid",
+        border: "1px solid #000",
         borderRadius: 10,
         margin: "20px auto",
-        maxWidth: 500,
         width: "100%",
         overflowY: "auto",
         padding: 10,
-        display: "grid",
-        placeItems: "center",
+        height: 350,
+    },
+    empty: {
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        margin: "20px 0",
+        "& svg": {
+            fontSize: 40,
+        },
+        "& p": {
+            fontSize: 20,
+        },
     },
 })
 
@@ -425,7 +439,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                     </span>
                                     <span> )</span>
                                 </p>
-                                {currentScenario.inputs.map((input, index) => (
+                                {currentScenario?.inputs.map((input, index) => (
                                     <div key={index}>
                                         <Input
                                             placeholder={input.input_name}
@@ -446,7 +460,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
                             <div>
                                 <div className={classes.variantBox}>
-                                    <div style={{width: "100%", maxWidth: 400, margin: "0 auto"}}>
+                                    <div className={classes.variant}>
                                         <p style={{textAlign: "center"}}>
                                             App variant:{" "}
                                             <span
@@ -465,7 +479,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                             {rows[currentSlide]?.columnData0}
                                         </div>
                                     </div>
-                                    <div style={{width: "100%", maxWidth: 400, margin: "0 auto"}}>
+                                    <div className={classes.variant}>
                                         <p style={{textAlign: "center"}}>
                                             App variant:{" "}
                                             <span
@@ -544,7 +558,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     </div>
                 </div>
             ) : (
-                "Empty"
+                <div className={classes.empty}>
+                    <ContainerOutlined />
+                    <p>No Data</p>
+                </div>
             )}
         </>
     )
