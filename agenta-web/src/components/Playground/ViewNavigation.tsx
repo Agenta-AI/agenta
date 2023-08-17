@@ -29,7 +29,6 @@ const ViewNavigation: React.FC<Props> = ({
         inputParams,
         optParams,
         URIPath,
-        isLoading,
         isError,
         error,
         isParamSaveLoading,
@@ -37,9 +36,6 @@ const ViewNavigation: React.FC<Props> = ({
     } = useVariant(appName, variant)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
 
-    if (isLoading) {
-        return <div>Loading...</div>
-    }
     if (isError) {
         let variantDesignator = variant.templateVariantName
         let imageName = `agenta-server/${appName.toLowerCase()}_`
