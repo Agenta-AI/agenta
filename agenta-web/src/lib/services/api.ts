@@ -94,16 +94,15 @@ export function callVariant(
         })
         .catch((error) => {
             if (error.response && error.response.status === 500) {
-                throw new Error(error.response.data.error + " " + error.response.data.traceback)
+                throw new Error(error.response.data.error + " " + error.response.data.traceback, {
+                    cause: error.response.data.error,
+                })
             }
             if (error.response && error.response.status === 422) {
-                throw new Error(
-                    `Unprocessable Entity: The server understands the content type of the request, and the syntax of the request is correct, but it was unable to process the contained instructions. Data: ${JSON.stringify(
-                        error.response.data,
-                        null,
-                        2,
-                    )}`,
-                )
+                let cause = `Unprocessable Entity: The server understands the content type of the request, and the syntax of the request is correct, but it was unable to process the contained instructions.`
+                throw new Error(`${cause} Data: ${JSON.stringify(error.response.data, null, 2)}`, {
+                    cause,
+                })
             }
             throw error // If it's not a 500 status, or if error.response is undefined, rethrow the error so it can be handled elsewhere.
         })

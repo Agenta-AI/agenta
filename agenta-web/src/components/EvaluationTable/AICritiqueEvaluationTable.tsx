@@ -1,7 +1,20 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {BarChartOutlined, LineChartOutlined} from "@ant-design/icons"
-import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, Typography} from "antd"
+import {
+    Button,
+    Card,
+    Col,
+    Input,
+    Row,
+    Space,
+    Spin,
+    Statistic,
+    Table,
+    Tag,
+    Typography,
+    message,
+} from "antd"
 import {Evaluation, Variant} from "@/lib/Types"
 import {
     updateEvaluationScenario,
@@ -164,8 +177,9 @@ Answer ONLY with one of the given grading or evaluation options.
                 setRowValue(rowIndex, columnName, result)
                 await evaluate(rowIndex)
                 setShouldFetchResults(true)
-            } catch (e) {
+            } catch (e: any) {
                 console.error("Error:", e)
+                message.error(e.cause)
             }
         }
     }

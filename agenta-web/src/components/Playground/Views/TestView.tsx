@@ -155,13 +155,10 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             const newResultsList = [...resultsList]
             const newErrorList = [...errorList]
 
-            Object.entries(OpenAiErrors).map(([key, value]) => {
-                if (e.toString().includes(key)) {
-                    newResultsList[testIndex] = value
-                    newErrorList[testIndex] = true
-                    message.error(`${value} at row ${testIndex + 1}`)
-                }
-            })
+            newResultsList[testIndex] = e.cause
+            newErrorList[testIndex] = true
+
+            message.error(e.cause)
 
             setResultsList(newResultsList)
             setErrorList(newErrorList)
@@ -185,20 +182,14 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 newResultsList[index] = result
             })
         } catch (e: any) {
-            const messageError: string[] = []
             const newErrorList = [...errorList]
             newResultsList.forEach((_, index) => {
-                Object.entries(OpenAiErrors).map(([key, value]) => {
-                    if (e.toString().includes(key)) {
-                        newResultsList[index] = value
-                        newErrorList[index] = true
-                        if (!messageError.includes(value)) messageError.push(value)
-                    }
-                })
+                newResultsList[index] = e.cause
+                newErrorList[index] = true
             })
-            messageError.forEach((msg) => {
-                message.error(`${msg} at some rows`)
-            })
+
+            message.error(e.cause)
+
             setErrorList(newErrorList)
         }
 
@@ -282,9 +273,3 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 }
 
 export default App
-
-const OpenAiErrors = {
-    "Error: You exceeded your current quota, please check your plan and billing details":
-        "You exceeded your current quota, please check your plan and billing details.",
-    "Error: Error communicating with OpenAI": "Error communicating with OpenAI.",
-}

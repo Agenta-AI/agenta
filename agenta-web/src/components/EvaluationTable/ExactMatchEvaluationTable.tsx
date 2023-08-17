@@ -1,7 +1,20 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {LineChartOutlined} from "@ant-design/icons"
-import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, Typography} from "antd"
+import {
+    Button,
+    Card,
+    Col,
+    Input,
+    Row,
+    Space,
+    Spin,
+    Statistic,
+    Table,
+    Tag,
+    Typography,
+    message,
+} from "antd"
 import {Variant} from "@/lib/Types"
 import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -139,8 +152,9 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
                 evaluate(rowIndex)
-            } catch (e) {
+            } catch (e: any) {
                 console.error("Error:", e)
+                message.error(e.cause)
             }
         })
     }
