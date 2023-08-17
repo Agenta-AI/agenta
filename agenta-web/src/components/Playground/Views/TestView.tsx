@@ -158,7 +158,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             newResultsList[testIndex] = e.cause
             newErrorList[testIndex] = true
 
-            message.error(e.cause)
+            message.error(`${e.cause} at row ${testIndex + 1}`)
 
             setResultsList(newResultsList)
             setErrorList(newErrorList)
