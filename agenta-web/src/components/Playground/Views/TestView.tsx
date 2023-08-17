@@ -1,5 +1,5 @@
 import React, {Dispatch, SetStateAction, useContext, useState} from "react"
-import {Button, Input, Card, Row, Col, Space, message} from "antd"
+import {Button, Input, Card, Row, Col, Space} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {Parameter} from "@/lib/Types"
@@ -7,6 +7,7 @@ import {renameVariables} from "@/lib/helpers/utils"
 import {TestContext} from "../TestContextProvider"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
+import {DeleteOutlined} from "@ant-design/icons"
 
 interface TestViewProps {
     URIPath: string | null
@@ -23,7 +24,7 @@ interface BoxComponentProps {
     results: string
     resultsList: string[]
     onAddToTestset: (params: Record<string, string>) => void
-    error: boolean
+    handleDeleteRow: (testIndex: number) => void
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -34,8 +35,8 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     handleRun,
     results,
     resultsList,
-    error,
     onAddToTestset,
+    handleDeleteRow,
 }) => {
     const {TextArea} = Input
 
@@ -65,67 +66,68 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     }
 
     return (
-        <>
-            <Card
-                style={{
-                    marginTop: 16,
-                    border: "1px solid #ccc",
-                    marginRight: "24px",
-                    marginLeft: "12px",
-                }}
-                bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-            >
-                <h4 style={{padding: "0px", marginTop: "8px", marginBottom: "0px"}}>
-                    Input parameters
-                </h4>
+        <Card
+            style={{
+                marginTop: 16,
+                border: "1px solid #ccc",
+                marginRight: "24px",
+                marginLeft: "12px",
+            }}
+            bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
+        >
+            <Row style={{display: "flex", alignItems: "center", justifyContent: "space-between"}}>
+                <h4>Input parameters</h4>
+                <Button
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleDeleteRow(testIndex)}
+                ></Button>
+            </Row>
 
-                <Row style={{marginTop: "0px"}}>
-                    {inputParamsNames.map((key, index) => (
-                        <TextArea
-                            key={index}
-                            value={testData[key]}
-                            placeholder={renameVariables(key)}
-                            onChange={(e) => handleInputParamValChange(key, e.target.value)}
-                            style={{height: "100%", width: "100%", marginTop: "16px"}}
-                        />
-                    ))}
-                </Row>
-                <Row style={{marginTop: "16px"}}>
-                    <Col
-                        span={24}
-                        style={{justifyContent: "flex-end", display: "flex", gap: "0.75rem"}}
-                    >
-                        <Button shape="round" icon={<PlusOutlined />} onClick={handleAddToTestset}>
-                            Add to Test Set
-                        </Button>
-                        <Button
-                            type="primary"
-                            shape="round"
-                            icon={<CaretRightOutlined />}
-                            onClick={() => handleRun(testData, testIndex)}
-                            style={{width: "100px"}}
-                            loading={resultsList[testIndex] === "Loading..."}
-                            disabled={resultsList[testIndex] === "Loading..."}
-                        >
-                            Run
-                        </Button>
-                    </Col>
-                </Row>
-                <Row style={{marginTop: "16px", marginBottom: "16px"}}>
+            <Row style={{marginTop: "0px"}}>
+                {inputParamsNames.map((key, index) => (
                     <TextArea
-                        value={results}
-                        rows={6}
-                        placeholder="Results will be shown here"
-                        disabled
-                        style={{
-                            height: "100%",
-                            width: "100%",
-                            color: error ? "red" : undefined,
-                        }}
+                        key={index}
+                        value={testData[key]}
+                        placeholder={renameVariables(key)}
+                        onChange={(e) => handleInputParamValChange(key, e.target.value)}
+                        style={{height: "100%", width: "100%", marginTop: "16px"}}
                     />
-                </Row>
-            </Card>
-        </>
+                ))}
+            </Row>
+            <Row style={{marginTop: "16px"}}>
+                <Col
+                    span={24}
+                    style={{justifyContent: "flex-end", display: "flex", gap: "0.75rem"}}
+                >
+                    <Button shape="round" icon={<PlusOutlined />} onClick={handleAddToTestset}>
+                        Add to Test Set
+                    </Button>
+                    <Button
+                        type="primary"
+                        shape="round"
+                        icon={<CaretRightOutlined />}
+                        onClick={() => handleRun(testData, testIndex)}
+                        style={{width: "100px"}}
+                        loading={resultsList[testIndex] === "Loading..."}
+                        disabled={resultsList[testIndex] === "Loading..."}
+                    >
+                        Run
+                    </Button>
+                </Col>
+            </Row>
+            <Row style={{marginTop: "16px", marginBottom: "16px"}}>
+                <TextArea
+                    value={results}
+                    rows={6}
+                    placeholder="Results will be shown here"
+                    disabled
+                    style={{
+                        height: "100%",
+                        width: "100%",
+                    }}
+                />
+            </Row>
+        </Card>
     )
 }
 
@@ -134,74 +136,66 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
 
-    const [errorList, setErrorList] = useState<boolean[]>(testList.map(() => false))
-
     const handleRun = async (testData: Record<string, string>, testIndex: number) => {
         try {
             const newResultsList = [...resultsList]
             newResultsList[testIndex] = "Loading..."
-            const newErrorList = [...errorList]
-            newErrorList[testIndex] = false
-
             setResultsList(newResultsList)
-            setErrorList(newErrorList)
 
             const result = await callVariant(testData, inputParams, optParams, URIPath)
 
             const newResultList2 = [...resultsList]
             newResultList2[testIndex] = result
             setResultsList(newResultList2)
-        } catch (e: any) {
+        } catch (e) {
             const newResultsList = [...resultsList]
-            const newErrorList = [...errorList]
-
-            newResultsList[testIndex] = e.cause
-            newErrorList[testIndex] = true
-
-            message.error(`${e.cause} at row ${testIndex + 1}`)
-
+            newResultsList[testIndex] =
+                "The code has resulted in the following error: \n\n --------------------- \n" +
+                e +
+                "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
             setResultsList(newResultsList)
-            setErrorList(newErrorList)
         }
     }
 
     const handleRunAll = async () => {
         const newResultsList = testList.map(() => "Loading...")
-
         setResultsList(testList.map(() => "Loading..."))
-
-        setErrorList(errorList.map(() => false))
-
         try {
             const resultsPromises = testList.map(async (testData, index) => {
                 return await callVariant(testData, inputParams, optParams, URIPath)
             })
-
             const results = await Promise.all(resultsPromises)
             results.forEach((result, index) => {
                 newResultsList[index] = result
             })
-        } catch (e: any) {
-            const newErrorList = [...errorList]
+        } catch (e) {
             newResultsList.forEach((_, index) => {
-                newResultsList[index] = e.cause
-                newErrorList[index] = true
+                newResultsList[index] =
+                    "The code has resulted in the following error: \n\n --------------------- \n" +
+                    e +
+                    "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
             })
-
-            message.error(e.cause)
-
-            setErrorList(newErrorList)
         }
-
         setResultsList(newResultsList)
     }
 
     const handleAddRow = () => {
         setTestList([...testList, {}])
+        setResultsList([...testList, {}].map(() => ""))
     }
 
     const handleSetNewTests: (tests: Record<string, string>[]) => void = (tests) => {
         setTestList([...tests])
+        setResultsList(tests.map(() => ""))
+    }
+
+    const handleDeleteRow = (testIndex: number) => {
+        if (resultsList.length < 2) return
+        if (resultsList[testIndex] != "") {
+            setResultsList(resultsList.filter((_, index) => index != testIndex))
+        }
+        const newTestList = testList.filter((_, index) => index != testIndex)
+        setTestList(newTestList)
     }
 
     return (
@@ -243,8 +237,8 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                     handleRun={(testData) => handleRun(testData, index)}
                     results={resultsList[index]}
                     resultsList={resultsList}
-                    error={errorList[index]}
                     onAddToTestset={setParams}
+                    handleDeleteRow={handleDeleteRow}
                 />
             ))}
             <Button
