@@ -1,11 +1,12 @@
 import {useState} from "react"
 import {useRouter} from "next/router"
-import {Input, Modal, ConfigProvider, theme, Spin, Button} from "antd"
+import {Input, Modal, ConfigProvider, theme, Spin} from "antd"
 import useSWR from "swr"
 import AppCard from "./AppCard"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
+import Welcome from "./Welcome"
 
 const fetcher = (...args: any[]) => fetch(...args).then((res) => res.json())
 
@@ -85,86 +86,7 @@ const AppSelector: React.FC = () => {
                         <TipsAndFeatures />
                     </>
                 ) : (
-                    <>
-                        <div>
-                            <h1 style={{fontSize: "42px", margin: "20px 0"}}>
-                                Welcome to <span style={{color: "#0e9c1a"}}>Agenta</span>
-                            </h1>
-                            <h2
-                                style={{
-                                    fontSize: "24px",
-                                    margin: "20px 0",
-                                    borderBottom: "1px solid #0e9c1a",
-                                    paddingBottom: "1rem",
-                                }}
-                            >
-                                The developer-first open source LLMOps platform.
-                            </h2>
-                        </div>
-                        <div
-                            style={{
-                                padding: "0 20px",
-                                lineHeight: 1.7,
-                                marginBottom: "2rem",
-                            }}
-                        >
-                            <p>
-                                Agenta is an open-source developer first LLMOps platform to
-                                streamline the process of building LLM-powered applications.
-                                Building LLM-powered apps is an iterative process with lots of
-                                prompt-engineering and testing multiple variants.
-                                <br />
-                                Agenta brings the CI/CD platform to this process by enabling you to
-                                quickly iterate, experiment, evaluate, and optimize your LLM apps.
-                                All without imposing any restrictions on your choice of framework,
-                                library, or model.
-                                <br />
-                            </p>
-
-                            <div>
-                                <span
-                                    style={{
-                                        fontWeight: 600,
-                                        fontSize: 15,
-                                        textTransform: "uppercase",
-                                    }}
-                                >
-                                    Read{" "}
-                                    <a href="https://docs.agenta.ai/introduction" target="_blank">
-                                        Documentation
-                                    </a>{" "}
-                                    on how to get started.
-                                </span>
-                            </div>
-                        </div>
-                        <div
-                            className="appSelectorEmpty"
-                            style={{
-                                backgroundColor: appTheme === "dark" ? "#111a2c" : "#e6f4ff",
-                            }}
-                        >
-                            <h1 style={{fontSize: 20}}>Get started creating your first LLM App</h1>
-
-                            <p>
-                                This guide assumes you have completed the installation process. If
-                                not, please follow our{" "}
-                                <a href="https://docs.agenta.ai/installation" target="_blank">
-                                    installation guide
-                                </a>
-                                .
-                            </p>
-
-                            <Button
-                                style={{
-                                    backgroundColor: "#1677ff",
-                                    border: "none",
-                                    color: "#fff",
-                                }}
-                            >
-                                Create New App
-                            </Button>
-                        </div>
-                    </>
+                    <Welcome onCreateAppClick={showAddModal} />
                 )}
 
                 <Modal
