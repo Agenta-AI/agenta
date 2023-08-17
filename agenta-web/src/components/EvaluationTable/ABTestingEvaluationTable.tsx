@@ -27,7 +27,7 @@ const useStyles = createUseStyles({
         borderRadius: 10,
         margin: 10,
         display: "flex",
-        padding: 20,
+        padding: "20px 10px",
         gap: 10,
         "& > div:nth-child(1)": {
             display: "flex",
@@ -36,6 +36,10 @@ const useStyles = createUseStyles({
             "& input": {
                 width: "100%",
                 marginBottom: 10,
+            },
+            "& > p": {
+                fontWeight: 700,
+                marginBottom: 20,
             },
         },
         "& > div:nth-child(2)": {
@@ -55,6 +59,10 @@ const useStyles = createUseStyles({
         width: "100%",
         maxWidth: 400,
         margin: "0 auto",
+        "& p": {
+            textAlign: "center",
+            fontWeight: 700,
+        },
     },
     variantData: {
         border: "1px solid #000",
@@ -302,7 +310,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             <div>
                                 <div className={classes.variantBox}>
                                     <div className={classes.variant}>
-                                        <p style={{textAlign: "center"}}>
+                                        <p>
                                             App variant:{" "}
                                             <span
                                                 style={{
@@ -321,7 +329,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                         </div>
                                     </div>
                                     <div className={classes.variant}>
-                                        <p style={{textAlign: "center"}}>
+                                        <p>
                                             App variant:{" "}
                                             <span
                                                 style={{
