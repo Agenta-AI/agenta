@@ -339,7 +339,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 } else if (record.score === "false") {
                     tagColor = "red"
                 }
-                
+
                 const similarity = text
                 return (
                     <Spin spinning={similarity ? false : true}>
