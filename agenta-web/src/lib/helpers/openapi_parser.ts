@@ -30,13 +30,14 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
                 enum: param["enum"] ? param.enum : [],
                 minimum: param["minimum"] ? param.minimum : 0,
                 maximum: param["maximum"] ? param.maximum : 1,
-            };
-        
-            if (schema.components.schemas[bodySchemaName].required !== undefined) {
-                parameter.required = schema.components.schemas[bodySchemaName].required.includes(name);
             }
-        
-            parameters.push(parameter);
+
+            if (schema.components.schemas[bodySchemaName].required !== undefined) {
+                parameter.required =
+                    schema.components.schemas[bodySchemaName].required.includes(name)
+            }
+
+            parameters.push(parameter)
         })
     }
 
