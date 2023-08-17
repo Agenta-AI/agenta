@@ -163,7 +163,7 @@ def start_variant(app_variant: AppVariant) -> URI:
         logger.info(
             f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
         )
-        
+
         return uri
 
     except Exception as e:
