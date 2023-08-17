@@ -15,7 +15,7 @@ class DictInput(dict):
         instance = super().__new__(cls, default_keys)
         if default_keys is None:
             default_keys = []
-        instance.data = {key: "" for key in default_keys}
+        instance.data = [key for key in default_keys]
         return instance
         
     @classmethod
