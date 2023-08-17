@@ -35,6 +35,7 @@ const ViewNavigation: React.FC<Props> = ({
         isParamSaveLoading,
         saveOptParams,
     } = useVariant(appName, variant)
+
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
 
     if (isLoading) {

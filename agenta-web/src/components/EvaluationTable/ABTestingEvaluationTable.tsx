@@ -1,7 +1,7 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
-import {Button, Input, Space, Spin, Table} from "antd"
+import {Button, Input, Space, Spin, Table, message} from "antd"
 import {Variant, Parameter} from "@/lib/Types"
 import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -146,8 +146,9 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
-            } catch (e) {
+            } catch (e: any) {
                 console.error("Error:", e)
+                message.error(e.cause)
             }
         })
     }
