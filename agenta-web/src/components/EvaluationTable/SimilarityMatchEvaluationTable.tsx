@@ -359,7 +359,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                             <div>
                                 {!loadSpinner && similarity !== undefined && (
                                     <Tag color={tagColor} style={{fontSize: "14px"}}>
-                                        {similarity.toFixed(5)}
+                                        {similarity.toFixed(2)}
                                     </Tag>
                                 )}
                             </div>
