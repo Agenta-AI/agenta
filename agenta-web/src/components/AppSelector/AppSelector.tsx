@@ -102,7 +102,7 @@ const AppSelector: React.FC = () => {
         })
         setTimeout(() => {
             router.push(`/apps/${newApp}/playground`)
-        }, 8000)
+        }, 10000)
     }
 
     useEffect(() => {
@@ -190,6 +190,11 @@ const AppSelector: React.FC = () => {
             })
             setFetchingTemplate(false)
         } else {
+            notification.info({
+                message: "Template Section",
+                description: "Creating variant from template image...",
+                duration: 15
+            })
             await createAppVariantFromTemplateImage(
                 newApp,
                 data.image_id,
