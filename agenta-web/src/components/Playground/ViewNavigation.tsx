@@ -1,5 +1,5 @@
 import React from "react"
-import {Col, Row, Divider, Button, Tooltip} from "antd"
+import {Col, Row, Divider, Button, Tooltip, Spin} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -25,8 +25,16 @@ const ViewNavigation: React.FC<Props> = ({
 }) => {
     const router = useRouter()
     const appName = router.query.app_name as unknown as string
-    const {inputParams, optParams, URIPath, isError, error, isParamSaveLoading, saveOptParams} =
-        useVariant(appName, variant)
+    const {
+        inputParams,
+        optParams,
+        URIPath,
+        isError,
+        error,
+        isParamSaveLoading,
+        saveOptParams,
+        isLoading,
+    } = useVariant(appName, variant)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
 
     if (isError) {
@@ -94,7 +102,7 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     return (
-        <div>
+        <Spin spinning={isLoading}>
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
@@ -119,7 +127,7 @@ const ViewNavigation: React.FC<Props> = ({
                     <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
                 </Col>
             </Row>
-        </div>
+        </Spin>
     )
 }
 
