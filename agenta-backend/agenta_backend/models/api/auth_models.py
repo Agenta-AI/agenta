@@ -12,17 +12,16 @@ class User(TimestampModel):
     id: str
     username: str
     email: str # switch to EmailStr when langchain support pydantic>=2.1
-    organization_id: int
+    organization_id: str
     
 
 class UserUpdate(BaseModel):
     username: Optional[str]
-    email: Optional[EmailStr]
+    email: Optional[str]
     updated_at: datetime = Field(datetime.utcnow())
     
     
 class Organization(TimestampModel):
-    id: str
     name: str
     description: Optional[str]
     
