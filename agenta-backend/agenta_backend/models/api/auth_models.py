@@ -1,5 +1,6 @@
-from pydantic import BaseModel, EmailStr, Optional, Field
+from typing import Optional
 from datetime import datetime
+from pydantic import BaseModel, Field
 
 
 class TimestampModel(BaseModel):
@@ -10,7 +11,7 @@ class TimestampModel(BaseModel):
 class User(TimestampModel):
     id: str
     username: str
-    email: EmailStr
+    email: str # switch to EmailStr when langchain support pydantic>=2.1
     organization_id: int
     
 
