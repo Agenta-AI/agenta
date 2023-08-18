@@ -21,7 +21,11 @@ logger.setLevel(logging.INFO)
 
 
 def build_image_job(
-    app_name: str, variant_name: str, tar_path: Path, image_name: str, temp_dir: Path,
+    app_name: str,
+    variant_name: str,
+    tar_path: Path,
+    image_name: str,
+    temp_dir: Path,
 ) -> Image:
     """Business logic for building a docker image from a tar file
 
