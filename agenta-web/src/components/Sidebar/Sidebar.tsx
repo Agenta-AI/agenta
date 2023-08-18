@@ -3,23 +3,21 @@ import {useRouter} from "next/router"
 import {
     RocketOutlined,
     AppstoreOutlined,
-    FileTextOutlined,
     DatabaseOutlined,
     CloudUploadOutlined,
     BarChartOutlined,
     LineChartOutlined,
-    MonitorOutlined,
-    UserOutlined,
+    LogoutOutlined,
     QuestionOutlined,
-    GlobalOutlined,
     DashboardOutlined,
     LockOutlined,
 } from "@ant-design/icons"
-import {Avatar, Layout, Menu, Modal, Space, Tag, Tooltip, theme} from "antd"
+import {Layout, Menu, Space, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import { signOut } from "supertokens-auth-react/recipe/passwordless";
 
 const {Sider} = Layout
 
@@ -56,6 +54,12 @@ const Sidebar: React.FC = () => {
         } else {
             return `/apps/${app_name}/${path}`
         }
+    }
+
+    const handleLogout = async () => {
+        await signOut().finally(() => {
+            router.push("/auth")
+        })
     }
 
     return (
@@ -204,6 +208,9 @@ const Sidebar: React.FC = () => {
                 >
                     <Menu.Item key="theme" icon={<DashboardOutlined />} onClick={toggleAppTheme}>
                         <span>{appTheme === "light" ? "Dark mode" : "Light mode"}</span>
+                    </Menu.Item>
+                    <Menu.Item key="help" icon={<LogoutOutlined />} onClick={handleLogout}>
+                        <span>Logout</span>
                     </Menu.Item>
                     <Menu.Item key="help" icon={<QuestionOutlined />}>
                         <Link href="https://docs.agenta.ai" target="_blank">
