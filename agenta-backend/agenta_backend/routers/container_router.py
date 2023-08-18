@@ -73,10 +73,10 @@ async def container_templates() -> Union[List[Template], str]:
     Returns:
         a list of `Template` objects.
     """
-    docker_arch =  await check_docker_arch()
-    if docker_arch == "unknown":
-        return "No templates were found, this is a mistake, please fill an issue"
-    templates = get_templates(docker_arch)
+    # docker_arch =  await check_docker_arch()
+    # if docker_arch == "unknown":
+    #     return "No templates were found, this is a mistake, please fill an issue"
+    templates = get_templates()
     return templates
 
 
