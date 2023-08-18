@@ -1,26 +1,26 @@
-import {useState, useEffect} from "react"
-import {useRouter} from "next/router"
-import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/router"
+import { PlusOutlined } from "@ant-design/icons"
+import { Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider } from "antd"
 import AppCard from "./AppCard"
-import {Template, AppTemplate, TemplateImage} from "@/lib/Types"
-import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {CloseCircleFilled} from "@ant-design/icons"
+import { Template, AppTemplate, TemplateImage } from "@/lib/Types"
+import { useAppTheme } from "../Layout/ThemeContextProvider"
+import { CloseCircleFilled } from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
+import { isAppNameInputValid } from "@/lib/helpers/utils"
+import { fetchApps, getTemplates, pullTemplateImage, startTemplate } from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
-import {createUseStyles} from "react-jss"
+import { createUseStyles } from "react-jss"
 
 type StyleProps = {
     themeMode: "dark" | "light"
 }
 
 const useStyles = createUseStyles({
-    cardsList: ({themeMode}: StyleProps) => ({
+    cardsList: ({ themeMode }: StyleProps) => ({
         display: "flex",
         flexWrap: "wrap",
         gap: 12,
@@ -40,8 +40,8 @@ const useStyles = createUseStyles({
 
 const AppSelector: React.FC = () => {
     const router = useRouter()
-    const {appTheme} = useAppTheme()
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const { appTheme } = useAppTheme()
+    const classes = useStyles({ themeMode: appTheme } as StyleProps)
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
@@ -202,7 +202,7 @@ const AppSelector: React.FC = () => {
         })
     }
 
-    const {data, error, isLoading} = fetchApps()
+    const { data, error, isLoading } = fetchApps()
 
     useEffect(() => {
         if (data) {
@@ -231,12 +231,12 @@ const AppSelector: React.FC = () => {
                     </div>
                 ) : error ? (
                     <div className="appSelectorMssg">
-                        <CloseCircleFilled style={{fontSize: 20, color: "red"}} />
+                        <CloseCircleFilled style={{ fontSize: 20, color: "red" }} />
                         <h1>failed to load</h1>
                     </div>
                 ) : Array.isArray(data) && data.length ? (
                     <>
-                        <h1 style={{fontSize: 24}}>LLM Applications</h1>
+                        <h1 style={{ fontSize: 24 }}>LLM Applications</h1>
                         <Divider
                             style={{
                                 marginTop: 0,
@@ -278,7 +278,7 @@ const AppSelector: React.FC = () => {
                                                 justifyContent: "space-evenly",
                                             }}
                                             title={
-                                                <div style={{textAlign: "center"}}>
+                                                <div style={{ textAlign: "center" }}>
                                                     Create New App
                                                 </div>
                                             }
@@ -289,28 +289,6 @@ const AppSelector: React.FC = () => {
                             )}
                         </div>
 
-                        <Card
-                            style={{
-                                width: 300,
-                                height: 120,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                cursor: "pointer",
-                            }}
-                            onClick={showCreateAppModal}
-                        >
-                            <Card.Meta
-                                style={{
-                                    height: "90%",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-evenly",
-                                }}
-                                title={<div style={{textAlign: "center"}}>Create New App</div>}
-                                avatar={<PlusOutlined size={24} />}
-                            />
-                        </Card>
                         <TipsAndFeatures />
                     </>
                 ) : (
@@ -356,15 +334,15 @@ const AppSelector: React.FC = () => {
                     disabled={fetchingTemplate}
                 />
                 {appNameExist && (
-                    <div style={{color: "red", marginLeft: "10px"}}>App name already exist</div>
+                    <div style={{ color: "red", marginLeft: "10px" }}>App name already exist</div>
                 )}
                 {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                    <div style={{color: "red", marginLeft: "10px"}}>
+                    <div style={{ color: "red", marginLeft: "10px" }}>
                         App name must contain only letters, numbers, underscore, or dash
                     </div>
                 )}
                 <Button
-                    style={{alignSelf: "flex-end"}}
+                    style={{ alignSelf: "flex-end" }}
                     type="primary"
                     loading={fetchingTemplate}
                     onClick={() => {
