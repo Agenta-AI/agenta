@@ -1,8 +1,15 @@
+import httpx
 import shutil
 import docker
 import logging
+import backoff
 from pathlib import Path
+from aiodocker import Docker
+from httpx import ConnectError
+from typing import List, Union
 from fastapi import HTTPException
+
+from asyncio.exceptions import CancelledError
 from agenta_backend.models.api.api_models import Image
 
 
@@ -13,13 +20,14 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+
 def build_image_job(
-    app_name: str, variant_name: str, tar_path: Path, image_name: str, temp_dir: Path
+    app_name: str, variant_name: str, tar_path: Path, image_name: str, temp_dir: Path,
 ) -> Image:
     """Business logic for building a docker image from a tar file
-    
+
     TODO: This should be a background task
-    
+
     Arguments:
         app_name --  The `app_name` parameter is a string that represents the name of the application
         variant_name --  The `variant_name` parameter is a string that represents the variant of the \
@@ -31,11 +39,11 @@ def build_image_job(
             image that will be built. It is used as the tag for the image
         temp_dir --  The `temp_dir` parameter is a `Path` object that represents the temporary directory
             where the contents of the tar file will be extracted
-            
+
     Raises:
         HTTPException: _description_
         HTTPException: _description_
-        
+
     Returns:
         an instance of the `Image` class.
     """
@@ -60,3 +68,121 @@ def build_image_job(
         raise HTTPException(status_code=500, detail=str(ex))
     except Exception as ex:
         raise HTTPException(status_code=500, detail=str(ex))
+
+
+@backoff.on_exception(backoff.expo, (ConnectError, CancelledError), max_tries=5)
+async def retrieve_templates_from_dockerhub(
+    url: str, repo_owner: str, repo_name: str
+) -> Union[List[dict], dict]:
+    """
+    Business logic to retrieve templates from DockerHub.
+
+    Arguments:
+        url -- The `url` parameter is a string that represents the URL endpoint for retrieving \
+            templates. It should contain placeholders `{}` for the `repo_owner` and `repo_name` values to be \
+            inserted. For example, if the URL endpoint is `https://hub.docker.com/v2/repositories/{}/{}/tags`
+        repo_owner -- The `repo_owner` parameter represents the owner or organization of the repository \
+            from which you want to retrieve templates
+        repo_name -- The `repo_name` parameter is the name of the repository. It is a string that \
+            represents the name of the repository where the templates are located
+
+    Returns:
+        A tuple of containing two values
+    """
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{url.format(repo_owner, repo_name)}/tags", timeout=10)
+        if response.status_code == 200:
+            response_data = response.json()
+            return response_data
+
+        response_data = response.json()
+        return response_data
+    
+
+async def get_templates_info(url: str, repo_owner: str, repo_name: str) -> dict:
+    """
+    Business logic to retrieve templates info from DockerHub.
+
+    Arguments:
+        url -- The `url` parameter is a string that represents the URL endpoint for retrieving \
+            templates. It should contain placeholders `{}` for the `repo_owner` and `repo_name` values to be \
+            inserted. For example, if the URL endpoint is `https://hub.docker.com/v2/repositories/{}/{}/`
+        repo_owner -- The `repo_owner` parameter represents the owner or organization of the repository \
+            from which you want to retrieve templates
+        repo_name -- The `repo_name` parameter is the name of the repository. It is a string that \
+            represents the name of the repository where the templates are located
+
+    Returns:
+        A tuple of containing two values
+    """
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{url.format(repo_owner, repo_name)}/", timeout=10)
+        if response.status_code == 200:
+            response_data = response.json()
+            return response_data
+
+        response_data = response.json()
+        return response_data
+
+
+async def check_docker_arch() -> str:
+    """Checks the architecture of the Docker system.
+
+    Returns:
+        The architecture mapping for the Docker system.
+    """
+    async with Docker() as docker:
+        info = await docker.system.info()
+        arch_mapping = {
+            "x86_64": "amd",
+            "amd64": "amd",
+            "aarch64": "arm",
+            "arm64": "arm",
+            "armhf": "arm",
+            "ppc64le": "ppc",
+            "s390x": "s390",
+            # Add more mappings as needed
+        }
+        return arch_mapping.get(info["Architecture"], "unknown")
+
+
+async def pull_image_from_docker_hub(repo_name: str, tag: str) -> dict:
+    """Bussiness logic to asynchronously pulls an image from Docker Hub.
+
+    Arguments:
+        repo_name -- The `repo_name` parameter represents the name of the repository
+            on Docker Hub from which you want to pull the image. It typically follows the format
+            `username/repository_name`
+        tag -- The `tag` parameter is used to specify a specific version or tag of the image to pull
+            from the Docker Hub repository.
+
+    Returns:
+        an image object from Docker Hub.
+    """
+
+    async with Docker() as docker:
+        image = await docker.images.pull(repo_name, tag=tag)
+        return image
+
+
+async def get_image_details_from_docker_hub(
+    repo_owner: str, repo_name: str, image_name: str
+) -> str:
+    """Retrieves the image details (specifically the image ID) from Docker Hub.
+
+    Arguments:
+        repo_owner -- The `repo_owner` parameter represents the owner or organization of the repository \
+            from which you want to retrieve templates
+        repo_name -- The `repo_name` parameter is the name of the repository
+        image_name -- The name of the Docker image you want to  retrieve details for
+
+    Returns:
+        The "Id" of the image details obtained from Docker Hub.
+    """
+
+    async with Docker() as docker:
+        image_details = await docker.images.inspect(
+            f"{repo_owner}/{repo_name}:{image_name}"
+        )
+        return image_details["Id"]

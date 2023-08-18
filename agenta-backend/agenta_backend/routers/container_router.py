@@ -1,17 +1,29 @@
 import uuid
 import asyncio
 from pathlib import Path
+from typing import List, Union
 from fastapi import UploadFile, APIRouter
+from fastapi.responses import JSONResponse
+from agenta_backend.config import settings
+from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
-from agenta_backend.models.api.api_models import Image
-from agenta_backend.services.container_manager import build_image_job
+from agenta_backend.services.db_manager import get_templates
+from agenta_backend.models.api.api_models import Image, Template
+from agenta_backend.services.container_manager import (
+    build_image_job,
+    check_docker_arch,
+    get_image_details_from_docker_hub,
+    pull_image_from_docker_hub,
+)
 
 
 router = APIRouter()
 
 
 @router.post("/build_image/")
-async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) -> Image:
+async def build_image(
+    app_name: str, variant_name: str, tar_file: UploadFile
+) -> Image:
     """Takes a tar file and builds a docker image from it
 
     Arguments:
@@ -40,7 +52,7 @@ async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) ->
     with tar_path.open("wb") as buffer:
         buffer.write(await tar_file.read())
 
-    image_name = f"agenta-server/{app_name.lower()}_{variant_name.lower()}:latest"
+    image_name = f"agentaai/{app_name.lower()}_{variant_name.lower()}:latest"
 
     # Use the thread pool to run the build_image_job function in a separate thread
     future = loop.run_in_executor(
@@ -52,3 +64,52 @@ async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) ->
     # Return immediately while the image build is in progress
     image_result = await asyncio.wrap_future(future)
     return image_result
+
+
+@router.get("/templates/")
+async def container_templates() -> Union[List[Template], str]:
+    """Returns a list of container templates.
+
+    Returns:
+        a list of `Template` objects.
+    """
+    docker_arch =  await check_docker_arch()
+    if docker_arch == "unknown":
+        return "No templates were found, this is a mistake, please fill an issue"
+    templates = get_templates(docker_arch)
+    return templates
+
+
+@router.get("/templates/{image_name}/images/")
+async def pull_image(image_name: str) -> dict:
+    """Pulls an image from Docker Hub using the provided configuration
+
+    Arguments:
+        image_name -- The name of the image to be pulled
+
+    Returns:
+        -- a JSON response with the image tag name and image ID
+        -- a JSON response with the pull_image exception error
+    """
+    # Get docker hub config
+    repo_owner = settings.docker_hub_repo_owner
+    repo_name = settings.docker_hub_repo_name
+
+    # Pull image from docker hub with provided config
+    try:
+        image_res = await pull_image_from_docker_hub(
+            f"{repo_owner}/{repo_name}", image_name
+        )
+    except DockerError as ext:
+        return JSONResponse(
+            {"message": "Image with tag does not exist", "meta": str(ext)}, 404
+        )
+
+    # Get data from image response
+    image_tag_name = image_res[0]["id"]
+    image_id = await get_image_details_from_docker_hub(
+        repo_owner, repo_name, image_tag_name
+    )
+    return JSONResponse(
+        {"image_tag": image_tag_name, "image_id": image_id}, 200
+    )

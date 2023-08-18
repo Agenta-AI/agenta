@@ -61,3 +61,7 @@ export const randString = (len: number) =>
         )
         .replace(/[+/]/g, "")
         .substring(0, len)
+
+export const isAppNameInputValid = (input: string) => {
+    return /^[a-zA-Z0-9_-]+$/.test(input)
+}
