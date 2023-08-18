@@ -27,9 +27,7 @@ origins = [
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     tags_data = await retrieve_templates_from_dockerhub_cached()
-    templates_info_string = (
-        await retrieve_templates_info_from_dockerhub_cached()
-    )
+    templates_info_string = await retrieve_templates_info_from_dockerhub_cached()
     templates_info = json.loads(templates_info_string)
 
     for tag in tags_data:

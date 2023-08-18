@@ -17,7 +17,7 @@ class DictInput(dict):
             default_keys = []
         instance.data = [key for key in default_keys]
         return instance
-        
+
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update({"x-parameter": "dict"})
@@ -39,12 +39,7 @@ class IntParam(int):
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update(
-            {
-                "x-parameter": "int",
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 10,
-            }
+            {"x-parameter": "int", "type": "integer", "minimum": 1, "maximum": 10,}
         )
 
 
@@ -58,12 +53,7 @@ class FloatParam(float):
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update(
-            {
-                "x-parameter": "float",
-                "type": "number",
-                "minimum": 0.0,
-                "maximum": 1.0,
-            }
+            {"x-parameter": "float", "type": "number", "minimum": 0.0, "maximum": 1.0,}
         )
 
 
@@ -89,11 +79,7 @@ class MultipleChoiceParam(str):
     @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any]):
         field_schema.update(
-            {
-                "x-parameter": "choice",
-                "type": "string",
-                "enum": [],
-            }
+            {"x-parameter": "choice", "type": "string", "enum": [],}
         )
 
 

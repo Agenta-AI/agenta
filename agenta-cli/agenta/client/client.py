@@ -133,9 +133,7 @@ def send_docker_tar(
     with tar_path.open("rb") as tar_file:
         response = requests.post(
             f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_name={app_name}&variant_name={variant_name}",
-            files={
-                "tar_file": tar_file,
-            },
+            files={"tar_file": tar_file,},
             timeout=1200,
         )
 

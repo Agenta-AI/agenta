@@ -142,9 +142,7 @@ def stop_container(container_id: str):
         logger.error(
             f"Error stopping container with id: {container.id}. Error: {str(ex)}"
         )
-        raise RuntimeError(
-            f"Error stopping container with id: {container.id}"
-        ) from ex
+        raise RuntimeError(f"Error stopping container with id: {container.id}") from ex
 
 
 def delete_container(container_id: str):
@@ -164,9 +162,7 @@ def delete_container(container_id: str):
         logger.error(
             f"Error deleting container with id: {container.id}. Error: {str(ex)}"
         )
-        raise RuntimeError(
-            f"Error deleting container with id: {container.id}"
-        ) from ex
+        raise RuntimeError(f"Error deleting container with id: {container.id}") from ex
 
 
 def delete_image(image: Image):
@@ -185,9 +181,7 @@ def delete_image(image: Image):
         logger.error(
             f"Error deleting image with id: {image.docker_id}. Error: {str(ex)}"
         )
-        raise RuntimeError(
-            f"Error deleting image with id: {image.docker_id}"
-        ) from ex
+        raise RuntimeError(f"Error deleting image with id: {image.docker_id}") from ex
 
 
 def experimental_pull_image(image_name: str):
@@ -207,9 +201,7 @@ def experimental_pull_image(image_name: str):
         image = client.images.pull(image_name)
         return image
     except docker.errors.APIError as e:
-        raise RuntimeError(
-            f"An error occurred while pulling the image: {str(e)}"
-        )
+        raise RuntimeError(f"An error occurred while pulling the image: {str(e)}")
 
 
 def experimental_is_image_pulled(image_name: str) -> bool:
