@@ -1,5 +1,6 @@
 import logging
 import os
+from time import sleep
 from typing import List
 
 import docker
@@ -44,55 +45,55 @@ def list_images() -> List[Image]:
     return registry_images
 
 
-def start_container(
-    image_name: str, app_name: str, variant_name: str, env_vars: DockerEnvVars
-) -> URI:
-    """Starts the container for an app using local docker. Injects the env vars and sets up traefik
-    for reverse proxying.
+def start_container(image_name, app_name, variant_name) -> URI:
+    try:
+        image = client.images.get(f"{image_name}")
 
-    Args:
-        image_name: image name to start
-        app_name: app name to start
-        variant_name: variant name to start
-        env_vars:  env vars to inject
-
-    Returns:
-        URI -- The URI of the container
-    """
-    image = client.images.get(f"{image_name}")
-
-    labels = {
-        f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
-        f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
-        f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
-        f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}-strip-prefix",
-        f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
-    }
-
-    rules = {
-        "development": f"PathPrefix(`/{app_name}/{variant_name}`)",
-        "production": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)",
-    }
-
-    labels.update(
-        {
-            f"traefik.http.routers.{app_name}-{variant_name}.rule": rules[
-                os.environ["ENVIRONMENT"]
-            ]
+        labels = {
+            f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
+            f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
+            f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
+            f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}-strip-prefix",
+            f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
         }
-    )
-    env_vars = {} if env_vars is None else env_vars
-    client.containers.run(
-        image,
-        detach=True,
-        labels=labels,
-        network="agenta-network",
-        name=f"{app_name}-{variant_name}",
-        environment=env_vars,
-    )
-    return URI(
-        uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}"
-    )
+
+        rules = {
+            "development": f"PathPrefix(`/{app_name}/{variant_name}`)",
+            "production": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)",
+        }
+
+        labels.update(
+            {
+                f"traefik.http.routers.{app_name}-{variant_name}.rule": rules[
+                    os.environ["ENVIRONMENT"]
+                ]
+            }
+        )
+
+        container = client.containers.run(
+            image,
+            detach=True,
+            labels=labels,
+            network="agenta-network",
+            name=f"{app_name}-{variant_name}",
+        )
+        # Check the container's status
+        sleep(0.5)
+        container.reload()  # Refresh container data
+        if container.status == "exited":
+            logs = container.logs().decode("utf-8")
+            raise Exception(f"Container exited immediately. Docker Logs: {logs}")
+        return URI(
+            uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}"
+        )
+    except docker.errors.APIError as error:
+        # Container failed to run, get the logs
+        try:
+            failed_container = client.containers.get(f"{app_name}-{variant_name}")
+            logs = failed_container.logs().decode("utf-8")
+            raise Exception(f"Docker Logs: {logs}") from error
+        except Exception as e:
+            return f"Failed to fetch logs: {str(e)} \n Exception Error: {str(error)}"
 
 
 def stop_containers_based_on_image(image: Image) -> List[str]:
