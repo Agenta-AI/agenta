@@ -1,7 +1,7 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, EvaluationResponseType, Evaluation} from "@/lib/Types"
+import {Variant, Parameter, EvaluationResponseType, Evaluation, AppTemplate} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
@@ -396,6 +396,71 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
         }
     } catch (error) {
         console.error("Error fetching results:", error)
+        throw error
+    }
+}
+
+export const fetchApps = () => {
+    const {data, error, isLoading} = useSWR(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
+        fetcher,
+    )
+    return {
+        data,
+        error,
+        isLoading,
+    }
+}
+
+export const getTemplates = async () => {
+    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/`, {
+        headers: {
+            "Content-Type": "application/json",
+        },
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            return data
+        })
+        .catch((error) => {
+            console.error("Error fetching templates:", error)
+        })
+}
+
+export const pullTemplateImage = async (image_name: string) => {
+    return fetch(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`,
+        {
+            headers: {
+                "Content-Type": "application/json",
+            },
+        },
+    )
+        .then((response) => response.json())
+        .then((data) => {
+            return data
+        })
+        .catch((error) => {
+            console.error("Error fetching template image:", error)
+            throw error
+        })
+}
+
+export const startTemplate = async (templateObj: AppTemplate) => {
+    try {
+        const response = await axios.post(
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_template/`,
+            templateObj,
+            {
+                headers: {
+                    accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+            },
+        )
+        return response
+    } catch (error) {
+        console.error("Start Template Error => ", error)
         throw error
     }
 }

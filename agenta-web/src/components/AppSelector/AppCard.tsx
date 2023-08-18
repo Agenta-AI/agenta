@@ -73,7 +73,6 @@ const AppCard: React.FC<{
                 style={{
                     width: 300,
                     height: 120,
-                    marginBottom: 24,
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
