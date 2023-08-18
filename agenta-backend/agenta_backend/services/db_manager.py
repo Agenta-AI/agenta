@@ -243,34 +243,25 @@ def get_image(app_variant: AppVariant) -> Image:
     Returns:
         Image -- The Image associated with the app variant
     """
-    try:
-        with Session(engine) as session:
-            db_app_variant: AppVariantDB = (
-                session.query(AppVariantDB)
-                .filter(
-                    (AppVariantDB.app_name == app_variant.app_name)
-                    & (AppVariantDB.variant_name == app_variant.variant_name)
-                )
+
+    with Session(engine) as session:
+        db_app_variant: AppVariantDB = (
+            session.query(AppVariantDB)
+            .filter(
+                (AppVariantDB.app_name == app_variant.app_name)
+                & (AppVariantDB.variant_name == app_variant.variant_name)
+            )
+            .first()
+        )
+        if db_app_variant:
+            image_db: ImageDB = (
+                session.query(ImageDB)
+                .filter(ImageDB.id == db_app_variant.image_id)
                 .first()
             )
-            if db_app_variant:
-                try:
-                    print(db_app_variant)
-                    image_db: ImageDB = (
-                        session.query(ImageDB)
-                        .filter(ImageDB.id == db_app_variant.image_id)
-                        .first()
-                    )
-                    print(image_db)
-                    image_db: ImageDB = session.query(ImageDB).all()
-                    print(image_db)
-                    return image_db_to_pydantic(image_db)
-                except Exception as e:
-                    raise Exception(str(e))
-            else:
-                raise ValueError("App variant not found")
-    except Exception as e:
-        raise Exception(str(e))
+            return image_db_to_pydantic(image_db)
+        else:
+            raise Exception("App variant not found")
 
 
 def remove_app_variant(app_variant: AppVariant):
