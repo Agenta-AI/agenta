@@ -188,10 +188,6 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
     optParams,
     handleParamChange,
 }) => {
-    useEffect(() => {
-        console.log(optParams)
-    }, [optParams])
-
     const handleAddVariable = (param: Parameter) => {
         const updatedParams: InputParameter[] = [...param.default, {name: ""}]
 
