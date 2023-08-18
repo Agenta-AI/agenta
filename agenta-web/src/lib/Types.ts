@@ -112,6 +112,7 @@ export interface Template {
 export interface TemplateImage {
     image_tag: string
     image_id: string
+    message?: string
 }
 
 export interface AppTemplate {
