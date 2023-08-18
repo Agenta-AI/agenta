@@ -120,16 +120,7 @@ const AppSelector: React.FC = () => {
 
     const fetchTemplateImage = async (image_name: string) => {
         const response = await pullTemplateImage(image_name)
-        if (response && response.image_tag && response.image_id) {
-            return response
-        } else {
-            notification.error({
-                message: "Template Selection",
-                description: "Failed to fetch template image. Please try again later.",
-                duration: 10,
-            })
-            return null
-        }
+        return response
     }
 
     const retrieveOpenAIKey = () => {
@@ -191,16 +182,25 @@ const AppSelector: React.FC = () => {
         })
 
         const data: TemplateImage = await fetchTemplateImage(image_name)
-        await createAppVariantFromTemplateImage(
-            newApp,
-            data.image_id,
-            data.image_tag,
-            OpenAIKey,
-        ).finally(() => {
-            handleCreateAppFromTemplateModalCancel()
-            handleCreateAppModalCancel()
-            handleNavigation()
-        })
+        if (data.message) {
+            notification.error({
+                message: "Template Selection",
+                description: `${data.message}!`,
+                duration: 10,
+            })
+            setFetchingTemplate(false)
+        } else {
+            await createAppVariantFromTemplateImage(
+                newApp,
+                data.image_id,
+                data.image_tag,
+                OpenAIKey,
+            ).finally(() => {
+                handleCreateAppFromTemplateModalCancel()
+                handleCreateAppModalCancel()
+                handleNavigation()
+            })
+        }
     }
 
     const {data, error, isLoading} = fetchApps()
