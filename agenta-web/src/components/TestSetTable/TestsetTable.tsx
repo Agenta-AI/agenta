@@ -115,6 +115,31 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         setSelectedRow(gridRef?.current?.getSelectedNodes())
     }
 
+    const handleExportClick = () => {
+        const csvData = convertToCsvFormat(rowData, columnDefs);
+        const filename = `${testsetName}.csv`;
+        downloadCsv(csvData, filename);
+        // Here, you can add the actual CSV export logic later on.
+    };
+    const convertToCsvFormat = (data, columns) => {
+        const header = columns.map(col => col.field).join(",");
+        const rows = data.map(row => 
+            columns.map(col => row[col.field]).join(",")
+        ).join("\n");
+        return `${header}\n${rows}`;
+    };
+    
+    const downloadCsv = (csvContent, filename) => {
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
         message:
@@ -528,6 +553,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                             disabled={selectedRow.length < 1}
                         >
                             Delete Row{selectedRow.length > 1 ? "s" : null}
+                        </Button>
+                        <Button 
+                        type="primary" 
+                        onClick={handleExportClick} 
+                        className="css-dev-only-do-not-override-vl61bp"
+                        style={{ marginLeft: '10px', marginRight: 'auto' }}
+                        >
+                            Export as CSV
                         </Button>
                     </div>
                 </div>
