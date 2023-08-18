@@ -105,6 +105,7 @@ export interface Template {
         name: string
         title: string
         description: string
+        architecture: string
     }
 }
 

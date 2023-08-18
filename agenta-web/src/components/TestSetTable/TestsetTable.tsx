@@ -217,7 +217,13 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
                 return
             }
-            if (inputValues.includes(scopedInputValues[index]) || scopedInputValues[index] == "") {
+
+            if (
+                inputValues.some(
+                    (input) => input.toLowerCase() === scopedInputValues[index].toLowerCase(),
+                ) ||
+                scopedInputValues[index] == ""
+            ) {
                 message.error(
                     scopedInputValues[index] == ""
                         ? "Invalid column name"

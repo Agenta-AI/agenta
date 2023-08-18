@@ -13,7 +13,10 @@ def generate(
     prompt_template: ag.TextParam = default_prompt,
 ) -> str:
     llm = OpenAI(temperature=temperature)
-    prompt = PromptTemplate(input_variables=["product"], template=prompt_template,)
+    prompt = PromptTemplate(
+        input_variables=["product"],
+        template=prompt_template,
+    )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(product=product)
 

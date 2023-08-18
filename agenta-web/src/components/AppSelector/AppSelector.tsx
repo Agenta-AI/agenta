@@ -1,49 +1,58 @@
 import {useState, useEffect} from "react"
 import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
-import {
-    Input,
-    Modal,
-    ConfigProvider,
-    theme,
-    Spin,
-    Card,
-    Button,
-    notification,
-    Col,
-    Row,
-    Typography,
-} from "antd"
-import useSWR from "swr"
+import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import YouTube from "react-youtube"
 import {Template, AppTemplate, TemplateImage} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
-import AppTemplateCard from "../CreateApp/AppTemplateCard"
+import Welcome from "./Welcome"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
 import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
-import CreateApp from "@/components/CreateApp/CreateApp"
+import AddNewAppModal from "./modals/AddNewAppModal"
+import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
+import WriteOwnAppModal from "./modals/WriteOwnAppModal"
+import {createUseStyles} from "react-jss"
 
-const fetcher = (...args: any[]) => fetch(...args).then((res) => res.json())
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
+
+const useStyles = createUseStyles({
+    cardsList: ({themeMode}: StyleProps) => ({
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 12,
+        "& .ant-card-bordered, .ant-card-actions": {
+            borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.1)",
+        },
+    }),
+    createCard: {
+        borderStyle: "dashed",
+        borderColor: "#1890ff !important",
+        color: "#1890ff",
+        "& .ant-card-meta-title": {
+            color: "#1890ff",
+        },
+    },
+})
 
 const AppSelector: React.FC = () => {
     const router = useRouter()
     const {appTheme} = useAppTheme()
-    const {Text, Title} = Typography
-    const [newApp, setNewApp] = useState("")
-    const [appNameExist, setAppNameExist] = useState(false)
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
+    const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
+    const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
+    const [templates, setTemplates] = useState<Template[]>([])
 
     const [templateMessage, setTemplateMessage] = useState("")
-    const [templates, setTemplates] = useState<Template[]>([])
-    const [fetchingTemplate, setFetchingTemplate] = useState(false)
-    const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
-    const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [templateName, setTemplateName] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
-    const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
-
+    const [fetchingTemplate, setFetchingTemplate] = useState(false)
+    const [appNameExist, setAppNameExist] = useState(false)
+    const [newApp, setNewApp] = useState("")
 
     const showCreateAppModal = () => {
         setIsCreateAppModalOpen(true)
@@ -88,7 +97,7 @@ const AppSelector: React.FC = () => {
             message: "Template Selection",
             description:
                 "Once your app is up and running, you'll be redirected to the app playground.",
-            duration: 15,
+            duration: 9,
         })
         setTimeout(() => {
             router.push(`/apps/${newApp}/playground`)
@@ -189,12 +198,7 @@ const AppSelector: React.FC = () => {
         ).finally(() => {
             handleCreateAppFromTemplateModalCancel()
             handleCreateAppModalCancel()
-            setFetchingTemplate(false)
-
-            handleInputTemplateModalCancel()
             handleNavigation()
-            setNewApp("")
-            setTemplateName(undefined)
         })
     }
 
@@ -215,7 +219,7 @@ const AppSelector: React.FC = () => {
             <div
                 style={{
                     maxWidth: "1000px",
-                    margin: "10px auto 5%",
+                    marginTop: 10,
                     width: "100%",
                     color: appTheme === "dark" ? "#fff" : "#000",
                 }}
@@ -232,28 +236,57 @@ const AppSelector: React.FC = () => {
                     </div>
                 ) : Array.isArray(data) && data.length ? (
                     <>
-                        <h1
+                        <h1 style={{fontSize: 24}}>LLM Applications</h1>
+                        <Divider
                             style={{
-                                fontSize: 24,
-                                borderBottom: "1px solid #0e9c1a",
-                                paddingBottom: "1rem",
+                                marginTop: 0,
+                                borderColor:
+                                    appTheme === "dark"
+                                        ? "rgba(256, 256, 256, 0.2)"
+                                        : "rgba(5, 5, 5, 0.15)",
                             }}
-                        >
-                            LLM Applications
-                        </h1>
-                        <div
-                            style={{
-                                display: "flex",
-                                flexWrap: "wrap",
-                                gap: 10,
-                            }}
-                        >
-                            {Array.isArray(data) &&
-                                data.map((app: any, index: number) => (
-                                    <div key={index}>
-                                        <AppCard appName={app.app_name} key={index} index={index} />
-                                    </div>
-                                ))}
+                        />
+                        <div className={classes.cardsList}>
+                            {Array.isArray(data) && (
+                                <>
+                                    {data.map((app: any, index: number) => (
+                                        <div key={index}>
+                                            <AppCard
+                                                appName={app.app_name}
+                                                key={index}
+                                                index={index}
+                                            />
+                                        </div>
+                                    ))}
+                                    <Card
+                                        className={classes.createCard}
+                                        style={{
+                                            width: 300,
+                                            height: 120,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            cursor: "pointer",
+                                        }}
+                                        onClick={showCreateAppModal}
+                                    >
+                                        <Card.Meta
+                                            style={{
+                                                height: "90%",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-evenly",
+                                            }}
+                                            title={
+                                                <div style={{textAlign: "center"}}>
+                                                    Create New App
+                                                </div>
+                                            }
+                                            avatar={<PlusOutlined size={24} />}
+                                        />
+                                    </Card>
+                                </>
+                            )}
                         </div>
 
                         <Card
@@ -281,249 +314,99 @@ const AppSelector: React.FC = () => {
                         <TipsAndFeatures />
                     </>
                 ) : (
-                    <>
-                        <div>
-                            <h1 style={{fontSize: "42px", margin: "20px 0"}}>
-                                Welcome to <span style={{color: "#0e9c1a"}}>Agenta</span>
-                            </h1>
-                            <h2
-                                style={{
-                                    fontSize: "24px",
-                                    margin: "20px 0",
-                                    borderBottom: "1px solid #0e9c1a",
-                                    paddingBottom: "1rem",
-                                }}
-                            >
-                                The developer-first open source LLMOps platform.
-                            </h2>
-                        </div>
-                        <div
-                            style={{
-                                padding: "0 20px",
-                                lineHeight: 1.7,
-                                marginBottom: "2rem",
-                            }}
-                        >
-                            <p>
-                                Agenta is an open-source developer first LLMOps platform to
-                                streamline the process of building LLM-powered applications.
-                                Building LLM-powered apps is an iterative process with lots of
-                                prompt-engineering and testing multiple variants.
-                                <br />
-                                Agenta brings the CI/CD platform to this process by enabling you to
-                                quickly iterate, experiment, evaluate, and optimize your LLM apps.
-                                All without imposing any restrictions on your choice of framework,
-                                library, or model.
-                                <br />
-                            </p>
-
-                            <div>
-                                <span
-                                    style={{
-                                        fontWeight: 600,
-                                        fontSize: 15,
-                                        textTransform: "uppercase",
-                                    }}
-                                >
-                                    Read{" "}
-                                    <a href="https://docs.agenta.ai/introduction" target="_blank">
-                                        Documentation
-                                    </a>{" "}
-                                    on how to get started.
-                                </span>
-                            </div>
-                        </div>
-                    </>
+                    <Welcome onCreateAppClick={showCreateAppModal} />
                 )}
-                <CreateApp />
-                <div>
-                    <Modal
-                        open={isCreateAppModalOpen}
-                        onCancel={handleCreateAppModalCancel}
-                        footer={null}
-                        title="Add new app"
-                        width={"600px"}
-                    >
-                        <Row
-                            justify="start"
-                            gutter={30}
-                            style={{
-                                padding: "10px",
-                                height: "240px",
-                                display: "flex",
-                                alignItems: "center",
-                            }}
-                        >
-                            <Col span={12}>
-                                <Card
-                                    style={{
-                                        textAlign: "center",
-                                        height: "180px",
-                                        cursor: "pointer",
-                                    }}
-                                    onClick={showCreateAppFromTemplateModal}
-                                >
-                                    <Title style={{fontSize: 20}}>Create From Template</Title>
-                                    <Text>Create Quickly Simple Prompt Apps From UI</Text>
-                                </Card>
-                            </Col>
-                            <Col span={12}>
-                                <Card
-                                    style={{
-                                        textAlign: "center",
-                                        height: "180px",
-                                        cursor: "pointer",
-                                    }}
-                                    onClick={showWriteAppModal}
-                                >
-                                    <Title style={{fontSize: 20}}>Write Your Own App</Title>
-                                    <Text>Create Complex LLM Apps From Your Code</Text>
-                                </Card>
-                            </Col>
-                        </Row>
-                    </Modal>
-                    <Modal
-                        title="Add new app from template"
-                        open={isCreateAppFromTemplateModalOpen}
-                        footer={null}
-                        onCancel={handleCreateAppFromTemplateModalCancel}
-                        width={"900px"}
-                        style={{
-                            padding: "10px",
-                        }}
-                    >
-                        <div
-                            style={{
-                                width: "100%",
-                                display: "flex",
-                                alignItems: "center",
-                                flexWrap: "wrap",
-                                justifyContent: "space-evenly",
-                                padding: "10px",
-                            }}
-                        >
-                            {templates.length === 0 ? (
-                                <div>
-                                    <AppTemplateCard
-                                        title="No Templates Available"
-                                        body={templateMessage}
-                                        noTemplate={true}
-                                        onClick={() => {}}
-                                    ></AppTemplateCard>
-                                </div>
-                            ) : (
-                                <div
-                                    style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        flexWrap: "wrap",
-                                        justifyContent: "space-evenly",
-                                        padding: "10px",
-                                    }}
-                                >
-                                    {templates.map((template) => (
-                                        <div
-                                            key={template.id}
-                                            style={{
-                                                cursor:
-                                                    newApp.length > 0 && isAppNameInputValid(newApp)
-                                                        ? "pointer"
-                                                        : "not-allowed",
-                                            }}
-                                        >
-                                            <AppTemplateCard
-                                                title={template.image.title}
-                                                body={template.image.description}
-                                                noTemplate={false}
-                                                onClick={() => {
-                                                    showInputTemplateModal()
-                                                    setTemplateName(template.image.name)
-                                                }}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </Modal>
-                    <Modal
-                        title="Input app name"
-                        open={isInputTemplateModalOpen}
-                        onCancel={handleInputTemplateModalCancel}
-                        width={"500px"}
-                        footer={null}
-                    >
-                        <Input
-                            placeholder="New app name (e.g., chat-app)"
-                            value={newApp}
-                            onChange={(e) => setNewApp(e.target.value)}
-                            style={{margin: "10px"}}
-                            disabled={fetchingTemplate}
-                        />
-                        {appNameExist && (
-                            <div style={{color: "red", marginLeft: "10px"}}>
-                                App name already exist
-                            </div>
-                        )}
-                        {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                            <div style={{color: "red", marginLeft: "10px"}}>
-                                App name must contain only letters, numbers, underscore, or dash
-                            </div>
-                        )}
-                        <Button
-                            style={{margin: "10px"}}
-                            loading={fetchingTemplate}
-                            onClick={() => {
-                                if (appNameExist) {
-                                    notification.warning({
-                                        message: "Template Selection",
-                                        description:
-                                            "App name already exists. Please choose a different name.",
-                                        duration: 3,
-                                    })
-                                } else if (
-                                    fetchingTemplate &&
-                                    newApp.length > 0 &&
-                                    isAppNameInputValid(newApp)
-                                ) {
-                                    notification.info({
-                                        message: "Template Selection",
-                                        description:
-                                            "The template image is currently being fetched. Please wait...",
-                                        duration: 3,
-                                    })
-                                } else if (
-                                    !fetchingTemplate &&
-                                    newApp.length > 0 &&
-                                    isAppNameInputValid(newApp)
-                                ) {
-                                    handleTemplateCardClick(templateName)
-                                } else {
-                                    notification.warning({
-                                        message: "Template Selection",
-                                        description:
-                                            "Please provide a valid app name to choose a template.",
-                                        duration: 3,
-                                    })
-                                }
-                            }}
-                        >
-                            Create
-                        </Button>
-                    </Modal>
-
-                    <Modal
-                        title="Write your own app"
-                        open={isWriteAppModalOpen}
-                        footer={null}
-                        onCancel={handleWriteApppModalCancel}
-                        width={"688px"}
-                    >
-                        <YouTube videoId="8-k1C6ehKuw" loading="lazy" />
-                    </Modal>
-                </div>
             </div>
+
+            <AddNewAppModal
+                open={isCreateAppModalOpen}
+                onCancel={handleCreateAppModalCancel}
+                onCreateFromTemplate={showCreateAppFromTemplateModal}
+                onWriteOwnApp={showWriteAppModal}
+            />
+            <AddAppFromTemplatedModal
+                open={isCreateAppFromTemplateModalOpen}
+                onCancel={handleCreateAppFromTemplateModalCancel}
+                newApp={newApp}
+                templates={templates}
+                noTemplateMessage={templateMessage}
+                onCardClick={(template) => {
+                    showInputTemplateModal()
+                    setTemplateName(template.image.name)
+                }}
+            />
+            <Modal
+                title="Input app name"
+                open={isInputTemplateModalOpen}
+                onCancel={handleInputTemplateModalCancel}
+                width={500}
+                footer={null}
+                centered
+                bodyStyle={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.75rem",
+                    marginTop: 20,
+                }}
+            >
+                <Input
+                    placeholder="New app name (e.g., chat-app)"
+                    value={newApp}
+                    onChange={(e) => setNewApp(e.target.value)}
+                    disabled={fetchingTemplate}
+                />
+                {appNameExist && (
+                    <div style={{color: "red", marginLeft: "10px"}}>App name already exist</div>
+                )}
+                {newApp.length > 0 && !isAppNameInputValid(newApp) && (
+                    <div style={{color: "red", marginLeft: "10px"}}>
+                        App name must contain only letters, numbers, underscore, or dash
+                    </div>
+                )}
+                <Button
+                    style={{alignSelf: "flex-end"}}
+                    type="primary"
+                    loading={fetchingTemplate}
+                    onClick={() => {
+                        if (appNameExist) {
+                            notification.warning({
+                                message: "Template Selection",
+                                description:
+                                    "App name already exists. Please choose a different name.",
+                                duration: 3,
+                            })
+                        } else if (
+                            fetchingTemplate &&
+                            newApp.length > 0 &&
+                            isAppNameInputValid(newApp)
+                        ) {
+                            notification.info({
+                                message: "Template Selection",
+                                description:
+                                    "The template image is currently being fetched. Please wait...",
+                                duration: 3,
+                            })
+                        } else if (
+                            !fetchingTemplate &&
+                            newApp.length > 0 &&
+                            isAppNameInputValid(newApp)
+                        ) {
+                            handleTemplateCardClick(templateName)
+                        } else {
+                            notification.warning({
+                                message: "Template Selection",
+                                description:
+                                    "Please provide a valid app name to choose a template.",
+                                duration: 3,
+                            })
+                        }
+                    }}
+                >
+                    Create
+                </Button>
+            </Modal>
+
+            <WriteOwnAppModal open={isWriteAppModalOpen} onCancel={handleWriteApppModalCancel} />
         </ConfigProvider>
     )
 }
