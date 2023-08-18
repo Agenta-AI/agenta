@@ -37,11 +37,10 @@ def get_session():
         yield session
 
 
-def get_templates(arch: str) -> List[Template]:
+def get_templates() -> List[Template]:
     with Session(engine) as session:
         templates = (
             session.query(TemplateDB)
-            .filter(TemplateDB.architecture.like(f"%{arch}%"))
             .all()
         )
     return templates_db_to_pydantic(templates)
@@ -259,11 +258,18 @@ def get_image(app_variant: AppVariant) -> Image:
             )
             if db_app_variant:
                 try:
+                    print(db_app_variant)
                     image_db: ImageDB = (
                         session.query(ImageDB)
                         .filter(ImageDB.id == db_app_variant.image_id)
                         .first()
                     )
+                    print(image_db)
+                    image_db: ImageDB = (
+                        session.query(ImageDB)
+                        .all()
+                    )
+                    print(image_db)
                     return image_db_to_pydantic(image_db)
                 except Exception as e:
                     raise Exception(str(e))
