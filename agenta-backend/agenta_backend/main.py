@@ -6,7 +6,10 @@ from agenta_backend.routers import testset_router
 from fastapi.middleware.cors import CORSMiddleware
 from agenta_backend.routers import container_router
 from agenta_backend.routers import evaluation_router
-from agenta_backend.services.db_manager import add_template
+from agenta_backend.services.db_manager import (
+    add_template,
+    remove_old_template_from_db,
+)
 from agenta_backend.services.cache_manager import (
     retrieve_templates_from_dockerhub_cached,
     retrieve_templates_info_from_dockerhub_cached,
@@ -27,10 +30,16 @@ origins = [
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     tags_data = await retrieve_templates_from_dockerhub_cached()
-    templates_info_string = await retrieve_templates_info_from_dockerhub_cached()
+    templates_info_string = (
+        await retrieve_templates_info_from_dockerhub_cached()
+    )
     templates_info = json.loads(templates_info_string)
 
+    templates_in_hub = []
     for tag in tags_data:
+        # Append the template id in the list of templates_in_hub
+        # We do this to remove old templates from database
+        templates_in_hub.append(tag["id"])
         for temp_info_key in templates_info:
             temp_info = templates_info[temp_info_key]
             if str(tag["name"]).startswith(temp_info_key):
@@ -51,6 +60,8 @@ async def lifespan(application: FastAPI):
                 )
                 print(f"Template {tag['id']} added to the database.")
 
+    # Remove old templates from database
+    remove_old_template_from_db(templates_in_hub)
     yield
 
 
