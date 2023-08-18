@@ -21,9 +21,7 @@ router = APIRouter()
 
 
 @router.post("/build_image/")
-async def build_image(
-    app_name: str, variant_name: str, tar_file: UploadFile
-) -> Image:
+async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) -> Image:
     """Takes a tar file and builds a docker image from it
 
     Arguments:
@@ -110,6 +108,4 @@ async def pull_image(image_name: str) -> dict:
     image_id = await get_image_details_from_docker_hub(
         repo_owner, repo_name, image_tag_name
     )
-    return JSONResponse(
-        {"image_tag": image_tag_name, "image_id": image_id}, 200
-    )
+    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)

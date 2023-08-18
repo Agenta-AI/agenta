@@ -11,7 +11,7 @@ from agenta_backend.models.api.api_models import (
     AppVariant,
     Image,
     DockerEnvVars,
-    CreateAppVariant
+    CreateAppVariant,
 )
 from agenta_backend.services import app_manager, db_manager, docker_utils
 from docker.errors import DockerException

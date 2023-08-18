@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-
 def build_image_job(
     app_name: str, variant_name: str, tar_path: Path, image_name: str, temp_dir: Path,
 ) -> Image:
@@ -91,14 +90,16 @@ async def retrieve_templates_from_dockerhub(
     """
 
     async with httpx.AsyncClient() as client:
-        response = await client.get(f"{url.format(repo_owner, repo_name)}/tags", timeout=10)
+        response = await client.get(
+            f"{url.format(repo_owner, repo_name)}/tags", timeout=10
+        )
         if response.status_code == 200:
             response_data = response.json()
             return response_data
 
         response_data = response.json()
         return response_data
-    
+
 
 async def get_templates_info(url: str, repo_owner: str, repo_name: str) -> dict:
     """
