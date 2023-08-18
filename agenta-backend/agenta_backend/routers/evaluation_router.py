@@ -68,7 +68,8 @@ async def update_evaluation_status_router(
 
 
 @router.get(
-    "/{evaluation_id}/evaluation_scenarios", response_model=List[EvaluationScenario],
+    "/{evaluation_id}/evaluation_scenarios",
+    response_model=List[EvaluationScenario],
 )
 async def fetch_evaluation_scenarios(evaluation_id: str):
     """Creates an empty evaluation row
@@ -199,7 +200,8 @@ async def delete_evaluations(delete_evaluations: DeleteEvaluation):
                 deleted_ids.append(evaluations_id)
         else:
             raise HTTPException(
-                status_code=404, detail=f"Comparison table {evaluations_id} not found",
+                status_code=404,
+                detail=f"Comparison table {evaluations_id} not found",
             )
 
     return deleted_ids

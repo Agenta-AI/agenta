@@ -244,7 +244,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image):
 @router.post("/add/from_template/")
 async def add_app_variant_from_template(payload: CreateAppVariant):
     """Creates or updates an app variant based on the provided image and starts the variant
-    
+
     Arguments:
         payload -- a data model that contains the necessary information to create an app variant from an image
 
