@@ -191,7 +191,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleDeleteRow = (testIndex: number) => {
         if (resultsList.length < 2) return
-        if (resultsList[testIndex] != "") {
+        if (resultsList[testIndex] !== "") {
             setResultsList(resultsList.filter((_, index) => index !== testIndex))
         }
         const newTestList = testList.filter((_, index) => index !== testIndex)
