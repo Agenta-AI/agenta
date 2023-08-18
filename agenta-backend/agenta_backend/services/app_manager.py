@@ -5,7 +5,13 @@ import logging
 
 from agenta_backend.config import settings
 from agenta_backend.services.db_mongo import testsets
-from agenta_backend.models.api.api_models import URI, App, AppVariant, Image
+from agenta_backend.models.api.api_models import (
+    URI,
+    App,
+    AppVariant,
+    Image,
+    DockerEnvVars,
+)
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
 
@@ -37,7 +43,9 @@ def remove_app_variant(app_variant: AppVariant):
             if db_manager.check_is_last_variant(app_variant_db):
                 image: Image = db_manager.get_image(app_variant)
                 try:
-                    container_ids = docker_utils.stop_containers_based_on_image(image)
+                    container_ids = (
+                        docker_utils.stop_containers_based_on_image(image)
+                    )
                     logger.info(f"Containers {container_ids} stopped")
                     for container_id in container_ids:
                         docker_utils.delete_container(container_id)
@@ -78,7 +86,9 @@ async def remove_app(app: App):
             app_name=app_name, show_soft_deleted=True
         )
     except Exception as e:
-        logger.error(f"Error fetching app variants from the database: {str(e)}")
+        logger.error(
+            f"Error fetching app variants from the database: {str(e)}"
+        )
         raise
     if app_variants is None:
         msg = f"App {app_name} not found in DB"
@@ -93,6 +103,9 @@ async def remove_app(app: App):
                 )
 
             await remove_app_testsets(app_name)
+            if app_variant.variant_name == "v1":
+                docker_utils.stop_container(f"{app_variant.app_name}-v1")
+                docker_utils.delete_container(f"{app_variant.app_name}-v1")
             logger.info(f"Tatasets for {app_name} app deleted")
         except Exception as e:
             logger.error(f"Error deleting app variants: {str(e)}")
@@ -127,7 +140,9 @@ async def remove_app_testsets(app_name: str):
         return 0
 
 
-def start_variant(app_variant: AppVariant) -> URI:
+def start_variant(
+    app_variant: AppVariant, env_vars: DockerEnvVars = None
+) -> URI:
     """
     Starts a Docker container for a given app variant.
 
@@ -136,6 +151,7 @@ def start_variant(app_variant: AppVariant) -> URI:
 
     Args:
         app_variant (AppVariant): The app variant for which a container is to be started.
+        env_vars (DockerEnvVars): (optional) The environment variables to be passed to the container.
 
     Returns:
         URI: The URI of the started Docker container.
@@ -159,6 +175,7 @@ def start_variant(app_variant: AppVariant) -> URI:
             image_name=image.tags,
             app_name=app_variant.app_name,
             variant_name=app_variant.variant_name,
+            env_vars=env_vars,
         )
         logger.info(
             f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
@@ -180,7 +197,10 @@ def update_variant_parameters(app_variant: AppVariant):
     Arguments:
         app_variant -- the app variant to update
     """
-    if app_variant.app_name in ["", None] or app_variant.variant_name == ["", None]:
+    if app_variant.app_name in ["", None] or app_variant.variant_name == [
+        "",
+        None,
+    ]:
         msg = f"App name and variant name cannot be empty"
         logger.error(msg)
         raise ValueError(msg)
@@ -189,7 +209,9 @@ def update_variant_parameters(app_variant: AppVariant):
         logger.error(msg)
         raise ValueError(msg)
     try:
-        db_manager.update_variant_parameters(app_variant, app_variant.parameters)
+        db_manager.update_variant_parameters(
+            app_variant, app_variant.parameters
+        )
     except:
         logger.error(
             f"Error updating app variant {app_variant.app_name}/{app_variant.variant_name}"
@@ -204,7 +226,10 @@ def update_variant_image(app_variant: AppVariant, image: Image):
         app_variant -- the app variant to update
         image -- the image to update
     """
-    if app_variant.app_name in ["", None] or app_variant.variant_name == ["", None]:
+    if app_variant.app_name in ["", None] or app_variant.variant_name == [
+        "",
+        None,
+    ]:
         msg = "App name and variant name cannot be empty"
         logger.error(msg)
         raise ValueError(msg)
@@ -239,7 +264,9 @@ def update_variant_image(app_variant: AppVariant, image: Image):
         logger.error(
             f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}"
         )
-        logger.error("Previous variant removed but new variant not added. Rolling back")
+        logger.error(
+            "Previous variant removed but new variant not added. Rolling back"
+        )
         db_manager.add_variant_based_on_image(old_variant, old_image)
         raise
     try:

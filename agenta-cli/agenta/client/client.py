@@ -47,7 +47,7 @@ def start_variant(app_name: str, variant_name: str, host: str) -> str:
     """
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/start/",
-        json={"app_name": app_name, "variant_name": variant_name},
+        json={"app_variant": {"app_name": app_name, "variant_name": variant_name}},
         timeout=600,
     )
     if response.status_code != 200:

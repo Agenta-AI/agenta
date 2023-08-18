@@ -1,5 +1,6 @@
 import React from "react"
 import {Modal, Button} from "antd"
+import {useRouter} from "next/router"
 
 interface Props {
     isModalOpen: boolean
@@ -15,10 +16,12 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
     handleCancel,
 }) => {
     const handleCloseModal = () => setIsModalOpen(false)
+    const router = useRouter()
 
     const handleDelete = () => {
         handleRemove()
         handleCloseModal()
+        router.push(`/apps`)
     }
 
     const handleDismiss = () => {
