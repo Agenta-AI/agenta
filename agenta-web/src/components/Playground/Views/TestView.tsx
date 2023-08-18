@@ -181,7 +181,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleAddRow = () => {
         setTestList([...testList, {}])
-        setResultsList([...testList, {}].map(() => ""))
+        setResultsList([...resultsList, ""])
     }
 
     const handleSetNewTests: (tests: Record<string, string>[]) => void = (tests) => {
@@ -192,9 +192,9 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
     const handleDeleteRow = (testIndex: number) => {
         if (resultsList.length < 2) return
         if (resultsList[testIndex] != "") {
-            setResultsList(resultsList.filter((_, index) => index != testIndex))
+            setResultsList(resultsList.filter((_, index) => index !== testIndex))
         }
-        const newTestList = testList.filter((_, index) => index != testIndex)
+        const newTestList = testList.filter((_, index) => index !== testIndex)
         setTestList(newTestList)
     }
 
