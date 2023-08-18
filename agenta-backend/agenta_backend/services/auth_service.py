@@ -11,7 +11,6 @@ from agenta_backend.models.api.auth_models import (
 
 async def create_new_user(payload: User) -> Dict:
     user = await users.insert_one(payload.dict())
-    user["id"] = str(user.inserted_id)
     return user
 
 
@@ -28,8 +27,7 @@ async def update_user(user_id: str, payload: UserUpdate) -> Dict:
 
 async def create_new_organization(payload: Organization) -> Dict:
     org = await organization.insert_one(payload.dict())
-    org["id"] = str(org.inserted_id)
-    return users
+    return org
 
 
 async def update_organization(org_id: str, payload: OrganizationUpdate) -> Dict:
