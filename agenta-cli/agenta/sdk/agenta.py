@@ -83,7 +83,8 @@ def ingest(func: Callable[..., Any]):
                 traceback.format_exception(None, e, e.__traceback__)
             )
             return JSONResponse(
-                status_code=500, content={"error": str(e), "traceback": traceback_str}
+                status_code=500,
+                content={"error": str(e), "traceback": traceback_str},
             )
 
     new_params = []
@@ -127,7 +128,9 @@ def ingest(func: Callable[..., Any]):
             if name in app_params:
                 # For optional parameters, we add them as options
                 parser.add_argument(
-                    f"--{name}", type=type(param.default), default=param.default
+                    f"--{name}",
+                    type=type(param.default),
+                    default=param.default,
                 )
             elif name in ingestible_files:
                 parser.add_argument(name, type=str)
@@ -155,7 +158,8 @@ def post(func: Callable[..., Any]):
     app_params = {
         name: param.default if param.default is not param.empty else None
         for name, param in func_params.items()
-        if param.annotation in {TextParam, FloatParam, IntParam, MultipleChoiceParam}
+        if param.annotation
+        in {TextParam, FloatParam, IntParam, DictInput, MultipleChoiceParam}
     }
 
     @functools.wraps(func)
@@ -176,11 +180,11 @@ def post(func: Callable[..., Any]):
                     traceback.format_exception(e, value=e, tb=e.__traceback__)
                 )
             return JSONResponse(
-                status_code=500, content={"error": str(e), "traceback": traceback_str},
+                status_code=500,
+                content={"error": str(e), "traceback": traceback_str},
             )
 
     new_params = []
-    instances_to_override = []
     for name, param in sig.parameters.items():
         if name in app_params:  # optional parameters
             new_params.append(
@@ -230,7 +234,9 @@ def post(func: Callable[..., Any]):
                     )
                 else:
                     parser.add_argument(
-                        f"--{name}", type=type(param.default), default=param.default,
+                        f"--{name}",
+                        type=type(param.default),
+                        default=param.default,
                     )
             else:
                 # For required parameters, we add them as arguments
@@ -250,6 +256,7 @@ def override_schema(
     - The choices available for each MultipleChoiceParam instance
     - The min and max values for each FloatParam instance
     - The min and max values for each IntParam instance
+    - The default value for DictInput instance
     - ... [PLEASE ADD AT EACH CHANGE]
 
     Args:
@@ -302,3 +309,6 @@ def override_schema(
             subschema["minimum"] = param_val.minval
             subschema["maximum"] = param_val.maxval
             subschema["default"] = param_val
+        if isinstance(param_val, DictInput):
+            subschema = find_in_schema(schema_to_override, param_name, "dict")
+            subschema["default"] = param_val.data

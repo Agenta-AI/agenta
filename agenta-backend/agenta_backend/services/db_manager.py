@@ -1,12 +1,18 @@
 import os
 from typing import Dict, List, Optional, Any
 
-from agenta_backend.models.api.api_models import App, AppVariant, Image
+from agenta_backend.models.api.api_models import (
+    App,
+    AppVariant,
+    Image,
+    Template,
+)
 from agenta_backend.models.converters import (
     app_variant_db_to_pydantic,
     image_db_to_pydantic,
+    templates_db_to_pydantic,
 )
-from agenta_backend.models.db_models import AppVariantDB, ImageDB
+from agenta_backend.models.db_models import AppVariantDB, ImageDB, TemplateDB
 from agenta_backend.services import helpers
 from sqlmodel import Session, SQLModel, create_engine, func, and_
 import logging
@@ -29,6 +35,28 @@ def get_session():
     """
     with Session(engine) as session:
         yield session
+
+
+def get_templates() -> List[Template]:
+    with Session(engine) as session:
+        templates = session.query(TemplateDB).all()
+    return templates_db_to_pydantic(templates)
+
+
+def add_template(**kwargs: dict):
+    with Session(engine) as session:
+        existing_template = (
+            session.query(TemplateDB)
+            .filter_by(template_id=kwargs["template_id"])
+            .first()
+        )
+        if existing_template:
+            pass
+        else:
+            db_template = TemplateDB(**kwargs)
+            session.add(db_template)
+            session.commit()
+            session.refresh(db_template)
 
 
 def add_variant_based_on_image(app_variant: AppVariant, image: Image):
@@ -78,7 +106,9 @@ def add_variant_based_on_image(app_variant: AppVariant, image: Image):
 
 
 def add_variant_based_on_previous(
-    previous_app_variant: AppVariant, new_variant_name: str, parameters: Dict[str, Any]
+    previous_app_variant: AppVariant,
+    new_variant_name: str,
+    parameters: Dict[str, Any],
 ):
     """Adds a new variant from a previous/template one by changing the parameters.
 
@@ -413,3 +443,21 @@ def update_variant_parameters(app_variant: AppVariant, parameters: Dict[str, Any
             raise ValueError("Parameters keys don't match")
         db_app_variant.parameters = parameters
         session.commit()
+
+
+def remove_old_template_from_db(template_ids: list) -> None:
+    """Deletes old templates that are no longer in docker hub.
+
+    Arguments:
+        template_ids -- list of template IDs you want to keep
+    """
+
+    with Session(engine) as session:
+        temps_to_delete = (
+            session.query(TemplateDB)
+            .filter(~TemplateDB.template_id.in_(template_ids))
+            .all()
+        )
+        for template in temps_to_delete:
+            session.delete(template)
+            session.commit()

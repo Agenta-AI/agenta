@@ -6,6 +6,8 @@ import {Parameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
 import {TestContext} from "../TestContextProvider"
 import LoadTestsModal from "../LoadTestsModal"
+import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
+import {DeleteOutlined} from "@ant-design/icons"
 
 interface TestViewProps {
     URIPath: string | null
@@ -15,24 +17,26 @@ interface TestViewProps {
 
 interface BoxComponentProps {
     inputParams: Parameter[] | null
-    URIPath: string | null
     testData: Record<string, string>
     testIndex: number
     setTestList: Dispatch<SetStateAction<Record<string, string>[]>>
     handleRun: (testData: Record<string, string>, testIndex: number) => Promise<void>
     results: string
     resultsList: string[]
+    onAddToTestset: (params: Record<string, string>) => void
+    handleDeleteRow: (testIndex: number) => void
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
     inputParams,
-    URIPath,
     testData,
     testIndex,
     setTestList,
     handleRun,
     results,
     resultsList,
+    onAddToTestset,
+    handleDeleteRow,
 }) => {
     const {TextArea} = Input
 
@@ -51,70 +55,86 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
         })
     }
 
+    const handleAddToTestset = () => {
+        const params: Record<string, string> = {}
+        inputParamsNames.forEach((name) => {
+            params[name] = testData[name] || ""
+        })
+        params.correct_answer = results
+
+        onAddToTestset(params)
+    }
+
     return (
-        <>
-            {/* </Card> */}
+        <Card
+            style={{
+                marginTop: 16,
+                border: "1px solid #ccc",
+                marginRight: "24px",
+                marginLeft: "12px",
+            }}
+            bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
+        >
+            <Row style={{display: "flex", alignItems: "center", justifyContent: "space-between"}}>
+                <h4>Input parameters</h4>
+                <Button
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleDeleteRow(testIndex)}
+                ></Button>
+            </Row>
 
-            <Card
-                style={{
-                    marginTop: 16,
-                    border: "1px solid #ccc",
-                    marginRight: "24px",
-                    marginLeft: "12px",
-                }}
-                bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-            >
-                <h4 style={{padding: "0px", marginTop: "8px", marginBottom: "0px"}}>
-                    Input parameters
-                </h4>
-
-                <Row style={{marginTop: "0px"}}>
-                    {inputParamsNames.map((key, index) => (
-                        <TextArea
-                            key={index}
-                            value={testData[key]}
-                            placeholder={renameVariables(key)}
-                            onChange={(e) => handleInputParamValChange(key, e.target.value)}
-                            style={{height: "100%", width: "100%", marginTop: "16px"}}
-                        />
-                    ))}
-                </Row>
-                <Row style={{marginTop: "16px"}}>
-                    <Col span={24} style={{textAlign: "right"}}>
-                        <Button
-                            type="primary"
-                            shape="round"
-                            icon={<CaretRightOutlined />}
-                            onClick={() => handleRun(testData, testIndex)}
-                            style={{width: "100px"}}
-                            loading={resultsList[testIndex] === "Loading..."}
-                            disabled={resultsList[testIndex] === "Loading..."}
-                        >
-                            Run
-                        </Button>
-                    </Col>
-                </Row>
-                <Row style={{marginTop: "16px", marginBottom: "16px"}}>
+            <Row style={{marginTop: "0px"}}>
+                {inputParamsNames.map((key, index) => (
                     <TextArea
-                        value={results}
-                        rows={6}
-                        placeholder="Results will be shown here"
-                        disabled
-                        style={{
-                            height: "100%",
-                            width: "100%",
-                        }}
+                        key={index}
+                        value={testData[key]}
+                        placeholder={renameVariables(key)}
+                        onChange={(e) => handleInputParamValChange(key, e.target.value)}
+                        style={{height: "100%", width: "100%", marginTop: "16px"}}
                     />
-                </Row>
-            </Card>
-        </>
+                ))}
+            </Row>
+            <Row style={{marginTop: "16px"}}>
+                <Col
+                    span={24}
+                    style={{justifyContent: "flex-end", display: "flex", gap: "0.75rem"}}
+                >
+                    <Button shape="round" icon={<PlusOutlined />} onClick={handleAddToTestset}>
+                        Add to Test Set
+                    </Button>
+                    <Button
+                        type="primary"
+                        shape="round"
+                        icon={<CaretRightOutlined />}
+                        onClick={() => handleRun(testData, testIndex)}
+                        style={{width: "100px"}}
+                        loading={resultsList[testIndex] === "Loading..."}
+                        disabled={resultsList[testIndex] === "Loading..."}
+                    >
+                        Run
+                    </Button>
+                </Col>
+            </Row>
+            <Row style={{marginTop: "16px", marginBottom: "16px"}}>
+                <TextArea
+                    value={results}
+                    rows={6}
+                    placeholder="Results will be shown here"
+                    disabled
+                    style={{
+                        height: "100%",
+                        width: "100%",
+                    }}
+                />
+            </Row>
+        </Card>
     )
 }
 
 const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
     const {testList, setTestList} = useContext(TestContext)
-
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
+    const [params, setParams] = useState<Record<string, string> | null>(null)
 
     const handleRun = async (testData: Record<string, string>, testIndex: number) => {
         try {
@@ -145,7 +165,6 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 return await callVariant(testData, inputParams, optParams, URIPath)
             })
             const results = await Promise.all(resultsPromises)
-            console.log(results)
             results.forEach((result, index) => {
                 newResultsList[index] = result
             })
@@ -162,10 +181,21 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleAddRow = () => {
         setTestList([...testList, {}])
+        setResultsList([...resultsList, ""])
     }
 
     const handleSetNewTests: (tests: Record<string, string>[]) => void = (tests) => {
         setTestList([...tests])
+        setResultsList(tests.map(() => ""))
+    }
+
+    const handleDeleteRow = (testIndex: number) => {
+        if (resultsList.length < 2) return
+        if (resultsList[testIndex] !== "") {
+            setResultsList(resultsList.filter((_, index) => index !== testIndex))
+        }
+        const newTestList = testList.filter((_, index) => index !== testIndex)
+        setTestList(newTestList)
     }
 
     return (
@@ -201,13 +231,14 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 <BoxComponent
                     key={index}
                     inputParams={inputParams}
-                    URIPath={URIPath}
                     testData={testData}
                     testIndex={index}
                     setTestList={setTestList}
                     handleRun={(testData) => handleRun(testData, index)}
                     results={resultsList[index]}
                     resultsList={resultsList}
+                    onAddToTestset={setParams}
+                    handleDeleteRow={handleDeleteRow}
                 />
             ))}
             <Button
@@ -224,6 +255,13 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             >
                 Add Row
             </Button>
+
+            <AddToTestSetDrawer
+                open={!!params}
+                onClose={() => setParams(null)}
+                destroyOnClose
+                params={params || {}}
+            />
         </div>
     )
 }

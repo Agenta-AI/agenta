@@ -98,3 +98,28 @@ export interface ResultsTableDataType {
 export interface InputParameter {
     name: string
 }
+
+export interface Template {
+    id: number
+    image: {
+        name: string
+        title: string
+        description: string
+        architecture: string
+    }
+}
+
+export interface TemplateImage {
+    image_tag: string
+    image_id: string
+    message?: string
+}
+
+export interface AppTemplate {
+    app_name: string
+    image_id: string
+    image_tag: string
+    env_vars: {
+        OPENAI_API_KEY: string
+    }
+}
