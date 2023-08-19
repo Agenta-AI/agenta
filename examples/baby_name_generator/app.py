@@ -12,7 +12,7 @@ default_prompt = "Give me five cool names for a baby from this country {{country
 def generate(
     country: str,
     gender: str,
-    temperature: FloatParam = 0.9,
+    temperature: FloatParam = FloatParam(0.9),
     prompt_template: TextParam = default_prompt,
 ) -> str:
     template = Template(prompt_template)
