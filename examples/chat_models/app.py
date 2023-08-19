@@ -76,7 +76,7 @@ def call_llm(model, temperature, prompt_system, prompt_human, **kwargs):
 
 @ag.post
 def generate(
-    inputs: ag.DictInput,
+    inputs: ag.DictInput = ag.DictInput(default_keys=["text"]),
     temperature: ag.FloatParam = 0.9,
     model: MultipleChoiceParam = ag.MultipleChoiceParam(
         "gpt-3.5-turbo",
