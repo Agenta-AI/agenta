@@ -50,6 +50,7 @@ def start_variant(app_name: str, variant_name: str, host: str) -> str:
         json={"app_variant": {"app_name": app_name, "variant_name": variant_name}},
         timeout=600,
     )
+
     if response.status_code != 200:
         error_message = response.json()["detail"]
         raise APIRequestError(
