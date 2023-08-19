@@ -30,8 +30,8 @@ const useStyles = createUseStyles({
     }),
     createCard: {
         fontSize: 20,
-        backgroundColor: "#0064ff   ",
-        borderColor: "#0064ff !important",
+        backgroundColor: "#1777FF",
+        borderColor: "#1777FF !important",
         color: "#FFFFFF",
         "& .ant-card-meta-title": {
             color: "#FFFFFF",
