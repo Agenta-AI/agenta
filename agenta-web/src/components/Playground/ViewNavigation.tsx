@@ -1,5 +1,5 @@
 import React from "react"
-import {Col, Row, Divider, Button, Tooltip} from "antd"
+import {Col, Row, Divider, Button, Tooltip, Spin} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -29,17 +29,14 @@ const ViewNavigation: React.FC<Props> = ({
         inputParams,
         optParams,
         URIPath,
-        isLoading,
         isError,
         error,
         isParamSaveLoading,
         saveOptParams,
+        isLoading,
     } = useVariant(appName, variant)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
 
-    if (isLoading) {
-        return <div>Loading...</div>
-    }
     if (isError) {
         let variantDesignator = variant.templateVariantName
         let imageName = `agenta-server/${appName.toLowerCase()}_`
@@ -105,7 +102,7 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     return (
-        <div>
+        <Spin spinning={isLoading}>
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
@@ -130,7 +127,7 @@ const ViewNavigation: React.FC<Props> = ({
                     <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
                 </Col>
             </Row>
-        </div>
+        </Spin>
     )
 }
 
