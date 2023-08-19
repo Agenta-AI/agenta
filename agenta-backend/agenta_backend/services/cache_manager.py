@@ -20,18 +20,19 @@ def redis_connection() -> redis.Redis:
     return redis_client
 
 
-async def retrieve_templates_from_dockerhub_cached() -> List[dict]:
+async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
     """Retrieves templates from Docker Hub and caches the data in Redis for future use.
-
+    Args:
+        cache: A boolean value that indicates whether to use the cached data or not.
     Returns:
         List of tags data (cached or network-call)
     """
-
     r = redis_connection()
+    if cache:
 
-    cached_data = r.get("templates_data")
-    if cached_data is not None:
-        return json.loads(cached_data.decode("utf-8"))
+        cached_data = r.get("templates_data")
+        if cached_data is not None:
+            return json.loads(cached_data.decode("utf-8"))
 
     # If not cached, fetch data from Docker Hub and cache it in Redis
     response = await retrieve_templates_from_dockerhub(
@@ -46,19 +47,20 @@ async def retrieve_templates_from_dockerhub_cached() -> List[dict]:
     return response_data
 
 
-async def retrieve_templates_info_from_dockerhub_cached() -> List[dict]:
+async def retrieve_templates_info_from_dockerhub_cached(cache: bool) -> List[dict]:
     """Retrieves templates information from Docker Hub and caches the data in Redis for future use.
-
+    Args:
+        cache: A boolean value that indicates whether to use the cached data or not.
     Returns:
         Information about organization in DockerHub (cached or network-call)
     """
-
     r = redis_connection()
+    if cache:
 
-    cached_data = r.get("org_data")
-    if cached_data is not None:
-        print("Using cache...")
-        return json.loads(cached_data.decode("utf-8"))
+        cached_data = r.get("org_data")
+        if cached_data is not None:
+            print("Using cache...")
+            return json.loads(cached_data.decode("utf-8"))
 
     # If not cached, fetch data from Docker Hub and cache it in Redis
     response = await get_templates_info(
