@@ -22,7 +22,7 @@ export function useVariant(appName: string, variant: Variant) {
     const [isError, setIsError] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const [isParamSaveLoading, setIsParamSaveLoading] = useState(false)
-    const [isChanged, setIsChanged] = useState(false);
+    const [isChanged, setIsChanged] = useState(false)
 
     useEffect(() => {
         const fetchParameters = async () => {
@@ -50,7 +50,7 @@ export function useVariant(appName: string, variant: Variant) {
 
         return () => {
             setTimeout(() => {
-setIsChanged(true)
+                setIsChanged(true)
             }, 100)
         }
     }, [appName, variant])
@@ -100,6 +100,6 @@ setIsChanged(true)
         error,
         isParamSaveLoading,
         saveOptParams,
-        isChanged
+        isChanged,
     }
 }
