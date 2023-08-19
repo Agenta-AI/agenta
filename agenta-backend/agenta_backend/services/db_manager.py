@@ -106,9 +106,7 @@ def add_variant_based_on_image(app_variant: AppVariant, image: Image):
 
 
 def add_variant_based_on_previous(
-    previous_app_variant: AppVariant,
-    new_variant_name: str,
-    parameters: Dict[str, Any],
+    previous_app_variant: AppVariant, new_variant_name: str, parameters: Dict[str, Any],
 ):
     """Adds a new variant from a previous/template one by changing the parameters.
 

@@ -53,9 +53,7 @@ def call_llm(model, temperature, prompt_system, prompt_human, **kwargs):
             SystemMessage(content=prompt_system),
             HumanMessage(content=prompt_human),
         ]
-        output = chat(
-            messages,
-        ).content
+        output = chat(messages,).content
 
     # replicate
     if model.startswith("replicate"):
@@ -76,11 +74,10 @@ def call_llm(model, temperature, prompt_system, prompt_human, **kwargs):
 
 @ag.post
 def generate(
-    inputs: ag.DictInput,
+    inputs: ag.DictInput = ag.DictInput(default_keys=["text"]),
     temperature: ag.FloatParam = 0.9,
     model: MultipleChoiceParam = ag.MultipleChoiceParam(
-        "gpt-3.5-turbo",
-        CHAT_LLM_GPT + list(replicate_dict.keys()),
+        "gpt-3.5-turbo", CHAT_LLM_GPT + list(replicate_dict.keys()),
     ),
     maximum_length: ag.IntParam = ag.IntParam(100, 0, 4000),
     prompt_system: ag.TextParam = prompts["system_prompt"],
