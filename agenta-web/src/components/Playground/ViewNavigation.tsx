@@ -7,6 +7,9 @@ import {Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import {is} from "cypress/types/bluebird"
+import useBlockNavigation from "@/hooks/useBlockNavigation"
+import {useUpdateEffect} from "usehooks-ts"
+import useStateCallback from "@/hooks/useStateCallback"
 
 interface Props {
     variant: Variant
@@ -34,7 +37,28 @@ const ViewNavigation: React.FC<Props> = ({
         isParamSaveLoading,
         saveOptParams,
         isLoading,
+        isChanged,
     } = useVariant(appName, variant)
+
+    const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
+
+    useBlockNavigation(unSavedChanges, {
+        title: "Unsaved changes",
+        message:
+            "You have unsaved changes in your test set. Do you want to save these changes before leaving the page?",
+        okText: "Save",
+        onOk: async () => {
+            await saveOptParams(optParams!, true, variant.persistent)
+            return !!optParams
+        },
+        cancelText: "Proceed without saving",
+    })
+
+    useUpdateEffect(() => {
+        if (isChanged) {
+            setUnSavedChanges(true)
+        }
+    }, [optParams])
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
 
