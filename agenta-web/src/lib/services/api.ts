@@ -25,6 +25,7 @@ export async function fetchVariants(app: string): Promise<Variant[]> {
                 templateVariantName: variant.previous_variant_name,
                 persistent: true,
                 parameters: variant.parameters,
+                previousVariantName: variant.previous_variant_name || null,
             }
             return v
         })

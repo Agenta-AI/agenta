@@ -6,7 +6,7 @@ import {createUseStyles} from "react-jss"
 import {Button, Input, Tooltip, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons"
-import {createNewTestset, loadTestset, updateTestset} from "@/lib/services/api"
+import {createNewTestset, fetchVariants, loadTestset, updateTestset} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
@@ -14,6 +14,19 @@ import {useUpdateEffect} from "usehooks-ts"
 import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
+import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
+import {globalErrorHandler} from "@/lib/helpers/errorHandler"
+
+export const CHECKBOX_COL = {
+    field: "",
+    headerCheckboxSelection: true,
+    checkboxSelection: true,
+    showDisabledCheckboxes: true,
+    maxWidth: 50,
+    editable: false,
+}
+
+export const ADD_BUTTON_COL = {field: "", editable: false, maxWidth: 100}
 
 const useStyles = createUseStyles({
     cellContainer: {
@@ -84,27 +97,10 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
     const [loading, setLoading] = useState(false)
     const [testsetName, setTestsetName] = useState("")
-    const [rowData, setRowData] = useState([
-        {column1: "data1"},
-        {column1: "data1"},
-        {column1: "data1"},
-    ])
-    const emptyData = {field: "", editable: false, maxWidth: 100}
+    const [rowData, setRowData] = useState<Record<string, string>[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const [columnDefs, setColumnDefs] = useState([
-        {
-            field: "",
-            headerCheckboxSelection: true,
-            checkboxSelection: true,
-            showDisabledCheckboxes: true,
-            maxWidth: 50,
-            editable: false,
-        },
-        {field: "column1"},
-    ])
-    const [inputValues, setInputValues] = useStateCallback(
-        columnDefs.filter((colDef) => colDef.field !== "").map((col) => col.field),
-    )
+    const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
+    const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<Record<string, any>>()
     const gridRef = useRef(null)
 
@@ -134,38 +130,56 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     }, [rowData, testsetName, columnDefs, inputValues])
 
     useEffect(() => {
+        async function applyColData(colData: {field: string}[] = []) {
+            const newColDefs = [CHECKBOX_COL, ...colData, ADD_BUTTON_COL]
+            setColumnDefs(newColDefs)
+            if (mode === "create") {
+                setRowData(
+                    Array(3).fill(colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})),
+                )
+            }
+            setInputValues(
+                newColDefs.filter((col) => !!col.field).map((col) => col.field),
+                () => {
+                    setTimeout(() => {
+                        setLoading(false)
+                    }, 100)
+                },
+            )
+        }
+
         if (mode === "edit" && testset_id) {
             setLoading(true)
-            loadTestset(testset_id).then((data) => {
+            loadTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
                 setRowData(data.csvdata)
-
-                // Create the column definitions from the data keys
-                const columnsFromData = Object.keys(data.csvdata[0]).map((key) => ({
-                    field: key,
-                }))
-
-                // Merge with the existing column definitions (the checkbox column)
-                const newColumnDefs = [...columnDefs.slice(0, 1), ...columnsFromData, emptyData]
-
-                setColumnDefs([...newColumnDefs])
-
-                // Update input values for column names
-                setInputValues(
-                    columnsFromData.map((colDef) => colDef.field),
-                    () => {
-                        //set loading to false after the initial state has been settled
-                        setTimeout(() => {
-                            setLoading(false)
-                        }, 100)
-                    },
+                applyColData(
+                    Object.keys(data.csvdata[0]).map((key) => ({
+                        field: key,
+                    })),
                 )
             })
+        } else if (mode === "create" && appName) {
+            setLoading(true)
+            ;(async () => {
+                //load input parameters for the first variant
+                const backendVariants = await fetchVariants(appName)
+                const variant =
+                    backendVariants.find((v) => v.previousVariantName === null) ||
+                    backendVariants[0]
+                const inputParams = await getVariantInputParameters(appName, variant)
+                const colData = inputParams.map((param) => ({field: param.name}))
+                colData.push({field: "correct_answer"})
+
+                applyColData(colData)
+            })().catch((e) => {
+                applyColData([])
+                globalErrorHandler(e)
+            })
         }
-    }, [mode, testset_id])
+    }, [mode, testset_id, appName])
 
     const updateTable = (inputValues: string[]) => {
-        const checkboxColumn = columnDefs.find((colDef) => colDef.field === "")
         const dataColumns = columnDefs.filter((colDef) => colDef.field !== "")
 
         const newDataColumns = inputValues.map((value, index) => {
@@ -174,7 +188,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
 
-        const newColumnDefs = [checkboxColumn, ...newDataColumns, emptyData]
+        const newColumnDefs = [CHECKBOX_COL, ...newDataColumns, ADD_BUTTON_COL]
 
         const keyMap = dataColumns.reduce((acc, colDef, index) => {
             acc[colDef.field] = newDataColumns[index].field
@@ -254,7 +268,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             newColmnDef.pop()
 
             setInputValues([...inputValues, newColumnName])
-            setColumnDefs([...columnDefs, {field: newColumnName}, emptyData])
+            setColumnDefs([...columnDefs, {field: newColumnName}, ADD_BUTTON_COL])
             setRowData(updatedRowData)
         }
 
