@@ -64,15 +64,11 @@ def ingest(func: Callable[..., Any]):
     }
     # find the default values for the optional parameters
     for name, param in app_params.items():
-        default_value = (
-            param.default if param.default is not param.empty else None
-        )
+        default_value = param.default if param.default is not param.empty else None
         app_params[name] = default_value
 
     ingestible_files = {
-        name: param
-        for name, param in func_params.items()
-        if param.annotation is InFile
+        name: param for name, param in func_params.items() if param.annotation is InFile
     }
 
     @functools.wraps(func)
@@ -292,9 +288,7 @@ def override_schema(
     ]["properties"]
     for param_name, param_val in app_params.items():
         if isinstance(param_val, MultipleChoiceParam):
-            subschema = find_in_schema(
-                schema_to_override, param_name, "choice"
-            )
+            subschema = find_in_schema(schema_to_override, param_name, "choice")
             default = str(param_val)
             param_choices = param_val.choices
             choices = (
@@ -304,9 +298,7 @@ def override_schema(
             )
 
             subschema["enum"] = choices
-            subschema["default"] = (
-                default if default in param_choices else choices[0]
-            )
+            subschema["default"] = default if default in param_choices else choices[0]
         if isinstance(param_val, FloatParam):
             subschema = find_in_schema(schema_to_override, param_name, "float")
             subschema["minimum"] = param_val.minval
