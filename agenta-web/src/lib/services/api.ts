@@ -1,7 +1,7 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, EvaluationResponseType, Evaluation} from "@/lib/Types"
+import {Variant, Parameter, EvaluationResponseType, Evaluation, AppTemplate} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
@@ -94,16 +94,15 @@ export function callVariant(
         })
         .catch((error) => {
             if (error.response && error.response.status === 500) {
-                throw new Error(error.response.data.error + " " + error.response.data.traceback)
+                throw new Error(error.response.data.error + " " + error.response.data.traceback, {
+                    cause: error.response.data.error,
+                })
             }
             if (error.response && error.response.status === 422) {
-                throw new Error(
-                    `Unprocessable Entity: The server understands the content type of the request, and the syntax of the request is correct, but it was unable to process the contained instructions. Data: ${JSON.stringify(
-                        error.response.data,
-                        null,
-                        2,
-                    )}`,
-                )
+                let cause = `Unprocessable Entity: The server understands the content type of the request, and the syntax of the request is correct, but it was unable to process the contained instructions.`
+                throw new Error(`${cause} Data: ${JSON.stringify(error.response.data, null, 2)}`, {
+                    cause,
+                })
             }
             throw error // If it's not a 500 status, or if error.response is undefined, rethrow the error so it can be handled elsewhere.
         })
@@ -125,10 +124,16 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
         let APIParams = parseOpenApiSchema(response.data)
         // we create a new param for DictInput that will contain the name of the inputs
         APIParams = APIParams.map((param) => {
+            console.log("param", param)
             if (param.type === "object") {
-                param.default = param.default.map((item: string) => {
-                    return {name: item}
-                })
+                // if param.default is defined
+                if (param?.default) {
+                    param.default = param.default.map((item: string) => {
+                        return {name: item}
+                    })
+                } else {
+                    param.default = []
+                }
             }
             return param
         })
@@ -398,6 +403,71 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
         }
     } catch (error) {
         console.error("Error fetching results:", error)
+        throw error
+    }
+}
+
+export const fetchApps = () => {
+    const {data, error, isLoading} = useSWR(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
+        fetcher,
+    )
+    return {
+        data,
+        error,
+        isLoading,
+    }
+}
+
+export const getTemplates = async () => {
+    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/`, {
+        headers: {
+            "Content-Type": "application/json",
+        },
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            return data
+        })
+        .catch((error) => {
+            console.error("Error fetching templates:", error)
+        })
+}
+
+export const pullTemplateImage = async (image_name: string) => {
+    return fetch(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`,
+        {
+            headers: {
+                "Content-Type": "application/json",
+            },
+        },
+    )
+        .then((response) => response.json())
+        .then((data) => {
+            return data
+        })
+        .catch((error) => {
+            console.error("Error fetching template image:", error)
+            throw error
+        })
+}
+
+export const startTemplate = async (templateObj: AppTemplate) => {
+    try {
+        const response = await axios.post(
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_template/`,
+            templateObj,
+            {
+                headers: {
+                    accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+            },
+        )
+        return response
+    } catch (error) {
+        console.error("Start Template Error => ", error)
         throw error
     }
 }
