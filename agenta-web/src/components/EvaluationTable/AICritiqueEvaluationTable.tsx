@@ -179,7 +179,6 @@ Answer ONLY with one of the given grading or evaluation options.
                 setShouldFetchResults(true)
             } catch (e) {
                 message.error("Oops! Something went wrong")
-                console.error("Error:", e)
             }
         }
     }

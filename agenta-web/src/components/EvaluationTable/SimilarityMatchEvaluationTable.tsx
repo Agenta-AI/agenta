@@ -148,7 +148,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             } catch (e) {
                 setRowValue(rowIndex, columnName, "")
                 message.error("Oops! Something went wrong")
-                console.error("Error:", e)
             }
         })
     }
