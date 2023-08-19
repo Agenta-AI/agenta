@@ -28,9 +28,17 @@ origins = [
 
 
 @asynccontextmanager
-async def lifespan(application: FastAPI):
-    tags_data = await retrieve_templates_from_dockerhub_cached()
-    templates_info_string = await retrieve_templates_info_from_dockerhub_cached()
+async def lifespan(application: FastAPI, cache=True):
+    """ 
+
+    Args:
+        application: FastAPI application.
+        cache: A boolean value that indicates whether to use the cached data or not.
+    """
+    tags_data = await retrieve_templates_from_dockerhub_cached(cache=cache)
+    templates_info_string = await retrieve_templates_info_from_dockerhub_cached(
+        cache=cache
+    )
     templates_info = json.loads(templates_info_string)
 
     templates_in_hub = []
