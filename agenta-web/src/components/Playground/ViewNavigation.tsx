@@ -45,7 +45,7 @@ const ViewNavigation: React.FC<Props> = ({
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
         message:
-            "You have unsaved changes in your test set. Do you want to save these changes before leaving the page?",
+            "You have unsaved changes in your playground. Do you want to save these changes before leaving the page?",
         okText: "Save",
         onOk: async () => {
             await saveOptParams(optParams!, true, variant.persistent)
