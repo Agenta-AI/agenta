@@ -29,7 +29,6 @@ async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
     """
     r = redis_connection()
     if cache:
-
         cached_data = r.get("templates_data")
         if cached_data is not None:
             return json.loads(cached_data.decode("utf-8"))
@@ -56,7 +55,6 @@ async def retrieve_templates_info_from_dockerhub_cached(cache: bool) -> List[dic
     """
     r = redis_connection()
     if cache:
-
         cached_data = r.get("org_data")
         if cached_data is not None:
             print("Using cache...")

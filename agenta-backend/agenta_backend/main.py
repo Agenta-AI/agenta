@@ -29,7 +29,7 @@ origins = [
 
 @asynccontextmanager
 async def lifespan(application: FastAPI, cache=True):
-    """ 
+    """
 
     Args:
         application: FastAPI application.

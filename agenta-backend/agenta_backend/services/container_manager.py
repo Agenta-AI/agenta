@@ -21,7 +21,11 @@ logger.setLevel(logging.INFO)
 
 
 def build_image_job(
-    app_name: str, variant_name: str, tar_path: Path, image_name: str, temp_dir: Path,
+    app_name: str,
+    variant_name: str,
+    tar_path: Path,
+    image_name: str,
+    temp_dir: Path,
 ) -> Image:
     """Business logic for building a docker image from a tar file
 
@@ -77,8 +81,8 @@ async def retrieve_templates_from_dockerhub(
     Business logic to retrieve templates from DockerHub.
 
     Args:
-        url (str): The URL endpoint for retrieving templates. Should contain placeholders `{}` 
-            for the `repo_owner` and `repo_name` values to be inserted. For example: 
+        url (str): The URL endpoint for retrieving templates. Should contain placeholders `{}`
+            for the `repo_owner` and `repo_name` values to be inserted. For example:
             `https://hub.docker.com/v2/repositories/{}/{}/tags`.
         repo_owner (str): The owner or organization of the repository from which templates are to be retrieved.
         repo_name (str): The name of the repository where the templates are located.
@@ -104,8 +108,8 @@ async def get_templates_info(url: str, repo_owner: str, repo_name: str) -> dict:
     Business logic to retrieve templates from DockerHub.
 
     Args:
-        url (str): The URL endpoint for retrieving templates. Should contain placeholders `{}` 
-            for the `repo_owner` and `repo_name` values to be inserted. For example: 
+        url (str): The URL endpoint for retrieving templates. Should contain placeholders `{}`
+            for the `repo_owner` and `repo_name` values to be inserted. For example:
             `https://hub.docker.com/v2/repositories/{}/{}/tags`.
         repo_owner (str): The owner or organization of the repository from which templates are to be retrieved.
         repo_name (str): The name of the repository where the templates are located.
