@@ -15,11 +15,11 @@ async def get_user_and_org_id(session: SessionContainer) -> Dict[str, str]:
     """
 
     user_session_id = session.get_user_id()
-    user_id, org_id = await get_user_objecid(user_session_id)
+    user_id, org_id = await get_user_objectid(user_session_id)
     return {"user_id": user_id, "organization_id": org_id}
 
 
-async def get_user_objecid(user_id: str) -> Tuple[str, str]:
+async def get_user_objectid(user_id: str) -> Tuple[str, str]:
     """Retrieves the user object ID and organization ID from the database
     based on the user ID.
 
