@@ -17,7 +17,7 @@ class DictInput(dict):
             default_keys = []
         instance.data = [key for key in default_keys]
         return instance
-        
+
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update({"x-parameter": "dict"})
