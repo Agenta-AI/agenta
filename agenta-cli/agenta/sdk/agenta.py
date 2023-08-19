@@ -83,7 +83,8 @@ def ingest(func: Callable[..., Any]):
                 traceback.format_exception(None, e, e.__traceback__)
             )
             return JSONResponse(
-                status_code=500, content={"error": str(e), "traceback": traceback_str},
+                status_code=500,
+                content={"error": str(e), "traceback": traceback_str},
             )
 
     new_params = []
@@ -127,7 +128,9 @@ def ingest(func: Callable[..., Any]):
             if name in app_params:
                 # For optional parameters, we add them as options
                 parser.add_argument(
-                    f"--{name}", type=type(param.default), default=param.default,
+                    f"--{name}",
+                    type=type(param.default),
+                    default=param.default,
                 )
             elif name in ingestible_files:
                 parser.add_argument(name, type=str)
@@ -177,7 +180,8 @@ def post(func: Callable[..., Any]):
                     traceback.format_exception(e, value=e, tb=e.__traceback__)
                 )
             return JSONResponse(
-                status_code=500, content={"error": str(e), "traceback": traceback_str},
+                status_code=500,
+                content={"error": str(e), "traceback": traceback_str},
             )
 
     new_params = []
@@ -230,7 +234,9 @@ def post(func: Callable[..., Any]):
                     )
                 else:
                     parser.add_argument(
-                        f"--{name}", type=type(param.default), default=param.default,
+                        f"--{name}",
+                        type=type(param.default),
+                        default=param.default,
                     )
             else:
                 # For required parameters, we add them as arguments
