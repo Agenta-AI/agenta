@@ -17,6 +17,7 @@ export interface Variant {
     templateVariantName: string | null // template name of the variant in case it has a precursor. Needed to compute the URI path
     persistent: boolean // whether the variant is persistent in the backend or not
     parameters: Record<string, string> | null // parameters of the variant. Only set in the case of forked variants
+    previousVariantName: null | string // name of the variant that was forked from. Only set in the case of forked variants
 }
 
 // Define the interface for the tabs item in playground page
@@ -97,4 +98,29 @@ export interface ResultsTableDataType {
  */
 export interface InputParameter {
     name: string
+}
+
+export interface Template {
+    id: number
+    image: {
+        name: string
+        title: string
+        description: string
+        architecture: string
+    }
+}
+
+export interface TemplateImage {
+    image_tag: string
+    image_id: string
+    message?: string
+}
+
+export interface AppTemplate {
+    app_name: string
+    image_id: string
+    image_tag: string
+    env_vars: {
+        OPENAI_API_KEY: string
+    }
 }

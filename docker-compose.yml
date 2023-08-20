@@ -9,6 +9,7 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
             - agenta-network
+
     backend:
         build: ./agenta-backend
         environment:
@@ -40,6 +41,8 @@ services:
                 "--port",
                 "8000",
                 "--reload",
+                "--log-level",
+                "info",
                 "--root-path",
                 "/api"
             ]
@@ -143,9 +146,17 @@ services:
         networks:
             - agenta-network
 
+    redis:
+        image: redis:latest
+        networks:
+            - agenta-network
+        volumes:
+            - redis_data:/data
+
 networks:
     agenta-network:
         name: agenta-network
 
 volumes:
     mongodb_data:
+    redis_data:
