@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional, List
 from bson import ObjectId
 import csv
+import json
 
 upload_folder = "./path/to/upload/folder"
 
@@ -17,40 +18,55 @@ router = APIRouter()
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
+    upload_type: str = Form(None),
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
     app_name: str = Form(None),
 ):
     """
-    Uploads a CSV file and saves its data to MongoDB.
+    Uploads a CSV or JSON file and saves its data to MongoDB.
 
     Args:
-        file (UploadFile): The CSV file to upload.
+    upload_type : Either a json or csv file.
+        file (UploadFile): The CSV or JSON file to upload.
         testset_name (Optional): the name of the testset if provided.
 
     Returns:
         dict: The result of the upload process.
     """
-    try:
-        # Read and parse the CSV file
-        csv_data = await file.read()
-        csv_text = csv_data.decode("utf-8")
-        csv_reader = csv.reader(csv_text.splitlines())
-        columns = next(csv_reader)  # Get the column names
 
-        # Create a document with the CSV data
+    try:
+        # Create a document
         document = {
             "created_at": datetime.now().isoformat(),
             "name": testset_name if testset_name else file.filename,
             "app_name": app_name,
             "csvdata": [],
         }
-        # Populate the document with column names and values
-        for row in csv_reader:
-            row_data = {}
-            for i, value in enumerate(row):
-                row_data[columns[i]] = value
-            document["csvdata"].append(row_data)
+
+        if upload_type == "JSON":
+            # Read and parse the JSON file
+            json_data = await file.read()
+            json_text = json_data.decode("utf-8")
+            json_object = json.loads(json_text)
+
+            # Populate the document with column names and values
+            for row in json_object:
+                document["csvdata"].append(row)
+
+        else:
+            # Read and parse the CSV file
+            csv_data = await file.read()
+            csv_text = csv_data.decode("utf-8")
+            csv_reader = csv.reader(csv_text.splitlines())
+            columns = next(csv_reader)  # Get the column names
+
+            # Populate the document with column names and values
+            for row in csv_reader:
+                row_data = {}
+                for i, value in enumerate(row):
+                    row_data[columns[i]] = value
+                document["csvdata"].append(row_data)
 
         result = await testsets.insert_one(document)
 
@@ -60,6 +76,7 @@ async def upload_file(
                 name=document["name"],
                 created_at=document["created_at"],
             )
+
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to process file") from e

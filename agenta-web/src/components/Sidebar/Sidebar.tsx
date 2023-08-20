@@ -53,6 +53,8 @@ const Sidebar: React.FC = () => {
     const getNavigationPath = (path: string) => {
         if (path === "apps") {
             return "/apps"
+        } else if (path === "keys") {
+            return "/apikeys"
         } else {
             return `/apps/${app_name}/${path}`
         }
@@ -175,22 +177,6 @@ const Sidebar: React.FC = () => {
                                     </Link>
                                 </Tooltip>
                             </Menu.Item>
-                            <Menu.Item key="keys" icon={<LockOutlined />}>
-                                <Tooltip
-                                    placement="right"
-                                    title="Your api keys that are used in applications"
-                                >
-                                    <Link
-                                        data-cy="app-apikeys-link"
-                                        href={getNavigationPath("apikeys")}
-                                        style={{width: "100%"}}
-                                    >
-                                        <Space>
-                                            <span>API keys</span>
-                                        </Space>
-                                    </Link>
-                                </Tooltip>
-                            </Menu.Item>
                         </>
                     )}
                 </Menu>
@@ -202,6 +188,22 @@ const Sidebar: React.FC = () => {
                     style={{paddingBottom: 24, borderRight: 0}}
                     selectedKeys={selectedKeys}
                 >
+                    <Menu.Item key="apikeys" icon={<LockOutlined />}>
+                        <Tooltip
+                            placement="right"
+                            title="Your api keys that are used in applications"
+                        >
+                            <Link
+                                data-cy="apikeys-link"
+                                href={getNavigationPath("keys")}
+                                style={{width: "100%"}}
+                            >
+                                <Space>
+                                    <span>API keys</span>
+                                </Space>
+                            </Link>
+                        </Tooltip>
+                    </Menu.Item>
                     <Menu.Item key="theme" icon={<DashboardOutlined />} onClick={toggleAppTheme}>
                         <span>{appTheme === "light" ? "Dark mode" : "Light mode"}</span>
                     </Menu.Item>

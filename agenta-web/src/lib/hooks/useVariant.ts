@@ -36,6 +36,7 @@ export function useVariant(appName: string, variant: Variant) {
                 setInputParams(inputs)
                 setURIPath(URIPath)
             } catch (error: any) {
+                console.log(error)
                 setIsError(true)
                 setError(error)
             } finally {

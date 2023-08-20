@@ -21,18 +21,23 @@ export const parseOpenApiSchema = (schema: any): Parameter[] => {
 
         // get the actual schema for the body parameters
         const bodySchema = schema.components.schemas[bodySchemaName].properties
-
         Object.entries(bodySchema).forEach(([name, param]: [string, any]) => {
-            parameters.push({
+            const parameter = {
                 name: name,
                 input: param["x-parameter"] ? false : true,
                 type: param["x-parameter"] ? determineType(param["x-parameter"]) : "string",
-                required: schema.components.schemas[bodySchemaName].required.includes(name),
                 default: param.default,
                 enum: param["enum"] ? param.enum : [],
                 minimum: param["minimum"] ? param.minimum : 0,
                 maximum: param["maximum"] ? param.maximum : 1,
-            })
+            }
+
+            if (schema.components.schemas[bodySchemaName].required !== undefined) {
+                parameter.required =
+                    schema.components.schemas[bodySchemaName].required.includes(name)
+            }
+
+            parameters.push(parameter)
         })
     }
 
