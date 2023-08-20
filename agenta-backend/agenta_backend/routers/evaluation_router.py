@@ -1,7 +1,9 @@
-from fastapi import HTTPException, APIRouter, Body
-from datetime import datetime
 from bson import ObjectId
+from datetime import datetime
 from typing import List, Optional
+
+from fastapi import HTTPException, APIRouter, Body, Depends
+
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
@@ -27,12 +29,20 @@ from agenta_backend.services.db_mongo import (
     evaluations,
     evaluation_scenarios,
 )
+from agenta_backend.services.selectors import get_user_and_org_id
+
+from supertokens_python.recipe.session.framework.fastapi import verify_session
+from supertokens_python.recipe.session import SessionContainer
+
 
 router = APIRouter()
 
 
 @router.post("/", response_model=Evaluation)
-async def create_evaluation(newEvaluationData: NewEvaluation = Body(...)):
+async def create_evaluation(
+    newEvaluationData: NewEvaluation = Body(...),
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Creates a new comparison table document
     Raises:
         HTTPException: _description_
@@ -40,7 +50,9 @@ async def create_evaluation(newEvaluationData: NewEvaluation = Body(...)):
         _description_
     """
     try:
-        return await create_new_evaluation(newEvaluationData)
+        # Get user and organization id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        return await create_new_evaluation(newEvaluationData, **kwargs)
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -50,7 +62,8 @@ async def create_evaluation(newEvaluationData: NewEvaluation = Body(...)):
 
 @router.put("/{evaluation_id}", response_model=Evaluation)
 async def update_evaluation_status_router(
-    evaluation_id: str, update_data: EvaluationStatus = Body(...)
+    evaluation_id: str,
+    update_data: EvaluationStatus = Body(...)
 ):
     """Updates an evaluation status
     Raises:
@@ -59,7 +72,9 @@ async def update_evaluation_status_router(
         _description_
     """
     try:
-        return await update_evaluation_status(evaluation_id, update_data.status)
+        return await update_evaluation_status(
+            evaluation_id, update_data.status
+        )
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -84,14 +99,21 @@ async def fetch_evaluation_scenarios(evaluation_id: str):
         _description_
     """
     cursor = evaluation_scenarios.find({"evaluation_id": evaluation_id})
-    items = await cursor.to_list(length=100)  # limit length to 100 for the example
+    items = await cursor.to_list(
+        length=100
+    )  # limit length to 100 for the example
     for item in items:
         item["id"] = str(item["_id"])
     return items
 
 
-@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
-async def create_evaluation_scenario(evaluation_scenario: EvaluationScenario):
+@router.post(
+    "/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario
+)
+async def create_evaluation_scenario(
+    evaluation_scenario: EvaluationScenario,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Creates an empty evaluation row
 
     Arguments:
@@ -109,6 +131,11 @@ async def create_evaluation_scenario(evaluation_scenario: EvaluationScenario):
     evaluation_scenario_dict["created_at"] = evaluation_scenario_dict[
         "updated_at"
     ] = datetime.utcnow()
+    
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    evaluation_scenario_dict.update(kwargs)
+    
     result = await evaluation_scenarios.insert_one(evaluation_scenario_dict)
     if result.acknowledged:
         evaluation_scenario_dict["id"] = str(result.inserted_id)
@@ -124,8 +151,9 @@ async def create_evaluation_scenario(evaluation_scenario: EvaluationScenario):
 )
 async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
-    evaluation_scenario: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
+    evaluation_scenario: EvaluationScenarioUpdate,
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Updates an evaluation row with a vote
 
@@ -140,8 +168,10 @@ async def update_evaluation_scenario_router(
         _description_
     """
     try:
+        # Get user and organization id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
         return await update_evaluation_scenario(
-            evaluation_scenario_id, evaluation_scenario, evaluation_type
+            evaluation_scenario_id, evaluation_scenario, evaluation_type, **kwargs
         )
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -155,7 +185,9 @@ async def fetch_list_evaluations(app_name: Optional[str] = None):
         _description_
     """
     cursor = evaluations.find({"app_name": app_name}).sort("created_at", -1)
-    items = await cursor.to_list(length=100)  # limit length to 100 for the example
+    items = await cursor.to_list(
+        length=100
+    )  # limit length to 100 for the example
     for item in items:
         item["id"] = str(item["_id"])
     return items
@@ -174,7 +206,8 @@ async def fetch_evaluation(evaluation_id: str):
         return evaluation
     else:
         raise HTTPException(
-            status_code=404, detail=f"dataset with id {evaluation_id} not found"
+            status_code=404,
+            detail=f"dataset with id {evaluation_id} not found",
         )
 
 
@@ -192,10 +225,14 @@ async def delete_evaluations(delete_evaluations: DeleteEvaluation):
     deleted_ids = []
 
     for evaluations_id in delete_evaluations.evaluations_ids:
-        evaluation = await evaluations.find_one({"_id": ObjectId(evaluations_id)})
+        evaluation = await evaluations.find_one(
+            {"_id": ObjectId(evaluations_id)}
+        )
 
         if evaluation is not None:
-            result = await evaluations.delete_one({"_id": ObjectId(evaluations_id)})
+            result = await evaluations.delete_one(
+                {"_id": ObjectId(evaluations_id)}
+            )
             if result:
                 deleted_ids.append(evaluations_id)
         else:
