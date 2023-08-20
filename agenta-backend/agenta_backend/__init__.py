@@ -12,8 +12,8 @@ from agenta_backend.models.api.auth_models import (
     User,
     Organization,
 )
-from agenta_backend.services.auth_service import (
-    create_new_user,
+from agenta_backend.services.user_service import create_new_user
+from agenta_backend.services.organization_service import (
     create_new_organization,
 )
 
@@ -81,7 +81,9 @@ init(
         passwordless.init(
             flow_type="USER_INPUT_CODE",
             contact_config=ContactEmailOnlyConfig(),
-            override=passwordless.InputOverrideConfig(apis=override_passwordless_apis),
+            override=passwordless.InputOverrideConfig(
+                apis=override_passwordless_apis
+            ),
         ),
         dashboard.init(),
     ],
