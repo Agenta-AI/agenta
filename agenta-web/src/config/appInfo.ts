@@ -3,5 +3,5 @@ export const appInfo = {
     apiDomain: "http://localhost",
     websiteDomain: "http://localhost",
     apiBasePath: "/api/auth",
-    websiteBasePath: "/auth"
+    websiteBasePath: "/auth",
 }
