@@ -118,7 +118,7 @@ services:
     supertokens:
         image: registry.supertokens.io/supertokens/supertokens-postgresql:6.0
         depends_on:
-            mongo:
+            postgres:
                 condition: service_healthy
         ports:
             - 3567:3567
