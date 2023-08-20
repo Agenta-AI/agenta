@@ -168,7 +168,7 @@ def generate(
     prompt_template: TextParam = default_prompt,
     temperature: FloatParam = 0.5,
     model: MultipleChoiceParam = MultipleChoiceParam(
-        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
+        choices = ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
     )
 ) -> str:
     llm = OpenAI(temperature=temperature)
@@ -255,7 +255,7 @@ def generate(
     prompt_template: TextParam = default_prompt,
     temperature: FloatParam = 0.5,
     model: MultipleChoiceParam = MultipleChoiceParam(
-        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
+        choices = ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
     )
 ) -> str:
     prompt = PromptTemplate(
@@ -326,7 +326,7 @@ def generate(
     prompt_template: TextParam = default_prompt,
     temperature: FloatParam = 0.5,
     model: MultipleChoiceParam = MultipleChoiceParam(
-        ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
+        choices = ["text-davinci-003", "gpt-3.5-turbo", "gpt-4"]
     )
 ) -> str:
     load_dotenv()
