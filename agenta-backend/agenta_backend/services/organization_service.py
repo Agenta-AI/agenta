@@ -12,9 +12,7 @@ async def create_new_organization(payload: Organization) -> Dict:
     return org
 
 
-async def update_organization(
-    org_id: str, payload: OrganizationUpdate
-) -> Dict:
+async def update_organization(org_id: str, payload: OrganizationUpdate) -> Dict:
     org = await organization.find_one({"_id": ObjectId(org_id)})
     if org is not None:
         values_to_update = {key: value for key, value in payload.dict()}
