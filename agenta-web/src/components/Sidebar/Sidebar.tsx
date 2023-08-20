@@ -16,7 +16,7 @@ import {Layout, Menu, Space, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
-import { ISession } from "@/lib/Types"
+import {ISession} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {signOut} from "supertokens-auth-react/recipe/passwordless"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"

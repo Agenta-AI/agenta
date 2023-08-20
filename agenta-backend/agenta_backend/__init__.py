@@ -51,7 +51,7 @@ def override_passwordless_apis(original_implementation: APIInterface):
             if response.created_new_user:
                 print("================ SIGNUP ====================")
                 org = await create_new_organization(organization)
-                
+
                 user_dict["organization_id"] = str(org.inserted_id)
                 user = User(**user_dict)
                 await create_new_user(user)
@@ -81,9 +81,7 @@ init(
         passwordless.init(
             flow_type="USER_INPUT_CODE",
             contact_config=ContactEmailOnlyConfig(),
-            override=passwordless.InputOverrideConfig(
-                apis=override_passwordless_apis
-            ),
+            override=passwordless.InputOverrideConfig(apis=override_passwordless_apis),
         ),
         dashboard.init(),
     ],

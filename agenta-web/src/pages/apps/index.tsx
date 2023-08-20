@@ -6,7 +6,10 @@ export default function Apps() {
     const router = useRouter()
     return (
         <SessionAuth
-            onSessionExpired={() => { router.push("/auth") }}>
+            onSessionExpired={() => {
+                router.push("/auth")
+            }}
+        >
             <AppSelector />
         </SessionAuth>
     )
