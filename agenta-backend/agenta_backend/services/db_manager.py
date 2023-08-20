@@ -238,13 +238,10 @@ def list_apps(**kwargs) -> List[App]:
 
         # Apply filters from kwargs
         if "user_id" in kwargs:
-            query = query.filter(
-                AppVariantDB.parameters["user_id"] == kwargs["user_id"]
-            )
+            query = query.filter(AppVariantDB.user_id == kwargs["user_id"])
         if "organization_id" in kwargs:
             query = query.filter(
-                AppVariantDB.parameters["organization_id"]
-                == kwargs["organization_id"]
+                AppVariantDB.organization_id == kwargs["organization_id"]
             )
 
         app_names = query.all()
