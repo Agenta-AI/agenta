@@ -5,7 +5,7 @@ from agenta_backend.models.api.auth_models import (
     User,
     UserUpdate,
     Organization,
-    OrganizationUpdate
+    OrganizationUpdate,
 )
 
 
@@ -43,4 +43,5 @@ async def update_organization(org_id: str, payload: OrganizationUpdate) -> Dict:
 
 class NotFound(Exception):
     """Custom exception for credentials not found"""
+
     pass
