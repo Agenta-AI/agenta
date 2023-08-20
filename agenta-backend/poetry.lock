@@ -761,6 +761,7 @@ files = [
 name = "httpcore"
 version = "0.17.3"
 description = "A minimal low-level HTTP client."
+category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
@@ -782,6 +783,7 @@ socks = ["socksio (==1.*)"]
 name = "httpx"
 version = "0.24.1"
 description = "The next generation HTTP client."
+category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
