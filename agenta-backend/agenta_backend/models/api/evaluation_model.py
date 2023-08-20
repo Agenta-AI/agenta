@@ -36,8 +36,6 @@ class Evaluation(BaseModel):
     variants: Optional[List[str]]
     app_name: str
     testset: Dict[str, str] = Field(...)
-    user_id: str
-    organization_id: str
     created_at: datetime
     updated_at: datetime
 
@@ -60,8 +58,6 @@ class EvaluationScenario(BaseModel):
     score: Optional[str]
     evaluation: Optional[str]
     correct_answer: Optional[str]
-    user_id: str
-    organization_id: str
     id: Optional[str]
 
 
