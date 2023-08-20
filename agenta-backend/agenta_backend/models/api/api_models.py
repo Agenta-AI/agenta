@@ -8,15 +8,11 @@ class AppVariant(BaseModel):
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
-    user_id: str
-    organization_id: str
 
 
 class Image(BaseModel):
     docker_id: str
     tags: str
-    user_id: str
-    organization_id: str
 
 
 class TemplateImageInfo(BaseModel):
