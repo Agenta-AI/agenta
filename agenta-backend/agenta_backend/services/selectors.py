@@ -1,4 +1,3 @@
-from bson import ObjectId
 from typing import Tuple, Dict
 from agenta_backend.services.db_mongo import users
 from supertokens_python.recipe.session import SessionContainer
@@ -31,5 +30,5 @@ async def get_user_objectid(user_id: str) -> Tuple[str, str]:
     representation of the user's organization_id.
     """
 
-    user = await users.find_one({"_id": ObjectId(user_id)})
-    return str(user["_id"]), str(user["organization_id"])
+    user = await users.find_one({"id": user_id})
+    return str(user["id"]), str(user["organization_id"])
