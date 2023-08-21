@@ -1,7 +1,16 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, EvaluationResponseType, Evaluation, AppTemplate, IOpenAIKey, IOpenAIKeySuccess, IRetrieveOpenAIKeySuccess} from "@/lib/Types"
+import {
+    Variant,
+    Parameter,
+    EvaluationResponseType,
+    Evaluation,
+    AppTemplate,
+    IOpenAIKey,
+    IOpenAIKeySuccess,
+    IRetrieveOpenAIKeySuccess,
+} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
@@ -482,7 +491,7 @@ export const saveOpenAIKey = async (payload: IOpenAIKey) => {
                 accept: "application/json",
                 "Content-Type": "application/json",
             },
-        }
+        },
     )
     return response
 }
@@ -495,7 +504,7 @@ export const fetchOpenAIKey = async () => {
                 accept: "application/json",
                 "Content-Type": "application/json",
             },
-        }
+        },
     )
     return response
 }
@@ -508,7 +517,7 @@ export const removeOpenAIKey = async () => {
                 accept: "application/json",
                 "Content-Type": "application/json",
             },
-        }
+        },
     )
     return response
 }

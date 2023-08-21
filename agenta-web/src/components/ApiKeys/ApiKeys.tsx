@@ -1,16 +1,16 @@
 import {Button, Input, Space, Typography, message, notification} from "antd"
 import {useEffect, useState} from "react"
-import { IOpenAIKeySuccess, IOpenAIKeyError, IRetrieveOpenAIKeySuccess } from "@/lib/Types"
-import { saveOpenAIKey, fetchOpenAIKey, removeOpenAIKey } from "@/lib/services/api"
+import {IOpenAIKeySuccess, IOpenAIKeyError, IRetrieveOpenAIKeySuccess} from "@/lib/Types"
+import {saveOpenAIKey, fetchOpenAIKey, removeOpenAIKey} from "@/lib/services/api"
 
 export default function ApiKeys() {
     const {Title, Text} = Typography
 
     const [retrieveAIKey, setRetrieveAIKey] = useState("")
-    const [openAIKey, setOpenAIKey] = useState<undefined|string>(undefined)
+    const [openAIKey, setOpenAIKey] = useState<undefined | string>(undefined)
     const [savingKey, setSavingKey] = useState<boolean>(false)
     const [deletingKey, setDeletingKey] = useState<boolean>(false)
-    
+
     useEffect(() => {
         const retrieveOpenAIKey = async () => {
             const response: IRetrieveOpenAIKeySuccess = await fetchOpenAIKey()
@@ -43,7 +43,7 @@ export default function ApiKeys() {
             setSavingKey(false)
         } else {
             const data = {
-                "api_key": openAIKey
+                api_key: openAIKey,
             }
             try {
                 const response: IOpenAIKeySuccess = await saveOpenAIKey(data)
@@ -154,10 +154,7 @@ export default function ApiKeys() {
                         >
                             Save
                         </Button>
-                        <Button
-                            onClick={removeOpenAIKeyHandler}
-                            loading={deletingKey}
-                        >
+                        <Button onClick={removeOpenAIKeyHandler} loading={deletingKey}>
                             Delete
                         </Button>
                     </Space>

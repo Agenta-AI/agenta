@@ -141,11 +141,9 @@ export interface ISession {
     }
 }
 
-
 export interface IOpenAIKey {
     api_key: string
 }
-
 
 export interface IOpenAIKeySuccess {
     data: {
@@ -153,7 +151,6 @@ export interface IOpenAIKeySuccess {
         message: string
     }
 }
-
 
 export interface IRetrieveOpenAIKeySuccess {
     data: {
@@ -164,10 +161,9 @@ export interface IRetrieveOpenAIKeySuccess {
     }
 }
 
-
 export interface IOpenAIKeyError {
     response: {
-            data: {
+        data: {
             message: string
             status: boolean
         }

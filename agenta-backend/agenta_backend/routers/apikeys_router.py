@@ -41,15 +41,11 @@ async def save_openai_apikey_to_db(
     # Get user id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
-    apikey = OpenAIAPIKey(
-        **{"user_id": kwargs["user_id"], "api_key": payload.api_key}
-    )
+    apikey = OpenAIAPIKey(**{"user_id": kwargs["user_id"], "api_key": payload.api_key})
     try:
         await save_apikey(apikey)
     except Exception as e:
-        return JSONResponse(
-            {"status": False, "message": str(e)}, status_code=400
-        )
+        return JSONResponse({"status": False, "message": str(e)}, status_code=400)
     return {"status": True, "message": "API Key saved successfully!"}
 
 
@@ -84,7 +80,5 @@ async def remove_openai_apikey(
     try:
         await remove_apikey(kwargs["user_id"])
     except Exception as e:
-        return JSONResponse(
-            {"status": False, "message": str(e)}, status_code=400
-        )
+        return JSONResponse({"status": False, "message": str(e)}, status_code=400)
     return {"status": True, "message": "Successfully removed OpenAI Key!"}

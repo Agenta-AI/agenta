@@ -23,7 +23,7 @@ class Encryption:
         self.cbc_mode = AES.MODE_CBC
         self.bs = AES.block_size
         self.enc_key = encryption_key.encode("utf8")
-        
+
     def encrypt(self) -> Tuple[str, bytes]:
         raw = pad(self.data.encode(), self.bs)
         iv = get_random_bytes(self.bs)
