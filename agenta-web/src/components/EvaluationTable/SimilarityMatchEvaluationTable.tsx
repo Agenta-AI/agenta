@@ -122,6 +122,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         Promise.all(promises)
             .then(() => {
                 console.log("All functions finished.")
+                message.success("Evaluation Results Saved")
             })
             .catch((err) => console.error("An error occurred:", err))
     }
