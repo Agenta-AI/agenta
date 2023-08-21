@@ -2,30 +2,39 @@
 title: Introduction
 description: 'Welcome Agenta: The open source end-to-end LLMOps platform.'
 ---
+<img className="dark:hidden" height="600" src="images/agenta_mockup_whitebg.png" />
+<img className="light:hidden" height="600" src="images/agenta_mockup_blackbg.png" />
 
 Agenta is an open-source end-to-end platform for productionizing (complex) LLM apps. Agenta enables you to:
-1. Quickly experiment with prompts, parameters and complex strategies (in-context learning with embeddings, agents...) 
-2. Systematically evaluate your LLM apps
-3. Deploy your application in one-click
 
-And all of this without imposing any restrictions on your choice of framework, library, or model.
+1. Quickly **experiment** and version prompts, parameters and complex strategies (in-context learning with embeddings, agents, custom business logic...) 
+2. **Collaborate with domain experts** for prompt engineering and evaluation
+3. Systematically **evaluate your LLM apps**
+4. **Deploy** your application in one-click
+
+And all of this without imposing any restrictions on your choice of framework, library, or model. It works with **langchain**, **llama_index**, the openai SDK, and any other library you can think of. You can use open-source models (**Llama2**) or any other model you have access to (cohere, openai, Bart...).
 
 ## Why use agenta?
-- You need to **collaborate** with domain experts** and want to get their feedback about your LLM apps and even their help experimenting with prompts and parameters (without having to touch your code).
-- Your write your LLM apps using code and don't want to be restricted by library, model or framework. 
-- You need to save, version and compare different variants of your LLM apps.
-- You need a systematic way to evaluate your LLM apps **programmatically**  and with help of domain experts.
-- You prefer to focus on the LLM app and not worry about the deployment and infrastructure.
+- You need to **collaborate with domain experts** and want to get their feedback about your LLM apps and even their help experimenting with prompts and parameters (without needing to touch your code).
+- Your want the flexibilty of **using code for writing your LLM app**, and don't want to be restricted by library, model or framework. 
+- You need to save, version and compare different variants of your LLM apps in **your own data**.
+- You need a systematic way to evaluate your LLM apps **programmatically**.
 - You want your data to be private and not be proxied through third-party services.
 
-## What is not agenta?
-- A single prompt playground tool. Although you can use agenta for that, it is not the main focus of the platform.
-- A no-code LLM app builder. Although we offer app templates you can user from the UI, our focus is on enabling you to build complex apps in code
-
 ## Features
-- **Parameter Playground:** Define the parameters of your app in your code and experiment with them (together with ) via a user-friendly web platform.
+- **Parameter Playground:** Define the parameters of your app in your code and experiment with them via a user-friendly web platform.
+- **Test sets**: Build test sets from the UI, by uploading CSVs, or connect to your own data using our API.
+- **Evaluation:** Evaluate your app on your test sets using different strategies (e.g. exact match, AI Critic, human evaluation, etc.)
+- **Deployment:** Deploy your app as an API in one-click.
+- **Collaboration:** Share your app with collaborators and get their feedback on your app.
 
+## Agenta high-level 
+
+<img height="400" src="images/agenta_highlevel.png" />
+<img height="400" src="images/agenta_archi.png" />
 ## How Agenta works:
+
+
 Agenta translates your code into a playground where you and your collaborator can experiment with different parameters and workflows
 
 It also takes care of deploying your app as an API.
