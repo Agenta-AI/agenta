@@ -1,7 +1,7 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, EvaluationResponseType, Evaluation, AppTemplate} from "@/lib/Types"
+import {Variant, Parameter, EvaluationResponseType, Evaluation, AppTemplate, IOpenAIKey, IOpenAIKeySuccess, IRetrieveOpenAIKeySuccess} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
@@ -471,4 +471,44 @@ export const startTemplate = async (templateObj: AppTemplate) => {
         console.error("Start Template Error => ", error)
         throw error
     }
+}
+
+export const saveOpenAIKey = async (payload: IOpenAIKey) => {
+    const response: IOpenAIKeySuccess = await axios.post(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/api_keys/save/`,
+        payload,
+        {
+            headers: {
+                accept: "application/json",
+                "Content-Type": "application/json",
+            },
+        }
+    )
+    return response
+}
+
+export const fetchOpenAIKey = async () => {
+    const response: IRetrieveOpenAIKeySuccess = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/api_keys/retrieve/`,
+        {
+            headers: {
+                accept: "application/json",
+                "Content-Type": "application/json",
+            },
+        }
+    )
+    return response
+}
+
+export const removeOpenAIKey = async () => {
+    const response: IOpenAIKeySuccess = await axios.put(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/api_keys/remove/`,
+        {
+            headers: {
+                accept: "application/json",
+                "Content-Type": "application/json",
+            },
+        }
+    )
+    return response
 }
