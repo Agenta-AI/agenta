@@ -1,7 +1,6 @@
 from typing import Dict
-from bson import ObjectId
 from agenta_backend.services.db_mongo import users
-from agenta_backend.models.api.auth_models import User, UserUpdate
+from agenta_backend.models.api.user_models import User, UserUpdate
 
 
 async def create_new_user(payload: User) -> Dict:

@@ -1,7 +1,7 @@
 from typing import Dict
 from bson import ObjectId
 from agenta_backend.services.db_mongo import organization
-from agenta_backend.models.api.auth_models import (
+from agenta_backend.models.api.organization_models import (
     Organization,
     OrganizationUpdate,
 )
