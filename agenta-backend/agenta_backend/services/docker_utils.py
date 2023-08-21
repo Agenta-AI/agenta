@@ -5,7 +5,12 @@ from typing import List
 
 import docker
 from agenta_backend.config import settings
-from agenta_backend.models.api.api_models import URI, AppVariant, Image
+from agenta_backend.models.api.api_models import (
+    URI,
+    AppVariant,
+    Image,
+    DockerEnvVars,
+)
 
 client = docker.from_env()
 
@@ -40,7 +45,7 @@ def list_images() -> List[Image]:
     return registry_images
 
 
-def start_container(image_name, app_name, variant_name) -> URI:
+def start_container(image_name, app_name, variant_name, env_vars: DockerEnvVars) -> URI:
     try:
         image = client.images.get(f"{image_name}")
 
@@ -64,13 +69,14 @@ def start_container(image_name, app_name, variant_name) -> URI:
                 ]
             }
         )
-
+        env_vars = {} if env_vars is None else env_vars
         container = client.containers.run(
             image,
             detach=True,
             labels=labels,
             network="agenta-network",
             name=f"{app_name}-{variant_name}",
+            environment=env_vars,
         )
         # Check the container's status
         sleep(0.5)
@@ -118,6 +124,25 @@ def stop_containers_based_on_image(image: Image) -> List[str]:
                     f"Error stopping container with id: {container.id}"
                 ) from ex
     return stopped_container_ids
+
+
+def stop_container(container_id: str):
+    """Stop a container based on its id
+    Arguments:
+        container_id -- _description_
+
+    Raises:
+        RuntimeError: _description_
+    """
+    try:
+        container = client.containers.get(container_id)
+        container.stop()
+        logger.info(f"Stopped container with id: {container.id}")
+    except docker.errors.APIError as ex:
+        logger.error(
+            f"Error stopping container with id: {container.id}. Error: {str(ex)}"
+        )
+        raise RuntimeError(f"Error stopping container with id: {container.id}") from ex
 
 
 def delete_container(container_id: str):

@@ -1,4 +1,4 @@
-import {Modal, Tooltip, Card, Avatar} from "antd"
+import {Modal, message, Card, Avatar} from "antd"
 import {DeleteOutlined} from "@ant-design/icons"
 import {removeApp} from "@/lib/services/api"
 import useSWR, {mutate} from "swr"
@@ -40,13 +40,18 @@ const AppCard: React.FC<{
     }
 
     const handleDeleteOk = async () => {
-        setConfirmLoading(true) // add this line
-        await removeApp(appName)
-        setVisibleDelete(false)
-        setConfirmLoading(false) // add this line
-        mutate(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`)
+        setConfirmLoading(true)
+        try {
+            await removeApp(appName)
+            // Refresh the data (if you're using SWR or a similar library)
+            mutate(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`)
+        } catch (error) {
+            message.error(`Failed to remove app: ${error.message}`)
+        } finally {
+            setVisibleDelete(false)
+            setConfirmLoading(false)
+        }
     }
-
     const handleDeleteCancel = () => {
         setVisibleDelete(false)
     }
@@ -73,7 +78,6 @@ const AppCard: React.FC<{
                 style={{
                     width: 300,
                     height: 120,
-                    marginBottom: 24,
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",

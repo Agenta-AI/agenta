@@ -1,7 +1,8 @@
 import Image from "next/image"
 import {useMemo} from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-const Logo: React.FC = () => {
+
+const Logo: React.FC<Partial<React.ComponentProps<typeof Image>>> = (props) => {
     const {appTheme} = useAppTheme()
 
     const logoSrc = useMemo(
@@ -11,7 +12,7 @@ const Logo: React.FC = () => {
                 : "/assets/light-complete-transparent-CROPPED.png",
         [appTheme],
     )
-    return <Image src={logoSrc} alt="Agenta Logo" width={154.8} height={51} />
+    return <Image width={154.8} height={51} {...props} src={logoSrc} alt="Agenta Logo" />
 }
 
 export default Logo

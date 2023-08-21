@@ -65,3 +65,8 @@ export const getAllVariantParameters = async (appName: string, variant: Variant)
     }`
     return {parameters, inputs, URIPath}
 }
+
+export const getVariantInputParameters = async (appName: string, variant: Variant) => {
+    const {parameters, inputs} = await getAllVariantParameters(appName, variant)
+    return updateInputParams(parameters, inputs || []) || inputs
+}
