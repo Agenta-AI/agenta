@@ -1,7 +1,7 @@
-import React, { useEffect } from "react"
+import React, {useEffect} from "react"
 import {Modal, Button} from "antd"
 import {useRouter} from "next/router"
-import { Variant } from "@/lib/Types"
+import {Variant} from "@/lib/Types"
 
 interface Props {
     isModalOpen: boolean
@@ -27,7 +27,7 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
     }
 
     useEffect(() => {
-        if(variants.length < 1){
+        if (variants.length < 1) {
             router.push(`/apps`)
         }
     }, [variants])
