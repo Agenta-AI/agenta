@@ -31,7 +31,17 @@
   },
   "anchors": [
     {
-      "name": "GitHub",
+      "name": "Join our Slack",
+      "icon": "slack",
+      "url": "https://github.com/agenta-ai/agenta"
+    },
+    {
+      "name": "Star us on GitHub",
+      "icon": "github",
+      "url": "https://github.com/agenta-ai/agenta"
+    },
+    {
+      "name": "Star us on GitHub",
       "icon": "github",
       "url": "https://github.com/agenta-ai/agenta"
     }
@@ -134,6 +144,9 @@
   "footerSocials": {
     "twitter": "https://twitter.com/agenta_ai",
     "github": "https://github.com/agenta-ai"
+  },
+  "integrations": {
+    "intercom": "t228v7ci"
   },
   "analytics": {
     "posthog": {
