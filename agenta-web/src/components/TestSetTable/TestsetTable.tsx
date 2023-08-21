@@ -16,6 +16,7 @@ import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
 import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
+import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
 
 export const CHECKBOX_COL = {
     field: "",
@@ -112,29 +113,13 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     }
 
     const handleExportClick = () => {
-        const csvData = convertToCsvFormat(rowData, columnDefs);
-        const filename = `${testsetName}.csv`;
-        downloadCsv(csvData, filename);
-        // Here, you can add the actual CSV export logic later on.
-    };
-    const convertToCsvFormat = (data, columns) => {
-        const header = columns.map(col => col.field).join(",");
-        const rows = data.map(row => 
-            columns.map(col => row[col.field]).join(",")
-        ).join("\n");
-        return `${header}\n${rows}`;
-    };
-    
-    const downloadCsv = (csvContent, filename) => {
-        const blob = new Blob([csvContent], { type: "text/csv" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
+        const csvData = convertToCsv(
+            rowData,
+            columnDefs.map((col) => col.field),
+        )
+        const filename = `${testsetName}.csv`
+        downloadCsv(csvData, filename)
+    }
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -187,7 +172,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         } else if (mode === "create" && appName) {
             setLoading(true)
             ;(async () => {
-                //load input parameters for the first variant
                 const backendVariants = await fetchVariants(appName)
                 const variant =
                     backendVariants.find((v) => v.previousVariantName === null) ||
@@ -284,10 +268,9 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         const onAddColumn = () => {
             const newColumnName = `column${columnDefs.length - 1}`
             const newColmnDef = columnDefs
-            // Update each row to include the new column
             const updatedRowData = rowData.map((row) => ({
                 ...row,
-                [newColumnName]: "", // set the initial value of the new column to an empty string
+                [newColumnName]: "",
             }))
 
             newColmnDef.pop()
@@ -568,11 +551,9 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                         >
                             Delete Row{selectedRow.length > 1 ? "s" : null}
                         </Button>
-                        <Button 
-                        type="primary" 
-                        onClick={handleExportClick} 
-                        className="css-dev-only-do-not-override-vl61bp"
-                        style={{ marginLeft: '10px', marginRight: 'auto' }}
+                        <Button
+                            onClick={handleExportClick}
+                            style={{marginLeft: "10px", marginRight: "auto"}}
                         >
                             Export as CSV
                         </Button>
