@@ -1,0 +1,1 @@
+npx @mintlify/scraping@latest openapi-file openapi.json
