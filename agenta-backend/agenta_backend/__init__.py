@@ -79,9 +79,7 @@ init(
         passwordless.init(
             flow_type="USER_INPUT_CODE",
             contact_config=ContactEmailOnlyConfig(),
-            override=passwordless.InputOverrideConfig(
-                apis=override_passwordless_apis
-            ),
+            override=passwordless.InputOverrideConfig(apis=override_passwordless_apis),
         ),
         dashboard.init(),
     ],
