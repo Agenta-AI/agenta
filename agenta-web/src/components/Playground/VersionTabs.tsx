@@ -200,14 +200,14 @@ const VersionTabs: React.FC = () => {
                 setTemplateVariantName={setTemplateVariantName}
             />
             <VariantRemovalWarningModal
-            variants={variants}
+                variants={variants}
                 isModalOpen={isWarningModalOpen1}
                 setIsModalOpen={setRemovalWarningModalOpen1}
                 handleRemove={handleRemove}
                 handleCancel={handleCancel1}
             />
             <VariantRemovalWarningModal
-            variants={variants}
+                variants={variants}
                 isModalOpen={isWarningModalOpen2}
                 setIsModalOpen={setRemovalWarningModalOpen2}
                 handleRemove={handleBackendRemove}
