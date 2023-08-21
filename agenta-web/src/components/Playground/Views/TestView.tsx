@@ -7,6 +7,7 @@ import {renameVariables} from "@/lib/helpers/utils"
 import {TestContext} from "../TestContextProvider"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
+import {DeleteOutlined} from "@ant-design/icons"
 
 interface TestViewProps {
     URIPath: string | null
@@ -23,6 +24,7 @@ interface BoxComponentProps {
     results: string
     resultsList: string[]
     onAddToTestset: (params: Record<string, string>) => void
+    handleDeleteRow: (testIndex: number) => void
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -34,6 +36,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     results,
     resultsList,
     onAddToTestset,
+    handleDeleteRow,
 }) => {
     const {TextArea} = Input
 
@@ -72,9 +75,13 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             }}
             bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
         >
-            <h4 style={{padding: "0px", marginTop: "8px", marginBottom: "0px"}}>
-                Input parameters
-            </h4>
+            <Row style={{display: "flex", alignItems: "center", justifyContent: "space-between"}}>
+                <h4>Input parameters</h4>
+                <Button
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleDeleteRow(testIndex)}
+                ></Button>
+            </Row>
 
             <Row style={{marginTop: "0px"}}>
                 {inputParamsNames.map((key, index) => (
@@ -174,10 +181,21 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleAddRow = () => {
         setTestList([...testList, {}])
+        setResultsList([...resultsList, ""])
     }
 
     const handleSetNewTests: (tests: Record<string, string>[]) => void = (tests) => {
         setTestList([...tests])
+        setResultsList(tests.map(() => ""))
+    }
+
+    const handleDeleteRow = (testIndex: number) => {
+        if (resultsList.length < 2) return
+        if (resultsList[testIndex] !== "") {
+            setResultsList(resultsList.filter((_, index) => index !== testIndex))
+        }
+        const newTestList = testList.filter((_, index) => index !== testIndex)
+        setTestList(newTestList)
     }
 
     return (
@@ -220,6 +238,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                     results={resultsList[index]}
                     resultsList={resultsList}
                     onAddToTestset={setParams}
+                    handleDeleteRow={handleDeleteRow}
                 />
             ))}
             <Button
