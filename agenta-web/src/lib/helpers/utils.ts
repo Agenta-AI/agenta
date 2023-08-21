@@ -22,28 +22,6 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.human_scoring]: "Scoring single variant",
 }
 
-export const saveOpenAIKey = (key: string) => {
-    if (typeof window !== "undefined") {
-        // TODO: add encryption here
-        localStorage.setItem(openAItoken, key)
-    }
-}
-
-export const getOpenAIKey = (): string => {
-    let token: string | null = ""
-
-    if (typeof window !== "undefined") {
-        // TODO: add decryption here
-        token = localStorage.getItem(openAItoken)
-    }
-
-    return token ?? ""
-}
-
-export const removeOpenAIKey = () => {
-    localStorage.removeItem(openAItoken)
-}
-
 export const capitalize = (s: string) => {
     if (typeof s !== "string") return ""
     return s
