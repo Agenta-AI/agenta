@@ -21,6 +21,7 @@ services:
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/db:/db
+            - ./agenta-backend:/agenta-backend
         labels:
             - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.backend.entrypoints=web"
@@ -34,17 +35,9 @@ services:
             - agenta-network
         command:
             [
-                "uvicorn",
-                "agenta_backend.main:app",
-                "--host",
-                "0.0.0.0",
-                "--port",
-                "8000",
-                "--reload",
-                "--log-level",
-                "info",
-                "--root-path",
-                "/api"
+                "bash",
+                "-c",
+                "chmod +x /agenta-backend/generate_key.sh && /agenta-backend/generate_key.sh && /agenta-backend/start_server.sh"
             ]
 
     agenta-web:
@@ -105,7 +98,7 @@ services:
             POSTGRES_PASSWORD: somePassword
             POSTGRES_DB: supertokens
         ports:
-            - 5432:5432
+            - 5435:5432
         networks:
             - agenta-network
         restart: unless-stopped
