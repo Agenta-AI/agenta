@@ -140,3 +140,36 @@ export interface ISession {
         sub: string
     }
 }
+
+
+export interface IOpenAIKey {
+    api_key: string
+}
+
+
+export interface IOpenAIKeySuccess {
+    data: {
+        status: boolean
+        message: string
+    }
+}
+
+
+export interface IRetrieveOpenAIKeySuccess {
+    data: {
+        status: boolean
+        data: {
+            api_key: string
+        }
+    }
+}
+
+
+export interface IOpenAIKeyError {
+    response: {
+            data: {
+            message: string
+            status: boolean
+        }
+    }
+}
