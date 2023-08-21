@@ -2,7 +2,7 @@ import json
 from fastapi import FastAPI
 
 from agenta_backend.routers import app_variant
-from agenta_backend.routers import users_router
+from agenta_backend.routers import apikeys_router
 from agenta_backend.routers import testset_router
 from fastapi.middleware.cors import CORSMiddleware
 from agenta_backend.routers import container_router
@@ -74,7 +74,7 @@ async def lifespan(application: FastAPI, cache=True):
 
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(users_router.router, prefix="/users")
+app.include_router(apikeys_router.router, prefix="/api_keys")
 app.include_router(app_variant.router, prefix="/app_variant")
 app.include_router(evaluation_router.router, prefix="/evaluations")
 app.include_router(testset_router.router, prefix="/testsets")
