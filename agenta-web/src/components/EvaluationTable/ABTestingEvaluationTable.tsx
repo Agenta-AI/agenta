@@ -125,7 +125,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
         Promise.all(promises)
             .then(() => {
-                console.log("All functions finished.") 
+                console.log("All functions finished.")
                 message.success("Evaluation Results Saved")
             })
             .catch((err) => console.error("An error occurred:", err))
