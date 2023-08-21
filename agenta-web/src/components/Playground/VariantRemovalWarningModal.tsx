@@ -1,12 +1,14 @@
-import React from "react"
+import React, {useEffect} from "react"
 import {Modal, Button} from "antd"
 import {useRouter} from "next/router"
+import {Variant} from "@/lib/Types"
 
 interface Props {
     isModalOpen: boolean
     setIsModalOpen: (value: boolean) => void
     handleRemove: () => void
     handleCancel: () => void
+    variants: Variant[]
 }
 
 const VariantRemovalWarningModal: React.FC<Props> = ({
@@ -14,6 +16,7 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
     setIsModalOpen,
     handleRemove,
     handleCancel,
+    variants,
 }) => {
     const handleCloseModal = () => setIsModalOpen(false)
     const router = useRouter()
@@ -21,8 +24,13 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
     const handleDelete = () => {
         handleRemove()
         handleCloseModal()
-        router.push(`/apps`)
     }
+
+    useEffect(() => {
+        if (variants.length < 1) {
+            router.push(`/apps`)
+        }
+    }, [variants])
 
     const handleDismiss = () => {
         handleCancel()
