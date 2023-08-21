@@ -152,6 +152,7 @@ Answer ONLY with one of the given grading or evaluation options.
             await Promise.all(rows.map((_, rowIndex) => runEvaluation(rowIndex)))
             setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
             console.log("All evaluations finished.")
+            message.success("Evaluation Results Saved")
         } catch (err) {
             console.error("An error occurred:", err)
         }
