@@ -87,10 +87,50 @@
     {
       "group": "Reference",
       "pages": [
-        "reference/agenta-cli"
+        "reference/agenta-cli",
+        {
+          "group": "Backend API",
+          "pages": [
+            "backend_api/list-app-variants",
+            "backend_api/list-apps",
+            "backend_api/add-variant-from-image",
+            "backend_api/add-variant-from-previous",
+            "backend_api/start-variant",
+            "backend_api/stop-variant",
+            "backend_api/list-images",
+            "backend_api/remove-variant",
+            "backend_api/remove-app",
+            "backend_api/update-variant-parameters",
+            "backend_api/update-variant-image",
+            "backend_api/fetch-list-evaluations",
+            "backend_api/create-evaluation",
+            "backend_api/delete-evaluations",
+            "backend_api/fetch-evaluation",
+            "backend_api/update-evaluation-status-router",
+            "backend_api/fetch-evaluation-scenarios",
+            "backend_api/create-evaluation-scenario",
+            "backend_api/update-evaluation-scenario-router",
+            "backend_api/fetch-results",
+            "backend_api/upload-file",
+            "backend_api/create-testset",
+            {
+              "group": "testsets",
+              "pages": [
+                "backend_api/testsets/get-testset"
+              ]
+            },
+            "backend_api/update-testset",
+            "backend_api/get-testsets",
+            "backend_api/delete-testsets",
+            "backend_api/build-image"
+          ]
+        }
       ]
     }
   ],
+  "api": {
+    "baseUrl": "http://localhost/api"
+  },
   "footerSocials": {
     "twitter": "https://twitter.com/agenta_ai",
     "github": "https://github.com/agenta-ai"
