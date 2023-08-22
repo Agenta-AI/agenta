@@ -58,12 +58,6 @@ const Sidebar: React.FC = () => {
         }
     }
 
-    const handleLogout = async () => {
-        await signOut().finally(() => {
-            router.push("/auth")
-        })
-    }
-
     return (
         <Sider
             theme="light"
