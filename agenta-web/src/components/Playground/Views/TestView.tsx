@@ -160,21 +160,22 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
     const handleRunAll = async () => {
         const newResultsList = testList.map(() => "Loading...")
         setResultsList(testList.map(() => "Loading..."))
+        const resultsPromises = testList.map(async (testData, index) => {
+            return callVariant(testData, inputParams, optParams, URIPath)
+                .then((result) => {
+                    newResultsList[index] = result
+                })
+                .catch((err) => {
+                    newResultsList[index] =
+                        "The code has resulted in the following error: \n\n --------------------- \n" +
+                        err.cause
+                    throw err
+                })
+        })
         try {
-            const resultsPromises = testList.map(async (testData, index) => {
-                return await callVariant(testData, inputParams, optParams, URIPath)
-            })
-            const results = await Promise.all(resultsPromises)
-            results.forEach((result, index) => {
-                newResultsList[index] = result
-            })
+            await Promise.all(resultsPromises)
         } catch (e) {
-            newResultsList.forEach((_, index) => {
-                newResultsList[index] =
-                    "The code has resulted in the following error: \n\n --------------------- \n" +
-                    e +
-                    "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
-            })
+            console.log(e.cause)
         }
         setResultsList(newResultsList)
     }
@@ -191,11 +192,8 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const handleDeleteRow = (testIndex: number) => {
         if (resultsList.length < 2) return
-        if (resultsList[testIndex] !== "") {
-            setResultsList(resultsList.filter((_, index) => index !== testIndex))
-        }
-        const newTestList = testList.filter((_, index) => index !== testIndex)
-        setTestList(newTestList)
+        setResultsList(resultsList.filter((_, index) => index !== testIndex))
+        setTestList(testList.filter((_, index) => index !== testIndex))
     }
 
     return (
