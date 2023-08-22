@@ -33,6 +33,40 @@ import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import ai from "@/media/artificial-intelligence.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {createUseStyles} from "react-jss"
+
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
+
+const useStyles = createUseStyles({
+    evaluationContainer: {
+        border: "1px solid lightgrey",
+        padding: "20px",
+        borderRadius: "14px",
+        marginBottom: 50,
+    },
+    evaluationImg: ({themeMode}: StyleProps) => ({
+        width: 24,
+        height: 24,
+        marginRight: "8px",
+        filter: themeMode === "dark" ? "invert(1)" : "none",
+    }),
+    evaluationType: {
+        display: "flex",
+        alignItems: "center",
+    },
+    DropdownStyles: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        width: "100%",
+    },
+    radioBtn: {
+        display: "block",
+        marginBottom: "10px",
+    },
+})
 
 export default function Evaluations() {
     const {Text, Title} = Typography
@@ -41,6 +75,7 @@ export default function Evaluations() {
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
 
     const [columnsCount, setColumnsCount] = useState(2)
     const [selectedTestset, setSelectedTestset] = useState<{
@@ -325,14 +360,7 @@ export default function Evaluations() {
                 {typeof isError === "string" && <div>{isError}</div>}
                 {areAppVariantsLoading && <div>loading variants...</div>}
             </div>
-            <div
-                style={{
-                    border: "1px solid lightgrey",
-                    padding: "20px",
-                    borderRadius: "14px",
-                    marginBottom: 50,
-                }}
-            >
+            <div className={classes.evaluationContainer}>
                 <Row justify="start" gutter={24}>
                     <Col span={8}>
                         <Title level={4}>1. Select an evaluation type</Title>
@@ -343,18 +371,13 @@ export default function Evaluations() {
                         >
                             <Radio.Button
                                 value={EvaluationType.human_a_b_testing}
-                                style={{display: "block", marginBottom: "10px"}}
+                                className={classes.radioBtn}
                             >
-                                <div style={{display: "flex", alignItems: "center"}}>
+                                <div className={classes.evaluationType}>
                                     <Image
                                         src={abTesting}
-                                        width={24}
-                                        height={24}
                                         alt="Picture of the author"
-                                        style={{
-                                            marginRight: "8px",
-                                            filter: appTheme === "dark" ? "invert(1)" : "none",
-                                        }}
+                                        className={classes.evaluationImg}
                                     />
 
                                     <span>
@@ -366,7 +389,7 @@ export default function Evaluations() {
                             <Radio.Button
                                 value={EvaluationType.human_scoring}
                                 disabled
-                                style={{display: "block", marginBottom: "10px"}}
+                                className={classes.radioBtn}
                             >
                                 {EvaluationTypeLabels[EvaluationType.human_scoring]}
                                 <Tag color="orange" bordered={false}>
@@ -378,18 +401,13 @@ export default function Evaluations() {
 
                             <Radio.Button
                                 value={EvaluationType.auto_exact_match}
-                                style={{display: "block", marginBottom: "10px"}}
+                                className={classes.radioBtn}
                             >
-                                <div style={{display: "flex", alignItems: "center"}}>
+                                <div className={classes.evaluationType}>
                                     <Image
                                         src={exactMatch}
-                                        width={24}
-                                        height={24}
                                         alt="Picture of the author"
-                                        style={{
-                                            marginRight: "8px",
-                                            filter: appTheme === "dark" ? "invert(1)" : "none",
-                                        }}
+                                        className={classes.evaluationImg}
                                     />
 
                                     <span>
@@ -399,18 +417,13 @@ export default function Evaluations() {
                             </Radio.Button>
                             <Radio.Button
                                 value={EvaluationType.auto_similarity_match}
-                                style={{display: "block", marginBottom: "10px"}}
+                                className={classes.radioBtn}
                             >
-                                <div style={{display: "flex", alignItems: "center"}}>
+                                <div className={classes.evaluationType}>
                                     <Image
                                         src={similarity}
-                                        width={24}
-                                        height={24}
                                         alt="Picture of the author"
-                                        style={{
-                                            marginRight: "8px",
-                                            filter: appTheme === "dark" ? "invert(1)" : "none",
-                                        }}
+                                        className={classes.evaluationImg}
                                     />
 
                                     <span>
@@ -432,18 +445,13 @@ export default function Evaluations() {
                             )}
                             <Radio.Button
                                 value={EvaluationType.auto_ai_critique}
-                                style={{display: "block", marginBottom: "10px"}}
+                                className={classes.radioBtn}
                             >
-                                <div style={{display: "flex", alignItems: "center"}}>
+                                <div className={classes.evaluationType}>
                                     <Image
                                         src={ai}
-                                        width={24}
-                                        height={24}
                                         alt="Picture of the author"
-                                        style={{
-                                            marginRight: "8px",
-                                            filter: appTheme === "dark" ? "invert(1)" : "none",
-                                        }}
+                                        className={classes.evaluationImg}
                                     />
 
                                     <span>
@@ -467,14 +475,7 @@ export default function Evaluations() {
                                         width: "100%",
                                     }}
                                 >
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                            width: "100%",
-                                        }}
-                                    >
+                                    <div className={classes.DropdownStyles}>
                                         {selectedVariants[index]?.variantName || "Select a variant"}
                                         <DownOutlined />
                                     </div>
@@ -490,14 +491,7 @@ export default function Evaluations() {
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
                             <Button style={{marginRight: 10, marginTop: 40, width: "100%"}}>
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                        width: "100%",
-                                    }}
-                                >
+                                <div className={classes.DropdownStyles}>
                                     {selectedTestset.name}
 
                                     <DownOutlined />
