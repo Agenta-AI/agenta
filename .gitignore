@@ -42,3 +42,5 @@ self-host/*/*.tfstate.backup
 todo.md
 agenta-web/package-lock.json
 agenta-web/cypress/videos/
+agenta-backend/agenta_backend/ee/**
+agenta-web/src/ee/**
