@@ -124,3 +124,19 @@ export interface AppTemplate {
         OPENAI_API_KEY: string
     }
 }
+
+export interface ISession {
+    loading: boolean
+    doesSessionExist: boolean
+    userId: string
+    invalidClaims: Array<any>
+    accessTokenPayload: {
+        exp: number
+        iat: number
+        iss: string
+        parentRefreshTokenHash1: string
+        refreshTokenHash1: string
+        sessionHandle: string
+        sub: string
+    }
+}
