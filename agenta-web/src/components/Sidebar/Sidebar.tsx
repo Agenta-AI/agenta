@@ -18,8 +18,6 @@ import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {ISession} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {signOut} from "supertokens-auth-react/recipe/passwordless"
-import {useSessionContext} from "supertokens-auth-react/recipe/session"
 
 const {Sider} = Layout
 
@@ -35,7 +33,6 @@ const Sidebar: React.FC = () => {
     } = theme.useToken()
 
     const {appTheme, toggleAppTheme} = useAppTheme()
-    const tokenSession: ISession = useSessionContext()
 
     let initialSelectedKeys: string[] = []
     if (typeof page_name === "string") {
@@ -214,11 +211,6 @@ const Sidebar: React.FC = () => {
                     <Menu.Item key="theme" icon={<DashboardOutlined />} onClick={toggleAppTheme}>
                         <span>{appTheme === "light" ? "Dark mode" : "Light mode"}</span>
                     </Menu.Item>
-                    {tokenSession.doesSessionExist && (
-                        <Menu.Item key="help" icon={<LogoutOutlined />} onClick={handleLogout}>
-                            <span>Logout</span>
-                        </Menu.Item>
-                    )}
                     <Menu.Item key="help" icon={<QuestionOutlined />}>
                         <Link href="https://docs.agenta.ai" target="_blank">
                             Help

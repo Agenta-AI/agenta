@@ -4,7 +4,6 @@ Does not deal with the instanciation of the images
 import logging
 from typing import Any, Dict, List, Optional
 
-from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
     URI,
     App,
@@ -13,15 +12,19 @@ from agenta_backend.models.api.api_models import (
     DockerEnvVars,
     CreateAppVariant,
 )
-from agenta_backend.services.selectors import get_user_and_org_id
-from agenta_backend.services import app_manager, db_manager, docker_utils
 
+from agenta_backend.services import app_manager, db_manager, docker_utils
 from docker.errors import DockerException
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import APIRouter, Body, HTTPException, Depends
-from supertokens_python.recipe.session import SessionContainer
-from supertokens_python.recipe.session.framework.fastapi import verify_session
+from agenta_backend.config import settings
 
+if settings.feature_flag in ["cloud", "ee"]:
+    from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.ee.services.selectors import get_user_and_org_id
+else:
+    from agenta_backend.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -49,7 +52,7 @@ async def list_app_variants(app_name: Optional[str] = None):
 
 @router.get("/list_apps/", response_model=List[App])
 async def list_apps(
-    stoken_session: SessionContainer = Depends(verify_session()),
+    stoken_session: SessionContainer = Depends(verify_session),
 ) -> List[App]:
     """Lists the apps from our repository.
 
@@ -84,7 +87,7 @@ async def add_variant_from_image(
         HTTPException: If image not found in docker utils list
         HTTPException: If there is a problem adding the app variant
     """
-
+    print(stoken_session)
     if not image.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500,
