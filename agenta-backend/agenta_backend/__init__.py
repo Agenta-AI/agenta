@@ -8,6 +8,12 @@ from supertokens_python.recipe.passwordless.interfaces import (
     ConsumeCodePostOkResult,
 )
 from typing import Any, Dict, Union
+from agenta_backend.models.api.user_models import User
+from agenta_backend.models.api.organization_models import Organization
+from agenta_backend.services.user_service import create_new_user
+from agenta_backend.services.organization_service import (
+    create_new_organization,
+)
 
 
 def override_passwordless_apis(original_implementation: APIInterface):
@@ -33,19 +39,20 @@ def override_passwordless_apis(original_implementation: APIInterface):
 
         # Post sign up response, we check if it was successful
         if isinstance(response, ConsumeCodePostOkResult):
-            _ = response.user.user_id
-            __ = response.user.email
-            ___ = response.user.phone_number
+            user_dict = {
+                "id": response.user.user_id,
+                "email": response.user.email,
+                "username": response.user.email.split("@")[0],
+            }
+            organization = Organization(**{"name": user_dict["username"]})
 
             if response.created_new_user:
-                print("------------- holaaaaa sign up")
-                # create a new organisation
-                # create a new user(with the same id?)
+                print("================ SIGNUP ====================")
+                org = await create_new_organization(organization)
 
-                pass  # TODO: Post sign up logic
-            else:
-                print("------------- holaaaaa sign iiiin")
-                pass  # TODO: Post sign in logic
+                user_dict["organization_id"] = str(org.inserted_id)
+                user = User(**user_dict)
+                await create_new_user(user)
 
         return response
 
@@ -56,7 +63,7 @@ def override_passwordless_apis(original_implementation: APIInterface):
 init(
     app_info=InputAppInfo(
         app_name="agenta",
-        api_domain="http://localhost",
+        api_domain="http://localhost/api",
         website_domain="http://localhost",
         # the fact that both are localhost is causing problems with
         # displaying the dashboard to manage users
