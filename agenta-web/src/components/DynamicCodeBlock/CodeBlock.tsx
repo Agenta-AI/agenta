@@ -14,7 +14,7 @@ interface CodeBlockProps {
 const useStyles = createUseStyles({
     container: {
         margin: 0,
-    }
+    },
 })
 
 const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
