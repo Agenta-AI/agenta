@@ -82,7 +82,7 @@ allow_headers = ["Content-Type"]
 if settings.feature_flag in ["cloud", "ee"]:
     import agenta_backend.ee.main as ee
 
-    app, allow_headers = ee.extend_main(app, allow_headers)
+    app, allow_headers = ee.extend_main(app)
 # this is the prefix in which we are reverse proxying the api
 #
 app.add_middleware(
