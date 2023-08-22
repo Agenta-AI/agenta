@@ -2,6 +2,14 @@ import React, {useEffect} from "react"
 import {Modal, Button} from "antd"
 import {useRouter} from "next/router"
 import {Variant} from "@/lib/Types"
+import {createUseStyles} from "react-jss"
+
+const useStyles = createUseStyles({
+    modalBtnContainer: {
+        display: "flex",
+        justifyContent: "flex-end",
+    },
+})
 
 interface Props {
     isModalOpen: boolean
@@ -18,6 +26,7 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
     handleCancel,
     variants,
 }) => {
+    const classes = useStyles()
     const handleCloseModal = () => setIsModalOpen(false)
     const router = useRouter()
 
@@ -47,7 +56,7 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
         >
             <p>You're about to delete this variant. This action is irreversible.</p>
             <p>Are you sure you want to proceed?</p>
-            <div style={{display: "flex", justifyContent: "flex-end"}}>
+            <div className={classes.modalBtnContainer}>
                 <Button onClick={handleDismiss} style={{marginRight: 10}}>
                     Cancel
                 </Button>
