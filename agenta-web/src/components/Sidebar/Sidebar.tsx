@@ -18,9 +18,22 @@ import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 
+type StyleProps = {
+    themeMode: "dark" | "light"
+    colorBgContainer: string
+}
+
 const {Sider} = Layout
 
 const useStyles = createUseStyles({
+    sidebar: ({themeMode, colorBgContainer}: StyleProps) => ({
+        paddingLeft: "10px",
+        paddingRight: "10px",
+        background: `${colorBgContainer} !important`,
+        border: `0.01px solid ${themeMode === "dark" ? "#222" : "#ddd"}`,
+        height: "100vh",
+        position: "fixed !important",
+    }),
     sliderContainer: {
         display: "flex",
         flexDirection: "column",
@@ -41,11 +54,11 @@ const useStyles = createUseStyles({
         },
     },
     menuContainer: {
-        borderRight: 0,
+        borderRight: "0 !important",
     },
     menuContainer2: {
         paddingBottom: 24,
-        borderRight: 0,
+        borderRight: "0 !important",
     },
     menuLinks: {
         width: "100%",
@@ -53,18 +66,16 @@ const useStyles = createUseStyles({
 })
 
 const Sidebar: React.FC = () => {
-    const classes = useStyles()
-    const router = useRouter()
-    const {app_name} = router.query
-
-    const pathSegments = router.asPath.split("/")
-    const page_name = pathSegments[3]
-
+    const {appTheme, toggleAppTheme} = useAppTheme()
     const {
         token: {colorBgContainer},
     } = theme.useToken()
+    const router = useRouter()
+    const {app_name} = router.query
+    const classes = useStyles({themeMode: appTheme, colorBgContainer} as StyleProps)
 
-    const {appTheme, toggleAppTheme} = useAppTheme()
+    const pathSegments = router.asPath.split("/")
+    const page_name = pathSegments[3]
 
     let initialSelectedKeys: string[] = []
     if (typeof page_name === "string") {
@@ -91,18 +102,7 @@ const Sidebar: React.FC = () => {
     }
 
     return (
-        <Sider
-            theme="light"
-            style={{
-                paddingLeft: "10px",
-                paddingRight: "10px",
-                background: colorBgContainer,
-                border: `0.01px solid ${appTheme === "dark" ? "#222" : "#ddd"}`,
-                height: "100vh",
-                position: "fixed",
-            }}
-            width={225}
-        >
+        <Sider theme="light" className={classes.sidebar} width={225}>
             <div className={classes.sliderContainer}>
                 <div>
                     <Logo />
