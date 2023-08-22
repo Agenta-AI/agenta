@@ -52,7 +52,7 @@ async def list_app_variants(app_name: Optional[str] = None):
 
 @router.get("/list_apps/", response_model=List[App])
 async def list_apps(
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> List[App]:
     """Lists the apps from our repository.
 
