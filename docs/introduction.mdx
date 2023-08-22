@@ -1,33 +1,40 @@
 ---
 title: Introduction
-description: 'Welcome Agenta: The developer-first open source LLMOps platform.'
+description: 'Welcome agenta: The open source end-to-end LLMOps platform.'
 ---
+<img className="dark:hidden" height="600" src="images/agenta_mockup_whitebg.png" />
+<img className="hidden dark:block" height="600" src="images/agenta_mockup_blackbg.png" />
 
-Agenta is an open-source developer first LLMOps platform to streamline the process of building LLM-powered applications. Building LLM-powered apps is an iterative process with lots of prompt-engineering and testing multiple variants. Agenta brings the CI/CD platform to this process by enabling you to quickly iterate, experiment, evaluate, and optimize your LLM apps. All without imposing any restrictions on your choice of framework, library, or model.
+Agenta is an open-source end-to-end platform for productionizing complex Large Language Model applications (LLM apps). With agenta, you can:
 
-## How Agenta works:
-1. Develop your LLM-powered application as you would normally do. Feel free to use any framework, library, or model (langchain, llma_index, GPT-3, or open-source models).
-2. With two lines of code, specify the parameters for your experiment.
-3. Deploy your app using the Agenta CLI.
-4. You or your team can iterate, version parameters, test different versions, and run systematic evaluations via a user-friendly web platform.
+1. Quickly **experiment** and version prompts, parameters and complex strategies (in-context learning with embeddings, agents, custom business logic...) 
+2. **Collaborate with domain experts** for prompt engineering and evaluation
+3. Systematically **evaluate your LLM apps**
+4. **Deploy** your application in one-click
 
+Agenta does not impose any restrictions on your choice of framework, library, or model. It's compatible with **langchain**, **llama_index**, the **Openai SDK**, and more. You can use open-source models like **Llama2** or any other model you have access to, such as **Cohere**, **OpenAI**, **Google Bart**, and more.
 
-## Key Benefits
-- **Parameter Playground:** With just a few lines of code, define the parameters you wish to experiment with. Through our user-friendly web platform, you or your team can then experiment and tweak these parameters.
+## Overview of agenta 
 
-- **Version Evaluation:** Define test sets, evaluate, and compare different app versions.
+<img className="dark:hidden" height="600" src="images/agenta_highlevel_whitebg.png" />
+<img className="hidden dark:block" height="600" src="images/agenta_highlevel_blackbg.png" />
 
-- **API Deployment Made Easy:** Agenta allows you to deploy your LLM applications as APIs without any additional effort. (Currently only available locally)
+## Why use agenta?
 
-## Why choose Agenta for building LLM-apps?
+- If you need to **collaborate with domain experts** and want their feedback on your LLM apps, as well as their help experimenting with prompts and parameters without having to modify your code.
+- If you want the flexibility of **using code for writing LLM app**, without being restricted by libraries, models, or frameworks.
+- If you need to **save, version, and compare** different variants of your LLM apps **on your own data**.
+- If you need a systematic way to **programmatically evaluate your LLM apps**.
+- If you **care about your data privacy** and do not want to be proxied through third-party services.
 
-While there are numerous LLMops platforms, we believe Agenta offers unique benefits:
+## Features
 
-- Developer-Friendly: We cater to complex LLM-apps and pipelines that require more than just a few no-code abstractions. We give you the freedom to develop your apps the way you want.
-- Privacy-First: We respect your privacy and do not proxy your data through third-party services. You have the choice to host your data and models.
-- Solution-Agnostic: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
-- Collaborative: We recognize that building LLM-powered apps requires the collaboration of developers and domain experts. Our tool enables this collaboration, allowing domain experts to edit and modify parameters (e.g., prompts, hyperparameters, etc.), and label results for evaluation.
-- Open-Source: We encourage you to contribute to the platform and customize it to suit your needs.
+- **Parameter Playground:** Define your app's parameters within your code and experiment with them through a user-friendly web platform.
+- **Test Sets:** Build test sets using the UI, by uploading CSVs, or by connecting to your own data via our API.
+- **Evaluation:** Evaluate your app on your test sets using different strategies (e.g., exact match, AI Critic, human evaluation, etc.).
+- **Deployment:** Deploy your app as an API in just one click.
+- **Collaboration:** Share your app with collaborators and receive feedback on it.
+
 
 
 <CardGroup cols={2}>
