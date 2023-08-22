@@ -43,7 +43,6 @@
         "react-syntax-highlighter": "^15.5.0",
         "supertokens-auth-react": "^0.33.1",
         "supertokens-node": "^15.0.4",
-        "supertokens-web-js": "^0.7.2",
         "react-youtube": "^10.1.0",
         "swr": "^2.1.5",
         "typescript": "5.0.4",
