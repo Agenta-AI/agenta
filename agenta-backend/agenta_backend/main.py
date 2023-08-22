@@ -44,8 +44,8 @@ async def lifespan(application: FastAPI, cache=True):
     repo_name = settings.docker_hub_repo_name
 
     tags_data = await retrieve_templates_from_dockerhub_cached(cache=cache)
-    templates_info_string = (
-        await retrieve_templates_info_from_dockerhub_cached(cache=cache)
+    templates_info_string = await retrieve_templates_info_from_dockerhub_cached(
+        cache=cache
     )
     templates_info = json.loads(templates_info_string)
 
@@ -76,9 +76,7 @@ async def lifespan(application: FastAPI, cache=True):
                     f"{repo_owner}/{repo_name}", tag["name"]
                 )
                 print(f"Template {tag['id']} added to the database.")
-                print(
-                    f"Template Image {image_res[0]['id']} pulled from DockerHub."
-                )
+                print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
 
     # Remove old templates from database
     remove_old_template_from_db(templates_in_hub)
