@@ -63,8 +63,8 @@ def override_passwordless_apis(original_implementation: APIInterface):
 init(
     app_info=InputAppInfo(
         app_name="agenta",
-        api_domain="http://localhost/api",
-        website_domain="http://localhost",
+        api_domain="https://stage.agenta.ai/api",
+        website_domain="https://stage.agenta.ai",
         # the fact that both are localhost is causing problems with
         # displaying the dashboard to manage users
         api_base_path="/auth/",

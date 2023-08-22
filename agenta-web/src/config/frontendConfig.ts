@@ -1,4 +1,4 @@
-import PasswordlessReact from "supertokens-auth-react/recipe/passwordless"
+import ThirdPartyPasswordless from "supertokens-auth-react/recipe/thirdpartypasswordless";
 import SessionReact from "supertokens-auth-react/recipe/session"
 import {appInfo} from "./appInfo"
 import Router from "next/router"
@@ -7,8 +7,14 @@ export const frontendConfig = () => {
     return {
         appInfo,
         recipeList: [
-            PasswordlessReact.init({
+            ThirdPartyPasswordless.init({
                 contactMethod: "EMAIL",
+                signInUpFeature: {
+                    providers: [
+                        ThirdPartyPasswordless.Github.init(),
+                        ThirdPartyPasswordless.Google.init()
+                    ],
+                }
             }),
             SessionReact.init(),
         ],
