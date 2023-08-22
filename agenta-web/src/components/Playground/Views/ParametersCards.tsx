@@ -5,7 +5,7 @@ import {renameVariables} from "@/lib/helpers/utils"
 import {useEffect} from "react"
 
 interface ModelParametersProps {
-    optParams: Parameter[]
+    optParams: Parameter[] | null
     onChange: (param: Parameter, value: number | string) => void
     handleParamChange: (name: string, value: number | string) => void
 }
@@ -180,8 +180,8 @@ export const StringParameters: React.FC<StringParametersProps> = ({
 }
 
 interface ObjectParametersProps {
-    optParams: Parameter[]
-    handleParamChange: (name: string, value: number | string) => void
+    optParams: Parameter[] | null
+    handleParamChange: (name: string, value: any) => void
 }
 
 export const ObjectParameters: React.FC<ObjectParametersProps> = ({
@@ -225,7 +225,7 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
                             headStyle={{minHeight: 44, padding: "0px 12px"}}
                             title={renameVariables(param.name)}
                         >
-                            {param.default.map((val, index) => (
+                            {param.default.map((val: Parameter, index: number) => (
                                 <Row
                                     key={index}
                                     style={{
