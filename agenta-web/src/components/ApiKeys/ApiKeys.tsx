@@ -1,21 +1,21 @@
 import {getOpenAIKey, removeOpenAIKey, saveOpenAIKey} from "@/lib/helpers/utils"
 import {Button, Input, Space, Typography, message} from "antd"
 import {useState} from "react"
-import { createUseStyles } from "react-jss"
+import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles({
-    title:{
-        marginBottom: "30px !important"
+    title: {
+        marginBottom: "30px !important",
     },
-    container:{
+    container: {
         marginLeft: 20,
     },
-    apiContainer:{
-        margin: "20px 0"
+    apiContainer: {
+        margin: "20px 0",
     },
-    input:{
-        minWidth: 300
-    }
+    input: {
+        minWidth: 300,
+    },
 })
 
 export default function ApiKeys() {
