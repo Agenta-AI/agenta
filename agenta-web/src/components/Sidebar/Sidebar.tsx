@@ -3,19 +3,15 @@ import {useRouter} from "next/router"
 import {
     RocketOutlined,
     AppstoreOutlined,
-    FileTextOutlined,
     DatabaseOutlined,
     CloudUploadOutlined,
     BarChartOutlined,
     LineChartOutlined,
-    MonitorOutlined,
-    UserOutlined,
     QuestionOutlined,
-    GlobalOutlined,
     DashboardOutlined,
     LockOutlined,
 } from "@ant-design/icons"
-import {Avatar, Layout, Menu, Modal, Space, Tag, Tooltip, theme} from "antd"
+import {Layout, Menu, Space, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
