@@ -8,6 +8,21 @@ import {TestContext} from "../TestContextProvider"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
+import {createUseStyles} from "react-jss"
+
+const useStyles = createUseStyles({
+    testView: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginRight: "24px",
+        marginLeft: "12px",
+        "& > h2": {
+            padding: "0px",
+            marginBottom: "8px",
+        },
+    },
+})
 
 interface TestViewProps {
     URIPath: string | null
@@ -135,6 +150,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
     const {testList, setTestList} = useContext(TestContext)
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
+    const classes = useStyles()
 
     const handleRun = async (testData: Record<string, string>, testIndex: number) => {
         try {
@@ -200,16 +216,8 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     return (
         <div>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginRight: "24px",
-                    marginLeft: "12px",
-                }}
-            >
-                <h2 style={{padding: "0px", marginBottom: "8px"}}>2. Preview and test</h2>
+            <div className={classes.testView}>
+                <h2>2. Preview and test</h2>
                 <Space size={10}>
                     <LoadTestsModal
                         setNewTests={handleSetNewTests}
