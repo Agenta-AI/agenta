@@ -62,6 +62,9 @@ const useStyles = createUseStyles({
         alignItems: "center",
         width: "100%",
     },
+    radioGroup: {
+        width: "100%",
+    },
     radioBtn: {
         display: "block",
         marginBottom: "10px",
@@ -367,7 +370,7 @@ export default function Evaluations() {
                         <Title level={5}>Human evaluation</Title>
                         <Radio.Group
                             onChange={(e) => onChangeEvaluationType(e)}
-                            style={{width: "100%"}}
+                            className={classes.radioGroup}
                         >
                             <Radio.Button
                                 value={EvaluationType.human_a_b_testing}
