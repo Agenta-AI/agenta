@@ -11,7 +11,6 @@ from agenta_backend.services.db_manager import get_templates
 from agenta_backend.models.api.api_models import Image, Template
 from agenta_backend.services.container_manager import (
     build_image_job,
-    check_docker_arch,
     get_image_details_from_docker_hub,
     pull_image_from_docker_hub,
 )
