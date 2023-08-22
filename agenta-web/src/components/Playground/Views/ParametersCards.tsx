@@ -1,8 +1,7 @@
 import {Row, Card, Slider, Select, InputNumber, Col, Input, Button} from "antd"
-import React, {ParamHTMLAttributes} from "react"
+import React from "react"
 import {Parameter, InputParameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
-import {useEffect} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStylesModalParams = createUseStyles({
@@ -90,17 +89,17 @@ const useStylesObjectParams = createUseStyles({
             padding: "0px 12px",
         },
     },
-    row2:{
+    row2: {
         alignItems: "center",
         marginTop: 12,
         marginBottom: 12,
     },
-    deleteBtn:{
+    deleteBtn: {
         margin: "0px 24px",
     },
-    addBtn:{
-        margin: "12px 0px"
-    }
+    addBtn: {
+        margin: "12px 0px",
+    },
 })
 
 interface ModelParametersProps {
@@ -272,15 +271,9 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
                 ?.filter((param) => param.type === "object")
                 .map((param, index) => (
                     <Row gutter={0} className={classes.row1} key={index}>
-                        <Card
-                            className={classes.card}
-                            title={renameVariables(param.name)}
-                        >
+                        <Card className={classes.card} title={renameVariables(param.name)}>
                             {param.default.map((val, index) => (
-                                <Row
-                                    key={index}
-                                    className={classes.row2}
-                                >
+                                <Row key={index} className={classes.row2}>
                                     <Col span={4}>
                                         <Input.TextArea
                                             rows={1}
