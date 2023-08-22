@@ -40,6 +40,16 @@ const useStyles = createUseStyles({
             flex: 1,
         },
     },
+    menuContainer: {
+        borderRight: 0,
+    },
+    menuContainer2: {
+        paddingBottom: 24,
+        borderRight: 0,
+    },
+    menuLinks: {
+        width: "100%",
+    },
 })
 
 const Sidebar: React.FC = () => {
@@ -99,7 +109,11 @@ const Sidebar: React.FC = () => {
                 </div>
 
                 <div>
-                    <Menu mode="inline" selectedKeys={initialSelectedKeys} style={{borderRight: 0}}>
+                    <Menu
+                        mode="inline"
+                        selectedKeys={initialSelectedKeys}
+                        className={classes.menuContainer}
+                    >
                         <Menu.Item key="apps" icon={<AppstoreOutlined />}>
                             <Tooltip
                                 placement="right"
@@ -108,7 +122,7 @@ const Sidebar: React.FC = () => {
                                 <Link
                                     data-cy="app-management-link"
                                     href={getNavigationPath("apps")}
-                                    style={{width: "100%"}}
+                                    className={classes.menuLinks}
                                 >
                                     App Management
                                 </Link>
@@ -124,7 +138,7 @@ const Sidebar: React.FC = () => {
                                         <Link
                                             data-cy="app-playground-link"
                                             href={getNavigationPath("playground")}
-                                            style={{width: "100%"}}
+                                            className={classes.menuLinks}
                                         >
                                             Playground
                                         </Link>
@@ -139,7 +153,7 @@ const Sidebar: React.FC = () => {
                                         <Link
                                             data-cy="app-testsets-link"
                                             href={getNavigationPath("testsets")}
-                                            style={{width: "100%"}}
+                                            className={classes.menuLinks}
                                         >
                                             Test Sets
                                         </Link>
@@ -154,7 +168,7 @@ const Sidebar: React.FC = () => {
                                         <Link
                                             data-cy="app-evaluations-link"
                                             href={getNavigationPath("evaluations")}
-                                            style={{width: "100%"}}
+                                            className={classes.menuLinks}
                                         >
                                             Evaluate
                                         </Link>
@@ -168,7 +182,7 @@ const Sidebar: React.FC = () => {
                                         <Link
                                             data-cy="app-results-link"
                                             href={getNavigationPath("results")}
-                                            style={{width: "100%"}}
+                                            className={classes.menuLinks}
                                         >
                                             Results
                                         </Link>
@@ -183,7 +197,7 @@ const Sidebar: React.FC = () => {
                                         <Link
                                             data-cy="app-endpoints-link"
                                             href={getNavigationPath("endpoints")}
-                                            style={{width: "100%"}}
+                                            className={classes.menuLinks}
                                         >
                                             <Space>
                                                 <span>Endpoints</span>
@@ -197,7 +211,7 @@ const Sidebar: React.FC = () => {
 
                     <Menu
                         mode="vertical"
-                        style={{paddingBottom: 24, borderRight: 0}}
+                        className={classes.menuContainer2}
                         selectedKeys={selectedKeys}
                     >
                         <Menu.Item key="apikeys" icon={<LockOutlined />}>
@@ -208,7 +222,7 @@ const Sidebar: React.FC = () => {
                                 <Link
                                     data-cy="apikeys-link"
                                     href={getNavigationPath("keys")}
-                                    style={{width: "100%"}}
+                                    className={classes.menuLinks}
                                 >
                                     <Space>
                                         <span>API keys</span>
