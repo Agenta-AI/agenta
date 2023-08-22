@@ -1,7 +1,9 @@
-from fastapi import HTTPException, APIRouter, Body
-from datetime import datetime
 from bson import ObjectId
+from datetime import datetime
 from typing import List, Optional
+
+from fastapi import HTTPException, APIRouter, Body, Depends
+
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
@@ -27,12 +29,20 @@ from agenta_backend.services.db_mongo import (
     evaluations,
     evaluation_scenarios,
 )
+from agenta_backend.services.selectors import get_user_and_org_id
+
+from supertokens_python.recipe.session.framework.fastapi import verify_session
+from supertokens_python.recipe.session import SessionContainer
+
 
 router = APIRouter()
 
 
 @router.post("/", response_model=Evaluation)
-async def create_evaluation(newEvaluationData: NewEvaluation = Body(...)):
+async def create_evaluation(
+    newEvaluationData: NewEvaluation = Body(...),
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Creates a new comparison table document
     Raises:
         HTTPException: _description_
@@ -40,7 +50,9 @@ async def create_evaluation(newEvaluationData: NewEvaluation = Body(...)):
         _description_
     """
     try:
-        return await create_new_evaluation(newEvaluationData)
+        # Get user and organization id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        return await create_new_evaluation(newEvaluationData, **kwargs)
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -91,7 +103,10 @@ async def fetch_evaluation_scenarios(evaluation_id: str):
 
 
 @router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
-async def create_evaluation_scenario(evaluation_scenario: EvaluationScenario):
+async def create_evaluation_scenario(
+    evaluation_scenario: EvaluationScenario,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Creates an empty evaluation row
 
     Arguments:
@@ -109,6 +124,11 @@ async def create_evaluation_scenario(evaluation_scenario: EvaluationScenario):
     evaluation_scenario_dict["created_at"] = evaluation_scenario_dict[
         "updated_at"
     ] = datetime.utcnow()
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    evaluation_scenario_dict.update(kwargs)
+
     result = await evaluation_scenarios.insert_one(evaluation_scenario_dict)
     if result.acknowledged:
         evaluation_scenario_dict["id"] = str(result.inserted_id)
@@ -124,8 +144,9 @@ async def create_evaluation_scenario(evaluation_scenario: EvaluationScenario):
 )
 async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
-    evaluation_scenario: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
+    evaluation_scenario: EvaluationScenarioUpdate,
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Updates an evaluation row with a vote
 
@@ -140,8 +161,10 @@ async def update_evaluation_scenario_router(
         _description_
     """
     try:
+        # Get user and organization id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
         return await update_evaluation_scenario(
-            evaluation_scenario_id, evaluation_scenario, evaluation_type
+            evaluation_scenario_id, evaluation_scenario, evaluation_type, **kwargs
         )
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -174,7 +197,8 @@ async def fetch_evaluation(evaluation_id: str):
         return evaluation
     else:
         raise HTTPException(
-            status_code=404, detail=f"dataset with id {evaluation_id} not found"
+            status_code=404,
+            detail=f"dataset with id {evaluation_id} not found",
         )
 
 
