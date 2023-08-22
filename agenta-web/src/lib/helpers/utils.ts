@@ -65,3 +65,24 @@ export const randString = (len: number) =>
 export const isAppNameInputValid = (input: string) => {
     return /^[a-zA-Z0-9_-]+$/.test(input)
 }
+
+type RowType = Record<string, any>
+
+export const convertToCsv = (rows: RowType[], header: (string | undefined)[]): string => {
+    const validHeaders = header.filter((h) => h !== undefined && h in rows[0]) as string[]
+    const headerRow = validHeaders.join(",")
+    const remainingRows = rows
+        .map((row) => validHeaders.map((colName) => row[colName]).join(","))
+        .join("\n")
+    return `${headerRow}\n${remainingRows}`
+}
+
+export const downloadCsv = (csvContent: string, filename: string): void => {
+    const blob = new Blob([csvContent], {type: "text/csv"})
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+}
