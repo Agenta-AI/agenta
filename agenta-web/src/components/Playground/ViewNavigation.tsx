@@ -7,6 +7,7 @@ import {Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import {is} from "cypress/types/bluebird"
+import {createUseStyles} from "react-jss"
 
 interface Props {
     variant: Variant
@@ -16,6 +17,12 @@ interface Props {
     isDeleteLoading: boolean
 }
 
+const useStyles = createUseStyles({
+    row: {
+        marginTop: "20px",
+    },
+})
+
 const ViewNavigation: React.FC<Props> = ({
     variant,
     handlePersistVariant,
@@ -23,6 +30,7 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalWarningModalOpen,
     isDeleteLoading,
 }) => {
+    const classes = useStyles()
     const router = useRouter()
     const appName = router.query.app_name as unknown as string
     const {
@@ -123,7 +131,7 @@ const ViewNavigation: React.FC<Props> = ({
             </Row>
             <Divider />
 
-            <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]} style={{marginTop: "20px"}}>
+            <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]} className={classes.row}>
                 <Col span={24}>
                     <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
                 </Col>
