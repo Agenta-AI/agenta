@@ -7,7 +7,7 @@ import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {fetchVariants} from "@/lib/services/api"
-import { createUseStyles } from "react-jss"
+import {createUseStyles} from "react-jss"
 
 interface EvaluationTableProps {
     evaluation: any
