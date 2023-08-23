@@ -1,20 +1,7 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {BarChartOutlined, LineChartOutlined} from "@ant-design/icons"
-import {
-    Button,
-    Card,
-    Col,
-    Input,
-    Row,
-    Space,
-    Spin,
-    Statistic,
-    Table,
-    Tag,
-    Typography,
-    message,
-} from "antd"
+import {LineChartOutlined} from "@ant-design/icons"
+import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag} from "antd"
 import {Evaluation, Variant} from "@/lib/Types"
 import {
     updateEvaluationScenario,
@@ -25,7 +12,6 @@ import {
 import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
-import TextArea from "antd/es/input/TextArea"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 
 interface AICritiqueEvaluationTableProps {
@@ -165,21 +151,17 @@ Answer ONLY with one of the given grading or evaluation options.
 
         const columnsDataNames = ["columnData0"]
         for (const [idx, columnName] of columnsDataNames.entries()) {
-            try {
-                setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
+            setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
 
-                let result = await callVariant(
-                    inputParamsDict,
-                    variantData[idx].inputParams,
-                    variantData[idx].optParams,
-                    variantData[idx].URIPath,
-                )
-                setRowValue(rowIndex, columnName, result)
-                await evaluate(rowIndex)
-                setShouldFetchResults(true)
-            } catch (e) {
-                message.error("Oops! Something went wrong")
-            }
+            let result = await callVariant(
+                inputParamsDict,
+                variantData[idx].inputParams,
+                variantData[idx].optParams,
+                variantData[idx].URIPath,
+            )
+            setRowValue(rowIndex, columnName, result)
+            await evaluate(rowIndex)
+            setShouldFetchResults(true)
         }
     }
 
@@ -365,7 +347,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         headStyle={{minHeight: 44, padding: "0px 12px"}}
                         title="Evaluation strategy prompt"
                     >
-                        <TextArea
+                        <Input.TextArea
                             rows={5}
                             style={{height: 120, padding: "0px 0px"}}
                             bordered={false}

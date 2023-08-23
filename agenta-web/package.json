@@ -21,8 +21,6 @@
         "@mdx-js/react": "^2.3.0",
         "@next/mdx": "^13.4.13",
         "@types/mdx": "^2.0.6",
-        "@types/node": "18.16.3",
-        "@types/react": "18.2.0",
         "@types/react-dom": "18.2.1",
         "ag-grid-community": "^30.0.6",
         "ag-grid-react": "^30.0.3",
@@ -37,6 +35,7 @@
         "postcss": "8.4.23",
         "react": "18.2.0",
         "react-dom": "18.2.0",
+        "react-error-boundary": "^4.0.11",
         "react-jss": "^10.10.0",
         "react-markdown": "^8.0.7",
         "react-syntax-highlighter": "^15.5.0",
@@ -46,6 +45,8 @@
         "usehooks-ts": "^2.9.1"
     },
     "devDependencies": {
+        "@types/node": "18.16.3",
+        "@types/react": "18.2.0",
         "cypress": "^12.11.0",
         "eslint-config-prettier": "^8.8.0",
         "node-mocks-http": "^1.12.2",

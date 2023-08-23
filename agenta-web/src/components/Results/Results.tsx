@@ -10,14 +10,15 @@ import {
     renderPlotForExactMatchEvaluation,
     renderPlotForSimilarityMatchEvaluation,
 } from "./ResultsPlots/ResultsPlots"
+import axios from "@/lib/helpers/axiosConfig"
 
 interface Vote {
     [key: string]: number
 }
 
 const fetchData = async (url: string): Promise<any> => {
-    const response = await fetch(url)
-    return response.json()
+    const response = await axios.get(url)
+    return response.data
 }
 
 const Results: React.FC = () => {
