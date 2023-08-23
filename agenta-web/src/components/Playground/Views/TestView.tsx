@@ -8,6 +8,7 @@ import {TestContext} from "../TestContextProvider"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
+import {getErrorMessage} from "@/lib/helpers/errorHandler"
 
 interface TestViewProps {
     URIPath: string | null
@@ -151,7 +152,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             const newResultsList = [...resultsList]
             newResultsList[testIndex] =
                 "The code has resulted in the following error: \n\n --------------------- \n" +
-                e +
+                getErrorMessage(e) +
                 "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
             setResultsList(newResultsList)
         }
@@ -172,7 +173,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             newResultsList.forEach((_, index) => {
                 newResultsList[index] =
                     "The code has resulted in the following error: \n\n --------------------- \n" +
-                    e +
+                    getErrorMessage(e) +
                     "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
             })
         }

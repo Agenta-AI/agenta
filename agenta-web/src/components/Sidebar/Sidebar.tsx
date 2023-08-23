@@ -3,23 +3,20 @@ import {useRouter} from "next/router"
 import {
     RocketOutlined,
     AppstoreOutlined,
-    FileTextOutlined,
     DatabaseOutlined,
     CloudUploadOutlined,
     BarChartOutlined,
     LineChartOutlined,
-    MonitorOutlined,
-    UserOutlined,
     QuestionOutlined,
-    GlobalOutlined,
     DashboardOutlined,
     LockOutlined,
 } from "@ant-design/icons"
-import {Avatar, Layout, Menu, Modal, Space, Tag, Tooltip, theme} from "antd"
+import {Layout, Menu, Space, Tooltip, theme} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {ErrorBoundary} from "react-error-boundary"
 
 const {Sider} = Layout
 
@@ -85,141 +82,147 @@ const Sidebar: React.FC = () => {
                 >
                     <Logo />
                 </div>
-                <Menu mode="inline" selectedKeys={initialSelectedKeys} style={{borderRight: 0}}>
-                    <Menu.Item key="apps" icon={<AppstoreOutlined />}>
-                        <Tooltip
-                            placement="right"
-                            title="Create new applications or switch between your existing projects."
-                        >
-                            <Link
-                                data-cy="app-management-link"
-                                href={getNavigationPath("apps")}
-                                style={{width: "100%"}}
+                <ErrorBoundary fallback={<div />}>
+                    <Menu mode="inline" selectedKeys={initialSelectedKeys} style={{borderRight: 0}}>
+                        <Menu.Item key="apps" icon={<AppstoreOutlined />}>
+                            <Tooltip
+                                placement="right"
+                                title="Create new applications or switch between your existing projects."
                             >
-                                App Management
-                            </Link>
-                        </Tooltip>
-                    </Menu.Item>
-                    {page_name && (
-                        <>
-                            <Menu.Item key="playground" icon={<RocketOutlined />}>
-                                <Tooltip
-                                    placement="right"
-                                    title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
+                                <Link
+                                    data-cy="app-management-link"
+                                    href={getNavigationPath("apps")}
+                                    style={{width: "100%"}}
                                 >
-                                    <Link
-                                        data-cy="app-playground-link"
-                                        href={getNavigationPath("playground")}
-                                        style={{width: "100%"}}
+                                    App Management
+                                </Link>
+                            </Tooltip>
+                        </Menu.Item>
+                        {page_name && (
+                            <>
+                                <Menu.Item key="playground" icon={<RocketOutlined />}>
+                                    <Tooltip
+                                        placement="right"
+                                        title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                     >
-                                        Playground
-                                    </Link>
-                                </Tooltip>
-                            </Menu.Item>
+                                        <Link
+                                            data-cy="app-playground-link"
+                                            href={getNavigationPath("playground")}
+                                            style={{width: "100%"}}
+                                        >
+                                            Playground
+                                        </Link>
+                                    </Tooltip>
+                                </Menu.Item>
 
-                            <Menu.Item key="testsets" icon={<DatabaseOutlined />}>
-                                <Tooltip
-                                    placement="right"
-                                    title="Create and manage testsets for evaluation purposes."
-                                >
-                                    <Link
-                                        data-cy="app-testsets-link"
-                                        href={getNavigationPath("testsets")}
-                                        style={{width: "100%"}}
+                                <Menu.Item key="testsets" icon={<DatabaseOutlined />}>
+                                    <Tooltip
+                                        placement="right"
+                                        title="Create and manage testsets for evaluation purposes."
                                     >
-                                        Test Sets
-                                    </Link>
-                                </Tooltip>
-                            </Menu.Item>
+                                        <Link
+                                            data-cy="app-testsets-link"
+                                            href={getNavigationPath("testsets")}
+                                            style={{width: "100%"}}
+                                        >
+                                            Test Sets
+                                        </Link>
+                                    </Tooltip>
+                                </Menu.Item>
 
-                            <Menu.Item key="evaluations" icon={<LineChartOutlined />}>
-                                <Tooltip
-                                    placement="right"
-                                    title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                >
-                                    <Link
-                                        data-cy="app-evaluations-link"
-                                        href={getNavigationPath("evaluations")}
-                                        style={{width: "100%"}}
+                                <Menu.Item key="evaluations" icon={<LineChartOutlined />}>
+                                    <Tooltip
+                                        placement="right"
+                                        title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
                                     >
-                                        Evaluate
-                                    </Link>
-                                </Tooltip>
-                            </Menu.Item>
-                            <Menu.Item key="results" icon={<BarChartOutlined />}>
-                                <Tooltip
-                                    placement="right"
-                                    title="Analyze the evaluation outcomes to determine the most effective variants."
-                                >
-                                    <Link
-                                        data-cy="app-results-link"
-                                        href={getNavigationPath("results")}
-                                        style={{width: "100%"}}
+                                        <Link
+                                            data-cy="app-evaluations-link"
+                                            href={getNavigationPath("evaluations")}
+                                            style={{width: "100%"}}
+                                        >
+                                            Evaluate
+                                        </Link>
+                                    </Tooltip>
+                                </Menu.Item>
+                                <Menu.Item key="results" icon={<BarChartOutlined />}>
+                                    <Tooltip
+                                        placement="right"
+                                        title="Analyze the evaluation outcomes to determine the most effective variants."
                                     >
-                                        Results
-                                    </Link>
-                                </Tooltip>
-                            </Menu.Item>
+                                        <Link
+                                            data-cy="app-results-link"
+                                            href={getNavigationPath("results")}
+                                            style={{width: "100%"}}
+                                        >
+                                            Results
+                                        </Link>
+                                    </Tooltip>
+                                </Menu.Item>
 
-                            <Menu.Item key="endpoints" icon={<CloudUploadOutlined />}>
-                                <Tooltip
-                                    placement="right"
-                                    title="Monitor production logs to ensure seamless operations."
-                                >
-                                    <Link
-                                        data-cy="app-endpoints-link"
-                                        href={getNavigationPath("endpoints")}
-                                        style={{width: "100%"}}
+                                <Menu.Item key="endpoints" icon={<CloudUploadOutlined />}>
+                                    <Tooltip
+                                        placement="right"
+                                        title="Monitor production logs to ensure seamless operations."
                                     >
-                                        <Space>
-                                            <span>Endpoints</span>
-                                        </Space>
-                                    </Link>
-                                </Tooltip>
-                            </Menu.Item>
-                        </>
-                    )}
-                </Menu>
+                                        <Link
+                                            data-cy="app-endpoints-link"
+                                            href={getNavigationPath("endpoints")}
+                                            style={{width: "100%"}}
+                                        >
+                                            <Space>
+                                                <span>Endpoints</span>
+                                            </Space>
+                                        </Link>
+                                    </Tooltip>
+                                </Menu.Item>
+                            </>
+                        )}
+                    </Menu>
 
-                <div style={{flex: 1}} />
+                    <div style={{flex: 1}} />
 
-                <Menu
-                    mode="vertical"
-                    style={{paddingBottom: 24, borderRight: 0}}
-                    selectedKeys={selectedKeys}
-                >
-                    <Menu.Item key="apikeys" icon={<LockOutlined />}>
-                        <Tooltip
-                            placement="right"
-                            title="Your api keys that are used in applications"
-                        >
-                            <Link
-                                data-cy="apikeys-link"
-                                href={getNavigationPath("keys")}
-                                style={{width: "100%"}}
+                    <Menu
+                        mode="vertical"
+                        style={{paddingBottom: 24, borderRight: 0}}
+                        selectedKeys={selectedKeys}
+                    >
+                        <Menu.Item key="apikeys" icon={<LockOutlined />}>
+                            <Tooltip
+                                placement="right"
+                                title="Your api keys that are used in applications"
                             >
-                                <Space>
-                                    <span>API keys</span>
-                                </Space>
+                                <Link
+                                    data-cy="apikeys-link"
+                                    href={getNavigationPath("keys")}
+                                    style={{width: "100%"}}
+                                >
+                                    <Space>
+                                        <span>API keys</span>
+                                    </Space>
+                                </Link>
+                            </Tooltip>
+                        </Menu.Item>
+                        <Menu.Item
+                            key="theme"
+                            icon={<DashboardOutlined />}
+                            onClick={toggleAppTheme}
+                        >
+                            <span>{appTheme === "light" ? "Dark mode" : "Light mode"}</span>
+                        </Menu.Item>
+                        <Menu.Item key="help" icon={<QuestionOutlined />}>
+                            <Link href="https://docs.agenta.ai" target="_blank">
+                                Help
                             </Link>
-                        </Tooltip>
-                    </Menu.Item>
-                    <Menu.Item key="theme" icon={<DashboardOutlined />} onClick={toggleAppTheme}>
-                        <span>{appTheme === "light" ? "Dark mode" : "Light mode"}</span>
-                    </Menu.Item>
-                    <Menu.Item key="help" icon={<QuestionOutlined />}>
-                        <Link href="https://docs.agenta.ai" target="_blank">
-                            Help
-                        </Link>
-                    </Menu.Item>
-                    {/* <Menu.Item key="user">
+                        </Menu.Item>
+                        {/* <Menu.Item key="user">
                         <Space>
                             <Avatar size="small" style={{ backgroundColor: '#87d068' }} icon={<UserOutlined />} />
                             <span>Foulen</span>
                         </Space>
 
                     </Menu.Item> */}
-                </Menu>
+                    </Menu>
+                </ErrorBoundary>
             </div>
         </Sider>
     )

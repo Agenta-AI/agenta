@@ -1,7 +1,7 @@
 import {useState} from "react"
 import React from "react"
 import {Parameter} from "@/lib/Types"
-import {Input, Row, Col, Button, Tooltip, message, Space, Card, Collapse} from "antd"
+import {Row, Col, Button, Tooltip, message, Space, Collapse} from "antd"
 import type {CollapseProps} from "antd"
 import {ModelParameters, StringParameters, ObjectParameters} from "./ParametersCards"
 interface Props {
@@ -118,6 +118,7 @@ const ParametersView: React.FC<Props> = ({
             showArrow: true,
         },
     ]
+
     return (
         <div>
             {contextHolder}

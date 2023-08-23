@@ -33,6 +33,7 @@ import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import ai from "@/media/artificial-intelligence.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import axios from "@/lib/helpers/axiosConfig"
 
 export default function Evaluations() {
     const {Text, Title} = Typography
@@ -137,23 +138,8 @@ export default function Evaluations() {
         llmAppPromptTemplate?: string,
     ) => {
         const postData = async (url = "", data = {}) => {
-            const response = await fetch(url, {
-                method: "POST",
-                cache: "no-cache",
-                credentials: "same-origin",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                redirect: "follow",
-                referrerPolicy: "no-referrer",
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                throw new Error((await response.json())?.detail ?? "Failed to create evaluation")
-            }
-
-            return response.json()
+            const response = await axios.post(url, data)
+            return response.data
         }
 
         const data = {

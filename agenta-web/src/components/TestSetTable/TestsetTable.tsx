@@ -15,7 +15,6 @@ import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
 import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
-import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
 
 export const CHECKBOX_COL = {
@@ -181,9 +180,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 colData.push({field: "correct_answer"})
 
                 applyColData(colData)
-            })().catch((e) => {
+            })().catch(() => {
                 applyColData([])
-                globalErrorHandler(e)
             })
         }
     }, [mode, testset_id, appName])
@@ -413,9 +411,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 }
             }
         } catch (error) {
-            mssgModal("error", "Error saving test set")
             console.error("Error saving test set:", error)
-            throw error
         }
     }
 

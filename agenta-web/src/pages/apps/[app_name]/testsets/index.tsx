@@ -8,6 +8,7 @@ import {useState, useEffect} from "react"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {DeleteOutlined} from "@ant-design/icons"
 import {deleteTestsets} from "@/lib/services/api"
+import axios from "@/lib/helpers/axiosConfig"
 
 type testsetTableDatatype = {
     key: string
@@ -16,8 +17,8 @@ type testsetTableDatatype = {
 }
 
 const fetchData = async (url: string): Promise<any> => {
-    const response = await fetch(url)
-    return response.json()
+    const response = await axios.get(url)
+    return response.data
 }
 
 export default function testsets() {

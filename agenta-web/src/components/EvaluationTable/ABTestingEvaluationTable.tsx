@@ -146,9 +146,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
-            } catch (e) {
+            } catch {
                 setRowValue(rowIndex, columnName, "")
-                message.error("Oops! Something went wrong")
             }
         })
     }
