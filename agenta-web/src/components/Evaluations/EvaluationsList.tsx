@@ -7,6 +7,7 @@ import {Variant} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
+import {createUseStyles} from "react-jss"
 
 interface EvaluationListTableDataType {
     key: string
@@ -27,12 +28,22 @@ interface EvaluationListTableDataType {
     createdAt: string
 }
 
+const useStyles = createUseStyles({
+    container: {
+        marginBottom: 40,
+        "& svg": {
+            color: "red",
+        },
+    },
+})
+
 export default function EvaluationsList() {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [deletingLoading, setDeletingLoading] = useState<boolean>(true)
+    const classes = useStyles()
 
     const app_name = router.query.app_name?.toString() || ""
 
@@ -177,9 +188,9 @@ export default function EvaluationsList() {
 
     return (
         <div>
-            <div style={{marginBottom: 40}}>
+            <div className={classes.container}>
                 <Button onClick={onDelete} disabled={selectedRowKeys.length == 0}>
-                    <DeleteOutlined key="delete" style={{color: "red"}} />
+                    <DeleteOutlined key="delete" />
                     Delete
                 </Button>
             </div>
