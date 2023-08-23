@@ -103,7 +103,7 @@ const useStylesObjectParams = createUseStyles({
 })
 
 interface ModelParametersProps {
-    optParams: Parameter[]
+    optParams: Parameter[] | null
     onChange: (param: Parameter, value: number | string) => void
     handleParamChange: (name: string, value: number | string) => void
 }
@@ -240,8 +240,8 @@ export const StringParameters: React.FC<StringParametersProps> = ({
 }
 
 interface ObjectParametersProps {
-    optParams: Parameter[]
-    handleParamChange: (name: string, value: number | string) => void
+    optParams: Parameter[] | null
+    handleParamChange: (name: string, value: any) => void
 }
 
 export const ObjectParameters: React.FC<ObjectParametersProps> = ({
@@ -270,10 +270,21 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
             {optParams
                 ?.filter((param) => param.type === "object")
                 .map((param, index) => (
-                    <Row gutter={0} className={classes.row1} key={index}>
-                        <Card className={classes.card} title={renameVariables(param.name)}>
-                            {param.default.map((val, index) => (
-                                <Row key={index} className={classes.row2}>
+
+                    <Row
+                        gutter={0}
+                        className={classes.row1}
+                        key={index}
+                    >
+                        <Card
+                            className={classes.card}
+                            title={renameVariables(param.name)}
+                        >
+                            {param.default.map((val: Parameter, index: number) => (
+                                <Row
+                                    key={index}
+                                    className={classes.row2}
+                                >
                                     <Col span={4}>
                                         <Input.TextArea
                                             rows={1}
