@@ -359,7 +359,7 @@ const AppSelector: React.FC = () => {
                     onChange={(e) => setNewApp(e.target.value)}
                     disabled={fetchingTemplate}
                 />
-                {!appNameExist && <div className={classes.modalError}>App name already exist</div>}
+                {appNameExist && <div className={classes.modalError}>App name already exist</div>}
                 {newApp.length > 0 && !isAppNameInputValid(newApp) && (
                     <div className={classes.modalError}>
                         App name must contain only letters, numbers, underscore, or dash
