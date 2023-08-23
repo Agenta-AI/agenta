@@ -69,14 +69,6 @@ const useStyles = createUseStyles({
         padding: 4,
         borderRadius: 5,
     },
-    inputTestBtn: {
-        width: "100%",
-        display: "flex",
-        justifyContent: "flex-end",
-        "& button": {
-            marginLeft: 10,
-        },
-    },
     recordInput: {
         marginBottom: 10,
     },
