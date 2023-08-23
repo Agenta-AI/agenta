@@ -31,4 +31,6 @@ async def get_user_objectid(user_id: str) -> Tuple[str, str]:
     """
 
     user = await users.find_one({"id": user_id})
+    if user is None:
+        raise Exception("Account does not exist for this logged-in session")
     return str(user["id"]), str(user["organization_id"])
