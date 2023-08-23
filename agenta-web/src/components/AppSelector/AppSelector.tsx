@@ -76,8 +76,8 @@ const useStyles = createUseStyles({
         marginTop: 0,
         borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
     }),
-    h1:{
-        fontSize: 24
+    h1: {
+        fontSize: 24,
     },
     modal: {
         "& .ant-modal-body": {
