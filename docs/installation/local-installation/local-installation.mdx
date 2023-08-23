@@ -39,3 +39,11 @@ cd agenta
 ```bash
 docker compose -f "docker-compose.yml" up -d --build
 ```
+
+### 2. Test the installation
+
+Open your browser and go to [http://localhost:3000](http://localhost:3000). You should see the Agenta web platform.
+
+
+
+<Warning> The most common error when running agenta is conflicting ports. Please make sure that the ports 80 and 3000 are open on your machine before running docker compose. Make sure to clean up your docker ressources (e.g. `docker system prune`) </Warning>

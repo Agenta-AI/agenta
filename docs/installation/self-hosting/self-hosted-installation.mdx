@@ -1,6 +1,6 @@
 ---
-title: Self hosting
-description: 'Installing Agenta on your cloud provider'
+title: Self hosting on AWS
+description: 'Installing Agenta on AWS'
 ---
 
 ## AWS
@@ -8,37 +8,35 @@ We provide a Terraform module to deploy Agenta on AWS. You can find it [here](ht
 The terraform module will simply create a t2.medium instance, a security group (with the open ports: 80, 8080), an elastic IP and an ebs volume all of them in eu-central-1.
 You can customize the module according to your needs.
 
-First of all install [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli) and [configure your AWS credentials](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html).
-then run these commands:
-```bash
-cd self-host/aws
-terraform init
-terraform apply
+1. **Install Terraform**: First, install [Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli).
+2. **Configure AWS Credentials**: Follow the instructions [here](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) to set up your AWS credentials.
+3. **Initialize and Apply Terraform**: Navigate to the correct directory and run:
+   ```bash
+   cd self-host/aws
+   terraform init
+   terraform apply
+   ```
+
+Terraform will prompt you for a specific domain. You can specify a domain or leave it blank.
+
+Once Terraform finishes creating the resources, it will display the domain name or IP where Agenta can be accessed. Here's a sample output:
 ```
+Open the link below in your browser to access Agenta, but wait a few minutes for the services to start.
 
-Terraform will ask if you want to deploy to a specific domain.
-You can either specify a domain or leave it blank.
-
-Once terraform is done from creating the resources it will print an the domain name or the ip where you can access Agenta from.
-This is an example of the output:
-```
-Open the link below in your browser to access Agenta, you need to wait a few minutes for services to start.
-
-Imortant: If you have provided a domain name, you can access Agenta using that domain name,
-You need however to make sure that the domain name is pointing to this IP address: x.x.x.x
+Important: If you provided a domain name, ensure that it points to this IP address: x.x.x.x
 
 Link: http://demo.agenta.ai
 ```
 
-As mentioned in the output, if you provided a domain name, you need to make sure that the domain name is pointing to the IP address provided by terraform.
+Ensure that the domain name points to the IP address given by Terraform if you provided one.
 
-It will not be directly accessible as it needs to install dependencies and to run Agenta. So we need to wait a couple of minutes.
-More details are specified in this script: [instance-setup.sh](https://github.com/Agenta-AI/agenta/blob/main/self-host/aws/instance-setup.sh)
+Please note, Agenta might take a few minutes to become accessible as it installs dependencies and initializes. Refer to this script for more details: [instance-setup.sh](https://github.com/Agenta-AI/agenta/blob/main/self-host/aws/instance-setup.sh)
 
-**NOTE: We do not have any security mechanism in place yet.**
+<warning>There is no security mechanism in place yet. Exercise caution.</warning>
 
-#### Serve a variant to an instance
-Once you hosted agenta on an instance, you can serve a variant to it by running these commands:
+#### Serving a Variant to an Instance
+After hosting Agenta on an instance, you can serve a variant by running:
+
 ```bash
 agenta init
 ? Please enter the app name job_classifier
@@ -47,7 +45,7 @@ agenta init
 ? How do you want to initialize your app? Blank App
 App initialized successfully
 ```
-Note: Provide the remote host without the protocol (http://)
+<warning>Provide the remote host without the protocol (http://)</warning>
 
 #### SSH into the instance:
 In order to ssh into the instance you need to:
@@ -75,19 +73,18 @@ resource "aws_key_pair" "agenta_key" {
 key_name      = aws_key_pair.agenta_key.key_name
 ```
 
-2. create a key pair in the AWS console or via the command:
-```bash
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa_agenta
-```
+2. Create a key pair in the AWS console or via:
+   ```bash
+   ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa_agenta
+   ```
 
-3. and then run this command:
-```bash
-ssh -i ~/.ssh/id_rsa_agenta ubuntu@ec2-host-provided-by-aws
-```
+3. Connect using:
+   ```bash
+   ssh -i ~/.ssh/id_rsa_agenta ubuntu@ec2-host-provided-by-aws
+   ```
 
-#### Rremove all the resources:
-
-To remove all the resources created by terraform run:
+#### Removing All Resources:
+To delete all the resources created by Terraform, simply run:
 ```bash
 cd self-host/aws
 terraform destroy
