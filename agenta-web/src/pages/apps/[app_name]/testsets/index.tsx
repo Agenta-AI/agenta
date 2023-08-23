@@ -8,7 +8,7 @@ import {useState, useEffect} from "react"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {DeleteOutlined} from "@ant-design/icons"
 import {deleteTestsets} from "@/lib/services/api"
-import { createUseStyles } from "react-jss"
+import {createUseStyles} from "react-jss"
 
 type testsetTableDatatype = {
     key: string
@@ -17,25 +17,27 @@ type testsetTableDatatype = {
 }
 
 const useStyles = createUseStyles({
-    container:{
-        marginTop: 20, marginBottom: 40
+    container: {
+        marginTop: 20,
+        marginBottom: 40,
     },
-    btnContainer:{
+    btnContainer: {
         display: "flex",
         justifyContent: "space-between",
         marginTop: "20px",
     },
-    deleteBtn:{
+    deleteBtn: {
         marginTop: "30px",
-        "& svg":{
-            color: 'red'
-        }
+        "& svg": {
+            color: "red",
+        },
     },
-    linksContainer:{
-        display: "flex", gap: "10px",
+    linksContainer: {
+        display: "flex",
+        gap: "10px",
     },
-    startLink:{
-        marginLeft: 10
+    startLink: {
+        marginLeft: 10,
     },
 })
 
@@ -120,9 +122,7 @@ export default function testsets() {
     return (
         <div>
             <div className={classes.container}>
-                <div
-                    className={classes.btnContainer}
-                >
+                <div className={classes.btnContainer}>
                     <div className={classes.linksContainer}>
                         <Link
                             data-cy="testset-new-upload-link"
