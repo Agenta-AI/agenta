@@ -37,7 +37,7 @@ const CellRenderer = (props: any) => {
     return <span className={classes.cellContainer}>{cellValue || ""}</span>
 }
 
-const CellEditor = forwardRef((props: any, ref) => {
+const CellEditor = (props: any, ref: React.ForwardedRef<unknown>) => {
     const [value, setValue] = useState(props.value)
     const classes = useStyles()
 
@@ -67,7 +67,7 @@ const CellEditor = forwardRef((props: any, ref) => {
             />
         </div>
     )
-})
+}
 
 type Props = React.ComponentProps<typeof Modal> & {
     data?: Record<string, any>
@@ -89,7 +89,7 @@ const EditRowModal: React.FC<Props> = ({data, onCellValueChanged, ...props}) => 
             resizable: true,
             minWidth: 220,
             cellRenderer: CellRenderer,
-            cellEditor: CellEditor,
+            cellEditor: forwardRef(CellEditor),
             suppressKeyboardEvent: (params: any) => params.event.key === "Enter",
         }))
     }, [data])

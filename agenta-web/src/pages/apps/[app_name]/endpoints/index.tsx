@@ -2,7 +2,7 @@ import cURLCode from "@/code_snippets/endpoints/curl"
 import pythonCode from "@/code_snippets/endpoints/python"
 import tsCode from "@/code_snippets/endpoints/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
-import {LanguageItem, Parameter, Variant} from "@/lib/Types"
+import {GenericObject, LanguageItem, Parameter, Variant} from "@/lib/Types"
 import {useVariant} from "@/lib/hooks/useVariant"
 import {fetchVariants} from "@/lib/services/api"
 import {useRouter} from "next/router"
@@ -35,15 +35,6 @@ export default function VariantEndpoint() {
         fetchData()
     }, [appName])
 
-    const createVariant = (variantName: string): Variant => {
-        return {
-            variantName: variantName,
-            templateVariantName: null,
-            persistent: true,
-            parameters: null,
-        }
-    }
-
     const [variant, setVariant] = useState<Variant | null>(null)
     const [selectedLanguage, setSelectedLanguage] = useState<LanguageItem | null>(null)
 
@@ -55,7 +46,7 @@ export default function VariantEndpoint() {
 
     const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
         appName,
-        variant,
+        variant!,
     )
 
     const createParams = (
@@ -63,8 +54,8 @@ export default function VariantEndpoint() {
         optParams: Parameter[] | null,
         value: string | number,
     ) => {
-        let mainParams: {[key: string]: string | number} = {}
-        let secondaryParams: {[key: string]: string | number} = {}
+        let mainParams: GenericObject = {}
+        let secondaryParams: GenericObject = {}
 
         inputParams?.forEach((item) => {
             if (item.input) {
