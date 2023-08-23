@@ -19,7 +19,7 @@ import {
 } from "@/lib/services/api"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
-import {Variant, Parameter} from "@/lib/Types"
+import {Variant, Parameter, GenericObject} from "@/lib/Types"
 import EvaluationsList from "./EvaluationsList"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
@@ -107,7 +107,7 @@ export default function Evaluations() {
 
                     // Reduce the results into the desired newVariantsInputs object structure
                     const newVariantsInputs: Record<string, string[]> = results.reduce(
-                        (acc, result) => {
+                        (acc: GenericObject, result) => {
                             acc[result.variantName] = result.inputs
                             return acc
                         },
@@ -115,8 +115,8 @@ export default function Evaluations() {
                     )
 
                     setVariantsInputs(newVariantsInputs)
-                } catch (e) {
-                    setIsError("Failed to fetch some variants parameters. Error: " + e.message)
+                } catch (e: any) {
+                    setIsError("Failed to fetch some variants parameters. Error: " + e?.message)
                 }
             }
 
@@ -180,7 +180,7 @@ export default function Evaluations() {
         const menuProps: MenuProps = {
             items,
             onClick: ({key}) => {
-                const index = items.findIndex((item) => item.key === key)
+                const index = items.findIndex((item) => item?.key === key)
                 onTestsetSelect(index)
             },
         }
@@ -260,7 +260,7 @@ export default function Evaluations() {
             evaluationTypeSettings["similarity_threshold"] = sliderValue
         }
         const evaluationTableId = await createNewEvaluation(
-            EvaluationType[selectedEvaluationType],
+            EvaluationType[selectedEvaluationType as keyof typeof EvaluationType],
             evaluationTypeSettings,
             variantsInputs[selectedVariants[0].variantName],
             llmAppPromptTemplate,
