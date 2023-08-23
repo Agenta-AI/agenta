@@ -4,6 +4,7 @@ import {Parameter} from "@/lib/Types"
 import {Input, Row, Col, Button, Tooltip, message, Space, Card, Collapse} from "antd"
 import type {CollapseProps} from "antd"
 import {ModelParameters, StringParameters, ObjectParameters} from "./ParametersCards"
+import {createUseStyles} from "react-jss"
 interface Props {
     variantName: string // The name of the variant
     optParams: Parameter[] | null // The optional parameters
@@ -18,6 +19,28 @@ interface Props {
     setIsParamsCollapsed: (value: string) => void
 }
 
+const useStyles = createUseStyles({
+    container: {
+        width: "100%",
+    },
+    row: {
+        marginTop: 16,
+        marginBottom: 8,
+    },
+    h2: {
+        padding: "0px",
+        margin: "0px",
+    },
+    col: {
+        textAlign: "right",
+        paddingRight: "25px",
+    },
+    collapse: {
+        padding: 0,
+        width: "100%",
+    },
+})
+
 const ParametersView: React.FC<Props> = ({
     variantName,
     optParams,
@@ -31,6 +54,7 @@ const ParametersView: React.FC<Props> = ({
     isParamsCollapsed,
     setIsParamsCollapsed,
 }) => {
+    const classes = useStyles()
     const [inputValue, setInputValue] = useState(1)
     const [messageApi, contextHolder] = message.useMessage()
     const onChange = (param: Parameter, newValue: number) => {
@@ -58,12 +82,12 @@ const ParametersView: React.FC<Props> = ({
         {
             key: "1",
             label: (
-                <div style={{width: "100%"}}>
-                    <Row style={{marginTop: 16, marginBottom: 8}}>
+                <div className={classes.container}>
+                    <Row className={classes.row}>
                         <Col span={12}>
-                            <h2 style={{padding: "0px", margin: "0px"}}>1. Modify Parameters</h2>
+                            <h2 className={classes.h2}>1. Modify Parameters</h2>
                         </Col>
-                        <Col span={12} style={{textAlign: "right", paddingRight: "25px"}}>
+                        <Col span={12} className={classes.col}>
                             <Space>
                                 <Button
                                     type="primary"
@@ -104,7 +128,7 @@ const ParametersView: React.FC<Props> = ({
                 </div>
             ),
             children: (
-                <div style={{width: "100%"}}>
+                <div className={classes.container}>
                     <StringParameters optParams={optParams} handleParamChange={handleParamChange} />
                     <ObjectParameters optParams={optParams} handleParamChange={handleParamChange} />
 
@@ -128,8 +152,8 @@ const ParametersView: React.FC<Props> = ({
                 ghost
                 bordered={false}
                 expandIconPosition="end"
-                style={{padding: 0, width: "100%"}}
                 onChange={onChangeCollapse}
+                className={classes.collapse}
                 collapsible="icon"
             />
         </div>
