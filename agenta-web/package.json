@@ -12,7 +12,8 @@
         "test": "cypress run",
         "format": "prettier --check",
         "format-fix": "prettier --write .",
-        "watch:types": "tsc -w"
+        "types:check": "tsc",
+        "types:watch": "tsc -w"
     },
     "dependencies": {
         "@ant-design/colors": "^7.0.0",
