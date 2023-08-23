@@ -1,0 +1,43 @@
+name: Publish Python Package
+
+on:
+  push:
+    paths:
+      - '../../agenta-cli/pyproject.toml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out the repo
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Install poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+
+    - name: Check for version changes
+      id: version_check
+      run: |
+        cd ../../agenta-cli
+        previous_version=$(git describe --abbrev=0 --tags)
+        current_version=$(poetry version --no-interaction | awk '{print $2}')
+        if [ "$previous_version" == "$current_version" ]; then
+          echo "No version change detected. Skipping package publication."
+          exit 0
+        fi
+        echo "::set-output name=version_bumped::true"
+      shell: bash
+
+    - name: Build and publish
+      if: steps.version_check.outputs.version_bumped == 'true'
+      run: |
+        cd ../../agenta-cli
+        poetry build
+        poetry publish --username __token__ --password ${{ secrets.PYPI_API_TOKEN }}
+    
