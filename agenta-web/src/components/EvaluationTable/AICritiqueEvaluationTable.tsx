@@ -132,6 +132,11 @@ const useStyles = createUseStyles({
         width: 200,
         margin: "0 4px",
     },
+    stat: {
+        "& .ant-statistic-content-value": {
+            color: "#3f8600",
+        },
+    },
 })
 
 const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
@@ -457,7 +462,7 @@ Answer ONLY with one of the given grading or evaluation options.
                                                     <Statistic
                                                         title={key}
                                                         value={value}
-                                                        valueStyle={{color: "#3f8600"}}
+                                                        className={classes.stat}
                                                     />
                                                 </Card>
                                             </Col>
