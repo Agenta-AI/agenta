@@ -1,7 +1,18 @@
 import {useState, useEffect} from "react"
 import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
+import {
+    Input,
+    Modal,
+    ConfigProvider,
+    theme,
+    Spin,
+    Card,
+    Button,
+    notification,
+    Divider,
+    Typography,
+} from "antd"
 import AppCard from "./AppCard"
 import {Template, AppTemplate, TemplateImage} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -19,7 +30,15 @@ type StyleProps = {
     themeMode: "dark" | "light"
 }
 
+const {Title} = Typography
+
 const useStyles = createUseStyles({
+    container: ({themeMode}: StyleProps) => ({
+        maxWidth: "1450px",
+        marginTop: 10,
+        width: "100%",
+        color: themeMode === "dark" ? "#fff" : "#000",
+    }),
     cardsList: ({themeMode}: StyleProps) => ({
         display: "flex",
         flexWrap: "wrap",
@@ -33,9 +52,44 @@ const useStyles = createUseStyles({
         backgroundColor: "#1777FF",
         borderColor: "#1777FF !important",
         color: "#FFFFFF",
+        width: 300,
+        height: 120,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
         "& .ant-card-meta-title": {
             color: "#FFFFFF",
         },
+    },
+    createCardMeta: {
+        height: "90%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-evenly",
+    },
+    closeIcon: {
+        fontSize: 20,
+        color: "red",
+    },
+    divider: ({themeMode}: StyleProps) => ({
+        marginTop: 0,
+        borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
+    }),
+    modal: {
+        "& .ant-modal-body": {
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.75rem",
+            marginTop: 20,
+        },
+    },
+    modalError: {
+        color: "red",
+        marginLeft: "10px",
+    },
+    modalBtn: {
+        alignSelf: "flex-end",
     },
 })
 
@@ -222,36 +276,21 @@ const AppSelector: React.FC = () => {
                 algorithm: appTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
             }}
         >
-            <div
-                style={{
-                    maxWidth: "1450px",
-                    marginTop: 10,
-                    width: "100%",
-                    color: appTheme === "dark" ? "#fff" : "#000",
-                }}
-            >
+            <div className={classes.container}>
                 {isLoading ? (
-                    <div className="appSelectorMssg">
+                    <div>
                         <Spin />
                         <h1>loading...</h1>
                     </div>
                 ) : error ? (
-                    <div className="appSelectorMssg">
-                        <CloseCircleFilled style={{fontSize: 20, color: "red"}} />
+                    <div>
+                        <CloseCircleFilled className={classes.closeIcon} />
                         <h1>failed to load</h1>
                     </div>
                 ) : Array.isArray(data) && data.length ? (
                     <>
-                        <h1 style={{fontSize: 22}}>LLM Applications</h1>
-                        <Divider
-                            style={{
-                                marginTop: 0,
-                                borderColor:
-                                    appTheme === "dark"
-                                        ? "rgba(256, 256, 256, 0.2)"
-                                        : "rgba(5, 5, 5, 0.15)",
-                            }}
-                        />
+                        <Title>LLM Applications</Title>
+                        <Divider className={classes.divider} />
                         <div className={classes.cardsList}>
                             {Array.isArray(data) && (
                                 <>
@@ -266,28 +305,11 @@ const AppSelector: React.FC = () => {
                                     ))}
                                     <Card
                                         className={classes.createCard}
-                                        style={{
-                                            width: 300,
-                                            height: 120,
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            cursor: "pointer",
-                                        }}
                                         onClick={showCreateAppModal}
                                     >
                                         <Card.Meta
-                                            style={{
-                                                height: "90%",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-evenly",
-                                            }}
-                                            title={
-                                                <div style={{textAlign: "center"}}>
-                                                    Create New App
-                                                </div>
-                                            }
+                                            className={classes.createCardMeta}
+                                            title={<div>Create New App</div>}
                                             avatar={<PlusOutlined size={24} />}
                                         />
                                     </Card>
@@ -321,17 +343,12 @@ const AppSelector: React.FC = () => {
             />
             <Modal
                 title="Input app name"
-                open={isInputTemplateModalOpen}
+                open={true}
                 onCancel={handleInputTemplateModalCancel}
                 width={500}
                 footer={null}
                 centered
-                bodyStyle={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
-                    marginTop: 20,
-                }}
+                className={classes.modal}
             >
                 <Input
                     placeholder="New app name (e.g., chat-app)"
@@ -339,16 +356,14 @@ const AppSelector: React.FC = () => {
                     onChange={(e) => setNewApp(e.target.value)}
                     disabled={fetchingTemplate}
                 />
-                {appNameExist && (
-                    <div style={{color: "red", marginLeft: "10px"}}>App name already exist</div>
-                )}
+                {!appNameExist && <div className={classes.modalError}>App name already exist</div>}
                 {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                    <div style={{color: "red", marginLeft: "10px"}}>
+                    <div className={classes.modalError}>
                         App name must contain only letters, numbers, underscore, or dash
                     </div>
                 )}
                 <Button
-                    style={{alignSelf: "flex-end"}}
+                    className={classes.modalBtn}
                     type="primary"
                     loading={fetchingTemplate}
                     onClick={() => {
