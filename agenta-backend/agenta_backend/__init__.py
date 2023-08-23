@@ -1,12 +1,14 @@
 from supertokens_python import init, InputAppInfo, SupertokensConfig
-from supertokens_python.recipe import passwordless, session, dashboard
+from supertokens_python.recipe.thirdparty import ProviderInput, ProviderConfig, ProviderClientConfig
+from supertokens_python.recipe import thirdpartypasswordless, session, dashboard
 
 from supertokens_python.recipe.passwordless import ContactEmailOnlyConfig
-from supertokens_python.recipe.passwordless.interfaces import (
-    APIInterface,
-    APIOptions,
+from supertokens_python.recipe.passwordless.interfaces import APIOptions as PAPIOptions
+from supertokens_python.recipe.thirdpartypasswordless.interfaces import (
+    APIInterface as ThirdpartyPasswordlessAPIInterface,
     ConsumeCodePostOkResult,
 )
+import os
 from typing import Any, Dict, Union
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.api.organization_models import Organization
@@ -16,7 +18,7 @@ from agenta_backend.services.organization_service import (
 )
 
 
-def override_passwordless_apis(original_implementation: APIInterface):
+def override_thirdpartypasswordless_apis(original_implementation: ThirdpartyPasswordlessAPIInterface):
     original_consume_code_post = original_implementation.consume_code_post
 
     async def consume_code_post(
@@ -24,7 +26,8 @@ def override_passwordless_apis(original_implementation: APIInterface):
         user_input_code: Union[str, None],
         device_id: Union[str, None],
         link_code: Union[str, None],
-        api_options: APIOptions,
+        tenant_id: str,
+        api_options: PAPIOptions,
         user_context: Dict[str, Any],
     ):
         # First we call the original implementation of consume_code_post.
@@ -33,6 +36,7 @@ def override_passwordless_apis(original_implementation: APIInterface):
             user_input_code,
             device_id,
             link_code,
+            tenant_id,
             api_options,
             user_context,
         )
@@ -63,8 +67,8 @@ def override_passwordless_apis(original_implementation: APIInterface):
 init(
     app_info=InputAppInfo(
         app_name="agenta",
-        api_domain="https://stage.agenta.ai/api",
-        website_domain="https://stage.agenta.ai",
+        api_domain=os.environ["DOMAIN_NAME"],
+        website_domain=os.environ["DOMAIN_NAME"],
         # the fact that both are localhost is causing problems with
         # displaying the dashboard to manage users
         api_base_path="/auth/",
@@ -76,10 +80,36 @@ init(
     framework="fastapi",
     recipe_list=[
         session.init(),
-        passwordless.init(
+        thirdpartypasswordless.init(
             flow_type="USER_INPUT_CODE",
             contact_config=ContactEmailOnlyConfig(),
-            override=passwordless.InputOverrideConfig(apis=override_passwordless_apis),
+            override=thirdpartypasswordless.InputOverrideConfig(apis=override_thirdpartypasswordless_apis),
+            providers=[
+                # We have provided you with development keys which you can use for testing.
+                # IMPORTANT: Please replace them with your own OAuth keys for production use.
+                ProviderInput(
+                    config=ProviderConfig(
+                        third_party_id="google",
+                        clients=[
+                            ProviderClientConfig(
+                                client_id="1060725074195-kmeum4crr01uirfl2op9kd5acmi9jutn.apps.googleusercontent.com",
+                                client_secret="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",
+                            ),
+                        ],
+                    ),
+                ),
+                ProviderInput(
+                    config=ProviderConfig(
+                        third_party_id="github",
+                        clients=[
+                            ProviderClientConfig(
+                                client_id="467101b197249757c71f",
+                                client_secret="e97051221f4b6426e8fe8d51486396703012f5bd",
+                            )
+                        ],
+                    ),
+                )
+            ],
         ),
         dashboard.init(),
     ],
