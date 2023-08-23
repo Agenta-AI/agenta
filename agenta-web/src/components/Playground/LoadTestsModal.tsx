@@ -2,13 +2,28 @@ import {loadTestset, useLoadTestsetsList} from "@/lib/services/api"
 import {Button, Divider, Dropdown, Modal, Select, Space} from "antd"
 import {useRouter} from "next/router"
 import {PropsWithChildren, useState} from "react"
+import {createUseStyles} from "react-jss"
 
 interface Props extends PropsWithChildren {
     addNewTests: (tests: Record<string, string>[]) => void
     setNewTests: (tests: Record<string, string>[]) => void
 }
 
+const useStyles = createUseStyles({
+    p: {
+        marginBottom: 10,
+    },
+    select: {
+        minWidth: 120,
+        marginBottom: 20,
+    },
+    divider: {
+        margin: "24px 0 0 0",
+    },
+})
+
 const LoadTestsModal: React.FC<Props> = (props) => {
+    const classes = useStyles()
     const {addNewTests, setNewTests} = props
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
@@ -54,10 +69,10 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                     </>
                 }
             >
-                <p style={{marginBottom: 10}}>Please select the test set you want to use:</p>
+                <p className={classes.p}>Please select the test set you want to use:</p>
 
                 <Select
-                    style={{minWidth: 120, marginBottom: 20}}
+                    className={classes.select}
                     options={options}
                     placeholder="Select data set"
                     onSelect={(id) => setSelectedSet(id)}
@@ -69,7 +84,7 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                         <p>Click replace tests to replace data of existing tests</p>
                     </>
                 ) : null}
-                <Divider style={{margin: "24px 0 0 0"}} />
+                <Divider className={classes.divider} />
             </Modal>
 
             <Button
