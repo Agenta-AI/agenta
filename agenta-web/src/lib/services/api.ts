@@ -1,7 +1,14 @@
 import useSWR from "swr"
 import axios from "@/lib//helpers/axiosConfig"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, EvaluationResponseType, Evaluation, AppTemplate} from "@/lib/Types"
+import {
+    Variant,
+    Parameter,
+    EvaluationResponseType,
+    Evaluation,
+    AppTemplate,
+    GenericObject,
+} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
@@ -48,14 +55,9 @@ export function callVariant(
     optionalParameters: Parameter[],
     URIPath: string,
 ) {
-    console.log("inputParametersDict", inputParametersDict)
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
     const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
-    const inputParams = Object.keys(inputParametersDict).reduce((acc: any, key) => {
-        acc[key] = inputParametersDict[key]
-        return acc
-    }, {})
     for (let key of Object.keys(inputParametersDict)) {
         const paramDefinition = inputParamDefinition.find((param) => param.name === key)
 
@@ -227,10 +229,6 @@ export const deleteTestsets = async (ids: string[]) => {
     return response.data
 }
 
-const eval_endpoint = axios.create({
-    baseURL: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations`,
-})
-
 export const loadEvaluations = async (app_name: string) => {
     return await axios
         .get(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations?app_name=${app_name}`)
@@ -252,11 +250,12 @@ export const loadEvaluation = async (evaluationId: string) => {
 }
 
 export const deleteEvaluations = async (ids: string[]) => {
-    await axios({
+    const response = await axios({
         method: "delete",
         url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations`,
         data: {evaluations_ids: ids},
     })
+    return response.data
 }
 
 export const loadEvaluationsScenarios = async (
@@ -276,7 +275,7 @@ export const loadEvaluationsScenarios = async (
         })
 }
 
-export const updateEvaluation = async (evaluationId: string, data) => {
+export const updateEvaluation = async (evaluationId: string, data: GenericObject) => {
     const response = await axios.put(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}`,
         data,
@@ -287,7 +286,7 @@ export const updateEvaluation = async (evaluationId: string, data) => {
 export const updateEvaluationScenario = async (
     evaluationTableId: string,
     evaluationScenarioId: string,
-    data,
+    data: GenericObject,
     evaluationType: EvaluationType,
 ) => {
     const response = await axios.put(
@@ -297,8 +296,8 @@ export const updateEvaluationScenario = async (
     return response.data
 }
 
-export const postEvaluationScenario = async (evaluationTableId: string, data) => {
-    const response = await eval_endpoint.post(
+export const postEvaluationScenario = async (evaluationTableId: string, data: GenericObject) => {
+    const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationTableId}/evaluation_scenario`,
         data,
     )

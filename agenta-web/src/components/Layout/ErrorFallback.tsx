@@ -12,7 +12,7 @@ const ErrorFallback: React.FC<Props> = ({error}) => {
             title="An Error Occurred"
             subTitle={getErrorMessage(error)}
             extra={[
-                <Button href="/apps" type="primary">
+                <Button key="home" href="/apps" type="primary">
                     Go to home screen
                 </Button>,
             ]}

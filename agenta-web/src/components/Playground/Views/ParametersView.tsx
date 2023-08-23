@@ -33,8 +33,8 @@ const ParametersView: React.FC<Props> = ({
 }) => {
     const [inputValue, setInputValue] = useState(1)
     const [messageApi, contextHolder] = message.useMessage()
-    const onChange = (param: Parameter, newValue: number) => {
-        setInputValue(newValue)
+    const onChange = (param: Parameter, newValue: number | string) => {
+        setInputValue(+newValue)
         handleParamChange(param.name, newValue)
     }
     const handleParamChange = (name: string, newVal: any) => {
@@ -71,7 +71,6 @@ const ParametersView: React.FC<Props> = ({
                                         await onOptParamsChange(optParams!, true, isPersistent)
                                         success()
                                     }}
-                                    size="normal"
                                     loading={isParamSaveLoading}
                                 >
                                     <Tooltip
@@ -84,7 +83,6 @@ const ParametersView: React.FC<Props> = ({
                                 <Button
                                     type="primary"
                                     danger
-                                    size="normal"
                                     onClick={() => {
                                         setRemovalVariantName(variantName)
                                         setRemovalWarningModalOpen(true)
