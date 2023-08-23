@@ -52,14 +52,23 @@ const useStyles = createUseStyles({
         marginRight: "8px",
         filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
+    evaluationBtn: {
+        display: "flex",
+        justifyContent: "flex-end",
+    },
     evaluationType: {
         display: "flex",
         alignItems: "center",
     },
-    DropdownStyles: {
+    dropdownStyles: {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+        width: "100%",
+    },
+    dropdownBtn: {
+        marginRight: 10,
+        marginTop: 40,
         width: "100%",
     },
     radioGroup: {
@@ -68,6 +77,14 @@ const useStyles = createUseStyles({
     radioBtn: {
         display: "block",
         marginBottom: "10px",
+    },
+    thresholdStyles: {
+        paddingLeft: 10,
+        paddingRight: 10,
+    },
+    variantDropdown: {
+        marginRight: 10,
+        width: "100%",
     },
 })
 
@@ -435,7 +452,7 @@ export default function Evaluations() {
                                 </div>
                             </Radio.Button>
                             {selectedEvaluationType === EvaluationType.auto_similarity_match && (
-                                <div style={{paddingLeft: 10, paddingRight: 10}}>
+                                <div className={classes.thresholdStyles}>
                                     <Text>Similarity threshold</Text>
                                     <Slider
                                         min={0}
@@ -472,13 +489,12 @@ export default function Evaluations() {
                         {Array.from({length: numberOfVariants}).map((_, index) => (
                             <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
                                 <Button
+                                    className={classes.variantDropdown}
                                     style={{
-                                        marginRight: 10,
                                         marginTop: index === 0 ? 40 : 10,
-                                        width: "100%",
                                     }}
                                 >
-                                    <div className={classes.DropdownStyles}>
+                                    <div className={classes.dropdownStyles}>
                                         {selectedVariants[index]?.variantName || "Select a variant"}
                                         <DownOutlined />
                                     </div>
@@ -493,8 +509,8 @@ export default function Evaluations() {
                         </div>
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
-                            <Button style={{marginRight: 10, marginTop: 40, width: "100%"}}>
-                                <div className={classes.DropdownStyles}>
+                            <Button className={classes.dropdownBtn}>
+                                <div className={classes.dropdownStyles}>
                                     {selectedTestset.name}
 
                                     <DownOutlined />
@@ -506,7 +522,7 @@ export default function Evaluations() {
                 </Row>
 
                 <Row justify="end">
-                    <Col span={8} style={{display: "flex", justifyContent: "flex-end"}}>
+                    <Col span={8} className={classes.evaluationBtn}>
                         <Button onClick={onStartEvaluation} type="primary">
                             Start a new evaluation
                         </Button>
