@@ -9,6 +9,9 @@ const useStyles = createUseStyles({
         display: "flex",
         justifyContent: "flex-end",
     },
+    cancelBtn: {
+        marginRight: 10,
+    },
 })
 
 interface Props {
@@ -57,7 +60,7 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
             <p>You're about to delete this variant. This action is irreversible.</p>
             <p>Are you sure you want to proceed?</p>
             <div className={classes.modalBtnContainer}>
-                <Button onClick={handleDismiss} style={{marginRight: 10}}>
+                <Button onClick={handleDismiss} className={classes.cancelBtn}>
                     Cancel
                 </Button>
                 <Button type="primary" danger onClick={handleDelete}>
