@@ -71,6 +71,7 @@ async def lifespan(application: FastAPI, cache=True):
     remove_old_template_from_db(templates_in_hub)
     yield
 
+
 # this is the prefix in which we are reverse proxying the api
 
 app = FastAPI(lifespan=lifespan)

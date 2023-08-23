@@ -1,6 +1,6 @@
 import React, {useEffect} from "react"
 import dynamic from "next/dynamic"
-import { ThirdPartyPasswordlessPreBuiltUI } from "supertokens-auth-react/recipe/thirdpartypasswordless/prebuiltui";
+import {ThirdPartyPasswordlessPreBuiltUI} from "supertokens-auth-react/recipe/thirdpartypasswordless/prebuiltui"
 import {redirectToAuth} from "supertokens-auth-react"
 import {canHandleRoute, getRoutingComponent} from "supertokens-auth-react/ui"
 

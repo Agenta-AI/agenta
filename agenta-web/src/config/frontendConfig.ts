@@ -1,4 +1,4 @@
-import ThirdPartyPasswordless from "supertokens-auth-react/recipe/thirdpartypasswordless";
+import ThirdPartyPasswordless from "supertokens-auth-react/recipe/thirdpartypasswordless"
 import SessionReact from "supertokens-auth-react/recipe/session"
 import {appInfo} from "./appInfo"
 import Router from "next/router"
@@ -12,9 +12,9 @@ export const frontendConfig = () => {
                 signInUpFeature: {
                     providers: [
                         ThirdPartyPasswordless.Github.init(),
-                        ThirdPartyPasswordless.Google.init()
+                        ThirdPartyPasswordless.Google.init(),
                     ],
-                }
+                },
             }),
             SessionReact.init(),
         ],
