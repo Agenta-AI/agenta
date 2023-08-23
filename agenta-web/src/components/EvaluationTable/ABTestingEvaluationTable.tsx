@@ -2,13 +2,12 @@ import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {Button, Input, Space, Spin, Table, message} from "antd"
-import {Variant, Parameter} from "@/lib/Types"
 import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
-import {useVariant} from "@/lib/hooks/useVariant"
+import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {fetchVariants} from "@/lib/services/api"
-import {createUseStyles} from "react-jss"
+import { createUseStyles } from "react-jss"
 
 interface EvaluationTableProps {
     evaluation: any
@@ -81,21 +80,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         : router.query.app_name || ""
     const variants = evaluation.variants
 
-    const variantData = variants.map((variant: Variant) => {
-        const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
-            appName,
-            variant,
-        )
-
-        return {
-            inputParams,
-            optParams,
-            URIPath,
-            isLoading,
-            isError,
-            error,
-        }
-    })
+    const variantData = useVariants(appName, variants)
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
 
@@ -172,9 +157,9 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             try {
                 let result = await callVariant(
                     inputParamsDict,
-                    variantData[idx].inputParams,
-                    variantData[idx].optParams,
-                    variantData[idx].URIPath,
+                    variantData[idx].inputParams!,
+                    variantData[idx].optParams!,
+                    variantData[idx].URIPath!,
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
@@ -327,7 +312,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 columns={columns}
                 pagination={false}
                 rowClassName={() => "editable-row"}
-                rowKey={(record) => record.id}
+                rowKey={(record) => record.id!}
             />
         </div>
     )

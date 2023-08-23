@@ -9,9 +9,9 @@ import {createUseStyles} from "react-jss"
 interface DynamicCodeBlockProps {
     codeSnippets: {[key: string]: string}
     includeVariantsDropdown?: boolean
-    variants: Variant[]
-    selectedVariant: Variant | null
-    selectedLanguage: LanguageItem | null
+    variants?: Variant[]
+    selectedVariant?: Variant | null
+    selectedLanguage?: LanguageItem | null
     onVariantChange?: (variantName: string) => void
     onLanguageChange?: (selectedLanguage: LanguageItem) => void
 }
@@ -105,7 +105,7 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
         : []
 
     const handleVariantClick = ({key}: {key: string}) => {
-        const newSelectedVariant = variants.find((variant) => variant.variantName === key)
+        const newSelectedVariant = variants?.find((variant) => variant.variantName === key)
         if (newSelectedVariant) {
             onVariantChange?.(key)
         }

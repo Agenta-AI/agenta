@@ -7,7 +7,7 @@ import {Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import {is} from "cypress/types/bluebird"
-import {createUseStyles} from "react-jss"
+import { createUseStyles } from "react-jss"
 
 interface Props {
     variant: Variant
@@ -93,7 +93,6 @@ const ViewNavigation: React.FC<Props> = ({
                         <Button
                             type="primary"
                             danger
-                            size="normal"
                             onClick={() => {
                                 setRemovalVariantName(variant.variantName)
                                 setRemovalWarningModalOpen(true)
