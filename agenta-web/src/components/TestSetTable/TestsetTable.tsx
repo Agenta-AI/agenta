@@ -16,6 +16,7 @@ import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
 import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
+import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
 
 export const CHECKBOX_COL = {
     field: "",
@@ -111,6 +112,15 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         setSelectedRow(gridRef?.current?.getSelectedNodes())
     }
 
+    const handleExportClick = () => {
+        const csvData = convertToCsv(
+            rowData,
+            columnDefs.map((col) => col.field),
+        )
+        const filename = `${testsetName}.csv`
+        downloadCsv(csvData, filename)
+    }
+
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
         message:
@@ -162,7 +172,6 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         } else if (mode === "create" && appName) {
             setLoading(true)
             ;(async () => {
-                //load input parameters for the first variant
                 const backendVariants = await fetchVariants(appName)
                 const variant =
                     backendVariants.find((v) => v.previousVariantName === null) ||
@@ -259,10 +268,9 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         const onAddColumn = () => {
             const newColumnName = `column${columnDefs.length - 1}`
             const newColmnDef = columnDefs
-            // Update each row to include the new column
             const updatedRowData = rowData.map((row) => ({
                 ...row,
-                [newColumnName]: "", // set the initial value of the new column to an empty string
+                [newColumnName]: "",
             }))
 
             newColmnDef.pop()
@@ -542,6 +550,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                             disabled={selectedRow.length < 1}
                         >
                             Delete Row{selectedRow.length > 1 ? "s" : null}
+                        </Button>
+                        <Button
+                            onClick={handleExportClick}
+                            style={{marginLeft: "10px", marginRight: "auto"}}
+                        >
+                            Export as CSV
                         </Button>
                     </div>
                 </div>
