@@ -27,6 +27,7 @@ import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import TextArea from "antd/es/input/TextArea"
 import {getOpenAIKey} from "@/lib/helpers/utils"
+import {createUseStyles} from "react-jss"
 
 interface AICritiqueEvaluationTableProps {
     evaluation: Evaluation
@@ -57,11 +58,88 @@ interface AICritiqueEvaluationTableRow {
  * @returns
  */
 
+const useStyles = createUseStyles({
+    appVariant: {
+        backgroundColor: "rgb(201 255 216)",
+        color: "rgb(0 0 0)",
+        padding: 4,
+        borderRadius: 5,
+    },
+    inputTestContainer: {
+        display: "flex",
+        justifyContent: "space-between",
+    },
+    inputTest: {
+        backgroundColor: "rgb(201 255 216)",
+        color: "rgb(0 0 0)",
+        padding: 4,
+        borderRadius: 5,
+    },
+    inputTestBtn: {
+        width: "100%",
+        display: "flex",
+        justifyContent: "flex-end",
+        "& button": {
+            marginLeft: 10,
+        },
+    },
+    recordInput: {
+        marginBottom: 10,
+    },
+    tag: {
+        fontSize: "14px",
+    },
+    card: {
+        marginTop: 16,
+        width: "100%",
+        border: "1px solid #ccc",
+        marginRight: "24px",
+        marginBottom: 30,
+        backgroundColor: "rgb(246 253 245)",
+        "& .ant-card-head": {
+            minHeight: 44,
+            padding: "0px 12px",
+        },
+        "& .ant-card-body": {
+            padding: "4px 16px",
+            border: "0px solid #ccc",
+        },
+    },
+    cardTextarea: {
+        height: 120,
+        padding: "0px 0px",
+    },
+    row: {marginBottom: 20},
+    evaluationResult: {
+        padding: "30px 10px",
+        marginBottom: 20,
+        backgroundColor: "rgb(244 244 244)",
+        border: "1px solid #ccc",
+        borderRadius: 5,
+    },
+    h3: {
+        marginTop: 0,
+    },
+    resultDataRow: {
+        maxWidth: "100%",
+        overflowX: "auto",
+        whiteSpace: "nowrap",
+    },
+    resultDataCol: {
+        display: "inline-block",
+    },
+    resultDataCard: {
+        width: 200,
+        margin: "0 4px",
+    },
+})
+
 const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
     columnsCount,
 }) => {
+    const classes = useStyles()
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -230,14 +308,7 @@ Answer ONLY with one of the given grading or evaluation options.
                 title: (
                     <div>
                         <span>App Variant: </span>
-                        <span
-                            style={{
-                                backgroundColor: "rgb(201 255 216)",
-                                color: "rgb(0 0 0)",
-                                padding: 4,
-                                borderRadius: 5,
-                            }}
-                        >
+                        <span className={classes.appVariant}>
                             {variants ? variants[i].variantName : ""}
                         </span>
                     </div>
@@ -270,19 +341,10 @@ Answer ONLY with one of the given grading or evaluation options.
             key: "1",
             width: "30%",
             title: (
-                <div style={{display: "flex", justifyContent: "space-between"}}>
+                <div className={classes.inputTestContainer}>
                     <div>
                         <span> Inputs (Test set: </span>
-                        <span
-                            style={{
-                                backgroundColor: "rgb(201 255 216)",
-                                color: "rgb(0 0 0)",
-                                padding: 4,
-                                borderRadius: 5,
-                            }}
-                        >
-                            {evaluation.testset.name}
-                        </span>
+                        <span className={classes.inputTest}>{evaluation.testset.name}</span>
                         <span> )</span>
                     </div>
                 </div>
@@ -294,7 +356,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         record.inputs &&
                         record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
                         record.inputs.map((input: any, index: number) => (
-                            <div style={{marginBottom: 10}} key={index}>
+                            <div className={classes.recordInput} key={index}>
                                 <Input
                                     placeholder={input.input_name}
                                     value={input.input_value}
@@ -331,9 +393,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         <Space>
                             <div>
                                 {rows[rowIndex].evaluation !== "" && (
-                                    <Tag color={tagColor} style={{fontSize: "14px"}}>
-                                        {record.evaluation}
-                                    </Tag>
+                                    <Tag color={tagColor}>{record.evaluation}</Tag>
                                 )}
                             </div>
                         </Space>
@@ -352,22 +412,10 @@ Answer ONLY with one of the given grading or evaluation options.
             <h1>AI Critique Evaluation</h1>
             <div>
                 <div>
-                    <Card
-                        style={{
-                            marginTop: 16,
-                            width: "100%",
-                            border: "1px solid #ccc",
-                            marginRight: "24px",
-                            marginBottom: 30,
-                            backgroundColor: "rgb(246 253 245)",
-                        }}
-                        bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-                        headStyle={{minHeight: 44, padding: "0px 12px"}}
-                        title="Evaluation strategy prompt"
-                    >
+                    <Card className={classes.card} title="Evaluation strategy prompt">
                         <TextArea
+                            className={classes.cardTextarea}
                             rows={5}
-                            style={{height: 120, padding: "0px 0px"}}
                             bordered={false}
                             placeholder="e.g:"
                             onChange={onChangeEvaluationPromptTemplate}
@@ -375,7 +423,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         />
                     </Card>
                 </div>
-                <Row align="middle" style={{marginBottom: 20}}>
+                <Row align="middle" className={classes.row}>
                     <Col span={12}>
                         <Button
                             type="primary"
@@ -388,15 +436,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     </Col>
                 </Row>
             </div>
-            <div
-                style={{
-                    padding: "30px 10px",
-                    marginBottom: 20,
-                    backgroundColor: "rgb(244 244 244)",
-                    border: "1px solid #ccc",
-                    borderRadius: 5,
-                }}
-            >
+            <div className={classes.evaluationResult}>
                 <center>
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
                         <div>Run evaluation to see results!</div>
@@ -404,19 +444,15 @@ Answer ONLY with one of the given grading or evaluation options.
                     {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
                     {evaluationResults && evaluationResults.results_data && (
                         <div>
-                            <h3 style={{marginTop: 0}}>Results Data:</h3>
-                            <Row
-                                gutter={8}
-                                justify="center"
-                                style={{maxWidth: "100%", overflowX: "auto", whiteSpace: "nowrap"}}
-                            >
+                            <h3 className={classes.h3}>Results Data:</h3>
+                            <Row gutter={8} justify="center" className={classes.resultDataRow}>
                                 {Object.entries(evaluationResults.results_data).map(
                                     ([key, value], index) => {
                                         return (
-                                            <Col key={index} style={{display: "inline-block"}}>
+                                            <Col key={index} className={classes.resultDataCol}>
                                                 <Card
                                                     bordered={false}
-                                                    style={{width: 200, margin: "0 4px"}}
+                                                    className={classes.resultDataCard}
                                                 >
                                                     <Statistic
                                                         title={key}
