@@ -1,5 +1,9 @@
 from supertokens_python import init, InputAppInfo, SupertokensConfig
-from supertokens_python.recipe.thirdparty import ProviderInput, ProviderConfig, ProviderClientConfig
+from supertokens_python.recipe.thirdparty import (
+    ProviderInput,
+    ProviderConfig,
+    ProviderClientConfig,
+)
 from supertokens_python.recipe import thirdpartypasswordless, session, dashboard
 
 from supertokens_python.recipe.passwordless import ContactEmailOnlyConfig
@@ -18,7 +22,9 @@ from agenta_backend.services.organization_service import (
 )
 
 
-def override_thirdpartypasswordless_apis(original_implementation: ThirdpartyPasswordlessAPIInterface):
+def override_thirdpartypasswordless_apis(
+    original_implementation: ThirdpartyPasswordlessAPIInterface,
+):
     original_consume_code_post = original_implementation.consume_code_post
 
     async def consume_code_post(
@@ -83,7 +89,9 @@ init(
         thirdpartypasswordless.init(
             flow_type="USER_INPUT_CODE",
             contact_config=ContactEmailOnlyConfig(),
-            override=thirdpartypasswordless.InputOverrideConfig(apis=override_thirdpartypasswordless_apis),
+            override=thirdpartypasswordless.InputOverrideConfig(
+                apis=override_thirdpartypasswordless_apis
+            ),
             providers=[
                 # We have provided you with development keys which you can use for testing.
                 # IMPORTANT: Please replace them with your own OAuth keys for production use.
@@ -108,7 +116,7 @@ init(
                             )
                         ],
                     ),
-                )
+                ),
             ],
         ),
         dashboard.init(),
