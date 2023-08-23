@@ -85,7 +85,7 @@ def start_container(image_name, app_name, variant_name, env_vars: DockerEnvVars)
             logs = container.logs().decode("utf-8")
             raise Exception(f"Container exited immediately. Docker Logs: {logs}")
         return URI(
-            uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}"
+            uri=f"{os.environ['DOMAIN_NAME']}/{app_name}/{variant_name}"
         )
     except docker.errors.APIError as error:
         # Container failed to run, get the logs
