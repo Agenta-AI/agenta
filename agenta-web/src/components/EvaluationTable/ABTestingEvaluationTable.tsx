@@ -8,6 +8,7 @@ import {useVariant} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {fetchVariants} from "@/lib/services/api"
+import {createUseStyles} from "react-jss"
 
 interface EvaluationTableProps {
     evaluation: any
@@ -38,11 +39,42 @@ interface ABTestingEvaluationTableRow {
  * @returns
  */
 
+const useStyles = createUseStyles({
+    appVariant: {
+        backgroundColor: "rgb(201 255 216)",
+        color: "rgb(0 0 0)",
+        padding: 4,
+        borderRadius: 5,
+    },
+    inputTestContainer: {
+        display: "flex",
+        justifyContent: "space-between",
+    },
+    inputTest: {
+        backgroundColor: "rgb(201 255 216)",
+        color: "rgb(0 0 0)",
+        padding: 4,
+        borderRadius: 5,
+    },
+    inputTestBtn: {
+        width: "100%",
+        display: "flex",
+        justifyContent: "flex-end",
+        "& button": {
+            marginLeft: 10,
+        },
+    },
+    recordInput: {
+        marginBottom: 10,
+    },
+})
+
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
     columnsCount,
 }) => {
+    const classes = useStyles()
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -172,14 +204,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 title: (
                     <div>
                         <span>App Variant: </span>
-                        <span
-                            style={{
-                                backgroundColor: "rgb(201 255 216)",
-                                color: "rgb(0 0 0)",
-                                padding: 4,
-                                borderRadius: 5,
-                            }}
-                        >
+                        <span className={classes.appVariant}>
                             {variants ? variants[i].variantName : ""}
                         </span>
                     </div>
@@ -204,19 +229,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         {
             key: "1",
             title: (
-                <div style={{display: "flex", justifyContent: "space-between"}}>
+                <div className={classes.inputTestContainer}>
                     <div>
                         <span> Inputs (Test set: </span>
-                        <span
-                            style={{
-                                backgroundColor: "rgb(201 255 216)",
-                                color: "rgb(0 0 0)",
-                                padding: 4,
-                                borderRadius: 5,
-                            }}
-                        >
-                            {evaluation.testset.name}
-                        </span>
+                        <span className={classes.inputTest}>{evaluation.testset.name}</span>
                         <span> )</span>
                     </div>
                     <Button size="small" onClick={runAllEvaluations} icon={<CaretRightOutlined />}>
@@ -231,7 +247,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         record.inputs &&
                         record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
                         record.inputs.map((input: any, index: number) => (
-                            <div style={{marginBottom: 10}} key={index}>
+                            <div className={classes.recordInput} key={index}>
                                 <Input
                                     placeholder={input.input_name}
                                     value={input.input_value}
@@ -240,17 +256,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             </div>
                         ))}
 
-                    <div
-                        style={{
-                            width: "100%",
-                            display: "flex",
-                            justifyContent: "flex-end",
-                        }}
-                    >
+                    <div className={classes.inputTestBtn}>
                         <Button
                             onClick={() => runEvaluation(rowIndex)}
                             icon={<CaretRightOutlined />}
-                            style={{marginLeft: 10}}
                         >
                             Run
                         </Button>
