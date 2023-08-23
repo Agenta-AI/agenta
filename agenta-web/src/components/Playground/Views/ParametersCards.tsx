@@ -270,21 +270,10 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
             {optParams
                 ?.filter((param) => param.type === "object")
                 .map((param, index) => (
-
-                    <Row
-                        gutter={0}
-                        className={classes.row1}
-                        key={index}
-                    >
-                        <Card
-                            className={classes.card}
-                            title={renameVariables(param.name)}
-                        >
+                    <Row gutter={0} className={classes.row1} key={index}>
+                        <Card className={classes.card} title={renameVariables(param.name)}>
                             {param.default.map((val: Parameter, index: number) => (
-                                <Row
-                                    key={index}
-                                    className={classes.row2}
-                                >
+                                <Row key={index} className={classes.row2}>
                                     <Col span={4}>
                                         <Input.TextArea
                                             rows={1}
