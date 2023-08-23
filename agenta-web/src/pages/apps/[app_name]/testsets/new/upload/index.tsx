@@ -3,8 +3,27 @@ import {Alert, Button, Form, Input, Space, Spin, Upload, message} from "antd"
 import {useState} from "react"
 import axios from "axios"
 import {useRouter} from "next/router"
+import {createUseStyles} from "react-jss"
+
+const useStyles = createUseStyles({
+    fileFormatBtn: {
+        display: "flex",
+        gap: "25px",
+    },
+    container: {
+        width: "50%",
+    },
+    alert: {
+        marginTop: 20,
+        marginBottom: 40,
+    },
+    form: {
+        maxWidth: 600,
+    },
+})
 
 export default function AddANewTestset() {
+    const classes = useStyles()
     const router = useRouter()
     const {app_name} = router.query
     const [form] = Form.useForm()
@@ -71,7 +90,7 @@ export default function AddANewTestset() {
 
     return (
         <div>
-            <div style={{display: "flex", gap: "25px"}}>
+            <div className={classes.fileFormatBtn}>
                 <Button
                     type={uploadType == "CSV" ? "primary" : "default"}
                     onClick={() => {
@@ -89,7 +108,7 @@ export default function AddANewTestset() {
                     json
                 </Button>
             </div>
-            <Space direction="vertical" style={{width: "50%"}}>
+            <Space direction="vertical" className={classes.container}>
                 <Alert
                     message="File format"
                     description={
@@ -135,12 +154,12 @@ export default function AddANewTestset() {
                         </>
                     }
                     type="info"
-                    style={{marginTop: 20, marginBottom: 40}}
+                    className={classes.alert}
                 />
             </Space>
 
             <Spin spinning={uploadLoading}>
-                <Form onFinish={onFinish} form={form} style={{maxWidth: 600}} {...layout}>
+                <Form onFinish={onFinish} form={form} className={classes.form} {...layout}>
                     <Form.Item name="testsetName" label="Test set name" rules={[{type: "string"}]}>
                         <Input maxLength={25} />
                     </Form.Item>
