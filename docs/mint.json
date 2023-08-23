@@ -50,19 +50,14 @@
     {
       "group": "Quickstart",
       "pages": [
-        "introduction",
-        "getting-started",
+        "quickstart/introduction",
+        "quickstart/getting-started-ui",
+        "quickstart/getting-started-code",
         {
           "group": "Installation",
           "pages": [
             "installation/local-installation/local-installation",
             "installation/self-hosting/self-hosted-installation"
-          ]
-        },
-        {
-          "group": "Upgrading",
-          "pages": [
-            "installation/migration/migration"
           ]
         }
       ]
