@@ -15,9 +15,8 @@ import {
     Typography,
     message,
 } from "antd"
-import {Variant} from "@/lib/Types"
 import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
-import {useVariant} from "@/lib/hooks/useVariant"
+import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithExactMatch} from "@/lib/services/evaluations"
@@ -62,21 +61,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
         : router.query.app_name || ""
     const variants = evaluation.variants
 
-    const variantData = variants.map((variant: Variant) => {
-        const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
-            appName,
-            variant,
-        )
-
-        return {
-            inputParams,
-            optParams,
-            URIPath,
-            isLoading,
-            isError,
-            error,
-        }
-    })
+    const variantData = useVariants(appName, variants)
 
     const [rows, setRows] = useState<ExactMatchEvaluationTableRow[]>([])
     const [wrongAnswers, setWrongAnswers] = useState<number>(0)
@@ -146,9 +131,9 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             try {
                 let result = await callVariant(
                     inputParamsDict,
-                    variantData[idx].inputParams,
-                    variantData[idx].optParams,
-                    variantData[idx].URIPath,
+                    variantData[idx].inputParams!,
+                    variantData[idx].optParams!,
+                    variantData[idx].URIPath!,
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)

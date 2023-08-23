@@ -1,31 +1,17 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {BarChartOutlined, LineChartOutlined} from "@ant-design/icons"
-import {
-    Button,
-    Card,
-    Col,
-    Input,
-    Row,
-    Space,
-    Spin,
-    Statistic,
-    Table,
-    Tag,
-    Typography,
-    message,
-} from "antd"
-import {Evaluation, Variant} from "@/lib/Types"
+import {LineChartOutlined} from "@ant-design/icons"
+import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, message} from "antd"
+import {Evaluation} from "@/lib/Types"
 import {
     updateEvaluationScenario,
     callVariant,
     fetchEvaluationResults,
     updateEvaluation,
 } from "@/lib/services/api"
-import {useVariant} from "@/lib/hooks/useVariant"
+import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
-import {EvaluationFlow} from "@/lib/enums"
-import TextArea from "antd/es/input/TextArea"
+import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 
 interface AICritiqueEvaluationTableProps {
@@ -69,21 +55,7 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
 
     const variants = evaluation.variants
 
-    const variantData = variants.map((variant: Variant) => {
-        const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
-            appName,
-            variant,
-        )
-
-        return {
-            inputParams,
-            optParams,
-            URIPath,
-            isLoading,
-            isError,
-            error,
-        }
-    })
+    const variantData = useVariants(appName, variants)
 
     const [rows, setRows] = useState<AICritiqueEvaluationTableRow[]>([])
     const [evaluationPromptTemplate, setEvaluationPromptTemplate] =
@@ -165,22 +137,24 @@ Answer ONLY with one of the given grading or evaluation options.
         }, {})
 
         const columnsDataNames = ["columnData0"]
-        for (const [idx, columnName] of columnsDataNames.entries()) {
+        let idx = 0
+        for (const columnName of columnsDataNames) {
             try {
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
 
                 let result = await callVariant(
                     inputParamsDict,
-                    variantData[idx].inputParams,
-                    variantData[idx].optParams,
-                    variantData[idx].URIPath,
+                    variantData[idx].inputParams!,
+                    variantData[idx].optParams!,
+                    variantData[idx].URIPath!,
                 )
-                setRowValue(rowIndex, columnName, result)
+                setRowValue(rowIndex, columnName as any, result)
                 await evaluate(rowIndex)
                 setShouldFetchResults(true)
             } catch (e) {
                 message.error("Oops! Something went wrong")
             }
+            idx++
         }
     }
 
@@ -202,7 +176,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     evaluation.id,
                     evaluation_scenario_id,
                     data,
-                    evaluation.evaluationType,
+                    evaluation.evaluationType as EvaluationType,
                 )
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
                 setRowValue(rowNumber, "evaluation", responseData.evaluation)
@@ -366,7 +340,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         headStyle={{minHeight: 44, padding: "0px 12px"}}
                         title="Evaluation strategy prompt"
                     >
-                        <TextArea
+                        <Input.TextArea
                             rows={5}
                             style={{height: 120, padding: "0px 0px"}}
                             bordered={false}
@@ -421,7 +395,7 @@ Answer ONLY with one of the given grading or evaluation options.
                                                 >
                                                     <Statistic
                                                         title={key}
-                                                        value={value}
+                                                        value={value as any}
                                                         valueStyle={{color: "#3f8600"}}
                                                     />
                                                 </Card>
