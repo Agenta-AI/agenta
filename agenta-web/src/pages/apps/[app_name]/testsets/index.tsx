@@ -149,7 +149,7 @@ export default function testsets() {
                     </Link>
                 </div>
 
-                {!selectedRowKeys.length > 0 && (
+                {selectedRowKeys.length > 0 && (
                     <Button
                         data-cy="app-testset-delete-button"
                         onClick={onDelete}
