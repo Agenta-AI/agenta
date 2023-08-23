@@ -76,6 +76,9 @@ const useStyles = createUseStyles({
         marginTop: 0,
         borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
     }),
+    h1:{
+        fontSize: 24
+    },
     modal: {
         "& .ant-modal-body": {
             display: "flex",
@@ -289,7 +292,7 @@ const AppSelector: React.FC = () => {
                     </div>
                 ) : Array.isArray(data) && data.length ? (
                     <>
-                        <Title>LLM Applications</Title>
+                        <h1 className={classes.h1}>LLM Applications</h1>
                         <Divider className={classes.divider} />
                         <div className={classes.cardsList}>
                             {Array.isArray(data) && (
@@ -343,7 +346,7 @@ const AppSelector: React.FC = () => {
             />
             <Modal
                 title="Input app name"
-                open={true}
+                open={isInputTemplateModalOpen}
                 onCancel={handleInputTemplateModalCancel}
                 width={500}
                 footer={null}
