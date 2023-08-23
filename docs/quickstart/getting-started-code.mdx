@@ -1,43 +1,51 @@
 ---
-title: Using your code in Agenta
+title: 'Building and Deploying an LLM App with Langchain via the CLI'
 description: 'Create and deploy your first LLM app in under 4 minutes'
+sidebarTitle: 'Creating LLM Apps using code'
 ---
 
-<Note>This tutorial is for users who want to create LLM apps based on templates from the UI. If you want to use your own code in agenta, you can jump directlly to  </Note>
+<Note>This tutorial guides users through creating LLM apps via the command line interface. For simple applications that can be created from the UI, refer to [Getting Started](/quickstart/getting-started-code) </Note>
+
+Prefer video tutorial? Watch our 4-minute video [here](https://youtu.be/nggaRwDZM-0).
+
+
+<iframe width="720" height="450" src="https://www.youtube.com/embed/nggaRwDZM-0?si=1m5Fhz4JHqgslGLC" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 ## Introduction
 
-Welcome! In this beginner-friendly guide, we'll walk through the process of building a simple LLM app in Agenta, using an existing template. By the end of this tutorial, you'll have your first working LLM app and a good understanding of how to interact with Agenta.
+This guide outlines building a basic LLM app with **langchain** and **agenta**. By the end, you'll have a functional LLM app and knowledge of how to use the agenta CLI.
 
 To learn more about creating an LLM app from scratch, please visit our [advanced tutorial](/tutorials/your-first-llm-app).
 
 ## Prerequisites
 
-Ensure you have installed the Agenta CLI and SDK, and have set up the web platform using docker-compose. If you haven't done this, follow the steps in our [installation guide](/installation).
+Before beginning, install the Agenta CLI and SDK, and set up the web platform using docker-compose. Follow our [installation guide](/installation) if needed.
 
 ## Step 1: Initialize a New Project
 
-To start, create a new project. Begin by making an empty folder and initialize it using the following command:
+Create a new folder and initialize it with the following commands:
 
 ```bash
 mkdir example_app; cd example_app
 agenta init
 ```
 
-Next, start a new project based on the `simple_prompt` [template](https://docs.agenta.ai/conceptual/concepts#templates)
+Start a new project using the simple_prompt template:
 
 ````
-? Please enter the app name: company_name_generator
+? Please enter the app name company_name_generator
+? Are you running agenta locally? Yes
 ? How do you want to initialize your app? Start from template
 ? Which template do you want to use? simple_prompt - Simple app that uses one prompt using langchain
 App initialized successfully
+Please check the README.md for further instructions to setup the template.
 ````
 
-This will generate many files for this project. The file containig the code is `app.py`. You can check a description of the generated code. Otherwise, continue to the next step.
-
+The initialization creates several files, including app.py. For a detailed explanation, proceed to the next step or continue with the tutorial.
 
 <Accordion title="Understand the Generated Code">
 
-The initialization process generates the following files:
+The files generated include:
 
 ```bash
 .
@@ -47,47 +55,24 @@ The initialization process generates the following files:
 └── requirements.txt
 ```
 
-Let's take a closer look at each:
+Let's take a closer look at the code in app.py:
 
 ### README.md
-This file provides a brief overview of your application.
+An overview of your application.
 
 ### requirements.txt
-Here you'll find the dependencies required by the template.
+A list of the required dependencies.
 
 ### config.toml
-This file holds the configuration details of your application. Currently, it only contains the app name that you have chosen.
+Configuration details, currently only the app name.
 
 ### app.py
-This is the main application file. The generated `app.py` file should look like this:
-
-```python app.py
-# imports
-import agenta as ag
-
-default_prompt = "What is a good name for a company that makes {product}?"
-
-
-@ag.post
-def generate(product: str, temperature: ag.FloatParam = 0.9, prompt_template: ag.TextParam = default_prompt) -> str:
-    llm = OpenAI(temperature=temperature)
-    prompt = PromptTemplate(
-        input_variables=["product"],
-        template=prompt_template,
-    )
-    chain = LLMChain(llm=llm, prompt=prompt)
-    output = chain.run(product=product)
-
-    return output
-```
-
-This code sets up a simple LLM-application using the OpenAI Python library. The decorator `@post` and the types `FloatParam` and `TextParam` are imported from `agenta`, which inform the Agenta SDK that this function is an endpoint of the application, and these parameters can be adjusted in the playground.
-
+The main application file, containing code to set up a simple LLM-application using OpenAI's Python library.
 </Accordion>
 
 ## Step 2: Set up the OpenAI API Key
 
-To run your LLM-application, you'll need to set the OpenAI API key in your environment. Here's how:
+You'll need to configure the OpenAI API key. Here's how:
 
 1. Visit the [OpenAI API keys page](https://platform.openai.com/account/api-keys), and create a new key. 
 
@@ -96,38 +81,27 @@ To run your LLM-application, you'll need to set the OpenAI API key in your envir
 OPENAI_API_KEY=sk-xxxxxxx
 ```
 
-## Step 3: Run the Application in the CLI
+<Accordion title="(Optional Step) Run the application from the CLI">
 
-Test your application via the command line.
-
-First let's (optionally) create a virtual environment and install the dependencies. Make sure you are in the project folder.
+To test your application via the command line, optionally create a virtual environment, install dependencies, and run the application:
 
 ```bash
 python -m venv myenv
 source myenv/bin/activate
 pip install -r requirements.txt
+python app.py "LLMOps developer platform"
+
+    CypressOps Platform.
 ```
 
-Now let's run the application:
+</Accordion>
 
-```bash
-> python app.py
-usage: app.py [-h] [--temperature TEMPERATURE] [--prompt_template PROMPT_TEMPLATE] product
-app.py: error: the following arguments are required: product
+## Step 3: Run the Application in the Playground
 
-> python app.py "LLMOps developer platform"
+To run your app in the playground, serve it locally using `agenta variant serve`. This command:
 
-CypressOps Platform.
-```
-
-Here, `app.py` uses the `product` as the inputs defined in the parameters in `app.py`.
-
-## Step 5: Run the Application in the Playground
-
-To run the application in the playground, you need to serve it locally first. Use the command `agenta variant serve` to do this. This command:
-
-1. Creates a Docker image of the application, and starts a container based on this image.
-2. Starts a server that exposes an endpoint /generate at `localhost/{app_name}/{variant_name}/openapi.json` with the parameters specified in the application.
+1. Creates a Docker image and starts a container.
+2. Starts a server exposing the endpoint /generate at `localhost/{app_name}/{variant_name}/openapi.json`.
 3. Adds the application to the Agenta's web UI.
 
 ```bash
@@ -139,19 +113,10 @@ This will do two things:
 2. The container will start a server exposing an endpoint /generate with the same parameters we specified in the application at `localhost/{app_name}/{variant_name}/openapi.json`.
 3. It will add the application to the web ui Agenta
 
-## Step 6: Start Experimenting
+## Step 4: Start Experimenting
 
-Go to `localhost:3000`, select your app, and begin experimenting with different parameters in the playground.
+Visit `localhost:3000`, select your app, and experiment with different parameters in the playground.
 
-<Frame>
-  <img
-    className="rounded-md"
-    src="docs/images/playground.png"
-  />
-</Frame>
+The playground lets you create new app variants and tweak application parameters.
 
-The playground provides a platform to create new app variants from the one you just made, and to tweak the application parameters. 
-
-We hope you found this guide useful. Happy coding!
-
-
+We hope you find this guide helpful. Happy coding!
