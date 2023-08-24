@@ -210,21 +210,11 @@ const AppSelector: React.FC = () => {
 
     const {data, error, isLoading} = fetchApps()
     useEffect(() => {
-        if (data === undefined) {
-            notification.error({
-                message: "Cannot load apps",
-                description: "Something went wrong. Try reloading page.",
-                duration: 10,
-            })
-        } else if (data.detail) {
-            notification.error({
-                message: "Cannot load apps",
-                description: `${data.detail}!`,
-                duration: 10,
-            })
-        } else if (data) {
-            setAppNameExist(data.some((app) => app.app_name === newApp))
-        }
+        setTimeout(() => {
+            if (data) {
+                setAppNameExist(data.some((app) => app.app_name === newApp))
+            }
+        }, 3000)
     }, [data, newApp])
 
     return (
