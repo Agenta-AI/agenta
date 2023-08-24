@@ -124,7 +124,6 @@ Answer ONLY with one of the given grading or evaluation options.
             await Promise.all(rows.map((_, rowIndex) => runEvaluation(rowIndex)))
             setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
             console.log("All evaluations finished.")
-            message.success("Evaluation Results Saved")
         } catch (err) {
             console.error("An error occurred:", err)
         }
@@ -151,8 +150,13 @@ Answer ONLY with one of the given grading or evaluation options.
                 setRowValue(rowIndex, columnName as any, result)
                 await evaluate(rowIndex)
                 setShouldFetchResults(true)
+                if (rowIndex === rows.length - 1) {
+                    message.success("Evaluation Results Saved")
+                }
             } catch (e) {
-                message.error("Oops! Something went wrong")
+                if (rowIndex === rows.length - 1) {
+                    message.error("Oops! Something went wrong")
+                }
             }
             idx++
         }
