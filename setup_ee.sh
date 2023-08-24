@@ -1,0 +1,1 @@
+cp -R ee/agenta-web/src/* agenta-web/src/
