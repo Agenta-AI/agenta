@@ -9,6 +9,7 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
             - agenta-network
+
     backend:
         build: ./agenta-backend
         environment:
