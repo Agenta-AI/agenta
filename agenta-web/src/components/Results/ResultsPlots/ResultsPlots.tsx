@@ -9,7 +9,10 @@ export const renderPlotForABTestEvaluation = (
     const hexColors = ["#5B8FF9", "#61DDAA", "#FFbcb8"]
 
     let flagDiv = null
-    if (record.votesData.flag_votes.number_of_votes > 0) {
+    if (
+        record?.votesData?.flag_votes?.number_of_votes &&
+        record?.votesData?.flag_votes?.number_of_votes > 0
+    ) {
         flagDiv = (
             <div
                 key={`flag-${index}`}

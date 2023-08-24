@@ -181,7 +181,7 @@ const VersionTabs: React.FC = () => {
                         if (action === "add") {
                             setIsModalOpen(true)
                         } else if (action === "remove") {
-                            setRemovalVariantName(targetKey)
+                            setRemovalVariantName(targetKey as string)
                             setRemovalWarningModalOpen1(true)
                         }
                     }}
