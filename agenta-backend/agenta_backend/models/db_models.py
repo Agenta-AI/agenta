@@ -9,6 +9,8 @@ class ImageDB(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     docker_id: str = Field(...)
     tags: str = Field(...)
+    user_id: str = Field(default=None)
+    organization_id: str = Field(default=None)
 
 
 class AppVariantDB(SQLModel, table=True):
@@ -16,6 +18,8 @@ class AppVariantDB(SQLModel, table=True):
     app_name: str = Field(...)
     variant_name: str = Field(...)
     image_id: int = Field(foreign_key="imagedb.id")
+    user_id: str = Field(default=None)
+    organization_id: str = Field(default=None)
     parameters: Dict = Field(sa_column=Column(JSON))
     previous_variant_name: Optional[str] = Field(default=None)
     is_deleted: bool = Field(
@@ -31,6 +35,8 @@ class TemplateDB(SQLModel, table=True):
     architecture: str = Field(...)
     title: str = Field(...)
     description: str = Field(...)
+    user_id: str = Field(default=None)
+    organization_id: str = Field(default=None)
     size: int = Field(...)
     digest: str = Field(...)
     status: str = Field(...)

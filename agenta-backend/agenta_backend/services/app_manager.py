@@ -281,7 +281,7 @@ def update_variant_parameters(app_variant: AppVariant):
         raise
 
 
-def update_variant_image(app_variant: AppVariant, image: Image):
+def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: dict):
     """Updates the image for app variant in the database.
 
     Arguments:
@@ -327,13 +327,13 @@ def update_variant_image(app_variant: AppVariant, image: Image):
             f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}"
         )
         logger.error("Previous variant removed but new variant not added. Rolling back")
-        db_manager.add_variant_based_on_image(old_variant, old_image)
+        db_manager.add_variant_based_on_image(old_variant, old_image, **kwargs)
         raise
     try:
         logger.info(
             f"Updating variant {app_variant.app_name}/{app_variant.variant_name}"
         )
-        db_manager.add_variant_based_on_image(app_variant, image)
+        db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
         logger.info(
             f"Starting variant {app_variant.app_name}/{app_variant.variant_name}"
         )
