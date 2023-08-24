@@ -364,7 +364,9 @@ Answer ONLY with one of the given grading or evaluation options.
                         <Space>
                             <div>
                                 {rows[rowIndex].evaluation !== "" && (
-                                    <Tag color={tagColor}>{record.evaluation}</Tag>
+                                    <Tag color={tagColor} className={classes.tag}>
+                                        {record.evaluation}
+                                    </Tag>
                                 )}
                             </div>
                         </Space>
