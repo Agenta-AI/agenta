@@ -61,10 +61,7 @@ def override_thirdpartypasswordless_apis(
                 "user_id": response.user.user_id,
                 "user_email": response.user.email,
             }
-
-            if response.created_new_user:
-                print("================ SIGNUP ====================")
-                await create_accounts(payload)
+            await create_accounts(payload)
                 
         return response
 
@@ -92,9 +89,7 @@ def override_thirdpartypasswordless_apis(
                 "user_id": response.user.user_id,
                 "user_email": response.user.email,
             }
-            if response.created_new_user:
-                print("================ THIRDPARTY SIGNUP ====================")
-                await create_accounts(payload)
+            await create_accounts(payload)
 
         return response
 
