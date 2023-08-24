@@ -16,12 +16,14 @@ from supertokens_python.recipe.passwordless.interfaces import (
 from supertokens_python.recipe.thirdpartypasswordless.interfaces import (
     APIInterface as ThirdpartyPasswordlessAPIInterface,
     ConsumeCodePostOkResult,
+    ThirdPartySignInUpPostOkResult
 )
 from supertokens_python.recipe.thirdparty import interfaces as ThirdPartyInterfaces
-
+from supertokens_python.recipe.thirdparty.provider import Provider, RedirectUriInfo
 import os
 from typing import Any, Dict, Union
 from agenta_backend.services.commoners import create_accounts
+from typing import Optional
 
 
 ThirdPartyAPIOptions = ThirdPartyInterfaces.APIOptions
@@ -31,6 +33,7 @@ def override_thirdpartypasswordless_apis(
     original_implementation: ThirdpartyPasswordlessAPIInterface,
 ):
     original_consume_code_post = original_implementation.consume_code_post
+    original_thirdparty_sign_in_up = original_implementation.thirdparty_sign_in_up_post
 
     async def consume_code_post(
         pre_auth_session_id: str,
@@ -62,10 +65,41 @@ def override_thirdpartypasswordless_apis(
             if response.created_new_user:
                 print("================ SIGNUP ====================")
                 await create_accounts(payload)
+                
+        return response
+
+    async def thirdparty_sign_in_up_post(
+        provider: Provider,
+        redirect_uri_info: Optional[RedirectUriInfo],
+        oauth_tokens: Optional[Dict[str, Any]],
+        tenant_id: str,
+        api_options: PAPIOptions,
+        user_context: Dict[str, Any],
+    ) -> ThirdPartySignInUpPostOkResult:
+        
+        # First we call the original implementation of consume_code_post.
+        response = await original_thirdparty_sign_in_up(
+            provider,
+            redirect_uri_info,
+            oauth_tokens,
+            tenant_id,
+            api_options,
+            user_context,
+        )
+        
+        if isinstance(response, ThirdPartySignInUpPostOkResult):
+            payload = {
+                "user_id": response.user.user_id,
+                "user_email": response.user.email,
+            }
+            if response.created_new_user:
+                print("================ THIRDPARTY SIGNUP ====================")
+                await create_accounts(payload)
 
         return response
 
     original_implementation.consume_code_post = consume_code_post
+    original_implementation.thirdparty_sign_in_up_post = thirdparty_sign_in_up_post
     return original_implementation
 
 
