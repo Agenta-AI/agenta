@@ -10,14 +10,14 @@ from agenta_backend.services.organization_service import (
 async def create_accounts(payload: dict) -> Union[str, str]:
     """Creates a user account and an associated organization based on the
     provided payload.
-    
+
     Arguments:
         payload (dict): The required payload. It consists of; user_id and user_email
-        
+
     Returns:
         a tuple containing the user_id and org_id as strings.
     """
-    
+
     user_dict = {
         "id": payload["user_id"],
         "email": payload["user_email"],
@@ -29,8 +29,4 @@ async def create_accounts(payload: dict) -> Union[str, str]:
     if org is not None:
         user_dict["organization_id"] = str(org.inserted_id)
         user = User(**user_dict)
-        created_user = await create_new_user(user)
-        user_id, org_id = str(created_user["id"]), str(
-            created_user["organization_id"]
-        )
-        return user_id, org_id
+        await create_new_user(user)
