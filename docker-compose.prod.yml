@@ -48,11 +48,11 @@ services:
   agenta-web:
     build:
       context: ./agenta-web
-      dockerfile: dev.Dockerfile
+      dockerfile: prod.Dockerfile
     volumes:
       - ./agenta-web/src:/app/src
       - ./agenta-web/public:/app/public
-      - ./agenta-web/.env.development.local:/app/.env.development.local
+      # - ./agenta-web/.env.development.local:/app/.env.development.local
     ports:
       - "3000:3000"
     environment:
