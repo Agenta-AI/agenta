@@ -88,6 +88,8 @@ def override_thirdpartypasswordless_apis(
         api_options: ThirdPartyAPIOptions,
         user_context: Dict[str, Any],
     ) -> ThirdPartySignInUpPostOkResult:
+        
+        print("========= THIRD PARTY SIGN IN UP POST")
         # First we call the original implementation of consume_code_post.
         response = await original_thirdparty_sign_in_up(
             provider,
