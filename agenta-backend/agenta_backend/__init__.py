@@ -86,7 +86,7 @@ def override_thirdpartypasswordless_apis(
         client_id: Union[str, None],
         auth_code_response: Union[Dict[str, Any], None],
         api_options: ThirdPartyAPIOptions,
-        user_context: Dict[str, Any]
+        user_context: Dict[str, Any],
     ) -> ThirdPartySignInUpPostOkResult:
         # First we call the original implementation of consume_code_post.
         response = await original_thirdparty_sign_in_up(
@@ -96,13 +96,13 @@ def override_thirdpartypasswordless_apis(
             client_id,
             auth_code_response,
             api_options,
-            user_context
+            user_context,
         )
-        
+
         print("Response ====> ", response)
         print("User Response =====> ", response.user)
         print("Created User ====> ", response.created_new_user)
-        
+
         if isinstance(response, ThirdPartySignInUpPostOkResult):
             # user object contains the ID and email of the user
             user = response.user
@@ -112,15 +112,10 @@ def override_thirdpartypasswordless_apis(
             provider_access_token = response.oauth_tokens["access_token"]
             print(provider_access_token)
 
-            if (
-                response.raw_user_info_from_provider.from_user_info_api
-                is not None
-            ):
-                first_name = (
-                    response.raw_user_info_from_provider.from_user_info_api[
-                        "first_name"
-                    ]
-                )
+            if response.raw_user_info_from_provider.from_user_info_api is not None:
+                first_name = response.raw_user_info_from_provider.from_user_info_api[
+                    "first_name"
+                ]
                 print(first_name)
 
             if response.created_new_user:
@@ -132,9 +127,7 @@ def override_thirdpartypasswordless_apis(
         return response
 
     original_implementation.consume_code_post = consume_code_post
-    original_implementation.thirdparty_sign_in_up = (
-        thirdparty_sign_in_up_post
-    )
+    original_implementation.thirdparty_sign_in_up = thirdparty_sign_in_up_post
     return original_implementation
 
 
