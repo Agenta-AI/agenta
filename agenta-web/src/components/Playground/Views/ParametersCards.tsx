@@ -4,9 +4,9 @@ import {Parameter, InputParameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 
-const useStylesModalParams = createUseStyles({
+const useStyles = createUseStyles({
     row1: {
-        padding: "0px 0px",
+        padding: 0,
         width: "100%",
         marginTop: "16px",
     },
@@ -29,6 +29,20 @@ const useStylesModalParams = createUseStyles({
         alignItems: "center",
         marginBottom: 10,
     },
+    row2ObjParams: {
+        alignItems: "center",
+        marginTop: 12,
+        marginBottom: 12,
+    },
+    deleteBtn: {
+        margin: "0px 24px",
+    },
+    addBtn: {
+        margin: "12px 0px",
+    },
+    textarea: {
+        padding: 0,
+    },
     colTitle: {
         margin: 0,
         padding: 0,
@@ -45,62 +59,6 @@ const useStylesModalParams = createUseStyles({
         width: "100%",
     },
 })
-const useStylesStringParams = createUseStyles({
-    row: {
-        padding: "0px 0px",
-        width: "100%",
-        marginRight: "16px",
-    },
-    card: {
-        marginTop: 16,
-        width: "100%",
-        border: "1px solid #ccc",
-        marginRight: "24px",
-        "& .ant-card-body": {
-            padding: "4px 16px",
-            border: "0px solid #ccc",
-        },
-        "& .ant-card-head": {
-            minHeight: 44,
-            padding: "0px 12px",
-        },
-    },
-    textarea: {
-        padding: 0,
-    },
-})
-const useStylesObjectParams = createUseStyles({
-    row1: {
-        padding: "0px 0px",
-        width: "100%",
-        marginRight: "16px",
-    },
-    card: {
-        marginTop: 16,
-        width: "100%",
-        border: "1px solid #ccc",
-        marginRight: "24px",
-        "& .ant-card-body": {
-            padding: "4px 16px",
-            border: "0px solid #ccc",
-        },
-        "& .ant-card-head": {
-            minHeight: 44,
-            padding: "0px 12px",
-        },
-    },
-    row2: {
-        alignItems: "center",
-        marginTop: 12,
-        marginBottom: 12,
-    },
-    deleteBtn: {
-        margin: "0px 24px",
-    },
-    addBtn: {
-        margin: "12px 0px",
-    },
-})
 
 interface ModelParametersProps {
     optParams: Parameter[] | null
@@ -113,7 +71,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
     onChange,
     handleParamChange,
 }) => {
-    const classes = useStylesModalParams()
+    const classes = useStyles()
     return (
         <>
             {optParams?.some((param) => !param.input && param.type === "number") && (
@@ -217,13 +175,13 @@ export const StringParameters: React.FC<StringParametersProps> = ({
     optParams,
     handleParamChange,
 }) => {
-    const classes = useStylesStringParams()
+    const classes = useStyles()
     return (
         <>
             {optParams
                 ?.filter((param) => param.type === "string")
                 .map((param, index) => (
-                    <Row gutter={0} className={classes.row} key={index}>
+                    <Row gutter={0} className={classes.row1} key={index}>
                         <Card className={classes.card} title={renameVariables(param.name)}>
                             <Input.TextArea
                                 rows={5}
@@ -248,7 +206,7 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
     optParams,
     handleParamChange,
 }) => {
-    const classes = useStylesObjectParams()
+    const classes = useStyles()
 
     const handleAddVariable = (param: Parameter) => {
         const updatedParams: InputParameter[] = [...param.default, {name: ""}]
@@ -273,7 +231,7 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
                     <Row gutter={0} className={classes.row1} key={index}>
                         <Card className={classes.card} title={renameVariables(param.name)}>
                             {param.default.map((val: Parameter, index: number) => (
-                                <Row key={index} className={classes.row2}>
+                                <Row key={index} className={classes.row2ObjParams}>
                                     <Col span={4}>
                                         <Input.TextArea
                                             rows={1}

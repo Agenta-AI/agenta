@@ -6,7 +6,6 @@ import {useVariant} from "@/lib/hooks/useVariant"
 import {Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
-import {is} from "cypress/types/bluebird"
 import {createUseStyles} from "react-jss"
 
 interface Props {
