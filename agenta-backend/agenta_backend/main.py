@@ -1,6 +1,7 @@
 import json
 from fastapi import FastAPI
 
+from agenta_backend.config import settings
 from agenta_backend.routers import app_variant
 from agenta_backend.routers import testset_router
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,9 @@ from agenta_backend.routers import evaluation_router
 from agenta_backend.services.db_manager import (
     add_template,
     remove_old_template_from_db,
+)
+from agenta_backend.services.container_manager import (
+    pull_image_from_docker_hub,
 )
 from agenta_backend.services.cache_manager import (
     retrieve_templates_from_dockerhub_cached,
@@ -35,6 +39,10 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
+    # Get docker hub config
+    repo_owner = settings.docker_hub_repo_owner
+    repo_name = settings.docker_hub_repo_name
+
     tags_data = await retrieve_templates_from_dockerhub_cached(cache=cache)
     templates_info_string = await retrieve_templates_info_from_dockerhub_cached(
         cache=cache
@@ -64,7 +72,11 @@ async def lifespan(application: FastAPI, cache=True):
                         "media_type": tag["media_type"],
                     }
                 )
+                image_res = await pull_image_from_docker_hub(
+                    f"{repo_owner}/{repo_name}", tag["name"]
+                )
                 print(f"Template {tag['id']} added to the database.")
+                print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
 
     # Remove old templates from database
     remove_old_template_from_db(templates_in_hub)
