@@ -9,26 +9,19 @@ from supertokens_python.recipe import (
     session,
     dashboard,
 )
-from supertokens_python.recipe.thirdparty.provider import Provider
 from supertokens_python.recipe.passwordless import ContactEmailOnlyConfig
 from supertokens_python.recipe.passwordless.interfaces import (
     APIOptions as PAPIOptions,
 )
 from supertokens_python.recipe.thirdpartypasswordless.interfaces import (
     APIInterface as ThirdpartyPasswordlessAPIInterface,
-    ThirdPartySignInUpPostOkResult,
     ConsumeCodePostOkResult,
 )
 from supertokens_python.recipe.thirdparty import interfaces as ThirdPartyInterfaces
 
 import os
 from typing import Any, Dict, Union
-from agenta_backend.models.api.user_models import User
-from agenta_backend.models.api.organization_models import Organization
-from agenta_backend.services.user_service import create_new_user
-from agenta_backend.services.organization_service import (
-    create_new_organization,
-)
+from agenta_backend.services.commoners import create_accounts
 
 
 ThirdPartyAPIOptions = ThirdPartyInterfaces.APIOptions
@@ -38,7 +31,6 @@ def override_thirdpartypasswordless_apis(
     original_implementation: ThirdpartyPasswordlessAPIInterface,
 ):
     original_consume_code_post = original_implementation.consume_code_post
-    original_thirdparty_sign_in_up = original_implementation.thirdparty_sign_in_up_post
 
     async def consume_code_post(
         pre_auth_session_id: str,
@@ -62,74 +54,18 @@ def override_thirdpartypasswordless_apis(
 
         # Post sign up response, we check if it was successful
         if isinstance(response, ConsumeCodePostOkResult):
-            user_dict = {
-                "id": response.user.user_id,
-                "email": response.user.email,
-                "username": response.user.email.split("@")[0],
+            payload = {
+                "user_id": response.user.user_id,
+                "user_email": response.user.email,
             }
-            organization = Organization(**{"name": user_dict["username"]})
 
             if response.created_new_user:
                 print("================ SIGNUP ====================")
-                org = await create_new_organization(organization)
+                await create_accounts(payload)
 
-                user_dict["organization_id"] = str(org.inserted_id)
-                user = User(**user_dict)
-                await create_new_user(user)
-
-        return response
-
-    async def thirdparty_sign_in_up_post(
-        provider: Provider,
-        code: str,
-        redirect_uri: str,
-        client_id: Union[str, None],
-        auth_code_response: Union[Dict[str, Any], None],
-        api_options: ThirdPartyAPIOptions,
-        user_context: Dict[str, Any],
-    ) -> ThirdPartySignInUpPostOkResult:
-        
-        print("========= THIRD PARTY SIGN IN UP POST")
-        # First we call the original implementation of consume_code_post.
-        response = await original_thirdparty_sign_in_up(
-            provider,
-            code,
-            redirect_uri,
-            client_id,
-            auth_code_response,
-            api_options,
-            user_context,
-        )
-
-        print("Response ====> ", response)
-        print("User Response =====> ", response.user)
-        print("Created User ====> ", response.created_new_user)
-
-        if isinstance(response, ThirdPartySignInUpPostOkResult):
-            # user object contains the ID and email of the user
-            user = response.user
-            print(user)
-
-            # This is the response from the OAuth 2 provider that contains their tokens or user info.
-            provider_access_token = response.oauth_tokens["access_token"]
-            print(provider_access_token)
-
-            if response.raw_user_info_from_provider.from_user_info_api is not None:
-                first_name = response.raw_user_info_from_provider.from_user_info_api[
-                    "first_name"
-                ]
-                print(first_name)
-
-            if response.created_new_user:
-                print("New user was created")
-                # TODO: Post sign up logic
-            else:
-                print("User already existed and was signed in")
-                # TODO: Post sign in logic
         return response
 
     original_implementation.consume_code_post = consume_code_post
-    original_implementation.thirdparty_sign_in_up = thirdparty_sign_in_up_post
     return original_implementation
 
 
