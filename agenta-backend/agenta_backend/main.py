@@ -20,6 +20,7 @@ from agenta_backend.services.cache_manager import (
 from contextlib import asynccontextmanager
 
 import logging
+
 print("================================================= MAIN.PY")
 logging.basicConfig(level=logging.DEBUG)
 

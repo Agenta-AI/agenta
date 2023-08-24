@@ -16,7 +16,7 @@ from supertokens_python.recipe.passwordless.interfaces import (
 from supertokens_python.recipe.thirdpartypasswordless.interfaces import (
     APIInterface as ThirdpartyPasswordlessAPIInterface,
     ConsumeCodePostOkResult,
-    ThirdPartySignInUpPostOkResult
+    ThirdPartySignInUpPostOkResult,
 )
 from supertokens_python.recipe.thirdparty import interfaces as ThirdPartyInterfaces
 from supertokens_python.recipe.thirdparty.provider import Provider, RedirectUriInfo
@@ -62,7 +62,7 @@ def override_thirdpartypasswordless_apis(
                 "user_email": response.user.email,
             }
             await create_accounts(payload)
-                
+
         return response
 
     async def thirdparty_sign_in_up_post(
@@ -73,7 +73,6 @@ def override_thirdpartypasswordless_apis(
         api_options: PAPIOptions,
         user_context: Dict[str, Any],
     ) -> ThirdPartySignInUpPostOkResult:
-        
         # First we call the original implementation of consume_code_post.
         response = await original_thirdparty_sign_in_up(
             provider,
@@ -83,7 +82,7 @@ def override_thirdpartypasswordless_apis(
             api_options,
             user_context,
         )
-        
+
         if isinstance(response, ThirdPartySignInUpPostOkResult):
             payload = {
                 "user_id": response.user.user_id,

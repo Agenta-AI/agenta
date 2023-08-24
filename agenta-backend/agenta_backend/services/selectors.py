@@ -20,7 +20,9 @@ async def get_user_and_org_id(session: SessionContainer) -> Dict[str, str]:
     return {"user_id": user_id, "organization_id": org_id}
 
 
-async def get_user_objectid(user_email: str) -> Union[Tuple[str, str], Tuple[None, None]]:
+async def get_user_objectid(
+    user_email: str,
+) -> Union[Tuple[str, str], Tuple[None, None]]:
     """Retrieves the user object ID and organization ID from the database
     based on the user ID.
 
@@ -47,6 +49,6 @@ async def user_exists(user_email: str) -> bool:
     Returns:
         bool: confirming if the user exists or not.
     """
-    
+
     user = await users.find_one({"email": user_email})
     return False if user is None else True

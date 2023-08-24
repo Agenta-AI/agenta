@@ -24,7 +24,7 @@ async def create_accounts(payload: dict) -> Union[str, str]:
         "email": payload["user_email"],
         "username": payload["user_email"].split("@")[0],
     }
-    
+
     does_user_exist = await user_exists(user_dict["email"])
     if not does_user_exist:
         print("================ SIGNUP ====================")
@@ -35,5 +35,5 @@ async def create_accounts(payload: dict) -> Union[str, str]:
             user_dict["organization_id"] = str(org.inserted_id)
             user = User(**user_dict)
             await create_new_user(user)
-            
+
     print("================ LOGIN ====================")
