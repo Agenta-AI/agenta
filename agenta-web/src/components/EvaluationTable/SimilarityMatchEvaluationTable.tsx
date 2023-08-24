@@ -132,11 +132,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 evaluate(rowIndex)
                 if (rowIndex === rows.length - 1) {
                     message.success("Evaluation Results Saved")
+                    setLoadingSpinners(false)
                 }
             } catch (e) {
                 setRowValue(rowIndex, columnName, "")
                 if (rowIndex === rows.length - 1) {
                     message.error("Oops! Something went wrong")
+                    setLoadingSpinners(false)
                 }
             }
         })
@@ -336,19 +338,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     tagColor = "red"
                 }
 
-                const similarity = text
-                if (similarity !== undefined) {
-                    // setTimeout(() => {
-                    setLoadingSpinners(false)
-                    // }, 4000)
-                }
                 return (
                     <Spin spinning={loadSpinner}>
                         <Space>
                             <div>
-                                {!loadSpinner && similarity !== undefined && (
+                                {!loadSpinner && text !== undefined && (
                                     <Tag color={tagColor} style={{fontSize: "14px"}}>
-                                        {similarity.toFixed(2)}
+                                        {text.toFixed(2)}
                                     </Tag>
                                 )}
                             </div>
