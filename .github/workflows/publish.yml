@@ -1,4 +1,4 @@
-name: Publish Python Package
+name: Publish Agenta to PyPI
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
       run: |
         curl -sSL https://install.python-poetry.org | python3 -
 
-    - name: Check for version changes
+    - name: Check for agenta version changes
       id: version_check
       run: |
         cd ../../agenta-cli
@@ -36,7 +36,7 @@ jobs:
         echo "::set-output name=version_bumped::true"
       shell: bash
 
-    - name: Build and publish
+    - name: Build and publish agenta to PyPI
       if: steps.version_check.outputs.version_bumped == 'true'
       run: |
         cd ../../agenta-cli
