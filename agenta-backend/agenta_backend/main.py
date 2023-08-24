@@ -19,8 +19,8 @@ from agenta_backend.services.cache_manager import (
     retrieve_templates_info_from_dockerhub_cached,
 )
 
-
 from contextlib import asynccontextmanager
+from agenta_backend.config import settings
 
 
 origins = [
@@ -83,17 +83,24 @@ async def lifespan(application: FastAPI, cache=True):
     yield
 
 
-# this is the prefix in which we are reverse proxying the api
 app = FastAPI(lifespan=lifespan)
 app.include_router(app_variant.router, prefix="/app_variant")
 app.include_router(evaluation_router.router, prefix="/evaluations")
 app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
 
+allow_headers = ["Content-Type"]
+
+if settings.feature_flag in ["cloud", "ee"]:
+    import agenta_backend.ee.main as ee
+
+    app, allow_headers = ee.extend_main(app)
+# this is the prefix in which we are reverse proxying the api
+#
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=allow_headers,
 )

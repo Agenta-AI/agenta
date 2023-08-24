@@ -3,7 +3,7 @@ import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, AppTemplate, TemplateImage, GenericObject} from "@/lib/Types"
+import {Template, AppTemplate, TemplateImage} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
@@ -209,11 +209,12 @@ const AppSelector: React.FC = () => {
     }
 
     const {data, error, isLoading} = fetchApps()
-
     useEffect(() => {
-        if (data) {
-            setAppNameExist(data.some((app: GenericObject) => app.app_name === newApp))
-        }
+        setTimeout(() => {
+            if (data) {
+                setAppNameExist(data.some((app) => app.app_name === newApp))
+            }
+        }, 3000)
     }, [data, newApp])
 
     return (
@@ -375,7 +376,7 @@ const AppSelector: React.FC = () => {
                             newApp.length > 0 &&
                             isAppNameInputValid(newApp)
                         ) {
-                            handleTemplateCardClick(templateName as string)
+                            handleTemplateCardClick(templateName)
                         } else {
                             notification.warning({
                                 message: "Template Selection",

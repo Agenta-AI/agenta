@@ -14,6 +14,7 @@ os.environ["DOCKER_HUB_URL"] = toml_config["docker_hub_url"]
 os.environ["DOCKER_HUB_REPO_OWNER"] = toml_config["docker_hub_repo_owner"]
 os.environ["DOCKER_HUB_REPO_NAME"] = toml_config["docker_hub_repo_name"]
 os.environ["REDIS_URL"] = toml_config["redis_url"]
+os.environ["FEATURE_FLAG"] = toml_config["feature_flag"]
 
 
 class Settings(BaseSettings):
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
     docker_hub_url: str
     docker_hub_repo_owner: str
     docker_hub_repo_name: str
+    feature_flag: str
 
 
 settings = Settings()
