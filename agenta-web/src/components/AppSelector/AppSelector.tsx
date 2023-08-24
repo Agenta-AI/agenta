@@ -14,7 +14,7 @@ import {
     Typography,
 } from "antd"
 import AppCard from "./AppCard"
-import {Template, AppTemplate, TemplateImage} from "@/lib/Types"
+import {Template, AppTemplate, TemplateImage, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
@@ -269,7 +269,7 @@ const AppSelector: React.FC = () => {
     useEffect(() => {
         setTimeout(() => {
             if (data) {
-                setAppNameExist(data.some((app) => app.app_name === newApp))
+                setAppNameExist(data.some((app: GenericObject) => app.app_name === newApp))
             }
         }, 3000)
     }, [data, newApp])
@@ -394,7 +394,7 @@ const AppSelector: React.FC = () => {
                             newApp.length > 0 &&
                             isAppNameInputValid(newApp)
                         ) {
-                            handleTemplateCardClick(templateName)
+                            handleTemplateCardClick(templateName as string)
                         } else {
                             notification.warning({
                                 message: "Template Selection",
