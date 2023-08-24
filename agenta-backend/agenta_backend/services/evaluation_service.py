@@ -26,9 +26,12 @@ class UpdateEvaluationScenarioError(Exception):
     pass
 
 
-async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
+async def create_new_evaluation(
+    newEvaluationData: NewEvaluation, **kwargs: dict
+) -> Dict:
     evaluation = newEvaluationData.dict()
     evaluation["created_at"] = evaluation["updated_at"] = datetime.utcnow()
+    evaluation.update(kwargs)
 
     newEvaluation = await evaluations.insert_one(evaluation)
 
@@ -72,6 +75,7 @@ async def create_new_evaluation(newEvaluationData: NewEvaluation) -> Dict:
             **extend_with_evaluation(newEvaluationData.evaluation_type),
             **extend_with_correct_answer(newEvaluationData.evaluation_type, datum),
         }
+        evaluation_scenario.update(kwargs)
 
         await evaluation_scenarios.insert_one(evaluation_scenario)
 
@@ -99,6 +103,7 @@ async def update_evaluation_scenario(
     evaluation_scenario_id: str,
     evaluation_scenario_data: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
+    **kwargs,
 ) -> Dict:
     evaluation_scenario_dict = evaluation_scenario_data.dict()
     evaluation_scenario_dict["updated_at"] = datetime.utcnow()
@@ -132,6 +137,7 @@ async def update_evaluation_scenario(
         )
 
         new_evaluation_set["evaluation"] = evaluation
+        new_evaluation_set.update(kwargs)  # update user and organization id
 
     result = await evaluation_scenarios.update_one(
         {"_id": ObjectId(evaluation_scenario_id)}, {"$set": new_evaluation_set}
