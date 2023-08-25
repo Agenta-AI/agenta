@@ -127,7 +127,6 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
         let APIParams = parseOpenApiSchema(response.data)
         // we create a new param for DictInput that will contain the name of the inputs
         APIParams = APIParams.map((param) => {
-            console.log("param", param)
             if (param.type === "object") {
                 // if param.default is defined
                 if (param?.default) {

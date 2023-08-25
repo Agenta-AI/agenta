@@ -57,7 +57,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
             }}
         >
             <YouTube
-                videoId="8-k1C6ehKuw"
+                videoId="nggaRwDZM-0"
                 onStateChange={onPlayerReady}
                 ref={(youtube) => {
                     youtubePlayer.current = youtube
