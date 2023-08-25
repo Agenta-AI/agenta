@@ -20,6 +20,10 @@ import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
 import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
 
+type testsetTableProps = {
+    mode: "create" | "edit"
+}
+
 export const CHECKBOX_COL = {
     field: "",
     headerCheckboxSelection: true,
@@ -31,7 +35,7 @@ export const CHECKBOX_COL = {
 
 export const ADD_BUTTON_COL = {field: "", editable: false, maxWidth: 100}
 
-const useStyles = createUseStyles({
+const useStylesCell = createUseStyles({
     cellContainer: {
         position: "relative",
         display: "flex",
@@ -54,12 +58,58 @@ const useStyles = createUseStyles({
     },
 })
 
-type testsetTableProps = {
-    mode: "create" | "edit"
-}
+const useStylesTestset = createUseStyles({
+    plusIcon: {
+        width: "100%",
+        display: "flex",
+        justifyContent: "end",
+        "& button": {
+            marginRight: "10px",
+        },
+    },
+    columnTitle: {
+        width: "100%",
+        height: "100% ",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        "& input": {
+            marginTop: "10px",
+            marginBottom: "10px",
+            height: "30px",
+            marginRight: "3px",
+            outline: "red",
+        },
+    },
+    saveBtn: {
+        width: "45px !important",
+    },
+    title: {
+        marginBottom: "20px !important",
+    },
+    inputContainer: {
+        width: "100%",
+        marginBottom: 20,
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        "& input": {
+            marginRight: "10px",
+        },
+    },
+    notes: {
+        marginBottom: 20,
+    },
+    btnContainer: {
+        display: "flex",
+        alignItems: "center",
+        marginTop: "20px",
+        gap: 10,
+    },
+})
 
 function CellRenderer(props: any) {
-    const classes = useStyles()
+    const classes = useStylesCell()
     const cellValue = props.valueFormatted ? props.valueFormatted : props.value
 
     return props.colDef.field ? (
@@ -94,6 +144,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         })
     }
 
+    const classes = useStylesTestset()
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
     const {testset_id} = router.query
@@ -300,8 +351,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
         if (displayName === "") {
             return (
-                <div style={{width: "100%", display: "flex", justifyContent: "end"}}>
-                    <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
+                <div className={classes.plusIcon}>
+                    <Button onClick={onAddColumn}>
                         <PlusOutlined />
                     </Button>
                 </div>
@@ -309,27 +360,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         } else {
             return (
                 <>
-                    <div
-                        style={{
-                            width: "100%",
-                            height: "100% ",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                        }}
-                    >
+                    <div className={classes.columnTitle}>
                         {isEditInputOpen ? (
                             <Input
                                 value={scopedInputValues[index]}
                                 onChange={(event) => handleInputChange(index, event)}
                                 size="small"
-                                style={{
-                                    marginTop: "10px",
-                                    marginBottom: "10px",
-                                    height: "30px",
-                                    marginRight: "3px",
-                                    outline: "red",
-                                }}
                             />
                         ) : (
                             displayName
@@ -341,9 +377,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                                     icon="Save"
                                     onClick={handleSave}
                                     type="default"
-                                    style={{
-                                        width: "45px",
-                                    }}
+                                    className={classes.saveBtn}
                                 />
                             ) : (
                                 <Button
@@ -469,23 +503,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         <div>
             {contextHolder}
 
-            <Typography.Title level={5} style={{marginBottom: "20px"}}>
+            <Typography.Title level={5} className={classes.title}>
                 Create a new Test Set
             </Typography.Title>
 
-            <div
-                style={{
-                    width: "100%",
-                    marginBottom: 20,
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                }}
-            >
+            <div className={classes.inputContainer}>
                 <Input
                     value={testsetName}
                     onChange={handleChange}
-                    style={{marginRight: "10px"}}
                     placeholder="Test Set Name"
                     data-cy="testset-name-input"
                 />
@@ -494,7 +519,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 </Button>
             </div>
 
-            <div style={{marginBottom: 20}}>
+            <div className={classes.notes}>
                 <div>
                     <Typography.Text italic>Notes:</Typography.Text>
                 </div>
@@ -533,29 +558,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 />
             </div>
             {selectedRow && (
-                <div
-                    style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginTop: "20px",
-                    }}
-                >
-                    <div>
-                        <Button onClick={onAddRow}>Add Row</Button>
-                        <Button
-                            onClick={onDeleteRow}
-                            style={{marginLeft: 10}}
-                            disabled={selectedRow.length < 1}
-                        >
-                            Delete Row{selectedRow.length > 1 ? "s" : null}
-                        </Button>
-                        <Button
-                            onClick={handleExportClick}
-                            style={{marginLeft: "10px", marginRight: "auto"}}
-                        >
-                            Export as CSV
-                        </Button>
-                    </div>
+                <div className={classes.btnContainer}>
+                    <Button onClick={onAddRow}>Add Row</Button>
+                    <Button onClick={onDeleteRow} disabled={selectedRow.length < 1}>
+                        Delete Row{selectedRow.length > 1 ? "s" : null}
+                    </Button>
+                    <Button onClick={handleExportClick}>Export as CSV</Button>
                 </div>
             )}
 

@@ -8,6 +8,7 @@ import {useState, useEffect} from "react"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {DeleteOutlined} from "@ant-design/icons"
 import {deleteTestsets} from "@/lib/services/api"
+import {createUseStyles} from "react-jss"
 
 type testsetTableDatatype = {
     key: string
@@ -15,12 +16,38 @@ type testsetTableDatatype = {
     name: string
 }
 
+const useStyles = createUseStyles({
+    container: {
+        marginTop: 20,
+        marginBottom: 40,
+    },
+    btnContainer: {
+        display: "flex",
+        justifyContent: "space-between",
+        marginTop: "20px",
+    },
+    deleteBtn: {
+        marginTop: "30px",
+        "& svg": {
+            color: "red",
+        },
+    },
+    linksContainer: {
+        display: "flex",
+        gap: "10px",
+    },
+    startLink: {
+        marginLeft: 10,
+    },
+})
+
 const fetchData = async (url: string): Promise<any> => {
     const response = await fetch(url)
     return response.json()
 }
 
 export default function testsets() {
+    const classes = useStyles()
     const router = useRouter()
     const {app_name} = router.query
     const [testsetsList, setTestsetsList] = useState<testsetTableDatatype[]>([])
@@ -94,15 +121,9 @@ export default function testsets() {
 
     return (
         <div>
-            <div style={{marginTop: 20, marginBottom: 40}}>
-                <div
-                    style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginTop: "20px",
-                    }}
-                >
-                    <div style={{display: "flex", gap: "10px"}}>
+            <div className={classes.container}>
+                <div className={classes.btnContainer}>
+                    <div className={classes.linksContainer}>
                         <Link
                             data-cy="testset-new-upload-link"
                             href={`/apps/${app_name}/testsets/new/upload`}
@@ -123,7 +144,7 @@ export default function testsets() {
                         </Link>
                     </div>
 
-                    <Link href={`/apps/${app_name}/evaluations`} style={{marginLeft: 10}}>
+                    <Link href={`/apps/${app_name}/evaluations`} className={classes.startLink}>
                         <Button>Start an evaluation</Button>
                     </Link>
                 </div>
@@ -131,10 +152,10 @@ export default function testsets() {
                 {selectedRowKeys.length > 0 && (
                     <Button
                         data-cy="app-testset-delete-button"
-                        style={{marginTop: 30}}
                         onClick={onDelete}
+                        className={classes.deleteBtn}
                     >
-                        <DeleteOutlined key="delete" style={{color: "red"}} />
+                        <DeleteOutlined key="delete" />
                         Delete
                     </Button>
                 )}

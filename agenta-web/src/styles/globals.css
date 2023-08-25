@@ -5,6 +5,10 @@ body {
     text-decoration: none;
 }
 
+.evalautionContainer {
+    margin-bottom: 200px;
+}
+
 .mdxSlider img {
     width: 100%;
 }
