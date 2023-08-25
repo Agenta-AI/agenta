@@ -124,10 +124,13 @@ To resolve this issue:
 Verify that the relevant Traefik rule in the `docker-compose.yml` file is properly configured.
 
 2. Prune Docker Resources: kindly follow the commands below to stop and remove all the agenta containers; and to finally prune all the volumes associated with it. 
-- docker stop $(docker ps -q -f "name=agenta-*")
-- docker rm $(docker ps -aq -f "name=agenta-*")
-- docker volume ls -q -f "name=agenta-*"
-- docker volume rm VOLUME_NAME
+
+```bash
+docker stop $(docker ps -q -f "name=agenta-*")
+docker rm $(docker ps -aq -f "name=agenta-*")
+docker volume ls -q -f "name=agenta-*"
+docker volume rm VOLUME_NAME
+```
 
 Once you have completed these steps, start the application again by running `docker-compose up` and access the backend server by making requests to `http://localhost:8000`. 
 If the issue persists after following these troubleshooting steps, it's essential to investigate further into the Traefik configuration and the interaction between Traefik and the backend server.
