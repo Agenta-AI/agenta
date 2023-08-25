@@ -94,7 +94,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     const variants = evaluation.variants
 
-    const variantData = s(appName, variants)
+    const variantData = useVariants(appName, variants)
 
     const [rows, setRows] = useState<SimilarityMatchEvaluationTableRow[]>([])
     const [dissimilarAnswers, setDissimilarAnswers] = useState<number>(0)
