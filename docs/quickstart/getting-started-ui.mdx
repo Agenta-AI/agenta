@@ -1,0 +1,55 @@
+---
+title: 'Getting Started'
+description: 'Create and deploy your first LLM app in one minute'
+---
+
+<Note>This tutorial helps users create LLM apps using templates within the UI. For more complex applications involving code in Agenta, please refer to Using code in Agenta [Using code in agenta](/quickstart/getting-started-code) </Note>
+
+Want a video tutorial instead? We have a 4-minute video for you. [Watch it here](https://youtu.be/plPVrHXQ-DU).
+
+<iframe width="720" height="450" src="https://www.youtube.com/embed/plPVrHXQ-DU?si=3KZoWdynQtM1x-cK" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
+## Introduction
+
+Welcome! This beginner-friendly guide will walk you through building a simple LLM app in Agenta using an existing template. We'll create the application, engineer a prompt, and deploy it as an API—all in one minute.
+
+## Prerequisites
+
+Make sure you have installed the Agenta web platform or are using the cloud version. If you haven't done this yet, follow our [installation guide](/installation).
+
+## Step 0: Add you OpenAI API keys
+
+1. Access the Agenta web platform.
+2. Select API keys from the left menu.
+3. Add your OpenAI API key.
+
+Your OpenAI API keys are saved locally on your browser and are sent to the Agenta server only when you create a new application (as an environment variable in the Docker container).
+
+<img height="600" src="/images/getting-started-ui-screenshots/00_provide_openapi_token.png" />
+
+## Step 1: Create a New LLM App
+
+1. Click on the "Create New App" button.
+2. Select "Create from Template" and choose the "Single Prompt Template"; then name the application "get_capital."
+
+<img height="600" src="/images/getting-started-ui-screenshots/01_create_new_app.png" />
+
+<Check> You've created your first LLM application! Test it out in the playground, play with its parameters, or use it in your software by copying the code from the "Endpoints" menu.</Check>
+
+## Step 2: Test the Application
+The provided application template already includes a prompt that states the capital of a country. Let's test it:
+
+- Go to the playground.
+- Type "France."
+- Click the "Run" button.
+- The result should read, "The capital of France is Paris." If you only want to return "Paris," we'll adjust this with prompt engineering in the next step.
+
+<img height="600" src="/images/getting-started-ui-screenshots/03_playground.png" />
+
+## Step 3: Deploy the application
+The application was deployed as an API the moment you created it. You can find the API endpoint in the "Endpoints" menu. Copy and paste the code from the "Endpoints" menu to use it in your software.
+
+<img height="600" src="/images/getting-started-ui-screenshots/06_deployment.png" />
+
+
+<Check> Congratulations! You've created your first LLM application. Feel free to modify it, explore its parameters, and discover Agenta's features. Your next steps could include [building an application using your own code](getting-started-code.mdx), or following one of our UI-based tutorials.</Check> 

@@ -1,9 +1,8 @@
 from typing import Tuple, Dict
 from agenta_backend.services.db_mongo import users
-from supertokens_python.recipe.session import SessionContainer
 
 
-async def get_user_and_org_id(session: SessionContainer) -> Dict[str, str]:
+async def get_user_and_org_id(session) -> Dict[str, str]:
     """Retrieves the user ID and organization ID based on the logged-in session.
 
     Arguments:
@@ -12,10 +11,7 @@ async def get_user_and_org_id(session: SessionContainer) -> Dict[str, str]:
     Returns:
         A dictionary containing the user_id and organization_id.
     """
-
-    user_session_id = session.get_user_id()
-    user_id, org_id = await get_user_objectid(user_session_id)
-    return {"user_id": user_id, "organization_id": org_id}
+    return {"user_id": "0", "organization_id": "0"}
 
 
 async def get_user_objectid(user_id: str) -> Tuple[str, str]:

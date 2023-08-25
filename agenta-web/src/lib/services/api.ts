@@ -1,7 +1,14 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, EvaluationResponseType, Evaluation, AppTemplate} from "@/lib/Types"
+import {
+    Variant,
+    Parameter,
+    EvaluationResponseType,
+    Evaluation,
+    AppTemplate,
+    GenericObject,
+} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
@@ -11,7 +18,7 @@ import {EvaluationType} from "../enums"
  * Raw interface for the parameters parsed from the openapi.json
  */
 
-const fetcher = (...args) => fetch(...args).then((res) => res.json())
+const fetcher = (...args: Parameters<typeof fetch>) => fetch(...args).then((res) => res.json())
 
 export async function fetchVariants(app: string): Promise<Variant[]> {
     const response = await axios.get(
@@ -48,14 +55,9 @@ export function callVariant(
     optionalParameters: Parameter[],
     URIPath: string,
 ) {
-    console.log("inputParametersDict", inputParametersDict)
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
     const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
-    const inputParams = Object.keys(inputParametersDict).reduce((acc: any, key) => {
-        acc[key] = inputParametersDict[key]
-        return acc
-    }, {})
     for (let key of Object.keys(inputParametersDict)) {
         const paramDefinition = inputParamDefinition.find((param) => param.name === key)
 
@@ -368,7 +370,7 @@ export const loadEvaluationsScenarios = async (
     }
 }
 
-export const updateEvaluation = async (evaluationId: string, data) => {
+export const updateEvaluation = async (evaluationId: string, data: GenericObject) => {
     const response = await eval_endpoint.put(`${evaluationId}`, data)
     return response.data
 }
@@ -376,7 +378,7 @@ export const updateEvaluation = async (evaluationId: string, data) => {
 export const updateEvaluationScenario = async (
     evaluationTableId: string,
     evaluationScenarioId: string,
-    data,
+    data: GenericObject,
     evaluationType: EvaluationType,
 ) => {
     const response = await eval_endpoint.put(
@@ -386,7 +388,7 @@ export const updateEvaluationScenario = async (
     return response.data
 }
 
-export const postEvaluationScenario = async (evaluationTableId: string, data) => {
+export const postEvaluationScenario = async (evaluationTableId: string, data: GenericObject) => {
     const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_scenario`, data)
     return response.data
 }

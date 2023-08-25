@@ -1,11 +1,67 @@
 import {Row, Card, Slider, Select, InputNumber, Col, Input, Button} from "antd"
-import React, {ParamHTMLAttributes} from "react"
+import React from "react"
 import {Parameter, InputParameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
-import {useEffect} from "react"
+import {createUseStyles} from "react-jss"
+
+const useStyles = createUseStyles({
+    row1: {
+        padding: 0,
+        width: "100%",
+        marginTop: "16px",
+    },
+    card: {
+        marginTop: 16,
+        width: "100%",
+        border: "1px solid #ccc",
+        marginRight: "24px",
+        "& .ant-card-body": {
+            padding: "4px 16px",
+            margin: "16px 0px",
+            border: "0px solid #ccc",
+        },
+        "& .ant-card-head": {
+            minHeight: 44,
+            padding: "0px 12px",
+        },
+    },
+    row2: {
+        alignItems: "center",
+        marginBottom: 10,
+    },
+    row2ObjParams: {
+        alignItems: "center",
+        marginTop: 12,
+        marginBottom: 12,
+    },
+    deleteBtn: {
+        margin: "0px 24px",
+    },
+    addBtn: {
+        margin: "12px 0px",
+    },
+    textarea: {
+        padding: 0,
+    },
+    colTitle: {
+        margin: 0,
+        padding: 0,
+        textAlign: "left",
+    },
+    colSlider: {
+        marginBottom: 8,
+    },
+    inputNumber: {
+        margin: "0 16px",
+        width: "100%",
+    },
+    select: {
+        width: "100%",
+    },
+})
 
 interface ModelParametersProps {
-    optParams: Parameter[]
+    optParams: Parameter[] | null
     onChange: (param: Parameter, value: number | string) => void
     handleParamChange: (name: string, value: number | string) => void
 }
@@ -15,25 +71,12 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
     onChange,
     handleParamChange,
 }) => {
+    const classes = useStyles()
     return (
         <>
             {optParams?.some((param) => !param.input && param.type === "number") && (
-                <Row gutter={0} style={{padding: "0px 0px", width: "100%", marginTop: "16px"}}>
-                    <Card
-                        style={{
-                            marginTop: 16,
-                            width: "100%",
-                            border: "1px solid #ccc",
-                            marginRight: "24px",
-                        }}
-                        bodyStyle={{
-                            padding: "4px 16px",
-                            margin: "16px 0px",
-                            border: "0px solid #ccc",
-                        }}
-                        headStyle={{minHeight: 44, padding: "0px 12px"}}
-                        title="Model Parameters"
-                    >
+                <Row gutter={0} className={classes.row1}>
+                    <Card className={classes.card} title="Model Parameters">
                         {optParams
                             ?.filter(
                                 (param) =>
@@ -43,21 +86,9 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                         param.type === "array"),
                             )
                             .map((param, index) => (
-                                <Row
-                                    key={index}
-                                    style={{
-                                        alignItems: "center",
-                                        marginBottom: 10,
-                                    }}
-                                >
+                                <Row key={index} className={classes.row2}>
                                     <Col span={6}>
-                                        <h4
-                                            style={{
-                                                margin: 0,
-                                                padding: 0,
-                                                textAlign: "left",
-                                            }}
-                                        >
+                                        <h4 className={classes.colTitle}>
                                             {renameVariables(param.name)}
                                         </h4>
                                     </Col>
@@ -73,7 +104,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                                 }
                                                 step={0.01}
                                                 onChange={(value) => onChange(param, value)}
-                                                style={{marginBottom: 8}}
+                                                className={classes.colSlider}
                                             />
                                         )}
                                         {param.type === "integer" && (
@@ -87,7 +118,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                                 }
                                                 step={1}
                                                 onChange={(value) => onChange(param, value)}
-                                                style={{marginBottom: 8}}
+                                                className={classes.colSlider}
                                             />
                                         )}
                                         {param.type === "array" && (
@@ -96,7 +127,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                                 onChange={(value) =>
                                                     handleParamChange(param.name, value)
                                                 }
-                                                style={{width: "100%"}}
+                                                className={classes.select}
                                             >
                                                 {param.enum?.map((value: string, index: number) => (
                                                     <Select.Option key={index} value={value}>
@@ -111,7 +142,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                             <InputNumber
                                                 min={0}
                                                 max={10000}
-                                                style={{margin: "0 16px", width: "100%"}}
+                                                className={classes.inputNumber}
                                                 value={param.default}
                                                 onChange={(value) => onChange(param, value)}
                                             />
@@ -120,7 +151,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                             <InputNumber
                                                 min={param.minimum}
                                                 max={param.maximum}
-                                                style={{margin: "0 16px", width: "100%"}}
+                                                className={classes.inputNumber}
                                                 value={param.default}
                                                 onChange={(value) => onChange(param, value)}
                                             />
@@ -144,33 +175,20 @@ export const StringParameters: React.FC<StringParametersProps> = ({
     optParams,
     handleParamChange,
 }) => {
+    const classes = useStyles()
     return (
         <>
             {optParams
                 ?.filter((param) => param.type === "string")
                 .map((param, index) => (
-                    <Row
-                        gutter={0}
-                        style={{padding: "0px 0px", width: "100%", marginRight: "16px"}}
-                        key={index}
-                    >
-                        <Card
-                            style={{
-                                marginTop: 16,
-                                width: "100%",
-                                border: "1px solid #ccc",
-                                marginRight: "24px",
-                            }}
-                            bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-                            headStyle={{minHeight: 44, padding: "0px 12px"}}
-                            title={renameVariables(param.name)}
-                        >
+                    <Row gutter={0} className={classes.row1} key={index}>
+                        <Card className={classes.card} title={renameVariables(param.name)}>
                             <Input.TextArea
                                 rows={5}
                                 defaultValue={param.default}
                                 onChange={(e) => handleParamChange(param.name, e.target.value)}
                                 bordered={false}
-                                style={{padding: "0px 0px"}}
+                                className={classes.textarea}
                             />
                         </Card>
                     </Row>
@@ -180,14 +198,16 @@ export const StringParameters: React.FC<StringParametersProps> = ({
 }
 
 interface ObjectParametersProps {
-    optParams: Parameter[]
-    handleParamChange: (name: string, value: number | string) => void
+    optParams: Parameter[] | null
+    handleParamChange: (name: string, value: any) => void
 }
 
 export const ObjectParameters: React.FC<ObjectParametersProps> = ({
     optParams,
     handleParamChange,
 }) => {
+    const classes = useStyles()
+
     const handleAddVariable = (param: Parameter) => {
         const updatedParams: InputParameter[] = [...param.default, {name: ""}]
 
@@ -198,7 +218,6 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
         updatedParams[variableIndex].name = newName
         handleParamChange(param.name, updatedParams)
     }
-
     const handleDeleteVariable = (param: Parameter, variableIndex: number) => {
         let updatedParams: InputParameter[] = [...param.default]
         updatedParams.splice(variableIndex, 1)
@@ -209,31 +228,10 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
             {optParams
                 ?.filter((param) => param.type === "object")
                 .map((param, index) => (
-                    <Row
-                        gutter={0}
-                        style={{padding: "0px 0px", width: "100%", marginRight: "16px"}}
-                        key={index}
-                    >
-                        <Card
-                            style={{
-                                marginTop: 16,
-                                width: "100%",
-                                border: "1px solid #ccc",
-                                marginRight: "24px",
-                            }}
-                            bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-                            headStyle={{minHeight: 44, padding: "0px 12px"}}
-                            title={renameVariables(param.name)}
-                        >
-                            {param.default.map((val, index) => (
-                                <Row
-                                    key={index}
-                                    style={{
-                                        alignItems: "center",
-                                        marginTop: 12,
-                                        marginBottom: 12,
-                                    }}
-                                >
+                    <Row gutter={0} className={classes.row1} key={index}>
+                        <Card className={classes.card} title={renameVariables(param.name)}>
+                            {param.default.map((val: Parameter, index: number) => (
+                                <Row key={index} className={classes.row2ObjParams}>
                                     <Col span={4}>
                                         <Input.TextArea
                                             rows={1}
@@ -255,7 +253,7 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
                                         <Button
                                             type="default"
                                             danger
-                                            style={{margin: "0px 24px"}}
+                                            className={classes.deleteBtn}
                                             onClick={() => handleDeleteVariable(param, index)}
                                         >
                                             Delete
@@ -265,7 +263,7 @@ export const ObjectParameters: React.FC<ObjectParametersProps> = ({
                             ))}
                             <Button
                                 type="default"
-                                style={{margin: "12px 0px"}}
+                                className={classes.addBtn}
                                 onClick={() => handleAddVariable(param)}
                             >
                                 + Add variable

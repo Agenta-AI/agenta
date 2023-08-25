@@ -7,8 +7,6 @@ class TestsetModel(BaseModel):
     column_value: Any = Field(...)
     testset_id: str = Field(...)
     app_id: str = Field(...)
-    user_id: str
-    organization_id: str
 
     class Config:
         schema_extra = {
