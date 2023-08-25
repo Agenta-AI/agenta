@@ -9,8 +9,16 @@ import cURLCodeUpload from "../../../../../../code_snippets/testsets/create_with
 import tsCodeUpload from "../../../../../../code_snippets/testsets/create_with_upload/typescript"
 import {Typography} from "antd"
 import {useRouter} from "next/router"
+import {createUseStyles} from "react-jss"
+
+const useStyles = createUseStyles({
+    title: {
+        marginBottom: "20px !important",
+    },
+})
 
 export default function NewTestsetWithAPI() {
+    const classes = useStyles()
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
 
@@ -33,11 +41,11 @@ export default function NewTestsetWithAPI() {
     }
     return (
         <div>
-            <Typography.Title level={5} style={{marginBottom: "20px"}}>
+            <Typography.Title level={5} className={classes.title}>
                 Create a new Test Set with JSON
             </Typography.Title>
             <DynamicCodeBlock codeSnippets={codeSnippets} />
-            <Typography.Title level={5} style={{marginBottom: "20px"}}>
+            <Typography.Title level={5} className={classes.title}>
                 Create a new Test Set with uploading a CSV file
             </Typography.Title>
             <DynamicCodeBlock codeSnippets={codeSnippetsUpload} />

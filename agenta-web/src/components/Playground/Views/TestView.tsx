@@ -8,6 +8,74 @@ import {TestContext} from "../TestContextProvider"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
+import {createUseStyles} from "react-jss"
+
+const useStylesBox = createUseStyles({
+    card: {
+        marginTop: 16,
+        border: "1px solid #ccc",
+        marginRight: "24px",
+        marginLeft: "12px",
+        "& .ant-card-body": {
+            padding: "4px 16px",
+            border: "0px solid #ccc",
+        },
+    },
+    rowHeader: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
+    row1: {
+        marginTop: 0,
+        "& textarea": {
+            height: "100%",
+            width: "100%",
+            marginTop: "16px",
+        },
+    },
+    row2: {
+        marginTop: "16px",
+    },
+    row2Col: {
+        justifyContent: "flex-end",
+        display: "flex",
+        gap: "0.75rem",
+        "& button:nth-of-type(2)": {
+            width: "100px",
+        },
+    },
+    row3: {
+        margin: "16px 0",
+        "& textarea": {
+            height: "100%",
+            width: "100%",
+        },
+    },
+})
+
+const useStylesApp = createUseStyles({
+    testView: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginRight: "24px",
+        marginLeft: "12px",
+        "& > h2": {
+            padding: "0px",
+            marginBottom: "8px",
+        },
+    },
+    runAllBtn: {
+        backgroundColor: "green",
+    },
+    addBtn: {
+        marginTop: "16px",
+        width: "200px",
+        marginBottom: "24px",
+        marginLeft: "12px",
+    },
+})
 
 interface TestViewProps {
     URIPath: string | null
@@ -38,6 +106,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     onAddToTestset,
     handleDeleteRow,
 }) => {
+    const classes = useStylesBox()
     const {TextArea} = Input
 
     if (!inputParams) {
@@ -66,16 +135,8 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     }
 
     return (
-        <Card
-            style={{
-                marginTop: 16,
-                border: "1px solid #ccc",
-                marginRight: "24px",
-                marginLeft: "12px",
-            }}
-            bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-        >
-            <Row style={{display: "flex", alignItems: "center", justifyContent: "space-between"}}>
+        <Card className={classes.card}>
+            <Row className={classes.rowHeader}>
                 <h4>Input parameters</h4>
                 <Button
                     icon={<DeleteOutlined />}
@@ -83,22 +144,18 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                 ></Button>
             </Row>
 
-            <Row style={{marginTop: "0px"}}>
+            <Row className={classes.row1}>
                 {inputParamsNames.map((key, index) => (
                     <TextArea
                         key={index}
                         value={testData[key]}
                         placeholder={renameVariables(key)}
                         onChange={(e) => handleInputParamValChange(key, e.target.value)}
-                        style={{height: "100%", width: "100%", marginTop: "16px"}}
                     />
                 ))}
             </Row>
-            <Row style={{marginTop: "16px"}}>
-                <Col
-                    span={24}
-                    style={{justifyContent: "flex-end", display: "flex", gap: "0.75rem"}}
-                >
+            <Row className={classes.row2}>
+                <Col span={24} className={classes.row2Col}>
                     <Button shape="round" icon={<PlusOutlined />} onClick={handleAddToTestset}>
                         Add to Test Set
                     </Button>
@@ -107,7 +164,6 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         shape="round"
                         icon={<CaretRightOutlined />}
                         onClick={() => handleRun(testData, testIndex)}
-                        style={{width: "100px"}}
                         loading={resultsList[testIndex] === "Loading..."}
                         disabled={resultsList[testIndex] === "Loading..."}
                     >
@@ -115,16 +171,12 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     </Button>
                 </Col>
             </Row>
-            <Row style={{marginTop: "16px", marginBottom: "16px"}}>
+            <Row className={classes.row3}>
                 <TextArea
                     value={results}
                     rows={6}
                     placeholder="Results will be shown here"
                     disabled
-                    style={{
-                        height: "100%",
-                        width: "100%",
-                    }}
                 />
             </Row>
         </Card>
@@ -135,6 +187,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
     const {testList, setTestList} = useContext(TestContext)
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
+    const classes = useStylesApp()
 
     const handleRun = async (testData: Record<string, string>, testIndex: number) => {
         try {
@@ -142,7 +195,12 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
             newResultsList[testIndex] = "Loading..."
             setResultsList(newResultsList)
 
-            const result = await callVariant(testData, inputParams, optParams, URIPath)
+            const result = await callVariant(
+                testData,
+                inputParams || [],
+                optParams || [],
+                URIPath || "",
+            )
 
             const newResultList2 = [...resultsList]
             newResultList2[testIndex] = result
@@ -162,7 +220,12 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
         setResultsList(testList.map(() => "Loading..."))
         try {
             const resultsPromises = testList.map(async (testData, index) => {
-                return await callVariant(testData, inputParams, optParams, URIPath)
+                return await callVariant(
+                    testData,
+                    inputParams || [],
+                    optParams || [],
+                    URIPath || "",
+                )
             })
             const results = await Promise.all(resultsPromises)
             results.forEach((result, index) => {
@@ -200,16 +263,8 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     return (
         <div>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginRight: "24px",
-                    marginLeft: "12px",
-                }}
-            >
-                <h2 style={{padding: "0px", marginBottom: "8px"}}>2. Preview and test</h2>
+            <div className={classes.testView}>
+                <h2>2. Preview and test</h2>
                 <Space size={10}>
                     <LoadTestsModal
                         setNewTests={handleSetNewTests}
@@ -219,7 +274,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                     <Button
                         type="primary"
                         size="middle"
-                        style={{backgroundColor: "green"}}
+                        className={classes.runAllBtn}
                         onClick={handleRunAll}
                     >
                         Run all
@@ -246,12 +301,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 size="large"
                 icon={<PlusOutlined />}
                 onClick={handleAddRow}
-                style={{
-                    marginTop: "16px",
-                    width: "200px",
-                    marginBottom: "24px",
-                    marginLeft: "12px",
-                }}
+                className={classes.addBtn}
             >
                 Add Row
             </Button>

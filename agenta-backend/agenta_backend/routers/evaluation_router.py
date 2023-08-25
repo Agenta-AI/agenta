@@ -29,10 +29,14 @@ from agenta_backend.services.db_mongo import (
     evaluations,
     evaluation_scenarios,
 )
-from agenta_backend.services.selectors import get_user_and_org_id
+from agenta_backend.config import settings
 
-from supertokens_python.recipe.session.framework.fastapi import verify_session
-from supertokens_python.recipe.session import SessionContainer
+if settings.feature_flag in ["cloud", "ee"]:
+    from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.ee.services.selectors import get_user_and_org_id
+else:
+    from agenta_backend.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.services.selectors import get_user_and_org_id
 
 
 router = APIRouter()

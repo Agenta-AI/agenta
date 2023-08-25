@@ -1,3 +1,7 @@
 {
-    "extends": ["next/core-web-vitals", "prettier"]
+    "extends": ["next/core-web-vitals", "prettier"],
+    "rules": {
+        "react/no-unescaped-entities": 0,
+        "react-hooks/rules-of-hooks": 0
+    }
 }

@@ -1,9 +1,27 @@
 import {getOpenAIKey, removeOpenAIKey, saveOpenAIKey} from "@/lib/helpers/utils"
 import {Button, Input, Space, Typography, message} from "antd"
 import {useState} from "react"
+import {createUseStyles} from "react-jss"
+
+const useStyles = createUseStyles({
+    title: {
+        marginBottom: "30px !important",
+    },
+    container: {
+        marginLeft: 20,
+    },
+    apiContainer: {
+        margin: "20px 0",
+    },
+    input: {
+        minWidth: 300,
+    },
+})
 
 export default function ApiKeys() {
     const {Title, Text} = Typography
+
+    const classes = useStyles()
 
     const savedOpenAiKey = getOpenAIKey()
 
@@ -15,7 +33,7 @@ export default function ApiKeys() {
     return (
         <div>
             {contextHolder}
-            <Title level={3} style={{marginBottom: 30}}>
+            <Title level={3} className={classes.title}>
                 API tokens
             </Title>
 
@@ -24,7 +42,7 @@ export default function ApiKeys() {
                 well as provide your API credentials to LLM providers such as openAI.
             </Text>
 
-            <div style={{marginLeft: 20}}>
+            <div className={classes.container}>
                 <Title level={4}>LLM providers</Title>
 
                 <Text>
@@ -34,14 +52,14 @@ export default function ApiKeys() {
                     removed any time.
                 </Text>
 
-                <div style={{margin: "20px 0"}}>
+                <div className={classes.apiContainer}>
                     <Space direction="horizontal">
                         <Input.Password
                             value={openAiKey}
                             onChange={(e) => setOpenAiKey(e.target.value)}
                             addonBefore="OpenAI"
                             visibilityToggle={false}
-                            style={{minWidth: 300}}
+                            className={classes.input}
                         />
                         <Button
                             disabled={saveDisabled}

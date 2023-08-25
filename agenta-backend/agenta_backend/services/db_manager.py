@@ -21,7 +21,10 @@ import logging
 DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_engine(DATABASE_URL)
 # Create tables if they don't exist
-SQLModel.metadata.create_all(engine)
+AppVariantDB.metadata.create_all(engine)
+ImageDB.metadata.create_all(engine)
+TemplateDB.metadata.create_all(engine)
+# SQLModel.metadata.create_all(engine) # this doesn't work
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
