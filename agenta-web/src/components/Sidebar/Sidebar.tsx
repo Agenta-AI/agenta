@@ -63,6 +63,12 @@ const useStyles = createUseStyles({
     menuLinks: {
         width: "100%",
     },
+    sideIcons: {
+        paddingLeft: "20px",
+    },
+    optionSideIcon: {
+        paddingLeft: "30px",
+    }
 })
 
 const Sidebar: React.FC = () => {
@@ -114,11 +120,11 @@ const Sidebar: React.FC = () => {
                         selectedKeys={initialSelectedKeys}
                         className={classes.menuContainer}
                     >
-                        <Menu.Item key="apps" icon={<AppstoreOutlined />}>
-                            <Tooltip
-                                placement="right"
-                                title="Create new applications or switch between your existing projects."
-                            >
+                        <Tooltip
+                            placement="right"
+                            title="Create new applications or switch between your existing projects."
+                        >
+                            <Menu.Item key="apps" icon={<AppstoreOutlined className={classes.sideIcons}/>}>
                                 <Link
                                     data-cy="app-management-link"
                                     href={getNavigationPath("apps")}
@@ -126,15 +132,16 @@ const Sidebar: React.FC = () => {
                                 >
                                     App Management
                                 </Link>
-                            </Tooltip>
-                        </Menu.Item>
+                            </Menu.Item>
+                        </Tooltip>
                         {page_name && (
                             <>
-                                <Menu.Item key="playground" icon={<RocketOutlined />}>
-                                    <Tooltip
-                                        placement="right"
-                                        title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
-                                    >
+                                <Tooltip
+                                    placement="right"
+                                    key="playground"
+                                    title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
+                                >
+                                    <Menu.Item icon={<RocketOutlined className={classes.optionSideIcon}/>}>
                                         <Link
                                             data-cy="app-playground-link"
                                             href={getNavigationPath("playground")}
@@ -142,14 +149,14 @@ const Sidebar: React.FC = () => {
                                         >
                                             Playground
                                         </Link>
-                                    </Tooltip>
-                                </Menu.Item>
+                                    </Menu.Item>
+                                </Tooltip>
 
-                                <Menu.Item key="testsets" icon={<DatabaseOutlined />}>
-                                    <Tooltip
-                                        placement="right"
-                                        title="Create and manage testsets for evaluation purposes."
-                                    >
+                                <Tooltip
+                                    placement="right"
+                                    title="Create and manage testsets for evaluation purposes."
+                                >
+                                    <Menu.Item key="testsets" icon={<DatabaseOutlined className={classes.optionSideIcon}/>}>
                                         <Link
                                             data-cy="app-testsets-link"
                                             href={getNavigationPath("testsets")}
@@ -157,14 +164,14 @@ const Sidebar: React.FC = () => {
                                         >
                                             Test Sets
                                         </Link>
-                                    </Tooltip>
-                                </Menu.Item>
+                                    </Menu.Item>
+                                </Tooltip>
 
-                                <Menu.Item key="evaluations" icon={<LineChartOutlined />}>
-                                    <Tooltip
-                                        placement="right"
-                                        title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                    >
+                                <Tooltip
+                                    placement="right"
+                                    title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                >
+                                    <Menu.Item key="evaluations" icon={<LineChartOutlined className={classes.optionSideIcon}/>}>
                                         <Link
                                             data-cy="app-evaluations-link"
                                             href={getNavigationPath("evaluations")}
@@ -172,13 +179,13 @@ const Sidebar: React.FC = () => {
                                         >
                                             Evaluate
                                         </Link>
-                                    </Tooltip>
-                                </Menu.Item>
-                                <Menu.Item key="results" icon={<BarChartOutlined />}>
-                                    <Tooltip
-                                        placement="right"
-                                        title="Analyze the evaluation outcomes to determine the most effective variants."
-                                    >
+                                    </Menu.Item>
+                                </Tooltip>
+                                <Tooltip
+                                    placement="right"
+                                    title="Analyze the evaluation outcomes to determine the most effective variants."
+                                >
+                                    <Menu.Item key="results" icon={<BarChartOutlined className={classes.optionSideIcon}/>}>
                                         <Link
                                             data-cy="app-results-link"
                                             href={getNavigationPath("results")}
@@ -186,14 +193,14 @@ const Sidebar: React.FC = () => {
                                         >
                                             Results
                                         </Link>
-                                    </Tooltip>
-                                </Menu.Item>
+                                    </Menu.Item>
+                                </Tooltip>
 
-                                <Menu.Item key="endpoints" icon={<CloudUploadOutlined />}>
-                                    <Tooltip
-                                        placement="right"
-                                        title="Monitor production logs to ensure seamless operations."
-                                    >
+                                <Tooltip
+                                    placement="right"
+                                    title="Monitor production logs to ensure seamless operations."
+                                >
+                                    <Menu.Item key="endpoints" icon={<CloudUploadOutlined className={classes.optionSideIcon}/>}>
                                         <Link
                                             data-cy="app-endpoints-link"
                                             href={getNavigationPath("endpoints")}
@@ -203,8 +210,8 @@ const Sidebar: React.FC = () => {
                                                 <span>Endpoints</span>
                                             </Space>
                                         </Link>
-                                    </Tooltip>
-                                </Menu.Item>
+                                    </Menu.Item>
+                                </Tooltip>
                             </>
                         )}
                     </Menu>
@@ -214,11 +221,12 @@ const Sidebar: React.FC = () => {
                         className={classes.menuContainer2}
                         selectedKeys={selectedKeys}
                     >
-                        <Menu.Item key="apikeys" icon={<LockOutlined />}>
-                            <Tooltip
-                                placement="right"
-                                title="Your api keys that are used in applications"
-                            >
+                        <Tooltip
+                            placement="right"
+                            key="apikeys"
+                            title="Your api keys that are used in applications"
+                        >
+                            <Menu.Item  icon={<LockOutlined />}>
                                 <Link
                                     data-cy="apikeys-link"
                                     href={getNavigationPath("keys")}
@@ -228,8 +236,8 @@ const Sidebar: React.FC = () => {
                                         <span>API keys</span>
                                     </Space>
                                 </Link>
-                            </Tooltip>
-                        </Menu.Item>
+                            </Menu.Item>
+                        </Tooltip>
                         <Menu.Item
                             key="theme"
                             icon={<DashboardOutlined />}
