@@ -1,15 +1,13 @@
 // VersionTabs.tsx
 
 import React, {useState, useEffect} from "react"
-import {Tabs, Modal, Input, Select, Space, Typography, message} from "antd"
+import {Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import VariantRemovalWarningModal from "./VariantRemovalWarningModal"
 import NewVariantModal from "./NewVariantModal"
 import {useRouter} from "next/router"
 import {fetchVariants, removeVariant} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem} from "@/lib/Types"
-import TestContextProvider from "./TestContextProvider"
-const {TabPane} = Tabs
 
 function addTab(
     setActiveKey: any,
@@ -172,22 +170,20 @@ const VersionTabs: React.FC = () => {
         <div>
             {contextHolder}
 
-            <TestContextProvider>
-                <Tabs
-                    type="editable-card"
-                    activeKey={activeKey}
-                    onChange={setActiveKey}
-                    onEdit={(targetKey, action) => {
-                        if (action === "add") {
-                            setIsModalOpen(true)
-                        } else if (action === "remove") {
-                            setRemovalVariantName(targetKey as string)
-                            setRemovalWarningModalOpen1(true)
-                        }
-                    }}
-                    items={tabItems}
-                />
-            </TestContextProvider>
+            <Tabs
+                type="editable-card"
+                activeKey={activeKey}
+                onChange={setActiveKey}
+                onEdit={(targetKey, action) => {
+                    if (action === "add") {
+                        setIsModalOpen(true)
+                    } else if (action === "remove") {
+                        setRemovalVariantName(targetKey as string)
+                        setRemovalWarningModalOpen1(true)
+                    }
+                }}
+                items={tabItems}
+            />
 
             <NewVariantModal
                 isModalOpen={isModalOpen}

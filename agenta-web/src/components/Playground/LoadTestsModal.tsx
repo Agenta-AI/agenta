@@ -5,8 +5,7 @@ import {PropsWithChildren, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 interface Props extends PropsWithChildren {
-    addNewTests: (tests: Record<string, string>[]) => void
-    setNewTests: (tests: Record<string, string>[]) => void
+    onLoad: (tests: Record<string, string>[], shouldReplace: boolean) => void
 }
 
 const useStyles = createUseStyles({
@@ -24,7 +23,7 @@ const useStyles = createUseStyles({
 
 const LoadTestsModal: React.FC<Props> = (props) => {
     const classes = useStyles()
-    const {addNewTests, setNewTests} = props
+    const {onLoad} = props
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [selectedSet, setSelectedSet] = useState<string>("")
@@ -38,16 +37,9 @@ const LoadTestsModal: React.FC<Props> = (props) => {
         value: item._id,
     }))
 
-    const handleAddData = () => {
+    const handleClick = (shouldReplace: boolean) => {
         loadTestset(selectedSet).then((data) => {
-            addNewTests(data.csvdata)
-        })
-        setIsOpen(false)
-    }
-
-    const handleSetData = () => {
-        loadTestset(selectedSet).then((data) => {
-            setNewTests(data.csvdata)
+            onLoad(data.csvdata, shouldReplace)
         })
         setIsOpen(false)
     }
@@ -60,10 +52,10 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                 onCancel={() => setIsOpen(false)}
                 footer={
                     <>
-                        <Button disabled={!selectedSet} onClick={handleAddData}>
+                        <Button disabled={!selectedSet} onClick={() => handleClick(false)}>
                             Add tests
                         </Button>
-                        <Button disabled={!selectedSet} onClick={handleSetData}>
+                        <Button disabled={!selectedSet} onClick={() => handleClick(true)}>
                             Replace tests
                         </Button>
                     </>
