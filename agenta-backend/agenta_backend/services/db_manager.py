@@ -219,7 +219,6 @@ async def list_apps(**kwargs) -> List[App]:
 
     app_names = await engine.find(AppVariantDB, query_expression)
     # Unpack tuples to create a list of strings instead of a list of tuples
-    print("App Names =====> ", app_names)
     return [App(app_name=name.app_name) for name in app_names]
 
 
