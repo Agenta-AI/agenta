@@ -10,6 +10,7 @@ title: Troubleshooting
     3. [Failure Running Serve](#failure-running-serve)
     4. [Web UI Errors](#web-ui-errors)
     5. [Gateway Error](#gateway-error)
+    6. [Agenta Web Failing](#agenta-web-failing)
 4. [Reporting Issues](#Reporting-Issues)
 
 ## Introduction
@@ -132,9 +133,20 @@ docker volume ls -q -f "name=agenta-*"
 docker volume rm VOLUME_NAME
 ```
 
-Once you have completed these steps, start the application again by running `docker-compose up` and access the backend server by making requests to `http://localhost:8000`. 
+Once you have completed these steps, start the application again by running `docker compose up` and access the backend server by making requests to `http://localhost:8000`. 
 If the issue persists after following these troubleshooting steps, it's essential to investigate further into the Traefik configuration and the interaction between Traefik and the backend server.
 
+### Agenta Web Failing
+
+When accessing the apps page on the frontend, you encounter "failed to load". Proceed to check the logs of the backend server, this could be an `OperationError` problem caused by the database, 
+due to the fact that a column does not exist in a table. 
+
+To resolve this issue:
+
+1. In the `agenta_backend` directory, navigate to the `db` directory, delete `deploy.db` and restart compose 
+2. If the above does not work for you, navigate to the `db_manager.py` module in `agenta_backend/agenta_backend/services/`, and scroll down to line 24 (it might be 22 or 26 on your machine). Change `.create_all(engine)` to `.drop_all(engine)`, after the backend has restarted, change it back to `.create_all(engine)`
+
+Once you have completed either or both of these steps, restart the application again by running `docker compose up`.
 
 ## Reporting Issues
 
