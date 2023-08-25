@@ -49,7 +49,7 @@ export default function Evaluation() {
     }, [evaluationTableId])
 
     return (
-        <div style={{marginBottom: "200px"}}>
+        <div className="evalautionContainer">
             {evaluationTableId && evaluationScenarios && evaluation && (
                 <AICritiqueEvaluationTable
                     columnsCount={columnsCount}
