@@ -1,10 +1,9 @@
-import React, {Dispatch, SetStateAction, useContext, useEffect, useRef, useState} from "react"
+import React, {useState} from "react"
 import {Button, Input, Card, Row, Col, Space} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {Parameter} from "@/lib/Types"
-import {renameVariables} from "@/lib/helpers/utils"
-import {TestContext} from "../TestContextProvider"
+import {randString, renameVariables} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -84,60 +83,27 @@ interface TestViewProps {
 }
 
 interface BoxComponentProps {
-    URIPath: string | null
     inputParams: Parameter[] | null
-    optParams: Parameter[] | null
     testData: Record<string, string>
     result: string
     onInputParamChange: (paramName: string, newValue: string) => void
-    onResultChange: (result: string) => void
+    onRun: () => void
     onAddToTestset: (params: Record<string, string>) => void
     onDelete?: () => void
-    getRunFunction?: (fn: Function) => void
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
-    URIPath,
     inputParams,
-    optParams,
     testData,
     result,
     onInputParamChange,
-    onResultChange,
+    onRun,
     onAddToTestset,
     onDelete,
-    getRunFunction,
 }) => {
     const classes = useStylesBox()
     const {TextArea} = Input
-    const [loading, setLoading] = useState(false)
-
-    const handleRun = async () => {
-        try {
-            setLoading(true)
-
-            const res = await callVariant(
-                testData,
-                inputParams || [],
-                optParams || [],
-                URIPath || "",
-            )
-
-            onResultChange(res)
-        } catch (e) {
-            onResultChange(
-                "The code has resulted in the following error: \n\n --------------------- \n" +
-                    e +
-                    "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground",
-            )
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        if (getRunFunction) getRunFunction(handleRun)
-    }, [handleRun])
+    const loading = result === "Loading..."
 
     if (!inputParams) {
         return <div>Loading...</div>
@@ -186,7 +152,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         type="primary"
                         shape="round"
                         icon={<CaretRightOutlined />}
-                        onClick={handleRun}
+                        onClick={onRun}
                         loading={loading}
                     >
                         Run
@@ -195,7 +161,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             </Row>
             <Row className={classes.row3}>
                 <TextArea
-                    value={loading ? "Loading..." : result}
+                    value={result}
                     rows={6}
                     placeholder="Results will be shown here"
                     disabled
@@ -206,18 +172,47 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 }
 
 const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
-    const {testList, setTestList} = useContext(TestContext)
+    const [testList, setTestList] = useState([{_id: randString(6)}])
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
-    const runners = useRef<Function[]>([])
     const classes = useStylesApp()
 
+    const setResultForIndex = (value: string, index: number) => {
+        setResultsList((prevState) => {
+            return prevState.map((prevResult, prevIndex) =>
+                prevIndex === index ? value : prevResult,
+            )
+        })
+    }
+
+    const handleRun = async (index: number) => {
+        try {
+            setResultForIndex("Loading...", index)
+
+            const res = await callVariant(
+                testList[index],
+                inputParams || [],
+                optParams || [],
+                URIPath || "",
+            )
+
+            setResultForIndex(res, index)
+        } catch (e) {
+            setResultForIndex(
+                "The code has resulted in the following error: \n\n --------------------- \n" +
+                    e +
+                    "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground",
+                index,
+            )
+        }
+    }
+
     const handleRunAll = () => {
-        runners.current.forEach((runner) => runner())
+        testList.forEach((_, index) => handleRun(index))
     }
 
     const handleAddRow = () => {
-        setTestList([...testList, {}])
+        setTestList([...testList, {_id: randString(6)}])
         setResultsList([...resultsList, ""])
     }
 
@@ -226,14 +221,6 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
         setResultsList((prevResultsList) =>
             prevResultsList.filter((_, index) => index !== testIndex),
         )
-    }
-
-    const handleResultChange = (result: string, index: number) => {
-        setResultsList((prevState) => {
-            return prevState.map((prevResult, prevIndex) =>
-                prevIndex === index ? result : prevResult,
-            )
-        })
     }
 
     const handleInputParamChange = (paramName: string, value: string, index: number) => {
@@ -246,11 +233,12 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
     const onLoadTests = (tests: Record<string, string>[], shouldReplace: boolean) => {
         const results = tests.map((test) => test?.correct_answer || "")
+        const testsList = tests.map((test) => ({...test, _id: randString(6)}))
         if (shouldReplace) {
-            setTestList(tests)
+            setTestList(testsList)
             setResultsList(results)
         } else {
-            setTestList((prev) => [...prev, ...tests])
+            setTestList((prev) => [...prev, ...testsList])
             setResultsList((prev) => [...prev, ...results])
         }
     }
@@ -275,19 +263,16 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
             {testList.map((testData, index) => (
                 <BoxComponent
-                    key={index}
-                    URIPath={URIPath}
+                    key={testData._id}
                     inputParams={inputParams}
-                    optParams={optParams}
                     testData={testData}
                     result={resultsList[index]}
-                    onResultChange={(result) => handleResultChange(result, index)}
                     onInputParamChange={(paramName, value) =>
                         handleInputParamChange(paramName, value, index)
                     }
+                    onRun={() => handleRun(index)}
                     onAddToTestset={setParams}
                     onDelete={testList.length >= 2 ? () => handleDeleteRow(index) : undefined}
-                    getRunFunction={(runner) => (runners.current[index] = runner)}
                 />
             ))}
             <Button
