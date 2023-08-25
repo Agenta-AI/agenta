@@ -138,15 +138,21 @@ If the issue persists after following these troubleshooting steps, it's essentia
 
 ### Agenta Web Failing
 
-When accessing the apps page on the frontend, you encounter "failed to load". Proceed to check the logs of the backend server, this could be an `OperationError` problem caused by the database, 
-due to the fact that a column does not exist in a table. 
+Upon attempting to access the apps page on the frontend, an error message stating "failed to load" is encountered. To address this, investigate the logs of the backend server, as this issue might be caused by an OperationError related to the database. Specifically, this could be due to the absence of a column in a table.
 
-To resolve this issue:
+To resolve this problem, follow these steps:
 
-1. In the `agenta_backend` directory, navigate to the `db` directory, delete `deploy.db` and restart compose 
-2. If the above does not work for you, navigate to the `db_manager.py` module in `agenta_backend/agenta_backend/services/`, and scroll down to line 24 (it might be 22 or 26 on your machine). Change `.create_all(engine)` to `.drop_all(engine)`, after the backend has restarted, change it back to `.create_all(engine)`
+1. Navigate to the `db` directory within the `agenta_backend` directory.
+2. Delete the `deploy.db` file.
+3. Restart the application by runing `docker compose up`.
 
-Once you have completed either or both of these steps, restart the application again by running `docker compose up`.
+If the above steps do not yield a solution, proceed as follows:
+
+1. Locate the `db_manager.py` module in `agenta_backend/agenta_backend/services/`.
+2. Scroll down to line 24 (note that the line number might be 22 or 26 on different systems).
+3. Temporarily replace `.create_all(engine)` with `.drop_all(engine)`.
+4. After restarting the backend, revert the change back to `.create_all(engine)`.
+5. After completing either or both of these steps, restart the application by running `docker compose up`.
 
 ## Reporting Issues
 
