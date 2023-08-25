@@ -64,7 +64,7 @@ async def list_apps(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        apps = db_manager.list_apps(**kwargs)
+        apps = await db_manager.list_apps(**kwargs)
         return apps
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
