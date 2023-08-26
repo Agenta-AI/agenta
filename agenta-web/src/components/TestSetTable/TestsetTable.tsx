@@ -197,9 +197,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             const newColDefs = [CHECKBOX_COL, ...colData, ADD_BUTTON_COL]
             setColumnDefs(newColDefs)
             if (mode === "create") {
-                setRowData(
-                    Array(3).fill(colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})),
-                )
+                const initialRowData = Array(3).fill({})
+                const separateRowData = initialRowData.map(() => {
+                    return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
+                })
+
+                setRowData(separateRowData)
             }
             setInputValues(
                 newColDefs.filter((col) => !!col.field).map((col) => col.field),
