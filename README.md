@@ -108,18 +108,18 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 
 # Features
 
-<h3>Playground🪄 <br/></h3>
+<h3>Playground 🪄 <br/></h3>
   With just a few lines of code, define the parameters and prompts you wish to experiment with. You and your team can quickly experiment and test new variants on the web UI. <br/>
 
 https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95efc69134c
 
-<h3>Version Evaluation📊 <br/></h3>
+<h3>Version Evaluation 📊 <br/></h3>
 Define test sets, the evaluate manually or programmatically your different variants.<br/>
 
 ![](https://github.com/Agenta-AI/agenta/assets/4510758/b1de455d-7e0a-48d6-8497-39ba641600f0)
 
 
-<h3>API Deployment🚀<br/></h3>
+<h3>API Deployment 🚀<br/></h3>
 When you are ready, deploy your LLM applications as APIs in one click.<br/>
 
 ![](https://github.com/Agenta-AI/agenta/blob/main/docs/images/endpoint.gif)
