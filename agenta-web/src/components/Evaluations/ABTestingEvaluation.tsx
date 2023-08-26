@@ -102,20 +102,29 @@ export default function ABTestingEvaluation() {
 
     const columns: ColumnsType<EvaluationListTableDataType> = [
         {
-            title: "Variant",
+            title: "Variant 1",
             dataIndex: "variants",
             key: "variants",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 return (
                     <div>
-                        {value.map((variant: Variant, index: number) => {
-                            return (
-                                <span key={index}>
-                                    <span>{variant.variantName}</span>
-                                    {index < value.length - 1 && <span> | </span>}
-                                </span>
-                            )
-                        })}
+                        <span>
+                            {value[0].variantName}
+                        </span>
+                    </div>
+                )
+            },
+        },
+        {
+            title: "Variant 2",
+            dataIndex: "variants",
+            key: "variants",
+            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                return (
+                    <div>
+                        <span>
+                            {value[1].variantName}
+                        </span>
                     </div>
                 )
             },
@@ -129,21 +138,13 @@ export default function ABTestingEvaluation() {
             },
         },
         {
-            title: "Evaluation type",
-            dataIndex: "evaluationType",
-            key: "evaluationType",
-            width: "300",
-            render: (value: string) => {
-                const evaluationType = EvaluationType[value as keyof typeof EvaluationType]
-                const label = EvaluationTypeLabels[evaluationType]
-                return <span>{label}</span>
-            },
+            title: "v1 better"
         },
         {
-            title: "Average score",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                return <span>{record.status}</span>
-            },
+            title: "v2 better"
+        },
+        {
+            title: "Flag"
         },
         {
             title: "Created at",
