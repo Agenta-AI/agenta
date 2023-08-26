@@ -60,7 +60,7 @@ export default function testsets() {
             return
         }
         // TODO: move to api.ts
-        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`)
+        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_name=${app_name}`)
             .then((data) => {
                 let newTestsetsList = data.map((obj: testset) => {
                     let newObj: testsetTableDatatype = {
