@@ -1,21 +1,21 @@
 from datetime import datetime
 from typing import Optional, Dict, Any
-from odmantic import Field, Model, EmbeddedModel, Reference
+from odmantic import Field, Model, Reference
 
 
-class OrganizationDB(EmbeddedModel):
-    name: str
-    description: str
+class OrganizationDB(Model):
+    name: str = Field(default="agenta")
+    description: str = Field(default="")
     
     class Config:
         collection = "organizations"
         
 
-class UserDB(EmbeddedModel):
-    uid: str = Field(default=0, unique=True, index=True)
-    username: str
-    email: str = Field(unique=True)
-    organization_id: OrganizationDB
+class UserDB(Model):
+    uid: str = Field(default="0", unique=True, index=True)
+    username: str = Field(default="agenta")
+    email: str = Field(default="demo@agenta.ai", unique=True)
+    organization_id: OrganizationDB = Reference(key_name="org")
 
     class Config:
         collection = "users"
@@ -24,12 +24,11 @@ class UserDB(EmbeddedModel):
 class ImageDB(Model):
     """Defines the info needed to get an image and connect it to the app variant"""
     
-    id: Optional[str] = Field(primary_field=True)
     docker_id: str = Field(index=True)
     tags: str
     user_id: UserDB = Reference(key_name="user")
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
     
     class Config:
         collection = "images"
@@ -38,9 +37,9 @@ class ImageDB(Model):
 class AppVariantDB(Model):
     app_name: str
     variant_name: str
-    image_id: ImageDB = Reference()
+    image_id: ImageDB = Reference(key_name="image")
     user_id: UserDB = Reference(key_name="user")
-    parameters: Dict[str, Any]
+    parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
     is_deleted: bool = Field(
         default=False
