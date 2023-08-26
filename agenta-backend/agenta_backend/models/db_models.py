@@ -6,10 +6,10 @@ from odmantic import Field, Model, Reference
 class OrganizationDB(Model):
     name: str = Field(default="agenta")
     description: str = Field(default="")
-    
+
     class Config:
         collection = "organizations"
-        
+
 
 class UserDB(Model):
     uid: str = Field(default="0", unique=True, index=True)
@@ -19,20 +19,20 @@ class UserDB(Model):
 
     class Config:
         collection = "users"
-        
+
 
 class ImageDB(Model):
     """Defines the info needed to get an image and connect it to the app variant"""
-    
+
     docker_id: str = Field(index=True)
     tags: str
     user_id: UserDB = Reference(key_name="user")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-    
+
     class Config:
         collection = "images"
-    
+
 
 class AppVariantDB(Model):
     app_name: str
@@ -47,8 +47,7 @@ class AppVariantDB(Model):
 
     class Config:
         collection = "app_variants"
-        
-        
+
 
 class TemplateDB(Model):
     template_id: int
@@ -62,6 +61,6 @@ class TemplateDB(Model):
     status: str
     media_type: str
     last_pushed: datetime
-    
+
     class Config:
         collection = "templates"

@@ -81,9 +81,7 @@ def _stop_and_delete_containers(image: Image) -> None:
             docker_utils.delete_container(container_id)
             logger.info(f"Container {container_id} deleted")
     except Exception as e:
-        logger.error(
-            f"Error stopping and deleting Docker containers: {str(e)}"
-        )
+        logger.error(f"Error stopping and deleting Docker containers: {str(e)}")
 
 
 def _delete_docker_image(image: Image) -> None:
@@ -119,9 +117,9 @@ async def remove_app_variant(app_variant: AppVariant) -> None:
         ValueError: If the app variant is not found in the database.
         Exception: Any other exception raised during the operation.
     """
-    
+
     app_variant_db = await _fetch_app_variant_from_db(app_variant)
-    
+
     if app_variant_db is None:
         msg = f"App variant {app_variant.app_name}/{app_variant.variant_name} not found in DB"
         logger.error(msg)
@@ -129,7 +127,7 @@ async def remove_app_variant(app_variant: AppVariant) -> None:
 
     try:
         is_last_variant = await db_manager.check_is_last_variant(app_variant_db)
-        if is_last_variant:            
+        if is_last_variant:
             image = await _fetch_image_from_db(app_variant)
             print("we reached here")
             if image:
@@ -164,18 +162,15 @@ async def remove_app(app: App, **kwargs: dict):
             app_name=app_name, show_soft_deleted=True
         )
     except Exception as e:
-        logger.error(
-            f"Error fetching app variants from the database: {str(e)}"
-        )
+        logger.error(f"Error fetching app variants from the database: {str(e)}")
         raise
-    
+
     if app_variants is None:
         msg = f"App {app_name} not found in DB"
         logger.error(msg)
         raise ValueError(msg)
     else:
         try:
-            
             for app_variant in app_variants:
                 await remove_app_variant(app_variant)
                 logger.info(
@@ -220,9 +215,7 @@ async def remove_app_testsets(app_name: str):
         return 0
 
 
-async def start_variant(
-    app_variant: AppVariant, env_vars: DockerEnvVars = None
-) -> URI:
+async def start_variant(app_variant: AppVariant, env_vars: DockerEnvVars = None) -> URI:
     """
     Starts a Docker container for a given app variant.
 
@@ -289,9 +282,7 @@ async def update_variant_parameters(app_variant: AppVariant):
         logger.error(msg)
         raise ValueError(msg)
     try:
-        await db_manager.update_variant_parameters(
-            app_variant, app_variant.parameters
-        )
+        await db_manager.update_variant_parameters(app_variant, app_variant.parameters)
     except:
         logger.error(
             f"Error updating app variant {app_variant.app_name}/{app_variant.variant_name}"
@@ -299,9 +290,7 @@ async def update_variant_parameters(app_variant: AppVariant):
         raise
 
 
-async def update_variant_image(
-    app_variant: AppVariant, image: Image, **kwargs: dict
-):
+async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: dict):
     """Updates the image for app variant in the database.
 
     Arguments:
@@ -347,20 +336,14 @@ async def update_variant_image(
         logger.error(
             f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}"
         )
-        logger.error(
-            "Previous variant removed but new variant not added. Rolling back"
-        )
-        await db_manager.add_variant_based_on_image(
-            old_variant, old_image, **kwargs
-        )
+        logger.error("Previous variant removed but new variant not added. Rolling back")
+        await db_manager.add_variant_based_on_image(old_variant, old_image, **kwargs)
         raise
     try:
         logger.info(
             f"Updating variant {app_variant.app_name}/{app_variant.variant_name}"
         )
-        await db_manager.add_variant_based_on_image(
-            app_variant, image, **kwargs
-        )
+        await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
         logger.info(
             f"Starting variant {app_variant.app_name}/{app_variant.variant_name}"
         )
