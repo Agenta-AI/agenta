@@ -78,10 +78,12 @@ async def add_variant_based_on_image(
         raise ValueError(
             "Parameters are not supported when adding based on image"
         )
+
+    soft_deleted_variants = await list_app_variants(show_soft_deleted=True)
     already_exists = any(
         [
             av
-            for av in list_app_variants(show_soft_deleted=True)
+            for av in soft_deleted_variants
             if av.app_name == app_variant.app_name
             and av.variant_name == app_variant.variant_name
         ]
@@ -89,18 +91,37 @@ async def add_variant_based_on_image(
     if already_exists:
         raise ValueError("App variant with the same name already exists")
 
-    # Add image
-    image_dict = {**image.dict(), **{"user_id": kwargs["user_id"]}}
-    db_image = ImageDB(**image_dict)
-    db_image.user_id.organization_id = kwargs["organization_id"]
+    # Get user id and instance
+    user_id = kwargs["user_id"]
+    user_instance = await get_user_object(user_id)
+    user_db_image = await get_user_image_instance(
+        user_instance.uid, image.docker_id
+    )
 
-    await engine.save(db_image)
+    # Add image
+    if user_db_image is None:
+        db_image = ImageDB(
+            docker_id=image.docker_id,
+            tags=image.tags,
+            user_id=user_instance,
+        )
+        await engine.save(db_image)
+
+    user_db_image = db_image
 
     # Add app variant and link it to the app variant
-    app_variant_dict = {**app_variant.dict(), **{"user_id": kwargs["user_id"]}}
-    db_app_variant = AppVariantDB(image_id=db_image.id, **app_variant_dict)
-    db_app_variant.user_id.organization_id = kwargs["organization_id"]
+    parameters = (
+        {} if app_variant.parameters is None else app_variant.parameters
+    )
 
+    db_app_variant = AppVariantDB(
+        image_id=user_db_image,
+        app_name=app_variant.app_name,
+        variant_name=app_variant.variant_name,
+        user_id=user_instance,
+        parameters=parameters,
+        previous_variant_name=app_variant.previous_variant_name,
+    )
     await engine.save(db_app_variant)
 
 
@@ -150,10 +171,11 @@ async def add_variant_based_on_previous(
             "Template app variant is not a template, it is a forked variant itself"
         )
 
+    soft_deleted_app_variants = await list_app_variants(show_soft_deleted=True)
     already_exists = any(
         [
             av
-            for av in list_app_variants(show_soft_deleted=True)
+            for av in soft_deleted_app_variants
             if av.app_name == previous_app_variant.app_name
             and av.variant_name == new_variant_name
         ]
@@ -161,15 +183,15 @@ async def add_variant_based_on_previous(
     if already_exists:
         raise ValueError("App variant with the same name already exists")
 
+    user_instance = await get_user_object(kwargs["user_id"])
     db_app_variant = AppVariantDB(
         app_name=template_variant.app_name,
         variant_name=new_variant_name,
         image_id=template_variant.image_id,
         parameters=parameters,
         previous_variant_name=template_variant.variant_name,
-        user_id=kwargs["user_id"],
+        user_id=user_instance,
     )
-    db_app_variant.user_id.organization_id = kwargs["organization_id"]
     await engine.save(db_app_variant)
 
 
@@ -185,23 +207,32 @@ async def list_app_variants(
         List[AppVariant]: List of AppVariant objects
     """
 
-    if not show_soft_deleted:
-        query_ex1 = query.eq(AppVariantDB.is_deleted == False)
-    if app_name is not None:
-        query_exp2 = query.eq(AppVariantDB.app_name == app_name)
+    query_filters = None
 
-    final_query = query_ex1 | query_exp2
+    if not show_soft_deleted:
+        query_filters = query.eq(AppVariantDB.is_deleted, False)
+
+    if show_soft_deleted:
+        query_filters = query.eq(AppVariantDB.is_deleted, True)
+
+    if app_name is not None:
+        query_filters = query.eq(AppVariantDB.app_name, app_name)
+
+    if not show_soft_deleted and app_name is not None:
+        query_filters = query.eq(AppVariantDB.is_deleted, False) & query.eq(
+            AppVariantDB.app_name, app_name
+        )
+
     app_variants_db: List[AppVariantDB] = await engine.find(
         AppVariantDB,
-        final_query,
+        query_filters,
         sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
     )
 
     # Include previous variant name
-    app_variants: List[AppVariant] = []
-    for av in app_variants_db:
-        app_variant = app_variant_db_to_pydantic(av)
-        app_variants.append(app_variant)
+    app_variants: List[AppVariant] = [
+        app_variant_db_to_pydantic(av) for av in app_variants_db
+    ]
     return app_variants
 
 
@@ -212,14 +243,18 @@ async def list_apps(**kwargs) -> List[App]:
     await clean_soft_deleted_variants()
 
     # Apply filters from kwargs
-    if "user_id" in kwargs or "organization_id" in kwargs:
-        query_expression = query.eq(
-            AppVariantDB.user_id, kwargs["user_id"]
-        ) & query.eq(AppVariantDB.user_id.organization_id, kwargs["user_id"])
+    if "user_id" in kwargs:
+        user = await get_user_object(kwargs["user_id"])
+        if user is None:
+            return []
 
-    app_names = await engine.find(AppVariantDB, query_expression)
-    # Unpack tuples to create a list of strings instead of a list of tuples
-    return [App(app_name=name.app_name) for name in app_names]
+    query_expression = query.eq(AppVariantDB.user_id, user.id)
+    apps: List[AppVariantDB] = await engine.find(
+        AppVariantDB, query_expression
+    )
+    apps_names = [app.app_name for app in apps]
+    sorted_names = sorted(set(apps_names))
+    return [App(app_name=app_name) for app_name in sorted_names]
 
 
 async def get_image(app_variant: AppVariant) -> Image:
@@ -241,7 +276,7 @@ async def get_image(app_variant: AppVariant) -> Image:
     )
     if db_app_variant:
         image_db: ImageDB = await engine.find_one(
-            ImageDB, ImageDB.id == db_app_variant.image_id
+            ImageDB, ImageDB.id == db_app_variant.image_id.id
         )
         return image_db_to_pydantic(image_db)
     else:
@@ -269,15 +304,14 @@ async def remove_app_variant(app_variant: AppVariant):
 
     # Get app variant
     app_variant_db = await engine.find_one(AppVariantDB, query_expression)
+    is_last_variant = await check_is_last_variant(app_variant_db)
     if app_variant_db is None:
         raise ValueError("App variant not found")
 
     if app_variant_db.previous_variant_name is not None:  # forked variant
         await engine.delete(app_variant_db)
 
-    elif check_is_last_variant(
-        app_variant_db
-    ):  # last variant using the image, okay to delete
+    elif is_last_variant:  # last variant using the image, okay to delete
         await engine.delete(app_variant_db)
 
     else:
@@ -324,7 +358,7 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
 
     # If it's the only variant left that uses the image, delete the image
     count_variants = await engine.count(
-        AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id
+        AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id.id
     )
     if count_variants == 1:
         return True
@@ -354,8 +388,7 @@ async def get_variant_from_db(app_variant: AppVariant) -> AppVariantDB:
     logger.info(f"Found app variant: {db_app_variant}")
     if db_app_variant:
         return db_app_variant
-    else:
-        return None
+    return None
 
 
 async def print_all():
@@ -424,8 +457,15 @@ async def update_variant_parameters(
     if db_app_variant is None:
         raise ValueError("App variant not found")
 
-    # Update parameters
-    if db_app_variant.parameters is not None and set(
+    if (
+        db_app_variant.parameters == {}
+        or db_app_variant.parameters is not None
+        and set(db_app_variant.parameters.keys()) == set(parameters.keys())
+    ):
+        db_app_variant.parameters = parameters
+        await engine.save(db_app_variant)
+
+    elif db_app_variant.parameters is not None and set(
         db_app_variant.parameters.keys()
     ) != set(parameters.keys()):
         logger.error(
@@ -433,8 +473,6 @@ async def update_variant_parameters(
         )
         raise ValueError("Parameters keys don't match")
 
-    db_app_variant.parameters = parameters
-    await engine.save(db_app_variant)
 
 
 async def remove_old_template_from_db(template_ids: list) -> None:
@@ -449,6 +487,58 @@ async def remove_old_template_from_db(template_ids: list) -> None:
     for temp in templates:
         if temp.template_id not in template_ids:
             templates_to_delete.append(temp)
-    
+
     for template in templates_to_delete:
         await engine.delete(template)
+
+
+async def get_user_object(user_id: str) -> UserDB:
+    """Get the user object from the database.
+
+    Arguments:
+        user_id (str): The user unique identifier
+
+    Returns:
+        UserDB: instance of user
+    """
+
+    user = await engine.find_one(UserDB, UserDB.uid == user_id)
+    if user is None:
+        org = OrganizationDB()
+        return UserDB(uid="0", organization_id=org)
+    return user
+
+
+async def get_user_organization(user_id: str) -> OrganizationDB:
+    """Get the user organization object from the database.
+
+    Arguments:
+        user_id (str): The user unique identifier
+
+    Returns:
+        OrganizationDB: instance of user organization
+    """
+
+    user = await get_user_object(user_id)
+    organization = await engine.find_one(
+        OrganizationDB, OrganizationDB.id == user.organization_id
+    )
+    return organization
+
+
+async def get_user_image_instance(user_id: str, docker_id: str) -> ImageDB:
+    """Get the image object from the database with the provided id.
+
+    Arguments:
+        user_id (str): Ther user unique identifier
+        docker_id (str): The image id
+
+    Returns:
+        ImageDB: instance of image object
+    """
+
+    query_expression = query.eq(ImageDB.user_id, user_id) & query.eq(
+        ImageDB.docker_id, docker_id
+    )
+    image = await engine.find_one(ImageDB, query_expression)
+    return image
