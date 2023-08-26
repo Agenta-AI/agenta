@@ -225,8 +225,13 @@ Answer ONLY with one of the given grading or evaluation options.
                 setRowValue(rowIndex, columnName as any, result)
                 await evaluate(rowIndex)
                 setShouldFetchResults(true)
+                if (rowIndex === rows.length - 1) {
+                    message.success("Evaluation Results Saved")
+                }
             } catch (e) {
-                message.error("Oops! Something went wrong")
+                if (rowIndex === rows.length - 1) {
+                    message.error("Oops! Something went wrong")
+                }
             }
             idx++
         }
