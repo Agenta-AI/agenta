@@ -75,9 +75,7 @@ async def add_variant_based_on_image(
     ):
         raise ValueError("App variant or image is None")
     if app_variant.parameters is not None:
-        raise ValueError(
-            "Parameters are not supported when adding based on image"
-        )
+        raise ValueError("Parameters are not supported when adding based on image")
 
     soft_deleted_variants = await list_app_variants(show_soft_deleted=True)
     already_exists = any(
@@ -94,9 +92,7 @@ async def add_variant_based_on_image(
     # Get user id and instance
     user_id = kwargs["user_id"]
     user_instance = await get_user_object(user_id)
-    user_db_image = await get_user_image_instance(
-        user_instance.uid, image.docker_id
-    )
+    user_db_image = await get_user_image_instance(user_instance.uid, image.docker_id)
 
     # Add image
     if user_db_image is None:
@@ -110,9 +106,7 @@ async def add_variant_based_on_image(
     user_db_image = db_image
 
     # Add app variant and link it to the app variant
-    parameters = (
-        {} if app_variant.parameters is None else app_variant.parameters
-    )
+    parameters = {} if app_variant.parameters is None else app_variant.parameters
 
     db_app_variant = AppVariantDB(
         image_id=user_db_image,
@@ -249,9 +243,7 @@ async def list_apps(**kwargs) -> List[App]:
             return []
 
     query_expression = query.eq(AppVariantDB.user_id, user.id)
-    apps: List[AppVariantDB] = await engine.find(
-        AppVariantDB, query_expression
-    )
+    apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
     apps_names = [app.app_name for app in apps]
     sorted_names = sorted(set(apps_names))
     return [App(app_name=app_name) for app_name in sorted_names]
@@ -267,13 +259,11 @@ async def get_image(app_variant: AppVariant) -> Image:
         Image -- The Image associated with the app variant
     """
     # Build the query expression for the two conditions
-    query_expression = query.eq(
-        AppVariantDB.app_name, app_variant.app_name
-    ) & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
-
-    db_app_variant: AppVariantDB = await engine.find_one(
-        AppVariantDB, query_expression
+    query_expression = query.eq(AppVariantDB.app_name, app_variant.app_name) & query.eq(
+        AppVariantDB.variant_name, app_variant.variant_name
     )
+
+    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
     if db_app_variant:
         image_db: ImageDB = await engine.find_one(
             ImageDB, ImageDB.id == db_app_variant.image_id.id
@@ -298,9 +288,9 @@ async def remove_app_variant(app_variant: AppVariant):
         raise ValueError("App variant is None")
 
     # Build the query expression for the two conditions
-    query_expression = query.eq(
-        AppVariantDB.app_name, app_variant.app_name
-    ) & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
+    query_expression = query.eq(AppVariantDB.app_name, app_variant.app_name) & query.eq(
+        AppVariantDB.variant_name, app_variant.variant_name
+    )
 
     # Get app variant
     app_variant_db = await engine.find_one(AppVariantDB, query_expression)
@@ -326,11 +316,7 @@ async def remove_image(image: Image):
     Arguments:
         image -- Image to remove
     """
-    if (
-        image is None
-        or image.docker_id in [None, ""]
-        or image.tags in [None, ""]
-    ):
+    if image is None or image.docker_id in [None, ""] or image.tags in [None, ""]:
         raise ValueError("Image is None")
 
     # Build the query expression for the two conditions
@@ -377,14 +363,12 @@ async def get_variant_from_db(app_variant: AppVariant) -> AppVariantDB:
     """
 
     # Build the query expression for the two conditions
-    query_expression = query.eq(
-        AppVariantDB.app_name, app_variant.app_name
-    ) & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
+    query_expression = query.eq(AppVariantDB.app_name, app_variant.app_name) & query.eq(
+        AppVariantDB.variant_name, app_variant.variant_name
+    )
 
     # Find app_variant in the database
-    db_app_variant: AppVariantDB = await engine.find_one(
-        AppVariantDB, query_expression
-    )
+    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
     logger.info(f"Found app variant: {db_app_variant}")
     if db_app_variant:
         return db_app_variant
@@ -412,9 +396,9 @@ async def clean_soft_deleted_variants():
 
     for variant in soft_deleted_variants:
         # Build the query expression for the two conditions
-        query_expression = query.eq(
-            AppVariantDB.image_id, variant.image_id
-        ) & query.eq(AppVariantDB.is_deleted, False)
+        query_expression = query.eq(AppVariantDB.image_id, variant.image_id) & query.eq(
+            AppVariantDB.is_deleted, False
+        )
 
         # Get non-deleted variants that use the same image
         image_used = await engine.find_one(AppVariantDB, query_expression)
@@ -446,13 +430,11 @@ async def update_variant_parameters(
         raise ValueError("Parameters is None")
 
     # Build the query expression for the two conditions
-    query_expression = query.eq(
-        AppVariantDB.app_name, app_variant.app_name
-    ) & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
-
-    db_app_variant: AppVariantDB = await engine.find_one(
-        AppVariantDB, query_expression
+    query_expression = query.eq(AppVariantDB.app_name, app_variant.app_name) & query.eq(
+        AppVariantDB.variant_name, app_variant.variant_name
     )
+
+    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
 
     if db_app_variant is None:
         raise ValueError("App variant not found")
@@ -472,7 +454,6 @@ async def update_variant_parameters(
             f"Parameters keys don't match: {db_app_variant.parameters.keys()} vs {parameters.keys()}"
         )
         raise ValueError("Parameters keys don't match")
-
 
 
 async def remove_old_template_from_db(template_ids: list) -> None:

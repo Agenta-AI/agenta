@@ -88,7 +88,7 @@ async def add_variant_from_image(
         HTTPException: If image not found in docker utils list
         HTTPException: If there is a problem adding the app variant
     """
-    
+
     if not image.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500,
@@ -200,7 +200,9 @@ async def remove_variant(app_variant: AppVariant):
 
 
 @router.delete("/remove_app/")
-async def remove_app(app: App, stoken_session: SessionContainer = Depends(verify_session())):
+async def remove_app(
+    app: App, stoken_session: SessionContainer = Depends(verify_session())
+):
     """Remove app, all its variant, containers and images
 
     Arguments:
@@ -209,7 +211,7 @@ async def remove_app(app: App, stoken_session: SessionContainer = Depends(verify
 
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    
+
     try:
         await app_manager.remove_app(app, **kwargs)
     except SQLAlchemyError as e:
