@@ -10,6 +10,7 @@ title: Troubleshooting
     3. [Failure Running Serve](#failure-running-serve)
     4. [Web UI Errors](#web-ui-errors)
     5. [Gateway Error](#gateway-error)
+    6. [Agenta Web Failing](#agenta-web-failing)
 4. [Reporting Issues](#Reporting-Issues)
 
 ## Introduction
@@ -124,14 +125,34 @@ To resolve this issue:
 Verify that the relevant Traefik rule in the `docker-compose.yml` file is properly configured.
 
 2. Prune Docker Resources: kindly follow the commands below to stop and remove all the agenta containers; and to finally prune all the volumes associated with it. 
-- docker stop $(docker ps -q -f "name=agenta-*")
-- docker rm $(docker ps -aq -f "name=agenta-*")
-- docker volume ls -q -f "name=agenta-*"
-- docker volume rm VOLUME_NAME
 
-Once you have completed these steps, start the application again by running `docker-compose up` and access the backend server by making requests to `http://localhost:8000`. 
+```bash
+docker stop $(docker ps -q -f "name=agenta-*")
+docker rm $(docker ps -aq -f "name=agenta-*")
+docker volume ls -q -f "name=agenta-*"
+docker volume rm VOLUME_NAME
+```
+
+Once you have completed these steps, start the application again by running `docker compose up` and access the backend server by making requests to `http://localhost:8000`. 
 If the issue persists after following these troubleshooting steps, it's essential to investigate further into the Traefik configuration and the interaction between Traefik and the backend server.
 
+### Agenta Web Failing
+
+Upon attempting to access the apps page on the frontend, an error message stating "failed to load" is encountered. To address this, investigate the logs of the backend server, as this issue might be caused by an OperationError related to the database. Specifically, this could be due to the absence of a column in a table.
+
+To resolve this problem, follow these steps:
+
+1. Navigate to the `db` directory within the `agenta_backend` directory.
+2. Delete the `deploy.db` file.
+3. Restart the application by runing `docker compose up`.
+
+If the above steps do not yield a solution, proceed as follows:
+
+1. Locate the `db_manager.py` module in `agenta_backend/agenta_backend/services/`.
+2. Scroll down to line 24 (note that the line number might be 22 or 26 on different systems).
+3. Temporarily replace `.create_all(engine)` with `.drop_all(engine)`.
+4. After restarting the backend, revert the change back to `.create_all(engine)`.
+5. After completing either or both of these steps, restart the application by running `docker compose up`.
 
 ## Reporting Issues
 

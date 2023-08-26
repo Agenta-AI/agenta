@@ -127,7 +127,6 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
         let APIParams = parseOpenApiSchema(response.data)
         // we create a new param for DictInput that will contain the name of the inputs
         APIParams = APIParams.map((param) => {
-            console.log("param", param)
             if (param.type === "object") {
                 // if param.default is defined
                 if (param?.default) {
@@ -229,7 +228,7 @@ export async function removeVariant(appName: string, variantName: string) {
  */
 export const useLoadTestsetsList = (app_name: string) => {
     const {data, error, mutate} = useSWR(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_name=${app_name}`,
         fetcher,
         {revalidateOnFocus: false},
     )

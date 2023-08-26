@@ -52,7 +52,7 @@ export const capitalize = (s: string) => {
         .join(" ")
 }
 
-export const randString = (len: number) =>
+export const randString = (len: number = 8) =>
     window
         .btoa(
             Array.from(window.crypto.getRandomValues(new Uint8Array(len * 2)))
