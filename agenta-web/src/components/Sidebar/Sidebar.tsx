@@ -1,5 +1,5 @@
-import React, {useEffect, useState} from "react"
-import {useRouter} from "next/router"
+import React, { useEffect, useState } from "react"
+import { useRouter } from "next/router"
 import {
     RocketOutlined,
     AppstoreOutlined,
@@ -11,22 +11,22 @@ import {
     DashboardOutlined,
     LockOutlined,
 } from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme} from "antd"
+import { Layout, Menu, Space, Tooltip, theme } from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
-import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {createUseStyles} from "react-jss"
+import { useAppTheme } from "../Layout/ThemeContextProvider"
+import { createUseStyles } from "react-jss"
 
 type StyleProps = {
     themeMode: "dark" | "light"
     colorBgContainer: string
 }
 
-const {Sider} = Layout
+const { Sider } = Layout
 
 const useStyles = createUseStyles({
-    sidebar: ({themeMode, colorBgContainer}: StyleProps) => ({
+    sidebar: ({ themeMode, colorBgContainer }: StyleProps) => ({
         paddingLeft: "10px",
         paddingRight: "10px",
         background: `${colorBgContainer} !important`,
@@ -67,18 +67,18 @@ const useStyles = createUseStyles({
         paddingLeft: "20px",
     },
     optionSideIcon: {
-        paddingLeft: "30px",
+        paddingLeft: "20px",
     }
 })
 
 const Sidebar: React.FC = () => {
-    const {appTheme, toggleAppTheme} = useAppTheme()
+    const { appTheme, toggleAppTheme } = useAppTheme()
     const {
-        token: {colorBgContainer},
+        token: { colorBgContainer },
     } = theme.useToken()
     const router = useRouter()
-    const {app_name} = router.query
-    const classes = useStyles({themeMode: appTheme, colorBgContainer} as StyleProps)
+    const { app_name } = router.query
+    const classes = useStyles({ themeMode: appTheme, colorBgContainer } as StyleProps)
 
     const pathSegments = router.asPath.split("/")
     const page_name = pathSegments[3]
@@ -124,7 +124,7 @@ const Sidebar: React.FC = () => {
                             placement="right"
                             title="Create new applications or switch between your existing projects."
                         >
-                            <Menu.Item key="apps" icon={<AppstoreOutlined className={classes.sideIcons}/>}>
+                            <Menu.Item key="apps" icon={<AppstoreOutlined className={classes.sideIcons} />}>
                                 <Link
                                     data-cy="app-management-link"
                                     href={getNavigationPath("apps")}
@@ -141,7 +141,7 @@ const Sidebar: React.FC = () => {
                                     key="playground"
                                     title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                 >
-                                    <Menu.Item icon={<RocketOutlined className={classes.optionSideIcon}/>}>
+                                    <Menu.Item icon={<RocketOutlined className={classes.optionSideIcon} />}>
                                         <Link
                                             data-cy="app-playground-link"
                                             href={getNavigationPath("playground")}
@@ -156,7 +156,7 @@ const Sidebar: React.FC = () => {
                                     placement="right"
                                     title="Create and manage testsets for evaluation purposes."
                                 >
-                                    <Menu.Item key="testsets" icon={<DatabaseOutlined className={classes.optionSideIcon}/>}>
+                                    <Menu.Item key="testsets" icon={<DatabaseOutlined className={classes.optionSideIcon} />}>
                                         <Link
                                             data-cy="app-testsets-link"
                                             href={getNavigationPath("testsets")}
@@ -171,7 +171,7 @@ const Sidebar: React.FC = () => {
                                     placement="right"
                                     title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
                                 >
-                                    <Menu.Item key="evaluations" icon={<LineChartOutlined className={classes.optionSideIcon}/>}>
+                                    <Menu.Item key="evaluations" icon={<LineChartOutlined className={classes.optionSideIcon} />}>
                                         <Link
                                             data-cy="app-evaluations-link"
                                             href={getNavigationPath("evaluations")}
@@ -185,7 +185,7 @@ const Sidebar: React.FC = () => {
                                     placement="right"
                                     title="Analyze the evaluation outcomes to determine the most effective variants."
                                 >
-                                    <Menu.Item key="results" icon={<BarChartOutlined className={classes.optionSideIcon}/>}>
+                                    <Menu.Item key="results" icon={<BarChartOutlined className={classes.optionSideIcon} />}>
                                         <Link
                                             data-cy="app-results-link"
                                             href={getNavigationPath("results")}
@@ -200,7 +200,7 @@ const Sidebar: React.FC = () => {
                                     placement="right"
                                     title="Monitor production logs to ensure seamless operations."
                                 >
-                                    <Menu.Item key="endpoints" icon={<CloudUploadOutlined className={classes.optionSideIcon}/>}>
+                                    <Menu.Item key="endpoints" icon={<CloudUploadOutlined className={classes.optionSideIcon} />}>
                                         <Link
                                             data-cy="app-endpoints-link"
                                             href={getNavigationPath("endpoints")}
@@ -226,7 +226,7 @@ const Sidebar: React.FC = () => {
                             key="apikeys"
                             title="Your api keys that are used in applications"
                         >
-                            <Menu.Item  icon={<LockOutlined />}>
+                            <Menu.Item icon={<LockOutlined />}>
                                 <Link
                                     data-cy="apikeys-link"
                                     href={getNavigationPath("keys")}
