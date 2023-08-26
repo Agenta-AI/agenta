@@ -141,7 +141,9 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         }
 
         Promise.all(promises)
-            .then(() => console.log("All functions finished."))
+            .then(() => {
+                console.log("All functions finished.")
+            })
             .catch((err) => console.error("An error occurred:", err))
     }
 
@@ -163,9 +165,14 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
+                if (rowIndex === rows.length - 1) {
+                    message.success("Evaluation Results Saved")
+                }
             } catch (e) {
                 setRowValue(rowIndex, columnName, "")
-                message.error("Oops! Something went wrong")
+                if (rowIndex === rows.length - 1) {
+                    message.error("Oops! Something went wrong")
+                }
             }
         })
     }
