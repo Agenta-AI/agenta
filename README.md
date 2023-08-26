@@ -49,8 +49,8 @@
       <div  align="center" >
       <picture >
         <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/cf6d4713-4558-4c6c-9e1b-ee4eab261f4c"  >
-        <source media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/e7c818f9-43c4-4a35-b52f-a6b519c6161f"  >
-        <img alt="Mockup agenta agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/e7c818f9-43c4-4a35-b52f-a6b519c6161f" >
+        <source media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ae9cf11f-8ef9-4b67-98c7-4a40341fa87a"  >
+        <img alt="Mockup agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/ae9cf11f-8ef9-4b67-98c7-4a40341fa87a" >
       </picture>
     </div>
 
@@ -84,7 +84,7 @@ Agenta provides you with the tools to quickly do prompt engineering and 🧪 **e
 <picture >
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/01edf2af-2cef-44d7-bdec-7b033cae39cf"  >
   <source media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/1d6c9627-8b7d-4357-b79f-aa9fced63772"  >
-  <img alt="Mockup agenta agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/1d6c9627-8b7d-4357-b79f-aa9fced63772" >
+  <img alt="Overview agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/1d6c9627-8b7d-4357-b79f-aa9fced63772" >
 </picture>
 </div>
 
