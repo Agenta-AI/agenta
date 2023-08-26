@@ -108,9 +108,7 @@ export default function ABTestingEvaluation() {
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 return (
                     <div>
-                        <span>
-                            {value[0].variantName}
-                        </span>
+                        <span>{value[0].variantName}</span>
                     </div>
                 )
             },
@@ -122,9 +120,7 @@ export default function ABTestingEvaluation() {
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 return (
                     <div>
-                        <span>
-                            {value[1].variantName}
-                        </span>
+                        <span>{value[1].variantName}</span>
                     </div>
                 )
             },
@@ -138,13 +134,13 @@ export default function ABTestingEvaluation() {
             },
         },
         {
-            title: "v1 better"
+            title: "v1 better",
         },
         {
-            title: "v2 better"
+            title: "v2 better",
         },
         {
-            title: "Flag"
+            title: "Flag",
         },
         {
             title: "Created at",

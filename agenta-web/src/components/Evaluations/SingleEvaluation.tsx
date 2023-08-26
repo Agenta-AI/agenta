@@ -112,14 +112,7 @@ export default function SingleEvaluation() {
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 return (
                     <div>
-                        {value.map((variant: Variant, index: number) => {
-                            return (
-                                <span key={index}>
-                                    <span>{variant.variantName}</span>
-                                    {index < value.length - 1 && <span> | </span>}
-                                </span>
-                            )
-                        })}
+                        <span>{value[0].variantName}</span>
                     </div>
                 )
             },
@@ -145,9 +138,9 @@ export default function SingleEvaluation() {
         },
         {
             title: "Average score",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                return <span>{record.status}</span>
-            },
+            // render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            //     return <span>{record.status}</span>
+            // },
         },
         {
             title: "Created at",
