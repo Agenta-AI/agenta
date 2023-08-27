@@ -44,9 +44,11 @@ const useStyles = createUseStyles({
     stat: {
         "& .ant-statistic-content-value": {
             fontSize: 20,
+            color: "#1677ff"
         },
         "& .ant-statistic-content-suffix": {
             fontSize: 20,
+            color: "#1677ff"
         },
     },
 })
