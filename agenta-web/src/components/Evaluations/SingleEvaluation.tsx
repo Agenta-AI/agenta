@@ -1,9 +1,9 @@
-import {deleteEvaluations, fetchData, loadEvaluations} from "@/lib/services/api"
-import {Button, Collapse, Table, Typography} from "antd"
+import {deleteEvaluations, fetchData} from "@/lib/services/api"
+import {Button, Collapse, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
-import {EvaluationResponseType, Variant} from "@/lib/Types"
+import {EvaluationResponseType} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
@@ -41,6 +41,14 @@ const useStyles = createUseStyles({
         padding: 0,
         width: "100%",
     },
+    stat:{
+        "& .ant-statistic-content-value": {
+            fontSize: 20
+        },
+        "& .ant-statistic-content-suffix":{
+            fontSize: 20
+        }
+    }
 })
 
 const {Title} = Typography
@@ -158,9 +166,23 @@ export default function SingleEvaluation() {
             title: "Average score",
             dataIndex: "averageScore",
             key: "averageScore",
-            // render: (value: any, record: EvaluationListTableDataType, index: number) => {
-            //     return <span>{record.status}</span>
-            // },
+            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                return (
+                    <span>
+                        <Statistic
+                        className={classes.stat}
+                            value={
+                                (record.scoresData.scores.true /
+                                    (record.scoresData.scores.true +
+                                        record.scoresData.scores.false)) *
+                                100
+                            }
+                            precision={2}
+                            suffix="%"
+                        />
+                    </span>
+                )
+            },
         },
         {
             title: "Created at",
