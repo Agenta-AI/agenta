@@ -10,14 +10,10 @@ import {
     renderPlotForExactMatchEvaluation,
     renderPlotForSimilarityMatchEvaluation,
 } from "./ResultsPlots/ResultsPlots"
+import { fetchData } from "@/lib/services/api"
 
 interface Vote {
     [key: string]: number
-}
-
-const fetchData = async (url: string): Promise<any> => {
-    const response = await fetch(url)
-    return response.json()
 }
 
 const Results: React.FC = () => {
