@@ -8,7 +8,7 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
-import { formatDate } from "@/lib/helpers/dateTimeHelper"
+import {formatDate} from "@/lib/helpers/dateTimeHelper"
 
 interface EvaluationListTableDataType {
     key: string
@@ -65,30 +65,33 @@ export default function SingleEvaluation() {
         }
         const fetchEvaluations = async () => {
             try {
-                fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_name=${app_name}`)
+                fetchData(
+                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_name=${app_name}`,
+                )
                     .then((response) => {
-                        const fetchPromises = response.map((item:EvaluationResponseType) => {
+                        const fetchPromises = response.map((item: EvaluationResponseType) => {
                             return fetchData(
                                 `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${item.id}/results`,
-                            ).then((results) => {
-                                if (
-                                    item.evaluation_type == EvaluationType.auto_exact_match ||
-                                    item.evaluation_type == EvaluationType.auto_similarity_match
-                                ) {
-                                    if (Object.keys(results.scores_data).length > 0) {
-                                        return {
-                                            key: item.id,
-                                            createdAt: formatDate(item.created_at),
-                                            variants: item.variants,
-                                            scoresData: results.scores_data,
-                                            evaluationType: item.evaluation_type,
-                                            status: item.status,
-                                            testset: item.testset,
+                            )
+                                .then((results) => {
+                                    if (
+                                        item.evaluation_type == EvaluationType.auto_exact_match ||
+                                        item.evaluation_type == EvaluationType.auto_similarity_match
+                                    ) {
+                                        if (Object.keys(results.scores_data).length > 0) {
+                                            return {
+                                                key: item.id,
+                                                createdAt: formatDate(item.created_at),
+                                                variants: item.variants,
+                                                scoresData: results.scores_data,
+                                                evaluationType: item.evaluation_type,
+                                                status: item.status,
+                                                testset: item.testset,
+                                            }
                                         }
                                     }
-                                }
-                            })
-                            .catch((err) => console.error(err))
+                                })
+                                .catch((err) => console.error(err))
                         })
                         Promise.all(fetchPromises)
                             .then((evaluations) => {
@@ -98,12 +101,9 @@ export default function SingleEvaluation() {
                                 setEvaluationsList(validEvaluations)
                                 setDeletingLoading(false)
                             })
-                            .catch((err) => 
-                                console.error(err)
-                            )
+                            .catch((err) => console.error(err))
                     })
                     .catch((err) => console.error(err))
-
             } catch (error) {
                 console.log(error)
             }
