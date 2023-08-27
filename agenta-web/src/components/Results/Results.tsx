@@ -10,7 +10,7 @@ import {
     renderPlotForExactMatchEvaluation,
     renderPlotForSimilarityMatchEvaluation,
 } from "./ResultsPlots/ResultsPlots"
-import { fetchData } from "@/lib/services/api"
+import {fetchData} from "@/lib/services/api"
 
 interface Vote {
     [key: string]: number
