@@ -129,6 +129,47 @@ async def create_new_evaluation(
     return evaluation_dict
 
 
+async def create_new_evaluation_scenario(
+    evaluation_id: str, payload: EvaluationScenario, **kwargs: dict
+) -> Dict:
+    # Get user object
+    user = await get_user_object(kwargs["user_id"])
+
+    list_of_scenario_input = []
+    for scenario_input in payload.inputs:
+        eval_scenario_input_instance = EvaluationScenarioInput(
+            input_name=scenario_input["input_name"],
+            input_value=scenario_input["input_value"],
+        )
+        list_of_scenario_input.append(eval_scenario_input_instance)
+
+    evaluation_scenario_payload = {
+        **{
+            "evaluation": evaluation_id,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        },
+        **extend_with_evaluation(payload.evaluation_type),
+    }
+
+    eval_scenario_instance = EvaluationScenarioDB(
+        **evaluation_scenario_payload,
+        user=user,
+        inputs=list_of_scenario_input,
+        outputs=[],
+    )
+    await engine.save(eval_scenario_instance)
+    return EvaluationScenario(
+        evaluation_id=eval_scenario_instance.evaluation,
+        inputs=eval_scenario_instance.inputs,
+        outputs=eval_scenario_instance.outputs,
+        vote=eval_scenario_instance.vote,
+        score=eval_scenario_instance.score,
+        correct_answer=eval_scenario_instance.correct_answer,
+        id=str(eval_scenario_instance.id),
+    )
+
+
 async def update_evaluation_status(
     evaluation_id: str, status: EvaluationStatus, **kwargs: dict
 ) -> Evaluation:
