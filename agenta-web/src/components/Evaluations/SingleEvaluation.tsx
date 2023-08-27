@@ -1,4 +1,4 @@
-import {deleteEvaluations, loadEvaluations} from "@/lib/services/api"
+import {deleteEvaluations, fetchData, loadEvaluations} from "@/lib/services/api"
 import {Button, Collapse, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
@@ -27,11 +27,6 @@ interface EvaluationListTableDataType {
     //     flag_votes: { number_of_votes: number, percentage: number },
     // }
     createdAt: string
-}
-
-const fetchData = async (url: string): Promise<any> => {
-    const response = await fetch(url)
-    return response.json()
 }
 
 const useStyles = createUseStyles({
