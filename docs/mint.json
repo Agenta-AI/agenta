@@ -51,9 +51,9 @@
     {
       "group": "Quickstart",
       "pages": [
-        "quickstart/introduction",
-        "quickstart/getting-started-ui",
-        "quickstart/getting-started-code",
+        "/quickstart/introduction",
+        "/quickstart/getting-started-ui",
+        "/quickstart/getting-started-code",
         {
           "group": "Installation",
           "pages": [
