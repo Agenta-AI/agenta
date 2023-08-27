@@ -19,13 +19,14 @@ interface EvaluationListTableDataType {
     }
     evaluationType: string
     status: EvaluationFlow
-    // votesData: {
-    //     variants_votes_data: {
-    //         number_of_votes: number,
-    //         percentage: number
-    //     },
-    //     flag_votes: { number_of_votes: number, percentage: number },
-    // }
+    scoresData: {
+        nb_of_rows: number
+        scores: {
+            false: number
+            true: number
+        }
+        variant: any[]
+    }
     createdAt: string
 }
 
