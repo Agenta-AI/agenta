@@ -57,7 +57,7 @@ async def lifespan(application: FastAPI, cache=True):
         for temp_info_key in templates_info:
             temp_info = templates_info[temp_info_key]
             if str(tag["name"]).startswith(temp_info_key):
-                add_template(
+                await add_template(
                     **{
                         "template_id": tag["id"],
                         "name": tag["name"],
@@ -79,7 +79,7 @@ async def lifespan(application: FastAPI, cache=True):
                 print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
 
     # Remove old templates from database
-    remove_old_template_from_db(templates_in_hub)
+    await remove_old_template_from_db(templates_in_hub)
     yield
 
 

@@ -70,7 +70,7 @@ async def container_templates() -> Union[List[Template], str]:
     Returns:
         a list of `Template` objects.
     """
-    templates = get_templates()
+    templates = await get_templates()
     return templates
 
 
