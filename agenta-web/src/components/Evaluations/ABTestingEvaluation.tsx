@@ -28,11 +28,6 @@ interface EvaluationListTableDataType {
     createdAt: string
 }
 
-const fetchData = async (url: string): Promise<any> => {
-    const response = await fetch(url)
-    return response.json()
-}
-
 const useStyles = createUseStyles({
     container: {
         marginBottom: 20,
