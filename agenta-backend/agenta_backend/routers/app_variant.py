@@ -300,9 +300,8 @@ async def add_app_variant_from_template(
     app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
 
     # Create an Image instance with the extracted image id, and defined image name
-    image_id = payload.image_id.split(":")[-1]
     image_name = f"agentaai/templates:{payload.image_tag}"
-    image: Image = Image(docker_id=image_id, tags=f"{image_name}")
+    image: Image = Image(docker_id=payload.image_id, tags=f"{image_name}")
     variant_exist = await db_manager.get_variant_from_db(app_variant)
     if variant_exist is None:
         # Save variant based on the image to database
