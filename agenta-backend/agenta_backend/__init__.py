@@ -7,5 +7,5 @@ from agenta_backend.services.organization_service import (
 )
 from agenta_backend.config import settings
 
-if settings.feature_flag in ["cloud", "ee"]:
+if settings.feature_flag in ["cloud", "ee", "demo"]:
     import agenta_backend.ee.__init__
