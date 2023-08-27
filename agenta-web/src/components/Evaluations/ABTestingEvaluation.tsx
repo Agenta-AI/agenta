@@ -8,7 +8,7 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
-import { formatDate } from "@/lib/helpers/dateTimeHelper"
+import {formatDate} from "@/lib/helpers/dateTimeHelper"
 
 interface EvaluationListTableDataType {
     key: string
@@ -69,9 +69,7 @@ export default function ABTestingEvaluation() {
                                 `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${item.id}/results`,
                             )
                                 .then((results) => {
-                                    if (
-                                        item.evaluation_type === EvaluationType.human_a_b_testing
-                                    ) {
+                                    if (item.evaluation_type === EvaluationType.human_a_b_testing) {
                                         if (Object.keys(results.votes_data).length > 0) {
                                             return {
                                                 key: item.id,
@@ -151,12 +149,18 @@ export default function ABTestingEvaluation() {
         },
         {
             title: "v1 better",
+            dataIndex: "v1Better",
+            key: "v1Better",
         },
         {
             title: "v2 better",
+            dataIndex: "v2Better",
+            key: "v2Better",
         },
         {
             title: "Flag",
+            dataIndex: "flag",
+            key: "flag",
         },
         {
             title: "Created at",
