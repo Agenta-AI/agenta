@@ -91,7 +91,7 @@ app.include_router(container_router.router, prefix="/containers")
 
 allow_headers = ["Content-Type"]
 
-if settings.feature_flag in ["cloud", "ee"]:
+if settings.feature_flag in ["cloud", "ee", "demo"]:
     import agenta_backend.ee.main as ee
 
     app, allow_headers = ee.extend_main(app)
