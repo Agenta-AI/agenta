@@ -31,7 +31,7 @@ class ImageDB(Model):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
-        collection = "images"
+        collection = "docker_images"
 
 
 class AppVariantDB(Model):
