@@ -1,4 +1,4 @@
-import {deleteEvaluations, fetchData, loadEvaluations} from "@/lib/services/api"
+import {deleteEvaluations, fetchData} from "@/lib/services/api"
 import {Button, Collapse, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
@@ -19,13 +19,18 @@ interface EvaluationListTableDataType {
     }
     evaluationType: string
     status: EvaluationFlow
-    // votesData: {
-    //     variants_votes_data: {
-    //         number_of_votes: number,
-    //         percentage: number
-    //     },
-    //     flag_votes: { number_of_votes: number, percentage: number },
-    // }
+    votesData: {
+        nb_of_rows: number
+        variants: string[]
+        flag_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        variants_votes_data: {
+            number_of_votes: number
+            percentage: number
+        }
+    }
     createdAt: string
 }
 
