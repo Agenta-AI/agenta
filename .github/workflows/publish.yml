@@ -31,7 +31,7 @@ jobs:
         current_version=$(poetry version --no-interaction | awk '{print $2}')
         if [ "$previous_version" == "$current_version" ]; then
           echo "No version change detected. Skipping package publication."
-          exit 0
+          exit 78  # Exit code 78 indicates that the job was skipped
         fi
         echo "::set-output name=version_bumped::true"
       shell: bash
@@ -42,4 +42,3 @@ jobs:
         cd ../../agenta-cli
         poetry build
         poetry publish --username __token__ --password ${{ secrets.PYPI_API_TOKEN }}
-    
