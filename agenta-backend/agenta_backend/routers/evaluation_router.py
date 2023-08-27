@@ -31,7 +31,7 @@ from agenta_backend.services.db_mongo import (
 )
 from agenta_backend.config import settings
 
-if settings.feature_flag in ["cloud", "ee"]:
+if settings.feature_flag in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
     from agenta_backend.ee.services.selectors import get_user_and_org_id
 else:

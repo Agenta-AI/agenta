@@ -19,7 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi import APIRouter, Body, HTTPException, Depends
 from agenta_backend.config import settings
 
-if settings.feature_flag in ["cloud", "ee"]:
+if settings.feature_flag in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
     from agenta_backend.ee.services.selectors import get_user_and_org_id
 else:
@@ -88,7 +88,11 @@ async def add_variant_from_image(
         HTTPException: If image not found in docker utils list
         HTTPException: If there is a problem adding the app variant
     """
-
+    if settings.feature_flag == "demo":
+        raise HTTPException(
+            status_code=500,
+            detail="This feature is not available in the demo version",
+        )
     if not image.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500,
