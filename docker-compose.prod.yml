@@ -45,6 +45,10 @@ services:
       ]
     env_file:
       - .env
+    depends_on:
+      mongo:
+        condition: service_healthy
+
   agenta-web:
     build:
       context: ./agenta-web
@@ -99,9 +103,9 @@ services:
   redis:
     image: redis:latest
     networks:
-        - agenta-network
+      - agenta-network
     volumes:
-        - redis_data:/data
+      - redis_data:/data
 
 networks:
   agenta-network:
