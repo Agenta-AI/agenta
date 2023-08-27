@@ -155,6 +155,8 @@ export default function SingleEvaluation() {
         },
         {
             title: "Average score",
+            dataIndex: "averageScore",
+            key: "averageScore",
             // render: (value: any, record: EvaluationListTableDataType, index: number) => {
             //     return <span>{record.status}</span>
             // },
