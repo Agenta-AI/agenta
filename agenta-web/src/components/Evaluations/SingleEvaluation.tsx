@@ -3,11 +3,12 @@ import {Button, Collapse, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
-import {Variant} from "@/lib/Types"
+import {EvaluationResponseType, Variant} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
+import { formatDate } from "@/lib/helpers/dateTimeHelper"
 
 interface EvaluationListTableDataType {
     key: string
@@ -64,26 +65,47 @@ export default function SingleEvaluation() {
         }
         const fetchEvaluations = async () => {
             try {
-                const result = await loadEvaluations(app_name)
-                let newList = result
-                    .filter((obj: any) => obj.evaluationType !== "human_a_b_testing")
-                    .map((obj: any) => {
-                        let newObj: EvaluationListTableDataType = {
-                            key: obj.id,
-                            testset: obj.testset,
-                            variants: obj.variants,
-                            evaluationType: obj.evaluationType,
-                            status: obj.status,
-                            createdAt: obj.createdAt,
-                        }
-                        return newObj
+                fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_name=${app_name}`)
+                    .then((response) => {
+                        const fetchPromises = response.map((item:EvaluationResponseType) => {
+                            return fetchData(
+                                `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${item.id}/results`,
+                            ).then((results) => {
+                                if (
+                                    item.evaluation_type == EvaluationType.auto_exact_match ||
+                                    item.evaluation_type == EvaluationType.auto_similarity_match
+                                ) {
+                                    if (Object.keys(results.scores_data).length > 0) {
+                                        return {
+                                            key: item.id,
+                                            createdAt: formatDate(item.created_at),
+                                            variants: item.variants,
+                                            scoresData: results.scores_data,
+                                            evaluationType: item.evaluation_type,
+                                            status: item.status,
+                                            testset: item.testset,
+                                        }
+                                    }
+                                }
+                            })
+                            .catch((err) => console.error(err))
+                        })
+                        Promise.all(fetchPromises)
+                            .then((evaluations) => {
+                                const validEvaluations = evaluations.filter(
+                                    (evaluation) => evaluation !== undefined,
+                                )
+                                setEvaluationsList(validEvaluations)
+                                setDeletingLoading(false)
+                            })
+                            .catch((err) => 
+                                console.error(err)
+                            )
                     })
+                    .catch((err) => console.error(err))
 
-                setEvaluationsList(newList)
-                setDeletingLoading(false)
             } catch (error) {
                 console.log(error)
-                // setError(error);
             }
         }
 
@@ -112,7 +134,7 @@ export default function SingleEvaluation() {
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 return (
                     <div>
-                        <span>{value[0].variantName}</span>
+                        <span>{value[0]}</span>
                     </div>
                 )
             },
