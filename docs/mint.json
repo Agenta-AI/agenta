@@ -27,8 +27,8 @@
     }
   ],
   "topbarCtaButton": {
-    "name": "Get Started",
-    "url": "https://github.com/agenta-ai/agenta"
+    "name": "Try the demo",
+    "url": "https://demo.agenta.ai"
   },
   "anchors": [
     {
