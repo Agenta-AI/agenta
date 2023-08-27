@@ -29,7 +29,6 @@ services:
             - "traefik.http.routers.backend.middlewares=backend-strip"
             - "traefik.http.services.backend.loadbalancer.server.port=8000"
             - "traefik.http.routers.backend.service=backend"
-
         networks:
             - agenta-network
         command:
@@ -46,6 +45,9 @@ services:
                 "--root-path",
                 "/api"
             ]
+        depends_on:
+            mongo:
+                condition: service_healthy
 
     agenta-web:
         build:
