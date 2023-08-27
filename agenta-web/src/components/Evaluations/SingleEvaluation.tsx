@@ -41,14 +41,14 @@ const useStyles = createUseStyles({
         padding: 0,
         width: "100%",
     },
-    stat:{
+    stat: {
         "& .ant-statistic-content-value": {
-            fontSize: 20
+            fontSize: 20,
         },
-        "& .ant-statistic-content-suffix":{
-            fontSize: 20
-        }
-    }
+        "& .ant-statistic-content-suffix": {
+            fontSize: 20,
+        },
+    },
 })
 
 const {Title} = Typography
@@ -170,7 +170,7 @@ export default function SingleEvaluation() {
                 return (
                     <span>
                         <Statistic
-                        className={classes.stat}
+                            className={classes.stat}
                             value={
                                 (record.scoresData.scores.true /
                                     (record.scoresData.scores.true +
