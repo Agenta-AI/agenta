@@ -396,7 +396,7 @@ async def clean_soft_deleted_variants():
 
     for variant in soft_deleted_variants:
         # Build the query expression for the two conditions
-        query_expression = query.eq(AppVariantDB.image_id, variant.image_id) & query.eq(
+        query_expression = query.eq(AppVariantDB.image_id, variant.image_id.id) & query.eq(
             AppVariantDB.is_deleted, False
         )
 
