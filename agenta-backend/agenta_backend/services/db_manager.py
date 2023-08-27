@@ -306,8 +306,7 @@ async def remove_app_variant(app_variant: AppVariant):
 
     else:
         app_variant_db.is_deleted = True  # soft deletion
-
-    await engine.save(app_variant_db)
+        await engine.save(app_variant_db)
 
 
 async def remove_image(image: Image):
@@ -320,7 +319,7 @@ async def remove_image(image: Image):
         raise ValueError("Image is None")
 
     # Build the query expression for the two conditions
-    query_expression = query.eq(ImageDB.docker_id, image.docker_id) & query.eq(
+    query_expression = query.eq(ImageDB.tags, image.tags) & query.eq(
         ImageDB.tags, image.tags
     )
     image_db = await engine.find_one(ImageDB, query_expression)
