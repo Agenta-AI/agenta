@@ -1,5 +1,5 @@
 import {deleteEvaluations, fetchData} from "@/lib/services/api"
-import {Button, Collapse, Table, Typography} from "antd"
+import {Button, Collapse, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
@@ -8,6 +8,11 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
+
+interface VariantVotesData {
+    number_of_votes: number
+    percentage: number
+}
 
 interface EvaluationListTableDataType {
     key: string
@@ -25,10 +30,7 @@ interface EvaluationListTableDataType {
             number_of_votes: number
             percentage: number
         }
-        variants_votes_data: {
-            number_of_votes: number
-            percentage: number
-        }
+        variants_votes_data: Record<string, VariantVotesData>
     }
     createdAt: string
 }
@@ -43,6 +45,26 @@ const useStyles = createUseStyles({
     collapse: {
         padding: 0,
         width: "100%",
+    },
+    statFlag: {
+        "& .ant-statistic-content-value": {
+            fontSize: 20,
+            color: "#cf1322"
+        },
+        "& .ant-statistic-content-suffix": {
+            fontSize: 20,
+            color: "#cf1322"
+        },
+    },
+    stat: {
+        "& .ant-statistic-content-value": {
+            fontSize: 20,
+            color: "#1677ff"
+        },
+        "& .ant-statistic-content-suffix": {
+            fontSize: 20,
+            color: "#1677ff"
+        },
     },
 })
 
@@ -155,16 +177,56 @@ export default function ABTestingEvaluation() {
             title: "v1 better",
             dataIndex: "v1Better",
             key: "v1Better",
+            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                let variant = record.votesData.variants[0]
+
+                return (
+                    <span>
+                        <Statistic
+                            className={classes.stat}
+                            value={record.votesData.variants_votes_data[variant].percentage}
+                            precision={2}
+                            suffix="%"
+                        />
+                    </span>
+                )
+            },
         },
         {
             title: "v2 better",
             dataIndex: "v2Better",
             key: "v2Better",
+            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                let variant = record.votesData.variants[1]
+
+                return (
+                    <span>
+                        <Statistic
+                            className={classes.stat}
+                            value={record.votesData.variants_votes_data[variant].percentage}
+                            precision={2}
+                            suffix="%"
+                        />
+                    </span>
+                )
+            },
         },
         {
             title: "Flag",
             dataIndex: "flag",
             key: "flag",
+            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                return (
+                    <span>
+                        <Statistic
+                            className={classes.statFlag}
+                            value={record.votesData.flag_votes.percentage}
+                            precision={2}
+                            suffix="%"
+                        />
+                    </span>
+                )
+            },
         },
         {
             title: "Created at",
