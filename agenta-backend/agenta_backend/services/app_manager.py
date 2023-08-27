@@ -4,7 +4,6 @@
 import logging
 from typing import Optional
 from agenta_backend.config import settings
-from agenta_backend.services.db_mongo import testsets
 from agenta_backend.models.api.api_models import (
     URI,
     App,
@@ -12,7 +11,7 @@ from agenta_backend.models.api.api_models import (
     Image,
     DockerEnvVars,
 )
-from agenta_backend.models.db_models import AppVariantDB
+from agenta_backend.models.db_models import AppVariantDB, TestSetDB
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
 
@@ -196,21 +195,19 @@ async def remove_app_testsets(app_name: str):
     """
 
     # Find testsets owned by the app
-    cursor = testsets.find({"app_name": app_name})
-    documents = await cursor.to_list(length=100)
-
-    # Prepare a list of ObjectIds for bulk deletion
-    testset_ids = [document["_id"] for document in documents]
-
-    # Perform bulk deletion if there are testsets to delete
-    if testset_ids:
-        result = await testsets.delete_many({"_id": {"$in": testset_ids}})
-        deleted_count = result.deleted_count
-        logger.info(f"{deleted_count} testset(s) deleted for app {app_name}")
-        return deleted_count
-    else:
-        logger.info(f"No testsets found for app {app_name}")
-        return 0
+    deleted_count: int = 0
+    testsets = await db_manager.engine.find_one(TestSetDB, TestSetDB.app_name == app_name)
+    
+    # Perform deletion if there are testsets to delete
+    if testsets is not None:
+        for testset in testsets:
+            await db_manager.engine.delete(testset)
+            deleted_count += 1
+            logger.info(f"{deleted_count} testset(s) deleted for app {app_name}")
+            return deleted_count
+        
+    logger.info(f"No testsets found for app {app_name}")
+    return 0
 
 
 async def start_variant(app_variant: AppVariant, env_vars: DockerEnvVars = None) -> URI:
