@@ -32,7 +32,7 @@
 
 
 <p align="center">
-<a  href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
+<a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
 <img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
 </a>
 <a href="https://www.linkedin.com/company/agenta-ai/">
@@ -42,6 +42,14 @@
 <img src="https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white" />
 </a>
 </p>
+</br>
+
+<a href="https://demo.agenta.ai">
+  <picture>
+  <img src="https://github.com/Agenta-AI/agenta/assets/4510758/a3024fac-2945-4208-ae12-4cc51ecfc970" />
+  </picture>
+</a>
+
 
 <br>
   <br />
@@ -94,17 +102,36 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 
 # Quick Start
 
-<h3>
-  Please go to <a href="https://docs.agenta.ai/"><b>docs.agenta.ai</b></a> for full documentation on: <br/><br/>
-  <a href="https://docs.agenta.ai/installation"><b>Installation</b></a> <br/>
-  <a href="https://docs.agenta.ai/getting-started"><b>Getting Started</b></a><br/>
-  <a href="https://docs.agenta.ai/tutorials"><b>Tutorials</b></a>
-</h3>
 
-## Deploy to AWS
-<a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation#aws">
-<img src=".github/images/deploy-aws-button.png" width="180" />
+<div  align="center" >
+<a href="https://demo.agenta.ai">
+  <picture>
+  <img src="https://github.com/Agenta-AI/agenta/assets/4510758/a3024fac-2945-4208-ae12-4cc51ecfc970" />
+  </picture>
 </a>
+</br>
+  <a href="https://docs.agenta.ai/installation">  
+    <picture>
+      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/29f3fc9a-8a7c-4b39-81a8-776a472a2baf" />
+    </picture> 
+  </a> 
+  <a href="https://docs.agenta.ai/getting-started">  
+    <picture>
+      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/18decb9c-eba5-4d2f-9735-048a1e9d9386" /> 
+    </picture>
+  </a> 
+  <a href="https://docs.agenta.ai/tutorials">  
+    <picture>
+      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/e665d66d-d0fe-4b0a-ae7b-5e08350e5e6c" /> 
+    </picture>
+  </a> 
+<a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation#aws">  
+  <picture>
+    <img src="https://github.com/Agenta-AI/agenta/assets/4510758/65c1487e-5233-4509-8e8d-d967235ccfd7"  />
+  </picture>
+</a>
+
+</div>
 
 # Features
 
