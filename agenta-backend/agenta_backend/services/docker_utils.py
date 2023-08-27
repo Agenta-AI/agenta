@@ -49,26 +49,41 @@ def start_container(image_name, app_name, variant_name, env_vars: DockerEnvVars)
     try:
         image = client.images.get(f"{image_name}")
 
+        image = client.images.get(f"{image_name}")
+
+        # Default labels
         labels = {
-            f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
             f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
             f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
             f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}-strip-prefix",
             f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
         }
 
-        rules = {
-            "development": f"PathPrefix(`/{app_name}/{variant_name}`)",
-            "production": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)",
-        }
-
-        labels.update(
-            {
-                f"traefik.http.routers.{app_name}-{variant_name}.rule": rules[
-                    os.environ["ENVIRONMENT"]
-                ]
+        # Merge the default labels with environment-specific labels
+        if os.environ["ENVIRONMENT"] == "production":
+            # Production specific labels
+            production_labels = {
+                f"traefik.http.routers.{app_name}-{variant_name}.rule": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)",
             }
-        )
+            labels.update(production_labels)
+
+            if "https" in os.environ["DOMAIN_NAME"]:
+                # SSL specific labels
+                ssl_labels = {
+                    f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web-secure",
+                    f"traefik.http.routers.{app_name}-{variant_name}.tls": "true",
+                    f"traefik.http.routers.{app_name}-{variant_name}.tls.certresolver": "myResolver",
+                }
+                labels.update(ssl_labels)
+        else:
+            # Development specific labels
+            development_labels = {
+                f"traefik.http.routers.{app_name}-{variant_name}.rule": f"PathPrefix(`/{app_name}/{variant_name}`)",
+                f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
+            }
+
+            labels.update(development_labels)
+
         env_vars = {} if env_vars is None else env_vars
         container = client.containers.run(
             image,
