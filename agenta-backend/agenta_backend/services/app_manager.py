@@ -179,9 +179,6 @@ async def remove_app(app: App, **kwargs: dict):
                 )
 
             await remove_app_testsets(app_name)
-            if app_variant.variant_name == "v1":
-                docker_utils.stop_container(f"{app_variant.app_name}-v1")
-                docker_utils.delete_container(f"{app_variant.app_name}-v1")
             logger.info(f"Tatasets for {app_name} app deleted")
         except Exception as e:
             logger.error(f"Error deleting app variants: {str(e)}")
