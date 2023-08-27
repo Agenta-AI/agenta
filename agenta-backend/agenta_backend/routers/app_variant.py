@@ -19,7 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi import APIRouter, Body, HTTPException, Depends
 from agenta_backend.config import settings
 
-if settings.feature_flag in ["cloud", "ee"]:
+if settings.feature_flag in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
     from agenta_backend.ee.services.selectors import get_user_and_org_id
 else:
@@ -88,7 +88,11 @@ async def add_variant_from_image(
         HTTPException: If image not found in docker utils list
         HTTPException: If there is a problem adding the app variant
     """
-
+    if settings.feature_flag == "demo":
+        raise HTTPException(
+            status_code=500,
+            detail="This feature is not available in the demo version",
+        )
     if not image.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500,
@@ -296,9 +300,8 @@ async def add_app_variant_from_template(
     app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
 
     # Create an Image instance with the extracted image id, and defined image name
-    image_id = payload.image_id.split(":")[-1]
     image_name = f"agentaai/templates:{payload.image_tag}"
-    image: Image = Image(docker_id=image_id, tags=f"{image_name}")
+    image: Image = Image(docker_id=payload.image_id, tags=f"{image_name}")
     variant_exist = await db_manager.get_variant_from_db(app_variant)
     if variant_exist is None:
         # Save variant based on the image to database

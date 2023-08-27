@@ -133,9 +133,10 @@ async def remove_app_variant(app_variant: AppVariant) -> None:
             if image:
                 _stop_and_delete_containers(image)
                 _delete_docker_image(image)
+                await db_manager.remove_app_variant(app_variant)
                 await db_manager.remove_image(image)
-
-        await db_manager.remove_app_variant(app_variant)
+        else:
+            await db_manager.remove_app_variant(app_variant)
 
     except Exception as e:
         logger.error(f"Error deleting app variant: {str(e)}")
@@ -178,9 +179,6 @@ async def remove_app(app: App, **kwargs: dict):
                 )
 
             await remove_app_testsets(app_name)
-            if app_variant.variant_name == "v1":
-                docker_utils.stop_container(f"{app_variant.app_name}-v1")
-                docker_utils.delete_container(f"{app_variant.app_name}-v1")
             logger.info(f"Tatasets for {app_name} app deleted")
         except Exception as e:
             logger.error(f"Error deleting app variants: {str(e)}")
