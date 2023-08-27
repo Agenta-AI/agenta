@@ -1180,6 +1180,17 @@ files = [
 ]
 
 [[package]]
+name = "pkce"
+version = "1.0.3"
+description = "PKCE Pyhton generator."
+optional = false
+python-versions = ">=3"
+files = [
+    {file = "pkce-1.0.3-py3-none-any.whl", hash = "sha256:55927e24c7d403b2491ebe182b95d9dcb1807643243d47e3879fbda5aad4471d"},
+    {file = "pkce-1.0.3.tar.gz", hash = "sha256:9775fd76d8a743d39b87df38af1cd04a58c9b5a5242d5a6350ef343d06814ab6"},
+]
+
+[[package]]
 name = "pluggy"
 version = "1.3.0"
 description = "plugin and hook calling mechanisms for python"
@@ -1736,13 +1747,13 @@ full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart", "pyyam
 
 [[package]]
 name = "supertokens-python"
-version = "0.14.8"
+version = "0.15.2"
 description = "SuperTokens SDK for Python"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "supertokens_python-0.14.8-py3-none-any.whl", hash = "sha256:9516ca6bf576f3c3a577b0c54b6fafcbb40d9ebbdd2be789580662b4951cdac8"},
-    {file = "supertokens_python-0.14.8.tar.gz", hash = "sha256:aacb034a47efff6ba7b3523fa78e2b4aec45d5d2cfe73fbcb82fd244a14cef40"},
+    {file = "supertokens_python-0.15.2-py3-none-any.whl", hash = "sha256:6bf4028bfca54e0e5820232a185c37d770205cad8ac920defebc231778691610"},
+    {file = "supertokens_python-0.15.2.tar.gz", hash = "sha256:e7129504913ac6d2a33969e607a852bf95abda12fd013cfcfd61d31eacb2247c"},
 ]
 
 [package.dependencies]
@@ -1751,6 +1762,7 @@ asgiref = ">=3.4.1,<4"
 Deprecated = "1.2.13"
 httpx = ">=0.15.0,<0.25.0"
 phonenumbers = "8.12.48"
+pkce = "1.0.3"
 pycryptodome = "==3.10.*"
 PyJWT = {version = ">=2.6.0,<3.0.0", extras = ["crypto"]}
 tldextract = "3.1.0"
@@ -2103,4 +2115,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "d1c866cfd2d6b58bd8ae88f3eef1493aa911790f8b962f3c61bb7f0850db1aad"
+content-hash = "2ceaece27051d32064ce72c40947152c46f57f44c8bedf92c1d30b3f526b6d05"
