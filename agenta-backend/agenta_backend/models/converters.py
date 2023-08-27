@@ -28,7 +28,7 @@ def image_db_to_pydantic(image_db: ImageDB) -> Image:
 def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
     return [
         Template(
-            id=template.id,
+            id=template.template_id,
             image=TemplateImageInfo(
                 name=template.name,
                 size=template.size,
