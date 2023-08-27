@@ -24,18 +24,23 @@ from agenta_backend.services.evaluation_service import (
     update_evaluation_scenario,
     update_evaluation_status,
     create_new_evaluation,
+    create_new_evaluation_scenario,
 )
-from agenta_backend.services.db_mongo import (
-    evaluations,
-    evaluation_scenarios,
-)
+from agenta_backend.services.db_manager import engine, query, get_user_object
+from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
 from agenta_backend.config import settings
 
 if settings.feature_flag in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.ee.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
     from agenta_backend.ee.services.selectors import get_user_and_org_id
 else:
-    from agenta_backend.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
@@ -66,7 +71,9 @@ async def create_evaluation(
 
 @router.put("/{evaluation_id}", response_model=Evaluation)
 async def update_evaluation_status_router(
-    evaluation_id: str, update_data: EvaluationStatus = Body(...)
+    evaluation_id: str,
+    update_data: EvaluationStatus = Body(...),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Updates an evaluation status
     Raises:
@@ -75,7 +82,11 @@ async def update_evaluation_status_router(
         _description_
     """
     try:
-        return await update_evaluation_status(evaluation_id, update_data.status)
+        # Get user and organization id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        return await update_evaluation_status(
+            evaluation_id, update_data.status, **kwargs
+        )
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -87,7 +98,10 @@ async def update_evaluation_status_router(
     "/{evaluation_id}/evaluation_scenarios",
     response_model=List[EvaluationScenario],
 )
-async def fetch_evaluation_scenarios(evaluation_id: str):
+async def fetch_evaluation_scenarios(
+    evaluation_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Creates an empty evaluation row
 
     Arguments:
@@ -99,15 +113,37 @@ async def fetch_evaluation_scenarios(evaluation_id: str):
     Returns:
         _description_
     """
-    cursor = evaluation_scenarios.find({"evaluation_id": evaluation_id})
-    items = await cursor.to_list(length=100)  # limit length to 100 for the example
-    for item in items:
-        item["id"] = str(item["_id"])
-    return items
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(kwargs["user_id"])
+
+    # Create query expression builder
+    query_expression = query.eq(
+        EvaluationScenarioDB.evaluation, evaluation_id
+    ) & query.eq(EvaluationScenarioDB.user, user.id)
+
+    scenarios = await engine.find(EvaluationScenarioDB, query_expression)
+    eval_scenarios = [
+        EvaluationScenario(
+            evaluation_id=scenario.evaluation,
+            inputs=scenario.inputs,
+            outputs=scenario.outputs,
+            vote=scenario.vote,
+            score=scenario.score,
+            correct_answer=scenario.correct_answer,
+            id=str(scenario.id),
+        )
+        for scenario in scenarios
+    ]
+    return eval_scenarios
 
 
-@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
+@router.post(
+    "/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario
+)
 async def create_evaluation_scenario(
+    evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
@@ -131,12 +167,11 @@ async def create_evaluation_scenario(
 
     # Get user and organization id
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    evaluation_scenario_dict.update(kwargs)
-
-    result = await evaluation_scenarios.insert_one(evaluation_scenario_dict)
-    if result.acknowledged:
-        evaluation_scenario_dict["id"] = str(result.inserted_id)
-        return evaluation_scenario_dict
+    result = await create_new_evaluation_scenario(
+        evaluation_id, evaluation_scenario, **kwargs
+    )
+    if result is not None:
+        return result
     else:
         raise HTTPException(
             status_code=500, detail="Failed to create evaluation_scenario"
@@ -168,37 +203,85 @@ async def update_evaluation_scenario_router(
         # Get user and organization id
         kwargs: dict = await get_user_and_org_id(stoken_session)
         return await update_evaluation_scenario(
-            evaluation_scenario_id, evaluation_scenario, evaluation_type, **kwargs
+            evaluation_scenario_id,
+            evaluation_scenario,
+            evaluation_type,
+            **kwargs,
         )
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/", response_model=List[Evaluation])
-async def fetch_list_evaluations(app_name: Optional[str] = None):
+async def fetch_list_evaluations(
+    app_name: Optional[str] = None,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """lists of all comparison tables
 
     Returns:
         _description_
     """
-    cursor = evaluations.find({"app_name": app_name}).sort("created_at", -1)
-    items = await cursor.to_list(length=100)  # limit length to 100 for the example
-    for item in items:
-        item["id"] = str(item["_id"])
-    return items
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(kwargs["user_id"])
+
+    # Construct query expression builder
+    query_expression = query.eq(EvaluationDB.app_name, app_name) & query.eq(
+        EvaluationDB.user, user.id
+    )
+    evaluations = await engine.find(EvaluationDB, query_expression)
+    return [
+        Evaluation(
+            id=str(evaluation.id),
+            status=evaluation.status,
+            evaluation_type=evaluation.evaluation_type,
+            evaluation_type_settings=evaluation.evaluation_type_settings,
+            llm_app_prompt_template=evaluation.llm_app_prompt_template,
+            variants=evaluation.variants,
+            app_name=evaluation.app_name,
+            testset=evaluation.testset,
+            created_at=evaluation.created_at,
+            updated_at=evaluation.updated_at,
+        )
+        for evaluation in evaluations
+    ]
 
 
 @router.get("/{evaluation_id}", response_model=Evaluation)
-async def fetch_evaluation(evaluation_id: str):
+async def fetch_evaluation(
+    evaluation_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Fetch one comparison table
 
     Returns:
         _description_
     """
-    evaluation = await evaluations.find_one({"_id": ObjectId(evaluation_id)})
-    if evaluation:
-        evaluation["id"] = str(evaluation["_id"])
-        return evaluation
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(kwargs["user_id"])
+
+    # Construct query expression builder
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
+    evaluation = await engine.find_one(EvaluationDB, query_expression)
+    if evaluation is not None:
+        return Evaluation(
+            id=str(evaluation.id),
+            status=evaluation.status,
+            evaluation_type=evaluation.evaluation_type,
+            evaluation_type_settings=evaluation.evaluation_type_settings,
+            llm_app_prompt_template=evaluation.llm_app_prompt_template,
+            variants=evaluation.variants,
+            app_name=evaluation.app_name,
+            testset=evaluation.testset,
+            created_at=evaluation.created_at,
+            updated_at=evaluation.updated_at,
+        )
     else:
         raise HTTPException(
             status_code=404,
@@ -207,7 +290,10 @@ async def fetch_evaluation(evaluation_id: str):
 
 
 @router.delete("/", response_model=List[str])
-async def delete_evaluations(delete_evaluations: DeleteEvaluation):
+async def delete_evaluations(
+    delete_evaluations: DeleteEvaluation,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """
     Delete specific comparison tables based on their unique IDs.
 
@@ -217,15 +303,22 @@ async def delete_evaluations(delete_evaluations: DeleteEvaluation):
     Returns:
     A list of the deleted comparison tables' IDs.
     """
-    deleted_ids = []
 
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(kwargs["user_id"])
+
+    deleted_ids = []
     for evaluations_id in delete_evaluations.evaluations_ids:
-        evaluation = await evaluations.find_one({"_id": ObjectId(evaluations_id)})
+        # Construct query expression builder
+        query_expression = query.eq(
+            EvaluationDB.id, ObjectId(evaluations_id)
+        ) & query.eq(EvaluationDB.user, user.id)
+        evaluation = await engine.find_one(EvaluationDB, query_expression)
 
         if evaluation is not None:
-            result = await evaluations.delete_one({"_id": ObjectId(evaluations_id)})
-            if result:
-                deleted_ids.append(evaluations_id)
+            await engine.delete(evaluation)
+            deleted_ids.append(evaluations_id)
         else:
             raise HTTPException(
                 status_code=404,
@@ -236,7 +329,10 @@ async def delete_evaluations(delete_evaluations: DeleteEvaluation):
 
 
 @router.get("/{evaluation_id}/results")
-async def fetch_results(evaluation_id: str):
+async def fetch_results(
+    evaluation_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Fetch all the results for one the comparison table
 
     Arguments:
@@ -245,7 +341,14 @@ async def fetch_results(evaluation_id: str):
     Returns:
         _description_
     """
-    evaluation = await evaluations.find_one({"_id": ObjectId(evaluation_id)})
+    
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(kwargs["user_id"])
+    
+    # Construct query expression builder and retrieve evaluation from database
+    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id), EvaluationDB.user, user.id)
+    evaluation = await engine.find_one(EvaluationDB, query_expression)
 
     if evaluation["evaluation_type"] == EvaluationType.human_a_b_testing:
         results = await fetch_results_for_human_a_b_testing_evaluation(
