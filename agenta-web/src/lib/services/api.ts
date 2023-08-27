@@ -291,7 +291,7 @@ export const deleteTestsets = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",
-            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets`,
+            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/`,
             data: {testset_ids: ids},
         })
         if (response.status === 200) {
@@ -337,7 +337,7 @@ export const deleteEvaluations = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",
-            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations`,
+            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`,
             data: {evaluations_ids: ids},
         })
         if (response.status === 200) {
