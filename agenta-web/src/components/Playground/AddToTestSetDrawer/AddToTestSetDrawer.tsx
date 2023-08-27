@@ -1,4 +1,5 @@
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
+import {useAppTheme} from "../../Layout/ThemeContextProvider"
 import {testset} from "@/lib/Types"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {renameVariables} from "@/lib/helpers/utils"
@@ -9,6 +10,10 @@ import React, {useCallback, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
 
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
+
 const useStyles = createUseStyles({
     footer: {
         display: "flex",
@@ -16,9 +21,12 @@ const useStyles = createUseStyles({
         justifyContent: "flex-end",
         gap: "0.75rem",
     },
-    selector: {
+    selector: ({themeMode}: StyleProps) => ({
         minWidth: 160,
-    },
+        "& .ant-select-selection-placeholder": {
+            color: themeMode === "dark" ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
+        },
+    }),
 })
 
 type Props = React.ComponentProps<typeof Drawer> & {
@@ -26,7 +34,8 @@ type Props = React.ComponentProps<typeof Drawer> & {
 }
 
 const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [form] = Form.useForm()
     const [selectedTestset, setSelectedTestset] = useState<string>()
     const [newTesetModalOpen, setNewTestsetModalOpen] = useState(false)
