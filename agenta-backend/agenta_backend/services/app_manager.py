@@ -133,9 +133,10 @@ async def remove_app_variant(app_variant: AppVariant) -> None:
             if image:
                 _stop_and_delete_containers(image)
                 _delete_docker_image(image)
+                await db_manager.remove_app_variant(app_variant)
                 await db_manager.remove_image(image)
-
-        await db_manager.remove_app_variant(app_variant)
+        else:
+            await db_manager.remove_app_variant(app_variant)
 
     except Exception as e:
         logger.error(f"Error deleting app variant: {str(e)}")
