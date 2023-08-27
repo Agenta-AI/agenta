@@ -44,7 +44,7 @@ async def list_app_variants(app_name: Optional[str] = None):
         List[AppVariant]
     """
     try:
-        app_variants = db_manager.list_app_variants(app_name=app_name)
+        app_variants = await db_manager.list_app_variants(app_name=app_name)
         return app_variants
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -64,9 +64,10 @@ async def list_apps(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        apps = db_manager.list_apps(**kwargs)
+        apps = await db_manager.list_apps(**kwargs)
         return apps
     except Exception as e:
+        logger.error(f"list_apps exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -87,7 +88,7 @@ async def add_variant_from_image(
         HTTPException: If image not found in docker utils list
         HTTPException: If there is a problem adding the app variant
     """
-    print(stoken_session)
+
     if not image.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500,
@@ -99,7 +100,7 @@ async def add_variant_from_image(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
+        await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -129,7 +130,7 @@ async def add_variant_from_previous(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        db_manager.add_variant_based_on_previous(
+        await db_manager.add_variant_based_on_previous(
             previous_app_variant, new_variant_name, parameters, **kwargs
         )
     except Exception as e:
@@ -144,10 +145,11 @@ async def start_variant(
     logger.info("Starting variant %s", app_variant)
     try:
         env_vars = {} if env_vars is None else env_vars.env_vars
-        return app_manager.start_variant(app_variant, env_vars)
+        return await app_manager.start_variant(app_variant, env_vars)
     except Exception as e:
-        if db_manager.get_variant_from_db(app_variant) is not None:
-            app_manager.remove_app_variant(app_variant)
+        variant_from_db = await db_manager.get_variant_from_db(app_variant)
+        if variant_from_db is not None:
+            await app_manager.remove_app_variant(app_variant)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -185,7 +187,7 @@ async def remove_variant(app_variant: AppVariant):
         HTTPException: If there is a problem removing the app variant
     """
     try:
-        app_manager.remove_app_variant(app_variant)
+        await app_manager.remove_app_variant(app_variant)
     except SQLAlchemyError as e:
         detail = f"Database error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -198,14 +200,20 @@ async def remove_variant(app_variant: AppVariant):
 
 
 @router.delete("/remove_app/")
-async def remove_app(app: App):
+async def remove_app(
+    app: App, stoken_session: SessionContainer = Depends(verify_session())
+):
     """Remove app, all its variant, containers and images
 
     Arguments:
         app -- App to remove
     """
+
+    # Get user and org id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
     try:
-        await app_manager.remove_app(app)
+        await app_manager.remove_app(app, **kwargs)
     except SQLAlchemyError as e:
         detail = f"Database error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -225,7 +233,7 @@ async def update_variant_parameters(app_variant: AppVariant):
         app_variant -- Appvariant to update
     """
     try:
-        app_manager.update_variant_parameters(app_variant)
+        await app_manager.update_variant_parameters(app_variant)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -252,7 +260,7 @@ async def update_variant_image(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        app_manager.update_variant_image(app_variant, image, **kwargs)
+        await app_manager.update_variant_image(app_variant, image, **kwargs)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -291,16 +299,16 @@ async def add_app_variant_from_template(
     image_id = payload.image_id.split(":")[-1]
     image_name = f"agentaai/templates:{payload.image_tag}"
     image: Image = Image(docker_id=image_id, tags=f"{image_name}")
-    variant_exist = db_manager.get_variant_from_db(app_variant)
+    variant_exist = await db_manager.get_variant_from_db(app_variant)
     if variant_exist is None:
         # Save variant based on the image to database
-        db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
+        await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
     else:
         # Update variant based on the image
-        app_manager.update_variant_image(app_variant, image, **kwargs)
+        await app_manager.update_variant_image(app_variant, image, **kwargs)
 
     # Start variant
-    url = app_manager.start_variant(app_variant, payload.env_vars)
+    url = await app_manager.start_variant(app_variant, payload.env_vars)
 
     return {
         "message": "Variant created and running!",
