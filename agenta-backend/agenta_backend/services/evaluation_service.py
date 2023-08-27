@@ -130,31 +130,29 @@ async def create_new_evaluation(
 
 
 async def update_evaluation_status(
-    evaluation_id: str, status: EvaluationStatus
+    evaluation_id: str, status: EvaluationStatus, **kwargs: dict
 ) -> Evaluation:
-    result = await engine.find_one(
-        EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
-    )
+    user = await get_user_object(kwargs["user_id"])
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.uid)
+    result = await engine.find_one(EvaluationDB, query_expression)
     result.update({"status": status.value})
     await engine.save(result)
 
     if result is not None:
-        doc = await engine.find_one(
-            EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
+        return Evaluation(
+            id=str(result.id),
+            status=result.status,
+            evaluation_type=result.evaluation_type,
+            evaluation_type_settings=result.evaluation_type_settings,
+            llm_app_prompt_template=result.llm_app_prompt_template,
+            variants=result.variants,
+            app_name=result.app_name,
+            testset=result.testset,
+            created_at=result.created_at,
+            updated_at=result.updated_at,
         )
-        if doc is not None:
-            return Evaluation(
-                id = str(doc.id),
-                status = doc.status,
-                evaluation_type = doc.evaluation_type,
-                evaluation_type_settings = doc.evaluation_type_settings,
-                llm_app_prompt_template = doc.llm_app_prompt_template,
-                variants = doc.variants,
-                app_name = doc.app_name,
-                testset = doc.testset,
-                created_at = doc.created_at,
-                updated_at = doc.updated_at
-            )
     else:
         raise UpdateEvaluationScenarioError(
             "Failed to update evaluation status"
