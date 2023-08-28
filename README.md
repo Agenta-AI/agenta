@@ -207,9 +207,8 @@ Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different v
 
 
 # Support
-
-Are you interested in using Agenta in your business? We'd love to talk to you about your needs and show you how agenta can help.
-[Book a meeting with the founders here](https://cal.com/mahmoud-mabrouk-ogzgey/demo) to start the conversation.
+Talk with the founders for any commercial inquiries. <br/><br/>
+<a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"><img src="https://cal.com/book-with-cal-dark.svg" alt="Book us"></a>
 
 # Contributing
 
