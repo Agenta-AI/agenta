@@ -52,36 +52,40 @@ def start_container(
         image = client.images.get(f"{image_name}")
 
         image = client.images.get(f"{image_name}")
+        
+        # Set user backend url path and container name
+        user_backend_url_path = f"{user_id}/{app_name}/{variant_name}"
+        user_backend_container_name =  f"{app_name}-{variant_name}-{user_id}"
 
         # Default labels
         labels = {
-            f"traefik.http.services.{app_name}-{variant_name}.loadbalancer.server.port": "80",
-            f"traefik.http.middlewares.{app_name}-{variant_name}-strip-prefix.stripprefix.prefixes": f"/{app_name}/{variant_name}",
-            f"traefik.http.routers.{app_name}-{variant_name}.middlewares": f"{app_name}-{variant_name}-strip-prefix",
-            f"traefik.http.routers.{app_name}-{variant_name}.service": f"{app_name}-{variant_name}",
+            f"traefik.http.services.{user_backend_container_name}.loadbalancer.server.port": "80",
+            f"traefik.http.middlewares.{user_backend_container_name}-strip-prefix.stripprefix.prefixes": f"/{user_backend_container_name}",
+            f"traefik.http.routers.{user_backend_container_name}.middlewares": f"{user_backend_container_name}-strip-prefix",
+            f"traefik.http.routers.{user_backend_container_name}.service": f"{user_backend_container_name}",
         }
 
         # Merge the default labels with environment-specific labels
         if os.environ["ENVIRONMENT"] == "production":
             # Production specific labels
             production_labels = {
-                f"traefik.http.routers.{app_name}-{variant_name}.rule": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{app_name}/{variant_name}`)",
+                f"traefik.http.routers.{user_backend_container_name}.rule": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{user_backend_container_name}`)",
             }
             labels.update(production_labels)
 
             if "https" in os.environ["DOMAIN_NAME"]:
                 # SSL specific labels
                 ssl_labels = {
-                    f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web-secure",
-                    f"traefik.http.routers.{app_name}-{variant_name}.tls": "true",
-                    f"traefik.http.routers.{app_name}-{variant_name}.tls.certresolver": "myResolver",
+                    f"traefik.http.routers.{user_backend_container_name}.entrypoints": "web-secure",
+                    f"traefik.http.routers.{user_backend_container_name}.tls": "true",
+                    f"traefik.http.routers.{user_backend_container_name}.tls.certresolver": "myResolver",
                 }
                 labels.update(ssl_labels)
         else:
             # Development specific labels
             development_labels = {
-                f"traefik.http.routers.{app_name}-{variant_name}.rule": f"PathPrefix(`/{app_name}/{variant_name}`)",
-                f"traefik.http.routers.{app_name}-{variant_name}.entrypoints": "web",
+                f"traefik.http.routers.{user_backend_container_name}.rule": f"PathPrefix(`/{user_backend_container_name}`)",
+                f"traefik.http.routers.{user_backend_container_name}.entrypoints": "web",
             }
 
             labels.update(development_labels)
@@ -92,7 +96,7 @@ def start_container(
             detach=True,
             labels=labels,
             network="agenta-network",
-            name=f"{app_name}-{variant_name}-{user_id}",
+            name=user_backend_container_name,
             environment=env_vars,
         )
         # Check the container's status
@@ -102,12 +106,12 @@ def start_container(
             logs = container.logs().decode("utf-8")
             raise Exception(f"Container exited immediately. Docker Logs: {logs}")
         return URI(
-            uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{app_name}/{variant_name}"
+            uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{user_backend_url_path}"
         )
     except docker.errors.APIError as error:
         # Container failed to run, get the logs
         try:
-            failed_container = client.containers.get(f"{app_name}-{variant_name}")
+            failed_container = client.containers.get(user_backend_container_name)
             logs = failed_container.logs().decode("utf-8")
             raise Exception(f"Docker Logs: {logs}") from error
         except Exception as e:
