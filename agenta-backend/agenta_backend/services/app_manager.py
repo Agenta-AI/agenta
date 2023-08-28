@@ -44,7 +44,9 @@ async def _fetch_app_variant_from_db(
         raise
 
 
-async def _fetch_image_from_db(app_variant: AppVariant, **kwargs:dict) -> Optional[Image]:
+async def _fetch_image_from_db(
+    app_variant: AppVariant, **kwargs: dict
+) -> Optional[Image]:
     """
     Fetches an image associated with an app variant from the database.
 
@@ -213,7 +215,9 @@ async def remove_app_testsets(app_name: str):
         return 0
 
 
-async def start_variant(app_variant: AppVariant, env_vars: DockerEnvVars = None, **kwargs: dict) -> URI:
+async def start_variant(
+    app_variant: AppVariant, env_vars: DockerEnvVars = None, **kwargs: dict
+) -> URI:
     """
     Starts a Docker container for a given app variant.
 
@@ -280,7 +284,9 @@ async def update_variant_parameters(app_variant: AppVariant, **kwargs: dict):
         logger.error(msg)
         raise ValueError(msg)
     try:
-        await db_manager.update_variant_parameters(app_variant, app_variant.parameters, **kwargs)
+        await db_manager.update_variant_parameters(
+            app_variant, app_variant.parameters, **kwargs
+        )
     except:
         logger.error(
             f"Error updating app variant {app_variant.app_name}/{app_variant.variant_name}"

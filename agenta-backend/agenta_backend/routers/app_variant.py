@@ -54,9 +54,7 @@ async def list_app_variants(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        app_variants = await db_manager.list_app_variants(
-            app_name=app_name, **kwargs
-        )
+        app_variants = await db_manager.list_app_variants(app_name=app_name, **kwargs)
         return app_variants
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -116,9 +114,7 @@ async def add_variant_from_image(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        await db_manager.add_variant_based_on_image(
-            app_variant, image, **kwargs
-        )
+        await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -143,9 +139,7 @@ async def add_variant_from_previous(
     print(
         f"previous_app_variant: {previous_app_variant}, type: {type(previous_app_variant)}"
     )
-    print(
-        f"new_variant_name: {new_variant_name}, type: {type(new_variant_name)}"
-    )
+    print(f"new_variant_name: {new_variant_name}, type: {type(new_variant_name)}")
     print(f"parameters: {parameters}, type: {type(parameters)}")
     try:
         # Get user and org id
@@ -199,7 +193,10 @@ async def list_images(stoken_session: SessionContainer = Depends(verify_session(
 
 
 @router.delete("/remove_variant/")
-async def remove_variant(app_variant: AppVariant, stoken_session: SessionContainer = Depends(verify_session())):
+async def remove_variant(
+    app_variant: AppVariant,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Remove a variant from the server.
     In the case it's the last variant using the image, stop the container and remove the image.
 
@@ -213,14 +210,10 @@ async def remove_variant(app_variant: AppVariant, stoken_session: SessionContain
         kwargs: dict = await get_user_and_org_id(stoken_session)
         await app_manager.remove_app_variant(app_variant, **kwargs)
     except SQLAlchemyError as e:
-        detail = (
-            f"Database error while trying to remove the app variant: {str(e)}"
-        )
+        detail = f"Database error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except DockerException as e:
-        detail = (
-            f"Docker error while trying to remove the app variant: {str(e)}"
-        )
+        detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to remove the app variant: {str(e)}"
@@ -254,7 +247,10 @@ async def remove_app(
 
 
 @router.put("/update_variant_parameters/")
-async def update_variant_parameters(app_variant: AppVariant, stoken_session: SessionContainer = Depends(verify_session())):
+async def update_variant_parameters(
+    app_variant: AppVariant,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Updates the parameters for an app variant
 
     Arguments:
@@ -267,9 +263,7 @@ async def update_variant_parameters(app_variant: AppVariant, stoken_session: Ses
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except SQLAlchemyError as e:
-        detail = (
-            f"Database error while trying to update the app variant: {str(e)}"
-        )
+        detail = f"Database error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
@@ -296,14 +290,10 @@ async def update_variant_image(
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except SQLAlchemyError as e:
-        detail = (
-            f"Database error while trying to update the app variant: {str(e)}"
-        )
+        detail = f"Database error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except DockerException as e:
-        detail = (
-            f"Docker error while trying to update the app variant: {str(e)}"
-        )
+        detail = f"Docker error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
@@ -328,9 +318,7 @@ async def add_app_variant_from_template(
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
     # Create an AppVariant with the provided app name
-    app_variant: AppVariant = AppVariant(
-        app_name=payload.app_name, variant_name="v1"
-    )
+    app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
 
     # Create an Image instance with the extracted image id, and defined image name
     image_name = f"agentaai/templates:{payload.image_tag}"
@@ -338,9 +326,7 @@ async def add_app_variant_from_template(
     variant_exist = await db_manager.get_variant_from_db(app_variant, **kwargs)
     if variant_exist is None:
         # Save variant based on the image to database
-        await db_manager.add_variant_based_on_image(
-            app_variant, image, **kwargs
-        )
+        await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
     else:
         # Update variant based on the image
         await app_manager.update_variant_image(app_variant, image, **kwargs)
