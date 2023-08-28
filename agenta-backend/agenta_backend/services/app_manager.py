@@ -252,7 +252,7 @@ async def start_variant(
             app_name=app_variant.app_name,
             variant_name=app_variant.variant_name,
             env_vars=env_vars,
-            user_id=str(user.id)
+            user_id=str(user.id),
         )
         logger.info(
             f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
