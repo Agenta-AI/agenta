@@ -246,11 +246,13 @@ async def start_variant(
         )
 
     try:
+        user = await db_manager.get_user_object(kwargs["uid"])
         uri: URI = docker_utils.start_container(
             image_name=image.tags,
             app_name=app_variant.app_name,
             variant_name=app_variant.variant_name,
             env_vars=env_vars,
+            user_id=str(user.id)
         )
         logger.info(
             f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
@@ -328,7 +330,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         raise ValueError(msg)
     try:
         old_variant = await db_manager.get_variant_from_db(app_variant, **kwargs)
-        old_image = await db_manager.get_image(old_variant)
+        old_image = await db_manager.get_image(old_variant, **kwargs)
         container_ids = docker_utils.stop_containers_based_on_image(old_image)
         logger.info(f"Containers {container_ids} stopped")
         for container_id in container_ids:
@@ -351,6 +353,6 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         logger.info(
             f"Starting variant {app_variant.app_name}/{app_variant.variant_name}"
         )
-        await start_variant(app_variant)
+        await start_variant(app_variant, **kwargs)
     except:
         raise

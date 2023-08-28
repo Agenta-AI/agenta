@@ -317,15 +317,12 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
         raise ValueError("App variant not found")
 
     if app_variant_db.previous_variant_name is not None:  # forked variant
-        print("SNUCBUEI")
         await engine.delete(app_variant_db)
 
     elif is_last_variant:  # last variant using the image, okay to delete
-        print("SNIEYNCE")
         await engine.delete(app_variant_db)
 
     else:
-        print("><<ODMOMDOD")
         app_variant_db.is_deleted = True  # soft deletion
         await engine.save(app_variant_db)
 
@@ -371,6 +368,7 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
     count_variants = await engine.count(
         AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id.id
     )
+    print("Count Variants ==> ", count_variants)
     if count_variants == 1:
         return True
     return False
