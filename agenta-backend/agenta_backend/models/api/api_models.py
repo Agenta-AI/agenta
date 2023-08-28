@@ -39,6 +39,7 @@ class URI(BaseModel):
 
 class App(BaseModel):
     app_name: str
+    user_id: Optional[str]
 
 
 class DockerEnvVars(BaseModel):
