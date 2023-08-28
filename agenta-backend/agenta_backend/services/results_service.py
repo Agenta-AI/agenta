@@ -8,12 +8,10 @@ async def fetch_results_for_human_a_b_testing_evaluation(
     results = {}
 
     # Construct query expression builder for evaluation_rows_nb
-    query_exp_one = query.eq(
-        EvaluationScenarioDB.evaluation, evaluation_id
-    ) & query.ne(EvaluationScenarioDB.vote, "")
-    evaluation_rows_nb = await engine.count(
-        EvaluationScenarioDB, query_exp_one
+    query_exp_one = query.eq(EvaluationScenarioDB.evaluation, evaluation_id) & query.ne(
+        EvaluationScenarioDB.vote, ""
     )
+    evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
     if evaluation_rows_nb == 0:
         return results
 
@@ -31,22 +29,20 @@ async def fetch_results_for_human_a_b_testing_evaluation(
     results["flag_votes"] = {}
     results["flag_votes"]["number_of_votes"] = flag_votes_nb
     results["flag_votes"]["percentage"] = (
-        round(flag_votes_nb / evaluation_rows_nb * 100, 2)
-        if evaluation_rows_nb
-        else 0
+        round(flag_votes_nb / evaluation_rows_nb * 100, 2) if evaluation_rows_nb else 0
     )
 
     for item in variants:
         results["variants_votes_data"][item] = {}
-        
+
         # Construct query expression builder for variant_votes_nb
         query_exp_three = query.eq(EvaluationScenarioDB.vote, item) & query.eq(
             EvaluationScenarioDB.evaluation, evaluation_id
         )
-        variant_votes_nb: int = await engine.count(EvaluationScenarioDB, query_exp_three)
-        results["variants_votes_data"][item][
-            "number_of_votes"
-        ] = variant_votes_nb
+        variant_votes_nb: int = await engine.count(
+            EvaluationScenarioDB, query_exp_three
+        )
+        results["variants_votes_data"][item]["number_of_votes"] = variant_votes_nb
         results["variants_votes_data"][item]["percentage"] = (
             round(variant_votes_nb / evaluation_rows_nb * 100, 2)
             if evaluation_rows_nb
@@ -59,14 +55,12 @@ async def fetch_results_for_auto_exact_match_evaluation(
     evaluation_id: str, variant: str
 ):
     results = {}
-    
+
     # Construct query expression builder for evaluation_rows_nb
-    query_exp_one = query.eq(
-        EvaluationScenarioDB.evaluation, evaluation_id
-    ) & query.ne(EvaluationScenarioDB.score, "")
-    evaluation_rows_nb = await engine.count(
-        EvaluationScenarioDB, query_exp_one
+    query_exp_one = query.eq(EvaluationScenarioDB.evaluation, evaluation_id) & query.ne(
+        EvaluationScenarioDB.score, ""
     )
+    evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
 
     if evaluation_rows_nb == 0:
         return results
@@ -86,7 +80,7 @@ async def fetch_results_for_auto_exact_match_evaluation(
         EvaluationScenarioDB.evaluation, evaluation_id
     )
     wrong_scores_nb: int = await engine.count(EvaluationScenarioDB, query_exp_three)
-    
+
     # Update results dict
     results["scores"] = {}
     results["scores"]["correct"] = correct_scores_nb
@@ -99,12 +93,10 @@ async def fetch_results_for_auto_similarity_match_evaluation(
 ):
     results = {}
     # Construct query expression builder for evaluation_rows_nb
-    query_exp_one = query.eq(
-        EvaluationScenarioDB.evaluation, evaluation_id
-    ) & query.ne(EvaluationScenarioDB.score, "")
-    evaluation_rows_nb = await engine.count(
-        EvaluationScenarioDB, query_exp_one
+    query_exp_one = query.eq(EvaluationScenarioDB.evaluation, evaluation_id) & query.ne(
+        EvaluationScenarioDB.score, ""
     )
+    evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
 
     if evaluation_rows_nb == 0:
         return results
@@ -122,8 +114,10 @@ async def fetch_results_for_auto_similarity_match_evaluation(
     query_exp_three = query.eq(EvaluationScenarioDB.score, "false") & query.eq(
         EvaluationScenarioDB.evaluation, evaluation_id
     )
-    dissimilar_scores_nb: int = await engine.count(EvaluationScenarioDB, query_exp_three)
-    
+    dissimilar_scores_nb: int = await engine.count(
+        EvaluationScenarioDB, query_exp_three
+    )
+
     # Update results dict
     results["scores"] = {}
     results["scores"]["true"] = similar_scores_nb
@@ -138,9 +132,9 @@ async def fetch_results_for_auto_ai_critique(evaluation_id: str):
     ]
 
     results = {}
-    
+
     collection = engine.get_collection(EvaluationScenarioDB)
-    aggregation_cursor = await collection.aggregate(pipeline).to_list(length=None)    
+    aggregation_cursor = await collection.aggregate(pipeline).to_list(length=None)
     for doc in aggregation_cursor:
         results[doc.id] = doc.count
     return results
