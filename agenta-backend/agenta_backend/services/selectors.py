@@ -11,7 +11,7 @@ async def get_user_and_org_id(session) -> Dict[str, str]:
     Returns:
         A dictionary containing the user_id and organization_id.
     """
-    return {"user_id": "0", "organization_id": "0"}
+    return {"uid": "0", "organization_id": "0"}
 
 
 async def get_user_objectid(user_id: str) -> Tuple[str, str]:
