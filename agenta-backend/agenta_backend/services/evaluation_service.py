@@ -174,14 +174,18 @@ async def update_evaluation_status(
     evaluation_id: str, status: EvaluationStatus, **kwargs: dict
 ) -> Evaluation:
     user = await get_user_object(kwargs["user_id"])
+    
+    # Construct query expression for evaluation
     query_expression = query.eq(
         EvaluationDB.id, ObjectId(evaluation_id)
-    ) & query.eq(EvaluationDB.user, user.uid)
+    ) & query.eq(EvaluationDB.user, user.id)
+    
     result = await engine.find_one(EvaluationDB, query_expression)
-    result.update({"status": status.value})
-    await engine.save(result)
-
+    
     if result is not None:
+        # Update status and save to database
+        result.update({"status": status.value})
+        await engine.save(result)
         return Evaluation(
             id=str(result.id),
             status=result.status,
