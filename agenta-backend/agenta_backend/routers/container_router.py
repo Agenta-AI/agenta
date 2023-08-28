@@ -129,6 +129,4 @@ async def pull_image(
     image_id = await get_image_details_from_docker_hub(
         repo_owner, repo_name, image_tag_name
     )
-    return JSONResponse(
-        {"image_tag": image_tag_name, "image_id": image_id}, 200
-    )
+    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
