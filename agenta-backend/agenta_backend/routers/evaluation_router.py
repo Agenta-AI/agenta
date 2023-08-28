@@ -341,34 +341,36 @@ async def fetch_results(
     Returns:
         _description_
     """
-    
+
     # Get user and organization id
     kwargs: dict = await get_user_and_org_id(stoken_session)
     user = await get_user_object(kwargs["user_id"])
-    
+
     # Construct query expression builder and retrieve evaluation from database
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id), EvaluationDB.user, user.id)
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     evaluation = await engine.find_one(EvaluationDB, query_expression)
 
-    if evaluation["evaluation_type"] == EvaluationType.human_a_b_testing:
+    if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
         results = await fetch_results_for_human_a_b_testing_evaluation(
-            evaluation_id, evaluation.get("variants", [])
+            evaluation_id, evaluation.variants
         )
         # TODO: replace votes_data by results_data
         return {"votes_data": results}
 
-    elif evaluation["evaluation_type"] == EvaluationType.auto_exact_match:
+    elif evaluation.evaluation_type == EvaluationType.auto_exact_match:
         results = await fetch_results_for_auto_exact_match_evaluation(
-            evaluation_id, evaluation.get("variant", [])
+            evaluation_id, evaluation.variants
         )
         return {"scores_data": results}
 
-    elif evaluation["evaluation_type"] == EvaluationType.auto_similarity_match:
+    elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
         results = await fetch_results_for_auto_similarity_match_evaluation(
-            evaluation_id, evaluation.get("variant", [])
+            evaluation_id, evaluation.variants
         )
         return {"scores_data": results}
 
-    elif evaluation["evaluation_type"] == EvaluationType.auto_ai_critique:
+    elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
         results = await fetch_results_for_auto_ai_critique(evaluation_id)
         return {"results_data": results}
