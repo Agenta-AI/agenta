@@ -196,8 +196,10 @@ async def remove_app_testsets(app_name: str):
 
     # Find testsets owned by the app
     deleted_count: int = 0
-    testsets = await db_manager.engine.find_one(TestSetDB, TestSetDB.app_name == app_name)
-    
+    testsets = await db_manager.engine.find_one(
+        TestSetDB, TestSetDB.app_name == app_name
+    )
+
     # Perform deletion if there are testsets to delete
     if testsets is not None:
         for testset in testsets:
@@ -205,7 +207,7 @@ async def remove_app_testsets(app_name: str):
             deleted_count += 1
             logger.info(f"{deleted_count} testset(s) deleted for app {app_name}")
             return deleted_count
-        
+
     logger.info(f"No testsets found for app {app_name}")
     return 0
 

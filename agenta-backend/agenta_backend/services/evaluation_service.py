@@ -33,9 +33,7 @@ class UpdateEvaluationScenarioError(Exception):
     pass
 
 
-async def create_new_evaluation(
-    payload: NewEvaluation, **kwargs: dict
-) -> Dict:
+async def create_new_evaluation(payload: NewEvaluation, **kwargs: dict) -> Dict:
     # Get user object
     user = await get_user_object(kwargs["user_id"])
 
@@ -45,9 +43,7 @@ async def create_new_evaluation(
     evaluation_dict["updated_at"] = datetime.utcnow()
 
     # Initialize evaluation type settings embedded model
-    similarity_threshold = (
-        payload.evaluation_type_settings.similarity_threshold
-    )
+    similarity_threshold = payload.evaluation_type_settings.similarity_threshold
     evaluation_type_settings = EvaluationTypeSettings(
         similarity_threshold=0.0
         if similarity_threshold is None
@@ -76,9 +72,7 @@ async def create_new_evaluation(
 
     # Get testset using the provided _id
     testsetId = eval_instance.testset["_id"]
-    testset = await engine.find_one(
-        TestSetDB, TestSetDB.id == ObjectId(testsetId)
-    )
+    testset = await engine.find_one(TestSetDB, TestSetDB.id == ObjectId(testsetId))
 
     csvdata = testset.csvdata
     for datum in csvdata:
@@ -174,14 +168,14 @@ async def update_evaluation_status(
     evaluation_id: str, status: EvaluationStatus, **kwargs: dict
 ) -> Evaluation:
     user = await get_user_object(kwargs["user_id"])
-    
+
     # Construct query expression for evaluation
-    query_expression = query.eq(
-        EvaluationDB.id, ObjectId(evaluation_id)
-    ) & query.eq(EvaluationDB.user, user.id)
-    
+    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
+        EvaluationDB.user, user.id
+    )
+
     result = await engine.find_one(EvaluationDB, query_expression)
-    
+
     if result is not None:
         # Update status and save to database
         result.update({"status": status.value})
@@ -199,9 +193,7 @@ async def update_evaluation_status(
             updated_at=result.updated_at,
         )
     else:
-        raise UpdateEvaluationScenarioError(
-            "Failed to update evaluation status"
-        )
+        raise UpdateEvaluationScenarioError("Failed to update evaluation status")
 
 
 async def update_evaluation_scenario(
@@ -244,14 +236,10 @@ async def update_evaluation_scenario(
         )
 
         evaluation = evaluate_with_ai_critique(
-            llm_app_prompt_template=current_evaluation[
-                "llm_app_prompt_template"
-            ],
+            llm_app_prompt_template=current_evaluation["llm_app_prompt_template"],
             llm_app_inputs=current_evaluation_scenario.inputs,
             correct_answer=current_evaluation_scenario.correct_answer,
-            app_variant_output=new_evaluation_set["outputs"][0][
-                "variant_output"
-            ],
+            app_variant_output=new_evaluation_set["outputs"][0]["variant_output"],
             evaluation_prompt_template=evaluation_scenario_dict[
                 "evaluation_prompt_template"
             ],

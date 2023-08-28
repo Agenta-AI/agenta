@@ -49,7 +49,7 @@ async def upload_file(
     Returns:
         dict: The result of the upload process.
     """
-    
+
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
     try:
@@ -102,7 +102,11 @@ async def upload_file(
 
 
 @router.post("/{app_name}")
-async def create_testset(app_name: str, csvdata: NewTestset, stoken_session: SessionContainer = Depends(verify_session())):
+async def create_testset(
+    app_name: str,
+    csvdata: NewTestset,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """
     Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -114,8 +118,8 @@ async def create_testset(app_name: str, csvdata: NewTestset, stoken_session: Ses
     Returns:
     str: The id of the test set created.
     """
-    
-    kwargs: dict = await get_user_and_org_id(stoken_session)    
+
+    kwargs: dict = await get_user_and_org_id(stoken_session)
     testset = {
         "name": csvdata.name,
         "app_name": app_name,
@@ -135,7 +139,11 @@ async def create_testset(app_name: str, csvdata: NewTestset, stoken_session: Ses
 
 
 @router.put("/{testset_id}")
-async def update_testset(testset_id: str, csvdata: NewTestset, stoken_session: SessionContainer = Depends(verify_session())):
+async def update_testset(
+    testset_id: str,
+    csvdata: NewTestset,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """
     Update a testset with given id, update the testset in MongoDB.
 
@@ -152,19 +160,19 @@ async def update_testset(testset_id: str, csvdata: NewTestset, stoken_session: S
         "updated_at": datetime.now().isoformat(),
     }
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)    
+        kwargs: dict = await get_user_and_org_id(stoken_session)
         user = await get_user_object(kwargs["user_id"])
-        
+
         # Define query expression
-        query_expression = query.eq(
-            TestSetDB.user, user.id
-        ) & query.eq(TestSetDB.id, ObjectId(testset_id))
-        
+        query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
+            TestSetDB.id, ObjectId(testset_id)
+        )
+
         # Find and update testset
         result = await engine.find_one(TestSetDB, query_expression)
         result.update(testset)
         await engine.save(result)
-        
+
         if result is not None:
             return {
                 "status": "success",
@@ -179,7 +187,10 @@ async def update_testset(testset_id: str, csvdata: NewTestset, stoken_session: S
 
 
 @router.get("/")
-async def get_testsets(app_name: Optional[str] = None, stoken_session: SessionContainer = Depends(verify_session())):
+async def get_testsets(
+    app_name: Optional[str] = None,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """
     Get all testsets.
 
@@ -189,15 +200,15 @@ async def get_testsets(app_name: Optional[str] = None, stoken_session: SessionCo
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
-    
-    kwargs: dict = await get_user_and_org_id(stoken_session)    
+
+    kwargs: dict = await get_user_and_org_id(stoken_session)
     user = await get_user_object(kwargs["user_id"])
-    
+
     # Define query expression
-    query_expression = query.eq(
-        TestSetDB.user, user.id
-    ) & query.eq(TestSetDB.app_name, app_name)
-     
+    query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
+        TestSetDB.app_name, app_name
+    )
+
     documents = []
     document_dict = {}
     testsets: List[TestSetDB] = await engine.find(TestSetDB, query_expression)
@@ -211,7 +222,9 @@ async def get_testsets(app_name: Optional[str] = None, stoken_session: SessionCo
 
 
 @router.get("/{testset_id}", tags=["testsets"])
-async def get_testset(testset_id: str, stoken_session: SessionContainer = Depends(verify_session())):
+async def get_testset(
+    testset_id: str, stoken_session: SessionContainer = Depends(verify_session())
+):
     """
     Fetch a specific testset in a MongoDB collection using its _id.
 
@@ -221,15 +234,15 @@ async def get_testset(testset_id: str, stoken_session: SessionContainer = Depend
     Returns:
         The requested testset if found, else an HTTPException.
     """
-    
-    kwargs: dict = await get_user_and_org_id(stoken_session)    
+
+    kwargs: dict = await get_user_and_org_id(stoken_session)
     user = await get_user_object(kwargs["user_id"])
-    
+
     # Define query expression
-    query_expression = query.eq(
-        TestSetDB.user, user.id
-    ) & query.eq(TestSetDB.id, ObjectId(testset_id))
-    
+    query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
+        TestSetDB.id, ObjectId(testset_id)
+    )
+
     testset = await engine.find_one(TestSetDB, query_expression)
     if testset:
         return testset
@@ -240,7 +253,10 @@ async def get_testset(testset_id: str, stoken_session: SessionContainer = Depend
 
 
 @router.delete("/", response_model=List[str])
-async def delete_testsets(delete_testsets: DeleteTestsets, stoken_session: SessionContainer = Depends(verify_session())):
+async def delete_testsets(
+    delete_testsets: DeleteTestsets,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """
     Delete specific testsets based on their unique IDs.
 
@@ -251,16 +267,15 @@ async def delete_testsets(delete_testsets: DeleteTestsets, stoken_session: Sessi
     A list of the deleted testsets' IDs.
     """
     deleted_ids = []
-    
-    kwargs: dict = await get_user_and_org_id(stoken_session)    
+
+    kwargs: dict = await get_user_and_org_id(stoken_session)
     user = await get_user_object(kwargs["user_id"])
 
     for testset_id in delete_testsets.testset_ids:
-    
         # Define query expression
-        query_expression = query.eq(
-            TestSetDB.user, user.id
-        ) & query.eq(TestSetDB.id, ObjectId(testset_id))
+        query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
+            TestSetDB.id, ObjectId(testset_id)
+        )
         testset = await engine.find_one(TestSetDB, query_expression)
 
         if testset is not None:

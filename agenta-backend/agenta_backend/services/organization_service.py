@@ -17,7 +17,9 @@ async def create_new_organization(payload: Organization) -> OrganizationDB:
     return org
 
 
-async def update_organization(org_id: str, payload: OrganizationUpdate) -> OrganizationDB:
+async def update_organization(
+    org_id: str, payload: OrganizationUpdate
+) -> OrganizationDB:
     org = await engine.find_one(OrganizationDB, OrganizationDB.id == ObjectId(org_id))
     if org is not None:
         values_to_update = {key: value for key, value in payload.dict()}
