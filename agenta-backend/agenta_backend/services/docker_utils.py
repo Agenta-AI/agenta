@@ -60,7 +60,7 @@ def start_container(
         # Default labels
         labels = {
             f"traefik.http.services.{user_backend_container_name}.loadbalancer.server.port": "80",
-            f"traefik.http.middlewares.{user_backend_container_name}-strip-prefix.stripprefix.prefixes": f"/{user_backend_container_name}",
+            f"traefik.http.middlewares.{user_backend_container_name}-strip-prefix.stripprefix.prefixes": f"/{user_backend_url_path}",
             f"traefik.http.routers.{user_backend_container_name}.middlewares": f"{user_backend_container_name}-strip-prefix",
             f"traefik.http.routers.{user_backend_container_name}.service": f"{user_backend_container_name}",
         }
@@ -69,7 +69,7 @@ def start_container(
         if os.environ["ENVIRONMENT"] == "production":
             # Production specific labels
             production_labels = {
-                f"traefik.http.routers.{user_backend_container_name}.rule": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{user_backend_container_name}`)",
+                f"traefik.http.routers.{user_backend_container_name}.rule": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{user_backend_url_path}`)",
             }
             labels.update(production_labels)
 
@@ -84,7 +84,7 @@ def start_container(
         else:
             # Development specific labels
             development_labels = {
-                f"traefik.http.routers.{user_backend_container_name}.rule": f"PathPrefix(`/{user_backend_container_name}`)",
+                f"traefik.http.routers.{user_backend_container_name}.rule": f"PathPrefix(`/{user_backend_url_path}`)",
                 f"traefik.http.routers.{user_backend_container_name}.entrypoints": "web",
             }
 
