@@ -129,9 +129,10 @@ async def create_testset(
     try:
         user = await get_user_object(kwargs["user_id"])
         testset_instance = TestSetDB(**testset, user=user)
-        result = await engine.save(testset_instance)
-        if result is not None:
-            testset["_id"] = str(result.id)
+        await engine.save(testset_instance)
+        
+        if testset_instance is not None:
+            testset["_id"] = str(testset_instance.id)
             return testset
     except Exception as e:
         print(str(e))
@@ -244,7 +245,7 @@ async def get_testset(
     )
 
     testset = await engine.find_one(TestSetDB, query_expression)
-    if testset:
+    if testset is not None:
         return testset
     else:
         raise HTTPException(
@@ -279,9 +280,8 @@ async def delete_testsets(
         testset = await engine.find_one(TestSetDB, query_expression)
 
         if testset is not None:
-            result = await engine.delete(testset)
-            if result:
-                deleted_ids.append(testset_id)
+            await engine.delete(testset)
+            deleted_ids.append(testset_id)
         else:
             raise HTTPException(
                 status_code=404, detail=f"testset {testset_id} not found"
