@@ -45,7 +45,7 @@ def list_images() -> List[Image]:
     return registry_images
 
 
-def start_container(image_name, app_name, variant_name, env_vars: DockerEnvVars) -> URI:
+def start_container(image_name, app_name, variant_name, env_vars: DockerEnvVars, user_id: str) -> URI:
     try:
         image = client.images.get(f"{image_name}")
 
@@ -90,7 +90,7 @@ def start_container(image_name, app_name, variant_name, env_vars: DockerEnvVars)
             detach=True,
             labels=labels,
             network="agenta-network",
-            name=f"{app_name}-{variant_name}",
+            name=f"{app_name}-{variant_name}-{user_id}",
             environment=env_vars,
         )
         # Check the container's status
