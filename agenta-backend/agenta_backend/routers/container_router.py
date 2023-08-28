@@ -2,8 +2,10 @@ import uuid
 import asyncio
 from pathlib import Path
 from typing import List, Union
-from fastapi import UploadFile, APIRouter
+
 from fastapi.responses import JSONResponse
+from fastapi import UploadFile, APIRouter, Depends
+
 from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
@@ -15,12 +17,30 @@ from agenta_backend.services.container_manager import (
     pull_image_from_docker_hub,
 )
 
+if settings.feature_flag in ["cloud", "ee", "demo"]:
+    from agenta_backend.ee.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
+    from agenta_backend.ee.services.selectors import get_user_and_org_id
+else:
+    from agenta_backend.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
+    from agenta_backend.services.selectors import get_user_and_org_id
+
 
 router = APIRouter()
 
 
 @router.post("/build_image/")
-async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) -> Image:
+async def build_image(
+    app_name: str,
+    variant_name: str,
+    tar_file: UploadFile,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> Image:
     """Takes a tar file and builds a docker image from it
 
     Arguments:
@@ -64,7 +84,9 @@ async def build_image(app_name: str, variant_name: str, tar_file: UploadFile) ->
 
 
 @router.get("/templates/")
-async def container_templates() -> Union[List[Template], str]:
+async def container_templates(
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> Union[List[Template], str]:
     """Returns a list of container templates.
 
     Returns:
@@ -75,7 +97,10 @@ async def container_templates() -> Union[List[Template], str]:
 
 
 @router.get("/templates/{image_name}/images/")
-async def pull_image(image_name: str) -> dict:
+async def pull_image(
+    image_name: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> dict:
     """Pulls an image from Docker Hub using the provided configuration
 
     Arguments:
