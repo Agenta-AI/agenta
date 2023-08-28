@@ -42,7 +42,12 @@
       "url": "https://github.com/agenta-ai/agenta"
     },
     {
-      "name": "Book a demo",
+      "name": "Try the demo",
+      "icon": "play",
+      "url": "https://demo.agenta.ai"
+    },
+    {
+      "name": "Book a 1:1 with the Founders",
       "icon": "phone",
       "url": "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
     }
