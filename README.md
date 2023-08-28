@@ -206,8 +206,8 @@ Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different v
 <img width="900" alt="Screenshot 2023-06-25 at 21 08 53" src="https://github.com/Agenta-AI/agenta/assets/57623556/7e07a988-a36a-4fb5-99dd-9cc13a678434">
 
 
-# Contact us
-Talk with the founders for any commercial inquiries.
+# Support
+Talk with the founders for any commercial inquiries. <br/><br/>
 <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"><img src="https://cal.com/book-with-cal-dark.svg" alt="Book us"></a>
 
 # Contributing
