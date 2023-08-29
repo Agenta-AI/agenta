@@ -120,7 +120,7 @@ export interface AppTemplate {
     app_name: string
     image_id: string
     image_tag: string
-    env_vars: {
+    env_vars?: {
         OPENAI_API_KEY: string|null
     }
 }
