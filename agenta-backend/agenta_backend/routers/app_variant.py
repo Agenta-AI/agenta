@@ -316,6 +316,17 @@ async def add_app_variant_from_template(
 
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
+    
+    # Couldn't get this to work because I couldn't properly handle the 
+    # exception on the frontend. I'll leave it here for now.
+    
+    # Check if the user has already created an app
+    # if settings.feature_flag == "demo":
+    #     if await db_manager.count_apps(**kwargs) == 1:
+    #         raise HTTPException(
+    #             status_code=500,
+    #             detail="Sorry, you can only create one App at this time.",
+    #         )
 
     # Create an AppVariant with the provided app name
     app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
@@ -340,4 +351,33 @@ async def add_app_variant_from_template(
             "url": url.uri,
             "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",
         },
+    }
+
+
+@router.get("/count_apps/")
+async def count_apps(
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Returns the number of apps created by the user
+
+    Arguments:
+        stoken_session -- The user's session
+
+    Returns:
+        a JSON response with the number of apps created by the user
+    """
+    # Get user and org id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    
+    # Check if the user has already created an app
+    if settings.feature_flag == "demo":
+        count = await db_manager.count_apps(**kwargs)
+        return {
+            "source": settings.feature_flag,
+            "count": count,
+        }
+
+    return {
+        "source": settings.feature_flag,
+        "count": 0,
     }
