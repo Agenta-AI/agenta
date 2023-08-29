@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Optional, Dict, Any
-from odmantic import Field, Model, Reference
+from typing import Optional, Dict, Any, List
+from odmantic import Field, Model, Reference, EmbeddedModel
 
 
 class OrganizationDB(Model):
@@ -64,3 +64,61 @@ class TemplateDB(Model):
 
     class Config:
         collection = "templates"
+
+
+class EvaluationTypeSettings(EmbeddedModel):
+    similarity_threshold: Optional[float]
+
+
+class EvaluationScenarioInput(EmbeddedModel):
+    input_name: str
+    input_value: str
+
+
+class EvaluationScenarioOutput(EmbeddedModel):
+    variant_name: str
+    variant_output: str
+
+
+class EvaluationDB(Model):
+    status: str
+    evaluation_type: str
+    evaluation_type_settings: EvaluationTypeSettings
+    llm_app_prompt_template: str
+    variants: List[str]
+    app_name: str
+    testset: Dict[str, str]
+    user: UserDB = Reference(key_name="user")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "evaluations"
+
+
+class EvaluationScenarioDB(Model):
+    inputs: List[EvaluationScenarioInput]
+    outputs: List[EvaluationScenarioOutput]
+    vote: Optional[str]
+    score: Optional[str]
+    evaluation: Optional[str]
+    evaluation_id: str
+    user: UserDB = Reference(key_name="user")
+    correct_answer: Optional[str]
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "evaluation_scenarios"
+
+
+class TestSetDB(Model):
+    name: str
+    app_name: str
+    csvdata: List[Dict[str, str]]
+    user: UserDB = Reference(key_name="user")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "testsets"

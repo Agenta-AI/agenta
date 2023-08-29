@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
+from datetime import datetime
 from typing import Any, List, Dict
+from pydantic import BaseModel, Field
 
 
 class TestsetModel(BaseModel):
@@ -41,3 +42,13 @@ class DeleteTestsets(BaseModel):
 class NewTestset(BaseModel):
     name: str
     csvdata: List[Dict[str, str]]
+
+
+class TestSetOutputResponse(BaseModel):
+    id: str = Field(..., alias="_id")
+    name: str
+    app_name: str
+    created_at: datetime
+
+    class Config:
+        allow_population_by_field_name = True
