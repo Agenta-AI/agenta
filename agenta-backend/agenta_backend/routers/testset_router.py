@@ -1,21 +1,40 @@
 import csv
 import json
+from copy import deepcopy
 from bson import ObjectId
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import HTTPException, APIRouter, UploadFile, File, Form
+from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Depends
 
-from agenta_backend.services.db_mongo import testsets
 from agenta_backend.models.api.testset_model import (
     UploadResponse,
     DeleteTestsets,
     NewTestset,
+    TestSetOutputResponse,
 )
+from agenta_backend.config import settings
+from agenta_backend.models.db_models import TestSetDB
+from agenta_backend.services.db_manager import engine, query, get_user_object
+
 
 upload_folder = "./path/to/upload/folder"
 
 router = APIRouter()
+
+
+if settings.feature_flag in ["cloud", "ee", "demo"]:
+    from agenta_backend.ee.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
+    from agenta_backend.ee.services.selectors import get_user_and_org_id
+else:
+    from agenta_backend.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
+    from agenta_backend.services.selectors import get_user_and_org_id
 
 
 @router.post("/upload", response_model=UploadResponse)
@@ -24,6 +43,7 @@ async def upload_file(
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
     app_name: str = Form(None),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """
     Uploads a CSV or JSON file and saves its data to MongoDB.
@@ -36,6 +56,8 @@ async def upload_file(
     Returns:
         dict: The result of the upload process.
     """
+
+    kwargs: dict = await get_user_and_org_id(stoken_session)
 
     try:
         # Create a document
@@ -70,11 +92,13 @@ async def upload_file(
                     row_data[columns[i]] = value
                 document["csvdata"].append(row_data)
 
-        result = await testsets.insert_one(document)
+        user = await get_user_object(kwargs["uid"])
+        testset_instance = TestSetDB(**document, user=user)
+        result = await engine.save(testset_instance)
 
-        if result.acknowledged:
+        if isinstance(result.id, ObjectId):
             return UploadResponse(
-                id=str(result.inserted_id),
+                id=str(result.id),
                 name=document["name"],
                 created_at=document["created_at"],
             )
@@ -85,7 +109,11 @@ async def upload_file(
 
 
 @router.post("/{app_name}")
-async def create_testset(app_name: str, csvdata: NewTestset):
+async def create_testset(
+    app_name: str,
+    csvdata: NewTestset,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """
     Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -97,6 +125,8 @@ async def create_testset(app_name: str, csvdata: NewTestset):
     Returns:
     str: The id of the test set created.
     """
+
+    kwargs: dict = await get_user_and_org_id(stoken_session)
     testset = {
         "name": csvdata.name,
         "app_name": app_name,
@@ -104,9 +134,12 @@ async def create_testset(app_name: str, csvdata: NewTestset):
         "csvdata": csvdata.csvdata,
     }
     try:
-        result = await testsets.insert_one(testset)
-        if result.acknowledged:
-            testset["_id"] = str(result.inserted_id)
+        user = await get_user_object(kwargs["uid"])
+        testset_instance = TestSetDB(**testset, user=user)
+        await engine.save(testset_instance)
+
+        if testset_instance is not None:
+            testset["_id"] = str(testset_instance.id)
             return testset
     except Exception as e:
         print(str(e))
@@ -114,7 +147,11 @@ async def create_testset(app_name: str, csvdata: NewTestset):
 
 
 @router.put("/{testset_id}")
-async def update_testset(testset_id: str, csvdata: NewTestset):
+async def update_testset(
+    testset_id: str,
+    csvdata: NewTestset,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """
     Update a testset with given id, update the testset in MongoDB.
 
@@ -131,10 +168,20 @@ async def update_testset(testset_id: str, csvdata: NewTestset):
         "updated_at": datetime.now().isoformat(),
     }
     try:
-        result = await testsets.update_one(
-            {"_id": ObjectId(testset_id)}, {"$set": testset}
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user = await get_user_object(kwargs["uid"])
+
+        # Define query expression
+        query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
+            TestSetDB.id, ObjectId(testset_id)
         )
-        if result.acknowledged:
+
+        # Find and update testset
+        result = await engine.find_one(TestSetDB, query_expression)
+        result.update(testset)
+        await engine.save(result)
+
+        if isinstance(result.id, ObjectId):
             return {
                 "status": "success",
                 "message": "testset updated successfully",
@@ -148,7 +195,10 @@ async def update_testset(testset_id: str, csvdata: NewTestset):
 
 
 @router.get("/")
-async def get_testsets(app_name: Optional[str] = None):
+async def get_testsets(
+    app_name: Optional[str] = None,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> List[TestSetOutputResponse]:
     """
     Get all testsets.
 
@@ -158,17 +208,31 @@ async def get_testsets(app_name: Optional[str] = None):
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
-    cursor = testsets.find(
-        {"app_name": app_name}, {"_id": 1, "name": 1, "created_at": 1}
+
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(kwargs["uid"])
+
+    # Define query expression
+    query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
+        TestSetDB.app_name, app_name
     )
-    documents = await cursor.to_list(length=100)
-    for document in documents:
-        document["_id"] = str(document["_id"])
-    return documents
+    testsets: List[TestSetDB] = await engine.find(TestSetDB, query_expression)
+    return [
+        TestSetOutputResponse(
+            id=str(testset.id),
+            name=testset.name,
+            app_name=testset.app_name,
+            created_at=testset.created_at,
+        )
+        for testset in testsets
+    ]
 
 
 @router.get("/{testset_id}", tags=["testsets"])
-async def get_testset(testset_id: str):
+async def get_testset(
+    testset_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """
     Fetch a specific testset in a MongoDB collection using its _id.
 
@@ -178,10 +242,17 @@ async def get_testset(testset_id: str):
     Returns:
         The requested testset if found, else an HTTPException.
     """
-    testset = await testsets.find_one({"_id": ObjectId(testset_id)})
 
-    if testset:
-        testset["_id"] = str(testset["_id"])
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(kwargs["uid"])
+
+    # Define query expression
+    query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
+        TestSetDB.id, ObjectId(testset_id)
+    )
+
+    testset = await engine.find_one(TestSetDB, query_expression)
+    if testset is not None:
         return testset
     else:
         raise HTTPException(
@@ -190,7 +261,10 @@ async def get_testset(testset_id: str):
 
 
 @router.delete("/", response_model=List[str])
-async def delete_testsets(delete_testsets: DeleteTestsets):
+async def delete_testsets(
+    delete_testsets: DeleteTestsets,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """
     Delete specific testsets based on their unique IDs.
 
@@ -202,13 +276,19 @@ async def delete_testsets(delete_testsets: DeleteTestsets):
     """
     deleted_ids = []
 
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(kwargs["uid"])
+
     for testset_id in delete_testsets.testset_ids:
-        testset = await testsets.find_one({"_id": ObjectId(testset_id)})
+        # Define query expression
+        query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
+            TestSetDB.id, ObjectId(testset_id)
+        )
+        testset = await engine.find_one(TestSetDB, query_expression)
 
         if testset is not None:
-            result = await testsets.delete_one({"_id": ObjectId(testset_id)})
-            if result:
-                deleted_ids.append(testset_id)
+            await engine.delete(testset)
+            deleted_ids.append(testset_id)
         else:
             raise HTTPException(
                 status_code=404, detail=f"testset {testset_id} not found"
