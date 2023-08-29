@@ -368,6 +368,7 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
     count_variants = await engine.count(
         AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id.id
     )
+    print("Count Variants ==> ", count_variants)
     if count_variants == 1:
         return True
     return False
