@@ -85,7 +85,7 @@ async def update_evaluation_status_router(
         # Get user and organization id
         kwargs: dict = await get_user_and_org_id(stoken_session)
         return await update_evaluation_status(
-            evaluation_id, update_data.status, **kwargs
+            evaluation_id, update_data, **kwargs
         )
     except KeyError:
         raise HTTPException(
@@ -120,13 +120,13 @@ async def fetch_evaluation_scenarios(
 
     # Create query expression builder
     query_expression = query.eq(
-        EvaluationScenarioDB.evaluation, evaluation_id
+        EvaluationScenarioDB.evaluation_id, evaluation_id
     ) & query.eq(EvaluationScenarioDB.user, user.id)
 
     scenarios = await engine.find(EvaluationScenarioDB, query_expression)
     eval_scenarios = [
         EvaluationScenario(
-            evaluation_id=scenario.evaluation,
+            evaluation_id=scenario.evaluation_id,
             inputs=scenario.inputs,
             outputs=scenario.outputs,
             vote=scenario.vote,
