@@ -179,13 +179,14 @@ export default function ABTestingEvaluation() {
             key: "v1Better",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 let variant = record.votesData.variants[0]
+                let percentage = record.votesData.variants_votes_data[variant].percentage
 
                 return (
                     <span>
                         <Statistic
                             className={classes.stat}
-                            value={record.votesData.variants_votes_data[variant].percentage}
-                            precision={2}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
                     </span>
@@ -198,13 +199,14 @@ export default function ABTestingEvaluation() {
             key: "v2Better",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 let variant = record.votesData.variants[1]
+                let percentage = record.votesData.variants_votes_data[variant].percentage
 
                 return (
                     <span>
                         <Statistic
                             className={classes.stat}
-                            value={record.votesData.variants_votes_data[variant].percentage}
-                            precision={2}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
                     </span>
@@ -216,12 +218,13 @@ export default function ABTestingEvaluation() {
             dataIndex: "flag",
             key: "flag",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                let percentage = record.votesData.flag_votes.percentage
                 return (
                     <span>
                         <Statistic
                             className={classes.statFlag}
-                            value={record.votesData.flag_votes.percentage}
-                            precision={2}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
                     </span>
