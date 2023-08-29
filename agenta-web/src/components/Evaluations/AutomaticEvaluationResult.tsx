@@ -69,7 +69,7 @@ const useStyles = createUseStyles({
 
 const {Title} = Typography
 
-export default function SingleEvaluation() {
+export default function AutomaticEvaluationResult() {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -271,7 +271,7 @@ export default function SingleEvaluation() {
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Title level={3}>Results Single evalaution</Title>
+                    <Title level={3}>Automatic Evalaution Results</Title>
                 </div>
             ),
             children: (
