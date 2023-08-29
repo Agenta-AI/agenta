@@ -196,25 +196,6 @@ const Sidebar: React.FC = () => {
                                         </Link>
                                     </Menu.Item>
                                 </Tooltip>
-                                <Tooltip
-                                    placement="right"
-                                    title="Analyze the evaluation outcomes to determine the most effective variants."
-                                >
-                                    <Menu.Item
-                                        key="results"
-                                        icon={
-                                            <BarChartOutlined className={classes.optionSideIcon} />
-                                        }
-                                    >
-                                        <Link
-                                            data-cy="app-results-link"
-                                            href={getNavigationPath("results")}
-                                            className={classes.menuLinks}
-                                        >
-                                            Results
-                                        </Link>
-                                    </Menu.Item>
-                                </Tooltip>
 
                                 <Tooltip
                                     placement="right"

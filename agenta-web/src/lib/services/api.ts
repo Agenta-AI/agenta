@@ -527,3 +527,8 @@ export const startTemplate = async (templateObj: AppTemplate) => {
         throw error
     }
 }
+
+export const fetchData = async (url: string): Promise<any> => {
+    const response = await fetch(url)
+    return response.json()
+}
