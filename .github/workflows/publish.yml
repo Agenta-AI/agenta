@@ -24,7 +24,7 @@ jobs:
     - name: Check for agenta version changes
       id: version_check
       run: |
-        cd ../../agenta-cli
+        cd agenta-cli
         previous_version=$(git describe --abbrev=0 --tags)
         current_version=$(poetry version --no-interaction | awk '{print $2}')
         if [ "$previous_version" == "$current_version" ]; then
@@ -37,6 +37,6 @@ jobs:
     - name: Build and publish agenta to PyPI
       if: steps.version_check.outputs.version_bumped == 'true'
       run: |
-        cd ../../agenta-cli
+        cd agenta-cli
         poetry build
         poetry publish --username __token__ --password ${{ secrets.PYPI_API_TOKEN }}
