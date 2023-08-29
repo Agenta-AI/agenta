@@ -158,7 +158,7 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
  * @param variantName
  * @returns - url path
  */ 
-const getAppContainerURL = async (app: string, variantName: string) => {
+export const getAppContainerURL = async (app: string, variantName: string) => {
     try {
         const queryParam = `?app_name=${app}&variant_name=${variantName}`
         const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/container_url/${queryParam}`
