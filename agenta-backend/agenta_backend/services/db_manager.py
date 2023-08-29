@@ -255,6 +255,21 @@ async def list_apps(**kwargs) -> List[App]:
     return [App(app_name=app_name) for app_name in sorted_names]
 
 
+async def count_apps(**kwargs) -> int:
+    """
+    Counts all the unique app names from the database
+    """
+    await clean_soft_deleted_variants()
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+    if user is None:
+        return 0
+
+    no_of_apps = await engine.count(AppVariantDB, AppVariantDB.user_id == user.id)
+    return no_of_apps
+
+
 async def get_image(app_variant: AppVariant, **kwargs: dict) -> Image:
     """Returns the image associated with the app variant
 
@@ -518,7 +533,9 @@ async def get_user_object(user_id: str) -> UserDB:
     user = await engine.find_one(UserDB, UserDB.uid == user_id)
     if user is None:
         org = OrganizationDB()
-        return UserDB(uid="0", organization_id=org)
+        user_instance = UserDB(uid=0, organization_id=org)
+        user_instance = await engine.save(user_instance)
+        return user_instance
     return user
 
 
