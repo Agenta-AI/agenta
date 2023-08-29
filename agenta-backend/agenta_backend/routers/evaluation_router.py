@@ -84,9 +84,7 @@ async def update_evaluation_status_router(
     try:
         # Get user and organization id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_status(
-            evaluation_id, update_data, **kwargs
-        )
+        return await update_evaluation_status(evaluation_id, update_data, **kwargs)
     except KeyError:
         raise HTTPException(
             status_code=400,
