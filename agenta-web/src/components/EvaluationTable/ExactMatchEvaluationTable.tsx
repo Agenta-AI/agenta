@@ -15,12 +15,12 @@ import {
     Typography,
     message,
 } from "antd"
-import {Variant} from "@/lib/Types"
 import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
-import {useVariant} from "@/lib/hooks/useVariant"
+import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithExactMatch} from "@/lib/services/evaluations"
+import {createUseStyles} from "react-jss"
 
 interface ExactMatchEvaluationTableProps {
     evaluation: any
@@ -51,32 +51,57 @@ interface ExactMatchEvaluationTableRow {
  * @returns
  */
 
+const useStyles = createUseStyles({
+    appVariant: {
+        backgroundColor: "rgb(201 255 216)",
+        color: "rgb(0 0 0)",
+        padding: 4,
+        borderRadius: 5,
+    },
+    inputTestContainer: {
+        display: "flex",
+        justifyContent: "space-between",
+    },
+    inputTest: {
+        backgroundColor: "rgb(201 255 216)",
+        color: "rgb(0 0 0)",
+        padding: 4,
+        borderRadius: 5,
+    },
+    recordInput: {
+        marginBottom: 10,
+    },
+    tag: {
+        fontSize: "14px",
+    },
+    card: {
+        marginBottom: 20,
+    },
+    statCorrect: {
+        "& .ant-statistic-content-value": {
+            color: "#3f8600",
+        },
+    },
+    statWrong: {
+        "& .ant-statistic-content-value": {
+            color: "#cf1322",
+        },
+    },
+})
+
 const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
     columnsCount,
 }) => {
+    const classes = useStyles()
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
         : router.query.app_name || ""
     const variants = evaluation.variants
 
-    const variantData = variants.map((variant: Variant) => {
-        const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
-            appName,
-            variant,
-        )
-
-        return {
-            inputParams,
-            optParams,
-            URIPath,
-            isLoading,
-            isError,
-            error,
-        }
-    })
+    const variantData = useVariants(appName, variants)
 
     const [rows, setRows] = useState<ExactMatchEvaluationTableRow[]>([])
     const [wrongAnswers, setWrongAnswers] = useState<number>(0)
@@ -145,16 +170,21 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             try {
                 let result = await callVariant(
                     inputParamsDict,
-                    variantData[idx].inputParams,
-                    variantData[idx].optParams,
-                    variantData[idx].URIPath,
+                    variantData[idx].inputParams!,
+                    variantData[idx].optParams!,
+                    variantData[idx].URIPath!,
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
                 evaluate(rowIndex)
+                if (rowIndex === rows.length - 1) {
+                    message.success("Evaluation Results Saved")
+                }
             } catch (e) {
                 setRowValue(rowIndex, columnName, "")
-                message.error("Oops! Something went wrong")
+                if (rowIndex === rows.length - 1) {
+                    message.error("Oops! Something went wrong")
+                }
             }
         })
     }
@@ -224,14 +254,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 title: (
                     <div>
                         <span>App Variant: </span>
-                        <span
-                            style={{
-                                backgroundColor: "rgb(201 255 216)",
-                                color: "rgb(0 0 0)",
-                                padding: 4,
-                                borderRadius: 5,
-                            }}
-                        >
+                        <span className={classes.appVariant}>
                             {variants ? variants[i].variantName : ""}
                         </span>
                     </div>
@@ -257,19 +280,10 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             key: "1",
             width: "30%",
             title: (
-                <div style={{display: "flex", justifyContent: "space-between"}}>
+                <div className={classes.inputTestContainer}>
                     <div>
                         <span> Inputs (Test set: </span>
-                        <span
-                            style={{
-                                backgroundColor: "rgb(201 255 216)",
-                                color: "rgb(0 0 0)",
-                                padding: 4,
-                                borderRadius: 5,
-                            }}
-                        >
-                            {evaluation.testset.name}
-                        </span>
+                        <span className={classes.inputTest}>{evaluation.testset.name}</span>
                         <span> )</span>
                     </div>
                 </div>
@@ -281,7 +295,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                         record.inputs &&
                         record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
                         record.inputs.map((input: any, index: number) => (
-                            <div style={{marginBottom: 10}} key={index}>
+                            <div className={classes.recordInput} key={index}>
                                 <Input
                                     placeholder={input.input_name}
                                     value={input.input_value}
@@ -319,7 +333,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                         <Space>
                             <div>
                                 {rows[rowIndex].score !== "" && (
-                                    <Tag color={tagColor} style={{fontSize: "14px"}}>
+                                    <Tag color={tagColor} className={classes.tag}>
                                         {record.score}
                                     </Tag>
                                 )}
@@ -348,20 +362,20 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                     </Col>
 
                     <Col span={12}>
-                        <Card bordered={true} style={{marginBottom: 20}}>
+                        <Card bordered={true} className={classes.card}>
                             <Row justify="end">
                                 <Col span={10}>
                                     <Statistic
                                         title="Correct answers:"
                                         value={`${correctAnswers} out of ${rows.length}`}
-                                        valueStyle={{color: "#3f8600"}}
+                                        className={classes.statCorrect}
                                     />
                                 </Col>
                                 <Col span={10}>
                                     <Statistic
                                         title="Wrong answers:"
                                         value={`${wrongAnswers} out of ${rows.length}`}
-                                        valueStyle={{color: "#cf1322"}}
+                                        className={classes.statWrong}
                                     />
                                 </Col>
                                 <Col span={4}>
@@ -369,7 +383,6 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                                         title="Accuracy:"
                                         value={accuracy}
                                         precision={2}
-                                        valueStyle={{color: ""}}
                                         suffix="%"
                                     />
                                 </Col>

@@ -19,8 +19,8 @@ from agenta_backend.services.cache_manager import (
     retrieve_templates_info_from_dockerhub_cached,
 )
 
-
 from contextlib import asynccontextmanager
+from agenta_backend.config import settings
 
 
 origins = [
@@ -57,7 +57,7 @@ async def lifespan(application: FastAPI, cache=True):
         for temp_info_key in templates_info:
             temp_info = templates_info[temp_info_key]
             if str(tag["name"]).startswith(temp_info_key):
-                add_template(
+                await add_template(
                     **{
                         "template_id": tag["id"],
                         "name": tag["name"],
@@ -79,21 +79,28 @@ async def lifespan(application: FastAPI, cache=True):
                 print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
 
     # Remove old templates from database
-    remove_old_template_from_db(templates_in_hub)
+    await remove_old_template_from_db(templates_in_hub)
     yield
 
 
-# this is the prefix in which we are reverse proxying the api
 app = FastAPI(lifespan=lifespan)
 app.include_router(app_variant.router, prefix="/app_variant")
 app.include_router(evaluation_router.router, prefix="/evaluations")
 app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
 
+allow_headers = ["Content-Type"]
+
+if settings.feature_flag in ["cloud", "ee", "demo"]:
+    import agenta_backend.ee.main as ee
+
+    app, allow_headers = ee.extend_main(app)
+# this is the prefix in which we are reverse proxying the api
+#
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=allow_headers,
 )

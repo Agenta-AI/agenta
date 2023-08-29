@@ -45,19 +45,24 @@ services:
       ]
     env_file:
       - .env
+    depends_on:
+      mongo:
+        condition: service_healthy
+
   agenta-web:
     build:
       context: ./agenta-web
-      dockerfile: dev.Dockerfile
+      dockerfile: prod.Dockerfile
     volumes:
       - ./agenta-web/src:/app/src
       - ./agenta-web/public:/app/public
-      - ./agenta-web/.env.development.local:/app/.env.development.local
+      # - ./agenta-web/.env.development.local:/app/.env.development.local
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME}
+      - NEXT_PUBLIC_FF=oss
     networks:
       - agenta-network
     labels:
@@ -99,9 +104,9 @@ services:
   redis:
     image: redis:latest
     networks:
-        - agenta-network
+      - agenta-network
     volumes:
-        - redis_data:/data
+      - redis_data:/data
 
 networks:
   agenta-network:

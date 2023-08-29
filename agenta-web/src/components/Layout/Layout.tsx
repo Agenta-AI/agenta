@@ -33,6 +33,9 @@ const useStyles = createUseStyles({
         marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
         flex: 1,
     }),
+    breadcrumb: {
+        padding: "24px 0",
+    },
     footer: {
         position: "absolute",
         bottom: 0,
@@ -77,7 +80,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         <Sidebar />
                         <Content className={classes.content}>
                             <Breadcrumb
-                                style={{paddingTop: "34px", paddingBottom: "24px"}}
+                                className={classes.breadcrumb}
                                 items={[
                                     {title: <Link href="/apps">Apps</Link>},
                                     {title: capitalizedAppName},

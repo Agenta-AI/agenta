@@ -1,32 +1,19 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {BarChartOutlined, LineChartOutlined} from "@ant-design/icons"
-import {
-    Button,
-    Card,
-    Col,
-    Input,
-    Row,
-    Space,
-    Spin,
-    Statistic,
-    Table,
-    Tag,
-    Typography,
-    message,
-} from "antd"
-import {Evaluation, Variant} from "@/lib/Types"
+import {LineChartOutlined} from "@ant-design/icons"
+import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, message} from "antd"
+import {Evaluation} from "@/lib/Types"
 import {
     updateEvaluationScenario,
     callVariant,
     fetchEvaluationResults,
     updateEvaluation,
 } from "@/lib/services/api"
-import {useVariant} from "@/lib/hooks/useVariant"
+import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
-import {EvaluationFlow} from "@/lib/enums"
-import TextArea from "antd/es/input/TextArea"
+import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {getOpenAIKey} from "@/lib/helpers/utils"
+import {createUseStyles} from "react-jss"
 
 interface AICritiqueEvaluationTableProps {
     evaluation: Evaluation
@@ -57,11 +44,85 @@ interface AICritiqueEvaluationTableRow {
  * @returns
  */
 
+const useStyles = createUseStyles({
+    appVariant: {
+        backgroundColor: "rgb(201 255 216)",
+        color: "rgb(0 0 0)",
+        padding: 4,
+        borderRadius: 5,
+    },
+    inputTestContainer: {
+        display: "flex",
+        justifyContent: "space-between",
+    },
+    inputTest: {
+        backgroundColor: "rgb(201 255 216)",
+        color: "rgb(0 0 0)",
+        padding: 4,
+        borderRadius: 5,
+    },
+    recordInput: {
+        marginBottom: 10,
+    },
+    tag: {
+        fontSize: "14px",
+    },
+    card: {
+        marginTop: 16,
+        width: "100%",
+        border: "1px solid #ccc",
+        marginRight: "24px",
+        marginBottom: 30,
+        backgroundColor: "rgb(246 253 245)",
+        "& .ant-card-head": {
+            minHeight: 44,
+            padding: "0px 12px",
+        },
+        "& .ant-card-body": {
+            padding: "4px 16px",
+            border: "0px solid #ccc",
+        },
+    },
+    cardTextarea: {
+        height: 120,
+        padding: "0px 0px",
+    },
+    row: {marginBottom: 20},
+    evaluationResult: {
+        padding: "30px 10px",
+        marginBottom: 20,
+        backgroundColor: "rgb(244 244 244)",
+        border: "1px solid #ccc",
+        borderRadius: 5,
+    },
+    h3: {
+        marginTop: 0,
+    },
+    resultDataRow: {
+        maxWidth: "100%",
+        overflowX: "auto",
+        whiteSpace: "nowrap",
+    },
+    resultDataCol: {
+        display: "inline-block",
+    },
+    resultDataCard: {
+        width: 200,
+        margin: "0 4px",
+    },
+    stat: {
+        "& .ant-statistic-content-value": {
+            color: "#3f8600",
+        },
+    },
+})
+
 const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
     columnsCount,
 }) => {
+    const classes = useStyles()
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -69,21 +130,7 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
 
     const variants = evaluation.variants
 
-    const variantData = variants.map((variant: Variant) => {
-        const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
-            appName,
-            variant,
-        )
-
-        return {
-            inputParams,
-            optParams,
-            URIPath,
-            isLoading,
-            isError,
-            error,
-        }
-    })
+    const variantData = useVariants(appName, variants)
 
     const [rows, setRows] = useState<AICritiqueEvaluationTableRow[]>([])
     const [evaluationPromptTemplate, setEvaluationPromptTemplate] =
@@ -164,22 +211,29 @@ Answer ONLY with one of the given grading or evaluation options.
         }, {})
 
         const columnsDataNames = ["columnData0"]
-        for (const [idx, columnName] of columnsDataNames.entries()) {
+        let idx = 0
+        for (const columnName of columnsDataNames) {
             try {
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
 
                 let result = await callVariant(
                     inputParamsDict,
-                    variantData[idx].inputParams,
-                    variantData[idx].optParams,
-                    variantData[idx].URIPath,
+                    variantData[idx].inputParams!,
+                    variantData[idx].optParams!,
+                    variantData[idx].URIPath!,
                 )
-                setRowValue(rowIndex, columnName, result)
+                setRowValue(rowIndex, columnName as any, result)
                 await evaluate(rowIndex)
                 setShouldFetchResults(true)
+                if (rowIndex === rows.length - 1) {
+                    message.success("Evaluation Results Saved")
+                }
             } catch (e) {
-                message.error("Oops! Something went wrong")
+                if (rowIndex === rows.length - 1) {
+                    message.error("Oops! Something went wrong")
+                }
             }
+            idx++
         }
     }
 
@@ -201,7 +255,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     evaluation.id,
                     evaluation_scenario_id,
                     data,
-                    evaluation.evaluationType,
+                    evaluation.evaluationType as EvaluationType,
                 )
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
                 setRowValue(rowNumber, "evaluation", responseData.evaluation)
@@ -230,14 +284,7 @@ Answer ONLY with one of the given grading or evaluation options.
                 title: (
                     <div>
                         <span>App Variant: </span>
-                        <span
-                            style={{
-                                backgroundColor: "rgb(201 255 216)",
-                                color: "rgb(0 0 0)",
-                                padding: 4,
-                                borderRadius: 5,
-                            }}
-                        >
+                        <span className={classes.appVariant}>
                             {variants ? variants[i].variantName : ""}
                         </span>
                     </div>
@@ -270,19 +317,10 @@ Answer ONLY with one of the given grading or evaluation options.
             key: "1",
             width: "30%",
             title: (
-                <div style={{display: "flex", justifyContent: "space-between"}}>
+                <div className={classes.inputTestContainer}>
                     <div>
                         <span> Inputs (Test set: </span>
-                        <span
-                            style={{
-                                backgroundColor: "rgb(201 255 216)",
-                                color: "rgb(0 0 0)",
-                                padding: 4,
-                                borderRadius: 5,
-                            }}
-                        >
-                            {evaluation.testset.name}
-                        </span>
+                        <span className={classes.inputTest}>{evaluation.testset.name}</span>
                         <span> )</span>
                     </div>
                 </div>
@@ -294,7 +332,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         record.inputs &&
                         record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
                         record.inputs.map((input: any, index: number) => (
-                            <div style={{marginBottom: 10}} key={index}>
+                            <div className={classes.recordInput} key={index}>
                                 <Input
                                     placeholder={input.input_name}
                                     value={input.input_value}
@@ -331,7 +369,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         <Space>
                             <div>
                                 {rows[rowIndex].evaluation !== "" && (
-                                    <Tag color={tagColor} style={{fontSize: "14px"}}>
+                                    <Tag color={tagColor} className={classes.tag}>
                                         {record.evaluation}
                                     </Tag>
                                 )}
@@ -352,22 +390,10 @@ Answer ONLY with one of the given grading or evaluation options.
             <h1>AI Critique Evaluation</h1>
             <div>
                 <div>
-                    <Card
-                        style={{
-                            marginTop: 16,
-                            width: "100%",
-                            border: "1px solid #ccc",
-                            marginRight: "24px",
-                            marginBottom: 30,
-                            backgroundColor: "rgb(246 253 245)",
-                        }}
-                        bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-                        headStyle={{minHeight: 44, padding: "0px 12px"}}
-                        title="Evaluation strategy prompt"
-                    >
-                        <TextArea
+                    <Card className={classes.card} title="Evaluation strategy prompt">
+                        <Input.TextArea
+                            className={classes.cardTextarea}
                             rows={5}
-                            style={{height: 120, padding: "0px 0px"}}
                             bordered={false}
                             placeholder="e.g:"
                             onChange={onChangeEvaluationPromptTemplate}
@@ -375,7 +401,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         />
                     </Card>
                 </div>
-                <Row align="middle" style={{marginBottom: 20}}>
+                <Row align="middle" className={classes.row}>
                     <Col span={12}>
                         <Button
                             type="primary"
@@ -388,15 +414,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     </Col>
                 </Row>
             </div>
-            <div
-                style={{
-                    padding: "30px 10px",
-                    marginBottom: 20,
-                    backgroundColor: "rgb(244 244 244)",
-                    border: "1px solid #ccc",
-                    borderRadius: 5,
-                }}
-            >
+            <div className={classes.evaluationResult}>
                 <center>
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
                         <div>Run evaluation to see results!</div>
@@ -404,24 +422,20 @@ Answer ONLY with one of the given grading or evaluation options.
                     {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
                     {evaluationResults && evaluationResults.results_data && (
                         <div>
-                            <h3 style={{marginTop: 0}}>Results Data:</h3>
-                            <Row
-                                gutter={8}
-                                justify="center"
-                                style={{maxWidth: "100%", overflowX: "auto", whiteSpace: "nowrap"}}
-                            >
+                            <h3 className={classes.h3}>Results Data:</h3>
+                            <Row gutter={8} justify="center" className={classes.resultDataRow}>
                                 {Object.entries(evaluationResults.results_data).map(
                                     ([key, value], index) => {
                                         return (
-                                            <Col key={index} style={{display: "inline-block"}}>
+                                            <Col key={index} className={classes.resultDataCol}>
                                                 <Card
                                                     bordered={false}
-                                                    style={{width: 200, margin: "0 4px"}}
+                                                    className={classes.resultDataCard}
                                                 >
                                                     <Statistic
                                                         title={key}
-                                                        value={value}
-                                                        valueStyle={{color: "#3f8600"}}
+                                                        className={classes.stat}
+                                                        value={value as any}
                                                     />
                                                 </Card>
                                             </Col>

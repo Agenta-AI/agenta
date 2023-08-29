@@ -3,6 +3,7 @@ import {Button, Dropdown, Input, Menu, Space, Table, Typography} from "antd"
 import {AppVariant} from "@/lib/Types"
 import type {ColumnType} from "antd/es/table"
 import {DislikeOutlined, DownOutlined, LikeOutlined} from "@ant-design/icons"
+import {createUseStyles} from "react-jss"
 
 interface EvaluationTableWithChatProps {
     columnsCount: number
@@ -14,10 +15,23 @@ interface TableDataType {
     [key: string]: any
 }
 
+const useStyles = createUseStyles({
+    table: {
+        display: "flex",
+        justifyContent: "center",
+        marginBottom: 15,
+    },
+    title: {
+        display: "flex",
+        justifyContent: "space-between",
+    },
+})
+
 const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({
     columnsCount,
     appVariants,
 }) => {
+    const classes = useStyles()
     const [dataSource, setDataSource] = useState<TableDataType[]>([])
     const [selectedItems, setSelectedItems] = useState<string[]>(
         Array(columnsCount).fill("Select a variant"),
@@ -80,7 +94,7 @@ const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({
 
             return {
                 title: (
-                    <div style={{display: "flex", justifyContent: "space-between"}}>
+                    <div className={classes.title}>
                         <Text>App Variant: </Text>
                         <Dropdown
                             overlay={menu}
@@ -111,13 +125,7 @@ const EvaluationTableWithChat: React.FC<EvaluationTableWithChatProps> = ({
                 columns={columns}
                 footer={() => (
                     <div>
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "center",
-                                marginBottom: 15,
-                            }}
-                        >
+                        <div className={classes.table}>
                             <Space>
                                 <Button type="primary" ghost icon={<LikeOutlined />}>
                                     Good

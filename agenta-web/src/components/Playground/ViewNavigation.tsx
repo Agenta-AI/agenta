@@ -1,4 +1,4 @@
-import React from "react"
+import React, {useEffect} from "react"
 import {Col, Row, Divider, Button, Tooltip, Spin} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
@@ -19,6 +19,12 @@ interface Props {
     isDeleteLoading: boolean
 }
 
+const useStyles = createUseStyles({
+    row: {
+        marginTop: "20px",
+    },
+})
+
 const ViewNavigation: React.FC<Props> = ({
     variant,
     handlePersistVariant,
@@ -26,6 +32,7 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalWarningModalOpen,
     isDeleteLoading,
 }) => {
+    const classes = useStyles()
     const router = useRouter()
     const appName = router.query.app_name as unknown as string
     const {
@@ -61,10 +68,11 @@ const ViewNavigation: React.FC<Props> = ({
     }, [optParams])
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
+    const [containerURIPath, setContainerURIPath] = useState("")
 
     if (isError) {
         let variantDesignator = variant.templateVariantName
-        let imageName = `agenta-server/${appName.toLowerCase()}_`
+        let imageName = `agentaai/${appName.toLowerCase()}_`
 
         if (!variantDesignator || variantDesignator === "") {
             variantDesignator = variant.variantName
@@ -73,8 +81,15 @@ const ViewNavigation: React.FC<Props> = ({
             imageName += variantDesignator.toLowerCase()
         }
 
-        const apiAddress = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appName}/${variantDesignator}/openapi.json`
+        const variantContainerPath = async () => {
+            const urlPath = await getAppContainerURL(appName!, variantDesignator!)
+            setContainerURIPath(urlPath)
+        }
+        if (!containerURIPath) {
+            variantContainerPath()
+        }
 
+        const apiAddress = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${containerURIPath}/openapi.json`
         return (
             <div>
                 {error ? (
@@ -109,7 +124,6 @@ const ViewNavigation: React.FC<Props> = ({
                         <Button
                             type="primary"
                             danger
-                            size="normal"
                             onClick={() => {
                                 setRemovalVariantName(variant.variantName)
                                 setRemovalWarningModalOpen(true)
@@ -147,7 +161,7 @@ const ViewNavigation: React.FC<Props> = ({
             </Row>
             <Divider />
 
-            <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]} style={{marginTop: "20px"}}>
+            <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]} className={classes.row}>
                 <Col span={24}>
                     <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
                 </Col>

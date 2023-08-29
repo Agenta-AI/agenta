@@ -2,6 +2,7 @@ from pydantic import BaseSettings
 
 import os
 import toml
+from typing import Optional
 
 # Load the settings from the .toml file
 toml_config = toml.load("agenta_backend/config.toml")
@@ -14,6 +15,10 @@ os.environ["DOCKER_HUB_URL"] = toml_config["docker_hub_url"]
 os.environ["DOCKER_HUB_REPO_OWNER"] = toml_config["docker_hub_repo_owner"]
 os.environ["DOCKER_HUB_REPO_NAME"] = toml_config["docker_hub_repo_name"]
 os.environ["REDIS_URL"] = toml_config["redis_url"]
+os.environ["FEATURE_FLAG"] = toml_config["feature_flag"]
+
+if toml_config["feature_flag"] == "demo":
+    os.environ["OPENAI_API_KEY"] = toml_config["openai_api_key"]
 
 
 class Settings(BaseSettings):
@@ -24,6 +29,8 @@ class Settings(BaseSettings):
     docker_hub_url: str
     docker_hub_repo_owner: str
     docker_hub_repo_name: str
+    feature_flag: str
+    openai_api_key: Optional[str]
 
 
 settings = Settings()

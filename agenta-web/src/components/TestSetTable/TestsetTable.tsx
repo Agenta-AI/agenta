@@ -1,4 +1,4 @@
-import React, {useState, useRef, useEffect} from "react"
+import React, {useState, useRef, useEffect, ReactNode} from "react"
 import {AgGridReact} from "ag-grid-react"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
@@ -17,6 +17,12 @@ import EditRowModal from "./EditRowModal"
 import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
+import {NoticeType} from "antd/es/message/interface"
+import {GenericObject, KeyValuePair} from "@/lib/Types"
+
+type testsetTableProps = {
+    mode: "create" | "edit"
+}
 
 export const CHECKBOX_COL = {
     field: "",
@@ -29,7 +35,7 @@ export const CHECKBOX_COL = {
 
 export const ADD_BUTTON_COL = {field: "", editable: false, maxWidth: 100}
 
-const useStyles = createUseStyles({
+const useStylesCell = createUseStyles({
     cellContainer: {
         position: "relative",
         display: "flex",
@@ -52,12 +58,58 @@ const useStyles = createUseStyles({
     },
 })
 
-type testsetTableProps = {
-    mode: "create" | "edit"
-}
+const useStylesTestset = createUseStyles({
+    plusIcon: {
+        width: "100%",
+        display: "flex",
+        justifyContent: "end",
+        "& button": {
+            marginRight: "10px",
+        },
+    },
+    columnTitle: {
+        width: "100%",
+        height: "100% ",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        "& input": {
+            marginTop: "10px",
+            marginBottom: "10px",
+            height: "30px",
+            marginRight: "3px",
+            outline: "red",
+        },
+    },
+    saveBtn: {
+        width: "45px !important",
+    },
+    title: {
+        marginBottom: "20px !important",
+    },
+    inputContainer: {
+        width: "100%",
+        marginBottom: 20,
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        "& input": {
+            marginRight: "10px",
+        },
+    },
+    notes: {
+        marginBottom: 20,
+    },
+    btnContainer: {
+        display: "flex",
+        alignItems: "center",
+        marginTop: "20px",
+        gap: 10,
+    },
+})
 
 function CellRenderer(props: any) {
-    const classes = useStyles()
+    const classes = useStylesCell()
     const cellValue = props.valueFormatted ? props.valueFormatted : props.value
 
     return props.colDef.field ? (
@@ -85,25 +137,26 @@ function CellRenderer(props: any) {
 const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const [messageApi, contextHolder] = message.useMessage()
 
-    const mssgModal = (type, content) => {
+    const mssgModal = (type: NoticeType, content: ReactNode) => {
         messageApi.open({
             type,
             content,
         })
     }
 
+    const classes = useStylesTestset()
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
     const {testset_id} = router.query
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
     const [loading, setLoading] = useState(false)
     const [testsetName, setTestsetName] = useState("")
-    const [rowData, setRowData] = useState<Record<string, string>[]>([])
+    const [rowData, setRowData] = useState<KeyValuePair[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
-    const [focusedRowData, setFocusedRowData] = useState<Record<string, any>>()
-    const gridRef = useRef(null)
+    const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
+    const gridRef = useRef<any>(null)
 
     const [selectedRow, setSelectedRow] = useState([])
 
@@ -127,7 +180,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             "You have unsaved changes in your test set. Do you want to save these changes before leaving the page?",
         okText: "Save",
         onOk: async () => {
-            await onSaveData(false)
+            await onSaveData()
             return !!testsetName
         },
         cancelText: "Proceed without saving",
@@ -144,9 +197,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             const newColDefs = [CHECKBOX_COL, ...colData, ADD_BUTTON_COL]
             setColumnDefs(newColDefs)
             if (mode === "create") {
-                setRowData(
-                    Array(3).fill(colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})),
-                )
+                const initialRowData = Array(3).fill({})
+                const separateRowData = initialRowData.map(() => {
+                    return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
+                })
+
+                setRowData(separateRowData)
             }
             setInputValues(
                 newColDefs.filter((col) => !!col.field).map((col) => col.field),
@@ -199,13 +255,13 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
         const newColumnDefs = [CHECKBOX_COL, ...newDataColumns, ADD_BUTTON_COL]
 
-        const keyMap = dataColumns.reduce((acc, colDef, index) => {
+        const keyMap = dataColumns.reduce((acc: KeyValuePair, colDef, index) => {
             acc[colDef.field] = newDataColumns[index].field
             return acc
         }, {})
 
         const newRowData = rowData.map((row) => {
-            const newRow = {}
+            const newRow: KeyValuePair = {}
             for (let key in row) {
                 newRow[keyMap[key]] = row[key]
             }
@@ -259,7 +315,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         }
 
-        const handleInputChange = (index, event) => {
+        const handleInputChange = (index: number, event: any) => {
             const values = [...inputValues]
             values[index] = event.target.value
             setScopedInputValues(values)
@@ -298,8 +354,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
         if (displayName === "") {
             return (
-                <div style={{width: "100%", display: "flex", justifyContent: "end"}}>
-                    <Button onClick={onAddColumn} style={{marginRight: "10px"}}>
+                <div className={classes.plusIcon}>
+                    <Button onClick={onAddColumn}>
                         <PlusOutlined />
                     </Button>
                 </div>
@@ -307,27 +363,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         } else {
             return (
                 <>
-                    <div
-                        style={{
-                            width: "100%",
-                            height: "100% ",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                        }}
-                    >
+                    <div className={classes.columnTitle}>
                         {isEditInputOpen ? (
                             <Input
                                 value={scopedInputValues[index]}
                                 onChange={(event) => handleInputChange(index, event)}
                                 size="small"
-                                style={{
-                                    marginTop: "10px",
-                                    marginBottom: "10px",
-                                    height: "30px",
-                                    marginRight: "3px",
-                                    outline: "red",
-                                }}
                             />
                         ) : (
                             displayName
@@ -339,9 +380,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                                     icon="Save"
                                     onClick={handleSave}
                                     type="default"
-                                    style={{
-                                        width: "45px",
-                                    }}
+                                    className={classes.saveBtn}
                                 />
                             ) : (
                                 <Button
@@ -378,7 +417,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     }
 
     const onAddRow = () => {
-        const newRow = {}
+        const newRow: KeyValuePair = {}
         columnDefs.forEach((colDef) => {
             if (colDef.field !== "") {
                 newRow[colDef.field] = ""
@@ -408,7 +447,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    const response = await updateTestset(testset_id, testsetName, rowData)
+                    const response = await updateTestset(testset_id as string, testsetName, rowData)
                     afterSave(response)
                 }
             }
@@ -419,18 +458,18 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         }
     }
 
-    const handleChange = (e) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTestsetName(e.target.value)
     }
 
     const onDeleteRow = () => {
         const selectedNodes = gridRef.current.getSelectedNodes()
-        const selectedData = selectedNodes.map((node) => node.data)
+        const selectedData = selectedNodes.map((node: GenericObject) => node.data)
         const newrowData = rowData.filter((row) => !selectedData.includes(row))
         setRowData(newrowData)
     }
 
-    const onDeleteColumn = (indexToDelete) => {
+    const onDeleteColumn = (indexToDelete: number) => {
         // Get the field to be deleted
         const fieldToDelete = columnDefs[indexToDelete + 1]?.field // +1 to skip checkbox column
 
@@ -454,7 +493,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         }
     }
 
-    const handleCellValueChanged = (params) => {
+    const handleCellValueChanged = (params: GenericObject) => {
         if (params.newValue === null) {
             params.data[params.colDef.field] = ""
         }
@@ -467,36 +506,23 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         <div>
             {contextHolder}
 
-            <Typography.Title level={5} style={{marginBottom: "20px"}}>
+            <Typography.Title level={5} className={classes.title}>
                 Create a new Test Set
             </Typography.Title>
 
-            <div
-                style={{
-                    width: "100%",
-                    marginBottom: 20,
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                }}
-            >
+            <div className={classes.inputContainer}>
                 <Input
                     value={testsetName}
                     onChange={handleChange}
-                    style={{marginRight: "10px"}}
                     placeholder="Test Set Name"
                     data-cy="testset-name-input"
                 />
-                <Button
-                    data-cy="testset-save-button"
-                    onClick={() => onSaveData(true)}
-                    type="primary"
-                >
+                <Button data-cy="testset-save-button" onClick={() => onSaveData()} type="primary">
                     Save Test Set
                 </Button>
             </div>
 
-            <div style={{marginBottom: 20}}>
+            <div className={classes.notes}>
                 <div>
                     <Typography.Text italic>Notes:</Typography.Text>
                 </div>
@@ -535,29 +561,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 />
             </div>
             {selectedRow && (
-                <div
-                    style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginTop: "20px",
-                    }}
-                >
-                    <div>
-                        <Button onClick={onAddRow}>Add Row</Button>
-                        <Button
-                            onClick={onDeleteRow}
-                            style={{marginLeft: 10}}
-                            disabled={selectedRow.length < 1}
-                        >
-                            Delete Row{selectedRow.length > 1 ? "s" : null}
-                        </Button>
-                        <Button
-                            onClick={handleExportClick}
-                            style={{marginLeft: "10px", marginRight: "auto"}}
-                        >
-                            Export as CSV
-                        </Button>
-                    </div>
+                <div className={classes.btnContainer}>
+                    <Button onClick={onAddRow}>Add Row</Button>
+                    <Button onClick={onDeleteRow} disabled={selectedRow.length < 1}>
+                        Delete Row{selectedRow.length > 1 ? "s" : null}
+                    </Button>
+                    <Button onClick={handleExportClick}>Export as CSV</Button>
                 </div>
             )}
 

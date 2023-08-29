@@ -1,7 +1,14 @@
 import useSWR from "swr"
 import axios from "axios"
 import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
-import {Variant, Parameter, EvaluationResponseType, Evaluation, AppTemplate} from "@/lib/Types"
+import {
+    Variant,
+    Parameter,
+    EvaluationResponseType,
+    Evaluation,
+    AppTemplate,
+    GenericObject,
+} from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
@@ -11,7 +18,7 @@ import {EvaluationType} from "../enums"
  * Raw interface for the parameters parsed from the openapi.json
  */
 
-const fetcher = (...args) => fetch(...args).then((res) => res.json())
+const fetcher = (...args: Parameters<typeof fetch>) => fetch(...args).then((res) => res.json())
 
 export async function fetchVariants(app: string): Promise<Variant[]> {
     const response = await axios.get(
@@ -42,20 +49,15 @@ export async function fetchVariants(app: string): Promise<Variant[]> {
  * @param URIPath
  * @returns
  */
-export function callVariant(
+export async function callVariant(
     inputParametersDict: Record<string, string>,
     inputParamDefinition: Parameter[],
     optionalParameters: Parameter[],
     URIPath: string,
 ) {
-    console.log("inputParametersDict", inputParametersDict)
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
     const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
-    const inputParams = Object.keys(inputParametersDict).reduce((acc: any, key) => {
-        acc[key] = inputParametersDict[key]
-        return acc
-    }, {})
     for (let key of Object.keys(inputParametersDict)) {
         const paramDefinition = inputParamDefinition.find((param) => param.name === key)
 
@@ -83,13 +85,20 @@ export function callVariant(
         ...optParams,
     }
 
+    let splittedURIPath = URIPath.split("/")
+    const appContainerURIPath = await getAppContainerURL(splittedURIPath[0], splittedURIPath[1])
+
     return axios
-        .post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, requestBody, {
-            headers: {
-                accept: "application/json",
-                "Content-Type": "application/json",
+        .post(
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/generate`,
+            requestBody,
+            {
+                headers: {
+                    accept: "application/json",
+                    "Content-Type": "application/json",
+                },
             },
-        })
+        )
         .then((res) => {
             return res.data
         })
@@ -120,12 +129,12 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
         const sourceName = variant.templateVariantName
             ? variant.templateVariantName
             : variant.variantName
-        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${app}/${sourceName}/openapi.json`
+        const appContainerURIPath = await getAppContainerURL(app, sourceName)
+        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/openapi.json`
         const response = await axios.get(url)
         let APIParams = parseOpenApiSchema(response.data)
         // we create a new param for DictInput that will contain the name of the inputs
         APIParams = APIParams.map((param) => {
-            console.log("param", param)
             if (param.type === "object") {
                 // if param.default is defined
                 if (param?.default) {
@@ -142,6 +151,52 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
         const inputParams = APIParams.filter((param) => param.input) // don't have input values
         return {initOptParams, inputParams}
     } catch (error) {
+        throw error
+    }
+}
+
+// Define a type for our cache
+interface Cache {
+    [key: string]: string
+}
+
+// Create the cache object
+const urlCache: Cache = {}
+
+/**
+ * Retries the container url for an app
+ * @param {string} app - The name of the app
+ * @param {string} variantName - The name of the variant
+ * @returns {Promise<string>} - Returns the URL path or an empty string
+ * @throws {Error} - Throws an error if the request fails
+ */
+export const getAppContainerURL = async (app: string, variantName: string): Promise<string> => {
+    try {
+        // Null-check for the environment variable
+        if (!process.env.NEXT_PUBLIC_AGENTA_API_URL) {
+            throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
+        }
+
+        const queryParam = `?app_name=${app}&variant_name=${variantName}`
+        const cacheKey = `${app}_${variantName}`
+
+        // Check if the URL is already cached
+        if (urlCache[cacheKey]) {
+            return urlCache[cacheKey]
+        }
+
+        // Retrieve container URL from backend
+        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/container_url/${queryParam}`
+        const response = await axios.get(url)
+        if (response.status === 200 && response.data && response.data.uri) {
+            // Cache the URL before returning
+            urlCache[cacheKey] = response.data.uri
+            return response.data.uri
+        } else {
+            return ""
+        }
+    } catch (error) {
+        // Forward the error so it can be handled by the calling function
         throw error
     }
 }
@@ -227,7 +282,7 @@ export async function removeVariant(appName: string, variantName: string) {
  */
 export const useLoadTestsetsList = (app_name: string) => {
     const {data, error, mutate} = useSWR(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_name=${app_name}`,
         fetcher,
         {revalidateOnFocus: false},
     )
@@ -290,7 +345,7 @@ export const deleteTestsets = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",
-            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets`,
+            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/`,
             data: {testset_ids: ids},
         })
         if (response.status === 200) {
@@ -336,7 +391,7 @@ export const deleteEvaluations = async (ids: string[]) => {
     try {
         const response = await axios({
             method: "delete",
-            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations`,
+            url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`,
             data: {evaluations_ids: ids},
         })
         if (response.status === 200) {
@@ -368,7 +423,7 @@ export const loadEvaluationsScenarios = async (
     }
 }
 
-export const updateEvaluation = async (evaluationId: string, data) => {
+export const updateEvaluation = async (evaluationId: string, data: GenericObject) => {
     const response = await eval_endpoint.put(`${evaluationId}`, data)
     return response.data
 }
@@ -376,7 +431,7 @@ export const updateEvaluation = async (evaluationId: string, data) => {
 export const updateEvaluationScenario = async (
     evaluationTableId: string,
     evaluationScenarioId: string,
-    data,
+    data: GenericObject,
     evaluationType: EvaluationType,
 ) => {
     const response = await eval_endpoint.put(
@@ -386,7 +441,7 @@ export const updateEvaluationScenario = async (
     return response.data
 }
 
-export const postEvaluationScenario = async (evaluationTableId: string, data) => {
+export const postEvaluationScenario = async (evaluationTableId: string, data: GenericObject) => {
     const response = await eval_endpoint.post(`${evaluationTableId}/evaluation_scenario`, data)
     return response.data
 }
@@ -471,4 +526,9 @@ export const startTemplate = async (templateObj: AppTemplate) => {
         console.error("Start Template Error => ", error)
         throw error
     }
+}
+
+export const fetchData = async (url: string): Promise<any> => {
+    const response = await fetch(url)
+    return response.json()
 }
