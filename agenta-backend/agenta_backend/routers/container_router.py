@@ -54,7 +54,14 @@ async def build_image(
     Returns:
         an object of type `Image`.
     """
+    
+    # Get user and org id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
 
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Get event loop
     loop = asyncio.get_event_loop()
 
     # Create a ThreadPoolExecutor for running threads
@@ -75,7 +82,7 @@ async def build_image(
     future = loop.run_in_executor(
         thread_pool,
         build_image_job,
-        *(app_name, variant_name, tar_path, image_name, temp_dir),
+        *(app_name, variant_name, str(user.id), tar_path, image_name, temp_dir),
     )
 
     # Return immediately while the image build is in progress
