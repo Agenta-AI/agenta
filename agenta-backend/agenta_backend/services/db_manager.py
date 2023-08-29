@@ -252,7 +252,7 @@ async def list_apps(**kwargs) -> List[App]:
     apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
     apps_names = [app.app_name for app in apps]
     sorted_names = sorted(set(apps_names))
-    return [App(app_name=app_name, user_id=str(user.id)) for app_name in sorted_names]
+    return [App(app_name=app_name) for app_name in sorted_names]
 
 
 async def get_image(app_variant: AppVariant, **kwargs: dict) -> Image:
