@@ -11,6 +11,7 @@ from agenta_backend.models.api.testset_model import (
     UploadResponse,
     DeleteTestsets,
     NewTestset,
+    TestSetOutputResponse,
 )
 from agenta_backend.config import settings
 from agenta_backend.models.db_models import TestSetDB
@@ -22,11 +23,17 @@ upload_folder = "./path/to/upload/folder"
 router = APIRouter()
 
 
-if settings.feature_flag in ["cloud", "ee"]:
-    from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
+if settings.feature_flag in ["cloud", "ee", "demo"]:
+    from agenta_backend.ee.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
     from agenta_backend.ee.services.selectors import get_user_and_org_id
 else:
-    from agenta_backend.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
@@ -89,7 +96,7 @@ async def upload_file(
         testset_instance = TestSetDB(**document, user=user)
         result = await engine.save(testset_instance)
 
-        if result is not None:
+        if isinstance(result.id, ObjectId):
             return UploadResponse(
                 id=str(result.id),
                 name=document["name"],
@@ -98,7 +105,9 @@ async def upload_file(
 
     except Exception as e:
         print(e)
-        raise HTTPException(status_code=500, detail="Failed to process file") from e
+        raise HTTPException(
+            status_code=500, detail="Failed to process file"
+        ) from e
 
 
 @router.post("/{app_name}")
@@ -174,7 +183,7 @@ async def update_testset(
         result.update(testset)
         await engine.save(result)
 
-        if result is not None:
+        if isinstance(result.id, ObjectId):
             return {
                 "status": "success",
                 "message": "testset updated successfully",
@@ -191,7 +200,7 @@ async def update_testset(
 async def get_testsets(
     app_name: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
-):
+) -> List[TestSetOutputResponse]:
     """
     Get all testsets.
 
@@ -209,22 +218,22 @@ async def get_testsets(
     query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
         TestSetDB.app_name, app_name
     )
-
-    documents = []
-    document_dict = {}
     testsets: List[TestSetDB] = await engine.find(TestSetDB, query_expression)
-    for document in testsets:
-        document_dict["_id"] = str(document.id)
-        document_dict["name"] = document.name
-        document_dict["app_name"] = document.app_name
-        document_dict["created_at"] = document.created_at
-        documents.append(deepcopy(document_dict))
-    return documents
+    return [
+        TestSetOutputResponse(
+            id=str(testset.id),
+            name=testset.name,
+            app_name=testset.app_name,
+            created_at=testset.created_at,
+        )
+        for testset in testsets
+    ]
 
 
 @router.get("/{testset_id}", tags=["testsets"])
 async def get_testset(
-    testset_id: str, stoken_session: SessionContainer = Depends(verify_session())
+    testset_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """
     Fetch a specific testset in a MongoDB collection using its _id.
