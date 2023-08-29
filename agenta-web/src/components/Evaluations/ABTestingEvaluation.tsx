@@ -8,6 +8,7 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -35,6 +36,10 @@ interface EvaluationListTableDataType {
     createdAt: string
 }
 
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
+
 const useStyles = createUseStyles({
     container: {
         marginBottom: 20,
@@ -42,10 +47,16 @@ const useStyles = createUseStyles({
             color: "red",
         },
     },
-    collapse: {
-        padding: 0,
-        width: "100%",
-    },
+    collapse: ({themeMode}: StyleProps) => ({
+        margin: "10px 0",
+        "& .ant-collapse-header": {
+            alignItems: "center !important",
+            padding: "0px 20px !important",
+            borderTopLeftRadius: "10px !important",
+            borderTopRightRadius: "10px !important",
+            background: themeMode === "dark" ? "#1d1d1d" : "#f8f8f8",
+        },
+    }),
     statFlag: {
         "& .ant-statistic-content-value": {
             fontSize: 20,
@@ -76,7 +87,8 @@ export default function ABTestingEvaluation() {
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [deletingLoading, setDeletingLoading] = useState<boolean>(true)
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
 
     const app_name = router.query.app_name?.toString() || ""
 
