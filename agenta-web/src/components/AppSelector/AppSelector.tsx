@@ -207,7 +207,7 @@ const AppSelector: React.FC = () => {
                 OPENAI_API_KEY: "",
             }
         }
-        
+
         try {
             const response = await startTemplate(variantData)
             if (response.status == 200) {
@@ -218,7 +218,7 @@ const AppSelector: React.FC = () => {
                 })
                 return true
             }
-        } catch(error: any) {
+        } catch (error: any) {
             if (error.response.status === 404) {
                 notification.error({
                     message: "Template Selection",
@@ -226,13 +226,14 @@ const AppSelector: React.FC = () => {
                     duration: 5,
                     btn: (
                         <Button>
-                            <a 
-                                target="_blank" 
-                                href="https://github.com/Agenta-AI/agenta/issues/new?assignees=&labels=demo&projects=&template=bug_report.md&title=">
-                                    File Issue
+                            <a
+                                target="_blank"
+                                href="https://github.com/Agenta-AI/agenta/issues/new?assignees=&labels=demo&projects=&template=bug_report.md&title="
+                            >
+                                File Issue
                             </a>
                         </Button>
-                    )
+                    ),
                 })
                 setFetchingTemplate(false)
                 return false
@@ -292,7 +293,7 @@ const AppSelector: React.FC = () => {
                 handleCreateAppFromTemplateModalCancel()
                 handleCreateAppModalCancel()
                 handleNavigation()
-            } else if(!status) {
+            } else if (!status) {
                 handleInputTemplateModalCancel()
             }
         }
