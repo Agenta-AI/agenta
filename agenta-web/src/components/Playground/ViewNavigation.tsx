@@ -1,4 +1,4 @@
-import React, { useEffect } from "react"
+import React, {useEffect} from "react"
 import {Col, Row, Divider, Button, Tooltip, Spin} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
@@ -7,7 +7,7 @@ import {Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import {createUseStyles} from "react-jss"
-import { getAppContainerURL } from "@/lib/services/api"
+import {getAppContainerURL} from "@/lib/services/api"
 
 interface Props {
     variant: Variant
