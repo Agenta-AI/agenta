@@ -22,8 +22,8 @@ interface EvaluationListTableDataType {
     scoresData: {
         nb_of_rows: number
         scores: {
-            false: number
-            true: number
+            wrong: number
+            correct: number
         }
         variant: any[]
     }
@@ -44,11 +44,11 @@ const useStyles = createUseStyles({
     stat: {
         "& .ant-statistic-content-value": {
             fontSize: 20,
-            color: "#1677ff"
+            color: "#1677ff",
         },
         "& .ant-statistic-content-suffix": {
             fontSize: 20,
-            color: "#1677ff"
+            color: "#1677ff",
         },
     },
 })
@@ -169,17 +169,15 @@ export default function SingleEvaluation() {
             dataIndex: "averageScore",
             key: "averageScore",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                let averageScore =
+                    (record.scoresData.scores.correct / record.scoresData.nb_of_rows) * 100
+
                 return (
                     <span>
                         <Statistic
                             className={classes.stat}
-                            value={
-                                (record.scoresData.scores.true /
-                                    (record.scoresData.scores.true +
-                                        record.scoresData.scores.false)) *
-                                100
-                            }
-                            precision={2}
+                            value={averageScore}
+                            precision={averageScore <= 99 ? 2 : 1}
                             suffix="%"
                         />
                     </span>
