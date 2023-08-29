@@ -10,6 +10,8 @@ import {is} from "cypress/types/bluebird"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
 import {useUpdateEffect} from "usehooks-ts"
 import useStateCallback from "@/hooks/useStateCallback"
+import {createUseStyles} from "react-jss"
+import {getAppContainerURL} from "@/lib/services/api"
 
 interface Props {
     variant: Variant
