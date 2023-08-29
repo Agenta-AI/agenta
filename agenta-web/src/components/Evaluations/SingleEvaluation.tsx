@@ -24,6 +24,8 @@ interface EvaluationListTableDataType {
         scores: {
             wrong: number
             correct: number
+            true: number
+            false: number
         }
         variant: any[]
     }
@@ -38,8 +40,12 @@ const useStyles = createUseStyles({
         },
     },
     collapse: {
-        padding: 0,
-        width: "100%",
+        margin: "10px 0",
+        "& .ant-collapse-header": {
+            borderTopLeftRadius: "10px !important",
+            borderTopRightRadius: "10px !important",
+            background: "#fafafa",
+        },
     },
     stat: {
         "& .ant-statistic-content-value": {
@@ -169,8 +175,8 @@ export default function SingleEvaluation() {
             dataIndex: "averageScore",
             key: "averageScore",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                let averageScore =
-                    (record.scoresData.scores.correct / record.scoresData.nb_of_rows) * 100
+                let correctScore = record.scoresData.scores.correct || record.scoresData.scores.true
+                let averageScore = (correctScore / record.scoresData.nb_of_rows) * 100
 
                 return (
                     <span>
