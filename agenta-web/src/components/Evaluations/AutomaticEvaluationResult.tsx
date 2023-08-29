@@ -271,7 +271,7 @@ export default function AutomaticEvaluationResult() {
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Title level={3}>Automatic Evalaution Results</Title>
+                    <Title level={3}>Automatic Evaluation Results</Title>
                 </div>
             ),
             children: (

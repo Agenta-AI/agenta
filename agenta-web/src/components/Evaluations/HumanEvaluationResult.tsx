@@ -297,7 +297,7 @@ export default function HumanEvaluationResult() {
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Title level={3}>Human Evalaution Results</Title>
+                    <Title level={3}>Human Evaluation Results</Title>
                 </div>
             ),
             children: (
