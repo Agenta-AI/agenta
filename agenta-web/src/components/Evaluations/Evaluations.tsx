@@ -33,8 +33,8 @@ import similarity from "@/media/transparency.png"
 import ai from "@/media/artificial-intelligence.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
-import SingleEvaluation from "./SingleEvaluation"
-import ABTestingEvaluation from "./ABTestingEvaluation"
+import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
+import HumanEvaluationResult from "./HumanEvaluationResult"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -539,8 +539,8 @@ export default function Evaluations() {
             />
 
             <div>
-                <SingleEvaluation />
-                <ABTestingEvaluation />
+                <AutomaticEvaluationResult/>
+                <HumanEvaluationResult />
             </div>
         </div>
     )

@@ -81,7 +81,7 @@ const useStyles = createUseStyles({
 
 const {Title} = Typography
 
-export default function ABTestingEvaluation() {
+export default function HumanEvaluationResult() {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -297,7 +297,7 @@ export default function ABTestingEvaluation() {
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Title level={3}>Results A/B testing</Title>
+                    <Title level={3}>Human Evalaution Results</Title>
                 </div>
             ),
             children: (
