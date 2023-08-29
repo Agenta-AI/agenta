@@ -9,6 +9,7 @@ import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 interface EvaluationListTableDataType {
     key: string
@@ -32,6 +33,10 @@ interface EvaluationListTableDataType {
     createdAt: string
 }
 
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
+
 const useStyles = createUseStyles({
     container: {
         marginBottom: 20,
@@ -39,14 +44,16 @@ const useStyles = createUseStyles({
             color: "red",
         },
     },
-    collapse: {
+    collapse: ({themeMode}: StyleProps) => ({
         margin: "10px 0",
         "& .ant-collapse-header": {
+            alignItems: "center !important",
+            padding: "0px 20px !important",
             borderTopLeftRadius: "10px !important",
             borderTopRightRadius: "10px !important",
-            background: "#fafafa",
+            background: themeMode === "dark" ? "#1d1d1d" : "#f8f8f8",
         },
-    },
+    }),
     stat: {
         "& .ant-statistic-content-value": {
             fontSize: 20,
@@ -67,7 +74,8 @@ export default function SingleEvaluation() {
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [deletingLoading, setDeletingLoading] = useState<boolean>(true)
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
 
     const app_name = router.query.app_name?.toString() || ""
 
@@ -88,7 +96,9 @@ export default function SingleEvaluation() {
                                 .then((results) => {
                                     if (
                                         item.evaluation_type == EvaluationType.auto_exact_match ||
-                                        item.evaluation_type == EvaluationType.auto_similarity_match
+                                        item.evaluation_type ==
+                                            EvaluationType.auto_similarity_match ||
+                                        item.evaluation_type == EvaluationType.auto_ai_critique
                                     ) {
                                         if (Object.keys(results.scores_data).length > 0) {
                                             return {
@@ -99,6 +109,7 @@ export default function SingleEvaluation() {
                                                 evaluationType: item.evaluation_type,
                                                 status: item.status,
                                                 testset: item.testset,
+                                                resultsData: results.results_data,
                                             }
                                         }
                                     }
