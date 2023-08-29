@@ -20,7 +20,7 @@ import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
+import {fetchApps, countApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
@@ -112,9 +112,20 @@ const AppSelector: React.FC = () => {
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
 
-    const showCreateAppModal = () => {
-        setIsCreateAppModalOpen(true)
-    }
+    const showCreateAppModal = async () => {
+        const response:GenericObject = await countApps()
+
+        if (response.source === "demo" && response.count === 1) {
+            notification.warning({
+                message: "Template Selection",
+                description:
+                    "Sorry, you can only create one App at this time.",
+                duration: 3,
+            });
+        } else {
+            setIsCreateAppModalOpen(true);
+        }
+    };
 
     const showCreateAppFromTemplateModal = () => {
         setIsCreateAppModalOpen(false)
