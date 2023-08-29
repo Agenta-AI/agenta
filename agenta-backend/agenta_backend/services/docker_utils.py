@@ -52,10 +52,10 @@ def start_container(
         image = client.images.get(f"{image_name}")
 
         image = client.images.get(f"{image_name}")
-        
+
         # Set user backend url path and container name
         user_backend_url_path = f"{user_id}/{app_name}/{variant_name}"
-        user_backend_container_name =  f"{app_name}-{variant_name}-{user_id}"
+        user_backend_container_name = f"{app_name}-{variant_name}-{user_id}"
 
         # Default labels
         labels = {

@@ -129,9 +129,7 @@ async def pull_image(
     image_id = await get_image_details_from_docker_hub(
         repo_owner, repo_name, image_tag_name
     )
-    return JSONResponse(
-        {"image_tag": image_tag_name, "image_id": image_id}, 200
-    )
+    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
 
 
 @router.get("/container_url/")
@@ -143,14 +141,14 @@ async def construct_app_container_url(
     """Construct and return the app container url path.
 
     Arguments:
-        app_name -- The name of app to construct the container url path 
+        app_name -- The name of app to construct the container url path
         variant_name -- The  variant name of the app to construct the container url path
         stoken_session (SessionContainer) -- the user session.
 
     Returns:
         URI -- the url path of the container
     """
-    
+
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 

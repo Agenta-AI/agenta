@@ -89,12 +89,16 @@ export async function callVariant(
     const appContainerURIPath = await getAppContainerURL(splittedURIPath[0], splittedURIPath[1])
 
     return axios
-        .post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/generate`, requestBody, {
-            headers: {
-                accept: "application/json",
-                "Content-Type": "application/json",
+        .post(
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/generate`,
+            requestBody,
+            {
+                headers: {
+                    accept: "application/json",
+                    "Content-Type": "application/json",
+                },
             },
-        })
+        )
         .then((res) => {
             return res.data
         })
@@ -151,13 +155,12 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
     }
 }
 
-
 /**
  * Retries the container url for an app
  * @param app
  * @param variantName
  * @returns - url path
- */ 
+ */
 export const getAppContainerURL = async (app: string, variantName: string) => {
     try {
         const queryParam = `?app_name=${app}&variant_name=${variantName}`
