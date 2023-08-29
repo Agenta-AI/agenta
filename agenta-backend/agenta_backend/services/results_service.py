@@ -8,9 +8,9 @@ async def fetch_results_for_human_a_b_testing_evaluation(
     results = {}
 
     # Construct query expression builder for evaluation_rows_nb
-    query_exp_one = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id) & query.ne(
-        EvaluationScenarioDB.vote, ""
-    )
+    query_exp_one = query.eq(
+        EvaluationScenarioDB.evaluation_id, evaluation_id
+    ) & query.ne(EvaluationScenarioDB.vote, "")
     evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
     if evaluation_rows_nb == 0:
         return results
@@ -57,9 +57,9 @@ async def fetch_results_for_auto_exact_match_evaluation(
     results = {}
 
     # Construct query expression builder for evaluation_rows_nb
-    query_exp_one = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id) & query.ne(
-        EvaluationScenarioDB.score, ""
-    )
+    query_exp_one = query.eq(
+        EvaluationScenarioDB.evaluation_id, evaluation_id
+    ) & query.ne(EvaluationScenarioDB.score, "")
     evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
 
     if evaluation_rows_nb == 0:
@@ -93,9 +93,9 @@ async def fetch_results_for_auto_similarity_match_evaluation(
 ):
     results = {}
     # Construct query expression builder for evaluation_rows_nb
-    query_exp_one = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id) & query.ne(
-        EvaluationScenarioDB.score, ""
-    )
+    query_exp_one = query.eq(
+        EvaluationScenarioDB.evaluation_id, evaluation_id
+    ) & query.ne(EvaluationScenarioDB.score, "")
     evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
 
     if evaluation_rows_nb == 0:

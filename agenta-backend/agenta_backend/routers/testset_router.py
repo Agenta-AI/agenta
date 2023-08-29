@@ -105,9 +105,7 @@ async def upload_file(
 
     except Exception as e:
         print(e)
-        raise HTTPException(
-            status_code=500, detail="Failed to process file"
-        ) from e
+        raise HTTPException(status_code=500, detail="Failed to process file") from e
 
 
 @router.post("/{app_name}")
