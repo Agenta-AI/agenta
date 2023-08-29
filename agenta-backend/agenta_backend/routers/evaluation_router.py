@@ -84,9 +84,7 @@ async def update_evaluation_status_router(
     try:
         # Get user and organization id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_status(
-            evaluation_id, update_data, **kwargs
-        )
+        return await update_evaluation_status(evaluation_id, update_data, **kwargs)
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -139,9 +137,7 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post(
-    "/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario
-)
+@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
@@ -265,9 +261,9 @@ async def fetch_evaluation(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder
-    query_expression = query.eq(
-        EvaluationDB.id, ObjectId(evaluation_id)
-    ) & query.eq(EvaluationDB.user, user.id)
+    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
+        EvaluationDB.user, user.id
+    )
     evaluation = await engine.find_one(EvaluationDB, query_expression)
     if evaluation is not None:
         return Evaluation(
@@ -347,9 +343,9 @@ async def fetch_results(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder and retrieve evaluation from database
-    query_expression = query.eq(
-        EvaluationDB.id, ObjectId(evaluation_id)
-    ) & query.eq(EvaluationDB.user, user.id)
+    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
+        EvaluationDB.user, user.id
+    )
     evaluation = await engine.find_one(EvaluationDB, query_expression)
 
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
