@@ -155,26 +155,53 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
     }
 }
 
+
+// Define a type for our cache
+interface Cache {
+    [key: string]: string;
+}
+
+// Create the cache object
+const urlCache: Cache = {};
+
 /**
  * Retries the container url for an app
- * @param app
- * @param variantName
- * @returns - url path
+ * @param {string} app - The name of the app
+ * @param {string} variantName - The name of the variant
+ * @returns {Promise<string>} - Returns the URL path or an empty string
+ * @throws {Error} - Throws an error if the request fails
  */
-export const getAppContainerURL = async (app: string, variantName: string) => {
+export const getAppContainerURL = async (app: string, variantName: string): Promise<string> => {
     try {
-        const queryParam = `?app_name=${app}&variant_name=${variantName}`
-        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/container_url/${queryParam}`
-        const response = await axios.get(url)
-        if (response.status === 200) {
-            return response.data.uri
+        // Null-check for the environment variable
+        if (!process.env.NEXT_PUBLIC_AGENTA_API_URL) {
+            throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.");
+        }
+
+        const queryParam = `?app_name=${app}&variant_name=${variantName}`;
+        const cacheKey = `${app}_${variantName}`;
+
+        // Check if the URL is already cached
+        if (urlCache[cacheKey]) {
+            return urlCache[cacheKey];
+        }
+
+        // Retrieve container URL from backend
+        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/container_url/${queryParam}`;
+        const response = await axios.get(url);
+        if (response.status === 200 && response.data && response.data.uri) {
+            // Cache the URL before returning
+            urlCache[cacheKey] = response.data.uri;
+            return response.data.uri;
         } else {
-            return ""
+            return "";
         }
     } catch (error) {
-        throw error
+        // Forward the error so it can be handled by the calling function
+        throw error;
     }
 }
+
 
 /**
  * Saves a new variant to the database based on previous
