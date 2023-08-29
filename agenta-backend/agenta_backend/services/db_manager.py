@@ -505,7 +505,7 @@ async def remove_old_template_from_db(template_ids: list) -> None:
         await engine.delete(template)
 
 
-async def get_user_object(user_id: str) -> UserDB:
+async def get_user_object(user_uid: str) -> UserDB:
     """Get the user object from the database.
 
     Arguments:
@@ -515,7 +515,7 @@ async def get_user_object(user_id: str) -> UserDB:
         UserDB: instance of user
     """
 
-    user = await engine.find_one(UserDB, UserDB.uid == user_id)
+    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
     if user is None:
         org = OrganizationDB()
         return UserDB(uid="0", organization_id=org)
