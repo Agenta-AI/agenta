@@ -30,6 +30,7 @@ interface EvaluationListTableDataType {
         }
         variant: any[]
     }
+    resultsData: {[key: string]: number}
     createdAt: string
 }
 
@@ -100,17 +101,15 @@ export default function SingleEvaluation() {
                                             EvaluationType.auto_similarity_match ||
                                         item.evaluation_type == EvaluationType.auto_ai_critique
                                     ) {
-                                        if (Object.keys(results.scores_data).length > 0) {
-                                            return {
-                                                key: item.id,
-                                                createdAt: formatDate(item.created_at),
-                                                variants: item.variants,
-                                                scoresData: results.scores_data,
-                                                evaluationType: item.evaluation_type,
-                                                status: item.status,
-                                                testset: item.testset,
-                                                resultsData: results.results_data,
-                                            }
+                                        return {
+                                            key: item.id,
+                                            createdAt: formatDate(item.created_at),
+                                            variants: item.variants,
+                                            scoresData: results.scores_data,
+                                            evaluationType: item.evaluation_type,
+                                            status: item.status,
+                                            testset: item.testset,
+                                            resultsData: results.results_data,
                                         }
                                     }
                                 })
@@ -186,15 +185,32 @@ export default function SingleEvaluation() {
             dataIndex: "averageScore",
             key: "averageScore",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                let correctScore = record.scoresData.scores.correct || record.scoresData.scores.true
-                let averageScore = (correctScore / record.scoresData.nb_of_rows) * 100
+                if (record.scoresData) {
+                    let correctScore =
+                        record.scoresData.scores.correct || record.scoresData.scores.true
+                    let scoresAverage = (correctScore / record.scoresData.nb_of_rows) * 100
+                    return (
+                        <span>
+                            <Statistic
+                                className={classes.stat}
+                                value={scoresAverage}
+                                precision={scoresAverage <= 99 ? 2 : 1}
+                                suffix="%"
+                            />
+                        </span>
+                    )
+                }
 
+                let resultsDataAverage =
+                    (record.resultsData[10] /
+                        Object.values(record.resultsData).reduce((acc, value) => acc + value, 0)) *
+                    100
                 return (
                     <span>
                         <Statistic
                             className={classes.stat}
-                            value={averageScore}
-                            precision={averageScore <= 99 ? 2 : 1}
+                            value={resultsDataAverage}
+                            precision={resultsDataAverage <= 99 ? 2 : 1}
                             suffix="%"
                         />
                     </span>
