@@ -17,6 +17,7 @@ os.environ["REDIS_URL"] = toml_config["redis_url"]
 os.environ["FEATURE_FLAG"] = toml_config["feature_flag"]
 os.environ["OPENAI_API_KEY"] = toml_config["openai_api_key"]
 
+
 class Settings(BaseSettings):
     docker_registry_url: str
     registry: str
