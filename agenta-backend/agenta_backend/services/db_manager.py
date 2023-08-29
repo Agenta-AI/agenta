@@ -279,7 +279,7 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> Image:
     db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
     if db_app_variant:
         image_db: ImageDB = await engine.find_one(
-            ImageDB, ImageDB.id == ObjectId(db_app_variant.image_id)
+            ImageDB, ImageDB.id == db_app_variant.image_id.id
         )
         return image_db_to_pydantic(image_db)
     else:
@@ -367,7 +367,7 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
 
     # If it's the only variant left that uses the image, delete the image
     count_variants = await engine.count(
-        AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id
+        AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id.id
     )
     if count_variants == 1:
         return True
@@ -425,7 +425,7 @@ async def clean_soft_deleted_variants():
     for variant in soft_deleted_variants:
         # Build the query expression for the two conditions
         query_expression = query.eq(
-            AppVariantDB.image_id, str(variant.image_id)
+            AppVariantDB.image_id, variant.image_id.id
         ) & query.eq(AppVariantDB.is_deleted, False)
 
         # Get non-deleted variants that use the same image
