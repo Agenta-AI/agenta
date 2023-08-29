@@ -160,9 +160,22 @@ async def start_variant(
     print(f"Starting variant {app_variant}")
     logger.info("Starting variant %s", app_variant)
     try:
+        # Get user and org iD
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        env_vars = {} if env_vars is None else env_vars.env_vars
-        return await app_manager.start_variant(app_variant, env_vars, **kwargs)
+
+        # Inject env vars to docker container
+        if settings.feature_flag == "demo":
+            if not settings.openai_api_key.startswith("sk-"):
+                raise HTTPException(
+                    status_code=404,
+                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                )
+            envvars = settings.openai_api_key
+        else:
+            envvars = {} if env_vars is None else env_vars.env_vars
+
+        url = await app_manager.start_variant(app_variant, envvars, **kwargs)
+        return url
     except Exception as e:
         variant_from_db = await db_manager.get_variant_from_db(app_variant, **kwargs)
         if variant_from_db is not None:
@@ -320,6 +333,17 @@ async def add_app_variant_from_template(
     # Create an AppVariant with the provided app name
     app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
 
+    # Inject env vars to docker container
+    if settings.feature_flag == "demo":
+        if not settings.openai_api_key.startswith("sk-"):
+            raise HTTPException(
+                status_code=404,
+                detail="Unable to start app container. Please file an issue by clicking on the button below.",
+            )
+        envvars = settings.openai_api_key
+    else:
+        envvars = {} if payload.env_vars is None else payload.env_vars
+
     # Create an Image instance with the extracted image id, and defined image name
     image_name = f"agentaai/templates:{payload.image_tag}"
     image: Image = Image(docker_id=payload.image_id, tags=f"{image_name}")
@@ -332,7 +356,7 @@ async def add_app_variant_from_template(
         await app_manager.update_variant_image(app_variant, image, **kwargs)
 
     # Start variant
-    url = await app_manager.start_variant(app_variant, payload.env_vars, **kwargs)
+    url = await app_manager.start_variant(app_variant, envvars, **kwargs)
 
     return {
         "message": "Variant created and running!",

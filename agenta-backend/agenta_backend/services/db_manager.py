@@ -1,5 +1,6 @@
 import os
-from typing import Dict, List, Optional, Any
+from bson import ObjectId
+from typing import Dict, List, Any
 
 from agenta_backend.models.api.api_models import (
     App,
@@ -108,7 +109,7 @@ async def add_variant_based_on_image(
     parameters = {} if app_variant.parameters is None else app_variant.parameters
 
     db_app_variant = AppVariantDB(
-        image_id=user_db_image,
+        image_id=str(user_db_image.id),
         app_name=app_variant.app_name,
         variant_name=app_variant.variant_name,
         user_id=user_instance,
@@ -342,7 +343,7 @@ async def remove_image(image: Image, **kwargs: dict):
     # Build the query expression for the two conditions
     query_expression = (
         query.eq(ImageDB.tags, image.tags)
-        & query.eq(ImageDB.tags, image.tags)
+        & query.eq(ImageDB.docker_id, image.docker_id)
         & query.eq(ImageDB.user_id, user.id)
     )
     image_db = await engine.find_one(ImageDB, query_expression)
