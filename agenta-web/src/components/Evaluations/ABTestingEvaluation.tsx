@@ -49,21 +49,21 @@ const useStyles = createUseStyles({
     statFlag: {
         "& .ant-statistic-content-value": {
             fontSize: 20,
-            color: "#cf1322"
+            color: "#cf1322",
         },
         "& .ant-statistic-content-suffix": {
             fontSize: 20,
-            color: "#cf1322"
+            color: "#cf1322",
         },
     },
     stat: {
         "& .ant-statistic-content-value": {
             fontSize: 20,
-            color: "#1677ff"
+            color: "#1677ff",
         },
         "& .ant-statistic-content-suffix": {
             fontSize: 20,
-            color: "#1677ff"
+            color: "#1677ff",
         },
     },
 })
