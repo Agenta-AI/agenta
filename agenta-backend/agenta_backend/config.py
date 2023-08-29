@@ -15,7 +15,7 @@ os.environ["DOCKER_HUB_REPO_OWNER"] = toml_config["docker_hub_repo_owner"]
 os.environ["DOCKER_HUB_REPO_NAME"] = toml_config["docker_hub_repo_name"]
 os.environ["REDIS_URL"] = toml_config["redis_url"]
 os.environ["FEATURE_FLAG"] = toml_config["feature_flag"]
-
+os.environ["OPENAI_API_KEY"] = toml_config["openai_api_key"]
 
 class Settings(BaseSettings):
     docker_registry_url: str
@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     docker_hub_repo_owner: str
     docker_hub_repo_name: str
     feature_flag: str
+    openai_api_key: str
 
 
 settings = Settings()

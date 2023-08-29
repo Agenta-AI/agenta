@@ -160,9 +160,19 @@ async def start_variant(
     print(f"Starting variant {app_variant}")
     logger.info("Starting variant %s", app_variant)
     try:
+        # Get user and org iD
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        env_vars = {} if env_vars is None else env_vars.env_vars
-        return await app_manager.start_variant(app_variant, env_vars, **kwargs)
+        
+        # Inject env vars to docker container
+        if settings.feature_flag == "demo":
+            if settings.openai_api_key == "value":
+                raise HTTPException(status_code=400, detail="OpenAI API Key is required to start docker container.")
+            envvars = settings.openai_api_key
+        else:
+            envvars = {} if env_vars is None else env_vars.env_vars
+            
+        url = await app_manager.start_variant(app_variant, envvars, **kwargs)
+        return url
     except Exception as e:
         variant_from_db = await db_manager.get_variant_from_db(app_variant, **kwargs)
         if variant_from_db is not None:
