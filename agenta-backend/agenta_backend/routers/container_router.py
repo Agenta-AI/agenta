@@ -54,7 +54,7 @@ async def build_image(
     Returns:
         an object of type `Image`.
     """
-    
+
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
