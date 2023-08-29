@@ -109,7 +109,7 @@ async def add_variant_based_on_image(
     parameters = {} if app_variant.parameters is None else app_variant.parameters
 
     db_app_variant = AppVariantDB(
-        image_id=str(user_db_image.id),
+        image_id=user_db_image,
         app_name=app_variant.app_name,
         variant_name=app_variant.variant_name,
         user_id=user_instance,
