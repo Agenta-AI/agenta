@@ -92,7 +92,7 @@ async def upload_file(
                     row_data[columns[i]] = value
                 document["csvdata"].append(row_data)
 
-        user = await get_user_object(kwargs["user_id"])
+        user = await get_user_object(kwargs["uid"])
         testset_instance = TestSetDB(**document, user=user)
         result = await engine.save(testset_instance)
 
@@ -105,7 +105,9 @@ async def upload_file(
 
     except Exception as e:
         print(e)
-        raise HTTPException(status_code=500, detail="Failed to process file") from e
+        raise HTTPException(
+            status_code=500, detail="Failed to process file"
+        ) from e
 
 
 @router.post("/{app_name}")
@@ -134,7 +136,7 @@ async def create_testset(
         "csvdata": csvdata.csvdata,
     }
     try:
-        user = await get_user_object(kwargs["user_id"])
+        user = await get_user_object(kwargs["uid"])
         testset_instance = TestSetDB(**testset, user=user)
         await engine.save(testset_instance)
 
@@ -169,7 +171,7 @@ async def update_testset(
     }
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        user = await get_user_object(kwargs["user_id"])
+        user = await get_user_object(kwargs["uid"])
 
         # Define query expression
         query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
@@ -210,7 +212,7 @@ async def get_testsets(
     """
 
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["user_id"])
+    user = await get_user_object(kwargs["uid"])
 
     # Define query expression
     query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
@@ -244,7 +246,7 @@ async def get_testset(
     """
 
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["user_id"])
+    user = await get_user_object(kwargs["uid"])
 
     # Define query expression
     query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
@@ -277,7 +279,7 @@ async def delete_testsets(
     deleted_ids = []
 
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["user_id"])
+    user = await get_user_object(kwargs["uid"])
 
     for testset_id in delete_testsets.testset_ids:
         # Define query expression
