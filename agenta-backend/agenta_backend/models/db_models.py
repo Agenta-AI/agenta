@@ -102,6 +102,7 @@ class EvaluationScenarioDB(Model):
     vote: Optional[str]
     score: Optional[str]
     evaluation: Optional[str]
+    evaluation_id: str
     user: UserDB = Reference(key_name="user")
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
