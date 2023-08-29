@@ -8,7 +8,7 @@ async def fetch_results_for_human_a_b_testing_evaluation(
     results = {}
 
     # Construct query expression builder for evaluation_rows_nb
-    query_exp_one = query.eq(EvaluationScenarioDB.evaluation, evaluation_id) & query.ne(
+    query_exp_one = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id) & query.ne(
         EvaluationScenarioDB.vote, ""
     )
     evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
@@ -21,7 +21,7 @@ async def fetch_results_for_human_a_b_testing_evaluation(
 
     # Construct query expression builder for flag_votes_nb
     query_exp_two = query.eq(EvaluationScenarioDB.vote, "0") & query.eq(
-        EvaluationScenarioDB.evaluation, evaluation_id
+        EvaluationScenarioDB.evaluation_id, evaluation_id
     )
     flag_votes_nb = await engine.count(EvaluationScenarioDB, query_exp_two)
 
@@ -37,7 +37,7 @@ async def fetch_results_for_human_a_b_testing_evaluation(
 
         # Construct query expression builder for variant_votes_nb
         query_exp_three = query.eq(EvaluationScenarioDB.vote, item) & query.eq(
-            EvaluationScenarioDB.evaluation, evaluation_id
+            EvaluationScenarioDB.evaluation_id, evaluation_id
         )
         variant_votes_nb: int = await engine.count(
             EvaluationScenarioDB, query_exp_three
@@ -57,7 +57,7 @@ async def fetch_results_for_auto_exact_match_evaluation(
     results = {}
 
     # Construct query expression builder for evaluation_rows_nb
-    query_exp_one = query.eq(EvaluationScenarioDB.evaluation, evaluation_id) & query.ne(
+    query_exp_one = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id) & query.ne(
         EvaluationScenarioDB.score, ""
     )
     evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
@@ -71,13 +71,13 @@ async def fetch_results_for_auto_exact_match_evaluation(
 
     # Construct query expression builder for correct_scores_nb
     query_exp_two = query.eq(EvaluationScenarioDB.score, "correct") & query.eq(
-        EvaluationScenarioDB.evaluation, evaluation_id
+        EvaluationScenarioDB.evaluation_id, evaluation_id
     )
     correct_scores_nb = await engine.count(EvaluationScenarioDB, query_exp_two)
 
     # Construct query expression builder for wrong_scores_nb
     query_exp_three = query.eq(EvaluationScenarioDB.score, "wrong") & query.eq(
-        EvaluationScenarioDB.evaluation, evaluation_id
+        EvaluationScenarioDB.evaluation_id, evaluation_id
     )
     wrong_scores_nb: int = await engine.count(EvaluationScenarioDB, query_exp_three)
 
@@ -93,7 +93,7 @@ async def fetch_results_for_auto_similarity_match_evaluation(
 ):
     results = {}
     # Construct query expression builder for evaluation_rows_nb
-    query_exp_one = query.eq(EvaluationScenarioDB.evaluation, evaluation_id) & query.ne(
+    query_exp_one = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id) & query.ne(
         EvaluationScenarioDB.score, ""
     )
     evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
@@ -106,13 +106,13 @@ async def fetch_results_for_auto_similarity_match_evaluation(
 
     # Construct query expression builder for similar_scores_nb
     query_exp_two = query.eq(EvaluationScenarioDB.score, "true") & query.eq(
-        EvaluationScenarioDB.evaluation, evaluation_id
+        EvaluationScenarioDB.evaluation_id, evaluation_id
     )
     similar_scores_nb = await engine.count(EvaluationScenarioDB, query_exp_two)
 
     # Construct query expression builder for wrong_scores_nb
     query_exp_three = query.eq(EvaluationScenarioDB.score, "false") & query.eq(
-        EvaluationScenarioDB.evaluation, evaluation_id
+        EvaluationScenarioDB.evaluation_id, evaluation_id
     )
     dissimilar_scores_nb: int = await engine.count(
         EvaluationScenarioDB, query_exp_three
@@ -128,13 +128,12 @@ async def fetch_results_for_auto_similarity_match_evaluation(
 async def fetch_results_for_auto_ai_critique(evaluation_id: str):
     pipeline = [
         {"$match": {"evaluation_id": evaluation_id}},
-        {"$group": {"_id": "$evaluation", "count": {"$sum": 1}}},
+        {"$group": {"_id": "$evaluation_id", "count": {"$sum": 1}}},
     ]
 
     results = {}
-
     collection = engine.get_collection(EvaluationScenarioDB)
     aggregation_cursor = await collection.aggregate(pipeline).to_list(length=None)
     for doc in aggregation_cursor:
-        results[doc.id] = doc.count
+        results[doc["_id"]] = doc["count"]
     return results
