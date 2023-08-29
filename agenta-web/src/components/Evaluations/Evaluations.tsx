@@ -539,7 +539,7 @@ export default function Evaluations() {
             />
 
             <div>
-                <AutomaticEvaluationResult/>
+                <AutomaticEvaluationResult />
                 <HumanEvaluationResult />
             </div>
         </div>
