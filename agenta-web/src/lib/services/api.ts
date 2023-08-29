@@ -49,7 +49,7 @@ export async function fetchVariants(app: string): Promise<Variant[]> {
  * @param URIPath
  * @returns
  */
-export function callVariant(
+export async function callVariant(
     inputParametersDict: Record<string, string>,
     inputParamDefinition: Parameter[],
     optionalParameters: Parameter[],
@@ -85,8 +85,11 @@ export function callVariant(
         ...optParams,
     }
 
+    let splittedURIPath = URIPath.split("/")
+    const appContainerURIPath = await getAppContainerURL(splittedURIPath[0], splittedURIPath[1])
+
     return axios
-        .post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, requestBody, {
+        .post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/generate`, requestBody, {
             headers: {
                 accept: "application/json",
                 "Content-Type": "application/json",
@@ -122,7 +125,8 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
         const sourceName = variant.templateVariantName
             ? variant.templateVariantName
             : variant.variantName
-        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${app}/${sourceName}/openapi.json`
+        const appContainerURIPath = await getAppContainerURL(app, sourceName)
+        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/openapi.json`
         const response = await axios.get(url)
         let APIParams = parseOpenApiSchema(response.data)
         // we create a new param for DictInput that will contain the name of the inputs
@@ -142,6 +146,28 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
         const initOptParams = APIParams.filter((param) => !param.input) // contains the default values too!
         const inputParams = APIParams.filter((param) => param.input) // don't have input values
         return {initOptParams, inputParams}
+    } catch (error) {
+        throw error
+    }
+}
+
+
+/**
+ * Retries the container url for an app
+ * @param app
+ * @param variantName
+ * @returns - url path
+ */ 
+const getAppContainerURL = async (app: string, variantName: string) => {
+    try {
+        const queryParam = `?app_name=${app}&variant_name=${variantName}`
+        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/container_url/${queryParam}`
+        const response = await axios.get(url)
+        if (response.status === 200) {
+            return response.data.uri
+        } else {
+            return ""
+        }
     } catch (error) {
         throw error
     }
