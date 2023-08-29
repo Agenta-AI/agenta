@@ -1,5 +1,6 @@
 import os
-from typing import Dict, List, Optional, Any
+from bson import ObjectId
+from typing import Dict, List, Any
 
 from agenta_backend.models.api.api_models import (
     App,
@@ -108,7 +109,7 @@ async def add_variant_based_on_image(
     parameters = {} if app_variant.parameters is None else app_variant.parameters
 
     db_app_variant = AppVariantDB(
-        image_id=user_db_image,
+        image_id=str(user_db_image.id),
         app_name=app_variant.app_name,
         variant_name=app_variant.variant_name,
         user_id=user_instance,
@@ -278,7 +279,7 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> Image:
     db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
     if db_app_variant:
         image_db: ImageDB = await engine.find_one(
-            ImageDB, ImageDB.id == db_app_variant.image_id.id
+            ImageDB, ImageDB.id == ObjectId(db_app_variant.image_id)
         )
         return image_db_to_pydantic(image_db)
     else:
@@ -342,7 +343,7 @@ async def remove_image(image: Image, **kwargs: dict):
     # Build the query expression for the two conditions
     query_expression = (
         query.eq(ImageDB.tags, image.tags)
-        & query.eq(ImageDB.tags, image.tags)
+        & query.eq(ImageDB.docker_id, image.docker_id)
         & query.eq(ImageDB.user_id, user.id)
     )
     image_db = await engine.find_one(ImageDB, query_expression)
@@ -366,7 +367,7 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
 
     # If it's the only variant left that uses the image, delete the image
     count_variants = await engine.count(
-        AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id.id
+        AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id
     )
     if count_variants == 1:
         return True
@@ -424,7 +425,7 @@ async def clean_soft_deleted_variants():
     for variant in soft_deleted_variants:
         # Build the query expression for the two conditions
         query_expression = query.eq(
-            AppVariantDB.image_id, variant.image_id.id
+            AppVariantDB.image_id, str(variant.image_id.id)
         ) & query.eq(AppVariantDB.is_deleted, False)
 
         # Get non-deleted variants that use the same image

@@ -22,8 +22,6 @@ class UserDB(Model):
 
 
 class ImageDB(Model):
-    """Defines the info needed to get an image and connect it to the app variant"""
-
     docker_id: str = Field(index=True)
     tags: str
     user_id: UserDB = Reference(key_name="user")
@@ -37,7 +35,7 @@ class ImageDB(Model):
 class AppVariantDB(Model):
     app_name: str
     variant_name: str
-    image_id: ImageDB = Reference(key_name="image")
+    image_id: str
     user_id: UserDB = Reference(key_name="user")
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
