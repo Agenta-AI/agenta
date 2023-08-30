@@ -113,7 +113,7 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
-    const isDemo = process.env.NEXT_PUBLIC_FF
+    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
