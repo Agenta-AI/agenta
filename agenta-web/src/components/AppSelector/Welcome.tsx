@@ -81,7 +81,7 @@ interface Props {
 const Welcome: React.FC<Props> = ({ onCreateAppClick }) => {
     const { appTheme } = useAppTheme()
     const classes = useStyles({ themeMode: appTheme } as StyleProps)
-
+    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
     return (
         <div>
             <div>
@@ -122,14 +122,16 @@ const Welcome: React.FC<Props> = ({ onCreateAppClick }) => {
             <div className={classes.blueBox}>
                 <h3>Get started creating your first LLM App</h3>
 
-                <p>
-                    This guide assumes you have completed the installation process. If not, please
-                    follow our{" "}
-                    <a href="https://docs.agenta.ai/installation" target="_blank">
-                        installation guide
-                    </a>
-                    .
-                </p>
+                {!isDemo && (
+                    <p>
+                        This guide assumes you have completed the installation process. If not, please
+                        follow our{" "}
+                        <a href="https://docs.agenta.ai/installation" target="_blank">
+                            installation guide
+                        </a>
+                        .
+                    </p>
+                )}
 
                 <Button type="primary" onClick={onCreateAppClick}>
                     Create New App
