@@ -1,3 +1,4 @@
+import os
 import csv
 import json
 from copy import deepcopy
@@ -23,7 +24,7 @@ upload_folder = "./path/to/upload/folder"
 router = APIRouter()
 
 
-if settings.feature_flag in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
         SessionContainer,
         verify_session,
