@@ -330,6 +330,14 @@ async def add_app_variant_from_template(
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
+    # Check if the user has already created an app
+    if settings.feature_flag == "demo":
+        if await db_manager.count_apps(**kwargs) == 1:
+            raise HTTPException(
+                status_code=500,
+                detail="Sorry, you can only create one App at this time.",
+            )
+
     # Create an AppVariant with the provided app name
     app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
 
