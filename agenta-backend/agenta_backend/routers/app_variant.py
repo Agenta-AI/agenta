@@ -1,6 +1,7 @@
 """Routes for image-related operations (push, remove).
 Does not deal with the instanciation of the images
 """
+import os
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -19,7 +20,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi import APIRouter, Body, HTTPException, Depends
 from agenta_backend.config import settings
 
-if settings.feature_flag in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
         SessionContainer,
         verify_session,
@@ -98,7 +99,7 @@ async def add_variant_from_image(
         HTTPException: If image not found in docker utils list
         HTTPException: If there is a problem adding the app variant
     """
-    if settings.feature_flag == "demo":
+    if os.environ["FEATURE_FLAG"] == "demo":
         raise HTTPException(
             status_code=500,
             detail="This feature is not available in the demo version",
@@ -164,7 +165,7 @@ async def start_variant(
         kwargs: dict = await get_user_and_org_id(stoken_session)
 
         # Inject env vars to docker container
-        if settings.feature_flag == "demo":
+        if os.environ["FEATURE_FLAG"] == "demo":
             if not settings.openai_api_key.startswith("sk-"):
                 raise HTTPException(
                     status_code=400,
@@ -333,7 +334,7 @@ async def add_app_variant_from_template(
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
     # Check if the user has already created an app
-    if settings.feature_flag == "demo":
+    if os.environ["FEATURE_FLAG"] == "demo":
         if await db_manager.count_apps(**kwargs) == 1:
             raise HTTPException(
                 status_code=500,
@@ -344,7 +345,7 @@ async def add_app_variant_from_template(
     app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
 
     # Inject env vars to docker container
-    if settings.feature_flag == "demo":
+    if os.environ["FEATURE_FLAG"] == "demo":
         if not settings.openai_api_key.startswith("sk-"):
             raise HTTPException(
                 status_code=400,
