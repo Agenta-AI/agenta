@@ -1,4 +1,4 @@
-import React from "react"
+import React, {useEffect} from "react"
 import {Breadcrumb, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
@@ -66,6 +66,16 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
+
+    useEffect(() => {
+        const body = document.body
+        body.classList.remove("dark-mode", "light-mode")
+        if (appTheme === "dark") {
+            body.classList.add("dark-mode")
+        } else {
+            body.classList.add("light-mode")
+        }
+    }, [appTheme])
 
     return (
         <NoSSRWrapper>
