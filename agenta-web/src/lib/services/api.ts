@@ -49,7 +49,7 @@ export async function fetchVariants(app: string): Promise<Variant[]> {
  * @param URIPath
  * @returns
  */
-export function callVariant(
+export async function callVariant(
     inputParametersDict: Record<string, string>,
     inputParamDefinition: Parameter[],
     optionalParameters: Parameter[],
@@ -84,6 +84,9 @@ export function callVariant(
         ...mainInputParams,
         ...optParams,
     }
+
+    let splittedURIPath = URIPath.split("/")
+    const appContainerURIPath = await getAppContainerURL(splittedURIPath[0], splittedURIPath[1])
 
     return axios
         .post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, requestBody)
@@ -122,6 +125,52 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
     const initOptParams = APIParams.filter((param) => !param.input) // contains the default values too!
     const inputParams = APIParams.filter((param) => param.input) // don't have input values
     return {initOptParams, inputParams}
+}
+
+// Define a type for our cache
+interface Cache {
+    [key: string]: string
+}
+
+// Create the cache object
+const urlCache: Cache = {}
+
+/**
+ * Retries the container url for an app
+ * @param {string} app - The name of the app
+ * @param {string} variantName - The name of the variant
+ * @returns {Promise<string>} - Returns the URL path or an empty string
+ * @throws {Error} - Throws an error if the request fails
+ */
+export const getAppContainerURL = async (app: string, variantName: string): Promise<string> => {
+    try {
+        // Null-check for the environment variable
+        if (!process.env.NEXT_PUBLIC_AGENTA_API_URL) {
+            throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
+        }
+
+        const queryParam = `?app_name=${app}&variant_name=${variantName}`
+        const cacheKey = `${app}_${variantName}`
+
+        // Check if the URL is already cached
+        if (urlCache[cacheKey]) {
+            return urlCache[cacheKey]
+        }
+
+        // Retrieve container URL from backend
+        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/container_url/${queryParam}`
+        const response = await axios.get(url)
+        if (response.status === 200 && response.data && response.data.uri) {
+            // Cache the URL before returning
+            urlCache[cacheKey] = response.data.uri
+            return response.data.uri
+        } else {
+            return ""
+        }
+    } catch (error) {
+        // Forward the error so it can be handled by the calling function
+        throw error
+    }
 }
 
 /**
@@ -179,7 +228,7 @@ export async function removeVariant(appName: string, variantName: string) {
  */
 export const useLoadTestsetsList = (app_name: string) => {
     const {data, error, mutate} = useSWR(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_name=${app_name}`,
         fetcher,
         {revalidateOnFocus: false},
     )
@@ -343,4 +392,9 @@ export const startTemplate = async (templateObj: AppTemplate) => {
         templateObj,
     )
     return response
+}
+
+export const fetchData = async (url: string): Promise<any> => {
+    const response = await fetch(url)
+    return response.json()
 }

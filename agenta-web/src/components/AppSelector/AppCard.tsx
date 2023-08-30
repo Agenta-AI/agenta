@@ -5,6 +5,30 @@ import useSWR, {mutate} from "swr"
 import {useState} from "react"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {createUseStyles} from "react-jss"
+
+const useStyles = createUseStyles({
+    card: {
+        width: 300,
+        height: 120,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        overflow: "hidden",
+        "& svg": {
+            color: "red",
+        },
+        "& .ant-card-meta": {
+            height: "90%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+        },
+        "& .ant-card-meta-title div": {
+            textAlign: "center",
+        },
+    },
+})
 
 const DeleteModal: React.FC<{
     open: boolean
@@ -70,38 +94,17 @@ const AppCard: React.FC<{
         "linear-gradient(to bottom right, #60A5FA, #3B82F6)",
     ]
 
+    const classes = useStyles()
+
     return (
         <>
             <Card
-                style={{
-                    width: 300,
-                    height: 120,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    overflow: "hidden", // add this line to ensure content doesn't overflow the card
-                }}
-                actions={[
-                    <DeleteOutlined
-                        key="delete"
-                        style={{color: "red"}}
-                        onClick={showDeleteModal}
-                    />,
-                ]}
+                className={classes.card}
+                actions={[<DeleteOutlined key="delete" onClick={showDeleteModal} />]}
             >
                 <Link data-cy="app-card-link" href={`/apps/${appName}/playground`}>
                     <Card.Meta
-                        style={{
-                            height: "90%", // adjust this as needed
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                        title={
-                            <div style={{textAlign: "center"}}>
-                                {renameVariablesCapitalizeAll(appName)}
-                            </div>
-                        }
+                        title={<div>{renameVariablesCapitalizeAll(appName)}</div>}
                         avatar={
                             <Avatar
                                 size="large"

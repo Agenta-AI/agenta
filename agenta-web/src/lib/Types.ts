@@ -120,10 +120,25 @@ export interface AppTemplate {
     app_name: string
     image_id: string
     image_tag: string
-    env_vars: {
-        OPENAI_API_KEY: string
+    env_vars?: {
+        OPENAI_API_KEY: string | null
     }
 }
 
+export interface ISession {
+    loading: boolean
+    doesSessionExist: boolean
+    userId: string
+    invalidClaims: Array<any>
+    accessTokenPayload: {
+        exp: number
+        iat: number
+        iss: string
+        parentRefreshTokenHash1: string
+        refreshTokenHash1: string
+        sessionHandle: string
+        sub: string
+    }
+}
 export type GenericObject = Record<string, any>
 export type KeyValuePair = Record<string, string>

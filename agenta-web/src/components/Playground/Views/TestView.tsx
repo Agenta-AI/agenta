@@ -1,14 +1,81 @@
-import React, {Dispatch, SetStateAction, useContext, useState} from "react"
+import React, {useState} from "react"
 import {Button, Input, Card, Row, Col, Space} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {Parameter} from "@/lib/Types"
-import {renameVariables} from "@/lib/helpers/utils"
-import {TestContext} from "../TestContextProvider"
+import {randString, renameVariables} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
+import {createUseStyles} from "react-jss"
+
+const useStylesBox = createUseStyles({
+    card: {
+        marginTop: 16,
+        border: "1px solid #ccc",
+        marginRight: "24px",
+        marginLeft: "12px",
+        "& .ant-card-body": {
+            padding: "4px 16px",
+            border: "0px solid #ccc",
+        },
+    },
+    rowHeader: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
+    row1: {
+        marginTop: 0,
+        "& textarea": {
+            height: "100%",
+            width: "100%",
+            marginTop: "16px",
+        },
+    },
+    row2: {
+        marginTop: "16px",
+    },
+    row2Col: {
+        justifyContent: "flex-end",
+        display: "flex",
+        gap: "0.75rem",
+        "& button:nth-of-type(2)": {
+            width: "100px",
+        },
+    },
+    row3: {
+        margin: "16px 0",
+        "& textarea": {
+            height: "100%",
+            width: "100%",
+        },
+    },
+})
+
+const useStylesApp = createUseStyles({
+    testView: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginRight: "24px",
+        marginLeft: "12px",
+        "& > h2": {
+            padding: "0px",
+            marginBottom: "8px",
+        },
+    },
+    runAllBtn: {
+        backgroundColor: "green",
+    },
+    addBtn: {
+        marginTop: "16px",
+        width: "200px",
+        marginBottom: "24px",
+        marginLeft: "12px",
+    },
+})
 
 interface TestViewProps {
     URIPath: string | null
@@ -19,27 +86,25 @@ interface TestViewProps {
 interface BoxComponentProps {
     inputParams: Parameter[] | null
     testData: Record<string, string>
-    testIndex: number
-    setTestList: Dispatch<SetStateAction<Record<string, string>[]>>
-    handleRun: (testData: Record<string, string>, testIndex: number) => Promise<void>
-    results: string
-    resultsList: string[]
+    result: string
+    onInputParamChange: (paramName: string, newValue: string) => void
+    onRun: () => void
     onAddToTestset: (params: Record<string, string>) => void
-    handleDeleteRow: (testIndex: number) => void
+    onDelete?: () => void
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
     inputParams,
     testData,
-    testIndex,
-    setTestList,
-    handleRun,
-    results,
-    resultsList,
+    result,
+    onInputParamChange,
+    onRun,
     onAddToTestset,
-    handleDeleteRow,
+    onDelete,
 }) => {
+    const classes = useStylesBox()
     const {TextArea} = Input
+    const loading = result === "Loading..."
 
     if (!inputParams) {
         return <div>Loading...</div>
@@ -47,85 +112,60 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 
     const inputParamsNames = inputParams.map((param) => param.name)
 
-    const handleInputParamValChange = (inputParamName: string, newValue: string) => {
-        setTestList((prevState) => {
-            const newState = [...prevState]
-
-            newState[testIndex] = {...newState[testIndex], [inputParamName]: newValue}
-            return newState
-        })
-    }
-
     const handleAddToTestset = () => {
         const params: Record<string, string> = {}
         inputParamsNames.forEach((name) => {
             params[name] = testData[name] || ""
         })
-        params.correct_answer = results
+        params.correct_answer = result
 
         onAddToTestset(params)
     }
 
     return (
-        <Card
-            style={{
-                marginTop: 16,
-                border: "1px solid #ccc",
-                marginRight: "24px",
-                marginLeft: "12px",
-            }}
-            bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-        >
-            <Row style={{display: "flex", alignItems: "center", justifyContent: "space-between"}}>
+        <Card className={classes.card}>
+            <Row className={classes.rowHeader}>
                 <h4>Input parameters</h4>
-                <Button
-                    icon={<DeleteOutlined />}
-                    onClick={() => handleDeleteRow(testIndex)}
-                ></Button>
+                {onDelete && <Button icon={<DeleteOutlined />} onClick={onDelete}></Button>}
             </Row>
 
-            <Row style={{marginTop: "0px"}}>
+            <Row className={classes.row1}>
                 {inputParamsNames.map((key, index) => (
                     <TextArea
                         key={index}
                         value={testData[key]}
                         placeholder={renameVariables(key)}
-                        onChange={(e) => handleInputParamValChange(key, e.target.value)}
-                        style={{height: "100%", width: "100%", marginTop: "16px"}}
+                        onChange={(e) => onInputParamChange(key, e.target.value)}
                     />
                 ))}
             </Row>
-            <Row style={{marginTop: "16px"}}>
-                <Col
-                    span={24}
-                    style={{justifyContent: "flex-end", display: "flex", gap: "0.75rem"}}
-                >
-                    <Button shape="round" icon={<PlusOutlined />} onClick={handleAddToTestset}>
+            <Row className={classes.row2}>
+                <Col span={24} className={classes.row2Col}>
+                    <Button
+                        shape="round"
+                        icon={<PlusOutlined />}
+                        onClick={handleAddToTestset}
+                        disabled={loading}
+                    >
                         Add to Test Set
                     </Button>
                     <Button
                         type="primary"
                         shape="round"
                         icon={<CaretRightOutlined />}
-                        onClick={() => handleRun(testData, testIndex)}
-                        style={{width: "100px"}}
-                        loading={resultsList[testIndex] === "Loading..."}
-                        disabled={resultsList[testIndex] === "Loading..."}
+                        onClick={onRun}
+                        loading={loading}
                     >
                         Run
                     </Button>
                 </Col>
             </Row>
-            <Row style={{marginTop: "16px", marginBottom: "16px"}}>
+            <Row className={classes.row3}>
                 <TextArea
-                    value={results}
+                    value={result}
                     rows={6}
                     placeholder="Results will be shown here"
                     disabled
-                    style={{
-                        height: "100%",
-                        width: "100%",
-                    }}
                 />
             </Row>
         </Card>
@@ -133,104 +173,88 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 }
 
 const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
-    const {testList, setTestList} = useContext(TestContext)
+    const [testList, setTestList] = useState([{_id: randString(6)}])
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
+    const classes = useStylesApp()
 
-    const handleRun = async (testData: Record<string, string>, testIndex: number) => {
+    const setResultForIndex = (value: string, index: number) => {
+        setResultsList((prevState) => {
+            return prevState.map((prevResult, prevIndex) =>
+                prevIndex === index ? value : prevResult,
+            )
+        })
+    }
+
+    const handleRun = async (index: number) => {
         try {
-            const newResultsList = [...resultsList]
-            newResultsList[testIndex] = "Loading..."
-            setResultsList(newResultsList)
+            setResultForIndex("Loading...", index)
 
-            const result = await callVariant(
-                testData,
+            const res = await callVariant(
+                testList[index],
                 inputParams || [],
                 optParams || [],
                 URIPath || "",
             )
 
-            const newResultList2 = [...resultsList]
-            newResultList2[testIndex] = result
-            setResultsList(newResultList2)
+            setResultForIndex(res, index)
         } catch (e) {
-            const newResultsList = [...resultsList]
-            newResultsList[testIndex] =
+            setResultForIndex(
                 "The code has resulted in the following error: \n\n --------------------- \n" +
-                getErrorMessage(e) +
-                "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
-            setResultsList(newResultsList)
+                    getErrorMessage(e) +
+                    "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground",
+                index,
+            )
         }
     }
 
-    const handleRunAll = async () => {
-        const newResultsList = testList.map(() => "Loading...")
-        setResultsList(testList.map(() => "Loading..."))
-        try {
-            const resultsPromises = testList.map(async (testData, index) => {
-                return await callVariant(
-                    testData,
-                    inputParams || [],
-                    optParams || [],
-                    URIPath || "",
-                )
-            })
-            const results = await Promise.all(resultsPromises)
-            results.forEach((result, index) => {
-                newResultsList[index] = result
-            })
-        } catch (e) {
-            newResultsList.forEach((_, index) => {
-                newResultsList[index] =
-                    "The code has resulted in the following error: \n\n --------------------- \n" +
-                    getErrorMessage(e) +
-                    "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground"
-            })
-        }
-        setResultsList(newResultsList)
+    const handleRunAll = () => {
+        testList.forEach((_, index) => handleRun(index))
     }
 
     const handleAddRow = () => {
-        setTestList([...testList, {}])
+        setTestList([...testList, {_id: randString(6)}])
         setResultsList([...resultsList, ""])
     }
 
-    const handleSetNewTests: (tests: Record<string, string>[]) => void = (tests) => {
-        setTestList([...tests])
-        setResultsList(tests.map(() => ""))
+    const handleDeleteRow = (testIndex: number) => {
+        setTestList((prevTestList) => prevTestList.filter((_, index) => index !== testIndex))
+        setResultsList((prevResultsList) =>
+            prevResultsList.filter((_, index) => index !== testIndex),
+        )
     }
 
-    const handleDeleteRow = (testIndex: number) => {
-        if (resultsList.length < 2) return
-        if (resultsList[testIndex] !== "") {
-            setResultsList(resultsList.filter((_, index) => index !== testIndex))
+    const handleInputParamChange = (paramName: string, value: string, index: number) => {
+        setTestList((prevState) => {
+            const newState = [...prevState]
+            newState[index] = {...newState[index], [paramName]: value}
+            return newState
+        })
+    }
+
+    const onLoadTests = (tests: Record<string, string>[], shouldReplace: boolean) => {
+        const results = tests.map((test) => test?.correct_answer || "")
+        const testsList = tests.map((test) => ({...test, _id: randString(6)}))
+        if (shouldReplace) {
+            setTestList(testsList)
+            setResultsList(results)
+        } else {
+            setTestList((prev) => [...prev, ...testsList])
+            setResultsList((prev) => [...prev, ...results])
         }
-        const newTestList = testList.filter((_, index) => index !== testIndex)
-        setTestList(newTestList)
     }
 
     return (
         <div>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginRight: "24px",
-                    marginLeft: "12px",
-                }}
-            >
-                <h2 style={{padding: "0px", marginBottom: "8px"}}>2. Preview and test</h2>
+            <div className={classes.testView}>
+                <h2>2. Preview and test</h2>
                 <Space size={10}>
-                    <LoadTestsModal
-                        setNewTests={handleSetNewTests}
-                        addNewTests={handleSetNewTests}
-                    />
+                    <LoadTestsModal onLoad={onLoadTests} />
 
                     <Button
                         type="primary"
                         size="middle"
-                        style={{backgroundColor: "green"}}
+                        className={classes.runAllBtn}
                         onClick={handleRunAll}
                     >
                         Run all
@@ -240,16 +264,16 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
 
             {testList.map((testData, index) => (
                 <BoxComponent
-                    key={index}
+                    key={testData._id}
                     inputParams={inputParams}
                     testData={testData}
-                    testIndex={index}
-                    setTestList={setTestList}
-                    handleRun={(testData) => handleRun(testData, index)}
-                    results={resultsList[index]}
-                    resultsList={resultsList}
+                    result={resultsList[index]}
+                    onInputParamChange={(paramName, value) =>
+                        handleInputParamChange(paramName, value, index)
+                    }
+                    onRun={() => handleRun(index)}
                     onAddToTestset={setParams}
-                    handleDeleteRow={handleDeleteRow}
+                    onDelete={testList.length >= 2 ? () => handleDeleteRow(index) : undefined}
                 />
             ))}
             <Button
@@ -257,12 +281,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 size="large"
                 icon={<PlusOutlined />}
                 onClick={handleAddRow}
-                style={{
-                    marginTop: "16px",
-                    width: "200px",
-                    marginBottom: "24px",
-                    marginLeft: "12px",
-                }}
+                className={classes.addBtn}
             >
                 Add Row
             </Button>
