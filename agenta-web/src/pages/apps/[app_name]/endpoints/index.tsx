@@ -4,7 +4,7 @@ import tsCode from "@/code_snippets/endpoints/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import {GenericObject, LanguageItem, Parameter, Variant} from "@/lib/Types"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {fetchVariants} from "@/lib/services/api"
+import {fetchVariants, getAppContainerURL} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 
@@ -101,7 +101,7 @@ export default function VariantEndpoint() {
         renderElement = <div>{error?.message || "Error loading variant"}</div>
     } else {
         const params = createParams(inputParams, optParams, "add_a_value")
-        const uri = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`
+        const uri = `${getAppContainerURL(appName, variant.variantName)}/generate`
 
         const codeSnippets: Record<string, string> = {
             Python: pythonCode(uri, params),
