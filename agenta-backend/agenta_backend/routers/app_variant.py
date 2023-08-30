@@ -166,7 +166,7 @@ async def start_variant(
 
         # Inject env vars to docker container
         if os.environ["FEATURE_FLAG"] == "demo":
-            if "OPENAI_API_KEY" not in os.environ:
+            if not os.environ["OPENAI_API_KEY"]:
                 raise HTTPException(
                     status_code=400,
                     detail="Unable to start app container. Please file an issue by clicking on the button below.",
@@ -346,7 +346,7 @@ async def add_app_variant_from_template(
 
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] == "demo":
-        if not "OPENAI_API_KEY" not in os.environ:
+        if not os.environ["OPENAI_API_KEY"]:
             raise HTTPException(
                 status_code=400,
                 detail="Unable to start app container. Please file an issue by clicking on the button below.",
