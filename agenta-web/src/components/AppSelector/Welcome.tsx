@@ -1,7 +1,7 @@
-import { Button, Divider } from "antd"
+import {Button, Divider} from "antd"
 import React from "react"
-import { useAppTheme } from "../Layout/ThemeContextProvider"
-import { createUseStyles } from "react-jss"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {createUseStyles} from "react-jss"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -27,11 +27,11 @@ const useStyles = createUseStyles({
         fontSize: "24px",
         margin: "20px 0",
     },
-    divider: ({ themeMode }: StyleProps) => ({
+    divider: ({themeMode}: StyleProps) => ({
         borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
         marginTop: 0,
     }),
-    blueBox: ({ themeMode }: StyleProps) => ({
+    blueBox: ({themeMode}: StyleProps) => ({
         backgroundColor: themeMode === "dark" ? "rgb(24, 36, 58)" : "#e6f4ff",
         borderRadius: 10,
         padding: "1rem",
@@ -78,9 +78,9 @@ interface Props {
     onCreateAppClick: () => void
 }
 
-const Welcome: React.FC<Props> = ({ onCreateAppClick }) => {
-    const { appTheme } = useAppTheme()
-    const classes = useStyles({ themeMode: appTheme } as StyleProps)
+const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
     return (
         <div>
@@ -94,12 +94,14 @@ const Welcome: React.FC<Props> = ({ onCreateAppClick }) => {
             </div>
             <div className={classes.description}>
                 <p>
-                    🛠️ <strong>Agenta</strong> is an open-source LLMOps platform designed to streamline the development of robust LLM applications.
-                    <br /><br />
-
-                    🔬 Agenta provides with the tools for quick experimentation, prompt-engineering, and evaluation, making it easier to iterate on your LLM apps.
-                    <br /><br />
-
+                    🛠️ <strong>Agenta</strong> is an open-source LLMOps platform designed to
+                    streamline the development of robust LLM applications.
+                    <br />
+                    <br />
+                    🔬 Agenta provides with the tools for quick experimentation, prompt-engineering,
+                    and evaluation, making it easier to iterate on your LLM apps.
+                    <br />
+                    <br />
                     🤝 With Agenta, you can:
                     <ul>
                         <li>🔄 Experiment and evaluate performance</li>
@@ -124,14 +126,15 @@ const Welcome: React.FC<Props> = ({ onCreateAppClick }) => {
 
                 {!isDemo && (
                     <p>
-                        This guide assumes you have completed the installation process. If not, please
-                        follow our{" "}
+                        This guide assumes you have completed the installation process. If not,
+                        please follow our{" "}
                         <a href="https://docs.agenta.ai/installation" target="_blank">
                             installation guide
                         </a>
                         .
                     </p>
                 )}
+                {isDemo && <br />}
 
                 <Button type="primary" onClick={onCreateAppClick}>
                     Create New App
