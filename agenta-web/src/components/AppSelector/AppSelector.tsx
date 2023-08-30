@@ -113,9 +113,12 @@ const AppSelector: React.FC = () => {
     const [newApp, setNewApp] = useState("")
 
     const showCreateAppModal = async () => {
-        const response:GenericObject = await countApps()
+        const response:GenericObject = countApps()
+        console.log("Response =====>", response)
 
-        if (response.source === "demo" && response.count === 1) {
+        const isDemo = process.env.NEXT_PUBLIC_FF
+
+        if (isDemo === "demo" && response.length === 1) {
             notification.warning({
                 message: "Template Selection",
                 description:
