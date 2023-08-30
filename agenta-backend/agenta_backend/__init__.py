@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, Union
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.api.organization_models import Organization
@@ -7,5 +8,5 @@ from agenta_backend.services.organization_service import (
 )
 from agenta_backend.config import settings
 
-if settings.feature_flag in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     import agenta_backend.ee.__init__
