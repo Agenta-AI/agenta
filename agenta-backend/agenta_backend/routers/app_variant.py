@@ -329,7 +329,7 @@ async def add_app_variant_from_template(
 
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    
+
     # Check if the user has already created an app
     if settings.feature_flag == "demo":
         if await db_manager.count_apps(**kwargs) == 1:
@@ -373,4 +373,3 @@ async def add_app_variant_from_template(
             "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",
         },
     }
-
