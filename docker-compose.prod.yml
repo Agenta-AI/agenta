@@ -16,6 +16,7 @@ services:
       - MONGODB_URI=mongodb://username:password@mongo:27017
       - ALLOW_ORIGINS=${ALLOW_ORIGINS}
       - ENVIRONMENT=production
+      - FEATURE_FLAG=oss
     volumes:
       - ./agenta-backend/agenta_backend:/app/agenta_backend
       - ./agenta-backend/tests:/app/tests
