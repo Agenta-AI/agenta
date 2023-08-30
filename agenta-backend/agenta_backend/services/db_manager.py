@@ -1,5 +1,6 @@
 import os
-from typing import Dict, List, Optional, Any
+from bson import ObjectId
+from typing import Dict, List, Any
 
 from agenta_backend.models.api.api_models import (
     App,
@@ -357,7 +358,7 @@ async def remove_image(image: Image, **kwargs: dict):
     # Build the query expression for the two conditions
     query_expression = (
         query.eq(ImageDB.tags, image.tags)
-        & query.eq(ImageDB.tags, image.tags)
+        & query.eq(ImageDB.docker_id, image.docker_id)
         & query.eq(ImageDB.user_id, user.id)
     )
     image_db = await engine.find_one(ImageDB, query_expression)
@@ -383,6 +384,7 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
     count_variants = await engine.count(
         AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id.id
     )
+    print("Count Variants ==> ", count_variants)
     if count_variants == 1:
         return True
     return False
