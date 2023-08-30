@@ -111,7 +111,9 @@ const Sidebar: React.FC = () => {
         <Sider theme="light" className={classes.sidebar} width={225}>
             <div className={classes.sliderContainer}>
                 <div>
-                    <Logo />
+                    <Link data-cy="app-management-link" href={getNavigationPath("apps")}>
+                        <Logo />
+                    </Link>
                 </div>
 
                 <div>
