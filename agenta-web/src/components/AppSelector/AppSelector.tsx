@@ -20,9 +20,10 @@ import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {fetchApps, countApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
+import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
+import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 
@@ -103,6 +104,7 @@ const AppSelector: React.FC = () => {
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
+    const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
 
     const [templateMessage, setTemplateMessage] = useState("")
@@ -111,32 +113,15 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
+    const isDemo = process.env.NEXT_PUBLIC_FF
 
     const showCreateAppModal = async () => {
+        setIsCreateAppModalOpen(true)
+    }
 
-        // The goal here is to check if the flag is demo, if it is not then proceed to open the modal
-        // if it is then send a request to the list variant enpoint and count the number of apps returned
-        // if the number of apps is 1, show the message informing the user that they can create more than 1 app. 
-
-        // const response:GenericObject = countApps()
-        // console.log("Response =====>", response)
-
-        // const isDemo = process.env.NEXT_PUBLIC_FF
-
-        // if (isDemo === "demo" && response.length === 1) {
-        //     notification.warning({
-        //         message: "Template Selection",
-        //         description:
-        //             "Sorry, you can only create one App at this time.",
-        //         duration: 3,
-        //     });
-        // } else {
-        //     setIsCreateAppModalOpen(true);
-        // }
-
-        setIsCreateAppModalOpen(true);
-    };
-
+    const showMaxAppError = () => {
+        setIsMaxAppModalOpen(true)
+    }
     const showCreateAppFromTemplateModal = () => {
         setIsCreateAppModalOpen(false)
         setIsCreateAppFromTemplateModalOpen(true)
@@ -362,7 +347,13 @@ const AppSelector: React.FC = () => {
                                     ))}
                                     <Card
                                         className={classes.createCard}
-                                        onClick={showCreateAppModal}
+                                        onClick={() => {
+                                            if (isDemo && data.length > 0) {
+                                                showMaxAppError()
+                                            } else {
+                                                showCreateAppModal()
+                                            }
+                                        }}
                                     >
                                         <Card.Meta
                                             className={classes.createCardMeta}
@@ -396,6 +387,12 @@ const AppSelector: React.FC = () => {
                 onCardClick={(template) => {
                     showInputTemplateModal()
                     setTemplateName(template.image.name)
+                }}
+            />
+            <MaxAppModal
+                open={isMaxAppModalOpen}
+                onCancel={() => {
+                    setIsMaxAppModalOpen(false)
                 }}
             />
             <Modal
