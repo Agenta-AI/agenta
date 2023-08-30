@@ -7,7 +7,7 @@ export default function Document() {
                 <title>Agenta: The LLMOps platform.</title>
                 <link rel="shortcut icon" href="/assets/favicon.ico" />
             </Head>
-            <body>
+            <body style={{margin:0}}>
                 <Main />
                 <NextScript />
             </body>
