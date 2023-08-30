@@ -9,8 +9,8 @@ from fastapi import UploadFile, APIRouter, Depends
 from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
-from agenta_backend.services.db_manager import get_templates
-from agenta_backend.models.api.api_models import Image, Template
+from agenta_backend.models.api.api_models import Image, Template, URI
+from agenta_backend.services.db_manager import get_templates, get_user_object
 from agenta_backend.services.container_manager import (
     build_image_job,
     get_image_details_from_docker_hub,
@@ -55,6 +55,13 @@ async def build_image(
         an object of type `Image`.
     """
 
+    # Get user and org id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Get event loop
     loop = asyncio.get_event_loop()
 
     # Create a ThreadPoolExecutor for running threads
@@ -75,7 +82,7 @@ async def build_image(
     future = loop.run_in_executor(
         thread_pool,
         build_image_job,
-        *(app_name, variant_name, tar_path, image_name, temp_dir),
+        *(app_name, variant_name, str(user.id), tar_path, image_name, temp_dir),
     )
 
     # Return immediately while the image build is in progress
@@ -130,3 +137,31 @@ async def pull_image(
         repo_owner, repo_name, image_tag_name
     )
     return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
+
+
+@router.get("/container_url/")
+async def construct_app_container_url(
+    app_name: str,
+    variant_name: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> URI:
+    """Construct and return the app container url path.
+
+    Arguments:
+        app_name -- The name of app to construct the container url path
+        variant_name -- The  variant name of the app to construct the container url path
+        stoken_session (SessionContainer) -- the user session.
+
+    Returns:
+        URI -- the url path of the container
+    """
+
+    # Get user and org id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Set user backend url path and container name
+    user_backend_url_path = f"{str(user.id)}/{app_name}/{variant_name}"
+    return URI(uri=f"{user_backend_url_path}")

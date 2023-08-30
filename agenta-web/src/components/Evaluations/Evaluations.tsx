@@ -20,7 +20,6 @@ import {
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject} from "@/lib/Types"
-import EvaluationsList from "./EvaluationsList"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {Typography} from "antd"
@@ -34,6 +33,8 @@ import similarity from "@/media/transparency.png"
 import ai from "@/media/artificial-intelligence.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
+import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
+import HumanEvaluationResult from "./HumanEvaluationResult"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -537,7 +538,10 @@ export default function Evaluations() {
                 btnText={error.btnText}
             />
 
-            <EvaluationsList />
+            <div>
+                <AutomaticEvaluationResult />
+                <HumanEvaluationResult />
+            </div>
         </div>
     )
 }
