@@ -475,22 +475,6 @@ export const fetchApps = () => {
     }
 }
 
-export const countApps = async () => {
-    return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`, {
-        headers: {
-            "Content-Type": "application/json",
-        },
-    })
-        .then((response) => response.json())
-        .then((data) => {
-            console.log(data)
-            return data
-        })
-        .catch((error) => {
-            throw error
-        })
-}
-
 export const getTemplates = async () => {
     return fetch(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/`, {
         headers: {
