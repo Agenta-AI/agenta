@@ -13,6 +13,10 @@ class AppVariant(BaseModel):
 class Image(BaseModel):
     docker_id: str
     tags: str
+    
+
+class ImageOutput(Image):
+    id: str
 
 
 class TemplateImageInfo(BaseModel):
