@@ -167,7 +167,7 @@ async def start_variant(
         if settings.feature_flag == "demo":
             if not settings.openai_api_key.startswith("sk-"):
                 raise HTTPException(
-                    status_code=403,
+                    status_code=400,
                     detail="Unable to start app container. Please file an issue by clicking on the button below.",
                 )
             envvars = {
@@ -339,7 +339,7 @@ async def add_app_variant_from_template(
     if settings.feature_flag == "demo":
         if not settings.openai_api_key.startswith("sk-"):
             raise HTTPException(
-                status_code=403,
+                status_code=400,
                 detail="Unable to start app container. Please file an issue by clicking on the button below.",
             )
         envvars = {
