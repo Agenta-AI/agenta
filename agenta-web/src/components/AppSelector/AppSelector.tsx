@@ -113,21 +113,28 @@ const AppSelector: React.FC = () => {
     const [newApp, setNewApp] = useState("")
 
     const showCreateAppModal = async () => {
-        const response:GenericObject = countApps()
-        console.log("Response =====>", response)
 
-        const isDemo = process.env.NEXT_PUBLIC_FF
+        // The goal here is to check if the flag is demo, if it is not then proceed to open the modal
+        // if it is then send a request to the list variant enpoint and count the number of apps returned
+        // if the number of apps is 1, show the message informing the user that they can create more than 1 app. 
 
-        if (isDemo === "demo" && response.length === 1) {
-            notification.warning({
-                message: "Template Selection",
-                description:
-                    "Sorry, you can only create one App at this time.",
-                duration: 3,
-            });
-        } else {
-            setIsCreateAppModalOpen(true);
-        }
+        // const response:GenericObject = countApps()
+        // console.log("Response =====>", response)
+
+        // const isDemo = process.env.NEXT_PUBLIC_FF
+
+        // if (isDemo === "demo" && response.length === 1) {
+        //     notification.warning({
+        //         message: "Template Selection",
+        //         description:
+        //             "Sorry, you can only create one App at this time.",
+        //         duration: 3,
+        //     });
+        // } else {
+        //     setIsCreateAppModalOpen(true);
+        // }
+
+        setIsCreateAppModalOpen(true);
     };
 
     const showCreateAppFromTemplateModal = () => {
