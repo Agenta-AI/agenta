@@ -65,13 +65,16 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
             footer={null}
             title={
                 <Title level={4} className={classes.title}>
-                    Error
+                    Demo Limit Reached
                 </Title>
             }
             width={600}
             {...props}
         >
-            Error message
+            You've reached the limit for app creation in the demo version. For unlimited apps,
+            please switch to our open-source, self-hosted version available at{" "}
+            <a href="https://github.com/agenta-ai/agenta">GitHub</a>. Feel free to contact us for
+            on-premise or cloud-hosted solutions.
         </Modal>
     )
 }
