@@ -23,6 +23,7 @@ import {isAppNameInputValid} from "@/lib/helpers/utils"
 import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
+import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 
@@ -103,6 +104,7 @@ const AppSelector: React.FC = () => {
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
+    const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
 
     const [templateMessage, setTemplateMessage] = useState("")
@@ -111,13 +113,15 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
+    const isDemo = process.env.NEXT_PUBLIC_FF
 
-    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
-
-    const showCreateAppModal = () => {
+    const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
 
+    const showMaxAppError = () => {
+        setIsMaxAppModalOpen(true)
+    }
     const showCreateAppFromTemplateModal = () => {
         setIsCreateAppModalOpen(false)
         setIsCreateAppFromTemplateModalOpen(true)
@@ -343,7 +347,13 @@ const AppSelector: React.FC = () => {
                                     ))}
                                     <Card
                                         className={classes.createCard}
-                                        onClick={showCreateAppModal}
+                                        onClick={() => {
+                                            if (isDemo && data.length > 0) {
+                                                showMaxAppError()
+                                            } else {
+                                                showCreateAppModal()
+                                            }
+                                        }}
                                     >
                                         <Card.Meta
                                             className={classes.createCardMeta}
@@ -377,6 +387,12 @@ const AppSelector: React.FC = () => {
                 onCardClick={(template) => {
                     showInputTemplateModal()
                     setTemplateName(template.image.name)
+                }}
+            />
+            <MaxAppModal
+                open={isMaxAppModalOpen}
+                onCancel={() => {
+                    setIsMaxAppModalOpen(false)
                 }}
             />
             <Modal
