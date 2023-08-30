@@ -1,6 +1,20 @@
 import React from "react"
 import {Modal} from "antd"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
+import {createUseStyles} from "react-jss"
+
+const useStyles = createUseStyles({
+    modalContainer: {
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+    },
+    modalIcon: {
+        fontSize: "24px",
+        color: "#faad14",
+        marginRight: "10px",
+    },
+})
 
 interface Props {
     isModalOpen: boolean
@@ -8,6 +22,7 @@ interface Props {
 }
 
 const testsetMusHaveNameModal: React.FC<Props> = ({isModalOpen, setIsModalOpen}) => {
+    const classes = useStyles()
     const handleCloseModal = () => setIsModalOpen(false)
 
     const handleDismiss = () => {
@@ -22,16 +37,8 @@ const testsetMusHaveNameModal: React.FC<Props> = ({isModalOpen, setIsModalOpen})
             centered
             footer={null}
         >
-            <div
-                style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    alignItems: "center",
-                }}
-            >
-                <ExclamationCircleOutlined
-                    style={{fontSize: "24px", color: "#faad14", marginRight: "10px"}}
-                />
+            <div className={classes.modalContainer}>
+                <ExclamationCircleOutlined className={classes.modalIcon} />
                 <p data-cy="testset-name-reqd-error">
                     You cannot create/update a test set with an empty name. Please provide a
                     descriptive name before proceeding.

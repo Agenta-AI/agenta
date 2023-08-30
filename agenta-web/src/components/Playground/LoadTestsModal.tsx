@@ -2,14 +2,28 @@ import {loadTestset, useLoadTestsetsList} from "@/lib/services/api"
 import {Button, Divider, Dropdown, Modal, Select, Space} from "antd"
 import {useRouter} from "next/router"
 import {PropsWithChildren, useState} from "react"
+import {createUseStyles} from "react-jss"
 
 interface Props extends PropsWithChildren {
-    addNewTests: (tests: Record<string, string>[]) => void
-    setNewTests: (tests: Record<string, string>[]) => void
+    onLoad: (tests: Record<string, string>[], shouldReplace: boolean) => void
 }
 
+const useStyles = createUseStyles({
+    p: {
+        marginBottom: 10,
+    },
+    select: {
+        minWidth: 120,
+        marginBottom: 20,
+    },
+    divider: {
+        margin: "24px 0 0 0",
+    },
+})
+
 const LoadTestsModal: React.FC<Props> = (props) => {
-    const {addNewTests, setNewTests} = props
+    const classes = useStyles()
+    const {onLoad} = props
     const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [selectedSet, setSelectedSet] = useState<string>("")
@@ -23,16 +37,9 @@ const LoadTestsModal: React.FC<Props> = (props) => {
         value: item._id,
     }))
 
-    const handleAddData = () => {
+    const handleClick = (shouldReplace: boolean) => {
         loadTestset(selectedSet).then((data) => {
-            addNewTests(data.csvdata)
-        })
-        setIsOpen(false)
-    }
-
-    const handleSetData = () => {
-        loadTestset(selectedSet).then((data) => {
-            setNewTests(data.csvdata)
+            onLoad(data.csvdata, shouldReplace)
         })
         setIsOpen(false)
     }
@@ -45,19 +52,19 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                 onCancel={() => setIsOpen(false)}
                 footer={
                     <>
-                        <Button disabled={!selectedSet} onClick={handleAddData}>
+                        <Button disabled={!selectedSet} onClick={() => handleClick(false)}>
                             Add tests
                         </Button>
-                        <Button disabled={!selectedSet} onClick={handleSetData}>
+                        <Button disabled={!selectedSet} onClick={() => handleClick(true)}>
                             Replace tests
                         </Button>
                     </>
                 }
             >
-                <p style={{marginBottom: 10}}>Please select the test set you want to use:</p>
+                <p className={classes.p}>Please select the test set you want to use:</p>
 
                 <Select
-                    style={{minWidth: 120, marginBottom: 20}}
+                    className={classes.select}
                     options={options}
                     placeholder="Select data set"
                     onSelect={(id) => setSelectedSet(id)}
@@ -69,7 +76,7 @@ const LoadTestsModal: React.FC<Props> = (props) => {
                         <p>Click replace tests to replace data of existing tests</p>
                     </>
                 ) : null}
-                <Divider style={{margin: "24px 0 0 0"}} />
+                <Divider className={classes.divider} />
             </Modal>
 
             <Button
