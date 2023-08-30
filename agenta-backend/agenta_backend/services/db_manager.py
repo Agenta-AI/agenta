@@ -535,9 +535,7 @@ async def get_user_object(user_uid: str) -> UserDB:
     user = await engine.find_one(UserDB, UserDB.uid == user_uid)
     if user is None:
         org = OrganizationDB()
-        user_instance = UserDB(uid=0, organization_id=org)
-        user_instance = await engine.save(user_instance)
-        return user_instance
+        return UserDB(uid="0", organization_id=org)
     return user
 
 
