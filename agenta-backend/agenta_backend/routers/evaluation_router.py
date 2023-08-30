@@ -1,3 +1,4 @@
+import os
 from bson import ObjectId
 from datetime import datetime
 from typing import List, Optional
@@ -30,7 +31,7 @@ from agenta_backend.services.db_manager import engine, query, get_user_object
 from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
 from agenta_backend.config import settings
 
-if settings.feature_flag in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
         SessionContainer,
         verify_session,

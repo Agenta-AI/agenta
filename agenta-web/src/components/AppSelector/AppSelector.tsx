@@ -113,7 +113,7 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
-    const isDemo = process.env.NEXT_PUBLIC_FF
+    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
@@ -257,7 +257,7 @@ const AppSelector: React.FC = () => {
         setFetchingTemplate(true)
 
         const OpenAIKey = retrieveOpenAIKey() as string
-        if (OpenAIKey === null) {
+        if (OpenAIKey === null && !isDemo) {
             notification.error({
                 message: "OpenAI API Key Missing",
                 description: "Please provide your OpenAI API key to access this feature.",
