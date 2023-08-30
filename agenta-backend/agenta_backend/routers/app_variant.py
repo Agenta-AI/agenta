@@ -343,8 +343,8 @@ async def add_app_variant_from_template(
                 detail="Unable to start app container. Please file an issue by clicking on the button below.",
             )
         envvars = {
-                "OPENAI_API_KEY": settings.openai_api_key,
-            }
+            "OPENAI_API_KEY": settings.openai_api_key,
+        }
     else:
         envvars = {} if payload.env_vars is None else payload.env_vars
 
