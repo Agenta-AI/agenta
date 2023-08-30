@@ -219,7 +219,7 @@ const AppSelector: React.FC = () => {
                 return true
             }
         } catch (error: any) {
-            if (error.response.status === 404) {
+            if (error.response.status === 403) {
                 notification.error({
                     message: "Template Selection",
                     description: `${error.response.data.detail}`,
