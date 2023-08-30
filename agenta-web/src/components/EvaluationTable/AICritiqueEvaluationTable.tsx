@@ -1,6 +1,6 @@
-import {useState, useEffect} from "react"
-import type {ColumnType} from "antd/es/table"
-import {BarChartOutlined, LineChartOutlined} from "@ant-design/icons"
+import { useState, useEffect } from "react"
+import type { ColumnType } from "antd/es/table"
+import { BarChartOutlined, LineChartOutlined } from "@ant-design/icons"
 import {
     Button,
     Card,
@@ -15,18 +15,19 @@ import {
     Typography,
     message,
 } from "antd"
-import {Evaluation, Variant} from "@/lib/Types"
+import { Evaluation, Variant } from "@/lib/Types"
 import {
     updateEvaluationScenario,
     callVariant,
     fetchEvaluationResults,
     updateEvaluation,
 } from "@/lib/services/api"
-import {useVariant} from "@/lib/hooks/useVariant"
-import {useRouter} from "next/router"
-import {EvaluationFlow} from "@/lib/enums"
+import { useVariant } from "@/lib/hooks/useVariant"
+import { useRouter } from "next/router"
+import { EvaluationFlow } from "@/lib/enums"
 import TextArea from "antd/es/input/TextArea"
-import {getOpenAIKey} from "@/lib/helpers/utils"
+import { getOpenAIKey } from "@/lib/helpers/utils"
+import Histogram from "../Histogram/histogram"
 
 interface AICritiqueEvaluationTableProps {
     evaluation: Evaluation
@@ -70,7 +71,7 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     const variants = evaluation.variants
 
     const variantData = variants.map((variant: Variant) => {
-        const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
+        const { inputParams, optParams, URIPath, isLoading, isError, error } = useVariant(
             appName,
             variant,
         )
@@ -103,6 +104,7 @@ Answer ONLY with one of the given grading or evaluation options.
     const [shouldFetchResults, setShouldFetchResults] = useState(false)
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
+    const [average, setAverage] = useState(10)
 
     useEffect(() => {
         if (
@@ -130,11 +132,29 @@ Answer ONLY with one of the given grading or evaluation options.
                 .then((data) => setEvaluationResults(data))
                 .catch((err) => console.error("Failed to fetch results:", err))
                 .then(() => {
-                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
+                    updateEvaluation(evaluation.id, { status: EvaluationFlow.EVALUATION_FINISHED })
                 })
                 .catch((err) => console.error("Failed to fetch results:", err))
+
         }
     }, [evaluationStatus, evaluation.id])
+    useEffect(() => {
+        if (evaluationResults && evaluationResults.results_data) {
+            const keys = Object.keys(evaluationResults.results_data).map(Number);
+            const values = Object.values(evaluationResults.results_data)
+
+            const sumOfWeightedKeys = keys.reduce((total, key) => {
+                const value = evaluationResults.results_data[key];
+                return total + (key * value);
+            }, 0);
+            const sumOfValues: number = values.reduce((total: number, value: any) => { return total + value }, 0)
+            const averageOfKeys = sumOfWeightedKeys / sumOfValues;
+            // console.log(type (averageOfKeys.toFixed(2)))
+            setAverage(parseFloat(averageOfKeys.toFixed(2)));
+        }
+    }, [evaluationResults, evaluationStatus]);
+
+
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
@@ -158,7 +178,7 @@ Answer ONLY with one of the given grading or evaluation options.
     }
 
     const runEvaluation = async (rowIndex: number) => {
-        const inputParamsDict = rows[rowIndex].inputs.reduce((acc: {[key: string]: any}, item) => {
+        const inputParamsDict = rows[rowIndex].inputs.reduce((acc: { [key: string]: any }, item) => {
             acc[item.input_name] = item.input_value
             return acc
         }, {})
@@ -190,7 +210,7 @@ Answer ONLY with one of the given grading or evaluation options.
 
         if (evaluation_scenario_id) {
             const data = {
-                outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+                outputs: [{ variant_name: appVariantNameX, variant_output: outputVariantX }],
                 inputs: rows[rowNumber].inputs,
                 evaluation_prompt_template: evaluationPromptTemplate,
                 open_ai_key: getOpenAIKey(),
@@ -222,7 +242,7 @@ Answer ONLY with one of the given grading or evaluation options.
     }
 
     const dynamicColumns: ColumnType<AICritiqueEvaluationTableRow>[] = Array.from(
-        {length: columnsCount},
+        { length: columnsCount },
         (_, i) => {
             const columnKey = `columnData${i}`
 
@@ -270,7 +290,7 @@ Answer ONLY with one of the given grading or evaluation options.
             key: "1",
             width: "30%",
             title: (
-                <div style={{display: "flex", justifyContent: "space-between"}}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <div>
                         <span> Inputs (Test set: </span>
                         <span
@@ -294,7 +314,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         record.inputs &&
                         record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
                         record.inputs.map((input: any, index: number) => (
-                            <div style={{marginBottom: 10}} key={index}>
+                            <div style={{ marginBottom: 10 }} key={index}>
                                 <Input
                                     placeholder={input.input_name}
                                     value={input.input_value}
@@ -331,7 +351,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         <Space>
                             <div>
                                 {rows[rowIndex].evaluation !== "" && (
-                                    <Tag color={tagColor} style={{fontSize: "14px"}}>
+                                    <Tag color={tagColor} style={{ fontSize: "14px" }}>
                                         {record.evaluation}
                                     </Tag>
                                 )}
@@ -361,13 +381,13 @@ Answer ONLY with one of the given grading or evaluation options.
                             marginBottom: 30,
                             backgroundColor: "rgb(246 253 245)",
                         }}
-                        bodyStyle={{padding: "4px 16px", border: "0px solid #ccc"}}
-                        headStyle={{minHeight: 44, padding: "0px 12px"}}
+                        bodyStyle={{ padding: "4px 16px", border: "0px solid #ccc" }}
+                        headStyle={{ minHeight: 44, padding: "0px 12px" }}
                         title="Evaluation strategy prompt"
                     >
                         <TextArea
                             rows={5}
-                            style={{height: 120, padding: "0px 0px"}}
+                            style={{ height: 120, padding: "0px 0px" }}
                             bordered={false}
                             placeholder="e.g:"
                             onChange={onChangeEvaluationPromptTemplate}
@@ -375,7 +395,7 @@ Answer ONLY with one of the given grading or evaluation options.
                         />
                     </Card>
                 </div>
-                <Row align="middle" style={{marginBottom: 20}}>
+                <Row align="middle" style={{ marginBottom: 20 }}>
                     <Col span={12}>
                         <Button
                             type="primary"
@@ -404,30 +424,41 @@ Answer ONLY with one of the given grading or evaluation options.
                     {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
                     {evaluationResults && evaluationResults.results_data && (
                         <div>
-                            <h3 style={{marginTop: 0}}>Results Data:</h3>
+                            <h3 style={{ marginTop: 0 }}>Results Data:</h3>
                             <Row
                                 gutter={8}
                                 justify="center"
-                                style={{maxWidth: "100%", overflowX: "auto", whiteSpace: "nowrap"}}
+                                style={{ maxWidth: "100%", overflowX: "auto", whiteSpace: "nowrap" }}
                             >
-                                {Object.entries(evaluationResults.results_data).map(
-                                    ([key, value], index) => {
+                                <div style={{ display: "grid", gridRow: "2" }}>
+                                    <Card
+                                        bordered={true}
+                                        style={{  margin: "0 20px" }}
+                                    >
+                                        <Histogram data={evaluationResults.results_data}></Histogram>
+                                        <h3>average of eveluation : </h3>
+                                        <h4>{average}</h4>
+                                    </Card>
+                                </div>
+                                {/* {Object.entries(evaluationResults.results_data).map(
+                                    ([key, value]: any, index) => {
+                                        console.log(evaluationResults.results_data)
                                         return (
-                                            <Col key={index} style={{display: "inline-block"}}>
+                                            <Col key={index} style={{ display: "inline-block" }}>
                                                 <Card
-                                                    bordered={false}
-                                                    style={{width: 200, margin: "0 4px"}}
+                                                    bordered={true}
+                                                    style={{ width: 200, margin: "0 20px" }}
                                                 >
                                                     <Statistic
                                                         title={key}
                                                         value={value}
-                                                        valueStyle={{color: "#3f8600"}}
+                                                        valueStyle={{ color: "#3f8600" }}
                                                     />
                                                 </Card>
                                             </Col>
                                         )
                                     },
-                                )}
+                                )} */}
                             </Row>
                         </div>
                     )}
