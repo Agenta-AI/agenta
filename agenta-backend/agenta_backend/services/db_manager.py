@@ -384,9 +384,7 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
 
     # Build the query expression for the two conditions
     query_expression = (
-        query.eq(AppVariantDB.app_name, db_app_variant.app_name)
-        & query.eq(AppVariantDB.variant_name, db_app_variant.variant_name)
-        & query.eq(AppVariantDB.user_id, db_app_variant.user_id.id)
+        query.eq(AppVariantDB.user_id, db_app_variant.user_id.id)
         & query.eq(AppVariantDB.image_id, db_app_variant.image_id.id)
     )
 
