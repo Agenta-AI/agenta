@@ -6,6 +6,7 @@ from agenta_backend.models.api.api_models import (
     App,
     AppVariant,
     Image,
+    ImageOutput,
     Template,
 )
 from agenta_backend.models.converters import (
@@ -256,22 +257,7 @@ async def list_apps(**kwargs) -> List[App]:
     return [App(app_name=app_name) for app_name in sorted_names]
 
 
-async def count_apps(**kwargs) -> int:
-    """
-    Counts all the unique app names from the database
-    """
-    await clean_soft_deleted_variants()
-
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-    if user is None:
-        return 0
-
-    no_of_apps = await engine.count(AppVariantDB, AppVariantDB.user_id == user.id)
-    return no_of_apps
-
-
-async def get_image(app_variant: AppVariant, **kwargs: dict) -> Image:
+async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageOutput:
     """Returns the image associated with the app variant
 
     Arguments:
@@ -294,7 +280,7 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> Image:
     db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
     if db_app_variant:
         image_db: ImageDB = await engine.find_one(
-            ImageDB, ImageDB.id == db_app_variant.image_id.id
+            ImageDB, ImageDB.id == ObjectId(db_app_variant.image_id.id)
         )
         return image_db_to_pydantic(image_db)
     else:
@@ -343,7 +329,7 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
         await engine.save(app_variant_db)
 
 
-async def remove_image(image: Image, **kwargs: dict):
+async def remove_image(image: ImageOutput, **kwargs: dict):
     """Remove image from db based on pydantic class
 
     Arguments:
@@ -360,6 +346,7 @@ async def remove_image(image: Image, **kwargs: dict):
         query.eq(ImageDB.tags, image.tags)
         & query.eq(ImageDB.docker_id, image.docker_id)
         & query.eq(ImageDB.user_id, user.id)
+        & query.eq(ImageDB.id, ObjectId(image.id))
     )
     image_db = await engine.find_one(ImageDB, query_expression)
     if image_db is None:
@@ -379,12 +366,19 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
     Returns:
         true if it's the last variant, false otherwise
     """
+    
+    # Build the query expression for the two conditions
+    query_expression = (
+        query.eq(AppVariantDB.app_name, db_app_variant.app_name)
+        & query.eq(AppVariantDB.variant_name, db_app_variant.variant_name)
+        & query.eq(AppVariantDB.user_id, db_app_variant.user_id.id)
+        & query.eq(AppVariantDB.image_id, db_app_variant.image_id.id)
+    )
 
     # If it's the only variant left that uses the image, delete the image
     count_variants = await engine.count(
-        AppVariantDB, AppVariantDB.image_id == db_app_variant.image_id.id
+        AppVariantDB, query_expression
     )
-    print("Count Variants ==> ", count_variants)
     if count_variants == 1:
         return True
     return False
