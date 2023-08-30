@@ -1,6 +1,6 @@
 """Main Business logic
 """
-
+import os
 import logging
 from typing import Optional
 from agenta_backend.config import settings
@@ -130,10 +130,12 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
         is_last_variant = await db_manager.check_is_last_variant(app_variant_db)
         if is_last_variant:
             image = await _fetch_image_from_db(app_variant, **kwargs)
-            print("we reached here")
             if image:
                 _stop_and_delete_containers(image)
-                _delete_docker_image(image)
+                if (
+                    os.environ["FEATURE_FLAG"] != "demo"
+                ):  # todo: improve this when we have the right fix @abram
+                    _delete_docker_image(image)
                 await db_manager.remove_app_variant(app_variant, **kwargs)
                 await db_manager.remove_image(image, **kwargs)
         else:
