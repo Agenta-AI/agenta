@@ -1,6 +1,5 @@
 """Main Business logic
 """
-import os
 import logging
 from typing import Optional
 from agenta_backend.config import settings
@@ -84,6 +83,27 @@ def _stop_and_delete_containers(image: Image) -> None:
             logger.info(f"Container {container_id} deleted")
     except Exception as e:
         logger.error(f"Error stopping and deleting Docker containers: {str(e)}")
+        
+
+async def _stop_and_delete_app_container(app_variant: AppVariant, **kwargs: dict) -> None:
+    """
+    Stops and deletes Docker container associated with a given app.
+
+    Args:
+        app_variant (AppVariant): The app variant whose associated container is to be stopped and deleted.
+
+    Raises:
+        Exception: Any exception raised during Docker operations.
+    """
+    try:
+        user = await db_manager.get_user_object(kwargs["uid"])
+        container_id = f"{app_variant.app_name}-{app_variant.variant_name}-{str(user.id)}"
+        docker_utils.stop_container(container_id)
+        logger.info(f"Container {container_id} stopped")
+        docker_utils.delete_container(container_id)
+        logger.info(f"Container {container_id} deleted")
+    except Exception as e:
+        logger.error(f"Error stopping and deleting Docker container: {str(e)}")
 
 
 def _delete_docker_image(image: Image) -> None:
@@ -132,13 +152,10 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
         if is_last_variant:
             image = await _fetch_image_from_db(app_variant, **kwargs)
             if image:
-                _stop_and_delete_containers(image)
-                if (
-                    os.environ["FEATURE_FLAG"] != "demo"
-                ):  # todo: improve this when we have the right fix @abram
-                    _delete_docker_image(image)
+                await _stop_and_delete_app_container(app_variant, **kwargs)
                 await db_manager.remove_app_variant(app_variant, **kwargs)
                 await db_manager.remove_image(image, **kwargs)
+                _delete_docker_image(image)
         else:
             await db_manager.remove_app_variant(app_variant, **kwargs)
 
