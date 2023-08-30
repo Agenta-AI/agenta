@@ -1,3 +1,4 @@
+import os
 import uuid
 import asyncio
 from pathlib import Path
@@ -17,7 +18,7 @@ from agenta_backend.services.container_manager import (
     pull_image_from_docker_hub,
 )
 
-if settings.feature_flag in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
         SessionContainer,
         verify_session,
