@@ -117,15 +117,14 @@ export default function AutomaticEvaluationResult() {
                         })
                         Promise.all(fetchPromises)
                             .then((evaluations) => {
-                                const validEvaluations = evaluations.filter(
-                                    (evaluation) => evaluation !== undefined,
-                                )
-                                const evaluationsList = validEvaluations.filter(
-                                    (item) =>
-                                        item.resultsData !== undefined ||
-                                        !(Object.keys(item.scoresData).length === 0),
-                                )
-                                setEvaluationsList(evaluationsList)
+                                const validEvaluations = evaluations
+                                    .filter((evaluation) => evaluation !== undefined)
+                                    .filter(
+                                        (item) =>
+                                            item.resultsData !== undefined ||
+                                            !(Object.keys(item.scoresData).length === 0),
+                                    )
+                                setEvaluationsList(validEvaluations)
                                 setDeletingLoading(false)
                             })
                             .catch((err) => console.error(err))
