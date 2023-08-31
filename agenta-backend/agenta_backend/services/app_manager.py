@@ -97,7 +97,8 @@ async def _stop_and_delete_app_container(app_variant: AppVariant, **kwargs: dict
     """
     try:
         user = await db_manager.get_user_object(kwargs["uid"])
-        container_id = f"{app_variant.app_name}-{app_variant.variant_name}-{str(user.id)}"
+        variant_name = app_variant.variant_name.split(".")[0]
+        container_id = f"{app_variant.app_name}-{variant_name}-{str(user.id)}"
         docker_utils.stop_container(container_id)
         logger.info(f"Container {container_id} stopped")
         docker_utils.delete_container(container_id)
@@ -141,7 +142,6 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
     """
 
     app_variant_db = await _fetch_app_variant_from_db(app_variant, **kwargs)
-
     if app_variant_db is None:
         msg = f"App variant {app_variant.app_name}/{app_variant.variant_name} not found in DB"
         logger.error(msg)
@@ -153,9 +153,9 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
             image = await _fetch_image_from_db(app_variant, **kwargs)
             if image:
                 await _stop_and_delete_app_container(app_variant, **kwargs)
+                _delete_docker_image(image)
                 await db_manager.remove_app_variant(app_variant, **kwargs)
                 await db_manager.remove_image(image, **kwargs)
-                _delete_docker_image(image)
         else:
             await db_manager.remove_app_variant(app_variant, **kwargs)
 
