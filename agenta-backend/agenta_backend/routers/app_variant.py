@@ -1,6 +1,7 @@
 """Routes for image-related operations (push, remove).
 Does not deal with the instanciation of the images
 """
+import os
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -19,11 +20,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi import APIRouter, Body, HTTPException, Depends
 from agenta_backend.config import settings
 
-if settings.feature_flag in ["cloud", "ee"]:
-    from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+    from agenta_backend.ee.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
     from agenta_backend.ee.services.selectors import get_user_and_org_id
 else:
-    from agenta_backend.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
@@ -32,7 +39,10 @@ logger.setLevel(logging.INFO)
 
 
 @router.get("/list_variants/", response_model=List[AppVariant])
-async def list_app_variants(app_name: Optional[str] = None):
+async def list_app_variants(
+    app_name: Optional[str] = None,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Lists the app variants from our repository.
 
     Arguments:
@@ -44,7 +54,8 @@ async def list_app_variants(app_name: Optional[str] = None):
         List[AppVariant]
     """
     try:
-        app_variants = db_manager.list_app_variants(app_name=app_name)
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        app_variants = await db_manager.list_app_variants(app_name=app_name, **kwargs)
         return app_variants
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -64,9 +75,10 @@ async def list_apps(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        apps = db_manager.list_apps(**kwargs)
+        apps = await db_manager.list_apps(**kwargs)
         return apps
     except Exception as e:
+        logger.error(f"list_apps exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -87,7 +99,11 @@ async def add_variant_from_image(
         HTTPException: If image not found in docker utils list
         HTTPException: If there is a problem adding the app variant
     """
-    print(stoken_session)
+    if os.environ["FEATURE_FLAG"] == "demo":
+        raise HTTPException(
+            status_code=500,
+            detail="This feature is not available in the demo version",
+        )
     if not image.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500,
@@ -99,7 +115,7 @@ async def add_variant_from_image(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
+        await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -129,7 +145,7 @@ async def add_variant_from_previous(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        db_manager.add_variant_based_on_previous(
+        await db_manager.add_variant_based_on_previous(
             previous_app_variant, new_variant_name, parameters, **kwargs
         )
     except Exception as e:
@@ -138,16 +154,35 @@ async def add_variant_from_previous(
 
 @router.post("/start/")
 async def start_variant(
-    app_variant: AppVariant, env_vars: Optional[DockerEnvVars] = None
+    app_variant: AppVariant,
+    env_vars: Optional[DockerEnvVars] = None,
+    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     print(f"Starting variant {app_variant}")
     logger.info("Starting variant %s", app_variant)
     try:
-        env_vars = {} if env_vars is None else env_vars.env_vars
-        return app_manager.start_variant(app_variant, env_vars)
+        # Get user and org iD
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+
+        # Inject env vars to docker container
+        if os.environ["FEATURE_FLAG"] == "demo":
+            if not os.environ["OPENAI_API_KEY"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                )
+            envvars = {
+                "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+            }
+        else:
+            envvars = {} if env_vars is None else env_vars.env_vars
+
+        url = await app_manager.start_variant(app_variant, envvars, **kwargs)
+        return url
     except Exception as e:
-        if db_manager.get_variant_from_db(app_variant) is not None:
-            app_manager.remove_app_variant(app_variant)
+        variant_from_db = await db_manager.get_variant_from_db(app_variant, **kwargs)
+        if variant_from_db is not None:
+            await app_manager.remove_app_variant(app_variant, **kwargs)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -157,7 +192,7 @@ async def stop_variant(app_variant: AppVariant):
 
 
 @router.get("/list_images/", response_model=List[Image])
-async def list_images():
+async def list_images(stoken_session: SessionContainer = Depends(verify_session())):
     """Lists the images from our repository
 
     Raises:
@@ -174,7 +209,10 @@ async def list_images():
 
 
 @router.delete("/remove_variant/")
-async def remove_variant(app_variant: AppVariant):
+async def remove_variant(
+    app_variant: AppVariant,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Remove a variant from the server.
     In the case it's the last variant using the image, stop the container and remove the image.
 
@@ -185,7 +223,8 @@ async def remove_variant(app_variant: AppVariant):
         HTTPException: If there is a problem removing the app variant
     """
     try:
-        app_manager.remove_app_variant(app_variant)
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        await app_manager.remove_app_variant(app_variant, **kwargs)
     except SQLAlchemyError as e:
         detail = f"Database error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -198,14 +237,20 @@ async def remove_variant(app_variant: AppVariant):
 
 
 @router.delete("/remove_app/")
-async def remove_app(app: App):
+async def remove_app(
+    app: App, stoken_session: SessionContainer = Depends(verify_session())
+):
     """Remove app, all its variant, containers and images
 
     Arguments:
         app -- App to remove
     """
+
+    # Get user and org id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
     try:
-        await app_manager.remove_app(app)
+        await app_manager.remove_app(app, **kwargs)
     except SQLAlchemyError as e:
         detail = f"Database error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -218,14 +263,18 @@ async def remove_app(app: App):
 
 
 @router.put("/update_variant_parameters/")
-async def update_variant_parameters(app_variant: AppVariant):
+async def update_variant_parameters(
+    app_variant: AppVariant,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Updates the parameters for an app variant
 
     Arguments:
         app_variant -- Appvariant to update
     """
     try:
-        app_manager.update_variant_parameters(app_variant)
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        await app_manager.update_variant_parameters(app_variant, **kwargs)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -252,7 +301,7 @@ async def update_variant_image(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        app_manager.update_variant_image(app_variant, image, **kwargs)
+        await app_manager.update_variant_image(app_variant, image, **kwargs)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -284,28 +333,47 @@ async def add_app_variant_from_template(
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
+    # Check if the user has already created an app
+    if os.environ["FEATURE_FLAG"] == "demo":
+        if await db_manager.count_apps(**kwargs) == 1:
+            raise HTTPException(
+                status_code=500,
+                detail="Sorry, you can only create one App at this time.",
+            )
+
     # Create an AppVariant with the provided app name
     app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
 
+    # Inject env vars to docker container
+    if os.environ["FEATURE_FLAG"] == "demo":
+        if not os.environ["OPENAI_API_KEY"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Unable to start app container. Please file an issue by clicking on the button below.",
+            )
+        envvars = {
+            "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+        }
+    else:
+        envvars = {} if payload.env_vars is None else payload.env_vars
+
     # Create an Image instance with the extracted image id, and defined image name
-    image_id = payload.image_id.split(":")[-1]
     image_name = f"agentaai/templates:{payload.image_tag}"
-    image: Image = Image(docker_id=image_id, tags=f"{image_name}")
-    variant_exist = db_manager.get_variant_from_db(app_variant)
+    image: Image = Image(docker_id=payload.image_id, tags=f"{image_name}")
+    variant_exist = await db_manager.get_variant_from_db(app_variant, **kwargs)
     if variant_exist is None:
         # Save variant based on the image to database
-        db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
+        await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
     else:
         # Update variant based on the image
-        app_manager.update_variant_image(app_variant, image, **kwargs)
+        await app_manager.update_variant_image(app_variant, image, **kwargs)
 
     # Start variant
-    url = app_manager.start_variant(app_variant, payload.env_vars)
+    url = await app_manager.start_variant(app_variant, envvars, **kwargs)
 
     return {
         "message": "Variant created and running!",
         "data": {
-            "url": url.uri,
             "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",
         },
     }

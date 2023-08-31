@@ -1,4 +1,4 @@
-import {Button, Dropdown, MenuProps, Space, Spin, Table} from "antd"
+import {Button, Tooltip, Spin, Table} from "antd"
 
 import {testset} from "@/lib/Types"
 import Link from "next/link"
@@ -8,6 +8,7 @@ import {useState, useEffect} from "react"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {DeleteOutlined} from "@ant-design/icons"
 import {deleteTestsets} from "@/lib/services/api"
+import axios from "@/lib/helpers/axiosConfig"
 import {createUseStyles} from "react-jss"
 
 type testsetTableDatatype = {
@@ -42,8 +43,8 @@ const useStyles = createUseStyles({
 })
 
 const fetchData = async (url: string): Promise<any> => {
-    const response = await fetch(url)
-    return response.json()
+    const response = await axios.get(url)
+    return response.data
 }
 
 export default function testsets() {
@@ -54,13 +55,14 @@ export default function testsets() {
     const [loading, setLoading] = useState<boolean>(true)
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     useEffect(() => {
         if (!app_name) {
             return
         }
         // TODO: move to api.ts
-        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets?app_name=${app_name}`)
+        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_name=${app_name}`)
             .then((data) => {
                 let newTestsetsList = data.map((obj: testset) => {
                     let newObj: testsetTableDatatype = {
@@ -136,12 +138,18 @@ export default function testsets() {
                         >
                             <Button>Create a test set with UI</Button>
                         </Link>
-                        <Link
-                            data-cy="testset-new-api-link"
-                            href={`/apps/${app_name}/testsets/new/api`}
-                        >
-                            <Button>Create a test set with API</Button>
-                        </Link>
+                        {isDemo ? (
+                            <Tooltip title="API test set creation is unavailable in the demo version. Check out the self-hosted open-source version at https://github.com/agenta-ai/agenta">
+                                <Button disabled>Create a test set with API</Button>
+                            </Tooltip>
+                        ) : (
+                            <Link
+                                data-cy="testset-new-api-link"
+                                href={`/apps/${app_name}/testsets/new/api`}
+                            >
+                                <Button>Create a test set with API</Button>
+                            </Link>
+                        )}
                     </div>
 
                     <Link href={`/apps/${app_name}/evaluations`} className={classes.startLink}>

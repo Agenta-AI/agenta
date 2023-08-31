@@ -16,6 +16,7 @@ services:
       - MONGODB_URI=mongodb://username:password@mongo:27017
       - ALLOW_ORIGINS=${ALLOW_ORIGINS}
       - ENVIRONMENT=production
+      - FEATURE_FLAG=oss
     volumes:
       - ./agenta-backend/agenta_backend:/app/agenta_backend
       - ./agenta-backend/tests:/app/tests
@@ -45,6 +46,10 @@ services:
       ]
     env_file:
       - .env
+    depends_on:
+      mongo:
+        condition: service_healthy
+
   agenta-web:
     build:
       context: ./agenta-web
@@ -58,6 +63,7 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME}
+      - NEXT_PUBLIC_FF=oss
     networks:
       - agenta-network
     labels:
@@ -99,9 +105,9 @@ services:
   redis:
     image: redis:latest
     networks:
-        - agenta-network
+      - agenta-network
     volumes:
-        - redis_data:/data
+      - redis_data:/data
 
 networks:
   agenta-network:

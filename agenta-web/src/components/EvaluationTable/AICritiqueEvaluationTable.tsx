@@ -213,20 +213,19 @@ Answer ONLY with one of the given grading or evaluation options.
         const columnsDataNames = ["columnData0"]
         let idx = 0
         for (const columnName of columnsDataNames) {
-            try {
-                setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
+            setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
 
-                let result = await callVariant(
-                    inputParamsDict,
-                    variantData[idx].inputParams!,
-                    variantData[idx].optParams!,
-                    variantData[idx].URIPath!,
-                )
-                setRowValue(rowIndex, columnName as any, result)
-                await evaluate(rowIndex)
-                setShouldFetchResults(true)
-            } catch (e) {
-                message.error("Oops! Something went wrong")
+            let result = await callVariant(
+                inputParamsDict,
+                variantData[idx].inputParams!,
+                variantData[idx].optParams!,
+                variantData[idx].URIPath!,
+            )
+            setRowValue(rowIndex, columnName as any, result)
+            await evaluate(rowIndex)
+            setShouldFetchResults(true)
+            if (rowIndex === rows.length - 1) {
+                message.success("Evaluation Results Saved")
             }
             idx++
         }

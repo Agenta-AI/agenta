@@ -15,7 +15,6 @@ import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
 import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
-import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
 import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
@@ -197,9 +196,12 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             const newColDefs = [CHECKBOX_COL, ...colData, ADD_BUTTON_COL]
             setColumnDefs(newColDefs)
             if (mode === "create") {
-                setRowData(
-                    Array(3).fill(colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})),
-                )
+                const initialRowData = Array(3).fill({})
+                const separateRowData = initialRowData.map(() => {
+                    return colData.reduce((acc, curr) => ({...acc, [curr.field]: ""}), {})
+                })
+
+                setRowData(separateRowData)
             }
             setInputValues(
                 newColDefs.filter((col) => !!col.field).map((col) => col.field),
@@ -234,9 +236,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 colData.push({field: "correct_answer"})
 
                 applyColData(colData)
-            })().catch((e) => {
+            })().catch(() => {
                 applyColData([])
-                globalErrorHandler(e)
             })
         }
     }, [mode, testset_id, appName])
@@ -449,9 +450,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 }
             }
         } catch (error) {
-            mssgModal("error", "Error saving test set")
             console.error("Error saving test set:", error)
-            throw error
         }
     }
 

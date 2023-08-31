@@ -29,14 +29,12 @@ app.add_middleware(
 
 
 class TextParam(str):
-
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update({"x-parameter": "text"})
 
 
 class FloatParam(float):
-
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update({"x-parameter": "float"})
@@ -48,8 +46,11 @@ def post(func: Callable[..., Any]):
     func_params = sig.parameters
 
     # find the optional parameters for the app
-    app_params = {name: param for name, param in func_params.items()
-                  if param.annotation in {TextParam, FloatParam}}
+    app_params = {
+        name: param
+        for name, param in func_params.items()
+        if param.annotation in {TextParam, FloatParam}
+    }
     # find the default values for the optional parameters
     for name, param in app_params.items():
         default_value = param.default if param.default is not param.empty else None
@@ -61,8 +62,12 @@ def post(func: Callable[..., Any]):
         try:
             return func(*args, **kwargs)
         except Exception as e:
-            traceback_str = ''.join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__))
-            return JSONResponse(status_code=500, content={"error": str(e), "traceback": traceback_str})
+            traceback_str = "".join(
+                traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)
+            )
+            return JSONResponse(
+                status_code=500, content={"error": str(e), "traceback": traceback_str}
+            )
 
     new_params = []
     for name, param in sig.parameters.items():
@@ -72,8 +77,7 @@ def post(func: Callable[..., Any]):
                     name,
                     inspect.Parameter.KEYWORD_ONLY,
                     default=app_params[name],
-                    annotation=Optional[param.annotation]
-
+                    annotation=Optional[param.annotation],
                 )
             )
         else:
@@ -85,14 +89,18 @@ def post(func: Callable[..., Any]):
     app.post(route)(wrapper)
 
     # check if the module is being run as the main script
-    if os.path.splitext(os.path.basename(sys.argv[0]))[0] == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]:
+    if (
+        os.path.splitext(os.path.basename(sys.argv[0]))[0]
+        == os.path.splitext(os.path.basename(inspect.getfile(func)))[0]
+    ):
         parser = argparse.ArgumentParser()
         # add arguments to the command-line parser
         for name, param in sig.parameters.items():
             if name in app_params:
                 # For optional parameters, we add them as options
-                parser.add_argument(f"--{name}", type=type(param.default),
-                                    default=param.default)
+                parser.add_argument(
+                    f"--{name}", type=type(param.default), default=param.default
+                )
             else:
                 # For required parameters, we add them as arguments
                 parser.add_argument(name, type=param.annotation)
