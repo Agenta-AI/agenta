@@ -1,10 +1,11 @@
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import {MenuProps, Dropdown, Button, Space} from "antd"
 import {DownOutlined, ApiOutlined} from "@ant-design/icons"
-import {useState} from "react"
+import React, {useState} from "react"
 import {LanguageItem, Variant} from "@/lib/Types"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
+import CopyButton from "../CopyButton/CopyButton"
 
 interface DynamicCodeBlockProps {
     codeSnippets: {[key: string]: string}
@@ -65,9 +66,6 @@ const useStyles = createUseStyles({
         alignItems: "center",
         width: "100%",
     },
-    copyBtn: {
-        marginLeft: "15px",
-    },
 })
 
 const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
@@ -108,14 +106,6 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
         const newSelectedVariant = variants?.find((variant) => variant.variantName === key)
         if (newSelectedVariant) {
             onVariantChange?.(key)
-        }
-    }
-    const copyToClipboard = async (e: React.MouseEvent) => {
-        e.preventDefault()
-        try {
-            await navigator.clipboard.writeText(codeSnippets[selectedLanguage.displayName])
-        } catch (err) {
-            console.error("Failed to copy text to clipboard")
         }
     }
 
@@ -166,14 +156,10 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
                             </Button>
                         </Dropdown>
                     )}
-                    <Button
-                        type="primary"
-                        onClick={copyToClipboard}
-                        size="small"
-                        className={classes.copyBtn}
-                    >
-                        Copy
-                    </Button>
+                    <CopyButton
+                        text="Copy result"
+                        target={codeSnippets[selectedLanguage.displayName]}
+                    />
                 </div>
             </div>
             {selectedLanguage && (

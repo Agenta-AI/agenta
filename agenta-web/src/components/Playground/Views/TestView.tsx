@@ -9,6 +9,7 @@ import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {createUseStyles} from "react-jss"
+import CopyButton from "@/components/CopyButton/CopyButton"
 
 const useStylesBox = createUseStyles({
     card: {
@@ -167,6 +168,15 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     placeholder="Results will be shown here"
                     disabled
                 />
+            </Row>
+            <Row className={classes.row2}>
+                <Col span={24} className={classes.row2Col}>
+                    <CopyButton
+                        text="Copy result"
+                        target={result}
+                        disabled={result === "" || result === "Loading..."}
+                    />
+                </Col>
             </Row>
         </Card>
     )
