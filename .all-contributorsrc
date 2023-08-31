@@ -153,6 +153,15 @@
         "code",
         "bug"
       ]
+    },
+    {
+      "login": "lazyfuhrer",
+      "name": "Biswarghya Biswas",
+      "avatar_url": "https://avatars.githubusercontent.com/u/64888892?v=4",
+      "profile": "https://github.com/lazyfuhrer",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
