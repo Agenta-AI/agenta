@@ -1,4 +1,4 @@
-export const copyToClipboard = async (e: React.MouseEvent, text : string)  =>  {
+export const copyToClipboard = async (e: React.MouseEvent, text: string) => {
     e.preventDefault()
     try {
         await navigator.clipboard.writeText(text)
