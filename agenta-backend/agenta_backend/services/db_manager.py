@@ -400,17 +400,29 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
     Returns:
         true if it's the last variant, false otherwise
     """
+    from time import sleep
+
+    sleep(1)
+
+    all_app_variants = []
+    async for document in engine.find(AppVariantDB):
+        all_app_variants.append(document)
 
     # Build the query expression for the two conditions
-    query_expression = query.eq(
-        AppVariantDB.user_id, db_app_variant.user_id.id
-    ) & query.eq(AppVariantDB.image_id, db_app_variant.image_id.id)
+    query_expression = (
+        query.eq(AppVariantDB.user_id, db_app_variant.user_id.id)
+        & query.eq(AppVariantDB.image_id, db_app_variant.image_id.id)
+        & query.eq(AppVariantDB.is_deleted, False)
+    )
+
+    # Count the number of variants that match the query expression
+    count_variants = await engine.count(AppVariantDB, query_expression)
 
     # If it's the only variant left that uses the image, delete the image
-    count_variants = await engine.count(AppVariantDB, query_expression)
     if count_variants == 1:
         return True
-    return False
+    else:
+        return False
 
 
 async def get_variant_from_db(app_variant: AppVariant, **kwargs: dict) -> AppVariantDB:
