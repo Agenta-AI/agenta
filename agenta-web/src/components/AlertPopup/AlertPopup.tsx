@@ -1,6 +1,7 @@
 import React, {ReactNode} from "react"
 import {Modal, ModalFuncProps} from "antd"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
+import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 
 function handleCb(cb: AlertPopupProps["onOk"]) {
     if (typeof cb !== "function") return cb
@@ -8,7 +9,7 @@ function handleCb(cb: AlertPopupProps["onOk"]) {
         const res = cb()
         if (res instanceof Promise) {
             return new Promise((_res) => {
-                res.catch(console.error).finally(() => _res(undefined))
+                res.catch(globalErrorHandler).finally(() => _res(undefined))
             })
         }
         return res

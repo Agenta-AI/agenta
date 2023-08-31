@@ -11,6 +11,7 @@ const nextConfig = {
     output: "standalone",
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
+    productionBrowserSourceMaps: true,
 
     async redirects() {
         return [
