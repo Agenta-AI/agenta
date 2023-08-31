@@ -15,7 +15,7 @@ class Image(BaseModel):
     tags: str
 
 
-class ImageOutput(Image):
+class ImageExtended(Image):
     id: str
 
 

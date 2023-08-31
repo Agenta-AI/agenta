@@ -4,7 +4,7 @@ from typing import List
 from agenta_backend.models.db_models import AppVariantDB, ImageDB, TemplateDB
 from agenta_backend.models.api.api_models import (
     AppVariant,
-    ImageOutput,
+    ImageExtended,
     Template,
     TemplateImageInfo,
 )
@@ -21,8 +21,8 @@ def app_variant_db_to_pydantic(
     )
 
 
-def image_db_to_pydantic(image_db: ImageDB) -> ImageOutput:
-    return ImageOutput(
+def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
+    return ImageExtended(
         docker_id=image_db.docker_id, tags=image_db.tags, id=str(image_db.id)
     )
 
