@@ -2,6 +2,7 @@ import os
 from bson import ObjectId
 from typing import Dict, List, Any
 
+
 from agenta_backend.models.api.api_models import (
     App,
     AppVariant,
@@ -250,7 +251,7 @@ async def list_apps(**kwargs: dict) -> List[App]:
     if user is None:
         return []
 
-    query_expression = query.eq(AppVariantDB.user_id, user.id)
+    query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(AppVariantDB.is_deleted, False)
     apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
     apps_names = [app.app_name for app in apps]
     sorted_names = sorted(set(apps_names))
@@ -326,18 +327,34 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
         & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
         & query.eq(AppVariantDB.user_id, user.id)
     )
+    
+    # Build the query expression to delete variants with is_deleted flag
+    delete_var_query_expression = (
+        query.eq(AppVariantDB.app_name, app_variant.app_name)
+        & query.eq(AppVariantDB.user_id, user.id)
+        & query.eq(
+            AppVariantDB.is_deleted, True
+        )
+    )
 
     # Get app variant
     app_variant_db = await engine.find_one(AppVariantDB, query_expression)
+    
+    # Get variant with is_deleted flag
+    pending_variant_to_delete = await engine.find_one(AppVariantDB, delete_var_query_expression)
     is_last_variant = await check_is_last_variant(app_variant_db)
     if app_variant_db is None:
         raise ValueError("App variant not found")
 
     if app_variant_db.previous_variant_name is not None:  # forked variant
         await engine.delete(app_variant_db)
+        if pending_variant_to_delete is not None:
+            await engine.delete(pending_variant_to_delete)
 
     elif is_last_variant:  # last variant using the image, okay to delete
         await engine.delete(app_variant_db)
+        if pending_variant_to_delete is not None:
+            await engine.delete(pending_variant_to_delete)
 
     else:
         app_variant_db.is_deleted = True  # soft deletion
