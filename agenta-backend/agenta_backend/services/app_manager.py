@@ -145,6 +145,7 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
     """
 
     app_variant_db = await _fetch_app_variant_from_db(app_variant, **kwargs)
+
     if app_variant_db is None:
         msg = f"App variant {app_variant.app_name}/{app_variant.variant_name} not found in DB"
         logger.error(msg)
@@ -152,16 +153,23 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
 
     try:
         is_last_variant = await db_manager.check_is_last_variant(app_variant_db)
+
         if is_last_variant:
             image = await _fetch_image_from_db(app_variant, **kwargs)
+
             if image:
                 await _stop_and_delete_app_container(app_variant, **kwargs)
+
                 await db_manager.remove_app_variant(app_variant, **kwargs)
+
                 await db_manager.remove_image(image, **kwargs)
 
                 # Only delete the docker image for users that are running the oss version
                 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
                     _delete_docker_image(image)
+            else:
+                print("Debug: Image not found. Skipping deletion.")
+
         else:
             await db_manager.remove_app_variant(app_variant, **kwargs)
 
