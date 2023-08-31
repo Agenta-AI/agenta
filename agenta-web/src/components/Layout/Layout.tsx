@@ -9,6 +9,8 @@ import {useAppTheme} from "./ThemeContextProvider"
 import {useElementSize} from "usehooks-ts"
 import {createUseStyles} from "react-jss"
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
+import {ErrorBoundary} from "react-error-boundary"
+import ErrorFallback from "./ErrorFallback"
 
 const {Content, Footer} = Layout
 
@@ -96,7 +98,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                     {title: capitalizedAppName},
                                 ]}
                             />
-                            {children}
+                            <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                {children}
+                            </ErrorBoundary>
                         </Content>
                         <Footer ref={footerRef} className={classes.footer}>
                             <Space className={classes.footerLeft} size={10}>
