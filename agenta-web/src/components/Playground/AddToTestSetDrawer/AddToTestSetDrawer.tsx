@@ -1,6 +1,6 @@
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
+import {useAppTheme} from "../../Layout/ThemeContextProvider"
 import {testset} from "@/lib/Types"
-import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {renameVariables} from "@/lib/helpers/utils"
 import {createNewTestset, loadTestset, updateTestset, useLoadTestsetsList} from "@/lib/services/api"
 import {Button, Drawer, Form, Input, Modal, Select, Typography, message} from "antd"
@@ -9,6 +9,10 @@ import React, {useCallback, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
 
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
+
 const useStyles = createUseStyles({
     footer: {
         display: "flex",
@@ -16,9 +20,12 @@ const useStyles = createUseStyles({
         justifyContent: "flex-end",
         gap: "0.75rem",
     },
-    selector: {
+    selector: ({themeMode}: StyleProps) => ({
         minWidth: 160,
-    },
+        "& .ant-select-selection-placeholder": {
+            color: themeMode === "dark" ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
+        },
+    }),
 })
 
 type Props = React.ComponentProps<typeof Drawer> & {
@@ -26,7 +33,8 @@ type Props = React.ComponentProps<typeof Drawer> & {
 }
 
 const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [form] = Form.useForm()
     const [selectedTestset, setSelectedTestset] = useState<string>()
     const [newTesetModalOpen, setNewTestsetModalOpen] = useState(false)
@@ -46,10 +54,6 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
             form.resetFields()
         } else dirty.current = false
     }, [props.open])
-
-    useUpdateEffect(() => {
-        if (isTestsetsLoadingError) globalErrorHandler(isTestsetsLoadingError)
-    }, [isTestsetsLoadingError])
 
     const onClose = useCallback(() => {
         if (dirty.current) {
@@ -83,7 +87,6 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
                     message.success(`Row added to the "${name}" test set!`)
                     props.onClose?.({} as any)
                 })
-                .catch(globalErrorHandler)
                 .finally(() => setLoading(false))
         },
         [selectedTestset, props.onClose],
@@ -94,64 +97,62 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
             if (isNew) {
                 setNewTestsetModalOpen(true)
             } else {
-                loadTestset(selectedTestset!)
-                    .then((data) => {
-                        const testsetCols = Object.keys(data.csvdata?.[0] || {})
-                        const playgroundCols = Object.keys(values)
-                        const missingColsTestset = testsetCols.filter(
-                            (col) => !playgroundCols.includes(col),
-                        )
-                        const missingColsPlayground = playgroundCols.filter(
-                            (col) => !testsetCols.includes(col),
-                        )
+                loadTestset(selectedTestset!).then((data) => {
+                    const testsetCols = Object.keys(data.csvdata?.[0] || {})
+                    const playgroundCols = Object.keys(values)
+                    const missingColsTestset = testsetCols.filter(
+                        (col) => !playgroundCols.includes(col),
+                    )
+                    const missingColsPlayground = playgroundCols.filter(
+                        (col) => !testsetCols.includes(col),
+                    )
 
-                        // if cols mismatch (playground cols not a superset of testset cols)
-                        if (missingColsTestset.length) {
-                            AlertPopup({
-                                type: "error",
-                                title: "Columns mismatch",
-                                message: (
-                                    <span>
-                                        Can't add to the selected test set, because its column(s)
-                                        don't match with the playground parameters.
-                                        <br />
-                                        <br />
-                                        <b>Test set Columns:</b> {testsetCols.join(", ")}
-                                        <br />
-                                        <br />
-                                        <b>Playground Parameters:</b> {playgroundCols.join(", ")}
-                                    </span>
-                                ),
-                                cancelText: null,
-                                okText: "Ok",
-                            })
-                        }
-                        // if unmapped cols (playground has cols that don't map to testset cols)
-                        else if (missingColsPlayground.length) {
-                            AlertPopup({
-                                type: "confirm",
-                                title: "Unmapped parameters",
-                                message: (
-                                    <span>
-                                        Following parameters from the playground can't map to any
-                                        columns of the selected test set:{" "}
-                                        <strong>{missingColsPlayground.join(", ")}</strong>
-                                        <br />
-                                        <br />
-                                        Do you want to ignore these unmapped parameters and continue
-                                        adding to the test set?
-                                    </span>
-                                ),
-                                okText: "Add",
-                                onOk: () => addToTestSet(data.name, data.csvdata, values),
-                            })
-                        }
-                        // exact match b/w playground cols and testset cols
-                        else {
-                            addToTestSet(data.name, data.csvdata, values)
-                        }
-                    })
-                    .catch(globalErrorHandler)
+                    // if cols mismatch (playground cols not a superset of testset cols)
+                    if (missingColsTestset.length) {
+                        AlertPopup({
+                            type: "error",
+                            title: "Columns mismatch",
+                            message: (
+                                <span>
+                                    Can't add to the selected test set, because its column(s) don't
+                                    match with the playground parameters.
+                                    <br />
+                                    <br />
+                                    <b>Test set Columns:</b> {testsetCols.join(", ")}
+                                    <br />
+                                    <br />
+                                    <b>Playground Parameters:</b> {playgroundCols.join(", ")}
+                                </span>
+                            ),
+                            cancelText: null,
+                            okText: "Ok",
+                        })
+                    }
+                    // if unmapped cols (playground has cols that don't map to testset cols)
+                    else if (missingColsPlayground.length) {
+                        AlertPopup({
+                            type: "confirm",
+                            title: "Unmapped parameters",
+                            message: (
+                                <span>
+                                    Following parameters from the playground can't map to any
+                                    columns of the selected test set:{" "}
+                                    <strong>{missingColsPlayground.join(", ")}</strong>
+                                    <br />
+                                    <br />
+                                    Do you want to ignore these unmapped parameters and continue
+                                    adding to the test set?
+                                </span>
+                            ),
+                            okText: "Add",
+                            onOk: () => addToTestSet(data.name, data.csvdata, values),
+                        })
+                    }
+                    // exact match b/w playground cols and testset cols
+                    else {
+                        addToTestSet(data.name, data.csvdata, values)
+                    }
+                })
             }
         },
         [selectedTestset],

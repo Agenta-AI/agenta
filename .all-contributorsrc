@@ -143,6 +143,25 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "RamchandraWarang9822",
+      "name": "Ramchandra Warang",
+      "avatar_url": "https://avatars.githubusercontent.com/u/92023869?v=4",
+      "profile": "https://github.com/RamchandraWarang9822",
+      "contributions": [
+        "code",
+        "bug"
+      ]
+    },
+    {
+      "login": "lazyfuhrer",
+      "name": "Biswarghya Biswas",
+      "avatar_url": "https://avatars.githubusercontent.com/u/64888892?v=4",
+      "profile": "https://github.com/lazyfuhrer",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

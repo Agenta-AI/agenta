@@ -1,9 +1,20 @@
 import {useState, useEffect} from "react"
 import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
+import {
+    Input,
+    Modal,
+    ConfigProvider,
+    theme,
+    Spin,
+    Card,
+    Button,
+    notification,
+    Divider,
+    Typography,
+} from "antd"
 import AppCard from "./AppCard"
-import {Template, AppTemplate, TemplateImage} from "@/lib/Types"
+import {Template, AppTemplate, TemplateImage, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
@@ -12,6 +23,7 @@ import {isAppNameInputValid} from "@/lib/helpers/utils"
 import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
+import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 
@@ -19,7 +31,15 @@ type StyleProps = {
     themeMode: "dark" | "light"
 }
 
+const {Title} = Typography
+
 const useStyles = createUseStyles({
+    container: ({themeMode}: StyleProps) => ({
+        maxWidth: "1450px",
+        marginTop: 10,
+        width: "100%",
+        color: themeMode === "dark" ? "#fff" : "#000",
+    }),
     cardsList: ({themeMode}: StyleProps) => ({
         display: "flex",
         flexWrap: "wrap",
@@ -33,9 +53,47 @@ const useStyles = createUseStyles({
         backgroundColor: "#1777FF",
         borderColor: "#1777FF !important",
         color: "#FFFFFF",
+        width: 300,
+        height: 120,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
         "& .ant-card-meta-title": {
             color: "#FFFFFF",
         },
+    },
+    createCardMeta: {
+        height: "90%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-evenly",
+    },
+    closeIcon: {
+        fontSize: 20,
+        color: "red",
+    },
+    divider: ({themeMode}: StyleProps) => ({
+        marginTop: 0,
+        borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
+    }),
+    h1: {
+        fontSize: 24,
+    },
+    modal: {
+        "& .ant-modal-body": {
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.75rem",
+            marginTop: 20,
+        },
+    },
+    modalError: {
+        color: "red",
+        marginLeft: "10px",
+    },
+    modalBtn: {
+        alignSelf: "flex-end",
     },
 })
 
@@ -46,6 +104,7 @@ const AppSelector: React.FC = () => {
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
+    const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
 
     const [templateMessage, setTemplateMessage] = useState("")
@@ -54,11 +113,15 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
+    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
-    const showCreateAppModal = () => {
+    const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
 
+    const showMaxAppError = () => {
+        setIsMaxAppModalOpen(true)
+    }
     const showCreateAppFromTemplateModal = () => {
         setIsCreateAppModalOpen(false)
         setIsCreateAppFromTemplateModalOpen(true)
@@ -138,26 +201,55 @@ const AppSelector: React.FC = () => {
             app_name: app_name,
             image_id: image_id,
             image_tag: image_tag,
-            env_vars: {
-                OPENAI_API_KEY: api_key,
-            },
         }
-        const response = await startTemplate(variantData)
-        if (response.status == 200) {
-            notification.success({
-                message: "Template Selection",
-                description: "App has been created and will begin to run.",
-                duration: 5,
-            })
-            return response
+        if (!isDemo) {
+            variantData["env_vars"] = {
+                OPENAI_API_KEY: api_key,
+            }
         } else {
-            notification.error({
-                message: "Template Selection",
-                description: "An error occured when trying to start the variant.",
-                duration: 5,
-            })
-            setFetchingTemplate(false)
-            return
+            variantData["env_vars"] = {
+                OPENAI_API_KEY: "",
+            }
+        }
+
+        try {
+            const response = await startTemplate(variantData)
+            if (response.status == 200) {
+                notification.success({
+                    message: "Template Selection",
+                    description: "App has been created and will begin to run.",
+                    duration: 5,
+                })
+                return true
+            }
+        } catch (error: any) {
+            if (error.response.status === 400) {
+                notification.error({
+                    message: "Template Selection",
+                    description: `${error.response.data.detail}`,
+                    duration: 5,
+                    btn: (
+                        <Button>
+                            <a
+                                target="_blank"
+                                href="https://github.com/Agenta-AI/agenta/issues/new?assignees=&labels=demo&projects=&template=bug_report.md&title="
+                            >
+                                File Issue
+                            </a>
+                        </Button>
+                    ),
+                })
+                setFetchingTemplate(false)
+                return false
+            } else {
+                notification.error({
+                    message: "Template Selection",
+                    description: "An error occured when trying to start the variant.",
+                    duration: 5,
+                })
+                setFetchingTemplate(false)
+                return false
+            }
         }
     }
 
@@ -165,7 +257,7 @@ const AppSelector: React.FC = () => {
         setFetchingTemplate(true)
 
         const OpenAIKey = retrieveOpenAIKey() as string
-        if (OpenAIKey === null) {
+        if (OpenAIKey === null && !isDemo) {
             notification.error({
                 message: "OpenAI API Key Missing",
                 description: "Please provide your OpenAI API key to access this feature.",
@@ -195,25 +287,29 @@ const AppSelector: React.FC = () => {
                 description: "Creating variant from template image...",
                 duration: 15,
             })
-            await createAppVariantFromTemplateImage(
+            const status = await createAppVariantFromTemplateImage(
                 newApp,
                 data.image_id,
                 data.image_tag,
                 OpenAIKey,
-            ).finally(() => {
+            )
+            if (status) {
                 handleCreateAppFromTemplateModalCancel()
                 handleCreateAppModalCancel()
                 handleNavigation()
-            })
+            } else if (!status) {
+                handleInputTemplateModalCancel()
+            }
         }
     }
 
     const {data, error, isLoading} = fetchApps()
-
     useEffect(() => {
-        if (data) {
-            setAppNameExist(data.some((app) => app.app_name === newApp))
-        }
+        setTimeout(() => {
+            if (data) {
+                setAppNameExist(data.some((app: GenericObject) => app.app_name === newApp))
+            }
+        }, 3000)
     }, [data, newApp])
 
     return (
@@ -222,36 +318,21 @@ const AppSelector: React.FC = () => {
                 algorithm: appTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
             }}
         >
-            <div
-                style={{
-                    maxWidth: "1450px",
-                    marginTop: 10,
-                    width: "100%",
-                    color: appTheme === "dark" ? "#fff" : "#000",
-                }}
-            >
+            <div className={classes.container}>
                 {isLoading ? (
-                    <div className="appSelectorMssg">
+                    <div>
                         <Spin />
                         <h1>loading...</h1>
                     </div>
                 ) : error ? (
-                    <div className="appSelectorMssg">
-                        <CloseCircleFilled style={{fontSize: 20, color: "red"}} />
+                    <div>
+                        <CloseCircleFilled className={classes.closeIcon} />
                         <h1>failed to load</h1>
                     </div>
                 ) : Array.isArray(data) && data.length ? (
                     <>
-                        <h1 style={{fontSize: 22}}>LLM Applications</h1>
-                        <Divider
-                            style={{
-                                marginTop: 0,
-                                borderColor:
-                                    appTheme === "dark"
-                                        ? "rgba(256, 256, 256, 0.2)"
-                                        : "rgba(5, 5, 5, 0.15)",
-                            }}
-                        />
+                        <h1 className={classes.h1}>LLM Applications</h1>
+                        <Divider className={classes.divider} />
                         <div className={classes.cardsList}>
                             {Array.isArray(data) && (
                                 <>
@@ -266,28 +347,17 @@ const AppSelector: React.FC = () => {
                                     ))}
                                     <Card
                                         className={classes.createCard}
-                                        style={{
-                                            width: 300,
-                                            height: 120,
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            cursor: "pointer",
+                                        onClick={() => {
+                                            if (isDemo && data.length > 0) {
+                                                showMaxAppError()
+                                            } else {
+                                                showCreateAppModal()
+                                            }
                                         }}
-                                        onClick={showCreateAppModal}
                                     >
                                         <Card.Meta
-                                            style={{
-                                                height: "90%",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-evenly",
-                                            }}
-                                            title={
-                                                <div style={{textAlign: "center"}}>
-                                                    Create New App
-                                                </div>
-                                            }
+                                            className={classes.createCardMeta}
+                                            title={<div>Create New App</div>}
                                             avatar={<PlusOutlined size={24} />}
                                         />
                                     </Card>
@@ -319,6 +389,12 @@ const AppSelector: React.FC = () => {
                     setTemplateName(template.image.name)
                 }}
             />
+            <MaxAppModal
+                open={isMaxAppModalOpen}
+                onCancel={() => {
+                    setIsMaxAppModalOpen(false)
+                }}
+            />
             <Modal
                 title="Input app name"
                 open={isInputTemplateModalOpen}
@@ -326,12 +402,7 @@ const AppSelector: React.FC = () => {
                 width={500}
                 footer={null}
                 centered
-                bodyStyle={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
-                    marginTop: 20,
-                }}
+                className={classes.modal}
             >
                 <Input
                     placeholder="New app name (e.g., chat-app)"
@@ -339,16 +410,14 @@ const AppSelector: React.FC = () => {
                     onChange={(e) => setNewApp(e.target.value)}
                     disabled={fetchingTemplate}
                 />
-                {appNameExist && (
-                    <div style={{color: "red", marginLeft: "10px"}}>App name already exist</div>
-                )}
+                {appNameExist && <div className={classes.modalError}>App name already exist</div>}
                 {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                    <div style={{color: "red", marginLeft: "10px"}}>
+                    <div className={classes.modalError}>
                         App name must contain only letters, numbers, underscore, or dash
                     </div>
                 )}
                 <Button
-                    style={{alignSelf: "flex-end"}}
+                    className={classes.modalBtn}
                     type="primary"
                     loading={fetchingTemplate}
                     onClick={() => {
@@ -375,7 +444,7 @@ const AppSelector: React.FC = () => {
                             newApp.length > 0 &&
                             isAppNameInputValid(newApp)
                         ) {
-                            handleTemplateCardClick(templateName)
+                            handleTemplateCardClick(templateName as string)
                         } else {
                             notification.warning({
                                 message: "Template Selection",

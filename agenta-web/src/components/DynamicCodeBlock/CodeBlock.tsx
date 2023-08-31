@@ -4,18 +4,26 @@ import {Typography} from "antd"
 import {CopyOutlined} from "@ant-design/icons"
 import {FC} from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {createUseStyles} from "react-jss"
 
 interface CodeBlockProps {
     language: string
     value: string
 }
 
+const useStyles = createUseStyles({
+    container: {
+        margin: 0,
+    },
+})
+
 const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
     const {Paragraph} = Typography
 
     const {appTheme} = useAppTheme()
+    const classes = useStyles()
     return (
-        <div style={{margin: "px 0px"}}>
+        <div className={classes.container}>
             <Paragraph>
                 <SyntaxHighlighter
                     language={language}

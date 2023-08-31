@@ -1,11 +1,21 @@
 import {message} from "antd"
 
+export const getErrorMessage = (error: any, fallback = "An unknown error occurred!") => {
+    let message = fallback
+    try {
+        error?.preventDefault && error.preventDefault()
+        if (typeof error === "string") message = error
+        else if (error.message) message = error.message
+        else if (error && typeof error === "object")
+            message = getErrorMessage(Object.values(error)[0])
+        else message = JSON.stringify(error)
+    } catch {}
+
+    return message
+}
+
 export const globalErrorHandler = (error: any) => {
-    error?.preventDefault && error.preventDefault()
-
-    if (typeof error === "string") error = {message: error}
-
-    error.message = error.message || "An unknown error occurred!"
-    console.error(error.message, error)
-    message.error(error.message)
+    const errorMsg = getErrorMessage(error)
+    console.error(errorMsg, error)
+    message.error(errorMsg)
 }

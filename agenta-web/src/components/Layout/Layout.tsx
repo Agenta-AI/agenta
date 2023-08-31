@@ -9,6 +9,8 @@ import {useAppTheme} from "./ThemeContextProvider"
 import {useElementSize} from "usehooks-ts"
 import {createUseStyles} from "react-jss"
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
+import {ErrorBoundary} from "react-error-boundary"
+import ErrorFallback from "./ErrorFallback"
 
 const {Content, Footer} = Layout
 
@@ -33,6 +35,9 @@ const useStyles = createUseStyles({
         marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
         flex: 1,
     }),
+    breadcrumb: {
+        padding: "24px 0",
+    },
     footer: {
         position: "absolute",
         bottom: 0,
@@ -77,13 +82,15 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         <Sidebar />
                         <Content className={classes.content}>
                             <Breadcrumb
-                                style={{paddingTop: "34px", paddingBottom: "24px"}}
+                                className={classes.breadcrumb}
                                 items={[
                                     {title: <Link href="/apps">Apps</Link>},
                                     {title: capitalizedAppName},
                                 ]}
                             />
-                            {children}
+                            <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                {children}
+                            </ErrorBoundary>
                         </Content>
                         <Footer ref={footerRef} className={classes.footer}>
                             <Space className={classes.footerLeft} size={10}>
