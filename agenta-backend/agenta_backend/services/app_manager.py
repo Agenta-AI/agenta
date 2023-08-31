@@ -83,9 +83,11 @@ def _stop_and_delete_containers(image: Image) -> None:
             logger.info(f"Container {container_id} deleted")
     except Exception as e:
         logger.error(f"Error stopping and deleting Docker containers: {str(e)}")
-        
 
-async def _stop_and_delete_app_container(app_variant: AppVariant, **kwargs: dict) -> None:
+
+async def _stop_and_delete_app_container(
+    app_variant: AppVariant, **kwargs: dict
+) -> None:
     """
     Stops and deletes Docker container associated with a given app.
 
