@@ -41,12 +41,12 @@ const useStyles = createUseStyles({
         },
     }),
     description: {
-        padding: "0 20px",
+        padding: "0 10px",
         lineHeight: 1.7,
         marginBottom: "2rem",
         "& > p:nth-of-type(2)": {
             fontWeight: 600,
-            fontSize: 15,
+            fontSize: 18,
         },
     },
     "@keyframes wave": {
@@ -81,7 +81,7 @@ interface Props {
 const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-
+    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
     return (
         <div>
             <div>
@@ -94,16 +94,25 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
             </div>
             <div className={classes.description}>
                 <p>
-                    Agenta is an open-source developer first LLMOps platform to streamline the
-                    process of building LLM-powered applications. Building LLM-powered apps is an
-                    iterative process with lots of prompt-engineering and testing multiple variants.
+                    🛠️ <strong>Agenta</strong> is an open-source LLMOps platform designed to
+                    streamline the development of robust LLM applications.
                     <br />
-                    Agenta brings the CI/CD platform to this process by enabling you to quickly
-                    iterate, experiment, evaluate, and optimize your LLM apps. All without imposing
-                    any restrictions on your choice of framework, library, or model.
+                    <br />
+                    🔬 Agenta provides with the tools for quick experimentation, prompt-engineering,
+                    and evaluation, making it easier to iterate on your LLM apps.
+                    <br />
+                    <br />
+                    🤝 With Agenta, you can:
+                    <ul>
+                        <li>🔄 Experiment and evaluate performance</li>
+                        <li>📊 Make data-driven improvements</li>
+                        <li>👥 Enable team collaboration</li>
+                        <li>🔐 Manage version control</li>
+                        <li>🚀 Enjoy one-click deployment</li>
+                    </ul>
+                    📚 And yes, you're free to use any framework, library, or model you prefer.
                     <br />
                 </p>
-
                 <p>
                     Read{" "}
                     <a href="https://docs.agenta.ai/introduction" target="_blank">
@@ -115,14 +124,17 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
             <div className={classes.blueBox}>
                 <h3>Get started creating your first LLM App</h3>
 
-                <p>
-                    This guide assumes you have completed the installation process. If not, please
-                    follow our{" "}
-                    <a href="https://docs.agenta.ai/installation" target="_blank">
-                        installation guide
-                    </a>
-                    .
-                </p>
+                {!isDemo && (
+                    <p>
+                        This guide assumes you have completed the installation process. If not,
+                        please follow our{" "}
+                        <a href="https://docs.agenta.ai/installation" target="_blank">
+                            installation guide
+                        </a>
+                        .
+                    </p>
+                )}
+                {isDemo && <br />}
 
                 <Button type="primary" onClick={onCreateAppClick}>
                     Create New App

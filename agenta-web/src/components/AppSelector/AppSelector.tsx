@@ -257,7 +257,7 @@ const AppSelector: React.FC = () => {
         setFetchingTemplate(true)
 
         const OpenAIKey = retrieveOpenAIKey() as string
-        if (OpenAIKey === null) {
+        if (OpenAIKey === null && !isDemo) {
             notification.error({
                 message: "OpenAI API Key Missing",
                 description: "Please provide your OpenAI API key to access this feature.",
