@@ -158,7 +158,7 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
                 await _stop_and_delete_app_container(app_variant, **kwargs)
                 await db_manager.remove_app_variant(app_variant, **kwargs)
                 await db_manager.remove_image(image, **kwargs)
-                
+
                 # Only delete the docker image for users that are running the oss version
                 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
                     _delete_docker_image(image)
