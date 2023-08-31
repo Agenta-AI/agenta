@@ -15,7 +15,6 @@ import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
 import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
-import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
 import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
@@ -237,9 +236,8 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 colData.push({field: "correct_answer"})
 
                 applyColData(colData)
-            })().catch((e) => {
+            })().catch(() => {
                 applyColData([])
-                globalErrorHandler(e)
             })
         }
     }, [mode, testset_id, appName])
@@ -452,9 +450,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 }
             }
         } catch (error) {
-            mssgModal("error", "Error saving test set")
             console.error("Error saving test set:", error)
-            throw error
         }
     }
 

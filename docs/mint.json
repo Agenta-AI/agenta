@@ -63,7 +63,8 @@
           "group": "Installation",
           "pages": [
             "installation/local-installation/local-installation",
-            "installation/self-hosting/self-hosted-installation"
+            "installation/self-hosting/self-hosted-installation-aws",
+            "installation/self-hosting/self-hosted-installation-gcp.mdx"
           ]
         }
       ]

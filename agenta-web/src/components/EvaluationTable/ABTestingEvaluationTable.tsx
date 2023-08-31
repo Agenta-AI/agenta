@@ -176,9 +176,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 }
             } catch (e) {
                 setRowValue(rowIndex, columnName, "")
-                if (rowIndex === rows.length - 1) {
-                    message.error("Oops! Something went wrong")
-                }
             }
         })
     }
