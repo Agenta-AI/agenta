@@ -34,6 +34,7 @@ Rework the initial draft, incorporating the improvements identified in the previ
 
 """
 
+
 @ag.post
 def generate(
     from_sender: str,
@@ -53,7 +54,7 @@ def generate(
         from_sender=from_sender,
         to_receiver=to_receiver,
         email_style=email_style,
-        email_content=email_content
-        )
+        email_content=email_content,
+    )
 
     return output
