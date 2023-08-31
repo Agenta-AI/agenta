@@ -194,9 +194,7 @@ async def remove_app(app: App, **kwargs: dict):
         logger.error(msg)
         raise ValueError(msg)
     try:
-        app_variants = await db_manager.list_app_variants(
-            app_name=app_name, **kwargs
-        )
+        app_variants = await db_manager.list_app_variants(app_name=app_name, **kwargs)
     except Exception as e:
         logger.error(f"Error fetching app variants from the database: {str(e)}")
         raise
@@ -229,20 +227,18 @@ async def remove_app_testsets(app_name: str, **kwargs):
     Returns:
         int: The number of testsets deleted
     """
-    
+
     # Get user object
     user = await db_manager.get_user_object(kwargs["uid"])
 
     # Find testsets owned by the app
     deleted_count: int = 0
-    
+
     # Build query expression
     query_expression = db_manager.query.eq(
         TestSetDB.user, user.id
     ) & db_manager.query.eq(TestSetDB.app_name, app_name)
-    testsets = await db_manager.engine.find(
-        TestSetDB, query_expression
-    )
+    testsets = await db_manager.engine.find(TestSetDB, query_expression)
 
     # Perform deletion if there are testsets to delete
     if testsets is not None:
