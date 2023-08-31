@@ -400,13 +400,6 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
     Returns:
         true if it's the last variant, false otherwise
     """
-    from time import sleep
-
-    sleep(1)
-
-    all_app_variants = []
-    async for document in engine.find(AppVariantDB):
-        all_app_variants.append(document)
 
     # Build the query expression for the two conditions
     query_expression = (
