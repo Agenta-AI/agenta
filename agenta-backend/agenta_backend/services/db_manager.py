@@ -366,7 +366,7 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
     Returns:
         true if it's the last variant, false otherwise
     """
-    
+
     # Build the query expression for the two conditions
     query_expression = (
         query.eq(AppVariantDB.app_name, db_app_variant.app_name)
@@ -376,9 +376,7 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
     )
 
     # If it's the only variant left that uses the image, delete the image
-    count_variants = await engine.count(
-        AppVariantDB, query_expression
-    )
+    count_variants = await engine.count(AppVariantDB, query_expression)
     if count_variants == 1:
         return True
     return False

@@ -125,7 +125,7 @@ export default function Evaluations() {
     const [error, setError] = useState({message: "", btnText: "", endpoint: ""})
 
     const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
-    
+
     const [loadStartEvalBtn, setLoadStartEvalBtn] = useState<boolean>(false)
 
     useEffect(() => {
@@ -300,7 +300,6 @@ export default function Evaluations() {
     }
 
     const onStartEvaluation = async () => {
-
         // show that evaluation is starting
         setLoadStartEvalBtn(true)
 
@@ -545,13 +544,14 @@ export default function Evaluations() {
 
                 <Row justify="end">
                     <Col span={8} className={classes.evaluationBtn}>
-                        <Button onClick={onStartEvaluation} type="primary" disabled={loadStartEvalBtn} loading={loadStartEvalBtn}>
-                            {loadStartEvalBtn && (
-                                <span>Starting...</span>
-                            )}
-                            {!loadStartEvalBtn && (
-                                <span>Start a new evaluation</span>
-                            )}
+                        <Button
+                            onClick={onStartEvaluation}
+                            type="primary"
+                            disabled={loadStartEvalBtn}
+                            loading={loadStartEvalBtn}
+                        >
+                            {loadStartEvalBtn && <span>Starting...</span>}
+                            {!loadStartEvalBtn && <span>Start a new evaluation</span>}
                         </Button>
                     </Col>
                 </Row>
