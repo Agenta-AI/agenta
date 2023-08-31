@@ -125,6 +125,8 @@ export default function Evaluations() {
     const [error, setError] = useState({message: "", btnText: "", endpoint: ""})
 
     const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
+    
+    const [loadStartEvalBtn, setLoadStartEvalBtn] = useState<boolean>(false)
 
     useEffect(() => {
         const fetchData = async () => {
@@ -298,18 +300,34 @@ export default function Evaluations() {
     }
 
     const onStartEvaluation = async () => {
+
+        // show that evaluation is starting
+        setLoadStartEvalBtn(true)
+
         // 1. We check all data is provided
         if (selectedTestset === undefined || selectedTestset.name === "Select a testSet") {
             message.error("Please select a Testset")
+
+            // Enable start evaluation btn
+            setLoadStartEvalBtn(false)
             return
         } else if (selectedVariants[0].variantName === "Select a variant") {
             message.error("Please select a variant")
+
+            // Enable start evaluation btn
+            setLoadStartEvalBtn(false)
             return
         } else if (selectedEvaluationType === "Select an evaluation type") {
             message.error("Please select an evaluation type")
+
+            // Enable start evaluation btn
+            setLoadStartEvalBtn(false)
             return
         } else if (selectedTestset?.name === "Select a Test set") {
             message.error("Please select a testset")
+
+            // Enable start evaluation btn
+            setLoadStartEvalBtn(false)
             return
         } else if (
             getOpenAIKey() === "" &&
@@ -321,6 +339,9 @@ export default function Evaluations() {
                 btnText: "Go to API Keys",
                 endpoint: "apikeys",
             })
+
+            // Enable start evaluation btn
+            setLoadStartEvalBtn(false)
             return
         }
 
@@ -524,8 +545,13 @@ export default function Evaluations() {
 
                 <Row justify="end">
                     <Col span={8} className={classes.evaluationBtn}>
-                        <Button onClick={onStartEvaluation} type="primary">
-                            Start a new evaluation
+                        <Button onClick={onStartEvaluation} type="primary" disabled={loadStartEvalBtn} loading={loadStartEvalBtn}>
+                            {loadStartEvalBtn && (
+                                <span>Starting...</span>
+                            )}
+                            {!loadStartEvalBtn && (
+                                <span>Start a new evaluation</span>
+                            )}
                         </Button>
                     </Col>
                 </Row>
