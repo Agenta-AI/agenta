@@ -7,7 +7,7 @@ from agenta_backend.models.api.api_models import (
     App,
     AppVariant,
     Image,
-    ImageOutput,
+    ImageExtended,
     Template,
 )
 from agenta_backend.models.converters import (
@@ -275,7 +275,7 @@ async def count_apps(**kwargs: dict) -> int:
     return no_of_apps
 
 
-async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageOutput:
+async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
     """Returns the image associated with the app variant
 
     Arguments:
@@ -363,7 +363,7 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
         await engine.save(app_variant_db)
 
 
-async def remove_image(image: ImageOutput, **kwargs: dict):
+async def remove_image(image: ImageExtended, **kwargs: dict):
     """Remove image from db based on pydantic class
 
     Arguments:

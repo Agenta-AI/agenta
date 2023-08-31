@@ -10,7 +10,7 @@ from agenta_backend.models.api.api_models import (
     AppVariant,
     Image,
     DockerEnvVars,
-    ImageOutput,
+    ImageExtended,
 )
 from agenta_backend.models.db_models import AppVariantDB, TestSetDB
 from agenta_backend.services import db_manager, docker_utils
@@ -46,7 +46,7 @@ async def _fetch_app_variant_from_db(
 
 async def _fetch_image_from_db(
     app_variant: AppVariant, **kwargs: dict
-) -> Optional[ImageOutput]:
+) -> Optional[ImageExtended]:
     """
     Fetches an image associated with an app variant from the database.
 
