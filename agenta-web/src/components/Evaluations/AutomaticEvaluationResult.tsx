@@ -186,8 +186,15 @@ export default function AutomaticEvaluationResult() {
             key: "averageScore",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 if (record.scoresData) {
-                    let correctScore =
-                        record.scoresData.scores.correct || record.scoresData.scores.true
+                    let correctScore = 0
+
+                    if (record.scoresData.scores.correct !== undefined) {
+                        correctScore = record.scoresData.scores.correct
+                    }
+                    if (record.scoresData.scores.true !== undefined) {
+                        correctScore = record.scoresData.scores.true
+                    }
+
                     let scoresAverage = (correctScore / record.scoresData.nb_of_rows) * 100
                     return (
                         <span>
