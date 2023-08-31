@@ -16,6 +16,7 @@ class Image(BaseModel):
 
 
 class ImageExtended(Image):
+    # includes the mongodb image id
     id: str
 
 
