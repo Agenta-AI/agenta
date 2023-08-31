@@ -180,11 +180,8 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 if (rowIndex === rows.length - 1) {
                     message.success("Evaluation Results Saved")
                 }
-            } catch (e) {
+            } catch {
                 setRowValue(rowIndex, columnName, "")
-                if (rowIndex === rows.length - 1) {
-                    message.error("Oops! Something went wrong")
-                }
             }
         })
     }
