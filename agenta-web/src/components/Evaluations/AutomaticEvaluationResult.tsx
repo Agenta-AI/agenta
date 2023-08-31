@@ -120,12 +120,12 @@ export default function AutomaticEvaluationResult() {
                                 const validEvaluations = evaluations.filter(
                                     (evaluation) => evaluation !== undefined,
                                 )
-                                const check = validEvaluations.filter(
+                                const evaluationsList = validEvaluations.filter(
                                     (item) =>
                                         item.resultsData !== undefined ||
                                         !(Object.keys(item.scoresData).length === 0),
                                 )
-                                setEvaluationsList(check)
+                                setEvaluationsList(evaluationsList)
                                 setDeletingLoading(false)
                             })
                             .catch((err) => console.error(err))
