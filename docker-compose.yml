@@ -9,12 +9,14 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
             - agenta-network
+
     backend:
         build: ./agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
             - BARE_DOMAIN_NAME=localhost
+            - FEATURE_FLAG=oss
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
@@ -28,7 +30,6 @@ services:
             - "traefik.http.routers.backend.middlewares=backend-strip"
             - "traefik.http.services.backend.loadbalancer.server.port=8000"
             - "traefik.http.routers.backend.service=backend"
-
         networks:
             - agenta-network
         command:
@@ -45,6 +46,9 @@ services:
                 "--root-path",
                 "/api"
             ]
+        depends_on:
+            mongo:
+                condition: service_healthy
 
     agenta-web:
         build:
@@ -59,6 +63,7 @@ services:
         environment:
             - NODE_ENV=development
             - NEXT_PUBLIC_AGENTA_API_URL=http://localhost
+            - NEXT_PUBLIC_FF=oss
         networks:
             - agenta-network
         labels:

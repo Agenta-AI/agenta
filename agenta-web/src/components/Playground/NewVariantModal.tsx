@@ -2,6 +2,7 @@
 
 import React, {useState} from "react"
 import {Modal, Input, Select, Space, Typography} from "antd"
+import {createUseStyles} from "react-jss"
 const {Text} = Typography
 
 interface Props {
@@ -13,6 +14,12 @@ interface Props {
     setTemplateVariantName: (value: string) => void
 }
 
+const useStyles = createUseStyles({
+    select: {
+        width: "100%",
+    },
+})
+
 const NewVariantModal: React.FC<Props> = ({
     isModalOpen,
     setIsModalOpen,
@@ -21,6 +28,7 @@ const NewVariantModal: React.FC<Props> = ({
     setNewVariantName,
     setTemplateVariantName,
 }) => {
+    const classes = useStyles()
     const [variantPlaceHolder, setVariantPlaceHolder] = useState("Source Variant")
     const handleTemplateVariantChange = (value: string) => {
         let newValue = value.includes(".") ? value.split(".")[0] : value
@@ -43,7 +51,7 @@ const NewVariantModal: React.FC<Props> = ({
                 <div>
                     <Text>Select an existing variant to use as a template:</Text>
                     <Select
-                        style={{width: "100%"}}
+                        className={classes.select}
                         placeholder="Select a variant"
                         onChange={handleTemplateVariantChange}
                         options={variants.map((variant) => ({

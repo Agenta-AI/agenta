@@ -1,4 +1,4 @@
-import {Evaluation, EvaluationResponseType, Variant} from "./Types"
+import {Evaluation, EvaluationResponseType, GenericObject, Variant} from "./Types"
 import {EvaluationType} from "./enums"
 import {formatDate} from "./helpers/dateTimeHelper"
 
@@ -13,7 +13,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
         return variant
     })
 
-    let evaluationTypeSettings = {}
+    let evaluationTypeSettings: GenericObject = {}
     if (item.evaluation_type_settings?.similarity_threshold) {
         evaluationTypeSettings["similarityThreshold"] =
             item.evaluation_type_settings.similarity_threshold
@@ -29,14 +29,14 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
         evaluationType: item.evaluation_type,
         evaluationTypeSettings: evaluationTypeSettings,
         llmAppPromptTemplate: item.llm_app_prompt_template,
-    }
+    } as Evaluation
 }
 
 export const fromEvaluationScenarioResponseToEvaluationScenario = (
     item: any,
     evaluation: Evaluation,
 ) => {
-    let evaluationScenario = {
+    let evaluationScenario: GenericObject = {
         id: item.id,
         inputs: item.inputs,
         outputs: item.outputs,
