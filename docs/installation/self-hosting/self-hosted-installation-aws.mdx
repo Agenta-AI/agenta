@@ -78,7 +78,12 @@ key_name      = aws_key_pair.agenta_key.key_name
    ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa_agenta
    ```
 
-3. Connect using:
+3. Rerun 
+   ```bash
+   terraform apply.
+   ```
+
+4. Connect using:
    ```bash
    ssh -i ~/.ssh/id_rsa_agenta ubuntu@ec2-host-provided-by-aws
    ```

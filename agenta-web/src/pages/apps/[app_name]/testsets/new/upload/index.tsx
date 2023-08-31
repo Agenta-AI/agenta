@@ -1,7 +1,7 @@
 import {UploadOutlined} from "@ant-design/icons"
 import {Alert, Button, Form, Input, Space, Spin, Upload, message} from "antd"
 import {useState} from "react"
-import axios from "axios"
+import axios from "@/lib/helpers/axiosConfig"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
@@ -50,7 +50,7 @@ export default function AddANewTestset() {
             try {
                 setUploadLoading(true)
                 // TODO: move to api.ts
-                const response = await axios.post(
+                await axios.post(
                     `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/upload`,
                     formData,
                     {
@@ -59,22 +59,10 @@ export default function AddANewTestset() {
                         },
                     },
                 )
-
-                if (response.status === 200) {
-                    // File uploaded successfully
-                    const data = response.data
-
-                    setUploadLoading(false)
-                    form.resetFields()
-
-                    router.push(`/apps/${app_name}/testsets`)
-                } else {
-                    // Handle error
-                    console.error("Failed to upload file:", response.status)
-                    setUploadLoading(false) // Set loading state to false after failed upload
-                }
-            } catch (error) {
-                console.error("Error uploading file", error)
+                form.resetFields()
+                router.push(`/apps/${app_name}/testsets`)
+            } finally {
+                setUploadLoading(false)
             }
         }
     }
