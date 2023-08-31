@@ -89,7 +89,10 @@ export async function callVariant(
     const appContainerURIPath = await getAppContainerURL(splittedURIPath[0], splittedURIPath[1])
 
     return axios
-        .post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${URIPath}/generate`, requestBody)
+        .post(
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/generate`,
+            requestBody,
+        )
         .then((res) => {
             return res.data
         })
@@ -105,7 +108,8 @@ export const getVariantParametersFromOpenAPI = async (app: string, variant: Vari
     const sourceName = variant.templateVariantName
         ? variant.templateVariantName
         : variant.variantName
-    const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${app}/${sourceName}/openapi.json`
+    const appContainerURIPath = await getAppContainerURL(app, sourceName)
+    const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/openapi.json`
     const response = await axios.get(url)
     let APIParams = parseOpenApiSchema(response.data)
     // we create a new param for DictInput that will contain the name of the inputs
