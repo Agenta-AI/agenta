@@ -120,7 +120,12 @@ export default function AutomaticEvaluationResult() {
                                 const validEvaluations = evaluations.filter(
                                     (evaluation) => evaluation !== undefined,
                                 )
-                                setEvaluationsList(validEvaluations)
+                                const check = validEvaluations.filter(
+                                    (item) =>
+                                        item.resultsData !== undefined ||
+                                        !(Object.keys(item.scoresData).length === 0),
+                                )
+                                setEvaluationsList(check)
                                 setDeletingLoading(false)
                             })
                             .catch((err) => console.error(err))
@@ -188,10 +193,10 @@ export default function AutomaticEvaluationResult() {
                 if (record.scoresData) {
                     let correctScore = 0
 
-                    if (record.scoresData.scores.correct !== undefined) {
+                    if (record.scoresData.scores?.correct !== undefined) {
                         correctScore = record.scoresData.scores.correct
                     }
-                    if (record.scoresData.scores.true !== undefined) {
+                    if (record.scoresData.scores?.true !== undefined) {
                         correctScore = record.scoresData.scores.true
                     }
 
