@@ -69,8 +69,6 @@ const AppCard: React.FC<{
             await removeApp(appName)
             // Refresh the data (if you're using SWR or a similar library)
             mutate(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`)
-        } catch (error: any) {
-            message.error(`Failed to remove app: ${error?.message}`)
         } finally {
             setVisibleDelete(false)
             setConfirmLoading(false)

@@ -175,12 +175,11 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 evaluate(rowIndex)
                 if (rowIndex === rows.length - 1) {
                     message.success("Evaluation Results Saved")
-                    setLoadingSpinners(false)
                 }
-            } catch (e) {
+            } catch {
                 setRowValue(rowIndex, columnName, "")
+            } finally {
                 if (rowIndex === rows.length - 1) {
-                    message.error("Oops! Something went wrong")
                     setLoadingSpinners(false)
                 }
             }

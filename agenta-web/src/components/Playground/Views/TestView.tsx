@@ -7,6 +7,7 @@ import {randString, renameVariables} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
+import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {createUseStyles} from "react-jss"
 
 const useStylesBox = createUseStyles({
@@ -200,7 +201,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
         } catch (e) {
             setResultForIndex(
                 "The code has resulted in the following error: \n\n --------------------- \n" +
-                    e +
+                    getErrorMessage(e) +
                     "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground",
                 index,
             )

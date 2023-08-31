@@ -134,7 +134,26 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                         .
                     </p>
                 )}
-                {isDemo && <br />}
+                {isDemo && (
+                    <p>
+                        Important Note: You are using the demo version of Agenta. Don't forget to
+                        regularly back up your data!
+                        <br />
+                        If you're considering integrating Agenta into your workflow, feel free to{" "}
+                        <a
+                            href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
+                            target="_blank"
+                        >
+                            {" "}
+                            join us on Slack{" "}
+                        </a>{" "}
+                        or{" "}
+                        <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo" target="_blank">
+                            schedule an onboarding session
+                        </a>
+                        .
+                    </p>
+                )}
 
                 <Button type="primary" onClick={onCreateAppClick}>
                     Create New App
