@@ -15,6 +15,11 @@ class Image(BaseModel):
     tags: str
 
 
+class ImageExtended(Image):
+    # includes the mongodb image id
+    id: str
+
+
 class TemplateImageInfo(BaseModel):
     name: str
     size: int

@@ -374,7 +374,6 @@ async def add_app_variant_from_template(
     return {
         "message": "Variant created and running!",
         "data": {
-            "url": url.uri,
             "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",
         },
     }
