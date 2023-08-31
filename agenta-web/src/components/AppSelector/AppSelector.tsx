@@ -23,6 +23,7 @@ import {isAppNameInputValid} from "@/lib/helpers/utils"
 import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
+import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 
@@ -103,6 +104,7 @@ const AppSelector: React.FC = () => {
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
+    const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
 
     const [templateMessage, setTemplateMessage] = useState("")
@@ -111,11 +113,15 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
+    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
-    const showCreateAppModal = () => {
+    const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
 
+    const showMaxAppError = () => {
+        setIsMaxAppModalOpen(true)
+    }
     const showCreateAppFromTemplateModal = () => {
         setIsCreateAppModalOpen(false)
         setIsCreateAppFromTemplateModalOpen(true)
@@ -195,26 +201,55 @@ const AppSelector: React.FC = () => {
             app_name: app_name,
             image_id: image_id,
             image_tag: image_tag,
-            env_vars: {
-                OPENAI_API_KEY: api_key,
-            },
         }
-        const response = await startTemplate(variantData)
-        if (response.status == 200) {
-            notification.success({
-                message: "Template Selection",
-                description: "App has been created and will begin to run.",
-                duration: 5,
-            })
-            return response
+        if (!isDemo) {
+            variantData["env_vars"] = {
+                OPENAI_API_KEY: api_key,
+            }
         } else {
-            notification.error({
-                message: "Template Selection",
-                description: "An error occured when trying to start the variant.",
-                duration: 5,
-            })
-            setFetchingTemplate(false)
-            return
+            variantData["env_vars"] = {
+                OPENAI_API_KEY: "",
+            }
+        }
+
+        try {
+            const response = await startTemplate(variantData)
+            if (response.status == 200) {
+                notification.success({
+                    message: "Template Selection",
+                    description: "App has been created and will begin to run.",
+                    duration: 5,
+                })
+                return true
+            }
+        } catch (error: any) {
+            if (error.response.status === 400) {
+                notification.error({
+                    message: "Template Selection",
+                    description: `${error.response.data.detail}`,
+                    duration: 5,
+                    btn: (
+                        <Button>
+                            <a
+                                target="_blank"
+                                href="https://github.com/Agenta-AI/agenta/issues/new?assignees=&labels=demo&projects=&template=bug_report.md&title="
+                            >
+                                File Issue
+                            </a>
+                        </Button>
+                    ),
+                })
+                setFetchingTemplate(false)
+                return false
+            } else {
+                notification.error({
+                    message: "Template Selection",
+                    description: "An error occured when trying to start the variant.",
+                    duration: 5,
+                })
+                setFetchingTemplate(false)
+                return false
+            }
         }
     }
 
@@ -222,7 +257,7 @@ const AppSelector: React.FC = () => {
         setFetchingTemplate(true)
 
         const OpenAIKey = retrieveOpenAIKey() as string
-        if (OpenAIKey === null) {
+        if (OpenAIKey === null && !isDemo) {
             notification.error({
                 message: "OpenAI API Key Missing",
                 description: "Please provide your OpenAI API key to access this feature.",
@@ -252,16 +287,19 @@ const AppSelector: React.FC = () => {
                 description: "Creating variant from template image...",
                 duration: 15,
             })
-            await createAppVariantFromTemplateImage(
+            const status = await createAppVariantFromTemplateImage(
                 newApp,
                 data.image_id,
                 data.image_tag,
                 OpenAIKey,
-            ).finally(() => {
+            )
+            if (status) {
                 handleCreateAppFromTemplateModalCancel()
                 handleCreateAppModalCancel()
                 handleNavigation()
-            })
+            } else if (!status) {
+                handleInputTemplateModalCancel()
+            }
         }
     }
 
@@ -309,7 +347,13 @@ const AppSelector: React.FC = () => {
                                     ))}
                                     <Card
                                         className={classes.createCard}
-                                        onClick={showCreateAppModal}
+                                        onClick={() => {
+                                            if (isDemo && data.length > 0) {
+                                                showMaxAppError()
+                                            } else {
+                                                showCreateAppModal()
+                                            }
+                                        }}
                                     >
                                         <Card.Meta
                                             className={classes.createCardMeta}
@@ -343,6 +387,12 @@ const AppSelector: React.FC = () => {
                 onCardClick={(template) => {
                     showInputTemplateModal()
                     setTemplateName(template.image.name)
+                }}
+            />
+            <MaxAppModal
+                open={isMaxAppModalOpen}
+                onCancel={() => {
+                    setIsMaxAppModalOpen(false)
                 }}
             />
             <Modal

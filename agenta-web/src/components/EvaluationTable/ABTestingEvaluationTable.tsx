@@ -1,13 +1,15 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
-import {Button, Input, Space, Spin, Table, message} from "antd"
+import {Button, Input, Space, Spin, Table, Typography, message} from "antd"
 import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {fetchVariants} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
+
+const {Title} = Typography
 
 interface EvaluationTableProps {
     evaluation: any
@@ -65,6 +67,10 @@ const useStyles = createUseStyles({
     },
     recordInput: {
         marginBottom: 10,
+    },
+    title: {
+        fontSize: "2rem !important",
+        marginBottom: "20px !important",
     },
 })
 
@@ -141,7 +147,9 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         }
 
         Promise.all(promises)
-            .then(() => console.log("All functions finished."))
+            .then(() => {
+                console.log("All functions finished.")
+            })
             .catch((err) => console.error("An error occurred:", err))
     }
 
@@ -163,9 +171,11 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
+                if (rowIndex === rows.length - 1) {
+                    message.success("Evaluation Results Saved")
+                }
             } catch (e) {
                 setRowValue(rowIndex, columnName, "")
-                message.error("Oops! Something went wrong")
             }
         })
     }
@@ -307,6 +317,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     return (
         <div>
+            <Title className={classes.title}>A/B Testing Evaluation</Title>
             <Table
                 dataSource={rows}
                 columns={columns}

@@ -20,7 +20,6 @@ import {
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject} from "@/lib/Types"
-import EvaluationsList from "./EvaluationsList"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {Typography} from "antd"
@@ -33,7 +32,10 @@ import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import ai from "@/media/artificial-intelligence.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import axios from "@/lib/helpers/axiosConfig"
 import {createUseStyles} from "react-jss"
+import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
+import HumanEvaluationResult from "./HumanEvaluationResult"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -192,23 +194,8 @@ export default function Evaluations() {
         llmAppPromptTemplate?: string,
     ) => {
         const postData = async (url = "", data = {}) => {
-            const response = await fetch(url, {
-                method: "POST",
-                cache: "no-cache",
-                credentials: "same-origin",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                redirect: "follow",
-                referrerPolicy: "no-referrer",
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                throw new Error((await response.json())?.detail ?? "Failed to create evaluation")
-            }
-
-            return response.json()
+            const response = await axios.post(url, data)
+            return response.data
         }
 
         const data = {
@@ -537,7 +524,10 @@ export default function Evaluations() {
                 btnText={error.btnText}
             />
 
-            <EvaluationsList />
+            <div>
+                <AutomaticEvaluationResult />
+                <HumanEvaluationResult />
+            </div>
         </div>
     )
 }
