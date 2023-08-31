@@ -2,11 +2,12 @@ import os
 from bson import ObjectId
 from typing import Dict, List, Any
 
+
 from agenta_backend.models.api.api_models import (
     App,
     AppVariant,
     Image,
-    ImageOutput,
+    ImageExtended,
     Template,
 )
 from agenta_backend.models.converters import (
@@ -239,7 +240,7 @@ async def list_app_variants(
     return app_variants
 
 
-async def list_apps(**kwargs) -> List[App]:
+async def list_apps(**kwargs: dict) -> List[App]:
     """
     Lists all the unique app names from the database
     """
@@ -250,14 +251,31 @@ async def list_apps(**kwargs) -> List[App]:
     if user is None:
         return []
 
-    query_expression = query.eq(AppVariantDB.user_id, user.id)
+    query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(
+        AppVariantDB.is_deleted, False
+    )
     apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
     apps_names = [app.app_name for app in apps]
     sorted_names = sorted(set(apps_names))
     return [App(app_name=app_name) for app_name in sorted_names]
 
 
-async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageOutput:
+async def count_apps(**kwargs: dict) -> int:
+    """
+    Counts all the unique app names from the database
+    """
+    await clean_soft_deleted_variants()
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+    if user is None:
+        return 0
+
+    no_of_apps = await engine.count(AppVariantDB, AppVariantDB.user_id == user.id)
+    return no_of_apps
+
+
+async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
     """Returns the image associated with the app variant
 
     Arguments:
@@ -312,24 +330,40 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
         & query.eq(AppVariantDB.user_id, user.id)
     )
 
+    # Build the query expression to delete variants with is_deleted flag
+    delete_var_query_expression = (
+        query.eq(AppVariantDB.app_name, app_variant.app_name)
+        & query.eq(AppVariantDB.user_id, user.id)
+        & query.eq(AppVariantDB.is_deleted, True)
+    )
+
     # Get app variant
     app_variant_db = await engine.find_one(AppVariantDB, query_expression)
+
+    # Get variant with is_deleted flag
+    pending_variant_to_delete = await engine.find_one(
+        AppVariantDB, delete_var_query_expression
+    )
     is_last_variant = await check_is_last_variant(app_variant_db)
     if app_variant_db is None:
         raise ValueError("App variant not found")
 
     if app_variant_db.previous_variant_name is not None:  # forked variant
         await engine.delete(app_variant_db)
+        if pending_variant_to_delete is not None:
+            await engine.delete(pending_variant_to_delete)
 
     elif is_last_variant:  # last variant using the image, okay to delete
         await engine.delete(app_variant_db)
+        if pending_variant_to_delete is not None:
+            await engine.delete(pending_variant_to_delete)
 
     else:
         app_variant_db.is_deleted = True  # soft deletion
         await engine.save(app_variant_db)
 
 
-async def remove_image(image: ImageOutput, **kwargs: dict):
+async def remove_image(image: ImageExtended, **kwargs: dict):
     """Remove image from db based on pydantic class
 
     Arguments:
@@ -366,20 +400,29 @@ async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
     Returns:
         true if it's the last variant, false otherwise
     """
+    from time import sleep
+
+    sleep(1)
+
+    all_app_variants = []
+    async for document in engine.find(AppVariantDB):
+        all_app_variants.append(document)
 
     # Build the query expression for the two conditions
     query_expression = (
-        query.eq(AppVariantDB.app_name, db_app_variant.app_name)
-        & query.eq(AppVariantDB.variant_name, db_app_variant.variant_name)
-        & query.eq(AppVariantDB.user_id, db_app_variant.user_id.id)
+        query.eq(AppVariantDB.user_id, db_app_variant.user_id.id)
         & query.eq(AppVariantDB.image_id, db_app_variant.image_id.id)
+        & query.eq(AppVariantDB.is_deleted, False)
     )
 
-    # If it's the only variant left that uses the image, delete the image
+    # Count the number of variants that match the query expression
     count_variants = await engine.count(AppVariantDB, query_expression)
+
+    # If it's the only variant left that uses the image, delete the image
     if count_variants == 1:
         return True
-    return False
+    else:
+        return False
 
 
 async def get_variant_from_db(app_variant: AppVariant, **kwargs: dict) -> AppVariantDB:
