@@ -1,15 +1,15 @@
-import {Button, Tooltip, Spin, Table} from "antd"
+import { Button, Tooltip, Spin, Table } from "antd"
 
-import {testset} from "@/lib/Types"
+import { testset } from "@/lib/Types"
 import Link from "next/link"
-import {useRouter} from "next/router"
-import {ColumnsType} from "antd/es/table"
-import {useState, useEffect} from "react"
-import {formatDate} from "@/lib/helpers/dateTimeHelper"
-import {DeleteOutlined} from "@ant-design/icons"
-import {deleteTestsets} from "@/lib/services/api"
+import { useRouter } from "next/router"
+import { ColumnsType } from "antd/es/table"
+import { useState, useEffect } from "react"
+import { formatDate } from "@/lib/helpers/dateTimeHelper"
+import { DeleteOutlined } from "@ant-design/icons"
+import { deleteTestsets } from "@/lib/services/api"
 import axios from "@/lib/helpers/axiosConfig"
-import {createUseStyles} from "react-jss"
+import { createUseStyles } from "react-jss"
 
 type testsetTableDatatype = {
     key: string
@@ -50,11 +50,12 @@ const fetchData = async (url: string): Promise<any> => {
 export default function testsets() {
     const classes = useStyles()
     const router = useRouter()
-    const {app_name} = router.query
+    const { app_name } = router.query
     const [testsetsList, setTestsetsList] = useState<testsetTableDatatype[]>([])
     const [loading, setLoading] = useState<boolean>(true)
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [isTestTestSetAdded, setIsTestSetAdded] = useState<boolean>(false)
     const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     useEffect(() => {
@@ -72,6 +73,7 @@ export default function testsets() {
                     }
                     return newObj
                 })
+                setIsTestSetAdded(newTestsetsList > 0)
                 setLoading(false)
                 setTestsetsList(newTestsetsList)
             })
@@ -153,7 +155,7 @@ export default function testsets() {
                     </div>
 
                     <Link href={`/apps/${app_name}/evaluations`} className={classes.startLink}>
-                        <Button>Start an evaluation</Button>
+                        {isTestTestSetAdded && <Button>Start an evaluation</Button>}
                     </Link>
                 </div>
 
