@@ -55,7 +55,6 @@ export default function testsets() {
     const [loading, setLoading] = useState<boolean>(true)
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const [isTestTestSetAdded, setIsTestSetAdded] = useState<boolean>(false)
     const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     useEffect(() => {
@@ -73,7 +72,6 @@ export default function testsets() {
                     }
                     return newObj
                 })
-                setIsTestSetAdded(newTestsetsList > 0)
                 setLoading(false)
                 setTestsetsList(newTestsetsList)
             })
@@ -155,7 +153,7 @@ export default function testsets() {
                     </div>
 
                     <Link href={`/apps/${app_name}/evaluations`} className={classes.startLink}>
-                        {isTestTestSetAdded && <Button>Start an evaluation</Button>}
+                        {testsetsList.length > 0 && <Button>Start an evaluation</Button>}
                     </Link>
                 </div>
 
