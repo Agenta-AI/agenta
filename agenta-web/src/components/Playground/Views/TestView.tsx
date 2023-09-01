@@ -165,7 +165,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     value={result}
                     rows={6}
                     placeholder="Results will be shown here"
-                    disabled
+                    disabled={result === "" || result === "Loading..."}
                 />
             </Row>
         </Card>
