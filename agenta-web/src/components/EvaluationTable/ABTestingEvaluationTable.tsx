@@ -171,7 +171,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
-                if (rowIndex === rows.length - 1) {
+                if (rowIndex === rows.length - 1 && idx === columnsDataNames.length - 1) {
                     message.success("Evaluation Results Saved")
                 }
             } catch (e) {
