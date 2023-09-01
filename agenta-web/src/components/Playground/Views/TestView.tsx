@@ -53,6 +53,9 @@ const useStylesBox = createUseStyles({
             width: "100%",
         },
     },
+    copyBtn: {
+        minWidth: "110px",
+    },
 })
 
 const useStylesApp = createUseStyles({
@@ -149,7 +152,14 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         disabled={loading}
                     >
                         Add to Test Set
-                    </Button>
+                    </Button>{" "}
+                    <CopyButton
+                        text="Copy result"
+                        target={result}
+                        disabled={result === "" || result === "Loading..."}
+                        shape="round"
+                        className={classes.copyBtn}
+                    />
                     <Button
                         type="primary"
                         shape="round"
@@ -168,15 +178,6 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     placeholder="Results will be shown here"
                     disabled
                 />
-            </Row>
-            <Row className={classes.row2}>
-                <Col span={24} className={classes.row2Col}>
-                    <CopyButton
-                        text="Copy result"
-                        target={result}
-                        disabled={result === "" || result === "Loading..."}
-                    />
-                </Col>
             </Row>
         </Card>
     )

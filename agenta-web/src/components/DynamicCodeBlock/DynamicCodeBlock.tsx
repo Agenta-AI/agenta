@@ -157,7 +157,9 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
                         </Dropdown>
                     )}
                     <CopyButton
-                        text="Copy result"
+                        text="Copy"
+                        type="primary"
+                        size="small"
                         target={codeSnippets[selectedLanguage.displayName]}
                     />
                 </div>
