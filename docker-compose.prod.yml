@@ -59,10 +59,6 @@ services:
       - ./agenta-web/public:/app/public
     ports:
       - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME}
-      - NEXT_PUBLIC_FF=oss
     networks:
       - agenta-network
     labels:
