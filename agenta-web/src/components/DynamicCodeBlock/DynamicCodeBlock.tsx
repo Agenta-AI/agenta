@@ -66,6 +66,9 @@ const useStyles = createUseStyles({
         alignItems: "center",
         width: "100%",
     },
+    copyBtn: {
+        marginLeft: "15px",
+    },
 })
 
 const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
@@ -161,6 +164,7 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
                         type="primary"
                         size="small"
                         target={codeSnippets[selectedLanguage.displayName]}
+                        className={classes.copyBtn}
                     />
                 </div>
             </div>
