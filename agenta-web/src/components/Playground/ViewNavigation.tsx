@@ -46,7 +46,6 @@ const ViewNavigation: React.FC<Props> = ({
         isParamSaveLoading,
         saveOptParams,
         isLoading,
-        isChanged,
     } = useVariant(appName, variant)
 
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
@@ -64,9 +63,7 @@ const ViewNavigation: React.FC<Props> = ({
     })
 
     useUpdateEffect(() => {
-        if (isChanged) {
-            setUnSavedChanges(true)
-        }
+        setUnSavedChanges(true)
     }, [optParams])
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
