@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {Dispatch, useState} from "react"
 import React from "react"
 import {Parameter} from "@/lib/Types"
 import {Row, Col, Button, Tooltip, message, Space, Collapse} from "antd"
@@ -17,6 +17,7 @@ interface Props {
     isPersistent: boolean
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
+    setUnSavedChanges: Dispatch<React.SetStateAction<boolean>>
 }
 
 const useStyles = createUseStyles({
@@ -53,6 +54,7 @@ const ParametersView: React.FC<Props> = ({
     isPersistent,
     isParamsCollapsed,
     setIsParamsCollapsed,
+    setUnSavedChanges
 }) => {
     const classes = useStyles()
     const [inputValue, setInputValue] = useState(1)
@@ -94,6 +96,7 @@ const ParametersView: React.FC<Props> = ({
                                     onClick={async () => {
                                         await onOptParamsChange(optParams!, true, isPersistent)
                                         success()
+                                        setUnSavedChanges(false)
                                     }}
                                     loading={isParamSaveLoading}
                                 >
