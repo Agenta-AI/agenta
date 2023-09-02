@@ -8,21 +8,27 @@ import {
     Evaluation,
     AppTemplate,
     GenericObject,
+    TemplateImage,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationType} from "../enums"
+import {delay} from "../helpers/utils"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
 
 const fetcher = (url: string) => axios.get(url).then((res) => res.data)
 
-export async function fetchVariants(app: string): Promise<Variant[]> {
+export async function fetchVariants(
+    app: string,
+    ignoreAxiosError: boolean = false,
+): Promise<Variant[]> {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_variants/?app_name=${app}`,
+        {_ignoreError: ignoreAxiosError} as any,
     )
 
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -104,13 +110,17 @@ export async function callVariant(
  * @param variantName
  * @returns
  */
-export const getVariantParametersFromOpenAPI = async (app: string, variant: Variant) => {
+export const getVariantParametersFromOpenAPI = async (
+    app: string,
+    variant: Variant,
+    ignoreAxiosError: boolean = false,
+) => {
     const sourceName = variant.templateVariantName
         ? variant.templateVariantName
         : variant.variantName
     const appContainerURIPath = await getAppContainerURL(app, sourceName)
     const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/openapi.json`
-    const response = await axios.get(url)
+    const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
     let APIParams = parseOpenApiSchema(response.data)
     // we create a new param for DictInput that will contain the name of the inputs
     APIParams = APIParams.map((param) => {
@@ -383,17 +393,22 @@ export const getTemplates = async () => {
     return response.data
 }
 
-export const pullTemplateImage = async (image_name: string) => {
+export const pullTemplateImage = async (image_name: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`,
+        {_ignoreError: ignoreAxiosError} as any,
     )
     return response.data
 }
 
-export const startTemplate = async (templateObj: AppTemplate) => {
+export const startTemplate = async (
+    templateObj: AppTemplate,
+    ignoreAxiosError: boolean = false,
+) => {
     const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_template/`,
         templateObj,
+        {_ignoreError: ignoreAxiosError} as any,
     )
     return response
 }
@@ -401,4 +416,90 @@ export const startTemplate = async (templateObj: AppTemplate) => {
 export const fetchData = async (url: string): Promise<any> => {
     const response = await fetch(url)
     return response.json()
+}
+
+export const waitForAppToStart = async (
+    appName: string,
+    timeout: number = 20000,
+    interval: number = 2000,
+) => {
+    const variant = await fetchVariants(appName, true)
+    if (variant.length) {
+        const shortPoll = async () => {
+            let started = false
+            while (!started) {
+                try {
+                    await getVariantParametersFromOpenAPI(appName, variant[0], true)
+                    started = true
+                } catch {}
+                await delay(interval)
+            }
+        }
+        await Promise.race([
+            shortPoll(),
+            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), timeout)),
+        ])
+    }
+}
+
+export const createAndStartTemplate = async ({
+    appName,
+    openAIKey,
+    imageName,
+    onStatusChange,
+}: {
+    appName: string
+    openAIKey: string
+    imageName: string
+    onStatusChange?: (
+        status:
+            | "fetching_image"
+            | "creating_app"
+            | "starting_app"
+            | "success"
+            | "bad_request"
+            | "timeout"
+            | "error",
+        details?: any,
+    ) => void
+}) => {
+    try {
+        onStatusChange?.("fetching_image")
+        const data: TemplateImage = await pullTemplateImage(imageName, true)
+        if (data.message) throw data.message
+
+        const variantData = {
+            app_name: appName,
+            image_id: data.image_id,
+            image_tag: data.image_tag,
+            env_vars: {
+                OPENAI_API_KEY: openAIKey,
+            },
+        }
+        onStatusChange?.("creating_app")
+        try {
+            await startTemplate(variantData, true)
+        } catch (error: any) {
+            if (error?.response?.status === 400) {
+                onStatusChange?.("bad_request", error)
+                return
+            }
+            throw error
+        }
+
+        onStatusChange?.("starting_app")
+        try {
+            await waitForAppToStart(appName)
+        } catch (error: any) {
+            if (error.message === "timeout") {
+                onStatusChange?.("timeout")
+                return
+            }
+            throw error
+        }
+
+        onStatusChange?.("success")
+    } catch (error) {
+        onStatusChange?.("error", error)
+    }
 }
