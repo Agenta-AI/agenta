@@ -12,11 +12,7 @@ import {
     message,
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
-import {
-    fetchVariants,
-    getVariantParametersFromOpenAPI,
-    useLoadTestsetsList,
-} from "@/lib/services/api"
+import {fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject} from "@/lib/Types"

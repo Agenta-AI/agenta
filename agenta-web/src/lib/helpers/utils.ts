@@ -86,3 +86,5 @@ export const downloadCsv = (csvContent: string, filename: string): void => {
     link.click()
     document.body.removeChild(link)
 }
+
+export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))

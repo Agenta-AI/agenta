@@ -1,37 +1,25 @@
 import {useState, useEffect} from "react"
 import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
-import {
-    Input,
-    Modal,
-    ConfigProvider,
-    theme,
-    Spin,
-    Card,
-    Button,
-    notification,
-    Divider,
-    Typography,
-} from "antd"
+import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, AppTemplate, TemplateImage, GenericObject} from "@/lib/Types"
+import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {fetchApps, getTemplates, pullTemplateImage, startTemplate} from "@/lib/services/api"
+import {createAndStartTemplate, fetchApps, getTemplates} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
+import {getErrorMessage} from "@/lib/helpers/errorHandler"
 
 type StyleProps = {
     themeMode: "dark" | "light"
 }
-
-const {Title} = Typography
 
 const useStyles = createUseStyles({
     container: ({themeMode}: StyleProps) => ({
@@ -156,18 +144,6 @@ const AppSelector: React.FC = () => {
         setTemplateName(undefined)
     }
 
-    const handleNavigation = () => {
-        notification.success({
-            message: "Template Selection",
-            description:
-                "Once your app is up and running, you'll be redirected to the app playground.",
-            duration: 9,
-        })
-        setTimeout(() => {
-            router.push(`/apps/${newApp}/playground`)
-        }, 10000)
-    }
-
     useEffect(() => {
         const fetchTemplates = async () => {
             const data = await getTemplates()
@@ -181,126 +157,122 @@ const AppSelector: React.FC = () => {
         fetchTemplates()
     }, [])
 
-    const fetchTemplateImage = async (image_name: string) => {
-        const response = await pullTemplateImage(image_name)
-        return response
-    }
-
-    const retrieveOpenAIKey = () => {
-        const apiKey = localStorage.getItem("openAiToken")
-        return apiKey
-    }
-
-    const createAppVariantFromTemplateImage = async (
-        app_name: string,
-        image_id: string,
-        image_tag: string,
-        api_key: string,
-    ) => {
-        const variantData: AppTemplate = {
-            app_name: app_name,
-            image_id: image_id,
-            image_tag: image_tag,
-        }
-        if (!isDemo) {
-            variantData["env_vars"] = {
-                OPENAI_API_KEY: api_key,
-            }
-        } else {
-            variantData["env_vars"] = {
-                OPENAI_API_KEY: "",
-            }
-        }
-
-        try {
-            const response = await startTemplate(variantData)
-            if (response.status == 200) {
-                notification.success({
-                    message: "Template Selection",
-                    description: "App has been created and will begin to run.",
-                    duration: 5,
-                })
-                return true
-            }
-        } catch (error: any) {
-            if (error.response.status === 400) {
-                notification.error({
-                    message: "Template Selection",
-                    description: `${error.response.data.detail}`,
-                    duration: 5,
-                    btn: (
-                        <Button>
-                            <a
-                                target="_blank"
-                                href="https://github.com/Agenta-AI/agenta/issues/new?assignees=&labels=demo&projects=&template=bug_report.md&title="
-                            >
-                                File Issue
-                            </a>
-                        </Button>
-                    ),
-                })
-                setFetchingTemplate(false)
-                return false
-            } else {
-                notification.error({
-                    message: "Template Selection",
-                    description: "An error occured when trying to start the variant.",
-                    duration: 5,
-                })
-                setFetchingTemplate(false)
-                return false
-            }
-        }
-    }
-
     const handleTemplateCardClick = async (image_name: string) => {
         setFetchingTemplate(true)
 
-        const OpenAIKey = retrieveOpenAIKey() as string
-        if (OpenAIKey === null && !isDemo) {
+        // cleanup routine
+        const onFinish = () => {
+            setFetchingTemplate(false)
+            handleCreateAppFromTemplateModalCancel()
+            handleCreateAppModalCancel()
+            handleInputTemplateModalCancel()
+        }
+
+        // warn the user and redirect if openAI key is not present
+        const openAIKey = localStorage.getItem("openAiToken")
+        if (!openAIKey && !isDemo) {
             notification.error({
                 message: "OpenAI API Key Missing",
                 description: "Please provide your OpenAI API key to access this feature.",
                 duration: 5,
             })
+            onFinish()
             router.push("/apikeys")
             return
         }
 
-        notification.info({
-            message: "Template Selection",
-            description: "Fetching template image...",
-            duration: 10,
-        })
-
-        const data: TemplateImage = await fetchTemplateImage(image_name)
-        if (data.message) {
-            notification.error({
-                message: "Template Selection",
-                description: `${data.message}!`,
-                duration: 10,
-            })
-            setFetchingTemplate(false)
-        } else {
-            notification.info({
-                message: "Template Section",
-                description: "Creating variant from template image...",
-                duration: 15,
-            })
-            const status = await createAppVariantFromTemplateImage(
-                newApp,
-                data.image_id,
-                data.image_tag,
-                OpenAIKey,
-            )
-            if (status) {
-                handleCreateAppFromTemplateModalCancel()
-                handleCreateAppModalCancel()
-                handleNavigation()
-            } else if (!status) {
-                handleInputTemplateModalCancel()
-            }
+        let prevKey = ""
+        const showNotification = (config: Parameters<typeof notification.open>[0]) => {
+            if (prevKey) notification.destroy(prevKey)
+            prevKey = (config.key || "") as string
+            notification.open(config)
         }
+
+        // attempt to create and start the template, notify user of the progress
+        await createAndStartTemplate({
+            appName: newApp,
+            imageName: image_name,
+            openAIKey: isDemo ? "" : (openAIKey as string),
+            onStatusChange: (status, details) => {
+                const title = "Template Selection"
+                switch (status) {
+                    case "fetching_image":
+                        showNotification({
+                            type: "info",
+                            message: title,
+                            description: "Fetching template image...",
+                            key: status,
+                        })
+                        break
+                    case "creating_app":
+                        showNotification({
+                            type: "info",
+                            message: title,
+                            description: "Creating variant from template image...",
+                            key: status,
+                        })
+                        break
+                    case "starting_app":
+                        showNotification({
+                            type: "info",
+                            message: title,
+                            description: "Waiting for the app to start...",
+                            key: status,
+                        })
+                        break
+                    case "success":
+                        showNotification({
+                            type: "success",
+                            message: title,
+                            description:
+                                "App has been started! Redirecting to the variant playground.",
+                            key: status,
+                        })
+                        onFinish()
+                        router.push(`/apps/${newApp}/playground`)
+                        break
+                    case "bad_request":
+                        showNotification({
+                            type: "error",
+                            message: title,
+                            description: getErrorMessage(details),
+                            duration: 5,
+                            btn: (
+                                <Button>
+                                    <a
+                                        target="_blank"
+                                        href="https://github.com/Agenta-AI/agenta/issues/new?assignees=&labels=demo&projects=&template=bug_report.md&title="
+                                    >
+                                        File Issue
+                                    </a>
+                                </Button>
+                            ),
+                            key: status,
+                        })
+                        onFinish()
+                        break
+                    case "timeout":
+                        showNotification({
+                            type: "error",
+                            message: title,
+                            description:
+                                "The app took too long to start. Please refresh this page after some delay to see the new app",
+                            key: status,
+                        })
+                        onFinish()
+                        break
+                    case "error":
+                        showNotification({
+                            type: "error",
+                            message: title,
+                            description: getErrorMessage(details),
+                            key: status,
+                        })
+                        onFinish()
+                        break
+                }
+            },
+        })
     }
 
     const {data, error, isLoading} = fetchApps()
