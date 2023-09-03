@@ -1,5 +1,5 @@
-import React from "react"
-import {Breadcrumb, ConfigProvider, Layout, Space, theme} from "antd"
+import React, {useEffect, useState} from "react"
+import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
@@ -35,9 +35,36 @@ const useStyles = createUseStyles({
         marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
         flex: 1,
     }),
+    breadcrumbContainer: {
+        justifyContent: "space-between",
+        width: "100%",
+    },
     breadcrumb: {
         padding: "24px 0",
     },
+    star: ({themeMode}: StyleProps) => ({
+        display: "flex",
+        alignItems: "center",
+        padding: 0,
+        height: 30,
+        marginRight: 30,
+        borderWidth: 2,
+        borderColor: themeMode === "dark" ? "#333" : "#dfdfdf",
+        "& div:nth-of-type(1)": {
+            display: "flex",
+            alignItems: "center",
+            height: "100%",
+            width: "100%",
+            gap: 8,
+            padding: "0 10px",
+            background: themeMode === "dark" ? "#333" : "#dfdfdf",
+            borderTopLeftRadius: 3,
+            borderBottomLeftRadius: 3,
+        },
+        "& div:nth-of-type(2)": {
+            padding: "0 15px",
+        },
+    }),
     footer: {
         position: "absolute",
         bottom: 0,
@@ -81,13 +108,25 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     <Layout hasSider className={classes.layout}>
                         <Sidebar />
                         <Content className={classes.content}>
-                            <Breadcrumb
-                                className={classes.breadcrumb}
-                                items={[
-                                    {title: <Link href="/apps">Apps</Link>},
-                                    {title: capitalizedAppName},
-                                ]}
-                            />
+                            <Space className={classes.breadcrumbContainer}>
+                                <Breadcrumb
+                                    className={classes.breadcrumb}
+                                    items={[
+                                        {title: <Link href="/apps">Apps</Link>},
+                                        {title: capitalizedAppName},
+                                    ]}
+                                />
+                                <Button
+                                    className={classes.star}
+                                    href="https://github.com/Agenta-AI/agenta"
+                                >
+                                    <div>
+                                        <GithubFilled style={{fontSize: 18}} />
+                                        <p>Star</p>
+                                    </div>
+                                    <div>0</div>
+                                </Button>
+                            </Space>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                 {children}
                             </ErrorBoundary>
