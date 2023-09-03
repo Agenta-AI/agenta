@@ -120,7 +120,7 @@ const ViewNavigation: React.FC<Props> = ({
                     <div>
                         <p>
                             Error connecting to the variant {variant.variantName}.{" "}
-                            {(error?.response?.status === 404 && (
+                            {(axios.isAxiosError(error) && error.response?.status === 404 && (
                                 <span>Container is not running.</span>
                             )) || <span>{error.message}</span>}
                         </p>
