@@ -116,6 +116,30 @@ def start_container(
             raise Exception(f"Docker Logs: {logs}") from error
         except Exception as e:
             return f"Failed to fetch logs: {str(e)} \n Exception Error: {str(error)}"
+        
+    
+def restart_container(container_id: str):
+    """Restarts a container based on its id
+    
+    Arguments:
+        container_id -- the docker container id
+    """
+    try:
+        logger.info(f"Restarting container with id: {container_id}")
+        
+        # Find the container and network by name and id
+        container = client.containers.get(container_id)
+        network = client.networks.get("agenta-network")
+        
+        # Connect and restart container
+        network.connect(container)
+        container.restart()
+        
+        logger.info(f"Restarted container with id: {container_id}")
+    except (docker.errors.APIError, Exception) as ex:
+        print("Err type ---> ", ex)
+        logger.error(f"Error restarting container with id: {container.id}. Error: {str(ex)}")
+        raise RuntimeError(f"Error starting container with id: {container.id}") from ex
 
 
 def stop_containers_based_on_image(image: Image) -> List[str]:
