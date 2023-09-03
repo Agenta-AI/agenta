@@ -10,7 +10,8 @@ from fastapi import UploadFile, APIRouter, Depends
 from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
-from agenta_backend.models.api.api_models import Image, Template, URI
+from agenta_backend.services.docker_utils import restart_container
+from agenta_backend.models.api.api_models import Image, RestartAppContainer, Template, URI
 from agenta_backend.services.db_manager import get_templates, get_user_object
 from agenta_backend.services.container_manager import (
     build_image_job,
@@ -83,12 +84,44 @@ async def build_image(
     future = loop.run_in_executor(
         thread_pool,
         build_image_job,
-        *(app_name, variant_name, str(user.id), tar_path, image_name, temp_dir),
+        *(
+            app_name,
+            variant_name,
+            str(user.id),
+            tar_path,
+            image_name,
+            temp_dir,
+        ),
     )
 
     # Return immediately while the image build is in progress
     image_result = await asyncio.wrap_future(future)
     return image_result
+
+
+@router.post("/restart_container/")
+async def restart_docker_container(
+    payload: RestartAppContainer,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> dict:
+    """Restart docker container.
+
+    Args:
+        payload (RestartAppContainer) -- the required data (app_name and variant_name)
+    """
+    
+    # Get user and org id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    try:
+        container_id = f"{payload.app_name}-{payload.variant_name}-{str(user.id)}"
+        restart_container(container_id)
+        return {"message": "Please wait a moment. The container is now restarting."}
+    except Exception as ex:
+        return JSONResponse({"message": str(ex)}, status_code=500)
 
 
 @router.get("/templates/")
@@ -137,7 +170,9 @@ async def pull_image(
     image_id = await get_image_details_from_docker_hub(
         repo_owner, repo_name, image_tag_name
     )
-    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
+    return JSONResponse(
+        {"image_tag": image_tag_name, "image_id": image_id}, 200
+    )
 
 
 @router.get("/container_url/")
