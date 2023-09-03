@@ -11,7 +11,12 @@ from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
 from agenta_backend.services.docker_utils import restart_container
-from agenta_backend.models.api.api_models import Image, RestartAppContainer, Template, URI
+from agenta_backend.models.api.api_models import (
+    Image,
+    RestartAppContainer,
+    Template,
+    URI,
+)
 from agenta_backend.services.db_manager import get_templates, get_user_object
 from agenta_backend.services.container_manager import (
     build_image_job,
@@ -109,7 +114,7 @@ async def restart_docker_container(
     Args:
         payload (RestartAppContainer) -- the required data (app_name and variant_name)
     """
-    
+
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
@@ -170,9 +175,7 @@ async def pull_image(
     image_id = await get_image_details_from_docker_hub(
         repo_owner, repo_name, image_tag_name
     )
-    return JSONResponse(
-        {"image_tag": image_tag_name, "image_id": image_id}, 200
-    )
+    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
 
 
 @router.get("/container_url/")
