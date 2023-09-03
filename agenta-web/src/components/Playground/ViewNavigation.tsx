@@ -6,6 +6,7 @@ import {useVariant} from "@/lib/hooks/useVariant"
 import {RestartVariantDocker, RestartVariantDockerErrResponse, Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
+import axios from "axios"
 import {createUseStyles} from "react-jss"
 import {getAppContainerURL, restartAppVariantContainer} from "@/lib/services/api"
 
@@ -21,6 +22,9 @@ const useStyles = createUseStyles({
     row: {
         marginTop: "20px",
     },
+    restartBtnMargin: {
+        marginRight: "10px"
+    }
 })
 
 const ViewNavigation: React.FC<Props> = ({
@@ -102,7 +106,7 @@ const ViewNavigation: React.FC<Props> = ({
                     }, 3000)
                 }
             } catch (err: any) {
-                if (err?.response.status === 500) {
+                if (axios.isAxiosError(err) && err.response?.status === 500) {
                     // Set restarting to flase
                     setRestarting(false)
                 }
@@ -151,7 +155,7 @@ const ViewNavigation: React.FC<Props> = ({
                             }}
                             disabled={restarting}
                             loading={restarting}
-                            style={{marginRight: "10px"}}
+                            className={classes.restartBtnMargin}
                         >
                             <Tooltip placement="bottom" title="Restart the variant container">
                                 Restart Container
