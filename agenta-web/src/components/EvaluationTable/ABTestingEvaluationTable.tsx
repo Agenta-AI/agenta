@@ -2,7 +2,12 @@ import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {Button, Input, Space, Spin, Table, Typography, message} from "antd"
-import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
+import {
+    updateEvaluationScenario,
+    callVariant,
+    fetchEvaluationResults,
+    updateEvaluation,
+} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -89,6 +94,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     const variantData = useVariants(appName, variants)
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
+    const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
+    const [evaluationResults, setEvaluationResults] = useState<any>(null)
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -105,6 +112,18 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         newRows[rowIndex].inputs[inputFieldKey].input_value = e.target.value
         setRows(newRows)
     }
+
+    useEffect(() => {
+        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
+            fetchEvaluationResults(evaluation.id)
+                .then((data) => setEvaluationResults(data))
+                .catch((err) => console.error("Failed to fetch results:", err))
+                .then(() => {
+                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
+                })
+                .catch((err) => console.error("Failed to fetch results:", err))
+        }
+    }, [evaluationStatus, evaluation.id])
 
     const handleVoteClick = (rowIndex: number, vote: string) => {
         const evaluation_scenario_id = rows[rowIndex].id
@@ -140,6 +159,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     }
 
     const runAllEvaluations = async () => {
+        setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
         const promises: Promise<void>[] = []
 
         for (let i = 0; i < rows.length; i++) {
@@ -149,6 +169,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         Promise.all(promises)
             .then(() => {
                 console.log("All functions finished.")
+                setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
             })
             .catch((err) => console.error("An error occurred:", err))
     }
