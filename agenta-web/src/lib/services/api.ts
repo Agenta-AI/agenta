@@ -49,10 +49,9 @@ export async function fetchVariants(
     return []
 }
 
-
 export async function restartAppVariantContainer(data: RestartVariantDocker) {
     try {
-        const response:RestartVariantDockerResponse = await axios.post(
+        const response: RestartVariantDockerResponse = await axios.post(
             `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/restart_container/`,
             data,
         )
