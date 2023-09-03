@@ -284,7 +284,7 @@ export default function Evaluations() {
         if (selectedTestset === undefined || selectedTestset.name === "Select a testSet") {
             message.error("Please select a Testset")
             return
-        } else if (selectedVariants[0].variantName === "Select a variant") {
+        } else if (selectedVariants.some((variant) => variant.variantName === "Select a variant")) {
             message.error("Please select a variant")
             return
         } else if (selectedEvaluationType === "Select an evaluation type") {
