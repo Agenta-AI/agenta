@@ -143,7 +143,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         const promises: Promise<void>[] = []
 
         for (let i = 0; i < rows.length; i++) {
-            promises.push(runEvaluation(i))
+            promises.push(runEvaluation(i, rows.length - 1))
         }
 
         Promise.all(promises)
@@ -153,7 +153,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             .catch((err) => console.error("An error occurred:", err))
     }
 
-    const runEvaluation = async (rowIndex: number) => {
+    const runEvaluation = async (rowIndex: number, count: number = 1) => {
         const inputParamsDict = rows[rowIndex].inputs.reduce((acc: {[key: string]: any}, item) => {
             acc[item.input_name] = item.input_value
             return acc
@@ -171,8 +171,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 )
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
-                if (rowIndex === rows.length - 1) {
-                    message.success("Evaluation Results Saved")
+                if (idx === columnsDataNames.length - 1) {
+                    if (count === 1 || count === rowIndex) {
+                        message.success("Evaluation Results Saved")
+                    }
                 }
             } catch (e) {
                 setRowValue(rowIndex, columnName, "")
