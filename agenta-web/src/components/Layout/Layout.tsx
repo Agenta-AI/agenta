@@ -95,6 +95,16 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
+    const [starCount, setStarCount] = useState(0)
+
+    useEffect(() => {
+        fetch("https://api.github.com/repos/Agenta-AI/agenta")
+            .then((resp) => resp.json())
+            .then((data) => {
+                setStarCount(data.stargazers_count)
+            })
+            .catch((err) => console.log(err))
+    }, [])
 
     return (
         <NoSSRWrapper>
@@ -124,7 +134,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                         <GithubFilled style={{fontSize: 18}} />
                                         <p>Star</p>
                                     </div>
-                                    <div>0</div>
+                                    <div>{starCount}</div>
                                 </Button>
                             </Space>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
