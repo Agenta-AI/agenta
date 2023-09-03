@@ -239,7 +239,7 @@ export default function AutomaticEvaluationResult() {
             dataIndex: "action",
             key: "action",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                let actionText = "Open evaluation"
+                let actionText = "View evaluation"
                 if (record.status !== EvaluationFlow.EVALUATION_FINISHED) {
                     actionText = "Continue evaluation"
                 }
