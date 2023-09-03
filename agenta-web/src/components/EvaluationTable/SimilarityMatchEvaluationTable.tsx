@@ -2,7 +2,12 @@ import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {LineChartOutlined} from "@ant-design/icons"
 import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, message} from "antd"
-import {updateEvaluationScenario, callVariant, updateEvaluation, fetchEvaluationResults} from "@/lib/services/api"
+import {
+    updateEvaluationScenario,
+    callVariant,
+    updateEvaluation,
+    fetchEvaluationResults,
+} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
