@@ -23,8 +23,8 @@ const useStyles = createUseStyles({
         marginTop: "20px",
     },
     restartBtnMargin: {
-        marginRight: "10px"
-    }
+        marginRight: "10px",
+    },
 })
 
 const ViewNavigation: React.FC<Props> = ({
