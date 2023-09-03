@@ -11,6 +11,7 @@ import {createUseStyles} from "react-jss"
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
+import {fetchData} from "@/lib/services/api"
 
 const {Content, Footer} = Layout
 
@@ -98,12 +99,16 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const [starCount, setStarCount] = useState(0)
 
     useEffect(() => {
-        fetch("https://api.github.com/repos/Agenta-AI/agenta")
-            .then((resp) => resp.json())
-            .then((data) => {
-                setStarCount(data.stargazers_count)
-            })
-            .catch((err) => console.log(err))
+        const githubRepo = async () => {
+            try {
+                fetchData("https://api.github.com/repos/Agenta-AI/agenta").then((resp) => {
+                    setStarCount(resp.stargazers_count)
+                })
+            } catch (error) {
+                console.log(error)
+            }
+        }
+        githubRepo()
     }, [])
 
     return (
@@ -134,7 +139,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                         <GithubFilled style={{fontSize: 18}} />
                                         <p>Star</p>
                                     </div>
-                                    <div>{starCount}</div>
+                                    <div>{starCount || 0}</div>
                                 </Button>
                             </Space>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
