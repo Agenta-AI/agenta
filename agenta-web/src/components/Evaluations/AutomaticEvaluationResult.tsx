@@ -239,10 +239,14 @@ export default function AutomaticEvaluationResult() {
             dataIndex: "action",
             key: "action",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                let actionText = "Open evaluation"
+                if (record.status !== EvaluationFlow.EVALUATION_FINISHED) {
+                    actionText = "Continue evaluation"
+                }
                 return (
                     <div className="hover-button-wrapper">
                         <Button type="primary" onClick={() => onCompleteEvaluation(record)}>
-                            View evaluation
+                            {actionText}
                         </Button>
                     </div>
                 )
