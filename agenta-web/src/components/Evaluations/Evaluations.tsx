@@ -289,7 +289,7 @@ export default function Evaluations() {
             return
         } else if (
             EvaluationType.human_a_b_testing &&
-            selectedVariants[1].variantName === "Select a variant"
+            selectedVariants[1]?.variantName === "Select a variant"
         ) {
             message.error("Please select a second variant")
             return
