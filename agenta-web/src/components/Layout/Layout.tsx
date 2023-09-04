@@ -110,6 +110,16 @@ const App: React.FC<LayoutProps> = ({children}) => {
         githubRepo()
     }, [])
 
+    useEffect(() => {
+        const body = document.body
+        body.classList.remove("dark-mode", "light-mode")
+        if (appTheme === "dark") {
+            body.classList.add("dark-mode")
+        } else {
+            body.classList.add("light-mode")
+        }
+    }, [appTheme])
+
     return (
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
