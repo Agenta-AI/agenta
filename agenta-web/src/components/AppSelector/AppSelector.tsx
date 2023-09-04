@@ -23,7 +23,6 @@ type StyleProps = {
 
 const useStyles = createUseStyles({
     container: ({themeMode}: StyleProps) => ({
-        maxWidth: "1450px",
         marginTop: 10,
         width: "100%",
         color: themeMode === "dark" ? "#fff" : "#000",
