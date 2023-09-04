@@ -48,7 +48,6 @@ const useStyles = createUseStyles({
         alignItems: "center",
         padding: 0,
         height: 30,
-        marginRight: 30,
         borderWidth: 2,
         borderColor: themeMode === "dark" ? "#333" : "#dfdfdf",
         "& div:nth-of-type(1)": {
