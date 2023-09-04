@@ -11,7 +11,7 @@ import {
     DashboardOutlined,
     LockOutlined,
 } from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme} from "antd"
+import {Layout, Menu, Space, Tooltip, theme, Dropdown} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
@@ -20,8 +20,14 @@ import {ErrorBoundary} from "react-error-boundary"
 import {createUseStyles} from "react-jss"
 
 type StyleProps = {
-    themeMode: "dark" | "light"
+    themeMode: "system" | "dark" | "light"
     colorBgContainer: string
+}
+
+type MenuItem = {
+    key: string
+    label?: string
+    onClick: () => void
 }
 
 const {Sider} = Layout
@@ -93,6 +99,35 @@ const Sidebar: React.FC = () => {
         initialSelectedKeys = ["apps"]
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
+    const [themeKey, setTheme] = useState(0)
+
+    const items: MenuItem[] = [
+        {
+            key: "0",
+            label: "System",
+            onClick: () => {
+                setTheme(0)
+                toggleAppTheme("system")
+            },
+        },
+        {
+            key: "1",
+            label: "Dark Mode",
+            onClick: () => {
+                setTheme(1)
+                toggleAppTheme("dark")
+            },
+        },
+
+        {
+            key: "2",
+            label: "Light Mode",
+            onClick: () => {
+                setTheme(2)
+                toggleAppTheme("light")
+            },
+        },
+    ] as any[]
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
@@ -257,13 +292,15 @@ const Sidebar: React.FC = () => {
                                     </Link>
                                 </Menu.Item>
                             </Tooltip>
-                            <Menu.Item
-                                key="theme"
-                                icon={<DashboardOutlined />}
-                                onClick={toggleAppTheme}
-                            >
-                                <span>{appTheme === "light" ? "Dark mode" : "Light mode"}</span>
+
+                            <Menu.Item key="theme" icon={<DashboardOutlined />}>
+                                <Dropdown menu={{items}} trigger={["click"]}>
+                                    <Space>
+                                        <span>Theme: {items[themeKey]?.label}</span>
+                                    </Space>
+                                </Dropdown>
                             </Menu.Item>
+
                             <Menu.Item key="help" icon={<QuestionOutlined />}>
                                 <Link href="https://docs.agenta.ai" target="_blank">
                                     Help
