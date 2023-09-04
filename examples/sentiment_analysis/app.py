@@ -5,6 +5,7 @@ from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 
 default_prompt = "Categorise the sentiment of this text: {text}"
 
+
 @ag.post
 def generate(
     text: str,
@@ -21,7 +22,7 @@ def generate(
         ResponseSchema(name=category_name, description=category_description),
         ResponseSchema(name=degree_name, description=degree_description),
     ]
-    
+
     output_parser = StructuredOutputParser.from_response_schemas(response_schemas)
     format_instructions = output_parser.get_format_instructions()
 
