@@ -2,10 +2,10 @@ import {PropsWithChildren, createContext, useState, useContext, useEffect} from 
 
 export const ThemeContext = createContext<{
     appTheme: string
-    toggleAppTheme: () => void
+    toggleAppTheme: (themeName: string) => void
 }>({
     appTheme: "light",
-    toggleAppTheme: () => {},
+    toggleAppTheme: (themeName) => {},
 })
 
 export const useAppTheme = () => useContext(ThemeContext)
@@ -26,12 +26,20 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         if (appTheme) localStorage.setItem("agenta-theme", appTheme)
     }, [appTheme])
 
-    const toggleAppTheme = () => {
-        setAppTheme((prevTheme) => (prevTheme === "dark" ? "light" : "dark"))
+    const toggleAppTheme = (themeName: string) => {
+        if (themeName === "system") {
+            setAppTheme(getDeviceTheme())
+        } else {
+            setAppTheme(themeName)
+        }
     }
-
     return (
-        <ThemeContext.Provider value={{appTheme: appTheme || "light", toggleAppTheme}}>
+        <ThemeContext.Provider
+            value={{
+                appTheme: appTheme || "light",
+                toggleAppTheme,
+            }}
+        >
             {children}
         </ThemeContext.Provider>
     )
