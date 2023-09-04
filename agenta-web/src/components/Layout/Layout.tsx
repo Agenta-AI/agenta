@@ -1,5 +1,5 @@
-import React from "react"
-import {Breadcrumb, ConfigProvider, Layout, Space, theme} from "antd"
+import React, {useEffect, useState} from "react"
+import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
@@ -95,6 +95,30 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
+    const [starCount, setStarCount] = useState(0)
+
+    useEffect(() => {
+        const githubRepo = async () => {
+            try {
+                fetchData("https://api.github.com/repos/Agenta-AI/agenta").then((resp) => {
+                    setStarCount(resp.stargazers_count)
+                })
+            } catch (error) {
+                console.log(error)
+            }
+        }
+        githubRepo()
+    }, [])
+
+    useEffect(() => {
+        const body = document.body
+        body.classList.remove("dark-mode", "light-mode")
+        if (appTheme === "dark") {
+            body.classList.add("dark-mode")
+        } else {
+            body.classList.add("light-mode")
+        }
+    }, [appTheme])
 
     return (
         <NoSSRWrapper>
