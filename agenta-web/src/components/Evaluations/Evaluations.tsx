@@ -287,12 +287,13 @@ export default function Evaluations() {
         } else if (selectedVariants[0].variantName === "Select a variant") {
             message.error("Please select a variant")
             return
-        }
-        else if (EvaluationType.human_a_b_testing && selectedVariants[1].variantName === "Select a variant") {
+        } else if (
+            EvaluationType.human_a_b_testing &&
+            selectedVariants[1].variantName === "Select a variant"
+        ) {
             message.error("Please select a second variant")
-        return
-        }
-        else if (selectedEvaluationType === "Select an evaluation type") {
+            return
+        } else if (selectedEvaluationType === "Select an evaluation type") {
             message.error("Please select an evaluation type")
             return
         } else if (selectedTestset?.name === "Select a Test set") {
