@@ -221,7 +221,7 @@ Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-s
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-17-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-18-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -253,6 +253,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/RamchandraWarang9822"><img src="https://avatars.githubusercontent.com/u/92023869?v=4?s=100" width="100px;" alt="Ramchandra Warang"/><br /><sub><b>Ramchandra Warang</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=RamchandraWarang9822" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/issues?q=author%3ARamchandraWarang9822" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/lazyfuhrer"><img src="https://avatars.githubusercontent.com/u/64888892?v=4?s=100" width="100px;" alt="Biswarghya Biswas"/><br /><sub><b>Biswarghya Biswas</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=lazyfuhrer" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/okieLoki"><img src="https://avatars.githubusercontent.com/u/96105929?v=4?s=100" width="100px;" alt="Uddeepta Raaj Kashyap"/><br /><sub><b>Uddeepta Raaj Kashyap</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=okieLoki" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://www.linkedin.com/in/nayeem-abdullah-317098141"><img src="https://avatars.githubusercontent.com/u/32274108?v=4?s=100" width="100px;" alt="Nayeem Abdullah"/><br /><sub><b>Nayeem Abdullah</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=nayeem01" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
