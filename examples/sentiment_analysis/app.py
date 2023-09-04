@@ -37,4 +37,4 @@ def generate(
     _input = prompt.format_prompt(text=text)
     output = llm(_input.to_messages())
 
-    return output_parser.parse(output.content)
+    return str(output_parser.parse(output.content))
