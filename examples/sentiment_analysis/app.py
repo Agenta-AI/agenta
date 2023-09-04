@@ -13,22 +13,27 @@ def generate(
     prompt_template: ag.TextParam = default_prompt,
 ) -> str:
     llm = ChatOpenAI(temperature=temperature)
-    
+
     response_schemas = [
         ResponseSchema(name="category", description="name of sentiment category"),
-        ResponseSchema(name="degree", description="percentage of how much this sentiment is predicted to be of in this category")
+        ResponseSchema(
+            name="degree",
+            description="percentage of how much this sentiment is predicted to be of in this category",
+        ),
     ]
     output_parser = StructuredOutputParser.from_response_schemas(response_schemas)
     format_instructions = output_parser.get_format_instructions()
-    
+
     prompt = ChatPromptTemplate(
         messages=[
-            HumanMessagePromptTemplate.from_template(prompt_template + "\n{format_instructions}")  
+            HumanMessagePromptTemplate.from_template(
+                prompt_template + "\n{format_instructions}"
+            )
         ],
         input_variables=["text"],
-        partial_variables={"format_instructions": format_instructions}
+        partial_variables={"format_instructions": format_instructions},
     )
-    
+
     _input = prompt.format_prompt(text=text)
     output = llm(_input.to_messages())
 
