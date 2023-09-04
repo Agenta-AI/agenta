@@ -1,4 +1,5 @@
 import agenta as ag
+import openai
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.chains.openai_functions import create_structured_output_chain
@@ -10,19 +11,16 @@ default_prompt = """Create a valid JSON with the text: {text}"""
 def generate(
     text: str,
     temperature: ag.FloatParam = 0.9,
+    prompt_template: ag.TextParam = default_prompt,
 ) -> str:
-    llm = ChatOpenAI(model="gpt-3.5-turbo-0613", temperature=temperature)
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", "You are a world class algorithm for extracting information in structured formats."),
-            ("human", "Use the given format to extract information from the following input: {text}"),
-            ("human", "Tip: Make sure to answer in the correct format"),
-        ]
-    )
-    
-    prompt.format_messages(text=text)
+    messages = [
+        {
+            "role": "user",
+            "content": f"You are a world class algorithm for extracting information in structured formats. Extract information and create a valid JSON from the following input: {text}",
+        },
+    ]
 
-    json_schema = {
+    prompt = {
         "name": "extract_information",
         "description": "Extract information from user-provided text",
         "parameters": {
@@ -30,13 +28,17 @@ def generate(
             "properties": {
                 "text": {
                     "type": "string",
-                    "description": "The text to extract information from"
+                    "description": "The text to extract information from",
                 }
             },
-        }
+        },
     }
 
-    chain = create_structured_output_chain(json_schema, llm, prompt, verbose=True)
-    output = chain.run(text=text)
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo-0613",
+        messages=messages,
+        functions=[prompt],
+    )
 
+    output = response["choices"][0]["message"]["content"]
     return output
