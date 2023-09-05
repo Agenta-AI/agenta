@@ -57,13 +57,8 @@ services:
     volumes:
       - ./agenta-web/src:/app/src
       - ./agenta-web/public:/app/public
-      # - ./agenta-web/.env.development.local:/app/.env.development.local
     ports:
       - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME}
-      - NEXT_PUBLIC_FF=oss
     networks:
       - agenta-network
     labels:
