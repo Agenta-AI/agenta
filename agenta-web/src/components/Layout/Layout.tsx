@@ -1,5 +1,5 @@
-import React from "react"
-import {Breadcrumb, ConfigProvider, Layout, Space, theme} from "antd"
+import React, {useEffect, useState} from "react"
+import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
@@ -11,6 +11,7 @@ import {createUseStyles} from "react-jss"
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
+import {fetchData} from "@/lib/services/api"
 
 const {Content, Footer} = Layout
 
@@ -35,9 +36,35 @@ const useStyles = createUseStyles({
         marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
         flex: 1,
     }),
+    breadcrumbContainer: {
+        justifyContent: "space-between",
+        width: "100%",
+    },
     breadcrumb: {
         padding: "24px 0",
     },
+    star: ({themeMode}: StyleProps) => ({
+        display: "flex",
+        alignItems: "center",
+        padding: 0,
+        height: 30,
+        borderWidth: 2,
+        borderColor: themeMode === "dark" ? "#333" : "#dfdfdf",
+        "& div:nth-of-type(1)": {
+            display: "flex",
+            alignItems: "center",
+            height: "100%",
+            width: "100%",
+            gap: 8,
+            padding: "0 10px",
+            background: themeMode === "dark" ? "#333" : "#dfdfdf",
+            borderTopLeftRadius: 3,
+            borderBottomLeftRadius: 3,
+        },
+        "& div:nth-of-type(2)": {
+            padding: "0 15px",
+        },
+    }),
     footer: {
         position: "absolute",
         bottom: 0,
@@ -68,6 +95,30 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
+    const [starCount, setStarCount] = useState(0)
+
+    useEffect(() => {
+        const githubRepo = async () => {
+            try {
+                fetchData("https://api.github.com/repos/Agenta-AI/agenta").then((resp) => {
+                    setStarCount(resp.stargazers_count)
+                })
+            } catch (error) {
+                console.log(error)
+            }
+        }
+        githubRepo()
+    }, [])
+
+    useEffect(() => {
+        const body = document.body
+        body.classList.remove("dark-mode", "light-mode")
+        if (appTheme === "dark") {
+            body.classList.add("dark-mode")
+        } else {
+            body.classList.add("light-mode")
+        }
+    }, [appTheme])
 
     return (
         <NoSSRWrapper>
@@ -81,13 +132,25 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     <Layout hasSider className={classes.layout}>
                         <Sidebar />
                         <Content className={classes.content}>
-                            <Breadcrumb
-                                className={classes.breadcrumb}
-                                items={[
-                                    {title: <Link href="/apps">Apps</Link>},
-                                    {title: capitalizedAppName},
-                                ]}
-                            />
+                            <Space className={classes.breadcrumbContainer}>
+                                <Breadcrumb
+                                    className={classes.breadcrumb}
+                                    items={[
+                                        {title: <Link href="/apps">Apps</Link>},
+                                        {title: capitalizedAppName},
+                                    ]}
+                                />
+                                <Button
+                                    className={classes.star}
+                                    href="https://github.com/Agenta-AI/agenta"
+                                >
+                                    <div>
+                                        <GithubFilled style={{fontSize: 18}} />
+                                        <p>Star</p>
+                                    </div>
+                                    <div>{starCount || 0}</div>
+                                </Button>
+                            </Space>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                 {children}
                             </ErrorBoundary>
