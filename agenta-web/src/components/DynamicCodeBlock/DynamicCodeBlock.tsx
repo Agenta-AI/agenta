@@ -1,10 +1,11 @@
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import {MenuProps, Dropdown, Button, Space} from "antd"
 import {DownOutlined, ApiOutlined} from "@ant-design/icons"
-import {useState} from "react"
+import React, {useState} from "react"
 import {LanguageItem, Variant} from "@/lib/Types"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
+import CopyButton from "../CopyButton/CopyButton"
 
 interface DynamicCodeBlockProps {
     codeSnippets: {[key: string]: string}
@@ -110,14 +111,6 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
             onVariantChange?.(key)
         }
     }
-    const copyToClipboard = async (e: React.MouseEvent) => {
-        e.preventDefault()
-        try {
-            await navigator.clipboard.writeText(codeSnippets[selectedLanguage.displayName])
-        } catch (err) {
-            console.error("Failed to copy text to clipboard")
-        }
-    }
 
     const {Text, Title} = Typography
 
@@ -166,14 +159,13 @@ const DynamicCodeBlock: React.FC<DynamicCodeBlockProps> = ({
                             </Button>
                         </Dropdown>
                     )}
-                    <Button
+                    <CopyButton
+                        text="Copy"
                         type="primary"
-                        onClick={copyToClipboard}
                         size="small"
+                        target={codeSnippets[selectedLanguage.displayName]}
                         className={classes.copyBtn}
-                    >
-                        Copy
-                    </Button>
+                    />
                 </div>
             </div>
             {selectedLanguage && (

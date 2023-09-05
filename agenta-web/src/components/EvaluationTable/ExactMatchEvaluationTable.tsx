@@ -15,7 +15,12 @@ import {
     Typography,
     message,
 } from "antd"
-import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
+import {
+    updateEvaluationScenario,
+    callVariant,
+    fetchEvaluationResults,
+    updateEvaluation,
+} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -107,6 +112,8 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     const [wrongAnswers, setWrongAnswers] = useState<number>(0)
     const [correctAnswers, setCorrectAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
+    const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
+    const [evaluationResults, setEvaluationResults] = useState<any>(null)
 
     const {Title} = Typography
 
@@ -115,6 +122,18 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             setRows(evaluationScenarios)
         }
     }, [evaluationScenarios])
+
+    useEffect(() => {
+        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
+            fetchEvaluationResults(evaluation.id)
+                .then((data) => setEvaluationResults(data))
+                .catch((err) => console.error("Failed to fetch results:", err))
+                .then(() => {
+                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
+                })
+                .catch((err) => console.error("Failed to fetch results:", err))
+        }
+    }, [evaluationStatus, evaluation.id])
 
     useEffect(() => {
         if (correctAnswers + wrongAnswers > 0) {
@@ -145,6 +164,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     }
 
     const runAllEvaluations = async () => {
+        setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
         const promises: Promise<void>[] = []
 
         for (let i = 0; i < rows.length; i++) {
@@ -154,6 +174,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
         Promise.all(promises)
             .then(() => {
                 console.log("All functions finished.")
+                setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
             })
             .catch((err) => console.error("An error occurred:", err))
     }

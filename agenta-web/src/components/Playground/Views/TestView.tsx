@@ -9,6 +9,7 @@ import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {createUseStyles} from "react-jss"
+import CopyButton from "@/components/CopyButton/CopyButton"
 
 const useStylesBox = createUseStyles({
     card: {
@@ -51,6 +52,9 @@ const useStylesBox = createUseStyles({
             height: "100%",
             width: "100%",
         },
+    },
+    copyBtn: {
+        minWidth: "110px",
     },
 })
 
@@ -148,7 +152,14 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         disabled={loading}
                     >
                         Add to Test Set
-                    </Button>
+                    </Button>{" "}
+                    <CopyButton
+                        text="Copy result"
+                        target={result}
+                        disabled={result === "" || result === "Loading..."}
+                        shape="round"
+                        className={classes.copyBtn}
+                    />
                     <Button
                         type="primary"
                         shape="round"

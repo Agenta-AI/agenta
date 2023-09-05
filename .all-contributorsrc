@@ -123,7 +123,8 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/56418363?v=4",
       "profile": "https://github.com/devgenix",
       "contributions": [
-        "code"
+        "code",
+        "example"
       ]
     },
     {
@@ -168,6 +169,15 @@
       "name": "Uddeepta Raaj Kashyap",
       "avatar_url": "https://avatars.githubusercontent.com/u/96105929?v=4",
       "profile": "https://github.com/okieLoki",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "nayeem01",
+      "name": "Nayeem Abdullah",
+      "avatar_url": "https://avatars.githubusercontent.com/u/32274108?v=4",
+      "profile": "http://www.linkedin.com/in/nayeem-abdullah-317098141",
       "contributions": [
         "code"
       ]
