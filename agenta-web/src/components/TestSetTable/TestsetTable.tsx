@@ -148,7 +148,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     const appName = router.query.app_name?.toString() || ""
     const {testset_id} = router.query
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
-    const [loading, setLoading] = useState(false)
+    const [isChanged, setIsChanged] = useState(true)
     const [testsetName, setTestsetName] = useState("")
     const [rowData, setRowData] = useState<KeyValuePair[]>([])
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -186,7 +186,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
     })
 
     useUpdateEffect(() => {
-        if (!loading) {
+        if (!isChanged) {
             setUnSavedChanges(true)
         }
     }, [rowData, testsetName, columnDefs, inputValues])
@@ -203,18 +203,11 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
                 setRowData(separateRowData)
             }
-            setInputValues(
-                newColDefs.filter((col) => !!col.field).map((col) => col.field),
-                () => {
-                    setTimeout(() => {
-                        setLoading(false)
-                    }, 100)
-                },
-            )
+            setInputValues(newColDefs.filter((col) => !!col.field).map((col) => col.field))
         }
 
         if (mode === "edit" && testset_id) {
-            setLoading(true)
+            setIsChanged(true)
             loadTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
                 setRowData(data.csvdata)
@@ -225,7 +218,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 )
             })
         } else if (mode === "create" && appName) {
-            setLoading(true)
+            setIsChanged(true)
             ;(async () => {
                 const backendVariants = await fetchVariants(appName)
                 const variant =
@@ -317,6 +310,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             const values = [...inputValues]
             values[index] = event.target.value
             setScopedInputValues(values)
+            setIsChanged(false)
         }
 
         const onAddColumn = () => {
@@ -332,6 +326,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             setInputValues([...inputValues, newColumnName])
             setColumnDefs([...columnDefs, {field: newColumnName}, ADD_BUTTON_COL])
             setRowData(updatedRowData)
+            setIsChanged(false)
         }
 
         useEffect(() => {
@@ -422,6 +417,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
         setRowData([...rowData, newRow])
+        setIsChanged(false)
     }
 
     const onSaveData = async () => {
@@ -456,6 +452,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTestsetName(e.target.value)
+        setIsChanged(false)
     }
 
     const onDeleteRow = () => {
@@ -463,6 +460,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         const selectedData = selectedNodes.map((node: GenericObject) => node.data)
         const newrowData = rowData.filter((row) => !selectedData.includes(row))
         setRowData(newrowData)
+        setIsChanged(false)
     }
 
     const onDeleteColumn = (indexToDelete: number) => {
@@ -484,6 +482,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         setInputValues(newInputValues)
         setColumnDefs(newColumnDefs)
         setRowData(newRowData)
+        setIsChanged(false)
         if (gridRef.current) {
             gridRef.current.setColumnDefs(newColumnDefs)
         }
@@ -494,6 +493,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             params.data[params.colDef.field] = ""
         }
         setUnSavedChanges(true)
+        setIsChanged(false)
     }
 
     const {appTheme} = useAppTheme()
