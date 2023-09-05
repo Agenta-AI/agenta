@@ -10,6 +10,7 @@ title: Troubleshooting
     3. [Failure Running Serve](#failure-running-serve)
     4. [Web UI Errors](#web-ui-errors)
     5. [Gateway Error](#gateway-error)
+    6. [Internal Server Error](#internal-server-error)
 4. [Reporting Issues](#Reporting-Issues)
 
 ## Introduction
@@ -30,7 +31,7 @@ If an error message appears, this means the issue is in your code.
 If it works, then try serving the application
 
 ```bash
-agenta variant serve
+agenta variant serve --file_name <yourapp.py>
 ```
 
 If this does not work, then the issue is in the serving process.
@@ -134,6 +135,15 @@ docker volume rm VOLUME_NAME
 
 Once you have completed these steps, start the application again by running `docker compose up` and access the backend server by making requests to `http://localhost:8000`. 
 If the issue persists after following these troubleshooting steps, it's essential to investigate further into the Traefik configuration and the interaction between Traefik and the backend server.
+
+### Internal Server Error
+
+1. If you are running agenta locally, check the container log of the App. 
+If you are getting the error below in the docker container, check your code to make sure the ouptut you are returning is a string. 
+```bash
+    raise ValidationError(errors, field.type_)
+pydantic.error_wrappers.ValidationError: <unprintable ValidationError object>
+```
 
 ## Reporting Issues
 

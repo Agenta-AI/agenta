@@ -5,6 +5,14 @@ body {
     text-decoration: none;
 }
 
+.dark-mode {
+    background-color: #141414;
+}
+
+.light-mode {
+    background-color: #ffffff;
+}
+
 .evalautionContainer {
     margin-bottom: 200px;
 }
