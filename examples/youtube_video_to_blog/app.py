@@ -143,10 +143,10 @@ def generate_blog_post(video_title, video_description, transcript, map_template,
         )
         map_chain = LLMChain(llm=llm, prompt=map_prompt)
         
-        # Define StuffDocumentsChain
-        stuff_chain = StuffDocumentsChain(
-            llm_chain=map_chain, document_variable_name="transcripts"
-        )
+        # # Define StuffDocumentsChain
+        # stuff_chain = StuffDocumentsChain(
+        #     llm_chain=map_chain, document_variable_name="transcripts"
+        # )
 
         # text_splitter = RecursiveCharacterTextSplitter(chunk_size=5000, chunk_overlap=50)
         # chunks = text_splitter.create_documents([str(generated_transcript)])
@@ -196,13 +196,13 @@ def generate_blog_post(video_title, video_description, transcript, map_template,
             # The variable name in the llm_chain to put the documents in
             document_variable_name="transcripts",
             # Return the results of the map steps in the output
-            return_intermediate_steps=True,
+            return_intermediate_steps=False,
         )
 
         text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
             chunk_size=1000, chunk_overlap=0
         )
-        split_docs = text_splitter.split_documents(str(generated_transcript))
+        split_docs = text_splitter.create_documents(str(generated_transcript))
         
         generated_output = map_reduce_chain.run(split_docs)
         # return str(generated_output)
@@ -220,7 +220,7 @@ def generate_blog_post(video_title, video_description, transcript, map_template,
         
         return final_response
 
-    # # # replicate
-    # # if model.startswith("replicate"):
-            # pass # pass for now. 
+    # replicate
+    if model.startswith("replicate"):
+            pass # pass for now. 
     
