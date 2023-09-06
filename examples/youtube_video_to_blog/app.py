@@ -1,4 +1,4 @@
-import openai
+import re
 import agenta as ag
 from pytube import YouTube
 from langchain.llms import OpenAI
@@ -28,6 +28,12 @@ reduce_template = """The following is set of summaries:
     Answer:
 """
 
+final_template = """Create a blog post from the following video title: {video_title}, 
+video description: {video_description} 
+Transcript:{generated_transcript_summary}
+Blog Post:
+"""
+
 replicate_dict = {
     "replicate/llama-2-7b-chat": "a16z-infra/llama-2-7b-chat:4f0b260b6a13eb53a6b1891f089d57c08f41003ae79458be5011303d81a394dc",
     "replicate/llama-2-70b-chat": "replicate/llama-2-70b-chat:2c1608e18606fad2812020dc541930f2d0495ce32eee50074220b87300bc16e1",
@@ -50,10 +56,11 @@ def generate(
     prompt_template: ag.TextParam = default_prompt,
     map_template: ag.TextParam = map_template,
     reduce_template: ag.TextParam = reduce_template,
+    final_template: ag.TextParam = final_template,
     temperature: ag.FloatParam = 0.9,
     maximum_length: ag.IntParam = ag.IntParam(100, 0, 4000),
     model: ag.MultipleChoiceParam = ag.MultipleChoiceParam(
-        "gpt-3.5-turbo",
+        "gpt-3.5-turbo-16k-0613",
         OPENAI_CHOICES + list(replicate_dict.keys()),
     ),
 ) -> str:
@@ -66,6 +73,12 @@ def generate(
                 "tokens": maximum_length,
             }
 
+            input_templates = {
+                "final_template": final_template,
+                "map_template": map_template,
+                "reduce_template": reduce_template,
+            }
+
             transcript = fetch_video_transcript(youtube_url)
             video_title, video_description = extract_video_info(youtube_url)
 
@@ -73,8 +86,7 @@ def generate(
                 video_title,
                 video_description,
                 transcript,
-                map_template,
-                reduce_template,
+                input_templates,
                 model_parameters,
             )
 
@@ -90,6 +102,15 @@ def generate(
 def is_valid_youtube_url(youtube_url: str) -> bool:
     # Check if the URL is a valid YouTube video URL
     try:
+        # Add "https://" if it's missing
+        if not youtube_url.startswith("http"):
+            youtube_url = "https://" + youtube_url
+
+        # Check if it's a YouTube shorts link
+        if re.match(r"^https://(www\.)?youtube\.com/shorts/[\w-]+$", youtube_url):
+            # This is a YouTube shorts link, return an error
+            return False
+
         # Create a YouTube object
         yt = YouTube(youtube_url)
 
@@ -117,8 +138,7 @@ def extract_video_info(youtube_url):
         return video_title, video_description
 
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
-        return None, None
+        return e
 
 
 # Function to fetch the transcript of a YouTube video
@@ -133,15 +153,21 @@ def generate_blog_post(
     video_title,
     video_description,
     transcript,
-    map_template,
-    reduce_template,
+    input_templates,
     model_parameters,
 ):
+    # Model parameters
     model = model_parameters.get("model")
     temperature = model_parameters.get("temperature")
     prompt = model_parameters.get("prompt_template")
     model_tokens = model_parameters.get("tokens")
+
     generated_transcript = transcript
+
+    # Templates
+    map_template = input_templates.get("map_template")
+    reduce_template = input_templates.get("reduce_template")
+    final_template = input_templates.get("final_template")
 
     if model in OPENAI_CHOICES:
         llm = ChatOpenAI(
@@ -209,7 +235,6 @@ def generate_blog_post(
 
         # generated_output = map_reduce_chain.run(split_docs)
 
-        final_template = "Create a blog post from the following video title:\n {video_title} \n, video description:\n {video_description} \n\nTranscript:\n{generated_transcript_summary}\n\nBlog Post:"
         final_prompt = PromptTemplate(
             template=final_template,
             input_variables=[
