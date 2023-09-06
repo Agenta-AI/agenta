@@ -119,6 +119,10 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
                 )
             )
             client.update_variant_image(app_name, variant_name, image, host)
+
+            # Last step us to save the config file
+            toml.dump(config, config_file.open("w"))
+            
         else:
             click.echo(
                 click.style(f"Adding variant {variant_name} to server...", fg="yellow")
