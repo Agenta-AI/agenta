@@ -10,6 +10,11 @@ class AppVariant(BaseModel):
     previous_variant_name: Optional[str]
 
 
+class RestartAppContainer(BaseModel):
+    app_name: str
+    variant_name: str
+
+
 class Image(BaseModel):
     docker_id: str
     tags: str
