@@ -1,0 +1,7 @@
+langchain
+openai
+agenta
+pytube
+youtube_transcript_api
+youtube-dl
+replicate
