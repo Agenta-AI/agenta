@@ -12,6 +12,7 @@ COPY public ./public
 COPY next.config.js .
 COPY tsconfig.json .
 COPY postcss.config.js .
+COPY .env .
 
 # Build the Next.js app for production
 RUN npm run build
