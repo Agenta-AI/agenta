@@ -20,6 +20,26 @@ export interface Variant {
     previousVariantName?: null | string // name of the variant that was forked from. Only set in the case of forked variants
 }
 
+export interface RestartVariantDocker {
+    app_name: string
+    variant_name: string
+}
+
+export interface RestartVariantDockerResponse {
+    status: number
+    data: {
+        message: string
+    }
+}
+
+export interface RestartVariantDockerErrResponse {
+    response?: {
+        data?: {
+            detail: string
+        }
+    }
+}
+
 // Define the interface for the tabs item in playground page
 export interface PlaygroundTabsItem {
     key: string
