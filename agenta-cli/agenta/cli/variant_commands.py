@@ -122,16 +122,16 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
 
             # Last step us to save the config file
             toml.dump(config, config_file.open("w"))
-            
+
         else:
             click.echo(
                 click.style(f"Adding variant {variant_name} to server...", fg="yellow")
             )
             client.add_variant_to_server(app_name, variant_name, image, host)
-            
+
             # Last step us to save the config file
             toml.dump(config, config_file.open("w"))
-            
+
     except Exception as ex:
         if overwrite:
             click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
@@ -195,7 +195,7 @@ def start_variant(variant_name: str, app_folder: str, host: str):
         endpoint = client.start_variant(app_name, variant_name, host=host)
     except Exception as e:
         click.echo(click.style(f"Error while fetching uri: {e}", fg="red"))
-        
+
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style(f"Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -360,7 +360,11 @@ def serve_cli(app_folder: str, file_name: str):
         )
         click.echo(click.style(f"{error_msg}", fg="red"))
     except Exception as e:
-        click.echo(click.style(f"Failed to start container with LLM app: \n {str(e)}", fg="red"))
+        click.echo(
+            click.style(
+                f"Failed to start container with LLM app: \n {str(e)}", fg="red"
+            )
+        )
 
 
 @variant.command(name="list")
