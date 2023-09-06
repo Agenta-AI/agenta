@@ -1,13 +1,14 @@
-import React, {useEffect} from "react"
-import {Col, Row, Divider, Button, Tooltip, Spin} from "antd"
+import React from "react"
+import {Col, Row, Divider, Button, Tooltip, Spin, notification} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {Variant} from "@/lib/Types"
+import {RestartVariantDocker, Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
+import axios from "axios"
 import {createUseStyles} from "react-jss"
-import {getAppContainerURL} from "@/lib/services/api"
+import {getAppContainerURL, restartAppVariantContainer} from "@/lib/services/api"
 
 interface Props {
     variant: Variant
@@ -20,6 +21,9 @@ interface Props {
 const useStyles = createUseStyles({
     row: {
         marginTop: "20px",
+    },
+    restartBtnMargin: {
+        marginRight: "10px",
     },
 })
 
@@ -46,6 +50,14 @@ const ViewNavigation: React.FC<Props> = ({
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURIPath, setContainerURIPath] = useState("")
+    const [restarting, setRestarting] = useState<boolean>(false)
+
+    let prevKey = ""
+    const showNotification = (config: Parameters<typeof notification.open>[0]) => {
+        if (prevKey) notification.destroy(prevKey)
+        prevKey = (config.key || "") as string
+        notification.open(config)
+    }
 
     if (isError) {
         let variantDesignator = variant.templateVariantName
@@ -66,13 +78,51 @@ const ViewNavigation: React.FC<Props> = ({
             variantContainerPath()
         }
 
+        const restartContainerHandler = async () => {
+            // Set restarting to true
+            setRestarting(true)
+
+            // Set payload to send to backend
+            const data: RestartVariantDocker = {
+                app_name: appName.toLowerCase(),
+                variant_name: variant.variantName,
+            }
+            try {
+                const response = await restartAppVariantContainer(data)
+                if (response.status === 200) {
+                    showNotification({
+                        type: "success",
+                        message: "App Container",
+                        description: `${response.data.message}`,
+                        duration: 5,
+                        key: response.status,
+                    })
+
+                    // Set restarting to false
+                    setRestarting(false)
+                    setTimeout(() => {
+                        // Wait for 3s before reloading component
+                        router.reload()
+                    }, 3000)
+                }
+            } catch (err: any) {
+                if (axios.isAxiosError(err) && err.response?.status === 500) {
+                    // Set restarting to flase
+                    setRestarting(false)
+                }
+            }
+        }
+
         const apiAddress = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${containerURIPath}/openapi.json`
         return (
             <div>
                 {error ? (
                     <div>
                         <p>
-                            Error connecting to the variant {variant.variantName}. {error.message}
+                            Error connecting to the variant {variant.variantName}.{" "}
+                            {(axios.isAxiosError(error) && error.response?.status === 404 && (
+                                <span>Container is not running.</span>
+                            )) || <span>{error.message}</span>}
                         </p>
                         <p>To debug this issue, please follow the steps below:</p>
                         <ul>
@@ -97,6 +147,20 @@ const ViewNavigation: React.FC<Props> = ({
                             If the issue persists please file an issue in github here:
                             https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20ViewNavigation.tsx
                         </p>
+
+                        <Button
+                            type="primary"
+                            onClick={() => {
+                                restartContainerHandler()
+                            }}
+                            disabled={restarting}
+                            loading={restarting}
+                            className={classes.restartBtnMargin}
+                        >
+                            <Tooltip placement="bottom" title="Restart the variant container">
+                                Restart Container
+                            </Tooltip>
+                        </Button>
 
                         <Button
                             type="primary"
