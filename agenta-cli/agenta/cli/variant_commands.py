@@ -191,7 +191,11 @@ def start_variant(variant_name: str, app_folder: str, host: str):
             "Please choose a variant", choices=config["variants"]
         ).ask()
 
-    endpoint = client.start_variant(app_name, variant_name, host=host)
+    try:
+        endpoint = client.start_variant(app_name, variant_name, host=host)
+    except Exception as e:
+        click.echo(click.style(f"Error while fetching uri: {e}", fg="red"))
+        
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style(f"Your app has been deployed locally as an API. 🚀", fg="cyan")
