@@ -51,11 +51,11 @@ jobs:
           echo "No version change detected. Skipping package publication."
           exit 78
         fi
-        echo "::set-output name=version_bumped::true"
+        # echo "::set-output name=version_bumped::true"
       shell: bash
 
     - name: Build and publish agenta to PyPI
-      if: steps.version_check.outputs.version_bumped == 'true'
+      # if: steps.version_check.outputs.version_bumped == 'true'
       run: |
         # Navigate to the cli directory
         cd ${{ github.workspace }}
