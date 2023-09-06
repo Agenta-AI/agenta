@@ -124,6 +124,10 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
                 click.style(f"Adding variant {variant_name} to server...", fg="yellow")
             )
             client.add_variant_to_server(app_name, variant_name, image, host)
+            
+            # Last step us to save the config file
+            toml.dump(config, config_file.open("w"))
+            
     except Exception as ex:
         if overwrite:
             click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
@@ -144,8 +148,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
                 fg="green",
             )
         )
-    # Last step us to save the config file
-    toml.dump(config, config_file.open("w"))
+
     if overwrite:
         # In the case we are overwriting, don't return anything. Otherwise the command server would attempt to start the container which would result in an error!!!
         # TODO: Improve this stupid design
@@ -349,7 +352,7 @@ def serve_cli(app_folder: str, file_name: str):
         )
         click.echo(click.style(f"{error_msg}", fg="red"))
     except Exception as e:
-        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        click.echo(click.style(f"Failed to start container with LLM app: \n {str(e)}", fg="red"))
 
 
 @variant.command(name="list")
