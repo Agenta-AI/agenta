@@ -8,7 +8,7 @@ import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-import {getAppContainerURL, restartAppVariantContainer} from "@/lib/services/api"
+import {getAppContainerURL, restartAppVariantContainer, waitForAppToStart} from "@/lib/services/api"
 
 interface Props {
     variant: Variant
@@ -99,11 +99,9 @@ const ViewNavigation: React.FC<Props> = ({
                     })
 
                     // Set restarting to false
+                    await waitForAppToStart(appName)
+                    router.reload()
                     setRestarting(false)
-                    setTimeout(() => {
-                        // Wait for 3s before reloading component
-                        router.reload()
-                    }, 3000)
                 }
             } catch (err: any) {
                 if (axios.isAxiosError(err) && err.response?.status === 500) {
