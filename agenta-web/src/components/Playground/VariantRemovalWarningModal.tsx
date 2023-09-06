@@ -38,12 +38,6 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
         handleCloseModal()
     }
 
-    useEffect(() => {
-        if (variants.length < 1) {
-            router.push(`/apps`)
-        }
-    }, [variants])
-
     const handleDismiss = () => {
         handleCancel()
         handleCloseModal()
