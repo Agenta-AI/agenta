@@ -11,6 +11,7 @@ def test_app():
     yield client  # provide the test client to the tests
     # teardown code goes here
 
+
 @pytest.fixture(scope="function")
 def test_db_engine():
     # Initialize the DBEngine in 'test' mode
