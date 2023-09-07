@@ -52,7 +52,7 @@ jobs:
           exit 78
         fi
         echo "::set-output name=version_bumped::true"
-      shell: bash
+      continue-on-error: true
 
     - name: Build and publish agenta to PyPI
       if: steps.version_check.outputs.version_bumped == 'true'
