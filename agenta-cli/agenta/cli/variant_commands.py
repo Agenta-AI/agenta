@@ -1,5 +1,6 @@
 import re
 import sys
+import traceback
 from pathlib import Path
 from typing import List
 
@@ -44,12 +45,10 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     # check files in folder
     app_file = app_path / file_name
     if not app_file.exists():
-        click.echo(
-            click.style(
-                f"No {file_name} exists! Please make sure you are in the right directory",
-                fg="red",
-            )
-        )
+
+        message = f"No {file_name} exists! Please make sure you are in the right directory",
+
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, message)
         return None
 
     env_file = app_path / ".env"
@@ -72,12 +71,10 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
 
     # Validate variant name
     if not re.match("^[a-zA-Z0-9_]+$", variant_name):
-        click.echo(
-            click.style(
-                "Invalid input. Please use only alphanumeric characters without spaces.",
-                fg="red",
-            )
-        )
+
+        message = "Invalid input. Please use only alphanumeric characters without spaces.",
+
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, message)
         sys.exit(0)
 
     # update the config file with the variant names from the backend
@@ -109,7 +106,8 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
-        click.echo(click.style(f"Error while building image: {ex}", fg="red"))
+        ex_message = f"Error while building image: {ex}"
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, ex_message)
         return None
     try:
         if overwrite:
@@ -134,9 +132,9 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
 
     except Exception as ex:
         if overwrite:
-            click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
+            helper.trace_error(__file__, sys._getframe().f_code.co_name, f"Error while updating variant", ex)
         else:
-            click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
+            helper.trace_error(__file__, sys._getframe().f_code.co_name, f"Error while adding variant", ex)
         return None
     if overwrite:
         click.echo(
@@ -179,12 +177,7 @@ def start_variant(variant_name: str, app_folder: str, host: str):
 
     if variant_name:
         if variant_name not in config["variants"]:
-            click.echo(
-                click.style(
-                    f"Variant {variant_name} not found in backend. Maybe you removed it in the webUI?",
-                    fg="red",
-                )
-            )
+            helper.trace_error(__file__, sys._getframe().f_code.co_name, f"Variant {variant_name} not found in backend. Maybe you removed it in the webUI?")
             return
     else:
         variant_name = questionary.select(
@@ -194,7 +187,7 @@ def start_variant(variant_name: str, app_folder: str, host: str):
     try:
         endpoint = client.start_variant(app_name, variant_name, host=host)
     except Exception as e:
-        click.echo(click.style(f"Error while fetching uri: {e}", fg="red"))
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, f"Error while fetching uri", e)
 
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
@@ -235,12 +228,8 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
 
     if variant_name:
         if variant_name not in config["variants"]:
-            click.echo(
-                click.style(
-                    f"Variant {variant_name} not found in backend. Maybe you already removed it in the webUI?",
-                    fg="red",
-                )
-            )
+
+            helper.trace_error(__file__, sys._getframe().f_code.co_name, f"Variant {variant_name} not found in backend. Maybe you already removed it in the webUI?")
             return
     else:
         variant_name = questionary.select(
@@ -249,13 +238,8 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     try:
         client.remove_variant(app_name, variant_name, host)
     except Exception as ex:
-        click.echo(
-            click.style(
-                f"Error while removing variant {variant_name} for App {app_name} from the backend",
-                fg="red",
-            )
-        )
-        click.echo(click.style(f"Error message: {ex}", fg="red"))
+
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, f"Error while removing variant {variant_name} for App {app_name} from the backend", ex)
         return
 
     click.echo(
@@ -280,7 +264,7 @@ def list_variants(app_folder: str, host: str):
         for variant in variants:
             helper.display_app_variant(variant)
     else:
-        click.echo(click.style(f"No variants found for app {app_name}", fg="red"))
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, f"No variants found for app {app_name}")
 
 
 def config_check(app_folder: str):
@@ -294,12 +278,7 @@ def config_check(app_folder: str):
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     if not config_file.exists():
-        click.echo(
-            click.style(
-                f"Config file not found in {app_folder}. Make sure you are in the right folder and that you have run agenta init first.",
-                fg="red",
-            )
-        )
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, f"Config file not found in {app_folder}. Make sure you are in the right folder and that you have run agenta init first.")
         return
     host = get_host(app_folder)  # TODO: Refactor the whole config thing
     helper.update_config_from_backend(config_file, host=host)
@@ -307,14 +286,17 @@ def config_check(app_folder: str):
 
 def get_host(app_folder: str) -> str:
     """Fetches the host from the config"""
-    app_folder = Path(app_folder)
-    config_file = app_folder / "config.toml"
-    config = toml.load(config_file)
-    if "backend_host" not in config:
-        host = "http://localhost"
-    else:
-        host = config["backend_host"]
-    return host
+    try:
+        app_folder = Path(app_folder)
+        config_file = app_folder / "config.toml"
+        config = toml.load(config_file)
+        if "backend_host" not in config:
+            host = "http://localhost"
+        else:
+            host = config["backend_host"]
+        return host
+    except Exception as e:
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, None, e)
 
 
 @variant.command(name="remove")
@@ -350,7 +332,7 @@ def serve_cli(app_folder: str, file_name: str):
             variant_name
         ):  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
             start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
-    except ConnectionError:
+    except ConnectionError as e:
         error_msg = (
             "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
         )
@@ -358,13 +340,10 @@ def serve_cli(app_folder: str, file_name: str):
         error_msg += (
             "- Second, try restarting the containers (if using Docker Compose)."
         )
-        click.echo(click.style(f"{error_msg}", fg="red"))
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, error_msg, e)
+
     except Exception as e:
-        click.echo(
-            click.style(
-                f"Failed to start container with LLM app: \n {str(e)}", fg="red"
-            )
-        )
+        helper.trace_error(__file__, sys._getframe().f_code.co_name, "Failed to start container with LLM app", e)
 
 
 @variant.command(name="list")
