@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import Any, List, MutableMapping
 import click
 import toml
+import sys
+import traceback
 from agenta.client import client
 from agenta.client.api_models import AppVariant
 
@@ -70,3 +72,13 @@ def display_app_variant(variant: AppVariant):
     click.echo(
         click.style("-" * 50, bold=True, fg="white")
     )  # a line for separating each variant
+
+
+def trace_error(file_name, function_name, message=None, e=None):
+    if message != None and e != None:
+        error_msg = f"Trace: Failed at {file_name}.{function_name}\n\nMessage: {message}:\n\nError: {str(e)}\n\n" 
+    elif e == None and message != None:
+        error_msg = f"Trace: Failed at {file_name}.{function_name}\n\nMessage: {message}\n\n"
+    elif message == None and e != None:
+        error_msg = f"Trace: Failed at {file_name}.{function_name}\n\Error: {e}\n\n"
+    click.echo(click.style(error_msg, fg="red"))
