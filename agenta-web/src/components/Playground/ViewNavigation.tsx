@@ -104,10 +104,7 @@ const ViewNavigation: React.FC<Props> = ({
                     setRestarting(false)
                 }
             } catch (err: any) {
-                if (axios.isAxiosError(err) && err.response?.status === 500) {
-                    // Set restarting to flase
-                    setRestarting(false)
-                }
+                setRestarting(false)
             }
         }
 
