@@ -82,5 +82,5 @@ def trace_error(file_name, function_name, message=None, e=None):
             f"Trace: Failed at {file_name}.{function_name}\n\nMessage: {message}\n\n"
         )
     elif message == None and e != None:
-        error_msg = f"Trace: Failed at {file_name}.{function_name}\n\Error: {e}\n\n"
+        error_msg = f"Trace: Failed at {file_name}.{function_name}\n\nError: {e}\n\n"
     click.echo(click.style(error_msg, fg="red"))
