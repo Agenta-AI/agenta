@@ -25,7 +25,7 @@ class DBEngine(object):
         Returns an instance of `AsyncIOMotorClient` initialized \
             with the provided `db_url`.
         """
-        
+
         client = AsyncIOMotorClient(self.db_url)
         return client
 
@@ -33,16 +33,18 @@ class DBEngine(object):
         """
         Returns an AIOEngine object with a specified database name based on the mode.
         """
-        
+
         if self.mode == "test":
-            aio_engine = AIOEngine(client=self.initialize_client, database="agenta_test")
+            aio_engine = AIOEngine(
+                client=self.initialize_client, database="agenta_test"
+            )
             logger.info("Using test database...")
             return aio_engine
         elif self.mode == "default":
             aio_engine = AIOEngine(client=self.initialize_client, database="agenta")
             logger.info("Using default database")
             return aio_engine
-    
+
     def remove_db(self) -> None:
         client = MongoClient(self.db_url)
         if self.mode == "default":
