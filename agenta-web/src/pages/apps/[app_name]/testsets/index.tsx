@@ -36,6 +36,7 @@ const useStyles = createUseStyles({
     linksContainer: {
         display: "flex",
         gap: "10px",
+        flexWrap: "wrap",
     },
     startLink: {
         marginLeft: 10,
@@ -150,6 +151,9 @@ export default function testsets() {
                                 <Button>Create a test set with API</Button>
                             </Link>
                         )}
+                        <Link href={`/apps/${app_name}/testsets/new/endpoint`}>
+                            <Button>Import from Endpoint</Button>
+                        </Link>
                     </div>
 
                     <Link href={`/apps/${app_name}/evaluations`} className={classes.startLink}>
