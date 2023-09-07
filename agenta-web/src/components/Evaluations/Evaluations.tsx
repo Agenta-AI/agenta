@@ -31,6 +31,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import HumanEvaluationResult from "./HumanEvaluationResult"
+import axios from "axios"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -188,24 +189,9 @@ export default function Evaluations() {
         inputs: string[],
         llmAppPromptTemplate?: string,
     ) => {
-        const postData = async (url = "", data = {}) => {
-            const response = await fetch(url, {
-                method: "POST",
-                cache: "no-cache",
-                credentials: "same-origin",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                redirect: "follow",
-                referrerPolicy: "no-referrer",
-                body: JSON.stringify(data),
-            })
-
-            if (!response.ok) {
-                throw new Error((await response.json())?.detail ?? "Failed to create evaluation")
-            }
-
-            return response.json()
+        const postData = async (url = "", data = {}, ignoreAxiosError: boolean = false) => {
+            const response = await axios.post(url, data, {_ignoreError: ignoreAxiosError} as any)
+            return response.data
         }
 
         const data = {
@@ -222,12 +208,16 @@ export default function Evaluations() {
             status: EvaluationFlow.EVALUATION_INITIALIZED,
         }
 
-        return postData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`, data)
+        return postData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`, data, true)
             .then((data) => {
                 return data.id
             })
             .catch((err) => {
-                setError({message: err.message, btnText: "Go to Test sets", endpoint: "testsets"})
+                setError({
+                    message: err.response.data.detail,
+                    btnText: "Go to Test sets",
+                    endpoint: "testsets",
+                })
             })
     }
 
