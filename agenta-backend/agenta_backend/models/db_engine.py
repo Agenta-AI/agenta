@@ -11,7 +11,9 @@ logger.setLevel(logging.INFO)
 
 
 class DBEngine(object):
-    """Database engine to initialize client and return engine based on mode"""
+    """
+    Database engine to initialize client and return engine based on mode
+    """
 
     def __init__(self, mode: str) -> None:
         self.mode = mode
@@ -19,7 +21,8 @@ class DBEngine(object):
 
     @property
     def initialize_client(self) -> AsyncIOMotorClient:
-        """Returns an instance of `AsyncIOMotorClient` initialized \
+        """
+        Returns an instance of `AsyncIOMotorClient` initialized \
             with the provided `db_url`.
         """
         
@@ -27,18 +30,22 @@ class DBEngine(object):
         return client
 
     def engine(self) -> AIOEngine:
-        """Returns an AIOEngine object with a specified database name based on the mode.
+        """
+        Returns an AIOEngine object with a specified database name based on the mode.
         """
         
-        aio_engine = AIOEngine(client=self.initialize_client)
         if self.mode == "test":
-            aio_engine.database = "agenta_test"
+            aio_engine = AIOEngine(client=self.initialize_client, database="agenta_test")
             logger.info("Using test database...")
+            return aio_engine
         elif self.mode == "default":
-            aio_engine.database = "agenta"
+            aio_engine = AIOEngine(client=self.initialize_client, database="agenta")
             logger.info("Using default database")
-        return aio_engine
+            return aio_engine
     
     def remove_db(self) -> None:
         client = MongoClient(self.db_url)
-        client.drop_database("agenta_test")
+        if self.mode == "default":
+            client.drop_database("agenta")
+        elif self.mode == "test":
+            client.drop_database("agenta_test")
