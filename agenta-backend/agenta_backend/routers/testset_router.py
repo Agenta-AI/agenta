@@ -1,6 +1,7 @@
 import os
 import csv
 import json
+import requests
 from copy import deepcopy
 from bson import ObjectId
 from datetime import datetime
@@ -107,6 +108,72 @@ async def upload_file(
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to process file") from e
+
+
+@router.post("/endpoint", response_model=UploadResponse)
+async def import_testset(
+    endpoint: str = Form(None),
+    testset_name: str = Form(None),
+    app_name: str = Form(None),
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """
+    Import JSON testset data from an endpoint and save it to MongoDB.
+
+    Args:
+        endpoint (str): An endpoint URL to import data from.
+        testset_name (str): the name of the testset if provided.
+
+    Returns:
+        dict: The result of the import process.
+    """
+
+    try:
+        response = requests.get(endpoint, timeout=10)
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=400, detail="Failed to fetch testset from endpoint"
+            )
+
+        # Create a document
+        document = {
+            "created_at": datetime.now().isoformat(),
+            "name": testset_name,
+            "app_name": app_name,
+            "csvdata": [],
+        }
+
+        # Populate the document with column names and values
+        json_response = response.json()
+        for row in json_response:
+            document["csvdata"].append(row)
+
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user = await get_user_object(kwargs["uid"])
+        testset_instance = TestSetDB(**document, user=user)
+        result = await engine.save(testset_instance)
+
+        if isinstance(result.id, ObjectId):
+            return UploadResponse(
+                id=str(result.id),
+                name=document["name"],
+                created_at=document["created_at"],
+            )
+
+    except HTTPException as error:
+        print(error)
+        raise error
+    except json.JSONDecodeError as error:
+        print(error)
+        raise HTTPException(
+            status_code=400, detail="Endpoint does not return valid JSON testset data"
+        ) from error
+    except Exception as error:
+        print(error)
+        raise HTTPException(
+            status_code=500, detail="Failed to import testset from endpoint"
+        ) from error
 
 
 @router.post("/{app_name}")
