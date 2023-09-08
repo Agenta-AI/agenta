@@ -1,7 +1,7 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {CaretRightOutlined} from "@ant-design/icons"
-import {Button, Input, Space, Spin, Table, Typography, message} from "antd"
+import {CaretRightOutlined, LineChartOutlined} from "@ant-design/icons"
+import {Button, Col, Input, Row, Space, Spin, Table, Typography, message} from "antd"
 import {
     updateEvaluationScenario,
     callVariant,
@@ -13,6 +13,7 @@ import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {fetchVariants} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/utils"
 
 const {Title} = Typography
 
@@ -96,12 +97,38 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
+    const [rowData, setRowData] = useState<
+        {variant_output1: string; inputs: string; vote: string; variant_output0: string}[]
+    >([])
+    const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
 
     useEffect(() => {
         if (evaluationScenarios) {
             setRows(evaluationScenarios)
         }
     }, [evaluationScenarios])
+
+    useEffect(() => {
+        const getRows = rows.map((data) => {
+            return {
+                inputs: data.inputs[0].input_value,
+                variant_output0: data.outputs[0]?.variant_output,
+                variant_output1: data.outputs[1]?.variant_output,
+                vote: data.vote,
+            }
+        })
+        setRowData(getRows)
+    }, [rows])
+
+    useEffect(() => {
+        if (Array.isArray(rowData) && rowData.length > 0 && typeof rowData[0] === "object") {
+            setColumnDefs(
+                Object.keys(rowData[0]).map((key) => ({
+                    field: key,
+                })),
+            )
+        }
+    }, [rowData])
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
@@ -201,6 +228,15 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 setRowValue(rowIndex, columnName, "")
             }
         })
+    }
+
+    const handleExportClick = () => {
+        const csvData = convertToCsv(
+            rowData,
+            columnDefs.map((col) => col.field),
+        )
+        const filename = `${evaluation.evaluationType}.csv`
+        downloadCsv(csvData, filename)
     }
 
     const setRowValue = (
@@ -341,6 +377,19 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     return (
         <div>
             <Title className={classes.title}>A/B Testing Evaluation</Title>
+            <div>
+                <Row align="middle">
+                    <Col span={12}>
+                        <Button
+                            onClick={handleExportClick}
+                            icon={<LineChartOutlined />}
+                            size="large"
+                        >
+                            Export
+                        </Button>
+                    </Col>
+                </Row>
+            </div>
             <Table
                 dataSource={rows}
                 columns={columns}
