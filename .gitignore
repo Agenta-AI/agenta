@@ -43,3 +43,12 @@ todo.md
 agenta-web/cypress/videos/
 agenta-backend/agenta_backend/ee/**
 agenta-web/src/ee/**
+agenta-web/src/config/frontendConfig.ts
+agenta-web/src/config/appInfo.ts
+agenta-web/src/pages/apps/index.tsx
+agenta-web/src/pages/auth/[[...path]].tsx
+docker-compose.cloud.dev.yml
+docker-compose.demo.prod.yml
+docker-compose.demo.dev.yml
+docker-compose.cloud.prod.yml
+agenta-web/src/pages/auth/[[...path]].tsx
