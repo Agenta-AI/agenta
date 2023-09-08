@@ -5,13 +5,14 @@ export const ThemeContext = createContext<{
     toggleAppTheme: (themeName: string) => void
 }>({
     appTheme: "light",
-    toggleAppTheme: (themeName) => {},
+    toggleAppTheme: () => {},
 })
 
 export const useAppTheme = () => useContext(ThemeContext)
 
 const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [appTheme, setAppTheme] = useState<string | null>(null)
+    const [sysTheme, setSysTheme] = useState(false)
 
     const getDeviceTheme = (): string => {
         return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
@@ -19,20 +20,43 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     useEffect(() => {
         const savedTheme = localStorage.getItem("agenta-theme")
-        setAppTheme(savedTheme || getDeviceTheme())
+        if (savedTheme) {
+            setAppTheme(savedTheme)
+        } else {
+            setAppTheme(getDeviceTheme())
+            setSysTheme(true)
+        }
     }, [])
 
     useEffect(() => {
         if (appTheme) localStorage.setItem("agenta-theme", appTheme)
     }, [appTheme])
 
+    useEffect(() => {
+        const handleSystemThemeChange = ({matches}: MediaQueryListEvent) => {
+            if (sysTheme) {
+                setAppTheme(matches ? "dark" : "light")
+            }
+        }
+
+        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+        mediaQuery.addEventListener("change", handleSystemThemeChange)
+
+        return () => {
+            mediaQuery.removeEventListener("change", handleSystemThemeChange)
+        }
+    }, [sysTheme])
+
     const toggleAppTheme = (themeName: string) => {
         if (themeName === "system") {
             setAppTheme(getDeviceTheme())
+            setSysTheme(true)
         } else {
             setAppTheme(themeName)
+            setSysTheme(false)
         }
     }
+
     return (
         <ThemeContext.Provider
             value={{
