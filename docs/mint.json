@@ -65,7 +65,7 @@
           "pages": [
             "installation/local-installation/local-installation",
             "installation/self-hosting/self-hosted-installation-aws",
-            "installation/self-hosting/self-hosted-installation-gcp.mdx"
+            "installation/self-hosting/self-hosted-installation-gcp"
           ]
         }
       ]
@@ -94,7 +94,8 @@
       "group": "Contributing",
       "pages": [
         "contributing/getting-started",
-        "contributing/development-mode"
+        "contributing/development-mode",
+        "contributing/file-issue"
       ]
     },
     {

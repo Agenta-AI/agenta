@@ -1,7 +1,7 @@
 ---
 name: Bug report
 about: Create a report to help us improve
-title: ''
+title: '[Bug] '
 labels: ''
 assignees: ''
 
@@ -34,5 +34,25 @@ If applicable, add screenshots to help explain your problem.
  - Browser [e.g. stock browser, safari]
  - Version [e.g. 22]
 
-**Additional context**
-Add any other context about the problem here.
+**Important Context**
+Add context about the problem here.
+
+1. **Network Logs in the Browser:**
+   - If applicable, Take a screenshot of the network logs or copy and paste any relevant log entries.
+
+2. **Docker Containers Information:**
+   - If applicable, Provide a screenshot showing the list of running and stopped containers.
+   - Please provide us the with a screenshot of the logs for the agenta-backend docker container.
+
+3. **Additional Information:**
+   - Include any additional details, error messages, or observations that may be helpful.
+
+<!-- ### How to Provide Additional Information -->
+
+<!-- To help us investigate and resolve this issue more effectively, please follow this guide to provide additional information; https://docs.agenta.ai/contributing/file-issue -->
+
+
+
+Please make sure to provide all the requested information to expedite the debugging process. Thank you for helping us improve our project!
+
+---
