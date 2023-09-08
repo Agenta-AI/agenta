@@ -94,7 +94,8 @@
       "group": "Contributing",
       "pages": [
         "contributing/getting-started",
-        "contributing/development-mode"
+        "contributing/development-mode",
+        "contributing/file-issue"
       ]
     },
     {
