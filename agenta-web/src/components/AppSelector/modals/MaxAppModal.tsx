@@ -71,10 +71,22 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
             width={600}
             {...props}
         >
-            You've reached the limit for app creation in the demo version. For unlimited apps,
-            please switch to our open-source, self-hosted version available at{" "}
-            <a href="https://github.com/agenta-ai/agenta">GitHub</a>. Feel free to contact us for
-            on-premise or cloud-hosted solutions.
+            <div>You've reached the maximum number of apps for the demo. To create more apps:</div>
+            <div>
+                - Explore our{" "}
+                <a href="https://github.com/agenta-ai/agenta">open-source, self-hosted version</a>.
+            </div>
+            <div>
+                - Or, <a href="https://cal.com/mahmoud-mabrouk-ogzgey/30min">schedule a call</a> for
+                early access to our cloud solution.
+            </div>
+            <div>
+                Questions? Feel free to reach out to our support in{" "}
+                <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
+                    Slack
+                </a>
+                .
+            </div>
         </Modal>
     )
 }
