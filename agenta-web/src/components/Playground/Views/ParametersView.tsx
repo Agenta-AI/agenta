@@ -18,6 +18,7 @@ interface Props {
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
     setUnSavedChanges: Dispatch<React.SetStateAction<boolean>>
+    setIsChanged: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 const useStyles = createUseStyles({
@@ -55,6 +56,7 @@ const ParametersView: React.FC<Props> = ({
     isParamsCollapsed,
     setIsParamsCollapsed,
     setUnSavedChanges,
+    setIsChanged,
 }) => {
     const classes = useStyles()
     const [inputValue, setInputValue] = useState(1)
@@ -62,12 +64,14 @@ const ParametersView: React.FC<Props> = ({
     const onChange = (param: Parameter, newValue: number | string) => {
         setInputValue(+newValue)
         handleParamChange(param.name, newValue)
+        setIsChanged(true)
     }
     const handleParamChange = (name: string, newVal: any) => {
         const newOptParams = optParams?.map((param) =>
             param.name === name ? {...param, default: newVal} : param,
         )
         newOptParams && onOptParamsChange(newOptParams, false, false)
+        setIsChanged(true)
     }
     const success = () => {
         messageApi.open({

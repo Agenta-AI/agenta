@@ -18,7 +18,6 @@ export function useVariant(appName: string, variant: Variant) {
     const [isError, setIsError] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const [isParamSaveLoading, setIsParamSaveLoading] = useState(false)
-    const [isChanged, setIsChanged] = useState(false)
 
     useEffect(() => {
         const fetchParameters = async () => {
@@ -63,7 +62,6 @@ export function useVariant(appName: string, variant: Variant) {
         setIsError(false)
         try {
             if (persist) {
-                setIsChanged(false)
                 if (!updateVariant) {
                     await saveNewVariant(appName, variant, updatedOptParams)
                 } else if (updateVariant) {
@@ -73,7 +71,6 @@ export function useVariant(appName: string, variant: Variant) {
                     return {...acc, [param.name]: param.default}
                 }, {})
             }
-            setIsChanged(true)
             setOptParams(updatedOptParams)
         } catch (error) {
             setIsError(true)
@@ -91,7 +88,6 @@ export function useVariant(appName: string, variant: Variant) {
         error,
         isParamSaveLoading,
         saveOptParams,
-        isChanged,
     }
 }
 

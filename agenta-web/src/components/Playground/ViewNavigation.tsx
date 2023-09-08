@@ -48,10 +48,10 @@ const ViewNavigation: React.FC<Props> = ({
         isParamSaveLoading,
         saveOptParams,
         isLoading,
-        isChanged,
     } = useVariant(appName, variant)
 
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
+    const [isChanged, setIsChanged] = useState(false)
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -221,6 +221,7 @@ const ViewNavigation: React.FC<Props> = ({
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         setUnSavedChanges={setUnSavedChanges}
+                        setIsChanged={setIsChanged}
                     />
                 </Col>
             </Row>
