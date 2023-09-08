@@ -34,9 +34,34 @@ To help us diagnose and resolve the issue quickly, please follow these steps:
    <img height="600" src="/images/creating-issue/inspect-network-5" />
 
 2. **Docker Containers Information:**
-   - If you're using Docker, open Docker Desktop (if available) or use the command line.
+   - If you're using Docker, open Docker Desktop (if available) or use the terminal/command line and run the command;
+
+    ```bash
+    docker ps -a
+    ```
+
    - Provide a screenshot showing the list of running and stopped containers.
-   - For the agenta-backend container, provide logs by running: `docker logs agenta-backend` and include the output, more importantly provide a screenshot of it. 
+   <img height="600" src="/images/creating-issue/docker-log-1" />
+   <img height="600" src="/images/creating-issue/docker-log-terminal" />
+
+   - If your issue is associated with a specific llm app;
+     - On Docker Desktop, open the container of that llm app and provide a screenshot of it.
+     The Container name would start with the name of your llm app, followed by the app variant name (If you've created more than one variant).
+     <img height="600" src="/images/creating-issue/docker-log-llm-app" />
+
+     - In terminal/command line, run the command below and provide a screenshot of it;
+
+    ```bash
+    docker logs CONTAINER_NAME_OR_ID
+    ```
+    <img height="600" src="/images/creating-issue/docker-log-terminal-llm-app" />
+
+    You can get the Container name or ID by running the previous command `docker ps -a`
+
+   - For the agenta-backend container, provide the logs; 
+     - by running: `docker logs agenta-backend` and include the output, or more importantly provide a screenshot of it. 
+     - by opening the container in  Docker Desktop and providing a screenshot of it.
+     <img height="600" src="/images/creating-issue/docker-log-agenta-backend" />
 
 By providing these details, you help us pinpoint the problem and work towards a resolution more efficiently.
 
