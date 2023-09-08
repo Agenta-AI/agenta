@@ -30,11 +30,11 @@ jobs:
       id: version_check
       run: |
 
-        # Check if there are any tags in the repository
-        if [ -z "$(git tag -l)" ]; then
-          echo "No tags found. Skipping version check."
-          exit 78
-        fi
+        # # Check if there are any tags in the repository
+        # if [ -z "$(git tag -l)" ]; then
+        #   echo "No tags found. Skipping version check."
+        #   exit 78
+        # fi
 
         # Navigate to the cli directory
         cd ${{ github.workspace }}/agenta-cli
@@ -64,3 +64,4 @@ jobs:
         cd agenta-cli
         poetry build
         poetry publish --username __token__ --password ${{ secrets.PYPI_API_TOKEN }}
+      continue-on-error: true
