@@ -98,7 +98,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
     const [rowData, setRowData] = useState<
-        {variant_output1: string; inputs: string; vote: string; variant_output0: string}[]
+        {columnData1: string; inputs: string; vote: string; columnData0: string}[]
     >([])
     const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
 
@@ -112,8 +112,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         const getRows = rows.map((data) => {
             return {
                 inputs: data.inputs[0].input_value,
-                variant_output0: data.outputs[0]?.variant_output,
-                variant_output1: data.outputs[1]?.variant_output,
+                columnData0: data?.columnData0,
+                columnData1: data?.columnData1,
                 vote: data.vote,
             }
         })
