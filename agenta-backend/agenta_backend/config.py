@@ -19,7 +19,7 @@ os.environ["FEATURE_FLAG"] = toml_config["feature_flag"]
 
 if toml_config["feature_flag"] == "demo":
     os.environ["OPENAI_API_KEY"] = toml_config["openai_api_key"]
-    
+
 if toml_config["feature_flag"] == "cloud":
     os.environ["ECR_REPOSITORY"] = toml_config["ecr_repository"]
     os.environ["AWS_ACCESS_KEY_ID"] = toml_config["aws_access_key_id"]

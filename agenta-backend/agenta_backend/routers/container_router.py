@@ -28,7 +28,7 @@ else:
         verify_session,
     )
     from agenta_backend.services.selectors import get_user_and_org_id
-    
+
 if settings.feature_flag in ["cloud"]:
     from agenta_backend.ee.services.container_manager import build_image_job
 else:
