@@ -14,6 +14,7 @@ import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/utils"
 
 interface SimilarityMatchEvaluationTableProps {
     evaluation: any
@@ -108,6 +109,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [loadSpinner, setLoadingSpinners] = useState(false)
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
+    const [rowData, setRowData] = useState<
+        {correctAnswer: string; inputs: string; score: string; variant_output: string}[]
+    >([])
+    const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
 
     const {Text} = Typography
 
@@ -116,6 +121,28 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             setRows(evaluationScenarios)
         }
     }, [evaluationScenarios])
+
+    useEffect(() => {
+        const getRows = rows.map((data) => {
+            return {
+                inputs: data.inputs[0].input_value,
+                variant_output: data.outputs[0]?.variant_output,
+                correctAnswer: data.correctAnswer,
+                score: data.score,
+            }
+        })
+        setRowData(getRows)
+    }, [rows])
+
+    useEffect(() => {
+        if (Array.isArray(rowData) && rowData.length > 0 && typeof rowData[0] === "object") {
+            setColumnDefs(
+                Object.keys(rowData[0]).map((key) => ({
+                    field: key,
+                })),
+            )
+        }
+    }, [rowData])
 
     useEffect(() => {
         if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
@@ -205,6 +232,15 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 }
             }
         })
+    }
+
+    const handleExportClick = () => {
+        const csvData = convertToCsv(
+            rowData,
+            columnDefs.map((col) => col.field),
+        )
+        const filename = `${evaluation.evaluationType}.csv`
+        downloadCsv(csvData, filename)
     }
 
     /**
@@ -423,6 +459,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                             size="large"
                         >
                             Run Evaluation
+                        </Button>
+                        <Button
+                            onClick={handleExportClick}
+                            icon={<LineChartOutlined />}
+                            size="large"
+                        >
+                            Export
                         </Button>
                     </Col>
 
