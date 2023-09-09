@@ -12,7 +12,7 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {getOpenAIKey} from "@/lib/helpers/utils"
+import {convertToCsv, downloadCsv, getOpenAIKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 
 interface AICritiqueEvaluationTableProps {
@@ -150,6 +150,10 @@ Answer ONLY with one of the given grading or evaluation options.
     const [shouldFetchResults, setShouldFetchResults] = useState(false)
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
+    const [rowData, setRowData] = useState<
+        {correctAnswer: string; inputs: string; evaluation: string; columnData0: string}[]
+    >([])
+    const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
 
     useEffect(() => {
         if (
@@ -170,6 +174,28 @@ Answer ONLY with one of the given grading or evaluation options.
             setRows(evaluationScenarios)
         }
     }, [evaluationScenarios])
+
+    useEffect(() => {
+        const getRows = rows.map((data) => {
+            return {
+                inputs: data.inputs[0].input_value,
+                columnData0: data?.columnData0,
+                correctAnswer: data.correctAnswer,
+                evaluation: data.evaluation,
+            }
+        })
+        setRowData(getRows)
+    }, [rows])
+
+    useEffect(() => {
+        if (Array.isArray(rowData) && rowData.length > 0 && typeof rowData[0] === "object") {
+            setColumnDefs(
+                Object.keys(rowData[0]).map((key) => ({
+                    field: key,
+                })),
+            )
+        }
+    }, [rowData])
 
     useEffect(() => {
         if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
@@ -229,6 +255,15 @@ Answer ONLY with one of the given grading or evaluation options.
             }
             idx++
         }
+    }
+
+    const handleExportClick = () => {
+        const csvData = convertToCsv(
+            rowData,
+            columnDefs.map((col) => col.field),
+        )
+        const filename = `${evaluation.evaluationType}.csv`
+        downloadCsv(csvData, filename)
     }
 
     const evaluate = async (rowNumber: number) => {
@@ -404,6 +439,13 @@ Answer ONLY with one of the given grading or evaluation options.
                             size="large"
                         >
                             Run Evaluation
+                        </Button>
+                        <Button
+                            onClick={handleExportClick}
+                            icon={<LineChartOutlined />}
+                            size="large"
+                        >
+                            Export
                         </Button>
                     </Col>
                 </Row>
