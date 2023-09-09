@@ -86,7 +86,6 @@ const Sidebar: React.FC = () => {
     const router = useRouter()
     const {app_name} = router.query
     const classes = useStyles({themeMode: appTheme, colorBgContainer} as StyleProps)
-
     const pathSegments = router.asPath.split("/")
     const page_name = pathSegments[3]
 
@@ -99,8 +98,16 @@ const Sidebar: React.FC = () => {
         initialSelectedKeys = ["apps"]
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
-    const [themeKey, setTheme] = useState(0)
+    const [themeKey, setTheme] = useState(() => {
+        const savedTheme = localStorage.getItem("agenta-theme")
 
+        if (!savedTheme) {
+            toggleAppTheme("system")
+            return 0
+        }
+
+        return savedTheme === "dark" ? 1 : 2
+    })
     const items: MenuItem[] = [
         {
             key: "0",
