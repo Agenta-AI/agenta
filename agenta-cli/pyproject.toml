@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.2.5"
+version = "0.2.6"
 description = "Code for the SDK and CLI for the Agenta Lab platform"
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
