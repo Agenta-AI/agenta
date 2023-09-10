@@ -331,25 +331,40 @@ def serve_cli(app_folder: str, file_name: str):
 
     try:
         config_check(app_folder)
+    except Exception as e:
+        click.echo(click.style("Failed during configuration check.", fg="red"))
+        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        return
+
+    try:
         host = get_host(app_folder)
+    except Exception as e:
+        click.echo(click.style("Failed to retrieve the host.", fg="red"))
+        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        return
+
+    try:
         variant_name = add_variant(
             app_folder=app_folder, file_name=file_name, host=host
         )
-        if (
-            variant_name
-        ):  # otherwise we either failed or we were doing an update and we don't need to manually start the variant!!
-            start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
-    except ConnectionError:
-        error_msg = (
-            "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
-        )
-        error_msg += "- First, please ensure that the backend service is running and accessible.\n"
-        error_msg += (
-            "- Second, try restarting the containers (if using Docker Compose)."
-        )
-        click.echo(click.style(f"{error_msg}", fg="red"))
     except Exception as e:
+        click.echo(click.style("Failed to add variant.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        return
+
+    if variant_name:
+        try:
+            start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
+        except ConnectionError:
+            error_msg = "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
+            error_msg += "- First, please ensure that the backend service is running and accessible.\n"
+            error_msg += (
+                "- Second, try restarting the containers (if using Docker Compose)."
+            )
+            click.echo(click.style(f"{error_msg}", fg="red"))
+        except Exception as e:
+            click.echo(click.style("Failed to start container with LLM app.", fg="red"))
+            click.echo(click.style(f"Error message: {str(e)}", fg="red"))
 
 
 @variant.command(name="list")
