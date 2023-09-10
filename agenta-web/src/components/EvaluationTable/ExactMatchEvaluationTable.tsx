@@ -117,7 +117,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
     const [rowData, setRowData] = useState<
-        {correctAnswer: string; inputs: string; score: string; columnData0: string}[]
+        {correctAnswer: string; inputs: string; score: string; appVariant: string}[]
     >([])
     const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
 
@@ -133,7 +133,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
         const getRows = rows.map((data) => {
             return {
                 inputs: data.inputs[0].input_value,
-                columnData0: data?.columnData0,
+                appVariant: data?.columnData0 ? data?.columnData0 : data.outputs[0]?.variant_output,
                 correctAnswer: data.correctAnswer,
                 score: data.score,
             }

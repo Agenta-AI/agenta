@@ -114,7 +114,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             correctAnswer: string
             inputs: string
             score: string
-            columnData0: string
+            appVariant: string
             similarity: number
         }[]
     >([])
@@ -132,7 +132,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         const getRows = rows.map((data) => {
             return {
                 inputs: data.inputs[0].input_value,
-                columnData0: data?.columnData0,
+                appVariant: data?.columnData0 ? data?.columnData0 : data.outputs[0]?.variant_output,
                 correctAnswer: data.correctAnswer,
                 score: data.score,
                 similarity: data.similarity,

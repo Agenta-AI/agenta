@@ -151,7 +151,7 @@ Answer ONLY with one of the given grading or evaluation options.
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
     const [rowData, setRowData] = useState<
-        {correctAnswer: string; inputs: string; evaluation: string; columnData0: string}[]
+        {correctAnswer: string; inputs: string; evaluation: string; appVariant: string}[]
     >([])
     const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
 
@@ -179,7 +179,7 @@ Answer ONLY with one of the given grading or evaluation options.
         const getRows = rows.map((data) => {
             return {
                 inputs: data.inputs[0].input_value,
-                columnData0: data?.columnData0,
+                appVariant: data?.columnData0 ? data?.columnData0 : data.outputs[0]?.variant_output,
                 correctAnswer: data.correctAnswer,
                 evaluation: data.evaluation,
             }
