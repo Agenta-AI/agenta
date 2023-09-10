@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {LineChartOutlined} from "@ant-design/icons"
+import {DownloadOutlined, LineChartOutlined} from "@ant-design/icons"
 import {
     Button,
     Card,
@@ -28,6 +28,13 @@ import {evaluateWithExactMatch} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
 import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
 import {KeyValuePair} from "@/lib/Types"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
+
+const {Title} = Typography
+
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
 
 interface ExactMatchEvaluationTableProps {
     evaluation: any
@@ -94,6 +101,10 @@ const useStyles = createUseStyles({
             color: "#cf1322",
         },
     },
+    exportBtn: ({themeMode}: StyleProps) => ({
+        backgroundColor: themeMode === "dark" ? "#fff" : "#000",
+        color: themeMode === "dark" ? "#000" : "#fff",
+    }),
 })
 
 const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
@@ -101,7 +112,8 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -402,25 +414,29 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     return (
         <div>
-            <h1>Exact match Evaluation</h1>
+            <Title level={2}>Exact match Evaluation</Title>
             <div>
                 <Row align="middle">
                     <Col span={12}>
-                        <Button
-                            type="primary"
-                            onClick={runAllEvaluations}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Run Evaluation
-                        </Button>
-                        <Button
-                            onClick={handleExportClick}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Export
-                        </Button>
+                        <Space>
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                icon={<LineChartOutlined />}
+                                size="large"
+                            >
+                                Run Evaluation
+                            </Button>
+                            <Button
+                                onClick={handleExportClick}
+                                icon={<DownloadOutlined />}
+                                size="large"
+                                type="text"
+                                className={classes.exportBtn}
+                            >
+                                Export results
+                            </Button>
+                        </Space>
                     </Col>
 
                     <Col span={12}>

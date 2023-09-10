@@ -1,7 +1,20 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {LineChartOutlined} from "@ant-design/icons"
-import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, message} from "antd"
+import {DownloadOutlined, LineChartOutlined} from "@ant-design/icons"
+import {
+    Button,
+    Card,
+    Col,
+    Input,
+    Row,
+    Space,
+    Spin,
+    Statistic,
+    Table,
+    Tag,
+    Typography,
+    message,
+} from "antd"
 import {Evaluation} from "@/lib/Types"
 import {
     updateEvaluationScenario,
@@ -14,6 +27,13 @@ import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {convertToCsv, downloadCsv, getOpenAIKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
+
+const {Title} = Typography
+
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
 
 interface AICritiqueEvaluationTableProps {
     evaluation: Evaluation
@@ -115,6 +135,10 @@ const useStyles = createUseStyles({
             color: "#3f8600",
         },
     },
+    exportBtn: ({themeMode}: StyleProps) => ({
+        backgroundColor: themeMode === "dark" ? "#fff" : "#000",
+        color: themeMode === "dark" ? "#000" : "#fff",
+    }),
 })
 
 const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
@@ -122,7 +146,8 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -416,7 +441,7 @@ Answer ONLY with one of the given grading or evaluation options.
 
     return (
         <div>
-            <h1>AI Critique Evaluation</h1>
+            <Title level={2}>AI Critique Evaluation</Title>
             <div>
                 <div>
                     <Card className={classes.card} title="Evaluation strategy prompt">
@@ -432,21 +457,25 @@ Answer ONLY with one of the given grading or evaluation options.
                 </div>
                 <Row align="middle" className={classes.row}>
                     <Col span={12}>
-                        <Button
-                            type="primary"
-                            onClick={runAllEvaluations}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Run Evaluation
-                        </Button>
-                        <Button
-                            onClick={handleExportClick}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Export
-                        </Button>
+                        <Space>
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                icon={<LineChartOutlined />}
+                                size="large"
+                            >
+                                Run Evaluation
+                            </Button>
+                            <Button
+                                onClick={handleExportClick}
+                                icon={<DownloadOutlined />}
+                                size="large"
+                                type="text"
+                                className={classes.exportBtn}
+                            >
+                                Export results
+                            </Button>
+                        </Space>
                     </Col>
                 </Row>
             </div>

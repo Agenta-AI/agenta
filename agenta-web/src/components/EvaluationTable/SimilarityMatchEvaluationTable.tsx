@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {LineChartOutlined} from "@ant-design/icons"
+import {DownloadOutlined, LineChartOutlined} from "@ant-design/icons"
 import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, message} from "antd"
 import {
     updateEvaluationScenario,
@@ -15,6 +15,13 @@ import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/utils"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
+
+const {Title} = Typography
+
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
 
 interface SimilarityMatchEvaluationTableProps {
     evaluation: any
@@ -85,6 +92,10 @@ const useStyles = createUseStyles({
             color: "#cf1322",
         },
     },
+    exportBtn: ({themeMode}: StyleProps) => ({
+        backgroundColor: themeMode === "dark" ? "#fff" : "#000",
+        color: themeMode === "dark" ? "#000" : "#fff",
+    }),
 })
 
 const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTableProps> = ({
@@ -92,7 +103,8 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     evaluationScenarios,
     columnsCount,
 }) => {
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -447,10 +459,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     return (
         <div>
-            <h1>
+            <Title level={2}>
                 Similarity match Evaluation (Threshold:{" "}
                 {evaluation.evaluationTypeSettings.similarityThreshold})
-            </h1>
+            </Title>
             <div className={classes.div}>
                 <Text>
                     This evaluation type is calculating the similarity using Jaccard similarity.
@@ -459,21 +471,25 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             <div>
                 <Row align="middle">
                     <Col span={12}>
-                        <Button
-                            type="primary"
-                            onClick={runAllEvaluations}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Run Evaluation
-                        </Button>
-                        <Button
-                            onClick={handleExportClick}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Export
-                        </Button>
+                        <Space>
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                icon={<LineChartOutlined />}
+                                size="large"
+                            >
+                                Run Evaluation
+                            </Button>
+                            <Button
+                                onClick={handleExportClick}
+                                icon={<DownloadOutlined />}
+                                size="large"
+                                type="text"
+                                className={classes.exportBtn}
+                            >
+                                Export results
+                            </Button>
+                        </Space>
                     </Col>
 
                     <Col span={12}>

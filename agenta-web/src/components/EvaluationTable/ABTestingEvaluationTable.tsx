@@ -74,10 +74,10 @@ const useStyles = createUseStyles({
     recordInput: {
         marginBottom: 10,
     },
-    title: {
-        fontSize: "2rem !important",
-        marginBottom: "20px !important",
-    },
+    // title: {
+    //     fontSize: "2rem !important",
+    //     marginBottom: "20px !important",
+    // },
 })
 
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
@@ -380,7 +380,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     return (
         <div>
-            <Title className={classes.title}>A/B Testing Evaluation</Title>
+            <Title level={2}>A/B Testing Evaluation</Title>
             <div>
                 <Row align="middle">
                     <Col span={12}>
