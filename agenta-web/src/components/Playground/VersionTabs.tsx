@@ -193,6 +193,7 @@ const VersionTabs: React.FC = () => {
                 }
                 variants={variants}
                 setNewVariantName={setNewVariantName}
+                newVariantName={newVariantName}
                 setTemplateVariantName={setTemplateVariantName}
             />
             <VariantRemovalWarningModal
