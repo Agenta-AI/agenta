@@ -49,7 +49,6 @@ def start_container(
     image_name, app_name, variant_name, env_vars: DockerEnvVars, user_id: str
 ) -> URI:
     try:
-        image = client.images.get(f"{image_name}")
 
         image = client.images.get(f"{image_name}")
 
