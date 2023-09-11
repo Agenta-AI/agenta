@@ -1,7 +1,6 @@
-import React, {useEffect} from "react"
+import React from "react"
 import {Modal, Button} from "antd"
 import {useRouter} from "next/router"
-import {Variant} from "@/lib/Types"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles({
@@ -19,7 +18,6 @@ interface Props {
     setIsModalOpen: (value: boolean) => void
     handleRemove: () => void
     handleCancel: () => void
-    variants: Variant[]
 }
 
 const VariantRemovalWarningModal: React.FC<Props> = ({
@@ -27,7 +25,6 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
     setIsModalOpen,
     handleRemove,
     handleCancel,
-    variants,
 }) => {
     const classes = useStyles()
     const handleCloseModal = () => setIsModalOpen(false)
@@ -37,12 +34,6 @@ const VariantRemovalWarningModal: React.FC<Props> = ({
         handleRemove()
         handleCloseModal()
     }
-
-    useEffect(() => {
-        if (variants.length < 1) {
-            router.push(`/apps`)
-        }
-    }, [variants])
 
     const handleDismiss = () => {
         handleCancel()

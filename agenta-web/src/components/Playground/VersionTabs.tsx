@@ -5,7 +5,7 @@ import {Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import VariantRemovalWarningModal from "./VariantRemovalWarningModal"
 import NewVariantModal from "./NewVariantModal"
-import {useRouter} from "next/router"
+import router, {useRouter} from "next/router"
 import {fetchVariants, removeVariant} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem} from "@/lib/Types"
 
@@ -54,7 +54,9 @@ function addTab(
 function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], activeKey: string) {
     console.log(activeKey)
     const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
-
+    if (newVariants.length < 1) {
+        router.push(`/apps`)
+    }
     let newActiveKey = ""
     if (newVariants.length > 0) {
         newActiveKey = newVariants[newVariants.length - 1].variantName
@@ -193,17 +195,16 @@ const VersionTabs: React.FC = () => {
                 }
                 variants={variants}
                 setNewVariantName={setNewVariantName}
+                newVariantName={newVariantName}
                 setTemplateVariantName={setTemplateVariantName}
             />
             <VariantRemovalWarningModal
-                variants={variants}
                 isModalOpen={isWarningModalOpen1}
                 setIsModalOpen={setRemovalWarningModalOpen1}
                 handleRemove={handleRemove}
                 handleCancel={handleCancel1}
             />
             <VariantRemovalWarningModal
-                variants={variants}
                 isModalOpen={isWarningModalOpen2}
                 setIsModalOpen={setRemovalWarningModalOpen2}
                 handleRemove={handleBackendRemove}
