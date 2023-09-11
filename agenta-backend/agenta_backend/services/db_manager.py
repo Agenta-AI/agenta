@@ -250,7 +250,7 @@ async def get_app_variant_by_app_name_and_variant_name(
     Args:
         app_name (str): Name of the app.
         variant_name (str): Name of the variant.
-        show_soft_deleted (bool, optional): Whether to include soft-deleted items. Defaults to False.
+        show_soft_deleted: if true, returns soft deleted variants as well
         **kwargs (dict): Additional keyword arguments.
 
     Returns:
