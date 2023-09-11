@@ -203,14 +203,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
                 setRowData(separateRowData)
             }
-            setInputValues(
-                newColDefs.filter((col) => !!col.field).map((col) => col.field),
-                () => {
-                    setTimeout(() => {
-                        setLoading(false)
-                    }, 100)
-                },
-            )
+            setInputValues(newColDefs.filter((col) => !!col.field).map((col) => col.field))
         }
 
         if (mode === "edit" && testset_id) {
@@ -317,6 +310,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             const values = [...inputValues]
             values[index] = event.target.value
             setScopedInputValues(values)
+            setLoading(false)
         }
 
         const onAddColumn = () => {
@@ -332,6 +326,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             setInputValues([...inputValues, newColumnName])
             setColumnDefs([...columnDefs, {field: newColumnName}, ADD_BUTTON_COL])
             setRowData(updatedRowData)
+            setLoading(false)
         }
 
         useEffect(() => {
@@ -422,6 +417,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             }
         })
         setRowData([...rowData, newRow])
+        setLoading(false)
     }
 
     const onSaveData = async () => {
@@ -456,6 +452,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setTestsetName(e.target.value)
+        setLoading(false)
     }
 
     const onDeleteRow = () => {
@@ -463,6 +460,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         const selectedData = selectedNodes.map((node: GenericObject) => node.data)
         const newrowData = rowData.filter((row) => !selectedData.includes(row))
         setRowData(newrowData)
+        setLoading(false)
     }
 
     const onDeleteColumn = (indexToDelete: number) => {
@@ -484,6 +482,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
         setInputValues(newInputValues)
         setColumnDefs(newColumnDefs)
         setRowData(newRowData)
+        setLoading(false)
         if (gridRef.current) {
             gridRef.current.setColumnDefs(newColumnDefs)
         }
@@ -494,6 +493,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             params.data[params.colDef.field] = ""
         }
         setUnSavedChanges(true)
+        setLoading(false)
     }
 
     const {appTheme} = useAppTheme()
