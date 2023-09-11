@@ -11,6 +11,7 @@ interface Props {
     addTab: () => void
     variants: any[]
     setNewVariantName: (value: string) => void
+    newVariantName: string
     setTemplateVariantName: (value: string) => void
 }
 
@@ -26,14 +27,24 @@ const NewVariantModal: React.FC<Props> = ({
     addTab,
     variants,
     setNewVariantName,
+    newVariantName,
     setTemplateVariantName,
 }) => {
     const classes = useStyles()
     const [variantPlaceHolder, setVariantPlaceHolder] = useState("Source Variant")
+    const [isInputValid, setIsInputValid] = useState(false) // To check if the input is valid
+
     const handleTemplateVariantChange = (value: string) => {
         let newValue = value.includes(".") ? value.split(".")[0] : value
         setTemplateVariantName(value)
         setVariantPlaceHolder(`${newValue}`)
+        setIsInputValid(newVariantName.trim().length > 0 && value !== "Source Variant") // Update the validity of the input
+    }
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const inputValue = e.target.value
+        setNewVariantName(inputValue)
+        setIsInputValid(inputValue.trim().length > 0 && variantPlaceHolder !== "Source Variant") // Update the validity of the input
     }
 
     return (
@@ -41,11 +52,15 @@ const NewVariantModal: React.FC<Props> = ({
             title="Create a New Variant"
             open={isModalOpen}
             onOk={() => {
-                setIsModalOpen(false)
-                addTab()
+                if (isInputValid) {
+                    // Check if the input is valid
+                    setIsModalOpen(false)
+                    addTab()
+                }
             }}
             onCancel={() => setIsModalOpen(false)}
             centered
+            okButtonProps={{disabled: !isInputValid}} // Disable OK button if input is not valid
         >
             <Space direction="vertical" size={20}>
                 <div>
@@ -65,7 +80,7 @@ const NewVariantModal: React.FC<Props> = ({
                     <Text>Enter a unique name for the new variant:</Text>
                     <Input
                         addonBefore={variantPlaceHolder}
-                        onChange={(e) => setNewVariantName(e.target.value)}
+                        onChange={handleInputChange} // Modify this line
                     />
                 </div>
             </Space>
