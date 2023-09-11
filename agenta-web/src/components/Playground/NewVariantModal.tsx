@@ -32,19 +32,19 @@ const NewVariantModal: React.FC<Props> = ({
 }) => {
     const classes = useStyles()
     const [variantPlaceHolder, setVariantPlaceHolder] = useState("Source Variant")
-    const [isInputValid, setIsInputValid] = useState(false) // To check if the input is valid
+    const [isInputValid, setIsInputValid] = useState(false)
 
     const handleTemplateVariantChange = (value: string) => {
         let newValue = value.includes(".") ? value.split(".")[0] : value
         setTemplateVariantName(value)
         setVariantPlaceHolder(`${newValue}`)
-        setIsInputValid(newVariantName.trim().length > 0 && value !== "Source Variant") // Update the validity of the input
+        setIsInputValid(newVariantName.trim().length > 0 && value !== "Source Variant")
     }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const inputValue = e.target.value
         setNewVariantName(inputValue)
-        setIsInputValid(inputValue.trim().length > 0 && variantPlaceHolder !== "Source Variant") // Update the validity of the input
+        setIsInputValid(inputValue.trim().length > 0 && variantPlaceHolder !== "Source Variant")
     }
 
     return (
@@ -53,7 +53,6 @@ const NewVariantModal: React.FC<Props> = ({
             open={isModalOpen}
             onOk={() => {
                 if (isInputValid) {
-                    // Check if the input is valid
                     setIsModalOpen(false)
                     addTab()
                 }
@@ -78,10 +77,7 @@ const NewVariantModal: React.FC<Props> = ({
 
                 <div>
                     <Text>Enter a unique name for the new variant:</Text>
-                    <Input
-                        addonBefore={variantPlaceHolder}
-                        onChange={handleInputChange} // Modify this line
-                    />
+                    <Input addonBefore={variantPlaceHolder} onChange={handleInputChange} />
                 </div>
             </Space>
         </Modal>
