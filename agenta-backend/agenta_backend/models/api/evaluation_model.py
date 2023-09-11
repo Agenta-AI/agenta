@@ -14,6 +14,7 @@ class EvaluationType(str, Enum):
     auto_ai_critique = "auto_ai_critique"
     human_a_b_testing = "human_a_b_testing"
     human_scoring = "human_scoring"
+    custom_code_run = "custom_code_run"
 
 
 class EvaluationStatusEnum(str, Enum):
@@ -84,16 +85,14 @@ class DeleteEvaluation(BaseModel):
     evaluations_ids: List[str]
 
 
-class CustomEvaluationTarget(BaseModel):
-    inputs: Dict[str, Any]
-    output: float
-    target: float
-    
-
 class StoreCustomEvaluation(BaseModel):
     evaluation_name: str
     python_code: str
     app_name: str
-    parameters: CustomEvaluationTarget
-    allowed_imports: List[str]
-    
+
+
+class CustomEvaluationOutput(BaseModel):
+    id: str
+    app_name: str
+    evaluation_name: str
+    created_at: datetime
