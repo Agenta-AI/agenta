@@ -3,17 +3,17 @@ name = "agenta"
 version = "0.2.7"
 description = "SDK for Agenta an open-source LLMOps platform."
 readme = "README.md"
+authors = ["Mahmoud Mabrouk <mahmoud@agenta.ai>"]
 classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.9",
     "Topic :: Software Development :: Libraries"
 ]
-project.urls = {
-    "Documentation": "https://docs.agenta.ai",
-    "Source": "https://github.com/agenta-ai/agenta",
-    "Homepage": "https://agenta.ai"
-}
+homepage = "https://agenta.ai"
+repository = "https://github.com/agenta-ai/agenta"
+documentation = "https://docs.agenta.ai"
+keywords = ["LLMOps", "LLM", "evaluation", "prompt engineering"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
