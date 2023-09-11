@@ -75,6 +75,12 @@ export interface StoreCustomEvaluationSuccessResponse {
     evaluation_id: string
 }
 
+export interface SingleCustomEvaluation {
+    id: string
+    app_name: string
+    evaluation_name: string
+}
+
 export interface Parameter {
     name: string
     type: string
