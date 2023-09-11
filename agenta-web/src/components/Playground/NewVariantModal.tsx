@@ -11,6 +11,7 @@ interface Props {
     addTab: () => void
     variants: any[]
     setNewVariantName: (value: string) => void
+    newVariantName: string
     setTemplateVariantName: (value: string) => void
 }
 
@@ -26,6 +27,7 @@ const NewVariantModal: React.FC<Props> = ({
     addTab,
     variants,
     setNewVariantName,
+    newVariantName,
     setTemplateVariantName,
 }) => {
     const classes = useStyles()
@@ -36,12 +38,13 @@ const NewVariantModal: React.FC<Props> = ({
         let newValue = value.includes(".") ? value.split(".")[0] : value
         setTemplateVariantName(value)
         setVariantPlaceHolder(`${newValue}`)
+        setIsInputValid(newVariantName.trim().length > 0 && value !== "Source Variant") // Update the validity of the input
     }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const inputValue = e.target.value
         setNewVariantName(inputValue)
-        setIsInputValid(inputValue.trim().length > 0)  // Update the validity of the input
+        setIsInputValid(inputValue.trim().length > 0 && variantPlaceHolder !== "Source Variant") // Update the validity of the input
     }
 
     return (
@@ -49,14 +52,15 @@ const NewVariantModal: React.FC<Props> = ({
             title="Create a New Variant"
             open={isModalOpen}
             onOk={() => {
-                if (isInputValid) { // Check if the input is valid
+                if (isInputValid) {
+                    // Check if the input is valid
                     setIsModalOpen(false)
                     addTab()
                 }
             }}
             onCancel={() => setIsModalOpen(false)}
             centered
-            okButtonProps={{ disabled: !isInputValid }} // Disable OK button if input is not valid
+            okButtonProps={{disabled: !isInputValid}} // Disable OK button if input is not valid
         >
             <Space direction="vertical" size={20}>
                 <div>
@@ -83,6 +87,5 @@ const NewVariantModal: React.FC<Props> = ({
         </Modal>
     )
 }
-
 
 export default NewVariantModal
