@@ -61,6 +61,13 @@ export interface Evaluation {
     appName: string
 }
 
+
+export interface StoreCustomEvaluation {
+  evaluation_name: string
+  python_code: string
+  app_name: string
+}
+
 export interface Parameter {
     name: string
     type: string
