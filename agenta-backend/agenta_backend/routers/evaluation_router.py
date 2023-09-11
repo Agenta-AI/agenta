@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import HTTPException, APIRouter, Body, Depends
+from fastapi.responses import JSONResponse
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
@@ -13,6 +14,7 @@ from agenta_backend.models.api.evaluation_model import (
     DeleteEvaluation,
     EvaluationType,
     EvaluationStatus,
+    StoreCustomEvaluation,
 )
 from agenta_backend.services.results_service import (
     fetch_results_for_human_a_b_testing_evaluation,
@@ -26,6 +28,8 @@ from agenta_backend.services.evaluation_service import (
     update_evaluation_status,
     create_new_evaluation,
     create_new_evaluation_scenario,
+    store_custom_code_evaluation,
+    execute_cusom_code_evaluation,
 )
 from agenta_backend.services.db_manager import engine, query, get_user_object
 from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
@@ -85,7 +89,9 @@ async def update_evaluation_status_router(
     try:
         # Get user and organization id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_status(evaluation_id, update_data, **kwargs)
+        return await update_evaluation_status(
+            evaluation_id, update_data, **kwargs
+        )
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -138,7 +144,9 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
+@router.post(
+    "/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario
+)
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
@@ -262,9 +270,9 @@ async def fetch_evaluation(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     evaluation = await engine.find_one(EvaluationDB, query_expression)
     if evaluation is not None:
         return Evaluation(
@@ -344,9 +352,9 @@ async def fetch_results(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder and retrieve evaluation from database
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     evaluation = await engine.find_one(EvaluationDB, query_expression)
 
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
@@ -371,3 +379,51 @@ async def fetch_results(
     elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
         results = await fetch_results_for_auto_ai_critique(evaluation_id)
         return {"results_data": results}
+
+
+@router.post("/custom_evaluation/store/")
+async def store_custom_evaluation(
+    custom_evaluation_payload: StoreCustomEvaluation,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Store evaluation with custom python code.
+
+    Args:
+        \n custom_evaluation_payload (StoreCustomEvaluation): payload schema required
+        \n stoken_session (SessionContainer, optional): session token to verify user session. Defaults to Depends(verify_session()).
+    """
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    # Store custom evaluation in database
+    evaluation_id = await store_custom_code_evaluation(
+        custom_evaluation_payload, **kwargs
+    )
+
+    return JSONResponse(
+        {
+            "status": "success",
+            "message": "Evaluation stored successfully.",
+            "evaluation_id": evaluation_id,
+        },
+        status_code=200,
+    )
+
+
+@router.post(
+    "/custom_evaluation/execute/{app_name}/{evaluation_id}/"
+)
+async def execute_evaluation(
+    app_name: str,
+    evaluation_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    # Excute custom code evaluation
+    result = await execute_cusom_code_evaluation(
+        evaluation_id, app_name, **kwargs
+    )
+    return result

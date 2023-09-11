@@ -426,8 +426,8 @@ async def store_custom_code_evaluation(
     return str(custom_eval.id)
 
 
-async def execute_cusom_code_evaluation(
-    evaluation_id: str, app_name: str, **kwargs: dict
+async def execute_custom_code_evaluation(
+    evaluation_id: str, **kwargs: dict
 ):
     # Get user object
     user = await get_user_object(kwargs["uid"])
@@ -436,7 +436,6 @@ async def execute_cusom_code_evaluation(
     query_expression = (
         query.eq(CustomEvaluationDB.id, ObjectId(evaluation_id))
         & query.eq(CustomEvaluationDB.user, user.id)
-        & query.eq(CustomEvaluationDB.app_name, app_name)
     )
 
     # Get custom evaluation
