@@ -402,6 +402,16 @@ export const saveCutomCodeEvaluation = async (
     return response
 }
 
+
+export const fetchCustomEvaluations = async (app_name: string, ignoreAxiosError: boolean = false) => {
+    const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_name}`, 
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
+
 export const fetchApps = () => {
     const {data, error, isLoading} = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
