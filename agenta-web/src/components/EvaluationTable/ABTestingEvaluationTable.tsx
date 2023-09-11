@@ -125,7 +125,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     }, [rows])
 
     useEffect(() => {
-        if (Array.isArray(rowData) && rowData.length > 0 && typeof rowData[0] === "object") {
+        if (Array.isArray(rowData) && rowData.length > 0) {
             setColumnDefs(
                 Object.keys(rowData[0]).map((key) => ({
                     field: key,
