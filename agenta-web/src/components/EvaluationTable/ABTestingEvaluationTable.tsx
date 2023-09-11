@@ -97,42 +97,12 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
-    const [rowData, setRowData] = useState<
-        {appVariant1: string; inputs: string; vote: string; appVariant0: string}[]
-    >([])
-    const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
 
     useEffect(() => {
         if (evaluationScenarios) {
             setRows(evaluationScenarios)
         }
     }, [evaluationScenarios])
-
-    useEffect(() => {
-        const getRows = rows.map((data) => {
-            return {
-                inputs: data.inputs[0].input_value,
-                appVariant0: data?.columnData0
-                    ? data?.columnData0
-                    : data.outputs[0]?.variant_output,
-                appVariant1: data?.columnData1
-                    ? data?.columnData1
-                    : data.outputs[1]?.variant_output,
-                vote: data.vote,
-            }
-        })
-        setRowData(getRows)
-    }, [rows])
-
-    useEffect(() => {
-        if (Array.isArray(rowData) && rowData.length > 0) {
-            setColumnDefs(
-                Object.keys(rowData[0]).map((key) => ({
-                    field: key,
-                })),
-            )
-        }
-    }, [rowData])
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
@@ -235,9 +205,27 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     }
 
     const handleExportClick = () => {
+        const exportRow = rows.map((data) => {
+            return {
+                inputs: data.inputs[0].input_value,
+                appVariant0: data?.columnData0
+                    ? data?.columnData0
+                    : data.outputs[0]?.variant_output,
+                appVariant1: data?.columnData1
+                    ? data?.columnData1
+                    : data.outputs[1]?.variant_output,
+                vote: data.vote,
+            }
+        })
+        const exportCol = Object.keys(exportRow[0]).map((key) => {
+            return {
+                field: key,
+            }
+        })
+
         const csvData = convertToCsv(
-            rowData,
-            columnDefs.map((col) => col.field),
+            exportRow,
+            exportCol.map((col) => col.field),
         )
         const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.variants[1].variantName}_${evaluation.evaluationType}.csv`
         downloadCsv(csvData, filename)

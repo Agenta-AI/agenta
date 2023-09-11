@@ -128,10 +128,6 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     const [accuracy, setAccuracy] = useState<number>(0)
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
-    const [rowData, setRowData] = useState<
-        {correctAnswer: string; inputs: string; score: string; appVariant: string}[]
-    >([])
-    const [columnDefs, setColumnDefs] = useState<{field: string; [key: string]: any}[]>([])
 
     const {Title} = Typography
 
@@ -140,28 +136,6 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             setRows(evaluationScenarios)
         }
     }, [evaluationScenarios])
-
-    useEffect(() => {
-        const getRows = rows.map((data) => {
-            return {
-                inputs: data.inputs[0].input_value,
-                appVariant: data?.columnData0 ? data?.columnData0 : data.outputs[0]?.variant_output,
-                correctAnswer: data.correctAnswer,
-                score: data.score,
-            }
-        })
-        setRowData(getRows)
-    }, [rows])
-
-    useEffect(() => {
-        if (Array.isArray(rowData) && rowData.length > 0) {
-            setColumnDefs(
-                Object.keys(rowData[0]).map((key) => ({
-                    field: key,
-                })),
-            )
-        }
-    }, [rowData])
 
     useEffect(() => {
         if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
@@ -248,9 +222,22 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     }
 
     const handleExportClick = () => {
+        const exportRow = rows.map((data) => {
+            return {
+                inputs: data.inputs[0].input_value,
+                appVariant: data?.columnData0 ? data?.columnData0 : data.outputs[0]?.variant_output,
+                correctAnswer: data.correctAnswer,
+                score: data.score,
+            }
+        })
+        const exportCol = Object.keys(exportRow[0]).map((key) => {
+            return {
+                field: key,
+            }
+        })
         const csvData = convertToCsv(
-            rowData,
-            columnDefs.map((col) => col.field),
+            exportRow,
+            exportCol.map((col) => col.field),
         )
         const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
         downloadCsv(csvData, filename)
