@@ -9,6 +9,8 @@ import router, {useRouter} from "next/router"
 import {fetchVariants, removeVariant} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem} from "@/lib/Types"
 
+import {SyncOutlined} from "@ant-design/icons"
+
 function addTab(
     setActiveKey: any,
     setVariants: any,
@@ -83,23 +85,22 @@ const VersionTabs: React.FC = () => {
     const [isDeleteLoading, setIsDeleteLoading] = useState(false)
     const [messageApi, contextHolder] = message.useMessage()
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const backendVariants = await fetchVariants(appName)
-
-                if (backendVariants.length > 0) {
-                    setVariants(backendVariants)
-                    setActiveKey(backendVariants[0].variantName)
-                }
-
-                setIsLoading(false)
-            } catch (error) {
-                setIsError(true)
-                setIsLoading(false)
+    const fetchData = async () => {
+        try {
+            const backendVariants = await fetchVariants(appName)
+            if (backendVariants.length > 0) {
+                setVariants(backendVariants)
+                setActiveKey(backendVariants[0].variantName)
             }
-        }
 
+            setIsLoading(false)
+        } catch (error) {
+            setIsError(true)
+            setIsLoading(false)
+        }
+    }
+
+    useEffect(() => {
         fetchData()
     }, [appName])
 
@@ -171,21 +172,30 @@ const VersionTabs: React.FC = () => {
     return (
         <div>
             {contextHolder}
-
-            <Tabs
-                type="editable-card"
-                activeKey={activeKey}
-                onChange={setActiveKey}
-                onEdit={(targetKey, action) => {
-                    if (action === "add") {
-                        setIsModalOpen(true)
-                    } else if (action === "remove") {
-                        setRemovalVariantName(targetKey as string)
-                        setRemovalWarningModalOpen1(true)
-                    }
-                }}
-                items={tabItems}
-            />
+            <div style={{position: "relative"}}>
+                <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
+                    <SyncOutlined
+                        spin={isLoading}
+                        style={{color: "#1677ff", fontSize: "17px"}}
+                        onClick={() => {
+                            setIsLoading(true)
+                            fetchData()
+                        }}
+                    />
+                </div>
+                <Tabs
+                    type="editable-card"
+                    activeKey={activeKey}
+                    onChange={setActiveKey}
+                    onEdit={(targetKey, action) => {
+                        if (action === "remove") {
+                            setRemovalVariantName(targetKey as string)
+                            setRemovalWarningModalOpen1(true)
+                        }
+                    }}
+                    items={tabItems}
+                />
+            </div>
 
             <NewVariantModal
                 isModalOpen={isModalOpen}
