@@ -20,12 +20,7 @@ axios.interceptors.response.use(
             }`
         error.message = msg
 
-        const apiCallUrl: string = error.response.request.responseURL
-        if (apiCallUrl && apiCallUrl.endsWith("openapi.json")) {
-            globalErrorHandler("Docker container is currently not running. Consider restarting it.")
-        } else {
-            globalErrorHandler(error)
-        }
+        globalErrorHandler(error)
 
         throw error
     },
