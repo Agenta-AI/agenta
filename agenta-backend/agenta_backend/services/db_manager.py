@@ -239,6 +239,42 @@ async def list_app_variants(
     ]
     return app_variants
 
+async def get_app_variant_by_app_name_and_variant_name(
+    app_name: str = None, variant_name: str = None, show_soft_deleted=False, **kwargs: dict
+) -> AppVariant:
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    if app_name is None or variant_name is None:
+        raise ValueError("App name or variant name is None")
+
+    # Base query
+    users_query = query.eq(AppVariantDB.user_id, user.id)
+
+    # Handle soft deleted
+    soft_delete_query = query.eq(AppVariantDB.is_deleted, show_soft_deleted)
+
+    # Final query
+    query_filters = (
+        query.eq(AppVariantDB.app_name, app_name) &
+        query.eq(AppVariantDB.variant_name, variant_name) &
+        users_query &
+        soft_delete_query
+    )
+
+    app_variants_db = await engine.find(
+        AppVariantDB,
+        query_filters,
+        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
+    )
+
+    # Convert to AppVariant (assuming app_variant_db_to_pydantic returns AppVariant)
+    # Here I assume that find will return a list and take the first element.
+    app_variant: AppVariant = app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
+    
+    return app_variant
+
 
 async def list_apps(**kwargs: dict) -> List[App]:
     """

@@ -61,6 +61,51 @@ async def list_app_variants(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/get_variant_by_name/", response_model=AppVariant)
+async def get_variant_by_name(
+    app_name: str,
+    variant_name: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Fetches a specific app variant based on the given app_name and variant_name.
+    
+    Arguments:
+        app_name (str): The name of the app to query.
+        variant_name (str): The name of the variant to query.
+        
+    Raises:
+        HTTPException: Raises 404 if no matching variant is found,
+                       400 for ValueError, or 500 for any other exceptions.
+
+    Returns:
+        AppVariant: The fetched app variant.
+    """
+
+    try:
+        # Retrieve the user and organization ID based on the session token
+        kwargs = await get_user_and_org_id(stoken_session)
+        
+        # Fetch the app variant using the provided app_name and variant_name
+        app_variant = await db_manager.get_app_variant_by_app_name_and_variant_name(
+            app_name=app_name, variant_name=variant_name, **kwargs
+        )
+        
+        # Check if the fetched app variant is None and raise 404 if it is
+        if app_variant is None:
+            raise HTTPException(status_code=404, detail="App Variant not found")
+        
+        return app_variant
+    except ValueError as e:
+        # Handle ValueErrors and return 400 status code
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException as e:
+        # FIXME: This is a temporary fix to avoid returning 500 status code
+        # Re-raise caught HTTPExceptions
+        raise
+    except Exception as e:
+        # Handle all other exceptions and return 500 status code
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/list_apps/", response_model=List[App])
 async def list_apps(
     stoken_session: SessionContainer = Depends(verify_session()),
