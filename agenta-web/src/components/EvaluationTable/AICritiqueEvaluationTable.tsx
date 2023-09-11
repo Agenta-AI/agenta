@@ -287,7 +287,7 @@ Answer ONLY with one of the given grading or evaluation options.
             rowData,
             columnDefs.map((col) => col.field),
         )
-        const filename = `${evaluation.evaluationType}.csv`
+        const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
         downloadCsv(csvData, filename)
     }
 

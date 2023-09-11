@@ -239,7 +239,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             rowData,
             columnDefs.map((col) => col.field),
         )
-        const filename = `${evaluation.evaluationType}.csv`
+        const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.variants[1].variantName}_${evaluation.evaluationType}.csv`
         downloadCsv(csvData, filename)
     }
 

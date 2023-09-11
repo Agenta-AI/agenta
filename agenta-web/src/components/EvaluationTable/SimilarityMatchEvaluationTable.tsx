@@ -258,7 +258,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             rowData,
             columnDefs.map((col) => col.field),
         )
-        const filename = `${evaluation.evaluationType}.csv`
+        const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
         downloadCsv(csvData, filename)
     }
 
