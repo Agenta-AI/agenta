@@ -112,19 +112,11 @@ class EvaluationScenarioDB(Model):
         collection = "evaluation_scenarios"
         
 
-class CustomEvaluationTarget(EmbeddedModel):
-    inputs: Dict[str, Any]
-    output: float
-    target: float
-
-
 class CustomEvaluationDB(Model):
     evaluation_name: str
     python_code: str
     app_name: str
     user: UserDB = Reference()
-    allowed_imports: List[str]
-    parameters: CustomEvaluationTarget
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
     
