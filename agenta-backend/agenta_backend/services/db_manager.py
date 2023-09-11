@@ -1,4 +1,5 @@
 import os
+import logging
 from bson import ObjectId
 from typing import Dict, List, Any
 
@@ -23,17 +24,13 @@ from agenta_backend.models.db_models import (
     OrganizationDB,
 )
 from agenta_backend.services import helpers
+from agenta_backend.models.db_engine import DBEngine
 
-from odmantic import AIOEngine, query
-from motor.motor_asyncio import AsyncIOMotorClient
+from odmantic import query
 
-import logging
 
-# SQLite database connection
-DATABASE_URL = os.environ["MONGODB_URI"]
-
-client = AsyncIOMotorClient(DATABASE_URL)
-engine = AIOEngine(client=client, database="agenta")
+# Initialize database engine
+engine = DBEngine(mode="default").engine()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
