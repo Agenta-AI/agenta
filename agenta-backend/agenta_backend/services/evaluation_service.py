@@ -1,12 +1,13 @@
-from typing import Dict
 from bson import ObjectId
 from datetime import datetime
+from typing import Dict, List
 
 from fastapi import HTTPException
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
+    CustomEvaluationOutput,
     EvaluationType,
     NewEvaluation,
     EvaluationScenarioUpdate,
@@ -23,7 +24,6 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioInput,
     EvaluationScenarioOutput,
     CustomEvaluationDB,
-    CustomEvaluationTarget,
 )
 
 from langchain.chains import LLMChain
@@ -408,35 +408,23 @@ async def store_custom_code_evaluation(
     # Get user object
     user = await get_user_object(kwargs["uid"])
 
-    # Set payload as dictionary
-    payload_dict = payload.dict()
-
-    # Set evaluation target payload
-    eval_target_dict = payload_dict["parameters"]
-
-    # Instantiate custom evaluation
-    eval_target = CustomEvaluationTarget(**eval_target_dict)
-
-    del payload_dict["parameters"]
+    # Initialize custome evaluation instance
     custom_eval = CustomEvaluationDB(
-        **payload_dict, parameters=eval_target, user=user
+        **payload.dict(), user=user
     )
 
     await engine.save(custom_eval)
     return str(custom_eval.id)
 
 
-async def execute_custom_code_evaluation(
-    evaluation_id: str, **kwargs: dict
-):
+async def execute_custom_code_evaluation(evaluation_id: str, **kwargs: dict):
     # Get user object
     user = await get_user_object(kwargs["uid"])
 
     # Build query expression
-    query_expression = (
-        query.eq(CustomEvaluationDB.id, ObjectId(evaluation_id))
-        & query.eq(CustomEvaluationDB.user, user.id)
-    )
+    query_expression = query.eq(
+        CustomEvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(CustomEvaluationDB.user, user.id)
 
     # Get custom evaluation
     custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
@@ -447,8 +435,7 @@ async def execute_custom_code_evaluation(
     try:
         result = execute_code_safely(
             custom_eval.python_code,
-            custom_eval.allowed_imports,
-            custom_eval.parameters.inputs
+            custom_eval.parameters.inputs,
         )
     except Exception as e:
         raise HTTPException(
@@ -456,3 +443,33 @@ async def execute_custom_code_evaluation(
             detail=f"Failed to execute custom code evaluation: {str(e)}",
         )
     return result
+
+
+async def fetch_custom_evaluations(
+    app_name: str, **kwargs: dict
+) -> List[CustomEvaluationOutput]:
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
+        CustomEvaluationDB.app_name, app_name
+    )
+
+    # Get custom evaluations
+    custom_evals = await engine.find(CustomEvaluationDB, query_expression)
+    if not custom_evals:
+        raise HTTPException(status_code=404, detail="No evaluations found")
+
+    # Convert custom evaluations to evaluations
+    evaluations = []
+    for custom_eval in custom_evals:
+        evaluations.append(
+            CustomEvaluationOutput(
+                id=str(custom_eval.id),
+                app_name=custom_eval.app_name,
+                evaluation_name=custom_eval.evaluation_name,
+                created_at=custom_eval.created_at
+            )
+        )
+    return evaluations
