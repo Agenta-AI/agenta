@@ -82,6 +82,7 @@ def list_variants(app_name: str, host: str) -> List[AppVariant]:
     app_variants = response.json()
     return [AppVariant(**variant) for variant in app_variants]
 
+
 def get_variant_by_name(app_name: str, variant_name: str, host: str) -> AppVariant:
     """Gets a variant by name
 
@@ -103,6 +104,7 @@ def get_variant_by_name(app_name: str, variant_name: str, host: str) -> AppVaria
         raise APIRequestError(
             f"Request to get_variant_by_name endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
+
 
 def remove_variant(app_name: str, variant_name: str, host: str):
     """Removes a variant from the backend

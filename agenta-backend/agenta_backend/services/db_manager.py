@@ -239,14 +239,12 @@ async def list_app_variants(
     ]
     return app_variants
 
+
 async def get_app_variant_by_app_name_and_variant_name(
-    app_name: str, 
-    variant_name: str, 
-    show_soft_deleted: bool = False, 
-    **kwargs: dict
+    app_name: str, variant_name: str, show_soft_deleted: bool = False, **kwargs: dict
 ) -> AppVariant:
     """Fetches an app variant based on app_name and variant_name.
-    
+
     Args:
         app_name (str): Name of the app.
         variant_name (str): Name of the variant.
@@ -256,7 +254,7 @@ async def get_app_variant_by_app_name_and_variant_name(
     Returns:
         AppVariant: The fetched app variant.
     """
-    
+
     # Get the user object using the user ID
     user = await get_user_object(kwargs["uid"])
 
@@ -268,10 +266,10 @@ async def get_app_variant_by_app_name_and_variant_name(
 
     # Construct the final query filters
     query_filters = (
-        query.eq(AppVariantDB.app_name, app_name) &
-        query.eq(AppVariantDB.variant_name, variant_name) &
-        users_query &
-        soft_delete_query
+        query.eq(AppVariantDB.app_name, app_name)
+        & query.eq(AppVariantDB.variant_name, variant_name)
+        & users_query
+        & soft_delete_query
     )
 
     # Perform the database query
@@ -283,10 +281,11 @@ async def get_app_variant_by_app_name_and_variant_name(
 
     # Convert the database object to AppVariant and return it
     # Assuming that find will return a list, take the first element if it exists
-    app_variant: AppVariant = app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
-    
-    return app_variant
+    app_variant: AppVariant = (
+        app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
+    )
 
+    return app_variant
 
     # Get user object
     user = await get_user_object(kwargs["uid"])
@@ -302,10 +301,10 @@ async def get_app_variant_by_app_name_and_variant_name(
 
     # Final query
     query_filters = (
-        query.eq(AppVariantDB.app_name, app_name) &
-        query.eq(AppVariantDB.variant_name, variant_name) &
-        users_query &
-        soft_delete_query
+        query.eq(AppVariantDB.app_name, app_name)
+        & query.eq(AppVariantDB.variant_name, variant_name)
+        & users_query
+        & soft_delete_query
     )
 
     app_variants_db = await engine.find(
@@ -316,8 +315,10 @@ async def get_app_variant_by_app_name_and_variant_name(
 
     # Convert to AppVariant (assuming app_variant_db_to_pydantic returns AppVariant)
     # Here I assume that find will return a list and take the first element.
-    app_variant: AppVariant = app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
-    
+    app_variant: AppVariant = (
+        app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
+    )
+
     return app_variant
 
 
