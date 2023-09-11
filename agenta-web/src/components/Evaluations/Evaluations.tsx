@@ -10,6 +10,7 @@ import {
     Tag,
     Slider,
     message,
+    Typography,
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
 import {fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
@@ -18,7 +19,6 @@ import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject} from "@/lib/Types"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
-import {Typography} from "antd"
 import EvaluationErrorModal from "./EvaluationErrorModal"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 
@@ -28,10 +28,10 @@ import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import ai from "@/media/artificial-intelligence.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import axios from "@/lib/helpers/axiosConfig"
 import {createUseStyles} from "react-jss"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import HumanEvaluationResult from "./HumanEvaluationResult"
+import axios from "axios"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -189,8 +189,8 @@ export default function Evaluations() {
         inputs: string[],
         llmAppPromptTemplate?: string,
     ) => {
-        const postData = async (url = "", data = {}) => {
-            const response = await axios.post(url, data)
+        const postData = async (url = "", data = {}, ignoreAxiosError: boolean = false) => {
+            const response = await axios.post(url, data, {_ignoreError: ignoreAxiosError} as any)
             return response.data
         }
 
@@ -208,12 +208,16 @@ export default function Evaluations() {
             status: EvaluationFlow.EVALUATION_INITIALIZED,
         }
 
-        return postData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`, data)
+        return postData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`, data, true)
             .then((data) => {
                 return data.id
             })
             .catch((err) => {
-                setError({message: err.message, btnText: "Go to Test sets", endpoint: "testsets"})
+                setError({
+                    message: err.response.data.detail,
+                    btnText: "Go to Test sets",
+                    endpoint: "testsets",
+                })
             })
     }
 
