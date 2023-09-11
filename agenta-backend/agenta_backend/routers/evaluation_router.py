@@ -1,7 +1,7 @@
 import os
 from bson import ObjectId
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from fastapi import HTTPException, APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
+    CustomEvaluationOutput,
     EvaluationScenarioUpdate,
     NewEvaluation,
     DeleteEvaluation,
@@ -24,6 +25,7 @@ from agenta_backend.services.results_service import (
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
+    fetch_custom_evaluations,
     update_evaluation_scenario,
     update_evaluation_status,
     create_new_evaluation,
@@ -411,18 +413,35 @@ async def store_custom_evaluation(
     )
 
 
+@router.get(
+    "/custom_evaluation/list/{app_name}",
+    response_model=List[CustomEvaluationOutput],
+)
+async def list_custom_evaluations(
+    app_name: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    # Fetch custom evaluations from database
+    evaluations = await fetch_custom_evaluations(app_name, **kwargs)
+    return evaluations
+
+
 @router.post(
-    "/custom_evaluation/execute/{evaluation_id}/"
+    "/custom_evaluation/execute/{evaluation_id}/",
 )
 async def execute_custom_evaluation(
     evaluation_id: str,
+    parameters:Dict[str, str],
+    inputs: Dict[str, str],
+    correct_answer:float,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     # Get user and organization id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
     # Excute custom code evaluation
-    result = await execute_custom_code_evaluation(
-        evaluation_id, **kwargs
-    )
+    result = await execute_custom_code_evaluation(evaluation_id, **kwargs)
     return result
