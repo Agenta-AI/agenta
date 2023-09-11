@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -82,3 +82,18 @@ class NewEvaluation(BaseModel):
 
 class DeleteEvaluation(BaseModel):
     evaluations_ids: List[str]
+
+
+class CustomEvaluationTarget(BaseModel):
+    inputs: Dict[str, Any]
+    output: float
+    target: float
+    
+
+class StoreCustomEvaluation(BaseModel):
+    evaluation_name: str
+    python_code: str
+    app_name: str
+    parameters: CustomEvaluationTarget
+    allowed_imports: List[str]
+    
