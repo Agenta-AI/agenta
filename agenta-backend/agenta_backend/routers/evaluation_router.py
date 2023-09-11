@@ -29,7 +29,7 @@ from agenta_backend.services.evaluation_service import (
     create_new_evaluation,
     create_new_evaluation_scenario,
     store_custom_code_evaluation,
-    execute_cusom_code_evaluation,
+    execute_custom_code_evaluation,
 )
 from agenta_backend.services.db_manager import engine, query, get_user_object
 from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
@@ -412,10 +412,9 @@ async def store_custom_evaluation(
 
 
 @router.post(
-    "/custom_evaluation/execute/{app_name}/{evaluation_id}/"
+    "/custom_evaluation/execute/{evaluation_id}/"
 )
-async def execute_evaluation(
-    app_name: str,
+async def execute_custom_evaluation(
     evaluation_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
@@ -423,7 +422,7 @@ async def execute_evaluation(
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
     # Excute custom code evaluation
-    result = await execute_cusom_code_evaluation(
-        evaluation_id, app_name, **kwargs
+    result = await execute_custom_code_evaluation(
+        evaluation_id, **kwargs
     )
     return result
