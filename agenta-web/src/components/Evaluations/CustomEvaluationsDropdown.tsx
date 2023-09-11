@@ -5,9 +5,12 @@ import { SingleCustomEvaluation } from '@/lib/Types';
 
 const { Option } = Select;
 
+interface EVDropdownI {
+	classes: any
+	appName: string;
+}
 
-
-const EvaluationDropdown: React.FC = ({ classes, appName }) => {
+const EvaluationDropdown: React.FC<EVDropdownI> = ({ classes, appName }) => {
 	const [evaluation, setEvaluation] = useState<string>('');
 	const [evaluationList, setEvaluationList] = useState<SingleCustomEvaluation[]>()
 	
