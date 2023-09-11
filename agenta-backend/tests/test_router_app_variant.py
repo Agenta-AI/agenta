@@ -81,9 +81,6 @@ def test_list_app_variant():
     assert response.status_code == 200
     assert response.json() == []
 
-def test_get_variant_by_name():
-    // TODO: Add test for get_variant_by_name
-
 def test_list_app_variant_after_manual_add(app_variant, image):
     # This is the function from db_manager.py
     add_variant_based_on_image(app_variant, image)
