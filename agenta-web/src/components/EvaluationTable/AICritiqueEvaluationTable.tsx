@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {ExportOutlined, LineChartOutlined} from "@ant-design/icons"
+import {LineChartOutlined} from "@ant-design/icons"
 import {
     Button,
     Card,
@@ -27,14 +27,10 @@ import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
-import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
 
 const {Title} = Typography
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 interface AICritiqueEvaluationTableProps {
     evaluation: Evaluation
@@ -136,15 +132,6 @@ const useStyles = createUseStyles({
             color: "#3f8600",
         },
     },
-    exportBtn: ({themeMode}: StyleProps) => ({
-        backgroundColor: themeMode === "dark" ? "#fff" : "#000",
-        color: themeMode === "dark" ? "#000" : "#fff",
-        border: "none",
-        "&:hover": {
-            backgroundColor: themeMode === "dark" ? "rgba(255, 255, 255,0.8)" : "rgba(0, 0, 0,0.8)",
-            color: `${themeMode === "dark" ? "#000" : "#fff"} !important`,
-        },
-    }),
 })
 
 const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
@@ -152,8 +139,7 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
-    const {appTheme} = useAppTheme()
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const classes = useStyles()
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -437,15 +423,12 @@ Answer ONLY with one of the given grading or evaluation options.
                             >
                                 Run Evaluation
                             </Button>
-                            <Button
+                            <SecondaryButton
                                 onClick={() => exportAICritiqueEvaluationData(evaluation, rows)}
-                                icon={<ExportOutlined />}
-                                size="large"
-                                className={classes.exportBtn}
                                 disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
                             >
                                 Export results
-                            </Button>
+                            </SecondaryButton>
                         </Space>
                     </Col>
                 </Row>

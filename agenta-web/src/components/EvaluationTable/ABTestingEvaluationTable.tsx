@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {CaretRightOutlined, ExportOutlined, LineChartOutlined} from "@ant-design/icons"
+import {CaretRightOutlined, LineChartOutlined} from "@ant-design/icons"
 import {Button, Col, Input, Row, Space, Spin, Table, Typography, message} from "antd"
 import {
     updateEvaluationScenario,
@@ -12,14 +12,10 @@ import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
-import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
 
 const {Title} = Typography
-
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
 
 interface EvaluationTableProps {
     evaluation: any
@@ -78,15 +74,6 @@ const useStyles = createUseStyles({
     recordInput: {
         marginBottom: 10,
     },
-    exportBtn: ({themeMode}: StyleProps) => ({
-        backgroundColor: themeMode === "dark" ? "#fff" : "#000",
-        color: themeMode === "dark" ? "#000" : "#fff",
-        border: "none",
-        "&:hover": {
-            backgroundColor: themeMode === "dark" ? "rgba(255, 255, 255,0.8)" : "rgba(0, 0, 0,0.8)",
-            color: `${themeMode === "dark" ? "#000" : "#fff"} !important`,
-        },
-    }),
 })
 
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
@@ -94,8 +81,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
-    const {appTheme} = useAppTheme()
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const classes = useStyles()
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -355,15 +341,12 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             <div>
                 <Row align="middle">
                     <Col span={12}>
-                        <Button
+                        <SecondaryButton
                             onClick={() => exportABTestingEvaluationData(evaluation, rows)}
-                            icon={<ExportOutlined />}
-                            size="large"
-                            className={classes.exportBtn}
                             disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
                         >
                             Export results
-                        </Button>
+                        </SecondaryButton>
                     </Col>
                 </Row>
             </div>
