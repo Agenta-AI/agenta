@@ -1,6 +1,6 @@
 from bson import ObjectId
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Any
 
 from fastapi import HTTPException
 
@@ -233,6 +233,8 @@ async def update_evaluation_scenario(
         new_evaluation_set["score"] = evaluation_scenario_dict["score"]
     elif evaluation_type == EvaluationType.human_a_b_testing:
         new_evaluation_set["vote"] = evaluation_scenario_dict["vote"]
+    elif evaluation_type == EvaluationType.custom_code_run:
+        new_evaluation_set["correct_answer"] = evaluation_scenario_dict["correct_answer"]
     elif evaluation_type == EvaluationType.auto_ai_critique:
         current_evaluation_scenario = await engine.find_one(
             EvaluationScenarioDB, query_expression_eval_scen
@@ -408,16 +410,16 @@ async def store_custom_code_evaluation(
     # Get user object
     user = await get_user_object(kwargs["uid"])
 
-    # Initialize custome evaluation instance
-    custom_eval = CustomEvaluationDB(
-        **payload.dict(), user=user
-    )
+    # Initialize custom evaluation instance
+    custom_eval = CustomEvaluationDB(**payload.dict(), user=user)
 
     await engine.save(custom_eval)
     return str(custom_eval.id)
 
 
-async def execute_custom_code_evaluation(evaluation_id: str, **kwargs: dict):
+async def execute_custom_code_evaluation(
+    evaluation_id: str, inputs: Dict[str, Any], **kwargs: dict
+):
     # Get user object
     user = await get_user_object(kwargs["uid"])
 
@@ -431,11 +433,11 @@ async def execute_custom_code_evaluation(evaluation_id: str, **kwargs: dict):
     if not custom_eval:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
-    # Execute the Python code with the provided inputs and allowed imports
+    # Execute the Python code with the provided inputs
     try:
         result = execute_code_safely(
             custom_eval.python_code,
-            custom_eval.parameters.inputs,
+            inputs,
         )
     except Exception as e:
         raise HTTPException(
@@ -469,7 +471,7 @@ async def fetch_custom_evaluations(
                 id=str(custom_eval.id),
                 app_name=custom_eval.app_name,
                 evaluation_name=custom_eval.evaluation_name,
-                created_at=custom_eval.created_at
+                created_at=custom_eval.created_at,
             )
         )
     return evaluations
