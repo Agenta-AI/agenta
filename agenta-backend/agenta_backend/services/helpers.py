@@ -20,13 +20,12 @@ def print_image(image):
     print("------------------------")
 
 
-def format_list_of_dictionaries(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
+def format_inputs(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
     """
-    Formats a list of dictionaries into a dictionary using the input_name as the key,
-    and the input_value as the value.
+    Formats a list of inputs dictionaries into a dictionary.
 
     Args:
-      list_of_dictionaries: A list of dictionaries.
+      list_of_dictionaries: A list of inputs as dictionaries.
 
     Returns:
       A dictionary.
@@ -35,6 +34,23 @@ def format_list_of_dictionaries(list_of_dictionaries: List[Dict[str, Any]]) -> D
     formatted_dictionary = {}
     for dictionary in list_of_dictionaries:
         formatted_dictionary[dictionary["input_name"]] = dictionary["input_value"]
+    return formatted_dictionary
+
+
+def format_outputs(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
+    """
+    Formats a list of outputs dictionaries into a dictionary.
+
+    Args:
+      list_of_dictionaries: A list of outputs as dictionaries.
+
+    Returns:
+      A dictionary.
+    """
+
+    formatted_dictionary = {}
+    for dictionary in list_of_dictionaries:
+        formatted_dictionary[dictionary["variant_name"]] = dictionary["variant_output"]
     return formatted_dictionary
 
 
