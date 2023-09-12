@@ -89,19 +89,13 @@ async def get_variant_by_name(
         app_variant = await db_manager.get_app_variant_by_app_name_and_variant_name(
             app_name=app_name, variant_name=variant_name, **kwargs
         )
-
         # Check if the fetched app variant is None and raise 404 if it is
         if app_variant is None:
-            raise HTTPException(status_code=404, detail="App Variant not found")
-
+            raise HTTPException(status_code=500, detail="App Variant not found")
         return app_variant
     except ValueError as e:
         # Handle ValueErrors and return 400 status code
         raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException as e:
-        # FIXME: This is a temporary fix to avoid returning 500 status code
-        # Re-raise caught HTTPExceptions
-        raise
     except Exception as e:
         # Handle all other exceptions and return 500 status code
         raise HTTPException(status_code=500, detail=str(e))
