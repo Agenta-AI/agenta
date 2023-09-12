@@ -88,10 +88,6 @@ const useStyles = createUseStyles({
             color: `${themeMode === "dark" ? "#000" : "#fff"} !important`,
         },
     }),
-    // title: {
-    //     fontSize: "2rem !important",
-    //     marginBottom: "20px !important",
-    // },
 })
 
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
