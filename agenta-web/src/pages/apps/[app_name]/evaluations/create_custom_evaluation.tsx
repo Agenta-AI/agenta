@@ -1,6 +1,6 @@
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
-import { useAppTheme } from "@/components/Layout/ThemeContextProvider"
+import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import CustomPythonCode from "@/components/Evaluations/CustomPythonCode"
 
 type StyleProps = {
@@ -25,11 +25,11 @@ const useStyles = createUseStyles({
     },
     submitBtn: {
         marginTop: "30px",
-        width: "250px"
+        width: "250px",
     },
     levelFourHeading: {
-        marginBottom: "15px"
-    }
+        marginBottom: "15px",
+    },
 })
 
 export default function CreateCustomEvaluation() {
