@@ -30,6 +30,9 @@ const useStyles = createUseStyles({
     levelFourHeading: {
         marginBottom: "15px",
     },
+    copyBtn: {
+        marginLeft: "15px",
+    }
 })
 
 export default function CreateCustomEvaluation() {
