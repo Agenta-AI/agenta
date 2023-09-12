@@ -95,6 +95,7 @@ const useStyles = createUseStyles({
     exportBtn: ({themeMode}: StyleProps) => ({
         backgroundColor: themeMode === "dark" ? "#fff" : "#000",
         color: themeMode === "dark" ? "#000" : "#fff",
+        border: "none",
     }),
 })
 
@@ -224,8 +225,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         const exportRow = rows.map((data) => {
             return {
                 inputs: data.inputs[0].input_value,
-                appVariant: data?.columnData0 ? data?.columnData0 : data.outputs[0]?.variant_output,
-                correctAnswer: data.correctAnswer,
+                app_variant: data?.columnData0
+                    ? data?.columnData0
+                    : data.outputs[0]?.variant_output,
+                correct_answer: data.correctAnswer,
                 score: data.score,
                 similarity: data.similarity,
             }
@@ -465,8 +468,8 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                                 onClick={handleExportClick}
                                 icon={<DownloadOutlined />}
                                 size="large"
-                                type="text"
                                 className={classes.exportBtn}
+                                disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
                             >
                                 Export results
                             </Button>

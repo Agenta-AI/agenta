@@ -14,8 +14,13 @@ import {EvaluationFlow} from "@/lib/enums"
 import {fetchVariants} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/utils"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 const {Title} = Typography
+
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
 
 interface EvaluationTableProps {
     evaluation: any
@@ -74,6 +79,11 @@ const useStyles = createUseStyles({
     recordInput: {
         marginBottom: 10,
     },
+    exportBtn: ({themeMode}: StyleProps) => ({
+        backgroundColor: themeMode === "dark" ? "#fff" : "#000",
+        color: themeMode === "dark" ? "#000" : "#fff",
+        border: "none",
+    }),
     // title: {
     //     fontSize: "2rem !important",
     //     marginBottom: "20px !important",
@@ -85,7 +95,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -208,10 +219,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         const exportRow = rows.map((data) => {
             return {
                 inputs: data.inputs[0].input_value,
-                appVariant0: data?.columnData0
+                app_variant0: data?.columnData0
                     ? data?.columnData0
                     : data.outputs[0]?.variant_output,
-                appVariant1: data?.columnData1
+                app_variant1: data?.columnData1
                     ? data?.columnData1
                     : data.outputs[1]?.variant_output,
                 vote: data.vote,
@@ -376,8 +387,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             onClick={handleExportClick}
                             icon={<LineChartOutlined />}
                             size="large"
+                            className={classes.exportBtn}
+                            disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
                         >
-                            Export
+                            Export results
                         </Button>
                     </Col>
                 </Row>
