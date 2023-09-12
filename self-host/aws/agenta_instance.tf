@@ -2,9 +2,14 @@ resource "aws_instance" "agenta" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t2.medium"
   user_data     = templatefile("instance-setup.sh", { DOMAIN_NAME = var.domain_name })
-  # key_name = aws_key_pair.agenta_key.key_name // uncomment this in case you need to ssh into the instance
+  # key_name = aws_key_pair.agenta_key.key_name // uncomment this if you need to ssh into the instance
 
   vpc_security_group_ids = [aws_security_group.agenta_instance_sg.id]
+
+  root_block_device {
+    volume_size = 50
+    volume_type = "gp2"
+  }
 
   tags = {
     Name = "agenta-instance"
@@ -17,25 +22,9 @@ resource "aws_eip" "agenta_eip" {
   instance = aws_instance.agenta.id
 }
 
-
 resource "aws_eip_association" "eip_assoc" {
   instance_id   = aws_instance.agenta.id
   allocation_id = aws_eip.agenta_eip.id
-}
-
-resource "aws_ebs_volume" "agenta_ebs" {
-  availability_zone = aws_instance.agenta.availability_zone
-  size              = 10
-  type              = "gp2" # General Purpose SSD
-  tags = {
-    Name = "agenta-volume"
-  }
-}
-
-resource "aws_volume_attachment" "ebs_att" {
-  device_name = "/dev/sdh"
-  volume_id   = aws_ebs_volume.agenta_ebs.id
-  instance_id = aws_instance.agenta.id
 }
 
 data "aws_ami" "ubuntu" {
@@ -54,19 +43,19 @@ data "aws_ami" "ubuntu" {
 }
 
 output "open_in_browser_this_link" {
-  value       = "\nOpen the link below in your browser to access Agenta, you need to wait a few minutes for services to start.\n\nImortant: If you have provided a domain name, you can access Agenta using that domain name,\nYou need however to make sure that the domain name is pointing to this IP address: ${aws_eip.agenta_eip.public_ip}\n\nLink: http://${coalesce(var.domain_name, aws_eip.agenta_eip.public_ip)}"
+  value       = "\nOpen the link below in your browser to access Agenta. Wait a few minutes for services to start.\n\nImportant: If you provided a domain name, access Agenta using that domain. Ensure the domain points to this IP address: ${aws_eip.agenta_eip.public_ip}\n\nLink: http://${coalesce(var.domain_name, aws_eip.agenta_eip.public_ip)}"
 }
 
 variable "domain_name" {
-  description = "If you would like to deploy to a specific domain name, enter it without specifying http or www. for example agenta.ai\nIf you don't then simply proceed without."
+  description = "Enter a domain name (without http or www, e.g., agenta.ai) or leave empty."
 
   validation {
     condition     = var.domain_name == "" || can(regex("^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$", var.domain_name))
-    error_message = "The domain name must be a valid domain name. Leave it empty if you don't have a domain name."
+    error_message = "Provide a valid domain name or leave it empty."
   }
 }
 
-# # uncomment this in case you need to ssh into the instance
+# # uncomment this if you need to ssh into the instance
 # resource "aws_key_pair" "agenta_key" {
 #   key_name   = "agenta-key"
 #   public_key = file("~/.ssh/id_rsa_agenta.pub")

@@ -82,6 +82,13 @@ def test_list_app_variant():
     assert response.json() == []
 
 
+def test_get_variant_by_name_with_invalid_names():
+    response = client.get(
+        "/app_variant/get_variant_by_name/?app_name=invalid&variant_name=invalid"
+    )
+    assert response.status_code == 500
+
+
 def test_list_app_variant_after_manual_add(app_variant, image):
     # This is the function from db_manager.py
     add_variant_based_on_image(app_variant, image)

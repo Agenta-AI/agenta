@@ -5,9 +5,11 @@ import {Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import VariantRemovalWarningModal from "./VariantRemovalWarningModal"
 import NewVariantModal from "./NewVariantModal"
-import {useRouter} from "next/router"
+import router, {useRouter} from "next/router"
 import {fetchVariants, removeVariant} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem} from "@/lib/Types"
+
+import {SyncOutlined} from "@ant-design/icons"
 
 function addTab(
     setActiveKey: any,
@@ -54,7 +56,9 @@ function addTab(
 function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], activeKey: string) {
     console.log(activeKey)
     const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
-
+    if (newVariants.length < 1) {
+        router.push(`/apps`)
+    }
     let newActiveKey = ""
     if (newVariants.length > 0) {
         newActiveKey = newVariants[newVariants.length - 1].variantName
@@ -81,23 +85,22 @@ const VersionTabs: React.FC = () => {
     const [isDeleteLoading, setIsDeleteLoading] = useState(false)
     const [messageApi, contextHolder] = message.useMessage()
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const backendVariants = await fetchVariants(appName)
-
-                if (backendVariants.length > 0) {
-                    setVariants(backendVariants)
-                    setActiveKey(backendVariants[0].variantName)
-                }
-
-                setIsLoading(false)
-            } catch (error) {
-                setIsError(true)
-                setIsLoading(false)
+    const fetchData = async () => {
+        try {
+            const backendVariants = await fetchVariants(appName)
+            if (backendVariants.length > 0) {
+                setVariants(backendVariants)
+                setActiveKey(backendVariants[0].variantName)
             }
-        }
 
+            setIsLoading(false)
+        } catch (error) {
+            setIsError(true)
+            setIsLoading(false)
+        }
+    }
+
+    useEffect(() => {
         fetchData()
     }, [appName])
 
@@ -169,21 +172,30 @@ const VersionTabs: React.FC = () => {
     return (
         <div>
             {contextHolder}
-
-            <Tabs
-                type="editable-card"
-                activeKey={activeKey}
-                onChange={setActiveKey}
-                onEdit={(targetKey, action) => {
-                    if (action === "add") {
-                        setIsModalOpen(true)
-                    } else if (action === "remove") {
-                        setRemovalVariantName(targetKey as string)
-                        setRemovalWarningModalOpen1(true)
-                    }
-                }}
-                items={tabItems}
-            />
+            <div style={{position: "relative"}}>
+                <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
+                    <SyncOutlined
+                        spin={isLoading}
+                        style={{color: "#1677ff", fontSize: "17px"}}
+                        onClick={() => {
+                            setIsLoading(true)
+                            fetchData()
+                        }}
+                    />
+                </div>
+                <Tabs
+                    type="editable-card"
+                    activeKey={activeKey}
+                    onChange={setActiveKey}
+                    onEdit={(targetKey, action) => {
+                        if (action === "remove") {
+                            setRemovalVariantName(targetKey as string)
+                            setRemovalWarningModalOpen1(true)
+                        }
+                    }}
+                    items={tabItems}
+                />
+            </div>
 
             <NewVariantModal
                 isModalOpen={isModalOpen}
@@ -193,17 +205,16 @@ const VersionTabs: React.FC = () => {
                 }
                 variants={variants}
                 setNewVariantName={setNewVariantName}
+                newVariantName={newVariantName}
                 setTemplateVariantName={setTemplateVariantName}
             />
             <VariantRemovalWarningModal
-                variants={variants}
                 isModalOpen={isWarningModalOpen1}
                 setIsModalOpen={setRemovalWarningModalOpen1}
                 handleRemove={handleRemove}
                 handleCancel={handleCancel1}
             />
             <VariantRemovalWarningModal
-                variants={variants}
                 isModalOpen={isWarningModalOpen2}
                 setIsModalOpen={setRemovalWarningModalOpen2}
                 handleRemove={handleBackendRemove}
