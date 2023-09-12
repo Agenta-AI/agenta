@@ -77,6 +77,8 @@ export interface StoreCustomEvaluationSuccessResponse {
 export interface ExecuteCustomEvalCode {
     evaluation_id: string
     inputs: Array<Object>
+    outputs: Array<Object>
+    app_name: string
     variant_name: string
 }
 

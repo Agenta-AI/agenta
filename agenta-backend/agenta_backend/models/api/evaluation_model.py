@@ -101,3 +101,7 @@ class CustomEvaluationOutput(BaseModel):
 
 class ExecuteCustomEvaluationCode(BaseModel):
     inputs: List[Dict[str, Any]]
+    app_name: str
+    variant_name: str
+    outputs: List[Dict[str, Any]]
+    
