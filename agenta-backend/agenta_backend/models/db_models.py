@@ -68,6 +68,8 @@ class TemplateDB(Model):
 
 class EvaluationTypeSettings(EmbeddedModel):
     similarity_threshold: Optional[float]
+    regex_pattern: Optional[str]
+    regex_should_match: Optional[bool]
 
 
 class EvaluationScenarioInput(EmbeddedModel):

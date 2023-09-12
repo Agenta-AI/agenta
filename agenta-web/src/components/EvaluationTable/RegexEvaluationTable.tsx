@@ -1,36 +1,37 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {LineChartOutlined} from "@ant-design/icons"
+import {InfoCircleOutlined, LineChartOutlined} from "@ant-design/icons"
 import {
     Button,
     Card,
     Col,
     Form,
     Input,
+    Radio,
     Row,
-    Slider,
     Space,
     Spin,
     Statistic,
     Table,
     Tag,
+    Tooltip,
     message,
 } from "antd"
 import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
-import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
-import {Typography} from "antd"
+import {evaluateWithRegex} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
+import Highlighter from "react-highlight-words"
 
-interface SimilarityMatchEvaluationTableProps {
+interface RegexEvaluationTableProps {
     evaluation: any
     columnsCount: number
-    evaluationScenarios: SimilarityMatchEvaluationTableRow[]
+    evaluationScenarios: RegexEvaluationTableRow[]
 }
 
-interface SimilarityMatchEvaluationTableRow {
+interface RegexEvaluationTableRow {
     id?: string
     inputs: {
         input_name: string
@@ -43,7 +44,7 @@ interface SimilarityMatchEvaluationTableRow {
     columnData0: string
     correctAnswer: string
     score: string
-    similarity: number
+    isMatch: boolean
     evaluationFlow: EvaluationFlow
 }
 /**
@@ -80,9 +81,6 @@ const useStyles = createUseStyles({
     card: {
         marginBottom: 20,
     },
-    div: {
-        marginBottom: 20,
-    },
     statCorrect: {
         "& .ant-statistic-content-value": {
             color: "#3f8600",
@@ -99,12 +97,21 @@ const useStyles = createUseStyles({
             marginBottom: 0,
         },
     },
-    slider: {
-        width: 200,
+    regexInput: {
+        minWidth: 240,
+    },
+    infoLabel: {
+        display: "flex",
+        gap: 3,
+        alignItems: "center",
+        "& .anticon-info-circle": {
+            color: "#faad14",
+            marginTop: 2,
+        },
     },
 })
 
-const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTableProps> = ({
+const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
     columnsCount,
@@ -114,53 +121,39 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
         : router.query.app_name || ""
-
     const variants = evaluation.variants
-
     const variantData = useVariants(appName, variants)
 
-    const [rows, setRows] = useState<SimilarityMatchEvaluationTableRow[]>([])
-    const [dissimilarAnswers, setDissimilarAnswers] = useState<number>(0)
-    const [similarAnswers, setSimilarAnswers] = useState<number>(0)
+    const [rows, setRows] = useState<RegexEvaluationTableRow[]>([])
+    const [wrongAnswers, setWrongAnswers] = useState<number>(0)
+    const [correctAnswers, setCorrectAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
     const [settings, setSettings] = useState(evaluation.evaluationTypeSettings)
     const [loading, setLoading] = useState<boolean[]>([])
     const [form] = Form.useForm()
 
-    const {Text} = Typography
-
     useEffect(() => {
         if (evaluationScenarios) {
-            setRows(
-                evaluationScenarios.map((item) => ({
-                    ...item,
-                    similarity: item.outputs?.[0]?.variant_output
-                        ? evaluateWithSimilarityMatch(
-                              item.outputs[0].variant_output,
-                              item.correctAnswer,
-                          )
-                        : NaN,
-                })),
-            )
+            setRows(evaluationScenarios)
             setLoading(Array(evaluationScenarios.length).fill(false))
         }
     }, [evaluationScenarios])
 
     useEffect(() => {
-        if (similarAnswers + dissimilarAnswers > 0) {
-            setAccuracy((similarAnswers / (similarAnswers + dissimilarAnswers)) * 100)
+        if (correctAnswers + wrongAnswers > 0) {
+            setAccuracy((correctAnswers / (correctAnswers + wrongAnswers)) * 100)
         } else {
             setAccuracy(0)
         }
-    }, [similarAnswers, dissimilarAnswers])
+    }, [correctAnswers, wrongAnswers])
 
     useEffect(() => {
-        const similar = rows.filter((row) => row.score === "true").length
-        const dissimilar = rows.filter((row) => row.score === "false").length
-        const accuracy = similar + dissimilar > 0 ? (similar / (similar + dissimilar)) * 100 : 0
+        const correct = rows.filter((row) => row.score === "correct").length
+        const wrong = rows.filter((row) => row.score === "wrong").length
+        const accuracy = correct + wrong > 0 ? (correct / (correct + wrong)) * 100 : 0
 
-        setSimilarAnswers(similar)
-        setDissimilarAnswers(dissimilar)
+        setCorrectAnswers(correct)
+        setWrongAnswers(wrong)
         setAccuracy(accuracy)
     }, [rows])
 
@@ -182,7 +175,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             return
         }
 
-        const {similarityThreshold} = form.getFieldsValue()
+        const {regexPattern, regexShouldMatch} = form.getFieldsValue()
         const promises: Promise<void>[] = []
 
         for (let i = 0; i < rows.length; i++) {
@@ -192,11 +185,12 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         Promise.all(promises).then(() => {
             updateEvaluation(evaluation.id, {
                 evaluation_type_settings: {
-                    similarity_threshold: similarityThreshold,
+                    regex_should_match: regexShouldMatch,
+                    regex_pattern: regexPattern,
                 },
                 status: EvaluationFlow.EVALUATION_FINISHED,
             }).then(() => {
-                setSettings({similarityThreshold})
+                setSettings({regexShouldMatch, regexPattern})
                 message.success("Evaluation Results Saved")
             })
         })
@@ -219,17 +213,17 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     variantData[idx].URIPath!,
                 )
 
-                const {similarityThreshold} = form.getFieldsValue()
-                const similarity = evaluateWithSimilarityMatch(result, rows[rowIndex].correctAnswer)
+                const {regexPattern, regexShouldMatch} = form.getFieldsValue()
+                const isCorrect = evaluateWithRegex(result, regexPattern, regexShouldMatch)
                 const evaluationScenarioId = rows[rowIndex].id
-                const isSimilar = similarity >= similarityThreshold ? "true" : "false"
+                const score = isCorrect ? "correct" : "wrong"
 
                 if (evaluationScenarioId) {
                     await updateEvaluationScenario(
                         evaluation.id,
                         evaluationScenarioId,
                         {
-                            score: isSimilar,
+                            score,
                             outputs: [
                                 {variant_name: variants[0].variantName, variant_output: result},
                             ],
@@ -238,12 +232,11 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     )
                 }
 
-                setRowValue(rowIndex, "similarity", similarity)
-                setRowValue(rowIndex, "score", isSimilar)
-                if (isSimilar) {
-                    setSimilarAnswers((prevSimilar) => prevSimilar + 1)
+                setRowValue(rowIndex, "score", score)
+                if (isCorrect) {
+                    setCorrectAnswers((prevCorrect) => prevCorrect + 1)
                 } else {
-                    setDissimilarAnswers((prevDissimilar) => prevDissimilar + 1)
+                    setWrongAnswers((prevWrong) => prevWrong + 1)
                 }
                 setRowValue(rowIndex, columnName, result)
             } catch {
@@ -256,15 +249,15 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     const setRowValue = (
         rowIndex: number,
-        columnKey: keyof SimilarityMatchEvaluationTableRow,
+        columnKey: keyof RegexEvaluationTableRow,
         value: any,
     ) => {
-        const newRows = [...rows]
-        newRows[rowIndex][columnKey] = value as never
+        const newRows: any = [...rows]
+        newRows[rowIndex][columnKey] = value
         setRows(newRows)
     }
 
-    const dynamicColumns: ColumnType<SimilarityMatchEvaluationTableRow>[] = Array.from(
+    const dynamicColumns: ColumnType<RegexEvaluationTableRow>[] = Array.from(
         {length: columnsCount},
         (_, i) => {
             const columnKey = `columnData${i}`
@@ -281,16 +274,22 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 dataIndex: columnKey,
                 key: columnKey,
                 width: "25%",
-                render: (text: any, record: SimilarityMatchEvaluationTableRow, ix: number) => {
+                render: (value: any, record: RegexEvaluationTableRow, ix: number) => {
                     if (loading[ix]) return "Loading..."
 
+                    let outputValue = value
                     if (record.outputs && record.outputs.length > 0) {
-                        const outputValue = record.outputs.find(
+                        outputValue = record.outputs.find(
                             (output: any) => output.variant_name === variants[i].variantName,
                         )?.variant_output
-                        return <div>{outputValue}</div>
                     }
-                    return text
+
+                    return (
+                        <Highlighter
+                            textToHighlight={outputValue}
+                            searchWords={[settings.regexPattern]}
+                        />
+                    )
                 },
             }
         },
@@ -310,7 +309,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 </div>
             ),
             dataIndex: "inputs",
-            render: (text: any, record: SimilarityMatchEvaluationTableRow, rowIndex: number) => (
+            render: (_: any, record: RegexEvaluationTableRow, rowIndex: number) => (
                 <div>
                     {record &&
                         record.inputs &&
@@ -329,10 +328,17 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         },
         ...dynamicColumns,
         {
-            title: "Correct Answer",
-            dataIndex: "correctAnswer",
-            key: "correctAnswer",
+            title: "Match / Unmatch",
+            dataIndex: "score",
+            key: "isMatch",
             width: "25%",
+            render: (val: string, _: any, ix: number) => {
+                if (loading[ix]) return <Spin spinning />
+
+                const isCorrect = val === "correct"
+                const isMatch = settings.regexShouldMatch ? isCorrect : !isCorrect
+                return settings.regexPattern ? <div>{isMatch ? "Match" : "Unmatch"}</div> : null
+            },
         },
         {
             title: "Evaluation",
@@ -345,29 +351,11 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 return (
                     <Space>
                         {score && (
-                            <Tag color={score === "true" ? "green" : "red"} className={classes.tag}>
+                            <Tag
+                                color={score === "correct" ? "green" : "red"}
+                                className={classes.tag}
+                            >
                                 {score}
-                            </Tag>
-                        )}
-                    </Space>
-                )
-            },
-        },
-        {
-            title: "Similarity",
-            dataIndex: "similarity",
-            key: "similarity",
-            width: 200,
-            align: "center" as "left" | "right" | "center",
-            render: (similarity: number, record: any, ix: number) => {
-                if (loading[ix]) return <Spin spinning />
-
-                const score = record.score
-                return (
-                    <Space>
-                        {score && !isNaN(similarity) && (
-                            <Tag color={score === "true" ? "green" : "red"} className={classes.tag}>
-                                {similarity.toFixed(2)}
                             </Tag>
                         )}
                     </Space>
@@ -378,12 +366,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     return (
         <div>
-            <h1>Similarity match Evaluation</h1>
-            <div className={classes.div}>
-                <Text>
-                    This evaluation type is calculating the similarity using Jaccard similarity.
-                </Text>
-            </div>
+            <h1>Regex Match/Unmatch Evaluation</h1>
             <div>
                 <Row align="middle">
                     <Col span={12}>
@@ -402,15 +385,15 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                             <Row justify="end">
                                 <Col span={10}>
                                     <Statistic
-                                        title="Similar answers:"
-                                        value={`${similarAnswers} out of ${rows.length}`}
+                                        title="Correct answers:"
+                                        value={`${correctAnswers} out of ${rows.length}`}
                                         className={classes.statCorrect}
                                     />
                                 </Col>
                                 <Col span={10}>
                                     <Statistic
-                                        title="Dissimilar answers:"
-                                        value={`${dissimilarAnswers} out of ${rows.length}`}
+                                        title="Wrong answers:"
+                                        value={`${wrongAnswers} out of ${rows.length}`}
                                         className={classes.statWrong}
                                     />
                                 </Col>
@@ -436,8 +419,32 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     form={form}
                     requiredMark={false}
                 >
-                    <Form.Item label="Similarity Threshold" name="similarityThreshold">
-                        <Slider min={0} max={1} step={0.01} className={classes.slider} />
+                    <Form.Item
+                        label="Rgex"
+                        name="regexPattern"
+                        rules={[{required: true, message: "Please enter a regex pattern"}]}
+                    >
+                        <Input
+                            placeholder="Pattern (ex: ^this_word\d{3}$)"
+                            className={classes.regexInput}
+                        />
+                    </Form.Item>
+                    <Form.Item
+                        label={
+                            <span className={classes.infoLabel}>
+                                Strategy
+                                <Tooltip title="Choose whether the LLM output should match the pattern or not.">
+                                    <InfoCircleOutlined />
+                                </Tooltip>
+                            </span>
+                        }
+                        rules={[{required: true, message: "Please select strategy"}]}
+                        name="regexShouldMatch"
+                    >
+                        <Radio.Group>
+                            <Radio value={true}> Match </Radio>
+                            <Radio value={false}> Unmatch </Radio>
+                        </Radio.Group>
                     </Form.Item>
                 </Form>
             )}
@@ -454,4 +461,4 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     )
 }
 
-export default SimilarityMatchEvaluationTable
+export default RegexEvaluationTable
