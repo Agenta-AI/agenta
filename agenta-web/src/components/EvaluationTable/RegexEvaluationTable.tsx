@@ -337,7 +337,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
         },
         ...dynamicColumns,
         {
-            title: "Match / Unmatch",
+            title: "Match / Mismatch",
             dataIndex: "score",
             key: "isMatch",
             width: "25%",
@@ -346,7 +346,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
                 const isCorrect = val === "correct"
                 const isMatch = settings.regexShouldMatch ? isCorrect : !isCorrect
-                return settings.regexPattern ? <div>{isMatch ? "Match" : "Unmatch"}</div> : null
+                return settings.regexPattern ? <div>{isMatch ? "Match" : "Mismatch"}</div> : null
             },
         },
         {
@@ -375,7 +375,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
     return (
         <div>
-            <h1>Regex Match/Unmatch Evaluation</h1>
+            <h1>Regex Match / Mismatch Evaluation</h1>
             <div>
                 <Row align="middle">
                     <Col span={12}>
@@ -452,7 +452,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     >
                         <Radio.Group>
                             <Radio value={true}> Match </Radio>
-                            <Radio value={false}> Unmatch </Radio>
+                            <Radio value={false}> Mismatch </Radio>
                         </Radio.Group>
                     </Form.Item>
                 </Form>
