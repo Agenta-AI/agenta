@@ -28,13 +28,20 @@ def is_import_safe(python_code: Text) -> bool:
     return True
 
 
-def execute_code_safely(code: Text, inputs: Dict[str, Any]) -> Union[float, None]:
+def execute_code_safely(
+    app_params: Dict[str, str],
+    inputs: Dict[str, str],
+    output: str,
+    code: Text,
+) -> Union[float, None]:
     """
     Execute the provided Python code safely using RestrictedPython.
 
     Args:
-    - code (str): The Python code to be executed.
-    - inputs (dict): Inputs to be used during code execution.
+        - app_params (Dict[str, str]): The parameters of the app variant.
+        - inputs (dict): Inputs to be used during code execution.
+        - output (str): The output of the app variant after being called.
+        - code (Text): The Python code to be executed.
 
     Returns:
     - (float): Result of the execution if successful. Should be between 0 and 1.
@@ -71,7 +78,6 @@ def execute_code_safely(code: Text, inputs: Dict[str, Any]) -> Union[float, None
         "_getitem_": default_guarded_getitem,
         "_iter_unpack_sequence_": guarded_iter_unpack_sequence,
         "_write_": full_write_guard,
-        "inputs": inputs,
         "__builtins__": local_builtins,
     }
 
@@ -81,8 +87,9 @@ def execute_code_safely(code: Text, inputs: Dict[str, Any]) -> Union[float, None
     # Execute the code
     exec(byte_code, environment)
 
-    # Extract the result if it exists and is a float between 0 and 1
-    result = environment.get("result", None)
+    # Call the evaluation function, extract the result if it exists
+    # and is a float between 0 and 1
+    result = environment["evaluate"](app_params, inputs, output)
     if isinstance(result, float) and 0 <= result <= 1:
         return result
     return None
