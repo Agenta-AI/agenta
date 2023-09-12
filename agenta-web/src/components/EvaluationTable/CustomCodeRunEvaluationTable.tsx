@@ -426,7 +426,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                         <div>
                             <h3 className={classes.h3}>Average Score:</h3>
                             <Row gutter={8} justify="center" className={classes.resultDataRow}>
-                                <Col className={classes.resultDataCol}>
+                                <Col key={"avg-score"} className={classes.resultDataCol}>
                                     <Card bordered={false} className={classes.resultDataCard}>
                                         <Statistic
                                             className={classes.stat}

@@ -4,6 +4,7 @@ import {Input, Form, Button, Row, Col, Typography, notification} from "antd"
 import {StoreCustomEvaluationSuccessResponse} from "@/lib/Types"
 import {saveCustomCodeEvaluation} from "@/lib/services/api"
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
+import CopyButton from "../CopyButton/CopyButton"
 
 interface ICustomPythonProps {
     classes: any
@@ -87,7 +88,15 @@ def evaluate(
                             <Input disabled={submitting} placeholder="Input name of evaluation" />
                         </Form.Item>
                         <div className={classes.exampleContainer}>
-                            <h4>Example Evaluation Function:</h4>
+                            <h4>Example Evaluation Function:
+                            <CopyButton
+                                text="Copy"
+                                type="primary"
+                                size="small"
+                                target={pythonDefaultEvalCode()}
+                                className={classes.copyBtn}
+                            />
+                            </h4>
                             <CodeBlock
                                 key={"python" + appName}
                                 language={"python"}
