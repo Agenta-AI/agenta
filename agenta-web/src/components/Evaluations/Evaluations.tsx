@@ -201,6 +201,7 @@ export default function Evaluations() {
         evaluationTypeSettings: any,
         inputs: string[],
         llmAppPromptTemplate?: string,
+        customEvaluationId?: string,
     ) => {
         const postData = async (url = "", data = {}, ignoreAxiosError: boolean = false) => {
             const response = await axios.post(url, data, {_ignoreError: ignoreAxiosError} as any)
@@ -211,6 +212,7 @@ export default function Evaluations() {
             variants: selectedVariants.map((variant) => variant.variantName), // TODO: Change to variant id
             app_name: appName,
             inputs: inputs,
+            custom_code_evaluation_id: customEvaluationId,
             evaluation_type: evaluationType,
             evaluation_type_settings: evaluationTypeSettings,
             llm_app_prompt_template: llmAppPromptTemplate,
@@ -339,6 +341,7 @@ export default function Evaluations() {
             evaluationTypeSettings,
             variantsInputs[selectedVariants[0].variantName],
             llmAppPromptTemplate,
+            selectedCustomEvaluationID
         )
         if (!evaluationTableId) {
             return
@@ -556,6 +559,10 @@ export default function Evaluations() {
                 message={error.message}
                 btnText={error.btnText}
             />
+            <div>
+                <AutomaticEvaluationResult />
+                <HumanEvaluationResult />
+            </div>
         </div>
     )
 }
