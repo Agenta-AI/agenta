@@ -102,10 +102,11 @@ def evaluate(
                                 language={"python"}
                                 value={pythonDefaultEvalCode()}
                             />
-                            <h4 className={classes.levelFourHeading}>Function Description:</h4>
+                            <h4 className={classes.levelFourHeading}>Evaluation Function Description:</h4>
                             <span>
                                 The code must accept:
                                 <ul>
+                                    <li>The app variant parameters</li>
                                     <li>A list of inputs</li>
                                     <li>An output</li>
                                     <li>A target or correct answer</li>
