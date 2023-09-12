@@ -96,3 +96,8 @@ class CustomEvaluationOutput(BaseModel):
     app_name: str
     evaluation_name: str
     created_at: datetime
+
+
+class ExecuteCustomEvaluationCode(BaseModel):
+    inputs: Dict[str, Any]
+    
