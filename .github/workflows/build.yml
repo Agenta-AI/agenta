@@ -8,7 +8,7 @@ on:
       - "agenta-web/**"
 
 jobs:
-  lint_and_types:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code

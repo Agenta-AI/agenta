@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useRef} from "react"
 import type {ColumnType} from "antd/es/table"
 import {InfoCircleOutlined, LineChartOutlined} from "@ant-design/icons"
 import {
@@ -24,6 +24,7 @@ import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithRegex} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
 import Highlighter from "react-highlight-words"
+import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 
 interface RegexEvaluationTableProps {
     evaluation: any
@@ -131,6 +132,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
     const [settings, setSettings] = useState(evaluation.evaluationTypeSettings)
     const [loading, setLoading] = useState<boolean[]>([])
     const [form] = Form.useForm()
+    const showError = useRef(true)
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -174,6 +176,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
         } catch {
             return
         }
+        showError.current = true
 
         const {regexPattern, regexShouldMatch} = form.getFieldsValue()
         const promises: Promise<void>[] = []
@@ -204,7 +207,8 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
         }, {})
 
         const columnsDataNames = ["columnData0"]
-        columnsDataNames.forEach(async (columnName: any, idx: number) => {
+        for (let idx = 0; idx < columnsDataNames.length; ++idx) {
+            const columnName = columnsDataNames[idx] as keyof RegexEvaluationTableRow
             try {
                 const result = await callVariant(
                     inputParamsDict,
@@ -239,12 +243,17 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     setWrongAnswers((prevWrong) => prevWrong + 1)
                 }
                 setRowValue(rowIndex, columnName, result)
-            } catch {
+            } catch (err) {
                 setRowValue(rowIndex, columnName, "")
+                if (showError.current) {
+                    globalErrorHandler(err)
+                    showError.current = false
+                }
+                throw err
             } finally {
                 setLoading((prev) => prev.map((val, i) => (i === rowIndex ? false : val)))
             }
-        })
+        }
     }
 
     const setRowValue = (
@@ -420,7 +429,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     requiredMark={false}
                 >
                     <Form.Item
-                        label="Rgex"
+                        label="Regex"
                         name="regexPattern"
                         rules={[{required: true, message: "Please enter a regex pattern"}]}
                     >
