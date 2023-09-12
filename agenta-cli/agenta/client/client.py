@@ -29,7 +29,7 @@ def add_variant_to_server(app_name: str, variant_name: str, image: Image, host: 
         timeout=600,
     )
     if response.status_code != 200:
-        error_message = response.json()["detail"]
+        error_message = response.json()
         raise APIRequestError(
             f"Request to app_variant endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
@@ -52,7 +52,7 @@ def start_variant(app_name: str, variant_name: str, host: str) -> str:
     )
 
     if response.status_code != 200:
-        error_message = response.json()["detail"]
+        error_message = response.json()
         raise APIRequestError(
             f"Request to start variant endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
@@ -75,12 +75,35 @@ def list_variants(app_name: str, host: str) -> List[AppVariant]:
 
     # Check for successful request
     if response.status_code != 200:
-        error_message = response.json()["detail"]
+        error_message = response.json()
         raise APIRequestError(
             f"Request to list_variants endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
     app_variants = response.json()
     return [AppVariant(**variant) for variant in app_variants]
+
+
+def get_variant_by_name(app_name: str, variant_name: str, host: str) -> AppVariant:
+    """Gets a variant by name
+
+    Arguments:
+        app_name -- the app name
+        variant_name -- the variant name
+
+    Returns:
+        the variant using the pydantic model
+    """
+    response = requests.get(
+        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/get_variant_by_name/?app_name={app_name}&variant_name={variant_name}",
+        timeout=600,
+    )
+
+    # Check for successful request
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to get_variant_by_name endpoint failed with status code {response.status_code} and error message: {error_message}."
+        )
 
 
 def remove_variant(app_name: str, variant_name: str, host: str):
@@ -101,7 +124,7 @@ def remove_variant(app_name: str, variant_name: str, host: str):
 
     # Check for successful request
     if response.status_code != 200:
-        error_message = response.json()["detail"]
+        error_message = response.json()
         raise APIRequestError(
             f"Request to remove_variant endpoint failed with status code {response.status_code} and error message: {error_message}"
         )
@@ -122,7 +145,7 @@ def update_variant_image(app_name: str, variant_name: str, image: Image, host: s
         timeout=600,
     )
     if response.status_code != 200:
-        error_message = response.json()["detail"]
+        error_message = response.json()
         raise APIRequestError(
             f"Request to update app_variant failed with status code {response.status_code} and error message: {error_message}."
         )
@@ -141,7 +164,7 @@ def send_docker_tar(
         )
 
     if response.status_code == 500:
-        response_error = response.json()["detail"]
+        response_error = response.json()
         error_msg = "Serving the variant failed.\n"
         error_msg += f"Log: {response_error}\n"
         error_msg += "Here's how you may be able to solve the issue:\n"

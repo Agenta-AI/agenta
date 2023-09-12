@@ -1,4 +1,5 @@
 import os
+import logging
 from bson import ObjectId
 from typing import Dict, List, Any
 
@@ -23,17 +24,13 @@ from agenta_backend.models.db_models import (
     OrganizationDB,
 )
 from agenta_backend.services import helpers
+from agenta_backend.models.db_engine import DBEngine
 
-from odmantic import AIOEngine, query
-from motor.motor_asyncio import AsyncIOMotorClient
+from odmantic import query
 
-import logging
 
-# SQLite database connection
-DATABASE_URL = os.environ["MONGODB_URI"]
-
-client = AsyncIOMotorClient(DATABASE_URL)
-engine = AIOEngine(client=client, database="agenta")
+# Initialize database engine
+engine = DBEngine(mode="default").engine()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -238,6 +235,54 @@ async def list_app_variants(
         app_variant_db_to_pydantic(av) for av in app_variants_db
     ]
     return app_variants
+
+
+async def get_app_variant_by_app_name_and_variant_name(
+    app_name: str, variant_name: str, show_soft_deleted: bool = False, **kwargs: dict
+) -> AppVariant:
+    """Fetches an app variant based on app_name and variant_name.
+
+    Args:
+        app_name (str): Name of the app.
+        variant_name (str): Name of the variant.
+        show_soft_deleted: if true, returns soft deleted variants as well
+        **kwargs (dict): Additional keyword arguments.
+
+    Returns:
+        AppVariant: The fetched app variant.
+    """
+
+    # Get the user object using the user ID
+    user = await get_user_object(kwargs["uid"])
+
+    # Construct the base query for the user
+    users_query = query.eq(AppVariantDB.user_id, user.id)
+
+    # Construct the query for soft-deleted items
+    soft_delete_query = query.eq(AppVariantDB.is_deleted, show_soft_deleted)
+
+    # Construct the final query filters
+    query_filters = (
+        query.eq(AppVariantDB.app_name, app_name)
+        & query.eq(AppVariantDB.variant_name, variant_name)
+        & users_query
+        & soft_delete_query
+    )
+
+    # Perform the database query
+    app_variants_db = await engine.find(
+        AppVariantDB,
+        query_filters,
+        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
+    )
+
+    # Convert the database object to AppVariant and return it
+    # Assuming that find will return a list, take the first element if it exists
+    app_variant: AppVariant = (
+        app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
+    )
+
+    return app_variant
 
 
 async def list_apps(**kwargs: dict) -> List[App]:
