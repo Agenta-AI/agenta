@@ -188,11 +188,9 @@ async def update_evaluation(
                 similarity_threshold=result.evaluation_type_settings.similarity_threshold
                 if update_payload.evaluation_type_settings.similarity_threshold is None
                 else update_payload.evaluation_type_settings.similarity_threshold,
-
                 regex_pattern=result.evaluation_type_settings.regex_pattern
                 if update_payload.evaluation_type_settings.regex_pattern is None
                 else update_payload.evaluation_type_settings.regex_pattern,
-                
                 regex_should_match=result.evaluation_type_settings.regex_should_match
                 if update_payload.evaluation_type_settings.regex_should_match is None
                 else update_payload.evaluation_type_settings.regex_should_match,

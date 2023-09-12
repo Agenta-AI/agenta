@@ -368,7 +368,7 @@ async def fetch_results(
             evaluation_id, evaluation.variants
         )
         return {"scores_data": results}
-    
+
     elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
         results = await fetch_results_for_auto_regex_test(
             evaluation_id, evaluation.variants

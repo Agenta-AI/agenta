@@ -124,9 +124,8 @@ async def fetch_results_for_auto_similarity_match_evaluation(
     results["scores"]["false"] = dissimilar_scores_nb
     return results
 
-async def fetch_results_for_auto_regex_test(
-    evaluation_id: str, variant: str
-):
+
+async def fetch_results_for_auto_regex_test(evaluation_id: str, variant: str):
     results = {}
     # Construct query expression builder for evaluation_rows_nb
     query_exp_one = query.eq(
@@ -150,9 +149,7 @@ async def fetch_results_for_auto_regex_test(
     query_exp_three = query.eq(EvaluationScenarioDB.score, "wrong") & query.eq(
         EvaluationScenarioDB.evaluation_id, evaluation_id
     )
-    incorrect_score: int = await engine.count(
-        EvaluationScenarioDB, query_exp_three
-    )
+    incorrect_score: int = await engine.count(EvaluationScenarioDB, query_exp_three)
 
     # Update results dict
     results["scores"] = {}
