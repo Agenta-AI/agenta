@@ -1,5 +1,17 @@
 import {useState, useEffect} from "react"
-import {Button, Col, Dropdown, MenuProps, Radio, RadioChangeEvent, Row, Tag, Slider, message, Typography} from "antd"
+import {
+    Button,
+    Col,
+    Dropdown,
+    MenuProps,
+    Radio,
+    RadioChangeEvent,
+    Row,
+    Tag,
+    Slider,
+    message,
+    Typography,
+} from "antd"
 import {DownOutlined} from "@ant-design/icons"
 import {fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
 import {getOpenAIKey} from "@/lib/helpers/utils"
@@ -372,13 +384,8 @@ export default function Evaluations() {
         setSliderValue(value)
     }
 
-    const [showCustomPythonCodeBox, setShowCustomPythonCodeBox] = useState(false)
-    const showCustomCodeComponent = () => {
-        if (!showCustomPythonCodeBox) {
-            setShowCustomPythonCodeBox(true)
-        } else {
-            setShowCustomPythonCodeBox(false)
-        }
+    const redirectToCreateCustomEvaluation = () => {
+        router.push(`/apps/${appName}/evaluations/create_custom_evaluation`)
     }
 
     return (
@@ -528,12 +535,12 @@ export default function Evaluations() {
                 <Row justify="end">
                     <Col span={8} className={classes.evaluationBtn}>
                         <Button
-                            onClick={showCustomCodeComponent}
+                            onClick={redirectToCreateCustomEvaluation}
                             type="default"
                             data-evaluation-type={EvaluationType.custom_code_run}
                             className={classes.createCustomEvalBtn}
                         >
-                            Create custom eval
+                            Create custom evaluation
                         </Button>
 
                         <Button onClick={onStartEvaluation} type="primary">
@@ -549,14 +556,6 @@ export default function Evaluations() {
                 message={error.message}
                 btnText={error.btnText}
             />
-
-            <div>
-                {showCustomPythonCodeBox && (
-                    <CustomPythonCode classes={classes} appName={appName} />
-                )}
-                <AutomaticEvaluationResult />
-                <HumanEvaluationResult />
-            </div>
         </div>
     )
 }
