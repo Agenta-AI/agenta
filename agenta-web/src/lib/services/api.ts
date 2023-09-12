@@ -432,7 +432,7 @@ export const updateEvaluationScenarioScore = async (
 ) => {
     const response = await axios.put(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
-        score,
+        {score: score},
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response

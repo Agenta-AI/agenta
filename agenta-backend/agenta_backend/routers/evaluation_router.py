@@ -6,11 +6,12 @@ from typing import List, Optional
 from fastapi import HTTPException, APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
 
-from agenta_backend.services.helpers import format_list_of_dictionaries
+from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
     CustomEvaluationOutput,
+    EvaluationScenarioScoreUpdate,
     EvaluationScenarioUpdate,
     ExecuteCustomEvaluationCode,
     NewEvaluation,
@@ -31,6 +32,7 @@ from agenta_backend.services.evaluation_service import (
     fetch_custom_evaluations,
     update_evaluation_scenario,
     update_evaluation_status,
+    update_evaluation_scenario_score,
     create_new_evaluation,
     create_new_evaluation_scenario,
     store_custom_code_evaluation,
@@ -94,7 +96,9 @@ async def update_evaluation_status_router(
     try:
         # Get user and organization id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_status(evaluation_id, update_data, **kwargs)
+        return await update_evaluation_status(
+            evaluation_id, update_data, **kwargs
+        )
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -147,7 +151,9 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
+@router.post(
+    "/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario
+)
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
@@ -218,6 +224,34 @@ async def update_evaluation_scenario_router(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@router.put(
+    "/evaluation_scenario/{evaluation_scenario_id}/score"
+)
+async def update_evaluation_scenario_score_router(
+    evaluation_scenario_id: str,
+    payload: EvaluationScenarioScoreUpdate,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Updates evaluation scenario score
+
+    Args:
+        evaluation_scenario_id (str): the evaluation scenario to update
+        score (float): the value to update
+
+    Raises:
+        HTTPException: server error if evaluation update went wrong
+    """
+
+    try:
+        # Get user and organization id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        return await update_evaluation_scenario_score(
+            evaluation_scenario_id, payload.score, **kwargs
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.get("/", response_model=List[Evaluation])
 async def fetch_list_evaluations(
     app_name: Optional[str] = None,
@@ -243,6 +277,7 @@ async def fetch_list_evaluations(
             id=str(evaluation.id),
             status=evaluation.status,
             evaluation_type=evaluation.evaluation_type,
+            custom_code_evaluation_id=evaluation.custom_code_evaluation_id,
             evaluation_type_settings=evaluation.evaluation_type_settings,
             llm_app_prompt_template=evaluation.llm_app_prompt_template,
             variants=evaluation.variants,
@@ -271,15 +306,16 @@ async def fetch_evaluation(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     evaluation = await engine.find_one(EvaluationDB, query_expression)
     if evaluation is not None:
         return Evaluation(
             id=str(evaluation.id),
             status=evaluation.status,
             evaluation_type=evaluation.evaluation_type,
+            custom_code_evaluation_id=evaluation.custom_code_evaluation_id,
             evaluation_type_settings=evaluation.evaluation_type_settings,
             llm_app_prompt_template=evaluation.llm_app_prompt_template,
             variants=evaluation.variants,
@@ -353,9 +389,9 @@ async def fetch_results(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder and retrieve evaluation from database
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     evaluation = await engine.find_one(EvaluationDB, query_expression)
 
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
@@ -394,8 +430,7 @@ async def store_custom_evaluation(
     """Store evaluation with custom python code.
 
     Args:
-        \n custom_evaluation_payload (StoreCustomEvaluation): payload schema required
-        \n stoken_session (SessionContainer, optional): session token to verify user session. Defaults to Depends(verify_session()).
+        \n custom_evaluation_payload (StoreCustomEvaluation): the required payload
     """
 
     # Get user and organization id
@@ -424,6 +459,15 @@ async def list_custom_evaluations(
     app_name: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
+    """List the custom code evaluations for a given app.
+
+    Args:
+        app_name (str): the name of the app
+
+    Returns:
+        List[CustomEvaluationOutput]: a list of custom evaluation
+    """
+    
     # Get user and organization id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
@@ -440,12 +484,31 @@ async def execute_custom_evaluation(
     payload: ExecuteCustomEvaluationCode,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
+    """Execute a custom evaluation code.
+
+    Args:
+        evaluation_id (str): the custom evaluation id
+        payload (ExecuteCustomEvaluationCode): the required payload
+
+    Returns:
+        float: the result of the evaluation custom code
+    """
+    
     # Get user and organization id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
     # Execute custom code evaluation
-    formatted_inputs = format_list_of_dictionaries(payload.inputs)
+    formatted_inputs = format_inputs(payload.inputs)
+    formatted_outputs = format_outputs(payload.outputs)
     result = await execute_custom_code_evaluation(
-        evaluation_id, formatted_inputs, **kwargs
+        evaluation_id,
+        payload.app_name,
+        formatted_outputs[
+            payload.variant_name
+        ],  # gets the output of the app variant
+        payload.correct_answer,
+        payload.variant_name,
+        formatted_inputs,
+        **kwargs,
     )
     return result
