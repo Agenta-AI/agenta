@@ -32,7 +32,7 @@ const useStyles = createUseStyles({
     },
     copyBtn: {
         marginLeft: "15px",
-    }
+    },
 })
 
 export default function CreateCustomEvaluation() {

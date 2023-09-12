@@ -438,7 +438,6 @@ export const updateEvaluationScenarioScore = async (
     return response
 }
 
-
 export const fetchApps = () => {
     const {data, error, isLoading} = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,

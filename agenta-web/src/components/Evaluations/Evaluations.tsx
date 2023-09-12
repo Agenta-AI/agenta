@@ -341,7 +341,7 @@ export default function Evaluations() {
             evaluationTypeSettings,
             variantsInputs[selectedVariants[0].variantName],
             llmAppPromptTemplate,
-            selectedCustomEvaluationID
+            selectedCustomEvaluationID,
         )
         if (!evaluationTableId) {
             return

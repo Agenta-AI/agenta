@@ -205,7 +205,7 @@ export default function AutomaticEvaluationResult() {
                     if (record.scoresData.scores?.true !== undefined) {
                         correctScore = record.scoresData.scores.true
                     }
-                    
+
                     let scoresAverage = (correctScore / record.scoresData.nb_of_rows) * 100
                     return (
                         <span>
@@ -220,10 +220,10 @@ export default function AutomaticEvaluationResult() {
                 }
 
                 let resultsDataAverage =
-                    ((record.resultsData[10]) /
+                    (record.resultsData[10] /
                         Object.values(record.resultsData).reduce((acc, value) => acc + value, 0)) *
                     100
-                
+
                 return (
                     <span>
                         <Statistic

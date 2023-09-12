@@ -88,21 +88,24 @@ def evaluate(
                             <Input disabled={submitting} placeholder="Input name of evaluation" />
                         </Form.Item>
                         <div className={classes.exampleContainer}>
-                            <h4>Example Evaluation Function:
-                            <CopyButton
-                                text="Copy"
-                                type="primary"
-                                size="small"
-                                target={pythonDefaultEvalCode()}
-                                className={classes.copyBtn}
-                            />
+                            <h4>
+                                Example Evaluation Function:
+                                <CopyButton
+                                    text="Copy"
+                                    type="primary"
+                                    size="small"
+                                    target={pythonDefaultEvalCode()}
+                                    className={classes.copyBtn}
+                                />
                             </h4>
                             <CodeBlock
                                 key={"python" + appName}
                                 language={"python"}
                                 value={pythonDefaultEvalCode()}
                             />
-                            <h4 className={classes.levelFourHeading}>Evaluation Function Description:</h4>
+                            <h4 className={classes.levelFourHeading}>
+                                Evaluation Function Description:
+                            </h4>
                             <span>
                                 The code must accept:
                                 <ul>

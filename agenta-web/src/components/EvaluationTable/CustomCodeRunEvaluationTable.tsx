@@ -10,7 +10,7 @@ import {
     updateEvaluation,
     executeCustomEvaluationCode,
     loadTestset,
-    updateEvaluationScenarioScore
+    updateEvaluationScenarioScore,
 } from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
@@ -46,7 +46,6 @@ interface IVariantInputs {
     input_name: string
     input_value: string
 }
-
 
 /**
  *
@@ -230,8 +229,10 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
     }
 
     const correctAnswer = (variantInputs: Array<IVariantInputs>) => {
-        const { input_name, input_value } = variantInputs[0]
-        const filteredData:any = evaluationTestsets.filter(item => item[input_name] === input_value)[0]
+        const {input_name, input_value} = variantInputs[0]
+        const filteredData: any = evaluationTestsets.filter(
+            (item) => item[input_name] === input_value,
+        )[0]
         return filteredData.correct_answer
     }
 
@@ -267,10 +268,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                     )
                     if (result) {
                         // Update the evaluation scenario with the score
-                        await updateEvaluationScenarioScore(
-                            evaluation_scenario_id,
-                            result,
-                        )
+                        await updateEvaluationScenarioScore(evaluation_scenario_id, result)
                     }
                     setRowValue(rowNumber, "codeResult", result)
                 }
@@ -282,7 +280,6 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             }
         }
     }
-
 
     const callCustomCodeHandler = async (
         variantInput: Array<IVariantInputs>,
@@ -391,9 +388,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             width: "30%",
 
             render: (text: any, record: any, rowIndex: number) => {
-                return (
-                    <div>{correctAnswer(record.inputs)}</div>
-                )
+                return <div>{correctAnswer(record.inputs)}</div>
             },
         },
         {
