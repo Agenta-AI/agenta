@@ -11,7 +11,8 @@ import {
     TemplateImage,
     RestartVariantDocker,
     RestartVariantDockerResponse,
-    StoreCustomEvaluation
+    StoreCustomEvaluation,
+    ExecuteCustomEvalCode
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
@@ -406,6 +407,20 @@ export const saveCutomCodeEvaluation = async (
 export const fetchCustomEvaluations = async (app_name: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_name}`, 
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
+
+export const executeCustomEvaluationCode = async (
+    payload: ExecuteCustomEvalCode,
+    ignoreAxiosError: boolean = false,
+) => {
+
+    const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/execute/${payload.evaluation_id}/`,
+        {inputs: payload.inputs},
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
