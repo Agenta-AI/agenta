@@ -1,16 +1,18 @@
 import os
 from bson import ObjectId
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 from fastapi import HTTPException, APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
 
+from agenta_backend.services.helpers import format_list_of_dictionaries
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
     CustomEvaluationOutput,
     EvaluationScenarioUpdate,
+    ExecuteCustomEvaluationCode,
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
@@ -18,6 +20,7 @@ from agenta_backend.models.api.evaluation_model import (
     StoreCustomEvaluation,
 )
 from agenta_backend.services.results_service import (
+    fetch_average_score_for_custom_code_run,
     fetch_results_for_human_a_b_testing_evaluation,
     fetch_results_for_auto_exact_match_evaluation,
     fetch_results_for_auto_similarity_match_evaluation,
@@ -381,6 +384,10 @@ async def fetch_results(
     elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
         results = await fetch_results_for_auto_ai_critique(evaluation_id)
         return {"results_data": results}
+    
+    elif evaluation.evaluation_type == EvaluationType.custom_code_run:
+        results = await fetch_average_score_for_custom_code_run(evaluation_id)
+        return {"avg_score": results}
 
 
 @router.post("/custom_evaluation/store/")
@@ -434,14 +441,13 @@ async def list_custom_evaluations(
 )
 async def execute_custom_evaluation(
     evaluation_id: str,
-    parameters:Dict[str, str],
-    inputs: Dict[str, str],
-    correct_answer:float,
+    payload: ExecuteCustomEvaluationCode,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     # Get user and organization id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
-    # Excute custom code evaluation
-    result = await execute_custom_code_evaluation(evaluation_id, **kwargs)
+    # Execute custom code evaluation
+    formatted_inputs = format_list_of_dictionaries(payload.inputs)
+    result = await execute_custom_code_evaluation(evaluation_id, formatted_inputs, **kwargs)
     return result
