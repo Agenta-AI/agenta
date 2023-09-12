@@ -99,7 +99,8 @@ export default function AutomaticEvaluationResult() {
                                         item.evaluation_type == EvaluationType.auto_exact_match ||
                                         item.evaluation_type ==
                                             EvaluationType.auto_similarity_match ||
-                                        item.evaluation_type == EvaluationType.auto_ai_critique
+                                        item.evaluation_type == EvaluationType.auto_ai_critique ||
+                                        item.evaluation_type == EvaluationType.custom_code_run
                                     ) {
                                         return {
                                             key: item.id,
@@ -109,7 +110,7 @@ export default function AutomaticEvaluationResult() {
                                             evaluationType: item.evaluation_type,
                                             status: item.status,
                                             testset: item.testset,
-                                            resultsData: results.results_data,
+                                            resultsData: results.results_data || results.avg_score,
                                         }
                                     }
                                 })
@@ -149,6 +150,10 @@ export default function AutomaticEvaluationResult() {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_similarity_match`)
         } else if (evaluationType === EvaluationType.auto_ai_critique) {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_ai_critique`)
+        } else if (evaluationType === EvaluationType.custom_code_run) {
+            router.push(
+                `/apps/${app_name}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_evaluation_id}`,
+            )
         }
     }
 
@@ -198,7 +203,7 @@ export default function AutomaticEvaluationResult() {
                     if (record.scoresData.scores?.true !== undefined) {
                         correctScore = record.scoresData.scores.true
                     }
-
+                    
                     let scoresAverage = (correctScore / record.scoresData.nb_of_rows) * 100
                     return (
                         <span>
@@ -213,9 +218,10 @@ export default function AutomaticEvaluationResult() {
                 }
 
                 let resultsDataAverage =
-                    (record.resultsData[10] /
+                    ((record.resultsData[10]) /
                         Object.values(record.resultsData).reduce((acc, value) => acc + value, 0)) *
                     100
+                
                 return (
                     <span>
                         <Statistic
