@@ -1,5 +1,15 @@
 import {useState, useEffect} from "react"
-import {Button, Col, Dropdown, MenuProps, Radio, RadioChangeEvent, Row, message} from "antd"
+import {
+    Button,
+    Col,
+    Dropdown,
+    MenuProps,
+    Radio,
+    RadioChangeEvent,
+    Row,
+    Typography,
+    message,
+} from "antd"
 import {DownOutlined} from "@ant-design/icons"
 import {createNewEvaluation, fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
 import {getOpenAIKey} from "@/lib/helpers/utils"
@@ -7,7 +17,6 @@ import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
-import {Typography} from "antd"
 import EvaluationErrorModal from "./EvaluationErrorModal"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 
@@ -21,6 +30,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import HumanEvaluationResult from "./HumanEvaluationResult"
+import axios from "axios"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -74,9 +84,9 @@ const useStyles = createUseStyles({
         width: "100%",
     },
 })
+const {Title} = Typography
 
 export default function Evaluations() {
-    const {Title} = Typography
     const router = useRouter()
     const {appTheme} = useAppTheme()
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
