@@ -220,31 +220,45 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             }
 
             try {
-                // Call custom code evaluation
-                const result = await callCustomCodeHandler(data.inputs)
-                if (result) {
-                    // Update evaluation scenario
-                    const responseData = await updateEvaluationScenario(
-                        evaluation.id,
-                        evaluation_scenario_id,
-                        {...data, correct_answer: result},
-                        evaluation.evaluationType as EvaluationType,
-                    )
+                // Update evaluation scenario
+                const responseData = await updateEvaluationScenario(
+                    evaluation.id,
+                    evaluation_scenario_id,
+                    data,
+                    evaluation.evaluationType as EvaluationType,
+                )
 
-                    setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
-                    setRowValue(rowNumber, "evaluation", responseData.evaluation)
-                    setRowValue(rowNumber, "correctAnswer", responseData.correct_answer)
+                if (responseData) {
+                    // Call custom code evaluation
+                    const result = await callCustomCodeHandler(
+                        data.inputs, 
+                        appName, 
+                        appVariantNameX, 
+                        responseData.outputs
+                    )
+                    setRowValue(rowNumber, "correctAnswer", result)
                 }
+
+                setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
+                setRowValue(rowNumber, "evaluation", responseData.evaluation)
             } catch (err) {
                 console.log(err)
             }
         }
     }
 
-    const callCustomCodeHandler = async (variantInput: Object) => {
+    const callCustomCodeHandler = async (
+        variantInput: Array<Object>, 
+        appName: string, 
+        variantName: string, 
+        outputs: Array<Object>
+    ) => {
         const data = {
             evaluation_id: customEvaluationId,
             inputs: variantInput,
+            outputs: outputs,
+            app_name: appName,
+            variant_name: variantName
         }
         const response = await executeCustomEvaluationCode(data)
         if (response.status === 200) {
@@ -345,8 +359,8 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                         </center>
                     )
                 }
-                if (rows[rowIndex].correctAnswer && rows[rowIndex].correctAnswer.length > 0) {
-                    return <div>{record.correctAnswer}</div>
+                if (record.correctAnswer) {
+                    return <div>{text}</div>
                 }
             },
         },
