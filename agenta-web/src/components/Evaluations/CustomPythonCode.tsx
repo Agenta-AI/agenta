@@ -5,14 +5,18 @@ import {StoreCustomEvaluationSuccessResponse} from "@/lib/Types"
 import {saveCustomCodeEvaluation} from "@/lib/services/api"
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import CopyButton from "../CopyButton/CopyButton"
+import AceEditor from "react-ace"
+import "ace-builds/src-noconflict/mode-python"
+import "ace-builds/src-noconflict/theme-github"
+import "ace-builds/src-noconflict/theme-monokai"
 
 interface ICustomPythonProps {
     classes: any
     appName: string
+    appTheme: string
 }
 
-const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName}) => {
-    const {TextArea} = Input
+const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTheme}) => {
     const {Title} = Typography
     const [form] = Form.useForm()
     const router = useRouter()
@@ -72,6 +76,15 @@ def evaluate(
     return 0.75  # Replace with your calculated score`
     }
 
+    const switchEditorThemeBasedOnTheme = () => {
+        console.log("App Theme => ", appTheme)
+        if (appTheme == "light") {
+            return "github"
+        } else if (appTheme == "dark") {
+            return "monokai"
+        }
+    }
+
     return (
         <div className={classes.evaluationContainer}>
             <Title level={4} className={classes.customTitle}>
@@ -122,10 +135,25 @@ def evaluate(
                             name="pythonCode"
                             rules={[{required: true, message: "Please input python code!"}]}
                         >
-                            <TextArea
-                                disabled={submitting}
-                                rows={28}
-                                placeholder="Input python code"
+                            <AceEditor
+                                mode="python"
+                                theme={switchEditorThemeBasedOnTheme()}
+                                name="pythonCodeEditor"
+                                editorProps={{$blockScrolling: true}}
+                                width="100%"
+                                height="600px"
+                                fontSize={16}
+                                showPrintMargin={false}
+                                value={form.getFieldValue("pythonCode")}
+                                onChange={(code) => form.setFieldsValue({pythonCode: code})}
+                                placeholder="Start coding..."
+                                setOptions={{
+                                    enableBasicAutocompletion: true,
+                                    enableLiveAutocompletion: false,
+                                    enableSnippets: false,
+                                    showLineNumbers: true,
+                                    tabSize: 2,
+                                }}                                
                             />
                         </Form.Item>
                     </Col>
