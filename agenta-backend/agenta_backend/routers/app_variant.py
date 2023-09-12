@@ -96,6 +96,8 @@ async def get_variant_by_name(
     except ValueError as e:
         # Handle ValueErrors and return 400 status code
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException as e:
+        raise e
     except Exception as e:
         # Handle all other exceptions and return 500 status code
         raise HTTPException(status_code=500, detail=str(e))
