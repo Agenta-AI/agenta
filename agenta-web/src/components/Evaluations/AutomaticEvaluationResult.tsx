@@ -30,6 +30,7 @@ interface EvaluationListTableDataType {
         }
         variant: any[]
     }
+    custom_code_eval_id: string
     resultsData: {[key: string]: number}
     createdAt: string
 }
@@ -110,6 +111,7 @@ export default function AutomaticEvaluationResult() {
                                             evaluationType: item.evaluation_type,
                                             status: item.status,
                                             testset: item.testset,
+                                            custom_code_eval_id: item.custom_code_evaluation_id,
                                             resultsData: results.results_data || results.avg_score,
                                         }
                                     }
@@ -152,7 +154,7 @@ export default function AutomaticEvaluationResult() {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_ai_critique`)
         } else if (evaluationType === EvaluationType.custom_code_run) {
             router.push(
-                `/apps/${app_name}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_evaluation_id}`,
+                `/apps/${app_name}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_eval_id}`,
             )
         }
     }
