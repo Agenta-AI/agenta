@@ -33,6 +33,7 @@ class Evaluation(BaseModel):
     status: str
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
+    custom_code_evaluation_id: Optional[str] # will be added when running custom code evaluation
     llm_app_prompt_template: Optional[str]
     variants: Optional[List[str]]
     app_name: str
@@ -73,6 +74,7 @@ class EvaluationScenarioUpdate(BaseModel):
 
 class NewEvaluation(BaseModel):
     evaluation_type: EvaluationType
+    custom_code_evaluation_id: Optional[str] # will be added when running custom code evaluation
     evaluation_type_settings: Optional[EvaluationTypeSettings]
     app_name: str
     variants: List[str]

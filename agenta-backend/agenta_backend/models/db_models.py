@@ -83,6 +83,7 @@ class EvaluationScenarioOutput(EmbeddedModel):
 class EvaluationDB(Model):
     status: str
     evaluation_type: str
+    custom_code_evaluation_id: Optional[str]
     evaluation_type_settings: EvaluationTypeSettings
     llm_app_prompt_template: str
     variants: List[str]
