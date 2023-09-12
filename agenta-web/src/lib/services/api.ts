@@ -425,6 +425,20 @@ export const executeCustomEvaluationCode = async (
     return response
 }
 
+export const updateEvaluationScenarioScore = async (
+    evaluation_scenario_id: string,
+    score: number,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.put(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
+        score,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
+
 export const fetchApps = () => {
     const {data, error, isLoading} = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
