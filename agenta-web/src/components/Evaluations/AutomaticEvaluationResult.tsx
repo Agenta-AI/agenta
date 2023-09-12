@@ -96,10 +96,12 @@ export default function AutomaticEvaluationResult() {
                             )
                                 .then((results) => {
                                     if (
-                                        item.evaluation_type == EvaluationType.auto_exact_match ||
-                                        item.evaluation_type ==
-                                            EvaluationType.auto_similarity_match ||
-                                        item.evaluation_type == EvaluationType.auto_ai_critique
+                                        [
+                                            EvaluationType.auto_exact_match,
+                                            EvaluationType.auto_similarity_match,
+                                            EvaluationType.auto_regex_test,
+                                            EvaluationType.auto_ai_critique,
+                                        ].includes(item.evaluation_type as EvaluationType)
                                     ) {
                                         return {
                                             key: item.id,
@@ -147,6 +149,8 @@ export default function AutomaticEvaluationResult() {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_exact_match`)
         } else if (evaluationType === EvaluationType.auto_similarity_match) {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_similarity_match`)
+        } else if (evaluationType === EvaluationType.auto_regex_test) {
+            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_regex_test`)
         } else if (evaluationType === EvaluationType.auto_ai_critique) {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_ai_critique`)
         }
