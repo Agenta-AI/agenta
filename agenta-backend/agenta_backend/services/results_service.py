@@ -143,9 +143,12 @@ async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
     query_exp = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id)
     eval_scenarios = await engine.find(EvaluationScenarioDB, query_exp)
 
-    list_of_correct_answers = []
+    list_of_scores = []
     for scenario in eval_scenarios:
-        list_of_correct_answers.append(float(scenario.correct_answer))
+        score = scenario.score
+        if not scenario.score:
+            score = 0
+        list_of_scores.append(float(score))
 
-    average_score = sum(list_of_correct_answers) / len(list_of_correct_answers)
+    average_score = sum(list_of_scores) / len(list_of_scores)
     return average_score
