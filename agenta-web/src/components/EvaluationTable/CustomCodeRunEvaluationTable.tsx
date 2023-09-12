@@ -9,6 +9,8 @@ import {
     fetchEvaluationResults,
     updateEvaluation,
     executeCustomEvaluationCode,
+    loadTestset,
+    updateEvaluationScenarioScore
 } from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
@@ -36,8 +38,16 @@ interface CustomCodeEvaluationTableRow {
     columnData0: string
     correctAnswer: string
     evaluation: string
+    codeResult: string
     evaluationFlow: EvaluationFlow
 }
+
+interface IVariantInputs {
+    input_name: string
+    input_value: string
+}
+
+
 /**
  *
  * @param evaluation - Evaluation object
@@ -140,6 +150,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
     const [shouldFetchResults, setShouldFetchResults] = useState(false)
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
+    const [evaluationTestsets, setEvaluationTestsets] = useState([])
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -168,6 +179,17 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
         newRows[rowIndex].inputs[inputFieldKey].input_value = e.target.value
         setRows(newRows)
     }
+
+    useEffect(() => {
+        const getTests = async () => {
+            const data = await loadTestset(evaluation.testset._id)
+            if (data.csvdata.length > 0) {
+                setEvaluationTestsets(data.csvdata)
+            }
+        }
+
+        getTests()
+    }, [evaluation])
 
     const runAllEvaluations = async () => {
         try {
@@ -207,6 +229,12 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
         }
     }
 
+    const correctAnswer = (variantInputs: Array<IVariantInputs>) => {
+        const { input_name, input_value } = variantInputs[0]
+        const filteredData:any = evaluationTestsets.filter(item => item[input_name] === input_value)[0]
+        return filteredData.correct_answer
+    }
+
     const evaluate = async (rowNumber: number) => {
         const evaluation_scenario_id = rows[rowNumber].id
         const appVariantNameX = variants[0].variantName
@@ -216,6 +244,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             const data = {
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
                 inputs: rows[rowNumber].inputs,
+                correct_answer: correctAnswer(rows[rowNumber].inputs),
                 open_ai_key: getOpenAIKey(),
             }
 
@@ -231,12 +260,19 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                 if (responseData) {
                     // Call custom code evaluation
                     const result = await callCustomCodeHandler(
-                        data.inputs, 
-                        appName, 
-                        appVariantNameX, 
-                        responseData.outputs
+                        data.inputs,
+                        appName,
+                        appVariantNameX,
+                        responseData.outputs,
                     )
-                    setRowValue(rowNumber, "correctAnswer", result)
+                    if (result) {
+                        // Update the evaluation scenario with the score
+                        await updateEvaluationScenarioScore(
+                            evaluation_scenario_id,
+                            result,
+                        )
+                    }
+                    setRowValue(rowNumber, "codeResult", result)
                 }
 
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
@@ -247,18 +283,21 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
         }
     }
 
+
     const callCustomCodeHandler = async (
-        variantInput: Array<Object>, 
-        appName: string, 
-        variantName: string, 
-        outputs: Array<Object>
+        variantInput: Array<IVariantInputs>,
+        appName: string,
+        variantName: string,
+        outputs: Array<Object>,
     ) => {
+        const expectedTarget = correctAnswer(variantInput)
         const data = {
             evaluation_id: customEvaluationId,
             inputs: variantInput,
             outputs: outputs,
             app_name: appName,
-            variant_name: variantName
+            correct_answer: expectedTarget,
+            variant_name: variantName,
         }
         const response = await executeCustomEvaluationCode(data)
         if (response.status === 200) {
@@ -352,30 +391,18 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             width: "30%",
 
             render: (text: any, record: any, rowIndex: number) => {
-                if (record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED) {
-                    return (
-                        <center>
-                            <Spin />
-                        </center>
-                    )
-                }
-                if (record.correctAnswer) {
-                    return <div>{text}</div>
-                }
+                return (
+                    <div>{correctAnswer(record.inputs)}</div>
+                )
             },
         },
         {
-            title: "Evaluation",
-            dataIndex: "evaluation",
-            key: "evaluation",
+            title: "Result",
+            dataIndex: "codeResult",
+            key: "code_result",
             width: 200,
             align: "center" as "left" | "right" | "center",
             render: (text: any, record: any, rowIndex: number) => {
-                if (record.evaluationFlow === "COMPARISON_RUN_STARTED") {
-                    return <Spin></Spin>
-                }
-                let tagColor = ""
-
                 return (
                     <Spin
                         spinning={
@@ -385,13 +412,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                         }
                     >
                         <Space>
-                            <div>
-                                {rows[rowIndex].evaluation !== "" && (
-                                    <Tag color={tagColor} className={classes.tag}>
-                                        {record.evaluation}
-                                    </Tag>
-                                )}
-                            </div>
+                            <div>{record.code_result !== "" && <div>{text}</div>}</div>
                         </Space>
                     </Spin>
                 )
