@@ -1,5 +1,4 @@
-import re
-from typing import List, Union, Text, Dict, Any
+from typing import Union, Text, Dict, Any
 
 from RestrictedPython import safe_builtins, compile_restricted
 from RestrictedPython.Eval import (
@@ -12,36 +11,20 @@ from RestrictedPython.Guards import (
 )
 
 
-def is_import_safe(module: str, allowed_imports: List[str]) -> bool:
-    """Checks if a given package import contains any disallowed patterns of code.
+def is_import_safe(python_code: Text) -> bool:
+    """Checks if the imports in the python code contains a system-level import.
 
     Args:
-        module (str) -- The module to check for potentially dangerous code
-        allowed_imports (list) -- List of modules or objects that can be imported
+        python_code (str): The Python code to be executed
 
     Returns:
         bool - module is secured or not
     """
 
-    # Define patterns to disallow dangerous code
-    disallowed_patterns = [
-        r"import\s+os",
-        r"import\s+subprocess",
-        r"import\s+threading",
-        r"import\s+multiprocessing"
-        # Add more patterns as needed
-    ]
-
-    # Check if any disallowed patterns are present
-    for pattern in disallowed_patterns:
-        match = re.search(pattern, module)
-        if match:
-            # Get the module name from the match object
-            module = match.group("module")
-
-            # Check if the module is in the list of allowed modules
-            if module not in allowed_imports:
-                return False
+    disallowed_imports = ["os", "subprocess", "threading", "multiprocessing"]
+    for import_ in disallowed_imports:
+        if import_ in python_code:
+            return False
     return True
 
 
@@ -72,33 +55,14 @@ def execute_code_safely(
         "datetime",
         "json",
         "jsonschema",
-        "sqlglot",
         "requests",
-        "marvin",
         "numpy",
     ]
 
     # Create a dictionary to simulate allowed imports
     allowed_modules = {}
     for package_name in allowed_imports:
-        # Check if the package
-        module_safe = is_import_safe(package_name, allowed_imports)
-        if not module_safe:
-            raise Exception(
-                f"We're sorry, but we don't currently support the {package_name} module. Please, try again."
-            )
-
-        try:
-            __import__(package_name, globals(), locals(), ["*"], 0)
-        except ImportError:
-            import pip
-
-            pip.install(
-                package_name, "-t", "/usr/local/lib/python3.9/lib-dynload/"
-            )
-        allowed_modules[package_name] = __import__(
-            package_name, globals(), locals(), ["*"], 0
-        )
+        allowed_modules[package_name] = __import__(package_name)
 
     # Add the allowed modules to the local built-ins
     local_builtins.update(allowed_modules)
