@@ -110,7 +110,7 @@ class EvaluationScenarioDB(Model):
 
     class Config:
         collection = "evaluation_scenarios"
-        
+
 
 class CustomEvaluationDB(Model):
     evaluation_name: str
@@ -119,7 +119,7 @@ class CustomEvaluationDB(Model):
     user: UserDB = Reference()
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-    
+
     class Config:
         collection = "custom_evaluations"
 

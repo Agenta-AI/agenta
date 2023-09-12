@@ -140,15 +140,12 @@ async def fetch_results_for_auto_ai_critique(evaluation_id: str):
 
 
 async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
-    
-    query_exp = query.eq(
-        EvaluationScenarioDB.evaluation_id, evaluation_id
-    )
+    query_exp = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id)
     eval_scenarios = await engine.find(EvaluationScenarioDB, query_exp)
-    
+
     list_of_correct_answers = []
     for scenario in eval_scenarios:
         list_of_correct_answers.append(float(scenario.correct_answer))
-        
+
     average_score = sum(list_of_correct_answers) / len(list_of_correct_answers)
     return average_score

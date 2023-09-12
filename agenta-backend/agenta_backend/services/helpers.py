@@ -21,40 +21,40 @@ def print_image(image):
 
 
 def format_list_of_dictionaries(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
-  """
-  Formats a list of dictionaries into a dictionary using the input_name as the key, 
-  and the input_value as the value.
+    """
+    Formats a list of dictionaries into a dictionary using the input_name as the key,
+    and the input_value as the value.
 
-  Args:
-    list_of_dictionaries: A list of dictionaries.
+    Args:
+      list_of_dictionaries: A list of dictionaries.
 
-  Returns:
-    A dictionary.
-  """
-  
-  formatted_dictionary = {}
-  for dictionary in list_of_dictionaries:
-    formatted_dictionary[dictionary['input_name']] = dictionary['input_value']
-  return formatted_dictionary
+    Returns:
+      A dictionary.
+    """
+
+    formatted_dictionary = {}
+    for dictionary in list_of_dictionaries:
+        formatted_dictionary[dictionary["input_name"]] = dictionary["input_value"]
+    return formatted_dictionary
 
 
 def include_dynamic_values(json_data: Dict, inputs: Dict[str, Any]) -> Dict:
-  """
-  Includes the dynamic values in the JSON before it gets executed.
+    """
+    Includes the dynamic values in the JSON before it gets executed.
 
-  Args:
-    json_data: The JSON data.
-    inputs: The dynamic values.
+    Args:
+      json_data: The JSON data.
+      inputs: The dynamic values.
 
-  Returns:
-    The modified JSON data.
-  """
-  
-  # Get the inputs dictionary.
-  inputs_dictionary = json.loads(inputs)
+    Returns:
+      The modified JSON data.
+    """
 
-  # Replace the `{inputs}` placeholder in the JSON data with the inputs dictionary.
-  for key, value in inputs_dictionary.items():
-    json_data = json_data.replace(f"{key}", value)
+    # Get the inputs dictionary.
+    inputs_dictionary = json.loads(inputs)
 
-  return json_data
+    # Replace the `{inputs}` placeholder in the JSON data with the inputs dictionary.
+    for key, value in inputs_dictionary.items():
+        json_data = json_data.replace(f"{key}", value)
+
+    return json_data

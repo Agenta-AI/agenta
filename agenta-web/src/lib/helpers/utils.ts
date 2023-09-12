@@ -20,7 +20,7 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.auto_ai_critique]: "AI Critic",
     [EvaluationType.human_a_b_testing]: "A/B testing",
     [EvaluationType.human_scoring]: "Scoring single variant",
-    [EvaluationType.custom_code_run]: "Custom Code Run"
+    [EvaluationType.custom_code_run]: "Custom Code Run",
 }
 
 export const saveOpenAIKey = (key: string) => {

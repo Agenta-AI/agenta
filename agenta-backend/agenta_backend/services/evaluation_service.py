@@ -37,9 +37,7 @@ class UpdateEvaluationScenarioError(Exception):
     pass
 
 
-async def create_new_evaluation(
-    payload: NewEvaluation, **kwargs: dict
-) -> Dict:
+async def create_new_evaluation(payload: NewEvaluation, **kwargs: dict) -> Dict:
     # Get user object
     user = await get_user_object(kwargs["uid"])
 
@@ -49,9 +47,7 @@ async def create_new_evaluation(
     evaluation_dict["updated_at"] = datetime.utcnow()
 
     # Initialize evaluation type settings embedded model
-    similarity_threshold = (
-        payload.evaluation_type_settings.similarity_threshold
-    )
+    similarity_threshold = payload.evaluation_type_settings.similarity_threshold
     evaluation_type_settings = EvaluationTypeSettings(
         similarity_threshold=0.0
         if similarity_threshold is None
@@ -80,9 +76,7 @@ async def create_new_evaluation(
 
     # Get testset using the provided _id
     testsetId = eval_instance.testset["_id"]
-    testset = await engine.find_one(
-        TestSetDB, TestSetDB.id == ObjectId(testsetId)
-    )
+    testset = await engine.find_one(TestSetDB, TestSetDB.id == ObjectId(testsetId))
 
     csvdata = testset.csvdata
     for datum in csvdata:
@@ -179,9 +173,9 @@ async def update_evaluation_status(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression for evaluation
-    query_expression = query.eq(
-        EvaluationDB.id, ObjectId(evaluation_id)
-    ) & query.eq(EvaluationDB.user, user.id)
+    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
+        EvaluationDB.user, user.id
+    )
     result = await engine.find_one(EvaluationDB, query_expression)
 
     if result is not None:
@@ -202,9 +196,7 @@ async def update_evaluation_status(
             updated_at=result.updated_at,
         )
     else:
-        raise UpdateEvaluationScenarioError(
-            "Failed to update evaluation status"
-        )
+        raise UpdateEvaluationScenarioError("Failed to update evaluation status")
 
 
 async def update_evaluation_scenario(
@@ -234,7 +226,9 @@ async def update_evaluation_scenario(
     elif evaluation_type == EvaluationType.human_a_b_testing:
         new_evaluation_set["vote"] = evaluation_scenario_dict["vote"]
     elif evaluation_type == EvaluationType.custom_code_run:
-        new_evaluation_set["correct_answer"] = evaluation_scenario_dict["correct_answer"]
+        new_evaluation_set["correct_answer"] = evaluation_scenario_dict[
+            "correct_answer"
+        ]
     elif evaluation_type == EvaluationType.auto_ai_critique:
         current_evaluation_scenario = await engine.find_one(
             EvaluationScenarioDB, query_expression_eval_scen
@@ -255,9 +249,7 @@ async def update_evaluation_scenario(
                 for scenario_input in current_evaluation_scenario.inputs
             ],
             correct_answer=current_evaluation_scenario.correct_answer,
-            app_variant_output=new_evaluation_set["outputs"][0][
-                "variant_output"
-            ],
+            app_variant_output=new_evaluation_set["outputs"][0]["variant_output"],
             evaluation_prompt_template=evaluation_scenario_dict[
                 "evaluation_prompt_template"
             ],
@@ -266,9 +258,7 @@ async def update_evaluation_scenario(
         new_evaluation_set["evaluation"] = evaluation
 
     # Get an evaluation scenario with the provided id
-    result = await engine.find_one(
-        EvaluationScenarioDB, query_expression_eval_scen
-    )
+    result = await engine.find_one(EvaluationScenarioDB, query_expression_eval_scen)
 
     # Loop through the evaluation set outputs, create an evaluation scenario
     # output instance and append the instance in the list

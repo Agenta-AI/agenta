@@ -8,7 +8,7 @@ import {
     callVariant,
     fetchEvaluationResults,
     updateEvaluation,
-	executeCustomEvaluationCode,
+    executeCustomEvaluationCode,
 } from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
@@ -19,7 +19,7 @@ import {createUseStyles} from "react-jss"
 interface CustomCodeEvaluationTableProps {
     evaluation: Evaluation
     columnsCount: number
-	customEvaluationId: string
+    customEvaluationId: string
     evaluationScenarios: CustomCodeEvaluationTableRow[]
 }
 
@@ -123,7 +123,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
     evaluation,
     evaluationScenarios,
     columnsCount,
-	customEvaluationId
+    customEvaluationId,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -219,39 +219,38 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                 open_ai_key: getOpenAIKey(),
             }
 
-			try {
-				// Call custom code evaluation
-				const result = await callCustomCodeHandler(data.inputs)
-				if (result) {
+            try {
+                // Call custom code evaluation
+                const result = await callCustomCodeHandler(data.inputs)
+                if (result) {
+                    // Update evaluation scenario
+                    const responseData = await updateEvaluationScenario(
+                        evaluation.id,
+                        evaluation_scenario_id,
+                        {...data, correct_answer: result},
+                        evaluation.evaluationType as EvaluationType,
+                    )
 
-					// Update evaluation scenario
-					const responseData = await updateEvaluationScenario(
-						evaluation.id,
-						evaluation_scenario_id,
-						{...data, correct_answer: result},
-						evaluation.evaluationType as EvaluationType,
-					)
-					
-					setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
-					setRowValue(rowNumber, "evaluation", responseData.evaluation)
-					setRowValue(rowNumber, "correctAnswer", responseData.correct_answer)
-				}
-			} catch (err) {
-				console.log(err)
-			}			
+                    setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
+                    setRowValue(rowNumber, "evaluation", responseData.evaluation)
+                    setRowValue(rowNumber, "correctAnswer", responseData.correct_answer)
+                }
+            } catch (err) {
+                console.log(err)
+            }
         }
     }
 
-	const callCustomCodeHandler = async (variantInput: Object) => {
-		const data = {
-			evaluation_id: customEvaluationId,
-			inputs: variantInput
-		}
-		const response = await executeCustomEvaluationCode(data)
-		if (response.status === 200) {
-			return response.data
-		}
-	}
+    const callCustomCodeHandler = async (variantInput: Object) => {
+        const data = {
+            evaluation_id: customEvaluationId,
+            inputs: variantInput,
+        }
+        const response = await executeCustomEvaluationCode(data)
+        if (response.status === 200) {
+            return response.data
+        }
+    }
 
     const setRowValue = (
         rowIndex: number,
@@ -339,17 +338,17 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             width: "30%",
 
             render: (text: any, record: any, rowIndex: number) => {
-				if (record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED) {
-					return (
-						<center>
-							<Spin />
-						</center>
-					)
-				}
-				if (rows[rowIndex].correctAnswer && rows[rowIndex].correctAnswer.length > 0) {
-					return <div>{record.correctAnswer}</div>
-				}
-			},
+                if (record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED) {
+                    return (
+                        <center>
+                            <Spin />
+                        </center>
+                    )
+                }
+                if (rows[rowIndex].correctAnswer && rows[rowIndex].correctAnswer.length > 0) {
+                    return <div>{record.correctAnswer}</div>
+                }
+            },
         },
         {
             title: "Evaluation",
@@ -364,7 +363,13 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                 let tagColor = ""
 
                 return (
-                    <Spin spinning={record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ? true : false}>
+                    <Spin
+                        spinning={
+                            record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED
+                                ? true
+                                : false
+                        }
+                    >
                         <Space>
                             <div>
                                 {rows[rowIndex].evaluation !== "" && (
@@ -407,17 +412,14 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                         <div>
                             <h3 className={classes.h3}>Average Score:</h3>
                             <Row gutter={8} justify="center" className={classes.resultDataRow}>
-								<Col className={classes.resultDataCol}>
-									<Card
-										bordered={false}
-										className={classes.resultDataCard}
-									>
-										<Statistic
-											className={classes.stat}
-											value={evaluationResults.avg_score as number}
-										/>
-									</Card>
-								</Col>
+                                <Col className={classes.resultDataCol}>
+                                    <Card bordered={false} className={classes.resultDataCard}>
+                                        <Statistic
+                                            className={classes.stat}
+                                            value={evaluationResults.avg_score as number}
+                                        />
+                                    </Card>
+                                </Col>
                             </Row>
                         </div>
                     )}

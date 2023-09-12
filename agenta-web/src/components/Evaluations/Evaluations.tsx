@@ -1,15 +1,5 @@
 import {useState, useEffect} from "react"
-import {
-    Button,
-    Col,
-    Dropdown,
-    MenuProps,
-    Radio,
-    RadioChangeEvent,
-    Row,
-    Slider,
-    message,
-} from "antd"
+import {Button, Col, Dropdown, MenuProps, Radio, RadioChangeEvent, Row, Slider, message} from "antd"
 import {DownOutlined} from "@ant-design/icons"
 import {fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
 import {getOpenAIKey} from "@/lib/helpers/utils"
@@ -59,7 +49,7 @@ const useStyles = createUseStyles({
         color: "#fff  !important",
         backgroundColor: "#0fbf0f",
         marginRight: "20px",
-        borderColor: "#0fbf0f !important"
+        borderColor: "#0fbf0f !important",
     },
     evaluationType: {
         display: "flex",
@@ -121,7 +111,7 @@ export default function Evaluations() {
     const [selectedEvaluationType, setSelectedEvaluationType] = useState<EvaluationType | string>(
         "Select an evaluation type",
     )
-    const [selectedCustomEvaluationID, setSelectedCustomEvaluationID] = useState('')
+    const [selectedCustomEvaluationID, setSelectedCustomEvaluationID] = useState("")
 
     const appName = router.query.app_name?.toString() || ""
 
@@ -352,7 +342,7 @@ export default function Evaluations() {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_ai_critique`)
         } else if (selectedEvaluationType === EvaluationType.custom_code_run) {
             router.push(
-                `/apps/${appName}/evaluations/${evaluationTableId}/custom_code_run?custom_eval_id=${selectedCustomEvaluationID}`
+                `/apps/${appName}/evaluations/${evaluationTableId}/custom_code_run?custom_eval_id=${selectedCustomEvaluationID}`,
             )
         }
     }
@@ -482,13 +472,13 @@ export default function Evaluations() {
                                     </span>
                                 </div>
                             </Radio.Button>
-                            
+
                             {/* Custom Evaluation Dropdown */}
-                            <EvaluationDropdown 
-                                classes={classes} 
-                                appName={appName} 
+                            <EvaluationDropdown
+                                classes={classes}
+                                appName={appName}
                                 setEvalType={setSelectedEvaluationType}
-                                setEvalID={setSelectedCustomEvaluationID} 
+                                setEvalID={setSelectedCustomEvaluationID}
                             />
                         </Radio.Group>
                     </Col>
@@ -534,15 +524,15 @@ export default function Evaluations() {
 
                 <Row justify="end">
                     <Col span={8} className={classes.evaluationBtn}>
-                        <Button 
+                        <Button
                             onClick={showCustomCodeComponent}
-                            type="default" 
+                            type="default"
                             data-evaluation-type={EvaluationType.custom_code_run}
                             className={classes.createCustomEvalBtn}
                         >
                             Create custom eval
                         </Button>
-                        
+
                         <Button onClick={onStartEvaluation} type="primary">
                             Start a new evaluation
                         </Button>

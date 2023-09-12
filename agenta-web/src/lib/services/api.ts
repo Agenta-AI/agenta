@@ -12,7 +12,7 @@ import {
     RestartVariantDocker,
     RestartVariantDockerResponse,
     StoreCustomEvaluation,
-    ExecuteCustomEvalCode
+    ExecuteCustomEvalCode,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
@@ -390,7 +390,6 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
     return response.data
 }
 
-
 export const saveCutomCodeEvaluation = async (
     payload: StoreCustomEvaluation,
     ignoreAxiosError: boolean = false,
@@ -403,21 +402,21 @@ export const saveCutomCodeEvaluation = async (
     return response
 }
 
-
-export const fetchCustomEvaluations = async (app_name: string, ignoreAxiosError: boolean = false) => {
+export const fetchCustomEvaluations = async (
+    app_name: string,
+    ignoreAxiosError: boolean = false,
+) => {
     const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_name}`, 
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_name}`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
 }
 
-
 export const executeCustomEvaluationCode = async (
     payload: ExecuteCustomEvalCode,
     ignoreAxiosError: boolean = false,
 ) => {
-
     const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/execute/${payload.evaluation_id}/`,
         {inputs: payload.inputs},
@@ -425,7 +424,6 @@ export const executeCustomEvaluationCode = async (
     )
     return response
 }
-
 
 export const fetchApps = () => {
     const {data, error, isLoading} = useSWR(

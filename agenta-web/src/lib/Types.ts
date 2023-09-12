@@ -1,4 +1,4 @@
-import { AbsoluteString } from "next/dist/lib/metadata/types/metadata-types"
+import {AbsoluteString} from "next/dist/lib/metadata/types/metadata-types"
 import {EvaluationFlow, EvaluationType} from "./enums"
 
 export interface testset {
@@ -62,11 +62,10 @@ export interface Evaluation {
     appName: string
 }
 
-
 export interface StoreCustomEvaluation {
-  evaluation_name: string
-  python_code: string
-  app_name: string
+    evaluation_name: string
+    python_code: string
+    app_name: string
 }
 
 export interface StoreCustomEvaluationSuccessResponse {

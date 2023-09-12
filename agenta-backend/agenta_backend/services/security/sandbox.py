@@ -28,9 +28,7 @@ def is_import_safe(python_code: Text) -> bool:
     return True
 
 
-def execute_code_safely(
-    code: Text, inputs: Dict[str, Any]
-) -> Union[float, None]:
+def execute_code_safely(code: Text, inputs: Dict[str, Any]) -> Union[float, None]:
     """
     Execute the provided Python code safely using RestrictedPython.
 

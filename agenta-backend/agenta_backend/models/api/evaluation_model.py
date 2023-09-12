@@ -65,7 +65,7 @@ class EvaluationScenario(BaseModel):
 class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
     score: Optional[str]
-    correct_answer: Optional[float] # will be used when running custom code evaluation
+    correct_answer: Optional[float]  # will be used when running custom code evaluation
     outputs: List[EvaluationScenarioOutput]
     evaluation_prompt_template: Optional[str]
     open_ai_key: Optional[str]
@@ -101,4 +101,3 @@ class CustomEvaluationOutput(BaseModel):
 
 class ExecuteCustomEvaluationCode(BaseModel):
     inputs: List[Dict[str, Any]]
-    

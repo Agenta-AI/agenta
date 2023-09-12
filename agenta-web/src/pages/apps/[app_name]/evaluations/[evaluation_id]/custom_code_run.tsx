@@ -10,15 +10,15 @@ export default function Evaluation() {
     const evaluationTableId = router.query.evaluation_id
         ? router.query.evaluation_id.toString()
         : ""
-	const customEvaluationId = router.query.custom_eval_id as string
+    const customEvaluationId = router.query.custom_eval_id as string
     const [evaluationScenarios, setEvaluationScenarios] = useState([])
     const [evaluation, setEvaluation] = useState<Evaluation | undefined>()
     const appName = router.query.app_name as unknown as string
     const columnsCount = 1
 
-	if (customEvaluationId === undefined) {
-		router.push(`/apps/${appName}/evaluations`)
-	}
+    if (customEvaluationId === undefined) {
+        router.push(`/apps/${appName}/evaluations`)
+    }
 
     useEffect(() => {
         if (!evaluation) {
@@ -60,7 +60,7 @@ export default function Evaluation() {
                     columnsCount={columnsCount}
                     evaluationScenarios={evaluationScenarios}
                     evaluation={evaluation}
-					customEvaluationId={customEvaluationId}
+                    customEvaluationId={customEvaluationId}
                 />
             )}
         </div>
