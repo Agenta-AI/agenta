@@ -397,7 +397,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             key: "code_result",
             width: 200,
             align: "center" as "left" | "right" | "center",
-            render: (text: any, record: any, rowIndex: number) => {
+            render: (text: number, record: any, rowIndex: number) => {
                 return (
                     <Spin
                         spinning={
@@ -407,7 +407,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                         }
                     >
                         <Space>
-                            <div>{record.code_result !== "" && <div>{text}</div>}</div>
+                            <div>{record.code_result !== "" && <div>{text.toFixed(2)}</div>}</div>
                         </Space>
                     </Spin>
                 )
@@ -446,7 +446,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                                     <Card bordered={false} className={classes.resultDataCard}>
                                         <Statistic
                                             className={classes.stat}
-                                            value={evaluationResults.avg_score as number}
+                                            value={evaluationResults.avg_score.toFixed(2) as number}
                                         />
                                     </Card>
                                 </Col>
