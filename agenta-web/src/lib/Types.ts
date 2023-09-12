@@ -80,6 +80,7 @@ export interface ExecuteCustomEvalCode {
     outputs: Array<Object>
     app_name: string
     variant_name: string
+    correct_answer: string
 }
 
 export interface SingleCustomEvaluation {

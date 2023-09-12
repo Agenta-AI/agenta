@@ -32,6 +32,7 @@ def execute_code_safely(
     app_params: Dict[str, str],
     inputs: Dict[str, str],
     output: str,
+    correct_answer: str,
     code: Text,
 ) -> Union[float, None]:
     """
@@ -41,6 +42,7 @@ def execute_code_safely(
         - app_params (Dict[str, str]): The parameters of the app variant.
         - inputs (dict): Inputs to be used during code execution.
         - output (str): The output of the app variant after being called.
+        - correct_answer (str): The correct answer (or target) of the app variant.
         - code (Text): The Python code to be executed.
 
     Returns:
@@ -89,7 +91,7 @@ def execute_code_safely(
 
     # Call the evaluation function, extract the result if it exists
     # and is a float between 0 and 1
-    result = environment["evaluate"](app_params, inputs, output)
+    result = environment["evaluate"](app_params, inputs, correct_answer, output)
     if isinstance(result, float) and 0 <= result <= 1:
         return result
     return None
