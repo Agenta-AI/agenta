@@ -96,10 +96,10 @@ const useStyles = createUseStyles({
         backgroundColor: themeMode === "dark" ? "#fff" : "#000",
         color: themeMode === "dark" ? "#000" : "#fff",
         border: "none",
-        "&:hover":{
+        "&:hover": {
             backgroundColor: themeMode === "dark" ? "rgba(255, 255, 255,0.8)" : "rgba(0, 0, 0,0.8)",
             color: `${themeMode === "dark" ? "#000" : "#fff"} !important`,
-        }
+        },
     }),
 })
 
@@ -228,13 +228,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const handleExportClick = () => {
         const exportRow = rows.map((data) => {
             return {
-                inputs: data.inputs[0].input_value,
-                app_variant_v0_output: data?.columnData0
+                ["Inputs"]: data.inputs[0].input_value,
+                ["App Variant v0 Output"]: data?.columnData0
                     ? data?.columnData0
                     : data.outputs[0]?.variant_output,
-                correct_answer: data.correctAnswer,
-                score: data.score,
-                similarity: data.similarity,
+                ["Correct answer"]: data.correctAnswer,
+                ["Score"]: data.score,
+                ["Similarity"]: data.similarity,
             }
         })
         const exportCol = Object.keys(exportRow[0]).map((key) => {
