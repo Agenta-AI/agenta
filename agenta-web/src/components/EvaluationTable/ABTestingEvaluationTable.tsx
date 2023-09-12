@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {CaretRightOutlined, LineChartOutlined} from "@ant-design/icons"
+import {CaretRightOutlined, ExportOutlined, LineChartOutlined} from "@ant-design/icons"
 import {Button, Col, Input, Row, Space, Spin, Table, Typography, message} from "antd"
 import {
     updateEvaluationScenario,
@@ -83,6 +83,10 @@ const useStyles = createUseStyles({
         backgroundColor: themeMode === "dark" ? "#fff" : "#000",
         color: themeMode === "dark" ? "#000" : "#fff",
         border: "none",
+        "&:hover":{
+            backgroundColor: themeMode === "dark" ? "rgba(255, 255, 255,0.8)" : "rgba(0, 0, 0,0.8)",
+            color: `${themeMode === "dark" ? "#000" : "#fff"} !important`,
+        }
     }),
     // title: {
     //     fontSize: "2rem !important",
@@ -385,7 +389,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     <Col span={12}>
                         <Button
                             onClick={handleExportClick}
-                            icon={<LineChartOutlined />}
+                            icon={<ExportOutlined />}
                             size="large"
                             className={classes.exportBtn}
                             disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}

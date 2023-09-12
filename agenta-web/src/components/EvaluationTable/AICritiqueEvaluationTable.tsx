@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {DownloadOutlined, LineChartOutlined} from "@ant-design/icons"
+import {ExportOutlined, LineChartOutlined} from "@ant-design/icons"
 import {
     Button,
     Card,
@@ -139,6 +139,10 @@ const useStyles = createUseStyles({
         backgroundColor: themeMode === "dark" ? "#fff" : "#000",
         color: themeMode === "dark" ? "#000" : "#fff",
         border: "none",
+        "&:hover":{
+            backgroundColor: themeMode === "dark" ? "rgba(255, 255, 255,0.8)" : "rgba(0, 0, 0,0.8)",
+            color: `${themeMode === "dark" ? "#000" : "#fff"} !important`,
+        }
     }),
 })
 
@@ -458,7 +462,7 @@ Answer ONLY with one of the given grading or evaluation options.
                             </Button>
                             <Button
                                 onClick={handleExportClick}
-                                icon={<DownloadOutlined />}
+                                icon={<ExportOutlined />}
                                 size="large"
                                 className={classes.exportBtn}
                                 disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
