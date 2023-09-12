@@ -72,6 +72,10 @@ class EvaluationScenarioUpdate(BaseModel):
     open_ai_key: Optional[str]
 
 
+class EvaluationScenarioScoreUpdate(BaseModel):
+    score: float
+
+
 class NewEvaluation(BaseModel):
     evaluation_type: EvaluationType
     custom_code_evaluation_id: Optional[str] # will be added when running custom code evaluation
