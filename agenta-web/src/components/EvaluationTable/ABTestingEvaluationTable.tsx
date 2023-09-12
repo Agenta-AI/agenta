@@ -219,10 +219,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         const exportRow = rows.map((data) => {
             return {
                 inputs: data.inputs[0].input_value,
-                app_variant0: data?.columnData0
+                app_variant_v0_output: data?.columnData0
                     ? data?.columnData0
                     : data.outputs[0]?.variant_output,
-                app_variant1: data?.columnData1
+                app_variant_v1_output: data?.columnData1
                     ? data?.columnData1
                     : data.outputs[1]?.variant_output,
                 vote: data.vote,

@@ -261,7 +261,7 @@ Answer ONLY with one of the given grading or evaluation options.
         const exportRow = rows.map((data) => {
             return {
                 inputs: data.inputs[0].input_value,
-                app_variant: data?.columnData0
+                app_variant_v0_output: data?.columnData0
                     ? data?.columnData0
                     : data.outputs[0]?.variant_output,
                 correct_answer: data.correctAnswer,
