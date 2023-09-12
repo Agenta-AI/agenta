@@ -2,15 +2,19 @@ import React, { useState, useEffect } from 'react'
 import { Select } from 'antd'
 import { fetchCustomEvaluations } from '@/lib/services/api';
 import { SingleCustomEvaluation } from '@/lib/Types';
+import { EvaluationType } from '@/lib/enums'
+
 
 const { Option } = Select;
 
 interface IEvaluationDropdownProps {
 	classes: any
-	appName: string;
+	appName: string
+	setEvalType: any
+	setEvalID: any
 }
 
-const EvaluationDropdown: React.FC<IEvaluationDropdownProps> = ({ classes, appName }) => {
+const EvaluationDropdown: React.FC<IEvaluationDropdownProps> = ({ classes, appName, setEvalType, setEvalID }) => {
 	const [evaluation, setEvaluation] = useState<string>('');
 	const [evaluationList, setEvaluationList] = useState<SingleCustomEvaluation[]>()
 	
@@ -30,6 +34,8 @@ const EvaluationDropdown: React.FC<IEvaluationDropdownProps> = ({ classes, appNa
 		if (!evaluation){
 			return "List Custom Evaluations"
 		} else {
+			setEvalType(EvaluationType.custom_code_run)
+			setEvalID(evaluation)
 			return evaluation
 		}
 	}
@@ -41,7 +47,7 @@ const EvaluationDropdown: React.FC<IEvaluationDropdownProps> = ({ classes, appNa
             onChange={handleChange}
         >
             {evaluationList?.map((item: SingleCustomEvaluation) => (
-                <Option key={item.id} value={item.evaluation_name}>
+                <Option key={item.id} value={item.id}>
                     {item.evaluation_name}
                 </Option>
             ))}
