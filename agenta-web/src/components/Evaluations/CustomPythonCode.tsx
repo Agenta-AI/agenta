@@ -1,7 +1,9 @@
 import React, {useState} from "react"
+import {useRouter} from "next/router"
 import {Input, Form, Button, Row, Col, Typography, notification} from "antd"
 import {StoreCustomEvaluationSuccessResponse} from "@/lib/Types"
-import {saveCutomCodeEvaluation} from "@/lib/services/api"
+import {saveCustomCodeEvaluation} from "@/lib/services/api"
+import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 
 interface ICustomPythonProps {
     classes: any
@@ -12,6 +14,7 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName}) => {
     const {TextArea} = Input
     const {Title} = Typography
     const [form] = Form.useForm()
+    const router = useRouter()
 
     const [submitting, setSubmittingData] = useState(false)
 
@@ -29,11 +32,11 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName}) => {
             python_code: values.pythonCode,
             app_name: appName,
         }
-        const response = await saveCutomCodeEvaluation(data)
+        const response = await saveCustomCodeEvaluation(data)
         if (response.status === 200) {
             const data: StoreCustomEvaluationSuccessResponse = response.data
 
-            // Diable submitting form data
+            // Disable submitting form data
             setSubmittingData(false)
             showNotification({
                 type: "success",
@@ -42,8 +45,9 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName}) => {
                 key: data.evaluation_id,
             })
 
-            // Reset form fields
+            // Reset form fields and redirect user to evaluations page
             form.resetFields()
+            router.push(`/apps/${appName}/evaluations/`)
         }
     }
 
@@ -54,9 +58,24 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName}) => {
         )
     }
 
+    const pythonDefaultEvalCode = () => {
+        return `from typing import Dict
+
+def evaluate(
+    app_params: Dict[str, str], 
+    inputs: Dict[str, str], 
+    output: str, 
+    correct_answer: str
+) -> float:
+    # ...
+    return 0.75  # Replace with your calculated score`
+    }
+
     return (
         <div className={classes.evaluationContainer}>
-            <Title level={4}>Save Python Code Evaluation</Title>
+            <Title level={4} className={classes.customTitle}>
+                Save Python Code Evaluation
+            </Title>
             <Form form={form} onFinish={handlerToSubmitFormData}>
                 <Row justify="start" gutter={24}>
                     <Col span={12}>
@@ -67,6 +86,23 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName}) => {
                         >
                             <Input disabled={submitting} placeholder="Input name of evaluation" />
                         </Form.Item>
+                        <div className={classes.exampleContainer}>
+                            <h4>Example Evaluation Function:</h4>
+                            <CodeBlock
+                                key={"python" + appName}
+                                language={"python"}
+                                value={pythonDefaultEvalCode()}
+                            />
+                            <h4 className={classes.levelFourHeading}>Function Description:</h4>
+                            <span>
+                                The code must accept:
+                                <ul>
+                                    <li>A list of inputs</li>
+                                    <li>An output</li>
+                                    <li>A target or correct answer</li>
+                                </ul>
+                            </span>
+                        </div>
                     </Col>
                     <Col span={12}>
                         <Form.Item
@@ -75,7 +111,7 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName}) => {
                         >
                             <TextArea
                                 disabled={submitting}
-                                rows={18}
+                                rows={28}
                                 placeholder="Input python code"
                             />
                         </Form.Item>
@@ -87,6 +123,7 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName}) => {
                                     htmlType="submit"
                                     type="primary"
                                     loading={submitting}
+                                    className={classes.submitBtn}
                                     disabled={isSaveButtonDisabled() || submitting}
                                 >
                                     Save
