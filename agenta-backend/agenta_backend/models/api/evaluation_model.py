@@ -105,5 +105,6 @@ class ExecuteCustomEvaluationCode(BaseModel):
     inputs: List[Dict[str, Any]]
     app_name: str
     variant_name: str
+    correct_answer: str
     outputs: List[Dict[str, Any]]
     
