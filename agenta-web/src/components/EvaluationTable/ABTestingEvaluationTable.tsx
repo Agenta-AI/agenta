@@ -11,10 +11,9 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
-import {fetchVariants} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
-import {convertToCsv, downloadCsv} from "@/lib/helpers/utils"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
 
 const {Title} = Typography
 
@@ -215,33 +214,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         })
     }
 
-    const handleExportClick = () => {
-        const exportRow = rows.map((data) => {
-            return {
-                ["Inputs"]: data.inputs[0].input_value,
-                ["App Variant v0 Output"]: data?.columnData0
-                    ? data?.columnData0
-                    : data.outputs[0]?.variant_output,
-                ["App Variant v1 Output"]: data?.columnData1
-                    ? data?.columnData1
-                    : data.outputs[1]?.variant_output,
-                ["Vote"]: data.vote,
-            }
-        })
-        const exportCol = Object.keys(exportRow[0]).map((key) => {
-            return {
-                field: key,
-            }
-        })
-
-        const csvData = convertToCsv(
-            exportRow,
-            exportCol.map((col) => col.field),
-        )
-        const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.variants[1].variantName}_${evaluation.evaluationType}.csv`
-        downloadCsv(csvData, filename)
-    }
-
     const setRowValue = (
         rowIndex: number,
         columnKey: keyof ABTestingEvaluationTableRow,
@@ -384,7 +356,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 <Row align="middle">
                     <Col span={12}>
                         <Button
-                            onClick={handleExportClick}
+                            onClick={() => exportABTestingEvaluationData(evaluation, rows)}
                             icon={<ExportOutlined />}
                             size="large"
                             className={classes.exportBtn}

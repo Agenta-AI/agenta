@@ -14,8 +14,8 @@ import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
-import {convertToCsv, downloadCsv} from "@/lib/helpers/utils"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {exportSimilarityEvaluationData} from "@/lib/helpers/evaluate"
 
 const {Title} = Typography
 
@@ -223,31 +223,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 }
             }
         })
-    }
-
-    const handleExportClick = () => {
-        const exportRow = rows.map((data) => {
-            return {
-                ["Inputs"]: data.inputs[0].input_value,
-                ["App Variant v0 Output"]: data?.columnData0
-                    ? data?.columnData0
-                    : data.outputs[0]?.variant_output,
-                ["Correct answer"]: data.correctAnswer,
-                ["Score"]: data.score,
-                ["Similarity"]: data.similarity,
-            }
-        })
-        const exportCol = Object.keys(exportRow[0]).map((key) => {
-            return {
-                field: key,
-            }
-        })
-        const csvData = convertToCsv(
-            exportRow,
-            exportCol.map((col) => col.field),
-        )
-        const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
-        downloadCsv(csvData, filename)
     }
 
     /**
@@ -469,7 +444,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                                 Run Evaluation
                             </Button>
                             <Button
-                                onClick={handleExportClick}
+                                onClick={() => exportSimilarityEvaluationData(evaluation, rows)}
                                 icon={<ExportOutlined />}
                                 size="large"
                                 className={classes.exportBtn}

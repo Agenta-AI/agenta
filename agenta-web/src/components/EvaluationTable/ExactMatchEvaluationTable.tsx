@@ -26,9 +26,8 @@ import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithExactMatch} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
-import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
-import {KeyValuePair} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {exportExactEvaluationData} from "@/lib/helpers/evaluate"
 
 const {Title} = Typography
 
@@ -226,30 +225,6 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
         })
     }
 
-    const handleExportClick = () => {
-        const exportRow = rows.map((data) => {
-            return {
-                ["Inputs"]: data.inputs[0].input_value,
-                ["App Variant v0 Output"]: data?.columnData0
-                    ? data?.columnData0
-                    : data.outputs[0]?.variant_output,
-                ["Correct answer"]: data.correctAnswer,
-                ["Score"]: data.score,
-            }
-        })
-        const exportCol = Object.keys(exportRow[0]).map((key) => {
-            return {
-                field: key,
-            }
-        })
-        const csvData = convertToCsv(
-            exportRow,
-            exportCol.map((col) => col.field),
-        )
-        const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
-        downloadCsv(csvData, filename)
-    }
-
     /**
      *
      * @param rowNumber
@@ -422,7 +397,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                                 Run Evaluation
                             </Button>
                             <Button
-                                onClick={handleExportClick}
+                                onClick={() => exportExactEvaluationData(evaluation, rows)}
                                 icon={<ExportOutlined />}
                                 size="large"
                                 className={classes.exportBtn}

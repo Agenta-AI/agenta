@@ -25,9 +25,10 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {convertToCsv, downloadCsv, getOpenAIKey} from "@/lib/helpers/utils"
+import {getOpenAIKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
 
 const {Title} = Typography
 
@@ -261,30 +262,6 @@ Answer ONLY with one of the given grading or evaluation options.
         }
     }
 
-    const handleExportClick = () => {
-        const exportRow = rows.map((data) => {
-            return {
-                ["Inputs"]: data.inputs[0].input_value,
-                ["App Variant v0 Output"]: data?.columnData0
-                    ? data?.columnData0
-                    : data.outputs[0]?.variant_output,
-                ["Correct answer"]: data.correctAnswer,
-                ["Evaluation"]: data.evaluation,
-            }
-        })
-        const exportCol = Object.keys(exportRow[0]).map((key) => {
-            return {
-                field: key,
-            }
-        })
-        const csvData = convertToCsv(
-            exportRow,
-            exportCol.map((col) => col.field),
-        )
-        const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
-        downloadCsv(csvData, filename)
-    }
-
     const evaluate = async (rowNumber: number) => {
         const evaluation_scenario_id = rows[rowNumber].id
         const appVariantNameX = variants[0].variantName
@@ -461,7 +438,7 @@ Answer ONLY with one of the given grading or evaluation options.
                                 Run Evaluation
                             </Button>
                             <Button
-                                onClick={handleExportClick}
+                                onClick={() => exportAICritiqueEvaluationData(evaluation, rows)}
                                 icon={<ExportOutlined />}
                                 size="large"
                                 className={classes.exportBtn}
