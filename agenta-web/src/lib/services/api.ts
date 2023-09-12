@@ -419,7 +419,7 @@ export const executeCustomEvaluationCode = async (
 ) => {
     const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/execute/${payload.evaluation_id}/`,
-        {inputs: payload.inputs},
+        payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
