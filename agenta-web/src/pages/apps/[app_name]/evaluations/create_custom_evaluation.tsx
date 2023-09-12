@@ -20,6 +20,16 @@ const useStyles = createUseStyles({
         marginRight: "8px",
         filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
+    customTitle: {
+        marginBottom: "30px !important",
+    },
+    submitBtn: {
+        marginTop: "30px",
+        width: "250px"
+    },
+    levelFourHeading: {
+        marginBottom: "15px"
+    }
 })
 
 export default function CreateCustomEvaluation() {
