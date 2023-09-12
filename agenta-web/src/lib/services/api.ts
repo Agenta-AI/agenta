@@ -390,7 +390,7 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
     return response.data
 }
 
-export const saveCutomCodeEvaluation = async (
+export const saveCustomCodeEvaluation = async (
     payload: StoreCustomEvaluation,
     ignoreAxiosError: boolean = false,
 ) => {
