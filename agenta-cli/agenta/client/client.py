@@ -83,6 +83,29 @@ def list_variants(app_name: str, host: str) -> List[AppVariant]:
     return [AppVariant(**variant) for variant in app_variants]
 
 
+def get_variant_by_name(app_name: str, variant_name: str, host: str) -> AppVariant:
+    """Gets a variant by name
+
+    Arguments:
+        app_name -- the app name
+        variant_name -- the variant name
+
+    Returns:
+        the variant using the pydantic model
+    """
+    response = requests.get(
+        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/get_variant_by_name/?app_name={app_name}&variant_name={variant_name}",
+        timeout=600,
+    )
+
+    # Check for successful request
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to get_variant_by_name endpoint failed with status code {response.status_code} and error message: {error_message}."
+        )
+
+
 def remove_variant(app_name: str, variant_name: str, host: str):
     """Removes a variant from the backend
 
