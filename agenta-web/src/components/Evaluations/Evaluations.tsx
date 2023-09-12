@@ -7,7 +7,6 @@ import {
     Radio,
     RadioChangeEvent,
     Row,
-    Tag,
     Slider,
     message,
 } from "antd"
@@ -32,6 +31,8 @@ import axios from "@/lib/helpers/axiosConfig"
 import {createUseStyles} from "react-jss"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import HumanEvaluationResult from "./HumanEvaluationResult"
+import CustomPythonCode from "./CustomPythonCode"
+import EvaluationDropdown from "./CustomEvaluationsDropdown"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -54,6 +55,12 @@ const useStyles = createUseStyles({
         display: "flex",
         justifyContent: "flex-end",
     },
+    createCustomEvalBtn: {
+        color: "#fff  !important",
+        backgroundColor: "#0fbf0f",
+        marginRight: "20px",
+        borderColor: "#0fbf0f !important"
+    },
     evaluationType: {
         display: "flex",
         alignItems: "center",
@@ -75,6 +82,10 @@ const useStyles = createUseStyles({
     radioBtn: {
         display: "block",
         marginBottom: "10px",
+    },
+    selectGroup: {
+        width: "100%",
+        display: "block",
     },
     thresholdStyles: {
         paddingLeft: 10,
@@ -110,6 +121,7 @@ export default function Evaluations() {
     const [selectedEvaluationType, setSelectedEvaluationType] = useState<EvaluationType | string>(
         "Select an evaluation type",
     )
+    const [selectedCustomEvaluationID, setSelectedCustomEvaluationID] = useState('')
 
     const appName = router.query.app_name?.toString() || ""
 
@@ -338,6 +350,10 @@ export default function Evaluations() {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/similarity_match`)
         } else if (selectedEvaluationType === EvaluationType.auto_ai_critique) {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_ai_critique`)
+        } else if (selectedEvaluationType === EvaluationType.custom_code_run) {
+            router.push(
+                `/apps/${appName}/evaluations/${evaluationTableId}/custom_code_run?custom_eval_id=${selectedCustomEvaluationID}`
+            )
         }
     }
 
@@ -361,6 +377,15 @@ export default function Evaluations() {
 
     const onChangeSlider = (value: number) => {
         setSliderValue(value)
+    }
+
+    const [showCustomPythonCodeBox, setShowCustomPythonCodeBox] = useState(false)
+    const showCustomCodeComponent = () => {
+        if (!showCustomPythonCodeBox) {
+            setShowCustomPythonCodeBox(true)
+        } else {
+            setShowCustomPythonCodeBox(false)
+        }
     }
 
     return (
@@ -394,17 +419,6 @@ export default function Evaluations() {
                                     </span>
                                 </div>
                             </Radio.Button>
-                            {/* 
-                            <Radio.Button
-                                value={EvaluationType.human_scoring}
-                                disabled
-                                className={classes.radioBtn}
-                            >
-                                {EvaluationTypeLabels[EvaluationType.human_scoring]}
-                                <Tag color="orange" bordered={false}>
-                                    soon
-                                </Tag>
-                            </Radio.Button> */}
 
                             <Title level={5}>Automatic evaluation</Title>
 
@@ -468,6 +482,14 @@ export default function Evaluations() {
                                     </span>
                                 </div>
                             </Radio.Button>
+                            
+                            {/* Custom Evaluation Dropdown */}
+                            <EvaluationDropdown 
+                                classes={classes} 
+                                appName={appName} 
+                                setEvalType={setSelectedEvaluationType}
+                                setEvalID={setSelectedCustomEvaluationID} 
+                            />
                         </Radio.Group>
                     </Col>
                     <Col span={8}>
@@ -512,6 +534,15 @@ export default function Evaluations() {
 
                 <Row justify="end">
                     <Col span={8} className={classes.evaluationBtn}>
+                        <Button 
+                            onClick={showCustomCodeComponent}
+                            type="default" 
+                            data-evaluation-type={EvaluationType.custom_code_run}
+                            className={classes.createCustomEvalBtn}
+                        >
+                            Create custom eval
+                        </Button>
+                        
                         <Button onClick={onStartEvaluation} type="primary">
                             Start a new evaluation
                         </Button>
@@ -527,6 +558,9 @@ export default function Evaluations() {
             />
 
             <div>
+                {showCustomPythonCodeBox && (
+                    <CustomPythonCode classes={classes} appName={appName} />
+                )}
                 <AutomaticEvaluationResult />
                 <HumanEvaluationResult />
             </div>
