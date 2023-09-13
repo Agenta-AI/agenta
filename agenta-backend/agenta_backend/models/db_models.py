@@ -1,3 +1,4 @@
+from bson import ObjectId
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from odmantic import Field, Model, Reference, EmbeddedModel
@@ -16,7 +17,7 @@ class UserDB(Model):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
-    organizations: Optional[List[OrganizationDB]]
+    organizations: Optional[List[ObjectId]] = []  # Initialize as an empty list
 
     class Config:
         collection = "users"
