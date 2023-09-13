@@ -446,7 +446,9 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                                     <Card bordered={false} className={classes.resultDataCard}>
                                         <Statistic
                                             className={classes.stat}
-                                            value={evaluationResults.avg_score?.toFixed(2) as number}
+                                            value={
+                                                evaluationResults.avg_score?.toFixed(2) as number
+                                            }
                                         />
                                     </Card>
                                 </Col>
