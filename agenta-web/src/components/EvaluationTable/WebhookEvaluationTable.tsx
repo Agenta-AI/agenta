@@ -15,6 +15,7 @@ import {
     Table,
     Tag,
     Tooltip,
+    Typography,
     message,
 } from "antd"
 import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
@@ -25,6 +26,10 @@ import {evaluateWithWebhook} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {isValidUrl} from "@/lib/helpers/validators"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import {exportWebhookEvaluationData} from "@/lib/helpers/evaluate"
+
+const {Title} = Typography
 
 interface WebhookEvaluationTableProps {
     evaluation: any
@@ -340,7 +345,7 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
 
     return (
         <div>
-            <h1>Webhook URL Evaluation</h1>
+            <Title level={2}>Webhook URL Evaluation</Title>
             <Alert
                 className={classes.infoBox}
                 message="Endpoint Details"
@@ -381,14 +386,22 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
             <div>
                 <Row align="middle">
                     <Col span={12}>
-                        <Button
-                            type="primary"
-                            onClick={runAllEvaluations}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Run Evaluation
-                        </Button>
+                        <Space>
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                icon={<LineChartOutlined />}
+                                size="large"
+                            >
+                                Run Evaluation
+                            </Button>
+                            <SecondaryButton
+                                onClick={() => exportWebhookEvaluationData(evaluation, rows)}
+                                disabled={!rows?.[0]?.score}
+                            >
+                                Export results
+                            </SecondaryButton>
+                        </Space>
                     </Col>
 
                     <Col span={12}>
