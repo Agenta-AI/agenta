@@ -9,13 +9,13 @@ async def get_user_and_org_id(session) -> Dict[str, str]:
         session (SessionContainer):  Used to store and manage the user's session data
 
     Returns:
-        A dictionary containing the user_id and organization_id.
+        A dictionary containing the user_id and a list of the user's organization_ids.
     """
-    return {"uid": "0", "organization_id": "0"}
+    return {"uid": "0", "organization_ids": []}
 
 
 async def get_user_objectid(user_id: str) -> Tuple[str, List]:
-    """Retrieves the user object ID and organization ID from the database
+    """Retrieves the user object ID and organization IDs from the database
     based on the user ID.
 
     Arguments:
