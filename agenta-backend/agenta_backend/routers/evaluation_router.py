@@ -396,4 +396,4 @@ async def webhook_example_fake():
     """
 
     # return a random score b/w 0 and 1
-    return {"score": random.random() * 5}
+    return {"score": random.random()}
