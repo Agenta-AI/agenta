@@ -26,6 +26,10 @@ import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithExactMatch} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
+import {exportExactEvaluationData} from "@/lib/helpers/evaluate"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
+
+const {Title} = Typography
 
 interface ExactMatchEvaluationTableProps {
     evaluation: any
@@ -365,18 +369,26 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     return (
         <div>
-            <h1>Exact match Evaluation</h1>
+            <Title level={2}>Exact match Evaluation</Title>
             <div>
                 <Row align="middle">
                     <Col span={12}>
-                        <Button
-                            type="primary"
-                            onClick={runAllEvaluations}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Run Evaluation
-                        </Button>
+                        <Space>
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                icon={<LineChartOutlined />}
+                                size="large"
+                            >
+                                Run Evaluation
+                            </Button>
+                            <SecondaryButton
+                                onClick={() => exportExactEvaluationData(evaluation, rows)}
+                                disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
+                            >
+                                Export results
+                            </SecondaryButton>
+                        </Space>
                     </Col>
 
                     <Col span={12}>
