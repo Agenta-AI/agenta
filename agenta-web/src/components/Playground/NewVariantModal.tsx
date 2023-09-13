@@ -42,10 +42,10 @@ const NewVariantModal: React.FC<Props> = ({
     }
 
     const handleVariantNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const variantName = e.target.value;
-        setNewVariantName(variantName);
-        setIsInputValid(variantName.trim().length > 0);  // Update the validity of the input
-    }    
+        const variantName = e.target.value
+        setNewVariantName(variantName)
+        setIsInputValid(variantName.trim().length > 0) // Update the validity of the input
+    }
 
     return (
         <Modal
