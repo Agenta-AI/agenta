@@ -25,12 +25,13 @@ import abTesting from "@/media/testing.png"
 import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import regexIcon from "@/media/programming.png"
+import webhookIcon from "@/media/link.png"
 import ai from "@/media/artificial-intelligence.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import HumanEvaluationResult from "./HumanEvaluationResult"
-import axios from "axios"
+import {getErrorMessage} from "@/lib/helpers/errorHandler"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -281,6 +282,8 @@ export default function Evaluations() {
         } else if (selectedEvaluationType === EvaluationType.auto_regex_test) {
             evaluationTypeSettings.regex_pattern = ""
             evaluationTypeSettings.regex_should_match = true
+        } else if (selectedEvaluationType === EvaluationType.auto_webhook_test) {
+            evaluationTypeSettings.webhook_url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/webhook_example_fake`
         }
 
         const evaluationTableId = await createNewEvaluation({
@@ -295,7 +298,11 @@ export default function Evaluations() {
                 name: selectedTestset.name,
             },
         }).catch((err) => {
-            setError({message: err.message, btnText: "Go to Test sets", endpoint: "testsets"})
+            setError({
+                message: getErrorMessage(err),
+                btnText: "Go to Test sets",
+                endpoint: "testsets",
+            })
         })
 
         if (!evaluationTableId) {
@@ -313,6 +320,8 @@ export default function Evaluations() {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/similarity_match`)
         } else if (selectedEvaluationType === EvaluationType.auto_regex_test) {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_regex_test`)
+        } else if (selectedEvaluationType === EvaluationType.auto_webhook_test) {
+            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_webhook_test`)
         } else if (selectedEvaluationType === EvaluationType.auto_ai_critique) {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_ai_critique`)
         }
@@ -426,6 +435,22 @@ export default function Evaluations() {
 
                                     <span>
                                         {EvaluationTypeLabels[EvaluationType.auto_regex_test]}
+                                    </span>
+                                </div>
+                            </Radio.Button>
+                            <Radio.Button
+                                value={EvaluationType.auto_webhook_test}
+                                className={classes.radioBtn}
+                            >
+                                <div className={classes.evaluationType}>
+                                    <Image
+                                        src={webhookIcon}
+                                        alt="Picture of the author"
+                                        className={classes.evaluationImg}
+                                    />
+
+                                    <span>
+                                        {EvaluationTypeLabels[EvaluationType.auto_webhook_test]}
                                     </span>
                                 </div>
                             </Radio.Button>

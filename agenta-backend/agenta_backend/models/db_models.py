@@ -70,6 +70,7 @@ class EvaluationTypeSettings(EmbeddedModel):
     similarity_threshold: Optional[float]
     regex_pattern: Optional[str]
     regex_should_match: Optional[bool]
+    webhook_url: Optional[str]
 
 
 class EvaluationScenarioInput(EmbeddedModel):

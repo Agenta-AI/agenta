@@ -89,6 +89,7 @@ export interface EvaluationResponseType {
         similarity_threshold: number
         regex_pattern: string
         regex_should_match: boolean
+        webhook_url: string
     }
     llm_app_prompt_template?: string
     testset: {
