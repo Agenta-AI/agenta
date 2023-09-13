@@ -118,6 +118,14 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
+    let num_of_rows = evaluationResults?.votes_data.nb_of_rows || 0
+    let flag_votes = evaluationResults?.votes_data.flag_votes?.number_of_votes || 0
+    let appVariant1 =
+        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[0]?.variantName]
+            ?.number_of_votes || 0
+    let appVariant2 =
+        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[1]?.variantName]
+            ?.number_of_votes || 0
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -145,7 +153,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 })
                 .catch((err) => console.error("Failed to fetch results:", err))
         }
-    }, [evaluationStatus, evaluation.id])
+    }, [evaluationStatus, evaluation.id, rows])
 
     const handleVoteClick = (rowIndex: number, vote: string) => {
         const evaluation_scenario_id = rows[rowIndex].id
@@ -387,21 +395,21 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 <Col span={10}>
                                     <Statistic
                                         title={`${evaluation.variants[0].variantName} is better:`}
-                                        // value={`${2} out of ${rows.length}`}
+                                        value={`${appVariant1} out of ${num_of_rows}`}
                                         className={classes.statCorrect}
                                     />
                                 </Col>
                                 <Col span={10}>
                                     <Statistic
                                         title={`${evaluation.variants[1].variantName} is better:`}
-                                        // value={`${1} out of ${rows.length}`}
+                                        value={`${appVariant2} out of ${num_of_rows}`}
                                         className={classes.statCorrect}
                                     />
                                 </Col>
                                 <Col span={4}>
                                     <Statistic
                                         title="Both are bad:"
-                                        // value={19}
+                                        value={`${flag_votes} out of ${num_of_rows}`}
                                         className={classes.statWrong}
                                     />
                                 </Col>
