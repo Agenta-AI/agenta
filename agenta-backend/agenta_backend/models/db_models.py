@@ -6,6 +6,7 @@ from odmantic import Field, Model, Reference, EmbeddedModel
 class OrganizationDB(Model):
     name: str = Field(default="agenta")
     description: str = Field(default="")
+    members: Dict[str, str]
 
     class Config:
         collection = "organizations"
@@ -15,7 +16,7 @@ class UserDB(Model):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
-    organization_id: OrganizationDB = Reference(key_name="org")
+    organizations: List[str]
 
     class Config:
         collection = "users"
@@ -41,6 +42,7 @@ class AppVariantDB(Model):
     user_id: UserDB = Reference(key_name="user")
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
+    organisation_id: Optional[str]
     is_deleted: bool = Field(
         default=False
     )  # soft deletion for using the template variants
@@ -87,6 +89,7 @@ class EvaluationDB(Model):
     llm_app_prompt_template: str
     variants: List[str]
     app_name: str
+    organisation_id: Optional[str]
     testset: Dict[str, str]
     user: UserDB = Reference(key_name="user")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -104,6 +107,7 @@ class EvaluationScenarioDB(Model):
     evaluation: Optional[str]
     evaluation_id: str
     user: UserDB = Reference(key_name="user")
+    organisation_id: Optional[str]
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -117,6 +121,7 @@ class TestSetDB(Model):
     app_name: str
     csvdata: List[Dict[str, str]]
     user: UserDB = Reference(key_name="user")
+    organisation_id: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
