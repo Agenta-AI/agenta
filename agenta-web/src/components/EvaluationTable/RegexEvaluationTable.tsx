@@ -16,6 +16,7 @@ import {
     Tag,
     Tooltip,
     message,
+    Typography,
 } from "antd"
 import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
@@ -25,6 +26,10 @@ import {evaluateWithRegex} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
 import Highlighter from "react-highlight-words"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import {exportRegexEvaluationData} from "@/lib/helpers/evaluate"
+
+const {Title} = Typography
 
 interface RegexEvaluationTableProps {
     evaluation: any
@@ -185,18 +190,20 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
             promises.push(runEvaluation(i))
         }
 
-        Promise.all(promises).then(() => {
-            updateEvaluation(evaluation.id, {
-                evaluation_type_settings: {
-                    regex_should_match: regexShouldMatch,
-                    regex_pattern: regexPattern,
-                },
-                status: EvaluationFlow.EVALUATION_FINISHED,
-            }).then(() => {
-                setSettings({regexShouldMatch, regexPattern})
-                message.success("Evaluation Results Saved")
+        Promise.all(promises)
+            .then(() => {
+                updateEvaluation(evaluation.id, {
+                    evaluation_type_settings: {
+                        regex_should_match: regexShouldMatch,
+                        regex_pattern: regexPattern,
+                    },
+                    status: EvaluationFlow.EVALUATION_FINISHED,
+                }).then(() => {
+                    setSettings({regexShouldMatch, regexPattern})
+                    message.success("Evaluation Results Saved")
+                })
             })
-        })
+            .catch(() => {})
     }
 
     const runEvaluation = async (rowIndex: number) => {
@@ -375,18 +382,28 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
     return (
         <div>
-            <h1>Regex Match / Mismatch Evaluation</h1>
+            <Title level={2}>Regex Match / Mismatch Evaluation</Title>
             <div>
                 <Row align="middle">
                     <Col span={12}>
-                        <Button
-                            type="primary"
-                            onClick={runAllEvaluations}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Run Evaluation
-                        </Button>
+                        <Space>
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                icon={<LineChartOutlined />}
+                                size="large"
+                            >
+                                Run Evaluation
+                            </Button>
+                            <SecondaryButton
+                                onClick={() =>
+                                    exportRegexEvaluationData(evaluation, rows, settings)
+                                }
+                                disabled={!rows?.[0]?.score}
+                            >
+                                Export results
+                            </SecondaryButton>
+                        </Space>
                     </Col>
 
                     <Col span={12}>
