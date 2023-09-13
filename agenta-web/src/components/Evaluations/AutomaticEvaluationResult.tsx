@@ -10,7 +10,7 @@ import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {calculateResultsDataAvg} from "@/lib/helpers/evaluation"
+import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
 
 interface EvaluationListTableDataType {
     key: string
