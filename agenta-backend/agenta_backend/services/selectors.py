@@ -1,4 +1,4 @@
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 from agenta_backend.services.db_mongo import users
 
 
@@ -14,7 +14,7 @@ async def get_user_and_org_id(session) -> Dict[str, str]:
     return {"uid": "0", "organization_id": "0"}
 
 
-async def get_user_objectid(user_id: str) -> Tuple[str, str]:
+async def get_user_objectid(user_id: str) -> Tuple[str, List]:
     """Retrieves the user object ID and organization ID from the database
     based on the user ID.
 
@@ -27,4 +27,9 @@ async def get_user_objectid(user_id: str) -> Tuple[str, str]:
     """
 
     user = await users.find_one({"id": user_id})
-    return str(user["id"]), str(user["organization_id"])
+
+    if user:
+        user_id = str(user["id"])
+        organization_ids = [str(org.id) for org in user.organizations] if user.organizations else []
+        return user_id, organization_ids
+    return None, None
