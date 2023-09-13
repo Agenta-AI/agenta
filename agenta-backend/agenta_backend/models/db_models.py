@@ -16,7 +16,7 @@ class UserDB(Model):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
-    organizations: List[OrganizationDB]
+    organizations: Optional[List[OrganizationDB]]
 
     class Config:
         collection = "users"
