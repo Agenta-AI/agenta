@@ -41,11 +41,11 @@ const NewVariantModal: React.FC<Props> = ({
         setIsInputValid(newVariantName.trim().length > 0 && value !== "Source Variant")
     }
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const inputValue = e.target.value
-        setNewVariantName(inputValue)
-        setIsInputValid(inputValue.trim().length > 0 && variantPlaceHolder !== "Source Variant")
-    }
+    const handleVariantNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const variantName = e.target.value;
+        setNewVariantName(variantName);
+        setIsInputValid(variantName.trim().length > 0);  // Update the validity of the input
+    }    
 
     return (
         <Modal
@@ -77,7 +77,7 @@ const NewVariantModal: React.FC<Props> = ({
 
                 <div>
                     <Text>Enter a unique name for the new variant:</Text>
-                    <Input addonBefore={variantPlaceHolder} onChange={handleInputChange} />
+                    <Input addonBefore={variantPlaceHolder} onChange={handleVariantNameChange} />
                 </div>
             </Space>
         </Modal>
