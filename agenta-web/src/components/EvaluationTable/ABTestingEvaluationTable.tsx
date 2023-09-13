@@ -225,6 +225,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 if (idx === columnsDataNames.length - 1) {
                     if (count === 1 || count === rowIndex) {
                         message.success("Evaluation Results Saved")
+                        setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
                     }
                 }
             } catch (e) {
