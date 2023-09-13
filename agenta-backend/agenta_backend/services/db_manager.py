@@ -296,23 +296,28 @@ async def list_apps(**kwargs: dict) -> List[App]:
     if user is None:
         return []
     print("User in list apps: " + str(user))
-    
+
     # Get the organizations the user belongs to
     user_organizations = await get_user_organizations(user)
     print("User organisations: " + str(user_organizations))
-    
+
     if user_organizations is not None:
-        
         # Get AppVariantDB documents where user_id matches the specified user's id and is not deleted
         user_apps = await engine.find(
             AppVariantDB,
-            query.and_(query.eq(AppVariantDB.user_id, user.id), query.eq(AppVariantDB.is_deleted, False))
+            query.and_(
+                query.eq(AppVariantDB.user_id, user.id),
+                query.eq(AppVariantDB.is_deleted, False),
+            ),
         )
 
         # Get AppVariantDB documents where the organisation matches one of the organizations the user belongs to and is not deleted
         org_apps = await engine.find(
             AppVariantDB,
-            query.and_(query.in_(AppVariantDB.organisation, user_organizations), query.eq(AppVariantDB.is_deleted, False))
+            query.and_(
+                query.in_(AppVariantDB.organisation, user_organizations),
+                query.eq(AppVariantDB.is_deleted, False),
+            ),
         )
 
         # Combine the results and remove duplicates
@@ -321,7 +326,6 @@ async def list_apps(**kwargs: dict) -> List[App]:
         sorted_names = sorted(set(apps_names))
         return [App(app_name=app_name) for app_name in sorted_names]
     else:
-
         query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(
             AppVariantDB.is_deleted, False
         )
@@ -635,21 +639,22 @@ async def get_user_object(user_uid: str) -> UserDB:
     if user is None:
         create_user = UserDB(uid="0")
         await engine.save(create_user)
-        
+
         org = OrganizationDB(owner=create_user)
         await engine.save(org)
-        
+
         create_user.organizations.append(org.id)
         await engine.save(create_user)
         await engine.save(org)
-        
+
         return create_user
     else:
-            
         return user
 
 
-async def get_user_organizations(user_id_or_user: Union[str, UserDB] = None) -> List[OrganizationDB]:
+async def get_user_organizations(
+    user_id_or_user: Union[str, UserDB] = None
+) -> List[OrganizationDB]:
     """Get the list of the user's organizations from the database.
 
     Arguments:

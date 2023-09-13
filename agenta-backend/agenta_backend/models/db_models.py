@@ -13,6 +13,7 @@ class OrganizationDB(Model):
     class Config:
         collection = "organizations"
 
+
 class UserDB(Model):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
@@ -128,5 +129,6 @@ class TestSetDB(Model):
 
     class Config:
         collection = "testsets"
+
 
 OrganizationDB.update_forward_refs()
