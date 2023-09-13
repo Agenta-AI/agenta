@@ -20,7 +20,8 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.auto_ai_critique]: "AI Critic",
     [EvaluationType.human_a_b_testing]: "A/B testing",
     [EvaluationType.human_scoring]: "Scoring single variant",
-    [EvaluationType.auto_regex_test]: "Regex Match",
+    [EvaluationType.auto_regex_test]: "Regex Test",
+    [EvaluationType.auto_webhook_test]: "Webhook Test",
 }
 
 export const saveOpenAIKey = (key: string) => {

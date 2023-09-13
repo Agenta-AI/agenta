@@ -1,13 +1,13 @@
 import {useState, useEffect, useRef} from "react"
 import type {ColumnType} from "antd/es/table"
-import {InfoCircleOutlined, LineChartOutlined} from "@ant-design/icons"
+import {LineChartOutlined} from "@ant-design/icons"
 import {
+    Alert,
     Button,
     Card,
     Col,
     Form,
     Input,
-    Radio,
     Row,
     Space,
     Spin,
@@ -15,30 +15,29 @@ import {
     Table,
     Tag,
     Tooltip,
-    message,
     Typography,
+    message,
 } from "antd"
 import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
-import {evaluateWithRegex} from "@/lib/services/evaluations"
+import {evaluateWithWebhook} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
-import Highlighter from "react-highlight-words"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
+import {isValidUrl} from "@/lib/helpers/validators"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
-import {exportRegexEvaluationData} from "@/lib/helpers/evaluate"
-import {isValidRegex} from "@/lib/helpers/validators"
+import {exportWebhookEvaluationData} from "@/lib/helpers/evaluate"
 
 const {Title} = Typography
 
-interface RegexEvaluationTableProps {
+interface WebhookEvaluationTableProps {
     evaluation: any
     columnsCount: number
-    evaluationScenarios: RegexEvaluationTableRow[]
+    evaluationScenarios: WebhookEvaluationTableRow[]
 }
 
-interface RegexEvaluationTableRow {
+interface WebhookEvaluationTableRow {
     id?: string
     inputs: {
         input_name: string
@@ -88,6 +87,13 @@ const useStyles = createUseStyles({
     card: {
         marginBottom: 20,
     },
+    infoBox: {
+        marginBottom: 20,
+    },
+    pre: {
+        position: "relative",
+        overflow: "auto",
+    },
     statCorrect: {
         "& .ant-statistic-content-value": {
             color: "#3f8600",
@@ -104,21 +110,9 @@ const useStyles = createUseStyles({
             marginBottom: 0,
         },
     },
-    regexInput: {
-        minWidth: 240,
-    },
-    infoLabel: {
-        display: "flex",
-        gap: 3,
-        alignItems: "center",
-        "& .anticon-info-circle": {
-            color: "#faad14",
-            marginTop: 2,
-        },
-    },
 })
 
-const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
+const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
     columnsCount,
@@ -131,9 +125,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
     const variants = evaluation.variants
     const variantData = useVariants(appName, variants)
 
-    const [rows, setRows] = useState<RegexEvaluationTableRow[]>([])
-    const [wrongAnswers, setWrongAnswers] = useState<number>(0)
-    const [correctAnswers, setCorrectAnswers] = useState<number>(0)
+    const [rows, setRows] = useState<WebhookEvaluationTableRow[]>([])
     const [accuracy, setAccuracy] = useState<number>(0)
     const [settings, setSettings] = useState(evaluation.evaluationTypeSettings)
     const [loading, setLoading] = useState<boolean[]>([])
@@ -148,21 +140,9 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
     }, [evaluationScenarios])
 
     useEffect(() => {
-        if (correctAnswers + wrongAnswers > 0) {
-            setAccuracy((correctAnswers / (correctAnswers + wrongAnswers)) * 100)
-        } else {
-            setAccuracy(0)
-        }
-    }, [correctAnswers, wrongAnswers])
-
-    useEffect(() => {
-        const correct = rows.filter((row) => row.score === "correct").length
-        const wrong = rows.filter((row) => row.score === "wrong").length
-        const accuracy = correct + wrong > 0 ? (correct / (correct + wrong)) * 100 : 0
-
-        setCorrectAnswers(correct)
-        setWrongAnswers(wrong)
-        setAccuracy(accuracy)
+        const scores = rows.filter((item) => !isNaN(+item.score)).map((item) => +item.score)
+        const avg = scores.reduce((acc, val) => acc + val, 0) / (scores.length || 1)
+        setAccuracy(avg * 100)
     }, [rows])
 
     const handleInputChange = (
@@ -184,7 +164,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
         }
         showError.current = true
 
-        const {regexPattern, regexShouldMatch} = form.getFieldsValue()
+        const {webhookUrl} = form.getFieldsValue()
         const promises: Promise<void>[] = []
 
         for (let i = 0; i < rows.length; i++) {
@@ -195,12 +175,11 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
             .then(() => {
                 updateEvaluation(evaluation.id, {
                     evaluation_type_settings: {
-                        regex_should_match: regexShouldMatch,
-                        regex_pattern: regexPattern,
+                        webhook_url: webhookUrl,
                     },
                     status: EvaluationFlow.EVALUATION_FINISHED,
                 }).then(() => {
-                    setSettings({regexShouldMatch, regexPattern})
+                    setSettings({webhookUrl})
                     message.success("Evaluation Results Saved")
                 })
             })
@@ -216,7 +195,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
         const columnsDataNames = ["columnData0"]
         for (let idx = 0; idx < columnsDataNames.length; ++idx) {
-            const columnName = columnsDataNames[idx] as keyof RegexEvaluationTableRow
+            const columnName = columnsDataNames[idx] as keyof WebhookEvaluationTableRow
             try {
                 const result = await callVariant(
                     inputParamsDict,
@@ -225,10 +204,13 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     variantData[idx].URIPath!,
                 )
 
-                const {regexPattern, regexShouldMatch} = form.getFieldsValue()
-                const isCorrect = evaluateWithRegex(result, regexPattern, regexShouldMatch)
+                const {webhookUrl} = form.getFieldsValue()
+                const score = await evaluateWithWebhook(webhookUrl, {
+                    input_vars: inputParamsDict,
+                    output: result,
+                    correct_answer: rows[rowIndex].correctAnswer || null,
+                })
                 const evaluationScenarioId = rows[rowIndex].id
-                const score = isCorrect ? "correct" : "wrong"
 
                 if (evaluationScenarioId) {
                     await updateEvaluationScenario(
@@ -245,11 +227,6 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                 }
 
                 setRowValue(rowIndex, "score", score)
-                if (isCorrect) {
-                    setCorrectAnswers((prevCorrect) => prevCorrect + 1)
-                } else {
-                    setWrongAnswers((prevWrong) => prevWrong + 1)
-                }
                 setRowValue(rowIndex, columnName, result)
             } catch (err) {
                 setRowValue(rowIndex, columnName, "")
@@ -266,7 +243,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
     const setRowValue = (
         rowIndex: number,
-        columnKey: keyof RegexEvaluationTableRow,
+        columnKey: keyof WebhookEvaluationTableRow,
         value: any,
     ) => {
         const newRows: any = [...rows]
@@ -274,7 +251,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
         setRows(newRows)
     }
 
-    const dynamicColumns: ColumnType<RegexEvaluationTableRow>[] = Array.from(
+    const dynamicColumns: ColumnType<WebhookEvaluationTableRow>[] = Array.from(
         {length: columnsCount},
         (_, i) => {
             const columnKey = `columnData${i}`
@@ -291,7 +268,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                 dataIndex: columnKey,
                 key: columnKey,
                 width: "25%",
-                render: (value: any, record: RegexEvaluationTableRow, ix: number) => {
+                render: (value: any, record: WebhookEvaluationTableRow, ix: number) => {
                     if (loading[ix]) return "Loading..."
 
                     let outputValue = value
@@ -301,12 +278,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         )?.variant_output
                     }
 
-                    return (
-                        <Highlighter
-                            textToHighlight={outputValue}
-                            searchWords={[settings.regexPattern]}
-                        />
-                    )
+                    return outputValue
                 },
             }
         },
@@ -326,7 +298,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                 </div>
             ),
             dataIndex: "inputs",
-            render: (_: any, record: RegexEvaluationTableRow, rowIndex: number) => (
+            render: (_: any, record: WebhookEvaluationTableRow, rowIndex: number) => (
                 <div>
                     {record &&
                         record.inputs &&
@@ -345,17 +317,10 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
         },
         ...dynamicColumns,
         {
-            title: "Match / Mismatch",
-            dataIndex: "score",
-            key: "isMatch",
+            title: "Correct Answer",
+            dataIndex: "correctAnswer",
+            key: "correctAnswer",
             width: "25%",
-            render: (val: string, _: any, ix: number) => {
-                if (loading[ix]) return <Spin spinning />
-
-                const isCorrect = val === "correct"
-                const isMatch = settings.regexShouldMatch ? isCorrect : !isCorrect
-                return settings.regexPattern ? <div>{isMatch ? "Match" : "Mismatch"}</div> : null
-            },
         },
         {
             title: "Evaluation",
@@ -368,12 +333,9 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                 return (
                     <Space>
                         {score && (
-                            <Tag
-                                color={score === "correct" ? "green" : "red"}
-                                className={classes.tag}
-                            >
-                                {score}
-                            </Tag>
+                            <Tooltip title={score}>
+                                <Tag className={classes.tag}>{(+score).toFixed(2)}</Tag>
+                            </Tooltip>
                         )}
                     </Space>
                 )
@@ -383,7 +345,44 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
     return (
         <div>
-            <Title level={2}>Regex Match / Mismatch Evaluation</Title>
+            <Title level={2}>Webhook URL Evaluation</Title>
+            <Alert
+                className={classes.infoBox}
+                message="Endpoint Details"
+                description={
+                    <span>
+                        The webhook URL you provide will be called with an <b>HTTP POST</b> request.
+                        The request body will contain the following JSON object:
+                        <pre className={classes.pre}>
+                            <code>
+                                {`{
+    "input_vars": {                     // Key/value pairs for each variable in the Test Suite / Prompt
+	    "var_1": "value_1",
+	    "var_2": "value_2",
+	    ...
+    },
+    "output": string,                   // The LLM's output
+    "correct_answer": string | null     // The correct answer, if available
+}`}
+                            </code>
+                        </pre>
+                        Thre response of the payload should contain the following JSON object:
+                        <pre className={classes.pre}>
+                            <code>
+                                {`{
+    "score": number                     // Evaluation score between 0 and 1, 0 being "bad" and 1 being "good"
+}`}
+                            </code>
+                        </pre>
+                        <div>
+                            <b>NOTE:</b> Your webhook should allow CORS request from our domain in
+                            the response headers
+                        </div>
+                    </span>
+                }
+                type="info"
+                showIcon
+            />
             <div>
                 <Row align="middle">
                     <Col span={12}>
@@ -397,9 +396,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                                 Run Evaluation
                             </Button>
                             <SecondaryButton
-                                onClick={() =>
-                                    exportRegexEvaluationData(evaluation, rows, settings)
-                                }
+                                onClick={() => exportWebhookEvaluationData(evaluation, rows)}
                                 disabled={!rows?.[0]?.score}
                             >
                                 Export results
@@ -408,32 +405,16 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     </Col>
 
                     <Col span={12}>
-                        <Card bordered={true} className={classes.card}>
-                            <Row justify="end">
-                                <Col span={10}>
-                                    <Statistic
-                                        title="Correct answers:"
-                                        value={`${correctAnswers} out of ${rows.length}`}
-                                        className={classes.statCorrect}
-                                    />
-                                </Col>
-                                <Col span={10}>
-                                    <Statistic
-                                        title="Wrong answers:"
-                                        value={`${wrongAnswers} out of ${rows.length}`}
-                                        className={classes.statWrong}
-                                    />
-                                </Col>
-                                <Col span={4}>
-                                    <Statistic
-                                        title="Accuracy:"
-                                        value={accuracy}
-                                        precision={2}
-                                        suffix="%"
-                                    />
-                                </Col>
-                            </Row>
-                        </Card>
+                        <Row justify="end">
+                            <Card bordered={true} className={classes.card}>
+                                <Statistic
+                                    title="Accuracy:"
+                                    value={accuracy}
+                                    precision={2}
+                                    suffix="%"
+                                />
+                            </Card>
+                        </Row>
                     </Col>
                 </Row>
             </div>
@@ -441,47 +422,28 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
             {settings && (
                 <Form
                     initialValues={settings}
-                    layout="inline"
+                    layout="horizontal"
                     className={classes.form}
                     form={form}
                     requiredMark={false}
                 >
                     <Form.Item
-                        label="Regex"
-                        name="regexPattern"
+                        label="Webhook URL"
+                        name="webhookUrl"
+                        validateFirst
                         rules={[
-                            {required: true, message: "Please enter a regex pattern"},
+                            {required: true, message: "Please enter a webhook url"},
                             {
                                 validator: (_, value) =>
                                     new Promise((res, rej) =>
-                                        isValidRegex(value)
+                                        isValidUrl(value)
                                             ? res("")
-                                            : rej("Regex pattern is not valid"),
+                                            : rej("Please enter a valid url"),
                                     ),
                             },
                         ]}
                     >
-                        <Input
-                            placeholder="Pattern (ex: ^this_word\d{3}$)"
-                            className={classes.regexInput}
-                        />
-                    </Form.Item>
-                    <Form.Item
-                        label={
-                            <span className={classes.infoLabel}>
-                                Strategy
-                                <Tooltip title="Choose whether the LLM output should match the pattern or not.">
-                                    <InfoCircleOutlined />
-                                </Tooltip>
-                            </span>
-                        }
-                        rules={[{required: true, message: "Please select strategy"}]}
-                        name="regexShouldMatch"
-                    >
-                        <Radio.Group>
-                            <Radio value={true}> Match </Radio>
-                            <Radio value={false}> Mismatch </Radio>
-                        </Radio.Group>
+                        <Input placeholder="Enter URL to call" />
                     </Form.Item>
                 </Form>
             )}
@@ -498,4 +460,4 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
     )
 }
 
-export default RegexEvaluationTable
+export default WebhookEvaluationTable

@@ -8,12 +8,14 @@ class EvaluationTypeSettings(BaseModel):
     similarity_threshold: Optional[float]
     regex_pattern: Optional[str]
     regex_should_match: Optional[bool]
+    webhook_url: Optional[str]
 
 
 class EvaluationType(str, Enum):
     auto_exact_match = "auto_exact_match"
     auto_similarity_match = "auto_similarity_match"
     auto_regex_test = "auto_regex_test"
+    auto_webhook_test = "auto_webhook_test"
     auto_ai_critique = "auto_ai_critique"
     human_a_b_testing = "human_a_b_testing"
     human_scoring = "human_scoring"
@@ -86,3 +88,7 @@ class NewEvaluation(BaseModel):
 
 class DeleteEvaluation(BaseModel):
     evaluations_ids: List[str]
+
+
+class EvaluationWebhook(BaseModel):
+    score: float

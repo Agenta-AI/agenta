@@ -1,3 +1,5 @@
+import {GenericObject, KeyValuePair} from "../Types"
+
 export const evaluateWithExactMatch = (string1: string, string2: string): Boolean => {
     return string1 === string2
 }
@@ -17,4 +19,19 @@ export const evaluateWithRegex = (testString: string, regex: string, shouldMatch
     const re = new RegExp(regex, "i")
     const result = re.test(testString)
     return result === shouldMatch
+}
+
+export const evaluateWithWebhook = async (webhookUrl: string, body: GenericObject) => {
+    return fetch(webhookUrl, {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: {"Content-Type": "application/json", Accept: "application/json"},
+    })
+        .then((res) => res.json())
+        .then((data) => {
+            if (isNaN(data.score)) throw new Error("Webhook did not return a score")
+            if (data.score < 0 || data.score > 1)
+                throw new Error("Webhook returned an invalid score. Score must be between 0 and 1")
+            return data.score
+        })
 }
