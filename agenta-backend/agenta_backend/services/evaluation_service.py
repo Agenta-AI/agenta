@@ -46,12 +46,14 @@ async def create_new_evaluation(payload: NewEvaluation, **kwargs: dict) -> Dict:
     similarity_threshold = payload.evaluation_type_settings.similarity_threshold
     regex_pattern = payload.evaluation_type_settings.regex_pattern
     regex_should_match = payload.evaluation_type_settings.regex_should_match
+    webhook_url = payload.evaluation_type_settings.webhook_url
     evaluation_type_settings = EvaluationTypeSettings(
         similarity_threshold=0.0
         if similarity_threshold is None
         else similarity_threshold,
         regex_pattern="" if regex_pattern is None else regex_pattern,
         regex_should_match=True if regex_should_match is None else regex_should_match,
+        webhook_url="" if webhook_url is None else webhook_url,
     )
 
     # Initialize evaluation instance and save to database
@@ -194,6 +196,9 @@ async def update_evaluation(
                 regex_should_match=result.evaluation_type_settings.regex_should_match
                 if update_payload.evaluation_type_settings.regex_should_match is None
                 else update_payload.evaluation_type_settings.regex_should_match,
+                webhook_url=result.evaluation_type_settings.webhook_url
+                if update_payload.evaluation_type_settings.webhook_url is None
+                else update_payload.evaluation_type_settings.webhook_url,
             )
 
         result.update(updates)
@@ -238,6 +243,7 @@ async def update_evaluation_scenario(
         evaluation_type == EvaluationType.auto_exact_match
         or evaluation_type == EvaluationType.auto_similarity_match
         or evaluation_type == EvaluationType.auto_regex_test
+        or evaluation_type == EvaluationType.auto_webhook_test
     ):
         new_evaluation_set["score"] = evaluation_scenario_dict["score"]
     elif evaluation_type == EvaluationType.human_a_b_testing:
@@ -385,6 +391,7 @@ def extend_with_evaluation(evaluation_type: EvaluationType):
         evaluation_type == EvaluationType.auto_exact_match
         or evaluation_type == EvaluationType.auto_similarity_match
         or evaluation_type == EvaluationType.auto_regex_test
+        or evaluation_type == EvaluationType.auto_webhook_test
     ):
         evaluation["score"] = ""
 
@@ -403,6 +410,7 @@ def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
         or evaluation_type == EvaluationType.auto_similarity_match
         or evaluation_type == EvaluationType.auto_regex_test
         or evaluation_type == EvaluationType.auto_ai_critique
+        or evaluation_type == EvaluationType.auto_webhook_test
     ):
         if row["correct_answer"]:
             correct_answer["correct_answer"] = row["correct_answer"]
