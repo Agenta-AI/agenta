@@ -371,8 +371,8 @@ export const createNewEvaluation = async (
         evaluationType: string
         evaluationTypeSettings: Partial<EvaluationResponseType["evaluation_type_settings"]>
         inputs: string[]
-        llmAppPromptTemplate?: string,
-        selectedCustomEvaluationID?: string,
+        llmAppPromptTemplate?: string
+        selectedCustomEvaluationID?: string
         testset: {_id: string; name: string}
     },
     ignoreAxiosError: boolean = false,

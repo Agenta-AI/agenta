@@ -192,7 +192,6 @@ export default function Evaluations() {
         }
     }, [testsets, isTestsetsLoadingError])
 
-
     const onTestsetSelect = (selectedTestsetIndexInTestsetsList: number) => {
         setSelectedTestset(testsetsList[selectedTestsetIndexInTestsetsList])
     }
@@ -362,10 +361,6 @@ export default function Evaluations() {
                 (_, i) => selectedVariants[i] || {variantName: "Select a variant"},
             ),
         )
-    }
-
-    const onChangeSlider = (value: number) => {
-        setSliderValue(value)
     }
 
     const redirectToCreateCustomEvaluation = () => {
