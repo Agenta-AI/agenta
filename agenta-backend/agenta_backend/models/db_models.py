@@ -6,7 +6,8 @@ from odmantic import Field, Model, Reference, EmbeddedModel
 class OrganizationDB(Model):
     name: str = Field(default="agenta")
     description: str = Field(default="")
-    members: List[Dict["UserDB", str]]
+    owner: "UserDB"
+    members: Optional[List["UserDB"]]
 
     class Config:
         collection = "organizations"
