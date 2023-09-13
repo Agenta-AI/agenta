@@ -49,7 +49,8 @@ export const fromEvaluationScenarioResponseToEvaluationScenario = (
     } else if (
         evaluation.evaluationType === EvaluationType.auto_exact_match ||
         evaluation.evaluationType === EvaluationType.auto_similarity_match ||
-        evaluation.evaluationType === EvaluationType.auto_regex_test
+        evaluation.evaluationType === EvaluationType.auto_regex_test ||
+        evaluation.evaluationType === EvaluationType.auto_webhook_test
     ) {
         evaluationScenario = {...evaluationScenario, score: item.score}
     } else if (evaluation.evaluationType === EvaluationType.auto_ai_critique) {

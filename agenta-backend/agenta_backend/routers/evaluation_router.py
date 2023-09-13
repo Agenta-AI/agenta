@@ -2,6 +2,7 @@ import os
 from bson import ObjectId
 from datetime import datetime
 from typing import List, Optional
+import random
 
 from fastapi import HTTPException, APIRouter, Body, Depends
 
@@ -13,12 +14,14 @@ from agenta_backend.models.api.evaluation_model import (
     DeleteEvaluation,
     EvaluationType,
     EvaluationUpdate,
+    EvaluationWebhook,
 )
 from agenta_backend.services.results_service import (
     fetch_results_for_human_a_b_testing_evaluation,
     fetch_results_for_auto_exact_match_evaluation,
     fetch_results_for_auto_similarity_match_evaluation,
     fetch_results_for_auto_regex_test,
+    fetch_results_for_auto_webhook_test,
     fetch_results_for_auto_ai_critique,
 )
 from agenta_backend.services.evaluation_service import (
@@ -375,6 +378,22 @@ async def fetch_results(
         )
         return {"scores_data": results}
 
+    elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
+        results = await fetch_results_for_auto_webhook_test(evaluation_id)
+        return {"results_data": results}
+
     elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
         results = await fetch_results_for_auto_ai_critique(evaluation_id)
         return {"results_data": results}
+
+
+@router.post("/webhook_example_fake", response_model=EvaluationWebhook)
+async def webhook_example_fake():
+    """Returns a fake score response for example webhook evaluation
+
+    Returns:
+        _description_
+    """
+
+    # return a random score b/w 0 and 1
+    return {"score": random.random() * 5}
