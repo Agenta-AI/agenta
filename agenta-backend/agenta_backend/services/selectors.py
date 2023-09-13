@@ -30,7 +30,9 @@ async def get_user_objectid(user_id: str) -> Tuple[str, List]:
 
     if user:
         user_id = str(user.id)
-        organization_ids = [str(org.id) for org in user.organizations] if user.organizations else []
+        organization_ids = (
+            [str(org.id) for org in user.organizations] if user.organizations else []
+        )
         return user_id, organization_ids
 
     return None, []
