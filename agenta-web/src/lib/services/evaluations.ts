@@ -11,3 +11,10 @@ export const evaluateWithSimilarityMatch = (string1: string, string2: string): n
     const similarity = intersect.size / union.size
     return similarity
 }
+
+export const evaluateWithRegex = (testString: string, regex: string, shouldMatch: boolean) => {
+    //case insensitive regex
+    const re = new RegExp(regex, "i")
+    const result = re.test(testString)
+    return result === shouldMatch
+}

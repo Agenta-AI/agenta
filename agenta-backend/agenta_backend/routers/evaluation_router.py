@@ -12,18 +12,19 @@ from agenta_backend.models.api.evaluation_model import (
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
-    EvaluationStatus,
+    EvaluationUpdate,
 )
 from agenta_backend.services.results_service import (
     fetch_results_for_human_a_b_testing_evaluation,
     fetch_results_for_auto_exact_match_evaluation,
     fetch_results_for_auto_similarity_match_evaluation,
+    fetch_results_for_auto_regex_test,
     fetch_results_for_auto_ai_critique,
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
     update_evaluation_scenario,
-    update_evaluation_status,
+    update_evaluation,
     create_new_evaluation,
     create_new_evaluation_scenario,
 )
@@ -71,9 +72,9 @@ async def create_evaluation(
 
 
 @router.put("/{evaluation_id}", response_model=Evaluation)
-async def update_evaluation_status_router(
+async def update_evaluation_router(
     evaluation_id: str,
-    update_data: EvaluationStatus = Body(...),
+    update_data: EvaluationUpdate = Body(...),
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Updates an evaluation status
@@ -85,7 +86,7 @@ async def update_evaluation_status_router(
     try:
         # Get user and organization id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_status(evaluation_id, update_data, **kwargs)
+        return await update_evaluation(evaluation_id, update_data, **kwargs)
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -364,6 +365,12 @@ async def fetch_results(
 
     elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
         results = await fetch_results_for_auto_similarity_match_evaluation(
+            evaluation_id, evaluation.variants
+        )
+        return {"scores_data": results}
+
+    elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
+        results = await fetch_results_for_auto_regex_test(
             evaluation_id, evaluation.variants
         )
         return {"scores_data": results}
