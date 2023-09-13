@@ -14,6 +14,10 @@ import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
+import {exportSimilarityEvaluationData} from "@/lib/helpers/evaluate"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
+
+const {Title} = Typography
 
 interface SimilarityMatchEvaluationTableProps {
     evaluation: any
@@ -404,10 +408,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     return (
         <div>
-            <h1>
+            <Title level={2}>
                 Similarity match Evaluation (Threshold:{" "}
                 {evaluation.evaluationTypeSettings.similarityThreshold})
-            </h1>
+            </Title>
             <div className={classes.div}>
                 <Text>
                     This evaluation type is calculating the similarity using Jaccard similarity.
@@ -416,14 +420,22 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             <div>
                 <Row align="middle">
                     <Col span={12}>
-                        <Button
-                            type="primary"
-                            onClick={runAllEvaluations}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Run Evaluation
-                        </Button>
+                        <Space>
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                icon={<LineChartOutlined />}
+                                size="large"
+                            >
+                                Run Evaluation
+                            </Button>
+                            <SecondaryButton
+                                onClick={() => exportSimilarityEvaluationData(evaluation, rows)}
+                                disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
+                            >
+                                Export results
+                            </SecondaryButton>
+                        </Space>
                     </Col>
 
                     <Col span={12}>

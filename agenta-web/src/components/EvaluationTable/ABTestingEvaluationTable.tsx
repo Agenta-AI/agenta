@@ -1,7 +1,7 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {CaretRightOutlined} from "@ant-design/icons"
-import {Button, Input, Space, Spin, Table, Typography, message} from "antd"
+import {CaretRightOutlined, LineChartOutlined} from "@ant-design/icons"
+import {Button, Col, Input, Row, Space, Spin, Table, Typography, message} from "antd"
 import {
     updateEvaluationScenario,
     callVariant,
@@ -11,8 +11,9 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
-import {fetchVariants} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
+import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
 
 const {Title} = Typography
 
@@ -72,10 +73,6 @@ const useStyles = createUseStyles({
     },
     recordInput: {
         marginBottom: 10,
-    },
-    title: {
-        fontSize: "2rem !important",
-        marginBottom: "20px !important",
     },
 })
 
@@ -340,7 +337,19 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     return (
         <div>
-            <Title className={classes.title}>A/B Testing Evaluation</Title>
+            <Title level={2}>A/B Testing Evaluation</Title>
+            <div>
+                <Row align="middle">
+                    <Col span={12}>
+                        <SecondaryButton
+                            onClick={() => exportABTestingEvaluationData(evaluation, rows)}
+                            disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
+                        >
+                            Export results
+                        </SecondaryButton>
+                    </Col>
+                </Row>
+            </div>
             <Table
                 dataSource={rows}
                 columns={columns}
