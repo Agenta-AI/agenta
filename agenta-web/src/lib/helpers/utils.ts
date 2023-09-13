@@ -21,6 +21,8 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.human_a_b_testing]: "A/B testing",
     [EvaluationType.human_scoring]: "Scoring single variant",
     [EvaluationType.custom_code_run]: "Custom Code Run",
+    [EvaluationType.auto_regex_test]: "Regex Test",
+    [EvaluationType.auto_webhook_test]: "Webhook Test",
 }
 
 export const saveOpenAIKey = (key: string) => {
@@ -89,3 +91,6 @@ export const downloadCsv = (csvContent: string, filename: string): void => {
 }
 
 export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
+
+export const snakeToCamel = (str: string) =>
+    str.replace(/([-_][a-z])/g, (group) => group.toUpperCase().replace("-", "").replace("_", ""))

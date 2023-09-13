@@ -1,10 +1,11 @@
 import os
+import random
 from bson import ObjectId
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import HTTPException, APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
+from fastapi import HTTPException, APIRouter, Body, Depends
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (
@@ -17,22 +18,25 @@ from agenta_backend.models.api.evaluation_model import (
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
-    EvaluationStatus,
     StoreCustomEvaluation,
+    EvaluationUpdate,
+    EvaluationWebhook,
 )
 from agenta_backend.services.results_service import (
     fetch_average_score_for_custom_code_run,
     fetch_results_for_human_a_b_testing_evaluation,
     fetch_results_for_auto_exact_match_evaluation,
     fetch_results_for_auto_similarity_match_evaluation,
+    fetch_results_for_auto_regex_test,
+    fetch_results_for_auto_webhook_test,
     fetch_results_for_auto_ai_critique,
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
     fetch_custom_evaluations,
     update_evaluation_scenario,
-    update_evaluation_status,
     update_evaluation_scenario_score,
+    update_evaluation,
     create_new_evaluation,
     create_new_evaluation_scenario,
     store_custom_code_evaluation,
@@ -82,9 +86,9 @@ async def create_evaluation(
 
 
 @router.put("/{evaluation_id}", response_model=Evaluation)
-async def update_evaluation_status_router(
+async def update_evaluation_router(
     evaluation_id: str,
-    update_data: EvaluationStatus = Body(...),
+    update_data: EvaluationUpdate = Body(...),
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Updates an evaluation status
@@ -96,7 +100,7 @@ async def update_evaluation_status_router(
     try:
         # Get user and organization id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_status(evaluation_id, update_data, **kwargs)
+        return await update_evaluation(evaluation_id, update_data, **kwargs)
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -407,6 +411,16 @@ async def fetch_results(
         )
         return {"scores_data": results}
 
+    elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
+        results = await fetch_results_for_auto_regex_test(
+            evaluation_id, evaluation.variants
+        )
+        return {"scores_data": results}
+
+    elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
+        results = await fetch_results_for_auto_webhook_test(evaluation_id)
+        return {"results_data": results}
+
     elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
         results = await fetch_results_for_auto_ai_critique(evaluation_id)
         return {"results_data": results}
@@ -504,3 +518,14 @@ async def execute_custom_evaluation(
         **kwargs,
     )
     return result
+
+@router.post("/webhook_example_fake", response_model=EvaluationWebhook)
+async def webhook_example_fake():
+    """Returns a fake score response for example webhook evaluation
+
+    Returns:
+        _description_
+    """
+
+    # return a random score b/w 0 and 1
+    return {"score": random.random()}

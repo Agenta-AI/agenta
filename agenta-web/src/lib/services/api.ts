@@ -18,7 +18,7 @@ import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
-import {EvaluationType} from "../enums"
+import {EvaluationFlow, EvaluationType} from "../enums"
 import {delay} from "../helpers/utils"
 /**
  * Raw interface for the parameters parsed from the openapi.json
@@ -302,7 +302,7 @@ export const loadTestset = async (testsetId: string) => {
 export const deleteTestsets = async (ids: string[]) => {
     const response = await axios({
         method: "delete",
-        url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets`,
+        url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/`,
         data: {testset_ids: ids},
     })
     return response.data
@@ -331,7 +331,7 @@ export const loadEvaluation = async (evaluationId: string) => {
 export const deleteEvaluations = async (ids: string[]) => {
     const response = await axios({
         method: "delete",
-        url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations`,
+        url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`,
         data: {evaluations_ids: ids},
     })
     return response.data
@@ -346,12 +346,55 @@ export const loadEvaluationsScenarios = async (
             `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationTableId}/evaluation_scenarios`,
         )
         .then((responseData) => {
+            console.log("responseData.data: ", responseData.data)
             const evaluationsRows = responseData.data.map((item: any) => {
                 return fromEvaluationScenarioResponseToEvaluationScenario(item, evaluation)
             })
 
             return evaluationsRows
         })
+}
+
+export const createNewEvaluation = async (
+    {
+        variants,
+        appName,
+        evaluationType,
+        evaluationTypeSettings,
+        inputs,
+        llmAppPromptTemplate,
+        selectedCustomEvaluationID,
+        testset,
+    }: {
+        variants: string[]
+        appName: string
+        evaluationType: string
+        evaluationTypeSettings: Partial<EvaluationResponseType["evaluation_type_settings"]>
+        inputs: string[]
+        llmAppPromptTemplate?: string,
+        selectedCustomEvaluationID?: string,
+        testset: {_id: string; name: string}
+    },
+    ignoreAxiosError: boolean = false,
+) => {
+    const data = {
+        variants, // TODO: Change to variant id
+        app_name: appName,
+        inputs: inputs,
+        evaluation_type: evaluationType,
+        evaluation_type_settings: evaluationTypeSettings,
+        llm_app_prompt_template: llmAppPromptTemplate,
+        selectedCustomEvaluationID,
+        testset,
+        status: EvaluationFlow.EVALUATION_INITIALIZED,
+    }
+
+    const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`,
+        data,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response.data.id
 }
 
 export const updateEvaluation = async (evaluationId: string, data: GenericObject) => {

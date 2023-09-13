@@ -10,6 +10,7 @@ import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
 
 interface EvaluationListTableDataType {
     key: string
@@ -97,11 +98,14 @@ export default function AutomaticEvaluationResult() {
                             )
                                 .then((results) => {
                                     if (
-                                        item.evaluation_type == EvaluationType.auto_exact_match ||
-                                        item.evaluation_type ==
-                                            EvaluationType.auto_similarity_match ||
-                                        item.evaluation_type == EvaluationType.auto_ai_critique ||
-                                        item.evaluation_type == EvaluationType.custom_code_run
+                                        [
+                                            EvaluationType.auto_exact_match,
+                                            EvaluationType.auto_similarity_match,
+                                            EvaluationType.auto_regex_test,
+                                            EvaluationType.auto_ai_critique,
+                                            EvaluationType.custom_code_run,
+                                            EvaluationType.auto_webhook_test,
+                                        ].includes(item.evaluation_type as EvaluationType)
                                     ) {
                                         return {
                                             key: item.id,
@@ -150,6 +154,10 @@ export default function AutomaticEvaluationResult() {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_exact_match`)
         } else if (evaluationType === EvaluationType.auto_similarity_match) {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_similarity_match`)
+        } else if (evaluationType === EvaluationType.auto_regex_test) {
+            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_regex_test`)
+        } else if (evaluationType === EvaluationType.auto_webhook_test) {
+            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_webhook_test`)
         } else if (evaluationType === EvaluationType.auto_ai_critique) {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_ai_critique`)
         } else if (evaluationType === EvaluationType.custom_code_run) {
@@ -219,17 +227,16 @@ export default function AutomaticEvaluationResult() {
                     )
                 }
 
-                let resultsDataAverage =
-                    (record.resultsData[10] /
-                        Object.values(record.resultsData).reduce((acc, value) => acc + value, 0)) *
-                    100
+                const percentage =
+                    calculateResultsDataAvg(record.resultsData) *
+                    (record.evaluationType === EvaluationType.auto_webhook_test ? 100 : 10)
 
                 return (
                     <span>
                         <Statistic
                             className={classes.stat}
-                            value={resultsDataAverage}
-                            precision={resultsDataAverage <= 99 ? 2 : 1}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
                             suffix="%"
                         />
                     </span>

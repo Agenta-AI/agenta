@@ -36,7 +36,7 @@ const EvaluationDropdown: React.FC<IEvaluationDropdownProps> = ({
 
     const setOptionName = () => {
         if (!evaluation) {
-            return "List Custom Evaluations"
+            return "Custom Evaluations"
         } else {
             setEvalType(EvaluationType.custom_code_run)
             setEvalID(evaluation)
