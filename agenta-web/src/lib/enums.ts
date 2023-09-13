@@ -11,4 +11,5 @@ export enum EvaluationType {
     auto_exact_match = "auto_exact_match",
     auto_similarity_match = "auto_similarity_match",
     auto_ai_critique = "auto_ai_critique",
+    auto_regex_test = "auto_regex_test",
 }

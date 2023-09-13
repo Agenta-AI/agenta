@@ -6,11 +6,14 @@ from enum import Enum
 
 class EvaluationTypeSettings(BaseModel):
     similarity_threshold: Optional[float]
+    regex_pattern: Optional[str]
+    regex_should_match: Optional[bool]
 
 
 class EvaluationType(str, Enum):
     auto_exact_match = "auto_exact_match"
     auto_similarity_match = "auto_similarity_match"
+    auto_regex_test = "auto_regex_test"
     auto_ai_critique = "auto_ai_critique"
     human_a_b_testing = "human_a_b_testing"
     human_scoring = "human_scoring"
@@ -21,10 +24,6 @@ class EvaluationStatusEnum(str, Enum):
     EVALUATION_STARTED = "EVALUATION_STARTED"
     COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
     EVALUATION_FINISHED = "EVALUATION_FINISHED"
-
-
-class EvaluationStatus(BaseModel):
-    status: EvaluationStatusEnum
 
 
 class Evaluation(BaseModel):
@@ -38,6 +37,11 @@ class Evaluation(BaseModel):
     testset: Dict[str, str] = Field(...)
     created_at: datetime
     updated_at: datetime
+
+
+class EvaluationUpdate(BaseModel):
+    status: Optional[EvaluationStatusEnum]
+    evaluation_type_settings: Optional[EvaluationTypeSettings]
 
 
 class EvaluationScenarioInput(BaseModel):
