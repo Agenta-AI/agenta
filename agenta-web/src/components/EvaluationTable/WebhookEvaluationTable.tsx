@@ -1,40 +1,43 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useRef} from "react"
 import type {ColumnType} from "antd/es/table"
 import {LineChartOutlined} from "@ant-design/icons"
 import {
+    Alert,
     Button,
     Card,
     Col,
     Form,
     Input,
     Row,
-    Slider,
     Space,
     Spin,
     Statistic,
     Table,
     Tag,
+    Tooltip,
+    Typography,
     message,
 } from "antd"
 import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
-import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
-import {Typography} from "antd"
+import {evaluateWithWebhook} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
-import {exportSimilarityEvaluationData} from "@/lib/helpers/evaluate"
+import {globalErrorHandler} from "@/lib/helpers/errorHandler"
+import {isValidUrl} from "@/lib/helpers/validators"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import {exportWebhookEvaluationData} from "@/lib/helpers/evaluate"
 
 const {Title} = Typography
 
-interface SimilarityMatchEvaluationTableProps {
+interface WebhookEvaluationTableProps {
     evaluation: any
     columnsCount: number
-    evaluationScenarios: SimilarityMatchEvaluationTableRow[]
+    evaluationScenarios: WebhookEvaluationTableRow[]
 }
 
-interface SimilarityMatchEvaluationTableRow {
+interface WebhookEvaluationTableRow {
     id?: string
     inputs: {
         input_name: string
@@ -47,7 +50,7 @@ interface SimilarityMatchEvaluationTableRow {
     columnData0: string
     correctAnswer: string
     score: string
-    similarity: number
+    isMatch: boolean
     evaluationFlow: EvaluationFlow
 }
 /**
@@ -84,8 +87,12 @@ const useStyles = createUseStyles({
     card: {
         marginBottom: 20,
     },
-    div: {
+    infoBox: {
         marginBottom: 20,
+    },
+    pre: {
+        position: "relative",
+        overflow: "auto",
     },
     statCorrect: {
         "& .ant-statistic-content-value": {
@@ -103,12 +110,9 @@ const useStyles = createUseStyles({
             marginBottom: 0,
         },
     },
-    slider: {
-        width: 200,
-    },
 })
 
-const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTableProps> = ({
+const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
     columnsCount,
@@ -118,54 +122,27 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
         : router.query.app_name || ""
-
     const variants = evaluation.variants
-
     const variantData = useVariants(appName, variants)
 
-    const [rows, setRows] = useState<SimilarityMatchEvaluationTableRow[]>([])
-    const [dissimilarAnswers, setDissimilarAnswers] = useState<number>(0)
-    const [similarAnswers, setSimilarAnswers] = useState<number>(0)
+    const [rows, setRows] = useState<WebhookEvaluationTableRow[]>([])
     const [accuracy, setAccuracy] = useState<number>(0)
     const [settings, setSettings] = useState(evaluation.evaluationTypeSettings)
     const [loading, setLoading] = useState<boolean[]>([])
     const [form] = Form.useForm()
-
-    const {Text} = Typography
+    const showError = useRef(true)
 
     useEffect(() => {
         if (evaluationScenarios) {
-            setRows(
-                evaluationScenarios.map((item) => ({
-                    ...item,
-                    similarity: item.outputs?.[0]?.variant_output
-                        ? evaluateWithSimilarityMatch(
-                              item.outputs[0].variant_output,
-                              item.correctAnswer,
-                          )
-                        : NaN,
-                })),
-            )
+            setRows(evaluationScenarios)
             setLoading(Array(evaluationScenarios.length).fill(false))
         }
     }, [evaluationScenarios])
 
     useEffect(() => {
-        if (similarAnswers + dissimilarAnswers > 0) {
-            setAccuracy((similarAnswers / (similarAnswers + dissimilarAnswers)) * 100)
-        } else {
-            setAccuracy(0)
-        }
-    }, [similarAnswers, dissimilarAnswers])
-
-    useEffect(() => {
-        const similar = rows.filter((row) => row.score === "true").length
-        const dissimilar = rows.filter((row) => row.score === "false").length
-        const accuracy = similar + dissimilar > 0 ? (similar / (similar + dissimilar)) * 100 : 0
-
-        setSimilarAnswers(similar)
-        setDissimilarAnswers(dissimilar)
-        setAccuracy(accuracy)
+        const scores = rows.filter((item) => !isNaN(+item.score)).map((item) => +item.score)
+        const avg = scores.reduce((acc, val) => acc + val, 0) / (scores.length || 1)
+        setAccuracy(avg * 100)
     }, [rows])
 
     const handleInputChange = (
@@ -185,25 +162,28 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         } catch {
             return
         }
+        showError.current = true
 
-        const {similarityThreshold} = form.getFieldsValue()
+        const {webhookUrl} = form.getFieldsValue()
         const promises: Promise<void>[] = []
 
         for (let i = 0; i < rows.length; i++) {
             promises.push(runEvaluation(i))
         }
 
-        Promise.all(promises).then(() => {
-            updateEvaluation(evaluation.id, {
-                evaluation_type_settings: {
-                    similarity_threshold: similarityThreshold,
-                },
-                status: EvaluationFlow.EVALUATION_FINISHED,
-            }).then(() => {
-                setSettings({similarityThreshold})
-                message.success("Evaluation Results Saved")
+        Promise.all(promises)
+            .then(() => {
+                updateEvaluation(evaluation.id, {
+                    evaluation_type_settings: {
+                        webhook_url: webhookUrl,
+                    },
+                    status: EvaluationFlow.EVALUATION_FINISHED,
+                }).then(() => {
+                    setSettings({webhookUrl})
+                    message.success("Evaluation Results Saved")
+                })
             })
-        })
+            .catch(() => {})
     }
 
     const runEvaluation = async (rowIndex: number) => {
@@ -214,7 +194,8 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         }, {})
 
         const columnsDataNames = ["columnData0"]
-        columnsDataNames.forEach(async (columnName: any, idx: number) => {
+        for (let idx = 0; idx < columnsDataNames.length; ++idx) {
+            const columnName = columnsDataNames[idx] as keyof WebhookEvaluationTableRow
             try {
                 const result = await callVariant(
                     inputParamsDict,
@@ -223,17 +204,20 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     variantData[idx].URIPath!,
                 )
 
-                const {similarityThreshold} = form.getFieldsValue()
-                const similarity = evaluateWithSimilarityMatch(result, rows[rowIndex].correctAnswer)
+                const {webhookUrl} = form.getFieldsValue()
+                const score = await evaluateWithWebhook(webhookUrl, {
+                    input_vars: inputParamsDict,
+                    output: result,
+                    correct_answer: rows[rowIndex].correctAnswer || null,
+                })
                 const evaluationScenarioId = rows[rowIndex].id
-                const isSimilar = similarity >= similarityThreshold ? "true" : "false"
 
                 if (evaluationScenarioId) {
                     await updateEvaluationScenario(
                         evaluation.id,
                         evaluationScenarioId,
                         {
-                            score: isSimilar,
+                            score,
                             outputs: [
                                 {variant_name: variants[0].variantName, variant_output: result},
                             ],
@@ -242,33 +226,32 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     )
                 }
 
-                setRowValue(rowIndex, "similarity", similarity)
-                setRowValue(rowIndex, "score", isSimilar)
-                if (isSimilar) {
-                    setSimilarAnswers((prevSimilar) => prevSimilar + 1)
-                } else {
-                    setDissimilarAnswers((prevDissimilar) => prevDissimilar + 1)
-                }
+                setRowValue(rowIndex, "score", score)
                 setRowValue(rowIndex, columnName, result)
-            } catch {
+            } catch (err) {
                 setRowValue(rowIndex, columnName, "")
+                if (showError.current) {
+                    globalErrorHandler(err)
+                    showError.current = false
+                }
+                throw err
             } finally {
                 setLoading((prev) => prev.map((val, i) => (i === rowIndex ? false : val)))
             }
-        })
+        }
     }
 
     const setRowValue = (
         rowIndex: number,
-        columnKey: keyof SimilarityMatchEvaluationTableRow,
+        columnKey: keyof WebhookEvaluationTableRow,
         value: any,
     ) => {
-        const newRows = [...rows]
-        newRows[rowIndex][columnKey] = value as never
+        const newRows: any = [...rows]
+        newRows[rowIndex][columnKey] = value
         setRows(newRows)
     }
 
-    const dynamicColumns: ColumnType<SimilarityMatchEvaluationTableRow>[] = Array.from(
+    const dynamicColumns: ColumnType<WebhookEvaluationTableRow>[] = Array.from(
         {length: columnsCount},
         (_, i) => {
             const columnKey = `columnData${i}`
@@ -285,16 +268,17 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 dataIndex: columnKey,
                 key: columnKey,
                 width: "25%",
-                render: (text: any, record: SimilarityMatchEvaluationTableRow, ix: number) => {
+                render: (value: any, record: WebhookEvaluationTableRow, ix: number) => {
                     if (loading[ix]) return "Loading..."
 
+                    let outputValue = value
                     if (record.outputs && record.outputs.length > 0) {
-                        const outputValue = record.outputs.find(
+                        outputValue = record.outputs.find(
                             (output: any) => output.variant_name === variants[i].variantName,
                         )?.variant_output
-                        return <div>{outputValue}</div>
                     }
-                    return text
+
+                    return outputValue
                 },
             }
         },
@@ -314,7 +298,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 </div>
             ),
             dataIndex: "inputs",
-            render: (text: any, record: SimilarityMatchEvaluationTableRow, rowIndex: number) => (
+            render: (_: any, record: WebhookEvaluationTableRow, rowIndex: number) => (
                 <div>
                     {record &&
                         record.inputs &&
@@ -349,30 +333,9 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 return (
                     <Space>
                         {score && (
-                            <Tag color={score === "true" ? "green" : "red"} className={classes.tag}>
-                                {score}
-                            </Tag>
-                        )}
-                    </Space>
-                )
-            },
-        },
-        {
-            title: "Similarity",
-            dataIndex: "similarity",
-            key: "similarity",
-            width: 200,
-            align: "center" as "left" | "right" | "center",
-            render: (similarity: number, record: any, ix: number) => {
-                if (loading[ix]) return <Spin spinning />
-
-                const score = record.score
-                return (
-                    <Space>
-                        {score && !isNaN(similarity) && (
-                            <Tag color={score === "true" ? "green" : "red"} className={classes.tag}>
-                                {similarity.toFixed(2)}
-                            </Tag>
+                            <Tooltip title={score}>
+                                <Tag className={classes.tag}>{(+score).toFixed(2)}</Tag>
+                            </Tooltip>
                         )}
                     </Space>
                 )
@@ -382,15 +345,44 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     return (
         <div>
-            <Title level={2}>
-                Similarity match Evaluation (Threshold:{" "}
-                {evaluation.evaluationTypeSettings.similarityThreshold})
-            </Title>
-            <div className={classes.div}>
-                <Text>
-                    This evaluation type is calculating the similarity using Jaccard similarity.
-                </Text>
-            </div>
+            <Title level={2}>Webhook URL Evaluation</Title>
+            <Alert
+                className={classes.infoBox}
+                message="Endpoint Details"
+                description={
+                    <span>
+                        The webhook URL you provide will be called with an <b>HTTP POST</b> request.
+                        The request body will contain the following JSON object:
+                        <pre className={classes.pre}>
+                            <code>
+                                {`{
+    "input_vars": {                     // Key/value pairs for each variable in the Test Suite / Prompt
+	    "var_1": "value_1",
+	    "var_2": "value_2",
+	    ...
+    },
+    "output": string,                   // The LLM's output
+    "correct_answer": string | null     // The correct answer, if available
+}`}
+                            </code>
+                        </pre>
+                        Thre response of the payload should contain the following JSON object:
+                        <pre className={classes.pre}>
+                            <code>
+                                {`{
+    "score": number                     // Evaluation score between 0 and 1, 0 being "bad" and 1 being "good"
+}`}
+                            </code>
+                        </pre>
+                        <div>
+                            <b>NOTE:</b> Your webhook should allow CORS request from our domain in
+                            the response headers
+                        </div>
+                    </span>
+                }
+                type="info"
+                showIcon
+            />
             <div>
                 <Row align="middle">
                     <Col span={12}>
@@ -404,7 +396,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                                 Run Evaluation
                             </Button>
                             <SecondaryButton
-                                onClick={() => exportSimilarityEvaluationData(evaluation, rows)}
+                                onClick={() => exportWebhookEvaluationData(evaluation, rows)}
                                 disabled={!rows?.[0]?.score}
                             >
                                 Export results
@@ -413,32 +405,16 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     </Col>
 
                     <Col span={12}>
-                        <Card bordered={true} className={classes.card}>
-                            <Row justify="end">
-                                <Col span={10}>
-                                    <Statistic
-                                        title="Similar answers:"
-                                        value={`${similarAnswers} out of ${rows.length}`}
-                                        className={classes.statCorrect}
-                                    />
-                                </Col>
-                                <Col span={10}>
-                                    <Statistic
-                                        title="Dissimilar answers:"
-                                        value={`${dissimilarAnswers} out of ${rows.length}`}
-                                        className={classes.statWrong}
-                                    />
-                                </Col>
-                                <Col span={4}>
-                                    <Statistic
-                                        title="Accuracy:"
-                                        value={accuracy}
-                                        precision={2}
-                                        suffix="%"
-                                    />
-                                </Col>
-                            </Row>
-                        </Card>
+                        <Row justify="end">
+                            <Card bordered={true} className={classes.card}>
+                                <Statistic
+                                    title="Accuracy:"
+                                    value={accuracy}
+                                    precision={2}
+                                    suffix="%"
+                                />
+                            </Card>
+                        </Row>
                     </Col>
                 </Row>
             </div>
@@ -446,13 +422,28 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             {settings && (
                 <Form
                     initialValues={settings}
-                    layout="inline"
+                    layout="horizontal"
                     className={classes.form}
                     form={form}
                     requiredMark={false}
                 >
-                    <Form.Item label="Similarity Threshold" name="similarityThreshold">
-                        <Slider min={0} max={1} step={0.01} className={classes.slider} />
+                    <Form.Item
+                        label="Webhook URL"
+                        name="webhookUrl"
+                        validateFirst
+                        rules={[
+                            {required: true, message: "Please enter a webhook url"},
+                            {
+                                validator: (_, value) =>
+                                    new Promise((res, rej) =>
+                                        isValidUrl(value)
+                                            ? res("")
+                                            : rej("Please enter a valid url"),
+                                    ),
+                            },
+                        ]}
+                    >
+                        <Input placeholder="Enter URL to call" />
                     </Form.Item>
                 </Form>
             )}
@@ -469,4 +460,4 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     )
 }
 
-export default SimilarityMatchEvaluationTable
+export default WebhookEvaluationTable
