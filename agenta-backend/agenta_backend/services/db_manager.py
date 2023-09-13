@@ -1,7 +1,7 @@
 import os
 import logging
 from bson import ObjectId
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 
 
 from agenta_backend.models.api.api_models import (
@@ -295,14 +295,40 @@ async def list_apps(**kwargs: dict) -> List[App]:
     user = await get_user_object(kwargs["uid"])
     if user is None:
         return []
+    print("User in list apps: " + str(user))
+    
+    # Get the organizations the user belongs to
+    user_organizations = await get_user_organizations(user)
+    print("User organisations: " + str(user_organizations))
+    
+    if user_organizations is not None:
+        
+        # Get AppVariantDB documents where user_id matches the specified user's id and is not deleted
+        user_apps = await engine.find(
+            AppVariantDB,
+            query.and_(query.eq(AppVariantDB.user_id, user.id), query.eq(AppVariantDB.is_deleted, False))
+        )
 
-    query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(
-        AppVariantDB.is_deleted, False
-    )
-    apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
-    apps_names = [app.app_name for app in apps]
-    sorted_names = sorted(set(apps_names))
-    return [App(app_name=app_name) for app_name in sorted_names]
+        # Get AppVariantDB documents where the organisation matches one of the organizations the user belongs to and is not deleted
+        org_apps = await engine.find(
+            AppVariantDB,
+            query.and_(query.in_(AppVariantDB.organisation, user_organizations), query.eq(AppVariantDB.is_deleted, False))
+        )
+
+        # Combine the results and remove duplicates
+        apps_variants = user_apps + org_apps
+        apps_names = [app.app_name for app in apps_variants]
+        sorted_names = sorted(set(apps_names))
+        return [App(app_name=app_name) for app_name in sorted_names]
+    else:
+
+        query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(
+            AppVariantDB.is_deleted, False
+        )
+        apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
+        apps_names = [app.app_name for app in apps]
+        sorted_names = sorted(set(apps_names))
+        return [App(app_name=app_name) for app_name in sorted_names]
 
 
 async def count_apps(**kwargs: dict) -> int:
@@ -613,33 +639,41 @@ async def get_user_object(user_uid: str) -> UserDB:
         org = OrganizationDB(owner=create_user)
         await engine.save(org)
         
-        create_user.organizations.append(org)
+        create_user.organizations.append(org.id)
         await engine.save(create_user)
+        await engine.save(org)
         
         return create_user
-        
-    return user
+    else:
+            
+        return user
 
 
-async def get_user_organizations(user_id: str) -> List[OrganizationDB]:
+async def get_user_organizations(user_id_or_user: Union[str, UserDB] = None) -> List[OrganizationDB]:
     """Get the list of the user's organizations from the database.
 
     Arguments:
-        user_id (str): The user unique identifier.
+        user_id_or_user (Union[str, UserDB]): Either the user's unique identifier (str) or the user object (UserDB).
 
     Returns:
-        List[OrganizationDB]: list of of user's organizations.
+        List[OrganizationDB]: list of user's organizations.
     """
+    print("This function was called.")
 
-    user = await get_user_object(user_id)
+    if isinstance(user_id_or_user, str):
+        user = await get_user_object(user_id_or_user)
+    elif isinstance(user_id_or_user, UserDB):
+        user = user_id_or_user
+    else:
+        raise ValueError("user_id_or_user must be either a string or UserDB object")
+
     organizations = []
-    
-    for org_id in user.organization_ids:
-        organization = await engine.find_one(
-            OrganizationDB, OrganizationDB.id == org_id
-        )
-        organizations.append(organization)
-    return organizations
+
+    if user.organizations is not None:
+        for org in user.organizations:
+            organizations.append(org)
+        return organizations
+    return None
 
 
 async def get_user_image_instance(user_id: str, docker_id: str) -> ImageDB:
