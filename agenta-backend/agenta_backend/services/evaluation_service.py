@@ -551,9 +551,6 @@ async def fetch_custom_evaluations(
     Args:
         app_name (str): the name of the app
 
-    Raises:
-        HTTPException: No evaluations found
-
     Returns:
         List[CustomEvaluationOutput]: ls=ist of custom evaluations
     """
@@ -569,7 +566,7 @@ async def fetch_custom_evaluations(
     # Get custom evaluations
     custom_evals = await engine.find(CustomEvaluationDB, query_expression)
     if not custom_evals:
-        raise HTTPException(status_code=404, detail="No evaluations found")
+        return []
 
     # Convert custom evaluations to evaluations
     evaluations = []
