@@ -612,21 +612,25 @@ async def get_user_object(user_uid: str) -> UserDB:
     return user
 
 
-async def get_user_organization(user_id: str) -> OrganizationDB:
-    """Get the user organization object from the database.
+async def get_user_organizations(user_id: str) -> List[OrganizationDB]:
+    """Get the list of the user's organizations from the database.
 
     Arguments:
-        user_id (str): The user unique identifier
+        user_id (str): The user unique identifier.
 
     Returns:
-        OrganizationDB: instance of user organization
+        List[OrganizationDB]: list of of user's organizations.
     """
 
     user = await get_user_object(user_id)
-    organization = await engine.find_one(
-        OrganizationDB, OrganizationDB.id == user.organization_id
-    )
-    return organization
+    organizations = []
+    
+    for org_id in user.organization_ids:
+        organization = await engine.find_one(
+            OrganizationDB, OrganizationDB.id == org_id
+        )
+        organizations.append(organization)
+    return organizations
 
 
 async def get_user_image_instance(user_id: str, docker_id: str) -> ImageDB:
