@@ -4,7 +4,7 @@ export const exportExactEvaluationData = (evaluation: any, rows: any[]) => {
     const exportRow = rows.map((data) => {
         return {
             ["Inputs"]: data.inputs[0].input_value,
-            ["App Variant v0 Output"]: data?.columnData0
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Correct answer"]: data.correctAnswer,
@@ -22,7 +22,7 @@ export const exportSimilarityEvaluationData = (evaluation: any, rows: any[]) => 
     const exportRow = rows.map((data) => {
         return {
             ["Inputs"]: data.inputs[0].input_value,
-            ["App Variant v0 Output"]: data?.columnData0
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Correct answer"]: data.correctAnswer,
@@ -41,7 +41,7 @@ export const exportAICritiqueEvaluationData = (evaluation: any, rows: any[]) => 
     const exportRow = rows.map((data) => {
         return {
             ["Inputs"]: data.inputs[0].input_value,
-            ["App Variant v0 Output"]: data?.columnData0
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Correct answer"]: data.correctAnswer,
@@ -59,10 +59,10 @@ export const exportABTestingEvaluationData = (evaluation: any, rows: any[]) => {
     const exportRow = rows.map((data) => {
         return {
             ["Inputs"]: data.inputs[0].input_value,
-            ["App Variant v0 Output"]: data?.columnData0
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
-            ["App Variant v1 Output"]: data?.columnData1
+            [`App Variant ${evaluation.variants[1].variantName} Output`]: data?.columnData1
                 ? data?.columnData1
                 : data.outputs[1]?.variant_output,
             ["Vote"]: data.vote,
