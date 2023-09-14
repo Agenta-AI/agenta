@@ -156,7 +156,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
     const [evaluationTestsets, setEvaluationTestsets] = useState([])
-    const [listScenariosResult, setListScenariosResult] = useState([])
+    const [listScenariosResult, setListScenariosResult] = useState<IScenarioScore[]>([])
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -247,8 +247,9 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
         if (listScenariosResult.length !== evaluationScenarios.length) {
             const response: any = await fetchEvaluationScenarioResults(scenario_id)
             if (response.status === 200) {
+                const responseData = response.data as IScenarioScore
                 if (listScenariosResult.length !== evaluationScenarios.length) {
-                    listScenariosResult.push(response?.data)
+                    listScenariosResult.push(responseData)
                     setListScenariosResult([...listScenariosResult])
                 }
             }
