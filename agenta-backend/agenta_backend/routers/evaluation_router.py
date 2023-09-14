@@ -34,6 +34,7 @@ from agenta_backend.services.results_service import (
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
     fetch_custom_evaluations,
+    get_evaluation_scenario_score,
     update_evaluation_scenario,
     update_evaluation_scenario_score,
     update_evaluation,
@@ -222,6 +223,32 @@ async def update_evaluation_scenario_router(
         )
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+
+@router.get("/evaluation_scenario/{evaluation_scenario_id}/score")
+async def get_evaluation_scenario_score_router(
+    evaluation_scenario_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Get the s
+
+    Args:
+        evaluation_scenario_id (str): _description_
+        stoken_session (SessionContainer, optional): _description_. Defaults to Depends(verify_session()).
+
+    Raises:
+        HTTPException: _description_
+        HTTPException: _description_
+        HTTPException: _description_
+
+    Returns:
+        _type_: _description_
+    """
+    
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    return await get_evaluation_scenario_score(evaluation_scenario_id, **kwargs)
 
 
 @router.put("/evaluation_scenario/{evaluation_scenario_id}/score")

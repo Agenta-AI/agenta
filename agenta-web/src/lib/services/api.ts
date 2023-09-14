@@ -433,6 +433,13 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
     return response.data
 }
 
+export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: string) => {
+    const response = axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
+    )
+    return response
+}
+
 export const saveCustomCodeEvaluation = async (
     payload: StoreCustomEvaluation,
     ignoreAxiosError: boolean = false,

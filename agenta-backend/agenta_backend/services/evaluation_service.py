@@ -357,6 +357,29 @@ async def update_evaluation_scenario_score(
     await engine.save(evaluation_scenario)
 
 
+async def get_evaluation_scenario_score(evaluation_scenario_id: str, **kwargs: dict) -> Dict[str, str]:
+    """Get the evaluation scenario score
+
+    Args:
+        scenario_id (str): the evaluation scenario score
+
+    Returns:
+        Dict[str, str]: scenario id and score
+    """
+    
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(
+        EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
+    ) & query.eq(EvaluationScenarioDB.user, user.id)
+
+    # Find evaluation scenario if it meets with the query expression
+    evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
+    return {"scenario_id": str(evaluation_scenario.id), "score": evaluation_scenario.score}
+
+
 def evaluate_with_ai_critique(
     llm_app_prompt_template: str,
     llm_app_inputs: dict,
