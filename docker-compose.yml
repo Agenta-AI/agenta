@@ -1,9 +1,9 @@
 services:
     reverse-proxy:
         image: traefik:v2.10
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${SERVER_PORT}
         ports:
-            - "80:80"
+            - "${SERVER_PORT}:${SERVER_PORT}"
             - "8080:8080"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -11,7 +11,13 @@ services:
             - agenta-network
 
     backend:
-        build: ./agenta-backend
+        build:
+            context: ./agenta-backend
+            args:
+                - http_proxy=$http_proxy
+                - https_proxy=$https_proxy
+                - HTTP_PROXY=$HTTP_PROXY
+                - HTTPS_PROXY=$HTTPS_PROXY
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
@@ -54,6 +60,11 @@ services:
         build:
             context: ./agenta-web
             dockerfile: dev.Dockerfile
+            args:
+                - http_proxy=$http_proxy
+                - https_proxy=$https_proxy
+                - HTTP_PROXY=$HTTP_PROXY
+                - HTTPS_PROXY=$HTTPS_PROXY
         volumes:
             - ./agenta-web/src:/app/src
             - ./agenta-web/public:/app/public

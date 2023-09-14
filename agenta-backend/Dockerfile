@@ -3,6 +3,16 @@ FROM python:3.9-slim-buster
 
 WORKDIR /app
 
+ARG http_proxy
+ARG https_proxy
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+
+ENV http_proxy=$http_proxy
+ENV https_proxy=$https_proxy
+ENV HTTP_PROXY=$HTTP_PROXY
+ENV HTTPS_PROXY=$HTTPS_PROXY
+
 # Ensure pip and poetry are up to date
 RUN pip install --upgrade pip \
     && pip install poetry
