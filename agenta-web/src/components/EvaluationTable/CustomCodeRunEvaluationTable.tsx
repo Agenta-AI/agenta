@@ -11,6 +11,7 @@ import {
     executeCustomEvaluationCode,
     loadTestset,
     updateEvaluationScenarioScore,
+    fetchEvaluationScenarioResults,
 } from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
@@ -45,6 +46,11 @@ interface CustomCodeEvaluationTableRow {
 interface IVariantInputs {
     input_name: string
     input_value: string
+}
+
+interface IScenarioScore {
+    scenario_id: string
+    score: string
 }
 
 /**
@@ -150,6 +156,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
     const [evaluationTestsets, setEvaluationTestsets] = useState([])
+    const [listScenariosResult, setListScenariosResult] = useState([])
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -233,7 +240,19 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
         const filteredData: any = evaluationTestsets.filter(
             (item) => item[input_name] === input_value,
         )[0]
-        return filteredData.correct_answer
+        return filteredData?.correct_answer
+    }
+
+    const retrieveScenarioScore = async (scenario_id: string) => {
+        if (listScenariosResult.length !== evaluationScenarios.length) {
+            const response: any = await fetchEvaluationScenarioResults(scenario_id)
+            if (response.status === 200) {
+                if (listScenariosResult.length !== evaluationScenarios.length) {
+                    listScenariosResult.push(response?.data)
+                    setListScenariosResult([...listScenariosResult])
+                }
+            }
+        }
     }
 
     const evaluate = async (rowNumber: number) => {
@@ -288,6 +307,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
         outputs: Array<Object>,
     ) => {
         const expectedTarget = correctAnswer(variantInput)
+        console.log("customEvaluationId: ", customEvaluationId)
         const data = {
             evaluation_id: customEvaluationId,
             inputs: variantInput,
@@ -398,19 +418,48 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             width: 200,
             align: "center" as "left" | "right" | "center",
             render: (text: number, record: any, rowIndex: number) => {
-                return (
-                    <Spin
-                        spinning={
-                            record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED
-                                ? true
-                                : false
-                        }
-                    >
-                        <Space>
-                            <div>{record.code_result !== "" && <div>{text?.toFixed(2)}</div>}</div>
-                        </Space>
-                    </Spin>
-                )
+                // Retrieve the evaluation scenario score
+                retrieveScenarioScore(record.id)
+                if (text === undefined && record.outputs.length > 0) {
+                    return (
+                        <Spin
+                            spinning={
+                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED
+                                    ? true
+                                    : false
+                            }
+                        >
+                            <Space>
+                                {listScenariosResult &&
+                                    listScenariosResult.map(
+                                        (result: IScenarioScore, index: number) => {
+                                            if (record.id === result.scenario_id) {
+                                                return (
+                                                    <div key={index}>
+                                                        {parseFloat(result.score).toFixed(2)}
+                                                    </div>
+                                                )
+                                            }
+                                        },
+                                    )}
+                            </Space>
+                        </Spin>
+                    )
+                } else {
+                    return (
+                        <Spin
+                            spinning={
+                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED
+                                    ? true
+                                    : false
+                            }
+                        >
+                            <Space>
+                                <div>{record.code_result !== "" && <div>{text?.toFixed(2)}</div>}</div>
+                            </Space>
+                        </Spin>
+                    )
+                }
             },
         },
     ]
