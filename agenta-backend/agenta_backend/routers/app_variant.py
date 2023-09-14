@@ -377,7 +377,7 @@ async def add_app_variant_from_template(
 
     # Check if the user has already created an app
     if os.environ["FEATURE_FLAG"] == "demo":
-        if await db_manager.count_apps(**kwargs) == 1:
+        if await db_manager.count_apps(**kwargs) > 2:
             raise HTTPException(
                 status_code=500,
                 detail="Sorry, you can only create one App at this time.",
