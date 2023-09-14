@@ -1,7 +1,19 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined, LineChartOutlined} from "@ant-design/icons"
-import {Button, Col, Input, Row, Space, Spin, Table, Typography, message} from "antd"
+import {
+    Button,
+    Card,
+    Col,
+    Input,
+    Row,
+    Space,
+    Spin,
+    Statistic,
+    Table,
+    Typography,
+    message,
+} from "antd"
 import {
     updateEvaluationScenario,
     callVariant,
@@ -74,6 +86,19 @@ const useStyles = createUseStyles({
     recordInput: {
         marginBottom: 10,
     },
+    card: {
+        marginBottom: 20,
+    },
+    statCorrect: {
+        "& .ant-statistic-content-value": {
+            color: "#3f8600",
+        },
+    },
+    statWrong: {
+        "& .ant-statistic-content-value": {
+            color: "#cf1322",
+        },
+    },
 })
 
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
@@ -93,6 +118,14 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
+    let num_of_rows = evaluationResults?.votes_data.nb_of_rows || 0
+    let flag_votes = evaluationResults?.votes_data.flag_votes?.number_of_votes || 0
+    let appVariant1 =
+        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[0]?.variantName]
+            ?.number_of_votes || 0
+    let appVariant2 =
+        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[1]?.variantName]
+            ?.number_of_votes || 0
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -120,7 +153,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 })
                 .catch((err) => console.error("Failed to fetch results:", err))
         }
-    }, [evaluationStatus, evaluation.id])
+    }, [evaluationStatus, evaluation.id, rows])
 
     const handleVoteClick = (rowIndex: number, vote: string) => {
         const evaluation_scenario_id = rows[rowIndex].id
@@ -192,6 +225,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 if (idx === columnsDataNames.length - 1) {
                     if (count === 1 || count === rowIndex) {
                         message.success("Evaluation Results Saved")
+                        setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
                     }
                 }
             } catch (e) {
@@ -250,9 +284,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         <span className={classes.inputTest}>{evaluation.testset.name}</span>
                         <span> )</span>
                     </div>
-                    <Button size="small" onClick={runAllEvaluations} icon={<CaretRightOutlined />}>
-                        Run All
-                    </Button>
                 </div>
             ),
             dataIndex: "inputs",
@@ -341,12 +372,45 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             <div>
                 <Row align="middle">
                     <Col span={12}>
-                        <SecondaryButton
-                            onClick={() => exportABTestingEvaluationData(evaluation, rows)}
-                            disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
-                        >
-                            Export results
-                        </SecondaryButton>
+                        <Space>
+                            <Button type="primary" onClick={runAllEvaluations} size="large">
+                                Run All
+                            </Button>
+                            <SecondaryButton
+                                onClick={() => exportABTestingEvaluationData(evaluation, rows)}
+                                disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
+                            >
+                                Export results
+                            </SecondaryButton>
+                        </Space>
+                    </Col>
+
+                    <Col span={12}>
+                        <Card bordered={true} className={classes.card}>
+                            <Row justify="end">
+                                <Col span={10}>
+                                    <Statistic
+                                        title={`${evaluation.variants[0].variantName} is better:`}
+                                        value={`${appVariant1} out of ${num_of_rows}`}
+                                        className={classes.statCorrect}
+                                    />
+                                </Col>
+                                <Col span={10}>
+                                    <Statistic
+                                        title={`${evaluation.variants[1].variantName} is better:`}
+                                        value={`${appVariant2} out of ${num_of_rows}`}
+                                        className={classes.statCorrect}
+                                    />
+                                </Col>
+                                <Col span={4}>
+                                    <Statistic
+                                        title="Both are bad:"
+                                        value={`${flag_votes} out of ${num_of_rows}`}
+                                        className={classes.statWrong}
+                                    />
+                                </Col>
+                            </Row>
+                        </Card>
                     </Col>
                 </Row>
             </div>
