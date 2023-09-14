@@ -295,11 +295,9 @@ async def list_apps(**kwargs: dict) -> List[App]:
     user = await get_user_object(kwargs["uid"])
     if user is None:
         return []
-    print("User in list apps: " + str(user))
 
     # Get the organizations the user belongs to
     user_organizations = await get_user_organizations(user)
-    print("User organisations: " + str(user_organizations))
 
     if user_organizations is not None:
         # Get AppVariantDB documents where user_id matches the specified user's id and is not deleted
