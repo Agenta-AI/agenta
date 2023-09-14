@@ -86,7 +86,10 @@ export interface EvaluationResponseType {
     status: string
     evaluation_type: string
     evaluation_type_settings: {
-        similarity_threshold?: number
+        similarity_threshold: number
+        regex_pattern: string
+        regex_should_match: boolean
+        webhook_url: string
     }
     llm_app_prompt_template?: string
     testset: {

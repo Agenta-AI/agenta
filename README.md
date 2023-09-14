@@ -110,22 +110,22 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
   </picture>
 </a>
 </br>
-  <a href="https://docs.agenta.ai/installation">  
+  <a href="https://docs.agenta.ai/installation">
     <picture>
       <img src="https://github.com/Agenta-AI/agenta/assets/4510758/29f3fc9a-8a7c-4b39-81a8-776a472a2baf" />
-    </picture> 
-  </a> 
-  <a href="https://docs.agenta.ai/getting-started">  
-    <picture>
-      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/18decb9c-eba5-4d2f-9735-048a1e9d9386" /> 
     </picture>
-  </a> 
-  <a href="https://docs.agenta.ai/tutorials">  
+  </a>
+  <a href="https://docs.agenta.ai/getting-started">
     <picture>
-      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/e665d66d-d0fe-4b0a-ae7b-5e08350e5e6c" /> 
+      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/18decb9c-eba5-4d2f-9735-048a1e9d9386" />
     </picture>
-  </a> 
-<a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation#aws">  
+  </a>
+  <a href="https://docs.agenta.ai/tutorials">
+    <picture>
+      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/e665d66d-d0fe-4b0a-ae7b-5e08350e5e6c" />
+    </picture>
+  </a>
+<a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation-aws">
   <picture>
     <img src="https://github.com/Agenta-AI/agenta/assets/4510758/65c1487e-5233-4509-8e8d-d967235ccfd7"  />
   </picture>
