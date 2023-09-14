@@ -1,6 +1,7 @@
 import {Evaluation, EvaluationResponseType, GenericObject, Variant} from "./Types"
 import {EvaluationType} from "./enums"
 import {formatDate} from "./helpers/dateTimeHelper"
+import {snakeToCamel} from "./helpers/utils"
 
 export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
     const variants: Variant[] = item.variants.map((variantName: string) => {
@@ -13,10 +14,10 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
         return variant
     })
 
-    let evaluationTypeSettings: GenericObject = {}
-    if (item.evaluation_type_settings?.similarity_threshold) {
-        evaluationTypeSettings["similarityThreshold"] =
-            item.evaluation_type_settings.similarity_threshold
+    const evaluationTypeSettings: GenericObject = {}
+    for (const key in item.evaluation_type_settings) {
+        evaluationTypeSettings[snakeToCamel(key)] =
+            item.evaluation_type_settings[key as keyof typeof item.evaluation_type_settings]
     }
 
     return {
@@ -27,7 +28,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
         appName: item.app_name,
         status: item.status,
         evaluationType: item.evaluation_type,
-        evaluationTypeSettings: evaluationTypeSettings,
+        evaluationTypeSettings,
         llmAppPromptTemplate: item.llm_app_prompt_template,
     } as Evaluation
 }
@@ -47,7 +48,9 @@ export const fromEvaluationScenarioResponseToEvaluationScenario = (
         evaluationScenario = {...evaluationScenario, vote: item.vote}
     } else if (
         evaluation.evaluationType === EvaluationType.auto_exact_match ||
-        evaluation.evaluationType === EvaluationType.auto_similarity_match
+        evaluation.evaluationType === EvaluationType.auto_similarity_match ||
+        evaluation.evaluationType === EvaluationType.auto_regex_test ||
+        evaluation.evaluationType === EvaluationType.auto_webhook_test
     ) {
         evaluationScenario = {...evaluationScenario, score: item.score}
     } else if (evaluation.evaluationType === EvaluationType.auto_ai_critique) {
