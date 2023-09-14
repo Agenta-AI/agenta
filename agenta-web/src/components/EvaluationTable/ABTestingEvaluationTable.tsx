@@ -373,12 +373,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 <Row align="middle">
                     <Col span={12}>
                         <Space>
-                            <Button
-                                type="primary"
-                                onClick={runAllEvaluations}
-                                icon={<LineChartOutlined />}
-                                size="large"
-                            >
+                            <Button type="primary" onClick={runAllEvaluations} size="large">
                                 Run All
                             </Button>
                             <SecondaryButton
