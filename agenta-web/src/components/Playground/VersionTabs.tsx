@@ -168,7 +168,6 @@ const VersionTabs: React.FC = () => {
                 isDeleteLoading={isDeleteLoading && removalVariantName === variant.variantName}
                 isChanged={isChanged}
                 setIsChanged={setIsChanged}
-                variants={variants}
             />
         ),
         closable: !variant.persistent,

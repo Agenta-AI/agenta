@@ -20,7 +20,6 @@ interface Props {
     isDeleteLoading: boolean
     isChanged: boolean
     setIsChanged: React.Dispatch<React.SetStateAction<boolean>>
-    variants: Variant[]
 }
 
 const useStyles = createUseStyles({
@@ -40,7 +39,6 @@ const ViewNavigation: React.FC<Props> = ({
     isDeleteLoading,
     isChanged,
     setIsChanged,
-    variants,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -74,7 +72,7 @@ const ViewNavigation: React.FC<Props> = ({
         if (isChanged) {
             setUnSavedChanges(true)
         }
-    }, [optParams, variants])
+    }, [optParams])
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURIPath, setContainerURIPath] = useState("")
