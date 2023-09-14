@@ -379,7 +379,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 icon={<LineChartOutlined />}
                                 size="large"
                             >
-                                Run Evaluation
+                                Run All
                             </Button>
                             <SecondaryButton
                                 onClick={() => exportABTestingEvaluationData(evaluation, rows)}
