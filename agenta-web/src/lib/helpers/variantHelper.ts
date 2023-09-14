@@ -1,6 +1,6 @@
 import {Variant, Parameter, InputParameter} from "@/lib/Types"
 import {getVariantParametersFromOpenAPI} from "@/lib/services/api"
-import { globalErrorHandler } from "./errorHandler"
+import {globalErrorHandler} from "./errorHandler"
 
 const inputParamsToParameters = (additionalInputs: InputParameter[]): Parameter[] => {
     return additionalInputs.map((value) => ({
@@ -49,7 +49,11 @@ export const getAllVariantParameters = async (appName: string, variant: Variant)
     let parameters: Parameter[] = []
     let inputs: Parameter[] = []
     try {
-        const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(appName, variant, true)
+        const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(
+            appName,
+            variant,
+            true,
+        )
         if (variant.parameters) {
             const updatedInitOptParams = initOptParams.map((param) => {
                 return variant.parameters && variant.parameters.hasOwnProperty(param.name)
@@ -65,7 +69,7 @@ export const getAllVariantParameters = async (appName: string, variant: Variant)
             variant.templateVariantName ? variant.templateVariantName : variant.variantName
         }`
         return {parameters, inputs, URIPath}
-    } catch(err: any) {
+    } catch (err: any) {
         const errorResponse: any = err.response.request
         const apiCallURL: string = err.response.request.responseURL
         if (apiCallURL && apiCallURL.includes("openapi.json") && errorResponse?.status == 404) {

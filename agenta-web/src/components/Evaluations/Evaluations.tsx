@@ -12,7 +12,12 @@ import {
     message,
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
-import {createNewEvaluation, fetchVariants, useLoadTestsetsList, fetchCustomEvaluations} from "@/lib/services/api"
+import {
+    createNewEvaluation,
+    fetchVariants,
+    useLoadTestsetsList,
+    fetchCustomEvaluations,
+} from "@/lib/services/api"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
@@ -132,8 +137,9 @@ export default function Evaluations() {
 
     const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
 
-    const [customCodeEvaluationList, setCustomCodeEvaluationList] = useState<SingleCustomEvaluation[]>()
-    
+    const [customCodeEvaluationList, setCustomCodeEvaluationList] =
+        useState<SingleCustomEvaluation[]>()
+
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -256,7 +262,6 @@ export default function Evaluations() {
     }
 
     const onStartEvaluation = async () => {
-
         // 1. We check all data is provided
         if (selectedTestset === undefined || selectedTestset.name === "Select a testSet") {
             message.error("Please select a Testset")
@@ -503,14 +508,14 @@ export default function Evaluations() {
                                 defaultValue={"Select Custom Evaluations"}
                                 className={classes.selectGroup}
                                 onChange={handleCustomEvaluationOptionChange}
-                                options={
-                                    customCodeEvaluationList?.map((item: SingleCustomEvaluation) => (
-                                        {value: `${item.id}:${EvaluationType.custom_code_run}`, label: `${item.evaluation_name}`}
-                                    ))
-                                }
+                                options={customCodeEvaluationList?.map(
+                                    (item: SingleCustomEvaluation) => ({
+                                        value: `${item.id}:${EvaluationType.custom_code_run}`,
+                                        label: `${item.evaluation_name}`,
+                                    }),
+                                )}
                             />
                         </Radio.Group>
-
                     </Col>
                     <Col span={8}>
                         <div className="evalaution-title">

@@ -455,7 +455,9 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                             }
                         >
                             <Space>
-                                <div>{record.code_result !== "" && <div>{text?.toFixed(2)}</div>}</div>
+                                <div>
+                                    {record.code_result !== "" && <div>{text?.toFixed(2)}</div>}
+                                </div>
                             </Space>
                         </Spin>
                     )

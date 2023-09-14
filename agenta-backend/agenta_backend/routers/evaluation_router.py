@@ -225,7 +225,6 @@ async def update_evaluation_scenario_router(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score")
 async def get_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
@@ -245,10 +244,12 @@ async def get_evaluation_scenario_score_router(
     Returns:
         _type_: _description_
     """
-    
+
     # Get user and organization id
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    scenario_score = await get_evaluation_scenario_score(evaluation_scenario_id, **kwargs)
+    scenario_score = await get_evaluation_scenario_score(
+        evaluation_scenario_id, **kwargs
+    )
     return scenario_score
 
 

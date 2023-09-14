@@ -357,7 +357,9 @@ async def update_evaluation_scenario_score(
     await engine.save(evaluation_scenario)
 
 
-async def get_evaluation_scenario_score(evaluation_scenario_id: str, **kwargs: dict) -> Dict[str, str]:
+async def get_evaluation_scenario_score(
+    evaluation_scenario_id: str, **kwargs: dict
+) -> Dict[str, str]:
     """Get the evaluation scenario score
 
     Args:
@@ -366,7 +368,7 @@ async def get_evaluation_scenario_score(evaluation_scenario_id: str, **kwargs: d
     Returns:
         Dict[str, str]: scenario id and score
     """
-    
+
     # Get user object
     user = await get_user_object(kwargs["uid"])
 
@@ -377,7 +379,10 @@ async def get_evaluation_scenario_score(evaluation_scenario_id: str, **kwargs: d
 
     # Find evaluation scenario if it meets with the query expression
     evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
-    return {"scenario_id": str(evaluation_scenario.id), "score": evaluation_scenario.score}
+    return {
+        "scenario_id": str(evaluation_scenario.id),
+        "score": evaluation_scenario.score,
+    }
 
 
 def evaluate_with_ai_critique(
