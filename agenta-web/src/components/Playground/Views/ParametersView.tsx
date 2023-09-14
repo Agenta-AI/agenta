@@ -99,8 +99,9 @@ const ParametersView: React.FC<Props> = ({
                                     type="primary"
                                     onClick={async () => {
                                         await onOptParamsChange(optParams!, true, isPersistent)
-                                        success()
                                         setUnSavedChanges(false)
+                                        setIsChanged(false)
+                                        success()
                                     }}
                                     loading={isParamSaveLoading}
                                 >

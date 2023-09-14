@@ -18,6 +18,9 @@ interface Props {
     setRemovalVariantName: (variantName: string) => void
     setRemovalWarningModalOpen: (value: boolean) => void
     isDeleteLoading: boolean
+    isChanged: boolean
+    setIsChanged: React.Dispatch<React.SetStateAction<boolean>>
+    variants: Variant[]
 }
 
 const useStyles = createUseStyles({
@@ -35,6 +38,9 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalVariantName,
     setRemovalWarningModalOpen,
     isDeleteLoading,
+    isChanged,
+    setIsChanged,
+    variants,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -51,7 +57,6 @@ const ViewNavigation: React.FC<Props> = ({
     } = useVariant(appName, variant)
 
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
-    const [isChanged, setIsChanged] = useState(false)
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -69,7 +74,7 @@ const ViewNavigation: React.FC<Props> = ({
         if (isChanged) {
             setUnSavedChanges(true)
         }
-    }, [optParams])
+    }, [optParams, variants])
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURIPath, setContainerURIPath] = useState("")

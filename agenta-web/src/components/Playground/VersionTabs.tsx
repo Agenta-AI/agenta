@@ -17,6 +17,7 @@ function addTab(
     variants: Variant[],
     templateVariantName: string,
     newVariantName: string,
+    setIsChanged: React.Dispatch<React.SetStateAction<boolean>>,
 ) {
     // Find the template variant
     const templateVariant = variants.find((variant) => variant.variantName === templateVariantName)
@@ -51,9 +52,16 @@ function addTab(
 
     setVariants((prevState: any) => [...prevState, newVariant])
     setActiveKey(updateNewVariantName)
+    setIsChanged(true)
 }
 
-function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], activeKey: string) {
+function removeTab(
+    setActiveKey: any,
+    setVariants: any,
+    variants: Variant[],
+    activeKey: string,
+    setIsChanged: React.Dispatch<React.SetStateAction<boolean>>,
+) {
     console.log(activeKey)
     const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
     if (newVariants.length < 1) {
@@ -66,6 +74,7 @@ function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], act
     console.log(newActiveKey, newVariants)
     setVariants(newVariants)
     setActiveKey(newActiveKey)
+    setIsChanged(true)
 }
 
 const VersionTabs: React.FC = () => {
@@ -73,7 +82,6 @@ const VersionTabs: React.FC = () => {
     const appName = router.query.app_name as unknown as string
     const [templateVariantName, setTemplateVariantName] = useState("") // We use this to save the template variant name when the user creates a new variant
     const [activeKey, setActiveKey] = useState("1")
-    const [tabList, setTabList] = useState([])
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [variants, setVariants] = useState<Variant[]>([]) // These are the variants that exist in the backend
     const [isLoading, setIsLoading] = useState(true)
@@ -84,6 +92,7 @@ const VersionTabs: React.FC = () => {
     const [removalVariantName, setRemovalVariantName] = useState<string | null>(null)
     const [isDeleteLoading, setIsDeleteLoading] = useState(false)
     const [messageApi, contextHolder] = message.useMessage()
+    const [isChanged, setIsChanged] = useState(false)
 
     const fetchData = async () => {
         try {
@@ -109,7 +118,7 @@ const VersionTabs: React.FC = () => {
 
     const handleRemove = () => {
         if (removalVariantName) {
-            removeTab(setActiveKey, setVariants, variants, removalVariantName)
+            removeTab(setActiveKey, setVariants, variants, removalVariantName, setIsChanged)
         }
         setRemovalWarningModalOpen1(false)
     }
@@ -120,7 +129,7 @@ const VersionTabs: React.FC = () => {
             if (variants.find((variant) => variant.variantName === removalVariantName)?.persistent)
                 await removeVariant(appName, removalVariantName)
 
-            removeTab(setActiveKey, setVariants, variants, removalVariantName)
+            removeTab(setActiveKey, setVariants, variants, removalVariantName, setIsChanged)
             setIsDeleteLoading(false)
         }
         setRemovalWarningModalOpen1(false)
@@ -164,6 +173,9 @@ const VersionTabs: React.FC = () => {
                 setRemovalVariantName={setRemovalVariantName}
                 setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
                 isDeleteLoading={isDeleteLoading && removalVariantName === variant.variantName}
+                isChanged={isChanged}
+                setIsChanged={setIsChanged}
+                variants={variants}
             />
         ),
         closable: !variant.persistent,
@@ -203,7 +215,14 @@ const VersionTabs: React.FC = () => {
                 isModalOpen={isModalOpen}
                 setIsModalOpen={setIsModalOpen}
                 addTab={() =>
-                    addTab(setActiveKey, setVariants, variants, templateVariantName, newVariantName)
+                    addTab(
+                        setActiveKey,
+                        setVariants,
+                        variants,
+                        templateVariantName,
+                        newVariantName,
+                        setIsChanged,
+                    )
                 }
                 variants={variants}
                 setNewVariantName={setNewVariantName}
