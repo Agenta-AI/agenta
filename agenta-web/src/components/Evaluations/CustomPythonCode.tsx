@@ -77,7 +77,6 @@ def evaluate(
     }
 
     const switchEditorThemeBasedOnTheme = () => {
-        console.log("App Theme => ", appTheme)
         if (appTheme == "light") {
             return "github"
         } else if (appTheme == "dark") {
