@@ -248,7 +248,8 @@ async def get_evaluation_scenario_score_router(
     
     # Get user and organization id
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    return await get_evaluation_scenario_score(evaluation_scenario_id, **kwargs)
+    scenario_score = await get_evaluation_scenario_score(evaluation_scenario_id, **kwargs)
+    return scenario_score
 
 
 @router.put("/evaluation_scenario/{evaluation_scenario_id}/score")
