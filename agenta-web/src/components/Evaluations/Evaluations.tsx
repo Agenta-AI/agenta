@@ -8,13 +8,14 @@ import {
     RadioChangeEvent,
     Row,
     Typography,
+    Select,
     message,
 } from "antd"
 import {DownOutlined} from "@ant-design/icons"
-import {createNewEvaluation, fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
+import {createNewEvaluation, fetchVariants, useLoadTestsetsList, fetchCustomEvaluations} from "@/lib/services/api"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
-import {Variant, Parameter, GenericObject} from "@/lib/Types"
+import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import EvaluationErrorModal from "./EvaluationErrorModal"
@@ -31,8 +32,6 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import HumanEvaluationResult from "./HumanEvaluationResult"
-import EvaluationDropdown from "./CustomEvaluationsDropdown"
-import axios from "axios"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 
 type StyleProps = {
@@ -133,6 +132,8 @@ export default function Evaluations() {
 
     const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
 
+    const [customCodeEvaluationList, setCustomCodeEvaluationList] = useState<SingleCustomEvaluation[]>()
+    
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -255,6 +256,7 @@ export default function Evaluations() {
     }
 
     const onStartEvaluation = async () => {
+
         // 1. We check all data is provided
         if (selectedTestset === undefined || selectedTestset.name === "Select a testSet") {
             message.error("Please select a Testset")
@@ -361,6 +363,21 @@ export default function Evaluations() {
                 (_, i) => selectedVariants[i] || {variantName: "Select a variant"},
             ),
         )
+    }
+
+    useEffect(() => {
+        fetchCustomEvaluations(appName).then((res) => {
+            if (res.status === 200) {
+                setCustomCodeEvaluationList(res.data)
+            }
+        })
+        fetchCustomEvaluations(appName)
+    }, [appName])
+
+    const handleCustomEvaluationOptionChange = (e: string) => {
+        const splittedValues: Array<string> = e.split(":")
+        setSelectedCustomEvaluationID(splittedValues[0])
+        setSelectedEvaluationType(splittedValues[1])
     }
 
     const redirectToCreateCustomEvaluation = () => {
@@ -482,14 +499,18 @@ export default function Evaluations() {
                                 </div>
                             </Radio.Button>
 
-                            {/* Custom Evaluation Dropdown */}
-                            <EvaluationDropdown
-                                classes={classes}
-                                appName={appName}
-                                setEvalType={setSelectedEvaluationType}
-                                setEvalID={setSelectedCustomEvaluationID}
+                            <Select
+                                defaultValue={"Select Custom Evaluations"}
+                                className={classes.selectGroup}
+                                onChange={handleCustomEvaluationOptionChange}
+                                options={
+                                    customCodeEvaluationList?.map((item: SingleCustomEvaluation) => (
+                                        {value: `${item.id}:${EvaluationType.custom_code_run}`, label: `${item.evaluation_name}`}
+                                    ))
+                                }
                             />
                         </Radio.Group>
+
                     </Col>
                     <Col span={8}>
                         <div className="evalaution-title">
@@ -536,7 +557,6 @@ export default function Evaluations() {
                         <Button
                             onClick={redirectToCreateCustomEvaluation}
                             type="default"
-                            data-evaluation-type={EvaluationType.custom_code_run}
                             className={classes.createCustomEvalBtn}
                         >
                             Create custom evaluation
