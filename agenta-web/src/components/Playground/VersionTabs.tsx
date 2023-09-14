@@ -55,13 +55,7 @@ function addTab(
     setIsChanged(true)
 }
 
-function removeTab(
-    setActiveKey: any,
-    setVariants: any,
-    variants: Variant[],
-    activeKey: string,
-    setIsChanged: React.Dispatch<React.SetStateAction<boolean>>,
-) {
+function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], activeKey: string) {
     console.log(activeKey)
     const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
     if (newVariants.length < 1) {
@@ -74,7 +68,6 @@ function removeTab(
     console.log(newActiveKey, newVariants)
     setVariants(newVariants)
     setActiveKey(newActiveKey)
-    setIsChanged(true)
 }
 
 const VersionTabs: React.FC = () => {
@@ -118,7 +111,7 @@ const VersionTabs: React.FC = () => {
 
     const handleRemove = () => {
         if (removalVariantName) {
-            removeTab(setActiveKey, setVariants, variants, removalVariantName, setIsChanged)
+            removeTab(setActiveKey, setVariants, variants, removalVariantName)
         }
         setRemovalWarningModalOpen1(false)
     }
@@ -129,7 +122,7 @@ const VersionTabs: React.FC = () => {
             if (variants.find((variant) => variant.variantName === removalVariantName)?.persistent)
                 await removeVariant(appName, removalVariantName)
 
-            removeTab(setActiveKey, setVariants, variants, removalVariantName, setIsChanged)
+            removeTab(setActiveKey, setVariants, variants, removalVariantName)
             setIsDeleteLoading(false)
         }
         setRemovalWarningModalOpen1(false)
