@@ -8,7 +8,7 @@ export const exportExactEvaluationData = (evaluation: any, rows: any[]) => {
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Correct answer"]: data.correctAnswer,
-            ["Score"]: data.score,
+            ["Evaluation"]: data.score,
         }
     })
     const exportCol = Object.keys(exportRow[0])
@@ -27,7 +27,7 @@ export const exportSimilarityEvaluationData = (evaluation: any, rows: any[]) => 
                 : data.outputs[0]?.variant_output,
             ["Correct answer"]: data.correctAnswer,
             ["Score"]: data.score,
-            ["Similarity"]: data.similarity,
+            ["Evaluation"]: data.similarity,
         }
     })
     const exportCol = Object.keys(exportRow[0])
@@ -45,7 +45,7 @@ export const exportAICritiqueEvaluationData = (evaluation: any, rows: any[]) => 
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Correct answer"]: data.correctAnswer,
-            ["Evaluation"]: data.evaluation,
+            ["Score"]: data.evaluation,
         }
     })
     const exportCol = Object.keys(exportRow[0])
@@ -73,4 +73,52 @@ export const exportABTestingEvaluationData = (evaluation: any, rows: any[]) => {
     const csvData = convertToCsv(exportRow, exportCol)
     const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.variants[1].variantName}_${evaluation.evaluationType}.csv`
     downloadCsv(csvData, filename)
+}
+
+export const exportRegexEvaluationData = (evaluation: any, rows: any[], settings: any) => {
+    const exportRow = rows.map((data) => {
+        const isCorrect = data.score === "correct"
+        const isMatch = settings.regexShouldMatch ? isCorrect : !isCorrect
+
+        return {
+            ["Inputs"]: data.inputs[0].input_value,
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
+                ? data?.columnData0
+                : data.outputs[0]?.variant_output,
+            ["Match / Mismatch"]: isMatch ? "Match" : "Mismatch",
+            ["Evaluation"]: data.score,
+        }
+    })
+    const exportCol = Object.keys(exportRow[0])
+
+    const csvData = convertToCsv(exportRow, exportCol)
+    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
+    downloadCsv(csvData, filename)
+}
+
+export const exportWebhookEvaluationData = (evaluation: any, rows: any[]) => {
+    const exportRow = rows.map((data) => {
+        return {
+            ["Inputs"]: data.inputs[0].input_value,
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
+                ? data?.columnData0
+                : data.outputs[0]?.variant_output,
+            ["Correct answer"]: data.correctAnswer,
+            ["Score"]: data.score,
+        }
+    })
+    const exportCol = Object.keys(exportRow[0])
+
+    const csvData = convertToCsv(exportRow, exportCol)
+    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
+    downloadCsv(csvData, filename)
+}
+
+export const calculateResultsDataAvg = (resultsData: Record<string, number>) => {
+    const count = Object.values(resultsData).reduce((acc, value) => acc + +value, 0)
+    const sum = Object.keys(resultsData).reduce(
+        (acc, key) => acc + parseFloat(key) * +resultsData[key],
+        0,
+    )
+    return sum / count
 }
