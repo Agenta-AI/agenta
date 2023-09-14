@@ -195,7 +195,7 @@ async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
         score = scenario.score
         if not scenario.score:
             score = 0
-        list_of_scores.append(float(score))
+        list_of_scores.append(round(float(score), 2))
 
     average_score = sum(list_of_scores) / len(list_of_scores)
     return average_score
