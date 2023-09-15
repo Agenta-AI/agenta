@@ -77,6 +77,7 @@ export const getAllVariantParameters = async (appName: string, variant: Variant)
         } else {
             globalErrorHandler(err)
         }
+        throw err
     }
 }
 
