@@ -384,7 +384,7 @@ export const createNewEvaluation = async (
         evaluation_type: evaluationType,
         evaluation_type_settings: evaluationTypeSettings,
         llm_app_prompt_template: llmAppPromptTemplate,
-        selectedCustomEvaluationID,
+        custom_code_evaluation_id: selectedCustomEvaluationID,
         testset,
         status: EvaluationFlow.EVALUATION_INITIALIZED,
     }
@@ -434,7 +434,7 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
 }
 
 export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: string) => {
-    const response = axios.get(
+    const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
     )
     return response
@@ -461,6 +461,17 @@ export const fetchCustomEvaluations = async (
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
+}
+
+export const fetchCustomEvaluationDetail = async (
+    id: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${id}`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response.data
 }
 
 export const executeCustomEvaluationCode = async (

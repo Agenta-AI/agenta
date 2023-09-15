@@ -8,6 +8,7 @@ from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
     CustomEvaluationOutput,
+    CustomEvaluationDetail,
     EvaluationType,
     NewEvaluation,
     EvaluationScenarioUpdate,
@@ -608,3 +609,38 @@ async def fetch_custom_evaluations(
             )
         )
     return evaluations
+
+
+async def fetch_custom_evaluation_detail(
+    id: str, **kwargs: dict
+) -> CustomEvaluationDetail:
+    """Fetch the detail of custom evaluation from the database.
+
+    Args:
+        id (str): the id of the custom evaluation
+
+    Returns:
+        CustomEvaluationDetail: Detail of the custom evaluation
+    """
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
+        CustomEvaluationDB.id, ObjectId(id)
+    )
+
+    # Get custom evaluation
+    custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
+    if not custom_eval:
+        raise HTTPException(status_code=404, detail="Custom evaluation not found")
+
+    return CustomEvaluationDetail(
+        id=str(custom_eval.id),
+        app_name=custom_eval.app_name,
+        python_code=custom_eval.python_code,
+        evaluation_name=custom_eval.evaluation_name,
+        created_at=custom_eval.created_at,
+        updated_at=custom_eval.updated_at,
+    )

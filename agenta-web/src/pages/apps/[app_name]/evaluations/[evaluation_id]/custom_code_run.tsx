@@ -16,10 +16,6 @@ export default function Evaluation() {
     const appName = router.query.app_name as unknown as string
     const columnsCount = 1
 
-    if (customEvaluationId === undefined) {
-        router.push(`/apps/${appName}/evaluations`)
-    }
-
     useEffect(() => {
         if (!evaluation) {
             return
@@ -55,7 +51,7 @@ export default function Evaluation() {
 
     return (
         <div className="evalautionContainer">
-            {evaluationTableId && evaluationScenarios && evaluation && (
+            {evaluationTableId && evaluationScenarios && evaluation && customEvaluationId && (
                 <CustomCodeRunEvaluationTable
                     columnsCount={columnsCount}
                     evaluationScenarios={evaluationScenarios}

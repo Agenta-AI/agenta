@@ -11,7 +11,7 @@ import {
     Select,
     message,
 } from "antd"
-import {DownOutlined} from "@ant-design/icons"
+import {DownOutlined, PlusOutlined} from "@ant-design/icons"
 import {
     createNewEvaluation,
     fetchVariants,
@@ -33,6 +33,7 @@ import similarity from "@/media/transparency.png"
 import regexIcon from "@/media/programming.png"
 import webhookIcon from "@/media/link.png"
 import ai from "@/media/artificial-intelligence.png"
+import codeIcon from "@/media/browser.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
@@ -81,6 +82,12 @@ const useStyles = createUseStyles({
         marginTop: 40,
         width: "100%",
     },
+    optionSelected: {
+        border: "1px solid #1668dc",
+        "& .ant-select-selection-item": {
+            color: "#1668dc !important",
+        },
+    },
     radioGroup: {
         width: "100%",
     },
@@ -91,6 +98,21 @@ const useStyles = createUseStyles({
     selectGroup: {
         width: "100%",
         display: "block",
+        "& .ant-select-selector": {
+            borderRadius: 0,
+        },
+        "& .ant-select-selection-item": {
+            marginLeft: 34,
+        },
+    },
+    customCodeSelectContainer: {
+        position: "relative",
+    },
+    customCodeIcon: {
+        position: "absolute",
+        left: 16,
+        top: 4.5,
+        pointerEvents: "none",
     },
     thresholdStyles: {
         paddingLeft: 10,
@@ -99,6 +121,12 @@ const useStyles = createUseStyles({
     variantDropdown: {
         marginRight: 10,
         width: "100%",
+    },
+    newCodeEval: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        color: "#1668dc",
     },
 })
 const {Title} = Typography
@@ -165,9 +193,10 @@ export default function Evaluations() {
                 try {
                     // Map the variants to an array of promises
                     const promises = variants.map((variant) =>
-                        getAllVariantParameters(appName, variant).then(({inputs}) => ({
+                        getAllVariantParameters(appName, variant).then((data) => ({
                             variantName: variant.variantName,
-                            inputs: inputs.map((inputParam: Parameter) => inputParam.name),
+                            inputs:
+                                data?.inputs.map((inputParam: Parameter) => inputParam.name) || [],
                         })),
                     )
 
@@ -355,6 +384,7 @@ export default function Evaluations() {
     const onChangeEvaluationType = (e: RadioChangeEvent) => {
         const evaluationType = e.target.value
         setSelectedEvaluationType(evaluationType)
+        setSelectedCustomEvaluationID("")
         let nbOfVariants = 1
         if (evaluationType === EvaluationType.human_a_b_testing) {
             nbOfVariants = 2
@@ -371,22 +401,20 @@ export default function Evaluations() {
     }
 
     useEffect(() => {
-        fetchCustomEvaluations(appName).then((res) => {
-            if (res.status === 200) {
-                setCustomCodeEvaluationList(res.data)
-            }
-        })
-        fetchCustomEvaluations(appName)
+        if (appName)
+            fetchCustomEvaluations(appName).then((res) => {
+                if (res.status === 200) {
+                    setCustomCodeEvaluationList(res.data)
+                }
+            })
     }, [appName])
 
-    const handleCustomEvaluationOptionChange = (e: string) => {
-        const splittedValues: Array<string> = e.split(":")
-        setSelectedCustomEvaluationID(splittedValues[0])
-        setSelectedEvaluationType(splittedValues[1])
-    }
-
-    const redirectToCreateCustomEvaluation = () => {
-        router.push(`/apps/${appName}/evaluations/create_custom_evaluation`)
+    const handleCustomEvaluationOptionChange = (id: string) => {
+        if (id === "new") {
+            router.push(`/apps/${appName}/evaluations/create_custom_evaluation`)
+        }
+        setSelectedCustomEvaluationID(id)
+        setSelectedEvaluationType(EvaluationType.custom_code_run)
     }
 
     return (
@@ -403,18 +431,13 @@ export default function Evaluations() {
                         <Radio.Group
                             onChange={(e) => onChangeEvaluationType(e)}
                             className={classes.radioGroup}
+                            value={selectedEvaluationType}
                         >
                             <Radio.Button
                                 value={EvaluationType.human_a_b_testing}
                                 className={classes.radioBtn}
                             >
                                 <div className={classes.evaluationType}>
-                                    <Image
-                                        src={abTesting}
-                                        alt="Picture of the author"
-                                        className={classes.evaluationImg}
-                                    />
-
                                     <span>
                                         {EvaluationTypeLabels[EvaluationType.human_a_b_testing]}
                                     </span>
@@ -504,17 +527,37 @@ export default function Evaluations() {
                                 </div>
                             </Radio.Button>
 
-                            <Select
-                                defaultValue={"Select Custom Evaluations"}
-                                className={classes.selectGroup}
-                                onChange={handleCustomEvaluationOptionChange}
-                                options={customCodeEvaluationList?.map(
-                                    (item: SingleCustomEvaluation) => ({
-                                        value: `${item.id}:${EvaluationType.custom_code_run}`,
-                                        label: `${item.evaluation_name}`,
-                                    }),
-                                )}
-                            />
+                            <div className={classes.customCodeSelectContainer}>
+                                <Select
+                                    className={`${classes.selectGroup} ${
+                                        selectedCustomEvaluationID ? classes.optionSelected : ""
+                                    }`}
+                                    value={selectedCustomEvaluationID || "Code Evaluation"}
+                                    onChange={handleCustomEvaluationOptionChange}
+                                    options={[
+                                        {
+                                            value: "new",
+                                            label: (
+                                                <div className={classes.newCodeEval}>
+                                                    <PlusOutlined />
+                                                    New code evaluation
+                                                </div>
+                                            ),
+                                        },
+                                        ...(customCodeEvaluationList || []).map(
+                                            (item: SingleCustomEvaluation) => ({
+                                                value: item.id,
+                                                label: `${item.evaluation_name}`,
+                                            }),
+                                        ),
+                                    ]}
+                                />
+                                <Image
+                                    src={codeIcon}
+                                    alt="Picture of the author"
+                                    className={`${classes.evaluationImg} ${classes.customCodeIcon}`}
+                                />
+                            </div>
                         </Radio.Group>
                     </Col>
                     <Col span={8}>
@@ -559,14 +602,6 @@ export default function Evaluations() {
 
                 <Row justify="end">
                     <Col span={8} className={classes.evaluationBtn}>
-                        <Button
-                            onClick={redirectToCreateCustomEvaluation}
-                            type="default"
-                            className={classes.createCustomEvalBtn}
-                        >
-                            Create custom evaluation
-                        </Button>
-
                         <Button onClick={onStartEvaluation} type="primary">
                             Start a new evaluation
                         </Button>

@@ -1,8 +1,21 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {LineChartOutlined} from "@ant-design/icons"
-import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, message} from "antd"
-import {Evaluation} from "@/lib/Types"
+import {CodeOutlined, LineChartOutlined} from "@ant-design/icons"
+import {
+    Button,
+    Card,
+    Col,
+    Input,
+    Modal,
+    Row,
+    Space,
+    Spin,
+    Statistic,
+    Table,
+    Typography,
+    message,
+} from "antd"
+import {CustomEvaluation, Evaluation} from "@/lib/Types"
 import {
     updateEvaluationScenario,
     callVariant,
@@ -12,12 +25,18 @@ import {
     loadTestset,
     updateEvaluationScenarioScore,
     fetchEvaluationScenarioResults,
+    fetchCustomEvaluationDetail,
 } from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import {exportCustomCodeEvaluationData} from "@/lib/helpers/evaluate"
+import CodeBlock from "../DynamicCodeBlock/CodeBlock"
+
+const {Title} = Typography
 
 interface CustomCodeEvaluationTableProps {
     evaluation: Evaluation
@@ -85,20 +104,10 @@ const useStyles = createUseStyles({
         fontSize: "14px",
     },
     card: {
-        marginTop: 16,
-        width: "100%",
-        border: "1px solid #ccc",
-        marginRight: "24px",
-        marginBottom: 30,
-        backgroundColor: "rgb(246 253 245)",
-        "& .ant-card-head": {
-            minHeight: 44,
-            padding: "0px 12px",
-        },
-        "& .ant-card-body": {
-            padding: "4px 16px",
-            border: "0px solid #ccc",
-        },
+        marginBottom: 20,
+    },
+    codeButton: {
+        marginBottom: 20,
     },
     cardTextarea: {
         height: 120,
@@ -132,6 +141,9 @@ const useStyles = createUseStyles({
             color: "#3f8600",
         },
     },
+    codeBlockContainer: {
+        marginTop: 24,
+    },
 })
 
 const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = ({
@@ -157,10 +169,21 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
     const [evaluationTestsets, setEvaluationTestsets] = useState([])
     const [listScenariosResult, setListScenariosResult] = useState<IScenarioScore[]>([])
+    const [customEvaluation, setCustomEvaluation] = useState<CustomEvaluation>()
+    const [modalOpen, setModalOpen] = useState(false)
+
+    useEffect(() => {
+        if (customEvaluationId && customEvaluation?.id !== customEvaluationId) {
+            fetchCustomEvaluationDetail(customEvaluationId)
+                .then(setCustomEvaluation)
+                .catch(console.error)
+        }
+    }, [customEvaluationId])
 
     useEffect(() => {
         if (evaluationScenarios) {
             setRows(evaluationScenarios)
+            Promise.all(evaluationScenarios.map((item) => retrieveScenarioScore(item.id!)))
         }
     }, [evaluationScenarios])
 
@@ -176,16 +199,6 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
         }
     }, [evaluationStatus, evaluation.id])
 
-    const handleInputChange = (
-        e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: number,
-        inputFieldKey: number,
-    ) => {
-        const newRows = [...rows]
-        newRows[rowIndex].inputs[inputFieldKey].input_value = e.target.value
-        setRows(newRows)
-    }
-
     useEffect(() => {
         const getTests = async () => {
             const data = await loadTestset(evaluation.testset._id)
@@ -196,6 +209,16 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
 
         getTests()
     }, [evaluation])
+
+    const handleInputChange = (
+        e: React.ChangeEvent<HTMLInputElement>,
+        rowIndex: number,
+        inputFieldKey: number,
+    ) => {
+        const newRows = [...rows]
+        newRows[rowIndex].inputs[inputFieldKey].input_value = e.target.value
+        setRows(newRows)
+    }
 
     const runAllEvaluations = async () => {
         try {
@@ -243,17 +266,21 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
         return filteredData?.correct_answer
     }
 
-    const retrieveScenarioScore = async (scenario_id: string) => {
-        if (listScenariosResult.length !== evaluationScenarios.length) {
-            const response: any = await fetchEvaluationScenarioResults(scenario_id)
-            if (response.status === 200) {
-                const responseData = response.data as IScenarioScore
-                if (listScenariosResult.length !== evaluationScenarios.length) {
-                    listScenariosResult.push(responseData)
-                    setListScenariosResult([...listScenariosResult])
-                }
-            }
+    const calcScenarioScore = (ix: number) => {
+        const item = rows[ix]
+
+        let score = +item.codeResult
+        if (!item.codeResult && item.outputs.length && listScenariosResult.length) {
+            score = +(listScenariosResult.find((res) => res.scenario_id === item.id)?.score || 0)
         }
+        if (isNaN(score)) score = 0
+
+        return score.toFixed(2)
+    }
+
+    const retrieveScenarioScore = async (scenario_id: string) => {
+        const response: any = await fetchEvaluationScenarioResults(scenario_id)
+        setListScenariosResult((prev) => [...prev, response.data as IScenarioScore])
     }
 
     const evaluate = async (rowNumber: number) => {
@@ -418,97 +445,78 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             key: "code_result",
             width: 200,
             align: "center" as "left" | "right" | "center",
-            render: (text: number, record: any, rowIndex: number) => {
-                // Retrieve the evaluation scenario score
-                retrieveScenarioScore(record.id)
-                if (text === undefined && record.outputs.length > 0) {
-                    return (
-                        <Spin
-                            spinning={
-                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED
-                                    ? true
-                                    : false
-                            }
-                        >
-                            <Space>
-                                {listScenariosResult &&
-                                    listScenariosResult.map(
-                                        (result: IScenarioScore, index: number) => {
-                                            if (record.id === result.scenario_id) {
-                                                return (
-                                                    <div key={index}>
-                                                        {parseFloat(result.score).toFixed(2)}
-                                                    </div>
-                                                )
-                                            }
-                                        },
-                                    )}
-                            </Space>
-                        </Spin>
-                    )
-                } else {
-                    return (
-                        <Spin
-                            spinning={
-                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED
-                                    ? true
-                                    : false
-                            }
-                        >
-                            <Space>
-                                <div>
-                                    {record.code_result !== "" && <div>{text?.toFixed(2)}</div>}
-                                </div>
-                            </Space>
-                        </Spin>
-                    )
-                }
+            render: (_: number, record: any, ix: number) => {
+                return (
+                    <Spin
+                        spinning={
+                            record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED
+                                ? true
+                                : false
+                        }
+                    >
+                        <Space>{calcScenarioScore(ix)}</Space>
+                    </Spin>
+                )
             },
         },
     ]
 
     return (
         <div>
-            <h1>Custom Code Evaluation</h1>
+            <Title level={2}>Custom Code Evaluation</Title>
             <div>
-                <Row align="middle" className={classes.row}>
+                <Row align="middle">
                     <Col span={12}>
-                        <Button
-                            type="primary"
-                            onClick={runAllEvaluations}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Run Evaluation
-                        </Button>
+                        <Space>
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                icon={<LineChartOutlined />}
+                                size="large"
+                            >
+                                Run Evaluation
+                            </Button>
+                            <SecondaryButton
+                                onClick={() =>
+                                    exportCustomCodeEvaluationData(
+                                        evaluation,
+                                        rows.map((item, ix) => ({
+                                            ...item,
+                                            score: calcScenarioScore(ix),
+                                        })),
+                                    )
+                                }
+                                disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
+                            >
+                                Export results
+                            </SecondaryButton>
+                        </Space>
+                    </Col>
+
+                    <Col span={12}>
+                        <Row justify="end">
+                            <Card bordered={true} className={classes.card}>
+                                <Statistic
+                                    title="Average Score:"
+                                    value={evaluationResults?.avg_score?.toFixed(2) as number}
+                                    precision={2}
+                                />
+                            </Card>
+                        </Row>
                     </Col>
                 </Row>
             </div>
-            <div className={classes.evaluationResult}>
-                <center>
-                    {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
-                        <div>Run evaluation to see average score!</div>
-                    )}
-                    {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
-                    {evaluationResults && evaluationResults.avg_score && (
-                        <div>
-                            <h3 className={classes.h3}>Average Score:</h3>
-                            <Row gutter={8} justify="center" className={classes.resultDataRow}>
-                                <Col key={"avg-score"} className={classes.resultDataCol}>
-                                    <Card bordered={false} className={classes.resultDataCard}>
-                                        <Statistic
-                                            className={classes.stat}
-                                            value={
-                                                evaluationResults.avg_score?.toFixed(2) as number
-                                            }
-                                        />
-                                    </Card>
-                                </Col>
-                            </Row>
-                        </div>
-                    )}
-                </center>
-            </div>
+
+            {customEvaluation?.python_code && (
+                <Button
+                    icon={<CodeOutlined />}
+                    className={classes.codeButton}
+                    onClick={() => setModalOpen(true)}
+                >
+                    Show Python Code
+                </Button>
+            )}
+
             <div>
                 <Table
                     dataSource={rows}
@@ -517,6 +525,18 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                     rowClassName={() => "editable-row"}
                 />
             </div>
+
+            <Modal
+                title="Custom Evaluation Code"
+                open={modalOpen}
+                footer={null}
+                onCancel={() => setModalOpen(false)}
+                width={700}
+            >
+                <div className={classes.codeBlockContainer}>
+                    <CodeBlock language={"python"} value={customEvaluation?.python_code!} />
+                </div>
+            </Modal>
         </div>
     )
 }

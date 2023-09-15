@@ -143,6 +143,7 @@ export interface ResultsTableDataType {
     scoresData?: any
     evaluationType: EvaluationType
     createdAt?: string
+    avgScore?: number
 }
 
 /**
@@ -194,3 +195,12 @@ export interface ISession {
 }
 export type GenericObject = Record<string, any>
 export type KeyValuePair = Record<string, string>
+
+export interface CustomEvaluation {
+    id: string
+    app_name: string
+    evaluation_name: string
+    python_code: string
+    created_at: string
+    updated_at: string
+}

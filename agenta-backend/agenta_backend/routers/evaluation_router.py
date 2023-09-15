@@ -12,6 +12,7 @@ from agenta_backend.models.api.evaluation_model import (
     Evaluation,
     EvaluationScenario,
     CustomEvaluationOutput,
+    CustomEvaluationDetail,
     EvaluationScenarioScoreUpdate,
     EvaluationScenarioUpdate,
     ExecuteCustomEvaluationCode,
@@ -34,6 +35,7 @@ from agenta_backend.services.results_service import (
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
     fetch_custom_evaluations,
+    fetch_custom_evaluation_detail,
     get_evaluation_scenario_score,
     update_evaluation_scenario,
     update_evaluation_scenario_score,
@@ -511,6 +513,31 @@ async def list_custom_evaluations(
     # Fetch custom evaluations from database
     evaluations = await fetch_custom_evaluations(app_name, **kwargs)
     return evaluations
+
+
+@router.get(
+    "/custom_evaluation/{id}",
+    response_model=CustomEvaluationDetail,
+)
+async def get_custom_evaluation(
+    id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Get the custom code evaluation detail.
+
+    Args:
+        id (str): the id of the custom evaluation
+
+    Returns:
+        CustomEvaluationDetail: Detail of the custom evaluation
+    """
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    # Fetch custom evaluations from database
+    evaluation = await fetch_custom_evaluation_detail(id, **kwargs)
+    return evaluation
 
 
 @router.post(
