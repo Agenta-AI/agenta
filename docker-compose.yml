@@ -1,9 +1,9 @@
 services:
     reverse-proxy:
         image: traefik:v2.10
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${SERVER_PORT}
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:$SERVER_PORT
         ports:
-            - "${SERVER_PORT}:${SERVER_PORT}"
+            - "$SERVER_PORT:$SERVER_PORT"
             - "8080:8080"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -65,6 +65,9 @@ services:
                 - https_proxy=$https_proxy
                 - HTTP_PROXY=$HTTP_PROXY
                 - HTTPS_PROXY=$HTTPS_PROXY
+        environment:
+            - SERVER_HOST=$SERVER_HOST
+            - SERVER_PORT=$SERVER_PORT
         volumes:
             - ./agenta-web/src:/app/src
             - ./agenta-web/public:/app/public
