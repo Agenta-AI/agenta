@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install only production dependencies
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 # Copy only necessary files
 COPY src ./src
