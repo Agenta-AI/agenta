@@ -1,14 +1,21 @@
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from odmantic import Field, Model, Reference, EmbeddedModel
 
+
+class InvitationDB(EmbeddedModel):
+    token: str = Field(unique=True)
+    email: str
+    expiration_date: datetime = Field(default="0")
+    used: bool = False
 
 class OrganizationDB(Model):
     name: str = Field(default="agenta")
     description: str = Field(default="")
     owner: "UserDB"
     members: Optional[List["UserDB"]]
+    invitations: Optional[List[InvitationDB]] = []
 
     class Config:
         collection = "organizations"
@@ -18,7 +25,7 @@ class UserDB(Model):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
-    organizations: Optional[List[ObjectId]] = []  # Initialize as an empty list
+    organizations: Optional[List[ObjectId]] = []
 
     class Config:
         collection = "users"
