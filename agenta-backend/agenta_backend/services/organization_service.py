@@ -73,7 +73,7 @@ def send_invitation_email(
         sg.send(message)
         return True
     except Exception as e:
-        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 async def accept_org_invitation(organization: Organization, user: User, token: str):
@@ -118,4 +118,4 @@ async def notify_org_admin_invitation(organization: Organization, user: User):
         sg.send(message)
         return True
     except Exception as e:
-        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
