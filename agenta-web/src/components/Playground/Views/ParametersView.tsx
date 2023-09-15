@@ -1,10 +1,11 @@
-import {useState} from "react"
-import React from "react"
 import {Parameter} from "@/lib/Types"
-import {Row, Col, Button, Tooltip, message, Space, Collapse} from "antd"
 import type {CollapseProps} from "antd"
-import {ModelParameters, StringParameters, ObjectParameters} from "./ParametersCards"
+import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
+import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
+import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
+import PublishVariantModal from "./PublichVariantModal"
+
 interface Props {
     variantName: string // The name of the variant
     optParams: Parameter[] | null // The optional parameters
@@ -57,6 +58,9 @@ const ParametersView: React.FC<Props> = ({
     const classes = useStyles()
     const [inputValue, setInputValue] = useState(1)
     const [messageApi, contextHolder] = message.useMessage()
+
+    const [isPublishModalOpen, setPublishModalOpen] = useState(false)
+
     const onChange = (param: Parameter, newValue: number | string) => {
         setInputValue(+newValue)
         handleParamChange(param.name, newValue)
@@ -89,6 +93,14 @@ const ParametersView: React.FC<Props> = ({
                         </Col>
                         <Col span={12} className={classes.col}>
                             <Space>
+                                <Button onClick={() => setPublishModalOpen(true)}>
+                                    <Tooltip
+                                        placement="bottom"
+                                        title="Publish the variant to different environments"
+                                    >
+                                        Publish
+                                    </Tooltip>
+                                </Button>
                                 <Button
                                     type="primary"
                                     onClick={async () => {
@@ -154,6 +166,11 @@ const ParametersView: React.FC<Props> = ({
                 onChange={onChangeCollapse}
                 className={classes.collapse}
                 collapsible="icon"
+            />
+            <PublishVariantModal
+                variantName={variantName}
+                isModalOpen={isPublishModalOpen}
+                setIsModalOpen={setPublishModalOpen}
             />
         </div>
     )

@@ -1,12 +1,11 @@
-import os
 import logging
-from bson import ObjectId
-from typing import Dict, List, Any
-
+import os
+from typing import Any, Dict, List
 
 from agenta_backend.models.api.api_models import (
     App,
     AppVariant,
+    Environment,
     Image,
     ImageExtended,
     Template,
@@ -16,18 +15,18 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
+from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppVariantDB,
+    EnvironmentDB,
     ImageDB,
+    OrganizationDB,
     TemplateDB,
     UserDB,
-    OrganizationDB,
 )
 from agenta_backend.services import helpers
-from agenta_backend.models.db_engine import DBEngine
-
+from bson import ObjectId
 from odmantic import query
-
 
 # Initialize database engine
 engine = DBEngine(mode="default").engine()
@@ -88,6 +87,18 @@ async def add_variant_based_on_image(
     )
     if already_exists:
         raise ValueError("App variant with the same name already exists")
+
+    is_new_app = not await does_app_exist(app_variant.app_name, **kwargs)
+    if is_new_app:
+        await create_environment(
+            name="development", app_name=app_variant.app_name, **kwargs
+        )
+        await create_environment(
+            name="staging", app_name=app_variant.app_name, **kwargs
+        )
+        await create_environment(
+            name="production", app_name=app_variant.app_name, **kwargs
+        )
 
     # Get user instance
     user_instance = await get_user_object(kwargs["uid"])
@@ -645,3 +656,76 @@ async def get_user_image_instance(user_id: str, docker_id: str) -> ImageDB:
     )
     image = await engine.find_one(ImageDB, query_expression)
     return image
+
+
+async def create_environment(name: str, app_name: str, **kwargs: dict):
+    """
+    Creates a new environment for the given app with the given name.
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    environment_db = EnvironmentDB(
+        name=name,
+        app_name=app_name,
+        user_id=user,
+    )
+    await engine.save(environment_db)
+
+
+async def list_environments(app_name: str, **kwargs: dict) -> List[Environment]:
+    """
+    Lists all the environments for the given app name from the DB
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    # Find the environments for the given app name and user
+    query_filters = query.eq(EnvironmentDB.app_name, app_name) & query.eq(
+        EnvironmentDB.user_id, user.id
+    )
+    environments_db: List[EnvironmentDB] = await engine.find(
+        EnvironmentDB, query_filters
+    )
+
+    return environments_db
+
+
+async def deploy_environment(
+    app_name: str, environment_name: str, variant_name: str, **kwargs: dict
+):
+    """
+    Deploys the given environment for the given app with the given variant.
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    # Find the environment for the given app name and user
+    query_filters = (
+        query.eq(EnvironmentDB.app_name, app_name)
+        & query.eq(EnvironmentDB.user_id, user.id)
+        & query.eq(EnvironmentDB.name, environment_name)
+    )
+    environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
+    if environment_db is None:
+        raise ValueError("Environment not found")
+    if environment_db.deployed_app_variant == variant_name:
+        raise ValueError("Environment already deployed with the given variant")
+
+    # Update the environment with the new variant name
+    environment_db.deployed_app_variant = variant_name
+    await engine.save(environment_db)
+
+
+async def does_app_exist(app_name: str, **kwargs: dict) -> bool:
+    """
+    Checks if a specific app exists in the database
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    query_expression = (
+        query.eq(AppVariantDB.user_id, user.id)
+        & query.eq(AppVariantDB.is_deleted, False)
+        & query.eq(AppVariantDB.app_name, app_name)
+    )
+
+    app: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
+
+    return app is not None
