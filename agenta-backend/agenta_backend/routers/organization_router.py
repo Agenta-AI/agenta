@@ -3,13 +3,6 @@ from bson import ObjectId
 from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from agenta_backend.services.organization_service import (
-    get_organization,
-    send_invitation_email,
-    accept_org_invitation,
-    check_user_org_access,
-    notify_org_admin_invitation,
-)
 from agenta_backend.services.db_manager import engine
 from agenta_backend.models.db_models import InvitationDB, UserDB
 from agenta_backend.utills.common import generate_invitation_token
@@ -24,6 +17,13 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
         verify_session,
     )
     from agenta_backend.ee.services.selectors import get_user_and_org_id
+    from agenta_backend.services.organization_service import (
+        get_organization,
+        send_invitation_email,
+        accept_org_invitation,
+        check_user_org_access,
+        notify_org_admin_invitation,
+    )
 else:
     from agenta_backend.services.auth_helper import (
         SessionContainer,
