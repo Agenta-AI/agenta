@@ -1,6 +1,7 @@
-from typing import Optional
 from datetime import datetime
+from typing import Optional, List
 from pydantic import BaseModel, Field
+from agenta_backend.models.api.user_models import User
 
 
 class TimestampModel(BaseModel):
@@ -11,8 +12,14 @@ class TimestampModel(BaseModel):
 class Organization(TimestampModel):
     name: str
     description: Optional[str]
+    owner: User
+    members: Optional[List]
+    invitations: Optional[List]
 
 
 class OrganizationUpdate(BaseModel):
     name: Optional[str]
     description: Optional[str]
+    owner: User
+    members: Optional[List]
+    invitations: Optional[List]
