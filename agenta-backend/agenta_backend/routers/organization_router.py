@@ -48,7 +48,8 @@ async def invite_to_org(
 
     try:
         organization_id, email_address = (
-            payload.organization_id, payload.email_address
+            payload.organization_id,
+            payload.email_address,
         )
 
         kwargs: dict = await get_user_and_org_id(stoken_session)
@@ -86,7 +87,8 @@ async def invite_to_org(
                 )
             else:
                 return JSONResponse(
-                    {"message": "Failed to invite user to organization"}, status_code=400
+                    {"message": "Failed to invite user to organization"},
+                    status_code=400,
                 )
 
         else:
@@ -111,9 +113,7 @@ async def add_user_to_org(
         )
 
     try:
-        organization_id, token = (
-            payload.organization_id, payload.token
-        )
+        organization_id, token = (payload.organization_id, payload.token)
 
         kwargs: dict = await get_user_and_org_id(stoken_session)
         organization_access = await check_user_org_access(
@@ -136,9 +136,7 @@ async def add_user_to_org(
                 )
             else:
                 return JSONResponse(
-                    {
-                        "message": "Invitation not found or has expired"
-                    },
+                    {"message": "Invitation not found or has expired"},
                     status_code=400,
                 )
         else:
