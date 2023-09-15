@@ -19,10 +19,10 @@ engine = DBEngine(mode="default").engine()
 sg = sendgrid.SendGridAPIClient(api_key=os.environ.get("SENDGRID_API_KEY"))
 
 
-async def check_user_org_access(kwargs: dict, organisation_id: ObjectId) -> bool:
-    user_organisations: List = kwargs["organization_ids"]
+async def check_user_org_access(kwargs: dict, organization_id: ObjectId) -> bool:
+    user_organizations = set(kwargs["organization_ids"])
 
-    if organisation_id not in user_organisations:
+    if organization_id not in user_organizations:
         return False
     else:
         return True
@@ -67,7 +67,7 @@ def send_invitation_email(
         html_content=f"<p>Hello,</p>"
         f"<p>{user.username} has invited you to join {organization.name} on Agenta. "
         f"Click the link below to accept the invitation:</p>"
-        f'<a href="https://demo.agenta.ai/organisations/accept?token={token}&org_id={organization.id}">Accept Invitation</a>',
+        f'<a href="https://demo.agenta.ai/organizations/accept?token={token}&org_id={organization.id}">Accept Invitation</a>',
     )
     try:
         sg.send(message)
