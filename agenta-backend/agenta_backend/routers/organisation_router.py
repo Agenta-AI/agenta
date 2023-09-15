@@ -37,9 +37,7 @@ router = APIRouter()
 
 @router.post("/add/{organization_id}/invite/")
 async def invite_to_org(
-    # payload: OrganizationInvite,
-    organization_id: str,
-    email_address: str,
+    payload: OrganizationInvite,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
@@ -49,8 +47,8 @@ async def invite_to_org(
         )
 
     try:
-        # organization_id: payload.organization_id
-        # email_address: payload.email_address
+        organization_id: payload.organization_id
+        email_address: payload.email_address
 
         kwargs: dict = await get_user_and_org_id(stoken_session)
         organisation_access = await check_user_org_access(
@@ -97,9 +95,7 @@ async def invite_to_org(
 
 @router.post("/accept/")
 async def add_user_to_org(
-    # payload: OrganizationToken,
-    organization_id: str,
-    token: str,
+    payload: OrganizationToken,
     background_tasks: BackgroundTasks,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
@@ -110,8 +106,8 @@ async def add_user_to_org(
         )
 
     try:
-        # organization_id: payload.organization_id
-        # token: payload.email_address
+        organization_id: payload.organization_id
+        token: payload.email_address
 
         kwargs: dict = await get_user_and_org_id(stoken_session)
         organisation_access = await check_user_org_access(
