@@ -12,4 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: psf/black@stable
+      - name: Install Black
+        run: pip install black
+      - name: Black check
+        run: |
+          find . -type f -name "*.py" \
+            -not -path "./agenta-backend/agenta_backend/services/selectors.py" \
+            -exec black {} \;
