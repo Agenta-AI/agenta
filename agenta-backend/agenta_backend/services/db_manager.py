@@ -309,11 +309,11 @@ async def list_apps(**kwargs: dict) -> List[App]:
             ),
         )
 
-        # Get AppVariantDB documents where the organisation matches one of the organizations the user belongs to and is not deleted
+        # Get AppVariantDB documents where the organization matches one of the organizations the user belongs to and is not deleted
         org_apps = await engine.find(
             AppVariantDB,
             query.and_(
-                query.in_(AppVariantDB.organisation, user_organizations),
+                query.in_(AppVariantDB.organization, user_organizations),
                 query.eq(AppVariantDB.is_deleted, False),
             ),
         )

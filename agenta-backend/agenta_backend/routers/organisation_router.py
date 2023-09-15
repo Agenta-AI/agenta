@@ -47,20 +47,21 @@ async def invite_to_org(
         )
 
     try:
-        organization_id: payload.organization_id
-        email_address: payload.email_address
+        organization_id, email_address = (
+            payload.organization_id, payload.email_address
+        )
 
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        organisation_access = await check_user_org_access(
+        organization_access = await check_user_org_access(
             kwargs, ObjectId(organization_id)
         )
 
-        if organisation_access:
+        if organization_access:
             organization = await get_organization((organization_id))
             user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
             if user.email == email_address:
                 return JSONResponse(
-                    {"message": "You cannot invite yourself to your own organisation"},
+                    {"message": "You cannot invite yourself to your own organization"},
                     status_code=400,
                 )
 
@@ -81,12 +82,16 @@ async def invite_to_org(
                 await engine.save(organization)
 
                 return JSONResponse(
-                    {"message": "Invited user to organisation"}, status_code=200
+                    {"message": "Invited user to organization"}, status_code=200
+                )
+            else:
+                return JSONResponse(
+                    {"message": "Failed to invited user to organization"}, status_code=400
                 )
 
         else:
             return JSONResponse(
-                {"message": "You do not have permission to access this organisation"},
+                {"message": "You do not have permission to access this organization"},
                 status_code=403,
             )
     except Exception as e:
@@ -99,45 +104,46 @@ async def add_user_to_org(
     background_tasks: BackgroundTasks,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+    if not (os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]):
         raise HTTPException(
             status_code=500,
             detail="This feature is not available in the Open Source version",
         )
 
     try:
-        organization_id: payload.organization_id
-        token: payload.email_address
+        organization_id, token = (
+            payload.organization_id, payload.token
+        )
 
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        organisation_access = await check_user_org_access(
+        organization_access = await check_user_org_access(
             kwargs, ObjectId(organization_id)
         )
 
-        if not organisation_access:
+        if not organization_access:
             organization = await get_organization(organization_id)
             user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
 
-            join_organisation = accept_org_invitation(user, organization, token)
+            join_organization = accept_org_invitation(user, organization, token)
 
-            if join_organisation:
+            if join_organization:
                 background_tasks.add_task(
                     notify_org_admin_invitation, organization, user
                 )
 
                 return JSONResponse(
-                    {"message": "Added user to organisation"}, status_code=200
+                    {"message": "Added user to organization"}, status_code=200
                 )
             else:
                 return JSONResponse(
                     {
-                        "message": "This invitation was not found, doesn't belong to this organization, or has expired"
+                        "message": "Invitation not found or has expired"
                     },
                     status_code=400,
                 )
         else:
             return JSONResponse(
-                {"message": "You already belong to this organisation"}, status_code=400
+                {"message": "You already belong to this organization"}, status_code=400
             )
     except Exception as e:
         raise HTTPException(

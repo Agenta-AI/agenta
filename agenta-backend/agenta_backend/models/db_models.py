@@ -52,7 +52,7 @@ class AppVariantDB(Model):
     user_id: UserDB = Reference(key_name="user")
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
-    organisation: Optional[OrganizationDB]
+    organization: Optional[OrganizationDB]
     is_deleted: bool = Field(
         default=False
     )  # soft deletion for using the template variants
@@ -104,7 +104,7 @@ class EvaluationDB(Model):
     app_name: str
     testset: Dict[str, str]
     user: UserDB = Reference(key_name="user")
-    organisation: Optional[OrganizationDB]
+    organization: Optional[OrganizationDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -120,7 +120,7 @@ class EvaluationScenarioDB(Model):
     evaluation: Optional[str]
     evaluation_id: str
     user: UserDB = Reference(key_name="user")
-    organisation: Optional[OrganizationDB]
+    organization: Optional[OrganizationDB]
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -134,7 +134,7 @@ class TestSetDB(Model):
     app_name: str
     csvdata: List[Dict[str, str]]
     user: UserDB = Reference(key_name="user")
-    organisation: Optional[OrganizationDB]
+    organization: Optional[OrganizationDB]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
