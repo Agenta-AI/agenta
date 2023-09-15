@@ -1,4 +1,3 @@
-# Contributing to agenta
 
 Hello, thank you for your interest in contributing to our project. We value your time and effort and hope to make this process as smooth as possible.
 
@@ -10,13 +9,26 @@ Hello, thank you for your interest in contributing to our project. We value your
 
 3. **Start Development** Once you have a local installation and a good understanding of the project, you can start contributing. You can read the following tutorial to learn how to run the code in development mode: [Development Mode Tutorial](https://docs.agenta.ai/contributing/development-mode).
 
+## Code Formatting and Linting
+
+For consistent and clean code, we enforce specific formatting and linting standards:
+
+- **Backend & CLI Formatting with Black:** We use `black` for code formatting in the directories:
+    - `agenta-backend/**`
+    - `agenta-cli/**`
+    - `examples/**`
+
+   To format, install `black` using `pip install black`, navigate to the desired directory, and run `black .`.
+
+- **Frontend Formatting with Prettier:** Our frontend adopts `prettier` for formatting. Within the `agenta-web` directory, run `npm run format-fix`. If you haven't installed `prettier`, use `npm install prettier`.
+
 ## Contribution Steps
 
-1. **Find an issue:** A good starting point for contributing is to find an existing issue and solve it. Browse our issue tracker, find something that suits your skills, and start coding!
+1. **Find an issue:** A good starting point for contributing is to find an existing issue and solve it. Browse our issue tracker, find something that suits your skills, and start coding! Please read through our guide to [Creating an issue](file-issue)
 
 2. **Fork & Pull Request:** We follow the standard fork & pull request process. Fork our repository, create a new branch, make your changes, and submit a pull request. Make sure your code follows our coding standards and include relevant unit tests.
 
-3. **Build a Larger Feature:** If you're interested in building a larger feature, we would love to hear from you! Reach out to me directly at opensource@agenta.ai or schedule a meeting using my [Calendly link](https://usemotion.com/meet/mahmoud-mabrouk-r0qp/collaborate?d=30).
+3. **Build a Larger Feature:** If you're interested in building a larger feature, we would love to hear from you! Reach out directly in Slack or schedule a meeting using this [Calendly link](https://usemotion.com/meet/mahmoud-mabrouk-r0qp/collaborate?d=30).
 
 
 Thank you for your interest in contributing to Agenta. We look forward to your pull requests!

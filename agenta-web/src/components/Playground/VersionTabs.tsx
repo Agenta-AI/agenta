@@ -192,7 +192,9 @@ const VersionTabs: React.FC = () => {
                     activeKey={activeKey}
                     onChange={setActiveKey}
                     onEdit={(targetKey, action) => {
-                        if (action === "remove") {
+                        if (action === "add") {
+                            setIsModalOpen(true)
+                        } else if (action === "remove") {
                             setRemovalVariantName(targetKey as string)
                             setRemovalWarningModalOpen1(true)
                         }
