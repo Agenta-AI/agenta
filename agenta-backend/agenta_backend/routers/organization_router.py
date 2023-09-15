@@ -86,7 +86,7 @@ async def invite_to_org(
                 )
             else:
                 return JSONResponse(
-                    {"message": "Failed to invited user to organization"}, status_code=400
+                    {"message": "Failed to invite user to organization"}, status_code=400
                 )
 
         else:
