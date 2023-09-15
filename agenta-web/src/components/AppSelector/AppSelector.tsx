@@ -1,33 +1,33 @@
-import {useState, useEffect} from "react"
-import {useRouter} from "next/router"
-import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/router"
+import { PlusOutlined } from "@ant-design/icons"
+import { Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider } from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject} from "@/lib/Types"
-import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {CloseCircleFilled} from "@ant-design/icons"
+import { Template, GenericObject } from "@/lib/Types"
+import { useAppTheme } from "../Layout/ThemeContextProvider"
+import { CloseCircleFilled } from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {createAndStartTemplate, fetchApps, getTemplates} from "@/lib/services/api"
+import { isAppNameInputValid } from "@/lib/helpers/utils"
+import { createAndStartTemplate, fetchApps, getTemplates } from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
-import {createUseStyles} from "react-jss"
-import {getErrorMessage} from "@/lib/helpers/errorHandler"
+import { createUseStyles } from "react-jss"
+import { getErrorMessage } from "@/lib/helpers/errorHandler"
 
 type StyleProps = {
     themeMode: "dark" | "light"
 }
 
 const useStyles = createUseStyles({
-    container: ({themeMode}: StyleProps) => ({
+    container: ({ themeMode }: StyleProps) => ({
         marginTop: 10,
         width: "100%",
         color: themeMode === "dark" ? "#fff" : "#000",
     }),
-    cardsList: ({themeMode}: StyleProps) => ({
+    cardsList: ({ themeMode }: StyleProps) => ({
         display: "flex",
         flexWrap: "wrap",
         gap: 12,
@@ -60,7 +60,7 @@ const useStyles = createUseStyles({
         fontSize: 20,
         color: "red",
     },
-    divider: ({themeMode}: StyleProps) => ({
+    divider: ({ themeMode }: StyleProps) => ({
         marginTop: 0,
         borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
     }),
@@ -86,8 +86,8 @@ const useStyles = createUseStyles({
 
 const AppSelector: React.FC = () => {
     const router = useRouter()
-    const {appTheme} = useAppTheme()
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const { appTheme } = useAppTheme()
+    const classes = useStyles({ themeMode: appTheme } as StyleProps)
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
@@ -274,7 +274,7 @@ const AppSelector: React.FC = () => {
         })
     }
 
-    const {data, error, isLoading} = fetchApps()
+    const { data, error, isLoading } = fetchApps()
     useEffect(() => {
         setTimeout(() => {
             if (data) {
@@ -319,7 +319,7 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo && data.length > 0) {
+                                            if (isDemo && data.length > 1) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()
