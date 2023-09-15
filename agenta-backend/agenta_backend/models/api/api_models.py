@@ -60,3 +60,13 @@ class CreateAppVariant(BaseModel):
     image_id: str
     image_tag: str
     env_vars: Dict[str, str]
+
+
+class OrganizationInvite(BaseModel):
+    organization_id: str
+    email_address: str
+
+
+class OrganizationToken(BaseModel):
+    organization_id: str
+    token: str
