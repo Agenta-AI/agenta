@@ -10,6 +10,7 @@ class InvitationDB(EmbeddedModel):
     expiration_date: datetime = Field(default="0")
     used: bool = False
 
+
 class OrganizationDB(Model):
     name: str = Field(default="agenta")
     description: str = Field(default="")
