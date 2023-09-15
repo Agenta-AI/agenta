@@ -48,11 +48,6 @@ const AppTemplateCard: React.FC<Props> = ({title, tag, onClick, body, noTemplate
     const classes = useStyles({tag} as StylesProp)
     return (
         <Card className={classes.card}>
-            {tag && (
-                <Tag color="blue" className={classes.tag}>
-                    {tag}
-                </Tag>
-            )}
             <Text strong className={classes.text1}>
                 {title}
             </Text>
