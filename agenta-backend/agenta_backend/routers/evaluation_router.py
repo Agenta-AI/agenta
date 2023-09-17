@@ -44,7 +44,7 @@ from agenta_backend.services.evaluation_service import (
     update_evaluation,
     create_new_evaluation,
     create_new_evaluation_scenario,
-    store_custom_code_evaluation,
+    create_custom_code_evaluation,
     execute_custom_code_evaluation,
 )
 from agenta_backend.services.db_manager import engine, query, get_user_object
@@ -463,12 +463,12 @@ async def fetch_results(
         return {"avg_score": results}
 
 
-@router.post("/custom_evaluation/create/")
-async def store_custom_evaluation(
+@router.post("/custom_evaluation/")
+async def create_custom_evaluation(
     custom_evaluation_payload: StoreCustomEvaluation,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Store evaluation with custom python code.
+    """Create evaluation with custom python code.
 
     Args:
         \n custom_evaluation_payload (StoreCustomEvaluation): the required payload
@@ -477,8 +477,8 @@ async def store_custom_evaluation(
     # Get user and organization id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
-    # Store custom evaluation in database
-    evaluation_id = await store_custom_code_evaluation(
+    # create custom evaluation in database
+    evaluation_id = await create_custom_code_evaluation(
         custom_evaluation_payload, **kwargs
     )
 
@@ -543,7 +543,8 @@ async def get_custom_evaluation(
 
 
 @router.get(
-    "/custom_evaluation/{app_name}/names/", response_model=List[CustomEvaluationNames]
+    "/custom_evaluation/{app_name}/names/",
+    response_model=List[CustomEvaluationNames],
 )
 async def get_custom_evaluation_names(
     app_name: str, stoken_session: SessionContainer = Depends(verify_session())

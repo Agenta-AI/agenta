@@ -483,7 +483,7 @@ def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     return correct_answer
 
 
-async def store_custom_code_evaluation(
+async def create_custom_code_evaluation(
     payload: StoreCustomEvaluation, **kwargs: dict
 ) -> str:
     """Save the custom evaluation code in the database.
