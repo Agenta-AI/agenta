@@ -474,6 +474,14 @@ export const fetchCustomEvaluationDetail = async (
     return response.data
 }
 
+export const fetchCustomEvaluationNames = async (app_name: string, ignoreAxiosError: boolean = false) => {
+    const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${app_name}/names`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
 export const executeCustomEvaluationCode = async (
     payload: ExecuteCustomEvalCode,
     ignoreAxiosError: boolean = false,

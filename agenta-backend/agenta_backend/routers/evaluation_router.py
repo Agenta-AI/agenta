@@ -9,6 +9,7 @@ from fastapi import HTTPException, APIRouter, Body, Depends
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (
+    CustomEvaluationNames,
     Evaluation,
     EvaluationScenario,
     CustomEvaluationOutput,
@@ -34,6 +35,7 @@ from agenta_backend.services.results_service import (
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
+    fetch_custom_evaluation_names,
     fetch_custom_evaluations,
     fetch_custom_evaluation_detail,
     get_evaluation_scenario_score,
@@ -538,6 +540,27 @@ async def get_custom_evaluation(
     # Fetch custom evaluations from database
     evaluation = await fetch_custom_evaluation_detail(id, **kwargs)
     return evaluation
+
+
+@router.get(
+    "/custom_evaluation/{app_name}/names/", response_model=List[CustomEvaluationNames]
+)
+async def get_custom_evaluation_names(
+    app_name: str, stoken_session: SessionContainer = Depends(verify_session())
+):
+    """Get the names of custom evaluation for a given app.
+
+    Args:
+        app_name (str): the name of the app the evaluation belongs to
+
+    Returns:
+        List[CustomEvaluationNames]: the list of name of custom evaluations
+    """
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    custom_eval_names = await fetch_custom_evaluation_names(app_name, **kwargs)
+    return custom_eval_names
 
 
 @router.post(
