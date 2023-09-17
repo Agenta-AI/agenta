@@ -13,7 +13,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationType,
     NewEvaluation,
     EvaluationScenarioUpdate,
-    StoreCustomEvaluation,
+    CreateCustomEvaluation,
     EvaluationUpdate,
 )
 from agenta_backend.services.security.sandbox import execute_code_safely
@@ -484,12 +484,12 @@ def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
 
 
 async def create_custom_code_evaluation(
-    payload: StoreCustomEvaluation, **kwargs: dict
+    payload: CreateCustomEvaluation, **kwargs: dict
 ) -> str:
     """Save the custom evaluation code in the database.
 
     Args:
-        payload (StoreCustomEvaluation): the required payload
+        payload (CreateCustomEvaluation): the required payload
 
     Returns:
         str: the custom evaluation id

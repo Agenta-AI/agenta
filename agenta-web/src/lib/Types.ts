@@ -62,13 +62,13 @@ export interface Evaluation {
     appName: string
 }
 
-export interface StoreCustomEvaluation {
+export interface CreateCustomEvaluation {
     evaluation_name: string
     python_code: string
     app_name: string
 }
 
-export interface StoreCustomEvaluationSuccessResponse {
+export interface CreateCustomEvaluationSuccessResponse {
     status: string
     message: string
     evaluation_id: string

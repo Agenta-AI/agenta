@@ -102,7 +102,7 @@ class DeleteEvaluation(BaseModel):
     evaluations_ids: List[str]
 
 
-class StoreCustomEvaluation(BaseModel):
+class CreateCustomEvaluation(BaseModel):
     evaluation_name: str
     python_code: str
     app_name: str

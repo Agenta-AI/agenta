@@ -20,7 +20,7 @@ from agenta_backend.models.api.evaluation_model import (
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
-    StoreCustomEvaluation,
+    CreateCustomEvaluation,
     EvaluationUpdate,
     EvaluationWebhook,
 )
@@ -465,13 +465,13 @@ async def fetch_results(
 
 @router.post("/custom_evaluation/")
 async def create_custom_evaluation(
-    custom_evaluation_payload: StoreCustomEvaluation,
+    custom_evaluation_payload: CreateCustomEvaluation,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Create evaluation with custom python code.
 
     Args:
-        \n custom_evaluation_payload (StoreCustomEvaluation): the required payload
+        \n custom_evaluation_payload (CreateCustomEvaluation): the required payload
     """
 
     # Get user and organization id
@@ -485,7 +485,7 @@ async def create_custom_evaluation(
     return JSONResponse(
         {
             "status": "success",
-            "message": "Evaluation stored successfully.",
+            "message": "Evaluation created successfully.",
             "evaluation_id": evaluation_id,
         },
         status_code=200,

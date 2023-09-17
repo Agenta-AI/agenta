@@ -11,7 +11,7 @@ import {
     TemplateImage,
     RestartVariantDocker,
     RestartVariantDockerResponse,
-    StoreCustomEvaluation,
+    CreateCustomEvaluation,
     ExecuteCustomEvalCode,
 } from "@/lib/Types"
 import {
@@ -441,7 +441,7 @@ export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: str
 }
 
 export const saveCustomCodeEvaluation = async (
-    payload: StoreCustomEvaluation,
+    payload: CreateCustomEvaluation,
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
