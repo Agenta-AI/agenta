@@ -5,6 +5,7 @@ from typing import Dict, List, Any
 from fastapi import HTTPException
 
 from agenta_backend.models.api.evaluation_model import (
+    CustomEvaluationNames,
     Evaluation,
     EvaluationScenario,
     CustomEvaluationOutput,
@@ -644,3 +645,37 @@ async def fetch_custom_evaluation_detail(
         created_at=custom_eval.created_at,
         updated_at=custom_eval.updated_at,
     )
+
+
+async def fetch_custom_evaluation_names(
+    app_name: str, **kwargs: dict
+) -> List[CustomEvaluationNames]:
+    """Fetch the names of custom evaluation from the database.
+
+    Args:
+        id (str): the name of the app the evaluation belongs to
+
+    Returns:
+        List[CustomEvaluationNames]: the list of name of custom evaluations
+    """
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
+        CustomEvaluationDB.app_name, app_name
+    )
+
+    # Get custom evaluation
+    custom_evals = await engine.find(CustomEvaluationDB, query_expression)
+
+    list_of_custom_eval_names = []
+    for custom_eval in custom_evals:
+        list_of_custom_eval_names.append(
+            CustomEvaluationNames(
+                id=str(custom_eval.id),
+                evaluation_name=custom_eval.evaluation_name,
+            )
+        )
+    return list_of_custom_eval_names
