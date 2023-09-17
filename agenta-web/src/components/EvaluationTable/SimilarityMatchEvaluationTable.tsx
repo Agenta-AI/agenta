@@ -130,7 +130,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [settings, setSettings] = useState(evaluation.evaluationTypeSettings)
     const [loading, setLoading] = useState<boolean[]>([])
     const [form] = Form.useForm()
-
     const {Text} = Typography
 
     useEffect(() => {
@@ -384,7 +383,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         <div>
             <Title level={2}>
                 Similarity match Evaluation (Threshold:{" "}
-                {evaluation.evaluationTypeSettings.similarityThreshold})
+                {settings.similarityThreshold})
             </Title>
             <div className={classes.div}>
                 <Text>
