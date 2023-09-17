@@ -124,6 +124,11 @@ class CustomEvaluationDetail(BaseModel):
     updated_at: datetime
 
 
+class CustomEvaluationNames(BaseModel):
+    id: str
+    evaluation_name: str
+
+
 class ExecuteCustomEvaluationCode(BaseModel):
     inputs: List[Dict[str, Any]]
     app_name: str
