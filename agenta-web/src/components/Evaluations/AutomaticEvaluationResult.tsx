@@ -1,5 +1,5 @@
 import {deleteEvaluations, fetchData} from "@/lib/services/api"
-import {Button, Collapse, Statistic, Table, Typography} from "antd"
+import {Button, Collapse, Result, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
@@ -31,6 +31,8 @@ interface EvaluationListTableDataType {
         }
         variant: any[]
     }
+    avgScore: number
+    custom_code_eval_id: string
     resultsData: {[key: string]: number}
     createdAt: string
 }
@@ -74,7 +76,7 @@ export default function AutomaticEvaluationResult() {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
+    const [selectionType] = useState<"checkbox" | "radio">("checkbox")
     const [deletingLoading, setDeletingLoading] = useState<boolean>(true)
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -102,6 +104,7 @@ export default function AutomaticEvaluationResult() {
                                             EvaluationType.auto_similarity_match,
                                             EvaluationType.auto_regex_test,
                                             EvaluationType.auto_ai_critique,
+                                            EvaluationType.custom_code_run,
                                             EvaluationType.auto_webhook_test,
                                         ].includes(item.evaluation_type as EvaluationType)
                                     ) {
@@ -113,7 +116,9 @@ export default function AutomaticEvaluationResult() {
                                             evaluationType: item.evaluation_type,
                                             status: item.status,
                                             testset: item.testset,
+                                            custom_code_eval_id: item.custom_code_evaluation_id,
                                             resultsData: results.results_data,
+                                            avgScore: results.avg_score,
                                         }
                                     }
                                 })
@@ -126,7 +131,8 @@ export default function AutomaticEvaluationResult() {
                                     .filter(
                                         (item) =>
                                             item.resultsData !== undefined ||
-                                            !(Object.keys(item.scoresData).length === 0),
+                                            !(Object.keys(item.scoresData || {}).length === 0) ||
+                                            item.avgScore !== undefined,
                                     )
                                 setEvaluationsList(validEvaluations)
                                 setDeletingLoading(false)
@@ -157,6 +163,10 @@ export default function AutomaticEvaluationResult() {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_webhook_test`)
         } else if (evaluationType === EvaluationType.auto_ai_critique) {
             router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_ai_critique`)
+        } else if (evaluationType === EvaluationType.custom_code_run) {
+            router.push(
+                `/apps/${app_name}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_eval_id}`,
+            )
         }
     }
 
@@ -197,6 +207,7 @@ export default function AutomaticEvaluationResult() {
             dataIndex: "averageScore",
             key: "averageScore",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
+                let score = 0
                 if (record.scoresData) {
                     let correctScore = 0
 
@@ -207,29 +218,22 @@ export default function AutomaticEvaluationResult() {
                         correctScore = record.scoresData.scores.true
                     }
 
-                    let scoresAverage = (correctScore / record.scoresData.nb_of_rows) * 100
-                    return (
-                        <span>
-                            <Statistic
-                                className={classes.stat}
-                                value={scoresAverage}
-                                precision={scoresAverage <= 99 ? 2 : 1}
-                                suffix="%"
-                            />
-                        </span>
-                    )
+                    score = (correctScore / record.scoresData.nb_of_rows) * 100
+                } else if (record.resultsData) {
+                    score =
+                        calculateResultsDataAvg(record.resultsData) *
+                        (record.evaluationType === EvaluationType.auto_webhook_test ? 100 : 10)
+                    score = isNaN(score) ? 0 : score
+                } else if (record.avgScore) {
+                    score = record.avgScore
                 }
-
-                const percentage =
-                    calculateResultsDataAvg(record.resultsData) *
-                    (record.evaluationType === EvaluationType.auto_webhook_test ? 100 : 10)
 
                 return (
                     <span>
                         <Statistic
                             className={classes.stat}
-                            value={percentage}
-                            precision={percentage <= 99 ? 2 : 1}
+                            value={score}
+                            precision={score <= 99 ? 2 : 1}
                             suffix="%"
                         />
                     </span>
@@ -309,7 +313,6 @@ export default function AutomaticEvaluationResult() {
                         }}
                         columns={columns}
                         dataSource={evaluationsList}
-                        // loading={loading}
                     />
                 </div>
             ),
