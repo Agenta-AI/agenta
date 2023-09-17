@@ -1,7 +1,7 @@
 import React, {useState, useEffect} from "react"
 import {useRouter} from "next/router"
 import {Input, Form, Button, Row, Col, Typography, notification} from "antd"
-import {StoreCustomEvaluationSuccessResponse} from "@/lib/Types"
+import {CreateCustomEvaluationSuccessResponse} from "@/lib/Types"
 import {saveCustomCodeEvaluation, fetchCustomEvaluationNames} from "@/lib/services/api"
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import CopyButton from "../CopyButton/CopyButton"
@@ -54,7 +54,7 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTh
         }
         const response = await saveCustomCodeEvaluation(data)
         if (response.status === 200) {
-            const data: StoreCustomEvaluationSuccessResponse = response.data
+            const data: CreateCustomEvaluationSuccessResponse = response.data
 
             // Disable submitting form data
             setSubmittingData(false)
