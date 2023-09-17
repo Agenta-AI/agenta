@@ -5,10 +5,7 @@ import {StoreCustomEvaluationSuccessResponse} from "@/lib/Types"
 import {saveCustomCodeEvaluation} from "@/lib/services/api"
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import CopyButton from "../CopyButton/CopyButton"
-import AceEditor from "react-ace"
-import "ace-builds/src-noconflict/mode-python"
-import "ace-builds/src-noconflict/theme-github"
-import "ace-builds/src-noconflict/theme-monokai"
+import Editor from "@monaco-editor/react"
 
 interface ICustomPythonProps {
     classes: any
@@ -78,9 +75,9 @@ def evaluate(
 
     const switchEditorThemeBasedOnTheme = () => {
         if (appTheme == "light") {
-            return "github"
+            return "vs-light"
         } else if (appTheme == "dark") {
-            return "monokai"
+            return "vs-dark"
         }
     }
 
@@ -127,6 +124,7 @@ def evaluate(
                                     <li>A target or correct answer</li>
                                 </ul>
                             </span>
+                            <h4><b>NOTE:</b> The function name of your code evaluation must be "evaluate".</h4>
                         </div>
                     </Col>
                     <Col span={12}>
@@ -134,25 +132,13 @@ def evaluate(
                             name="pythonCode"
                             rules={[{required: true, message: "Please input python code!"}]}
                         >
-                            <AceEditor
-                                mode="python"
-                                theme={switchEditorThemeBasedOnTheme()}
-                                name="pythonCodeEditor"
-                                editorProps={{$blockScrolling: true}}
-                                width="100%"
+                            <Editor
                                 height="600px"
-                                fontSize={16}
-                                showPrintMargin={false}
+                                width="100%"
+                                language="python"
+                                theme={switchEditorThemeBasedOnTheme()}
                                 value={form.getFieldValue("pythonCode")}
                                 onChange={(code) => form.setFieldsValue({pythonCode: code})}
-                                placeholder="Start coding..."
-                                setOptions={{
-                                    enableBasicAutocompletion: true,
-                                    enableLiveAutocompletion: false,
-                                    enableSnippets: false,
-                                    showLineNumbers: true,
-                                    tabSize: 2,
-                                }}
                             />
                         </Form.Item>
                     </Col>
