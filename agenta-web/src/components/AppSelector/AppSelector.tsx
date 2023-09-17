@@ -367,7 +367,7 @@ const AppSelector: React.FC = () => {
                 }}
             />
             <Modal
-                title="Input app name"
+                title="Enter the app name"
                 open={isInputTemplateModalOpen}
                 onCancel={handleInputTemplateModalCancel}
                 width={500}
