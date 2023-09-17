@@ -382,8 +382,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     return (
         <div>
             <Title level={2}>
-                Similarity match Evaluation (Threshold:{" "}
-                {settings.similarityThreshold})
+                Similarity match Evaluation (Threshold: {settings.similarityThreshold})
             </Title>
             <div className={classes.div}>
                 <Text>
