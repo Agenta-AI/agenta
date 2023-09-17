@@ -1,8 +1,8 @@
-import React, {useState} from "react"
+import React, {useState, useEffect} from "react"
 import {useRouter} from "next/router"
 import {Input, Form, Button, Row, Col, Typography, notification} from "antd"
 import {StoreCustomEvaluationSuccessResponse} from "@/lib/Types"
-import {saveCustomCodeEvaluation} from "@/lib/services/api"
+import {saveCustomCodeEvaluation, fetchCustomEvaluationNames} from "@/lib/services/api"
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import CopyButton from "../CopyButton/CopyButton"
 import Editor from "@monaco-editor/react"
@@ -13,12 +13,19 @@ interface ICustomPythonProps {
     appTheme: string
 }
 
+interface ICustomEvalNames {
+    id: string
+    evaluation_name: string
+}
+
 const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTheme}) => {
     const {Title} = Typography
     const [form] = Form.useForm()
     const router = useRouter()
 
     const [submitting, setSubmittingData] = useState(false)
+    const [evalNames, setEvalNames] = useState<ICustomEvalNames[]>([])
+    const [evalNameExist, setEvalNameExist] = useState<boolean>(false)
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -26,6 +33,17 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTh
         prevKey = (config.key || "") as string
         notification.open(config)
     }
+
+    useEffect(() => {
+        const evaluationNames = async () => {
+            const response: any = await fetchCustomEvaluationNames(appName)
+            if (response.status === 200) {
+                setEvalNames(response.data)
+            }
+        }
+
+        evaluationNames()
+    }, [appName])
 
     const handlerToSubmitFormData = async (values: any) => {
         setSubmittingData(true)
@@ -55,6 +73,7 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTh
 
     const isSaveButtonDisabled = () => {
         return (
+            evalNameExist ||
             !form.isFieldsTouched(true) ||
             form.getFieldsError().filter(({errors}) => errors.length).length > 0
         )
@@ -81,6 +100,21 @@ def evaluate(
         }
     }
 
+    const checkForEvaluationName = async () => {
+        const evalName = form.getFieldValue("evaluationName")
+        if (evalNames.map((e) => e.evaluation_name).includes(evalName)) {
+            showNotification({
+                type: "error",
+                message: "Custom Evaluation",
+                duration: 5,
+                description: "Evaluation name already exist. ",
+            })
+            setEvalNameExist(true)
+        } else {
+            setEvalNameExist(false)
+        }
+    }
+
     return (
         <div className={classes.evaluationContainer}>
             <Title level={4} className={classes.customTitle}>
@@ -94,7 +128,11 @@ def evaluate(
                             name="evaluationName"
                             rules={[{required: true, message: "Please enter evaluation name!"}]}
                         >
-                            <Input disabled={submitting} placeholder="Input name of evaluation" />
+                            <Input
+                                disabled={submitting}
+                                onChange={checkForEvaluationName}
+                                placeholder="Input name of evaluation"
+                            />
                         </Form.Item>
                         <div className={classes.exampleContainer}>
                             <h4>
@@ -124,7 +162,10 @@ def evaluate(
                                     <li>A target or correct answer</li>
                                 </ul>
                             </span>
-                            <h4><b>NOTE:</b> The function name of your code evaluation must be "evaluate".</h4>
+                            <h4>
+                                <b>NOTE:</b> The function name of your code evaluation must be
+                                "evaluate".
+                            </h4>
                         </div>
                     </Col>
                     <Col span={12}>

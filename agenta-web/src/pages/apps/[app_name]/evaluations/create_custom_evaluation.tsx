@@ -33,6 +33,10 @@ const useStyles = createUseStyles({
     copyBtn: {
         marginLeft: "15px",
     },
+    modalError: {
+        color: "red",
+        marginLeft: "0px",
+    },
 })
 
 export default function CreateCustomEvaluation() {
