@@ -12,7 +12,8 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioUpdate,
     EvaluationUpdate,
 )
-from agenta_backend.services.db_manager import engine, query, get_user_object
+from agenta_backend.utills.common import engine
+from agenta_backend.services.db_manager import query, get_user_object
 from agenta_backend.models.db_models import (
     EvaluationDB,
     EvaluationScenarioDB,
