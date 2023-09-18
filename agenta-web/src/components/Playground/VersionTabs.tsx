@@ -10,6 +10,9 @@ import {fetchVariants, removeVariant} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem} from "@/lib/Types"
 
 import {SyncOutlined} from "@ant-design/icons"
+import useStateCallback from "@/hooks/useStateCallback"
+import useBlockNavigation from "@/hooks/useBlockNavigation"
+import {useVariants} from "@/lib/hooks/useVariant"
 
 function addTab(
     setActiveKey: any,
@@ -86,6 +89,32 @@ const VersionTabs: React.FC = () => {
     const [isDeleteLoading, setIsDeleteLoading] = useState(false)
     const [messageApi, contextHolder] = message.useMessage()
     const [isChanged, setIsChanged] = useState(false)
+    const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
+    const variantData = useVariants(appName, variants)
+
+    useBlockNavigation(unSavedChanges, {
+        title: "Unsaved changes",
+        message:
+            "You have unsaved changes in your playground. Do you want to save these changes before leaving the page?",
+        okText: "Save",
+        onOk: async () => {
+            for (let i in variantData) {
+                await variantData[i].saveOptParams(
+                    variantData[i].optParams!,
+                    true,
+                    variants[i].persistent,
+                )
+                return !!variantData[i].optParams
+            }
+        },
+        cancelText: "Proceed without saving",
+    })
+
+    useEffect(() => {
+        if (isChanged) {
+            setUnSavedChanges(true)
+        }
+    }, [variantData])
 
     const fetchData = async () => {
         try {
@@ -168,6 +197,7 @@ const VersionTabs: React.FC = () => {
                 isDeleteLoading={isDeleteLoading && removalVariantName === variant.variantName}
                 isChanged={isChanged}
                 setIsChanged={setIsChanged}
+                setUnSavedChanges={setUnSavedChanges}
             />
         ),
         closable: !variant.persistent,

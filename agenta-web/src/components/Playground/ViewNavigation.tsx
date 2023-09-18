@@ -1,4 +1,4 @@
-import React, {useEffect} from "react"
+import React, {Dispatch} from "react"
 import {Col, Row, Divider, Button, Tooltip, Spin, notification} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
@@ -6,8 +6,6 @@ import {useVariant} from "@/lib/hooks/useVariant"
 import {RestartVariantDocker, Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
-import useBlockNavigation from "@/hooks/useBlockNavigation"
-import useStateCallback from "@/hooks/useStateCallback"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
 import {getAppContainerURL, restartAppVariantContainer, waitForAppToStart} from "@/lib/services/api"
@@ -20,6 +18,7 @@ interface Props {
     isDeleteLoading: boolean
     isChanged: boolean
     setIsChanged: React.Dispatch<React.SetStateAction<boolean>>
+    setUnSavedChanges: Dispatch<React.SetStateAction<boolean>>
 }
 
 const useStyles = createUseStyles({
@@ -37,8 +36,8 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalVariantName,
     setRemovalWarningModalOpen,
     isDeleteLoading,
-    isChanged,
     setIsChanged,
+    setUnSavedChanges,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -53,26 +52,6 @@ const ViewNavigation: React.FC<Props> = ({
         saveOptParams,
         isLoading,
     } = useVariant(appName, variant)
-
-    const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
-
-    useBlockNavigation(unSavedChanges, {
-        title: "Unsaved changes",
-        message:
-            "You have unsaved changes in your playground. Do you want to save these changes before leaving the page?",
-        okText: "Save",
-        onOk: async () => {
-            await saveOptParams(optParams!, true, variant.persistent)
-            return !!optParams
-        },
-        cancelText: "Proceed without saving",
-    })
-
-    useEffect(() => {
-        if (isChanged) {
-            setUnSavedChanges(true)
-        }
-    }, [optParams])
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURIPath, setContainerURIPath] = useState("")
