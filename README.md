@@ -221,7 +221,7 @@ Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-s
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-21-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-22-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -257,6 +257,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/kangsuhyun-yanolja"><img src="https://avatars.githubusercontent.com/u/124246127?v=4?s=100" width="100px;" alt="Kang Suhuyn"/><br /><sub><b>Kang Suhuyn</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=kangsuhyun-yanolja" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/yeokyeong-yanolja"><img src="https://avatars.githubusercontent.com/u/128676129?v=4?s=100" width="100px;" alt="Yoon"/><br /><sub><b>Yoon</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=yeokyeong-yanolja" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://mrkirthi24.netlify.app/"><img src="https://avatars.githubusercontent.com/u/53830546?v=4?s=100" width="100px;" alt="Kirthi Bagrecha Jain"/><br /><sub><b>Kirthi Bagrecha Jain</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=mrkirthi-24" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/navdeep1840"><img src="https://avatars.githubusercontent.com/u/80774259?v=4?s=100" width="100px;" alt="Navdeep"/><br /><sub><b>Navdeep</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=navdeep1840" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
