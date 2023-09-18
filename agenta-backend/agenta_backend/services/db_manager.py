@@ -697,6 +697,13 @@ async def deploy_environment(
     """
     user = await get_user_object(kwargs["uid"])
 
+    # Check whether the app variant exists first
+    app_variant = await get_app_variant_by_app_name_and_variant_name(
+        app_name, variant_name, **kwargs
+    )
+    if app_variant is None:
+        raise ValueError("App variant not found")
+
     # Find the environment for the given app name and user
     query_filters = (
         query.eq(EnvironmentDB.app_name, app_name)

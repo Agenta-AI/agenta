@@ -11,6 +11,7 @@ import {
     TemplateImage,
     RestartVariantDocker,
     RestartVariantDockerResponse,
+    Environment,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
@@ -556,4 +557,21 @@ export const createAndStartTemplate = async ({
     } catch (error) {
         onStatusChange?.("error", error)
     }
+}
+
+export const fetchEnvironments = async (appName: string): Promise<Environment[]> => {
+    const response: Environment[] = await fetchData(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/environments/?app_name=${appName}`,
+    )
+    return response
+}
+
+export const publishVariant = async (
+    appName: string,
+    variantName: string,
+    environmentName: string,
+) => {
+    await axios.post(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/environments/deploy/?app_name=${appName}&variant_name=${variantName}&environment_name=${environmentName}`,
+    )
 }
