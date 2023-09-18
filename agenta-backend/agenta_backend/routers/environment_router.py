@@ -33,20 +33,26 @@ async def list_environments(
 
 
 @router.post("/deploy/")
-async def deploy_environment(
+async def deploy_to_environment(
     environment_name: str,
     app_name: str,
     variant_name: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    print("deploying environment")
-    print(environment_name, app_name, variant_name)
-    """
-    Deploys the given environment for the given app with the given variant.
+    """Deploys a given variant to an environment.
+
+    Args:
+        environment_name: Name of the environment to deploy to.
+        app_name: Name of the app to deploy.
+        variant_name: Name of the variant to deploy.
+        stoken_session: . Defaults to Depends(verify_session()).
+
+    Raises:
+        HTTPException: If the deployment fails.
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        await db_manager.deploy_environment(
+        await db_manager.deploy_to_environment(
             app_name, environment_name, variant_name, **kwargs
         )
     except Exception as e:
