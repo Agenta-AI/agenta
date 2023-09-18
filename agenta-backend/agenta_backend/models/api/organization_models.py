@@ -12,6 +12,7 @@ class TimestampModel(BaseModel):
 class Organization(TimestampModel):
     name: str
     description: Optional[str]
+    type: Optional[str]
     owner: User
     members: Optional[List]
     invitations: Optional[List]
