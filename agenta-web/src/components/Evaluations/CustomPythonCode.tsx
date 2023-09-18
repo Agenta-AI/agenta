@@ -122,7 +122,7 @@ def evaluate(
             </Title>
             <Form form={form} onFinish={handlerToSubmitFormData}>
                 <Row justify="start" gutter={24}>
-                    <Col span={12}>
+                    <Col span={8}>
                         <Form.Item
                             label="Evaluation Name"
                             name="evaluationName"
@@ -135,40 +135,25 @@ def evaluate(
                             />
                         </Form.Item>
                         <div className={classes.exampleContainer}>
-                            <h4>
-                                Example Evaluation Function:
-                                <CopyButton
-                                    text="Copy"
-                                    type="primary"
-                                    size="small"
-                                    target={pythonDefaultEvalCode()}
-                                    className={classes.copyBtn}
-                                />
-                            </h4>
-                            <CodeBlock
-                                key={"python" + appName}
-                                language={"python"}
-                                value={pythonDefaultEvalCode()}
-                            />
                             <h4 className={classes.levelFourHeading}>
-                                Evaluation Function Description:
+                                Writing the custom evaluation code:
                             </h4>
                             <span>
-                                The code must accept:
+                                The function name of your code evaluation must be "evaluate". and
+                                must accept the following parameters:
                                 <ul>
-                                    <li>The app variant parameters</li>
-                                    <li>A list of inputs</li>
-                                    <li>An output</li>
-                                    <li>A target or correct answer</li>
+                                    <li>
+                                        The variant parameters (prompt, etc..) as a Dict[str,str]
+                                    </li>
+                                    <li>A list of inputs as List[str]</li>
+                                    <li>The output of the LLM app as a string</li>
+                                    <li>A target or correct answer as a string</li>
                                 </ul>
+                                And return a float value indicating the score of the evaluation.
                             </span>
-                            <h4>
-                                <b>NOTE:</b> The function name of your code evaluation must be
-                                "evaluate".
-                            </h4>
                         </div>
                     </Col>
-                    <Col span={12}>
+                    <Col span={16}>
                         <Form.Item
                             name="pythonCode"
                             rules={[{required: true, message: "Please input python code!"}]}
@@ -180,6 +165,7 @@ def evaluate(
                                 theme={switchEditorThemeBasedOnTheme()}
                                 value={form.getFieldValue("pythonCode")}
                                 onChange={(code) => form.setFieldsValue({pythonCode: code})}
+                                defaultValue={pythonDefaultEvalCode()}
                             />
                         </Form.Item>
                     </Col>
