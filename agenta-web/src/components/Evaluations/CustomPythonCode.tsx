@@ -145,11 +145,6 @@ def evaluate(
                                     className={classes.copyBtn}
                                 />
                             </h4>
-                            <CodeBlock
-                                key={"python" + appName}
-                                language={"python"}
-                                value={pythonDefaultEvalCode()}
-                            />
                             <h4 className={classes.levelFourHeading}>
                                 Evaluation Function Description:
                             </h4>
@@ -180,6 +175,7 @@ def evaluate(
                                 theme={switchEditorThemeBasedOnTheme()}
                                 value={form.getFieldValue("pythonCode")}
                                 onChange={(code) => form.setFieldsValue({pythonCode: code})}
+                                defaultValue={pythonDefaultEvalCode()}
                             />
                         </Form.Item>
                     </Col>
