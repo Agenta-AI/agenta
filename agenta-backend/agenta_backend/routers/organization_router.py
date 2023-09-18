@@ -2,8 +2,8 @@ import os
 from bson import ObjectId
 from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
+from agenta_backend.utills.common import engine
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from agenta_backend.services.db_manager import engine
 from agenta_backend.models.db_models import InvitationDB, UserDB
 from agenta_backend.utills.common import generate_invitation_token
 from agenta_backend.models.api.api_models import (
@@ -17,7 +17,7 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
         verify_session,
     )
     from agenta_backend.ee.services.selectors import get_user_and_org_id
-    from agenta_backend.services.organization_service import (
+    from agenta_backend.ee.services.organization_service import (
         get_organization,
         send_invitation_email,
         accept_org_invitation,
@@ -58,7 +58,11 @@ async def invite_to_org(
         )
 
         if organization_access:
-            organization = await get_organization((organization_id))
+            organization = await get_organization(organization_id)
+            if organization is None:
+                return JSONResponse(
+                    {"message": "This Organization doesn't exist"}, status_code=200
+                )
             user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
             if user.email == email_address:
                 return JSONResponse(
@@ -78,6 +82,9 @@ async def invite_to_org(
                     expiration_date=expiration_date,
                     used=False,
                 )
+
+                if organization.invitations is None:
+                    organization.invitations = []
 
                 organization.invitations.append(created_invitation)
                 await engine.save(organization)
@@ -124,7 +131,7 @@ async def add_user_to_org(
             organization = await get_organization(organization_id)
             user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
 
-            join_organization = accept_org_invitation(user, organization, token)
+            join_organization = await accept_org_invitation(user, organization, token)
 
             if join_organization:
                 background_tasks.add_task(
