@@ -766,7 +766,9 @@ async def deploy_to_environment(
     if environment_db is None:
         raise ValueError(f"Environment {environment_name} not found")
     if environment_db.deployed_app_variant == variant_name:
-        raise ValueError(f"Variant {app_name}/{variant_name} is already deployed to the environment {environment_name}")
+        raise ValueError(
+            f"Variant {app_name}/{variant_name} is already deployed to the environment {environment_name}"
+        )
 
     # Update the environment with the new variant name
     environment_db.deployed_app_variant = variant_name
