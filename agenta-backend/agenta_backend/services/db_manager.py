@@ -305,26 +305,43 @@ async def get_app_variant_by_app_name_and_environment(
     # Construct the base query for the user
     users_query = query.eq(EnvironmentDB.user_id, user.id)
 
-    # Construct the final query filters
-    query_filters = (
+    # Construct query filters for finding the environment in the database
+    query_filters_for_environment = (
         query.eq(EnvironmentDB.name, environment)
         & query.eq(EnvironmentDB.app_name, app_name)
         & users_query
     )
 
-    # Perform the database query
+    # Perform the database query to find the environment
     environment_db = await engine.find(
-        EnvironmentDB, query_filters, sort=(EnvironmentDB.app_name, EnvironmentDB.name)
+        EnvironmentDB,
+        query_filters_for_environment,
+        sort=(EnvironmentDB.app_name, EnvironmentDB.name),
     )
 
-    if environment_db is None:
+    if not environment_db:
         return None
 
-    variant_name = environment_db[0].deployed_app_variant
-
-    return get_app_variant_by_app_name_and_variant_name(
-        app_name, variant_name, **kwargs
+    # Construct query filters for finding the app variant in the database
+    query_filters_for_app_variant = (
+        query.eq(AppVariantDB.app_name, app_name)
+        & query.eq(AppVariantDB.variant_name, environment_db[0].deployed_app_variant)
+        & users_query
     )
+
+    # Perform the database query to find the app variant
+    app_variants_db = await engine.find(
+        AppVariantDB,
+        query_filters_for_app_variant,
+        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
+    )
+
+    # Convert the first matching database object to AppVariant and return it
+    app_variant = (
+        app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
+    )
+
+    return app_variant
 
 
 async def list_apps(**kwargs: dict) -> List[App]:
