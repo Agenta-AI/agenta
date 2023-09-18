@@ -16,6 +16,7 @@ interface Props {
     setRemovalVariantName: (variantName: string) => void
     setRemovalWarningModalOpen: (value: boolean) => void
     isDeleteLoading: boolean
+    activeVariant: string
 }
 
 const useStyles = createUseStyles({
@@ -33,6 +34,7 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalVariantName,
     setRemovalWarningModalOpen,
     isDeleteLoading,
+    activeVariant,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -192,6 +194,7 @@ const ViewNavigation: React.FC<Props> = ({
                         isDeleteLoading={isDeleteLoading}
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
+                        activeVariant={activeVariant}
                     />
                 </Col>
             </Row>

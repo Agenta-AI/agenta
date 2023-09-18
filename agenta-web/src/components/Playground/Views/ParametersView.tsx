@@ -4,7 +4,7 @@ import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
-import PublishVariantModal from "./PublichVariantModal"
+import PublishVariantModal from "./PublishVariantModal"
 
 interface Props {
     variantName: string // The name of the variant
@@ -18,6 +18,7 @@ interface Props {
     isPersistent: boolean
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
+    activeVariant: string
 }
 
 const useStyles = createUseStyles({
@@ -54,6 +55,7 @@ const ParametersView: React.FC<Props> = ({
     isPersistent,
     isParamsCollapsed,
     setIsParamsCollapsed,
+    activeVariant,
 }) => {
     const classes = useStyles()
     const [inputValue, setInputValue] = useState(1)
@@ -171,6 +173,7 @@ const ParametersView: React.FC<Props> = ({
                 variantName={variantName}
                 isModalOpen={isPublishModalOpen}
                 setIsModalOpen={setPublishModalOpen}
+                activeVariant={activeVariant}
             />
         </div>
     )

@@ -164,6 +164,7 @@ const VersionTabs: React.FC = () => {
                 setRemovalVariantName={setRemovalVariantName}
                 setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
                 isDeleteLoading={isDeleteLoading && removalVariantName === variant.variantName}
+                activeVariant={activeKey}
             />
         ),
         closable: !variant.persistent,
