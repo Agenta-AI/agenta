@@ -184,3 +184,18 @@ async def fetch_results_for_auto_ai_critique(evaluation_id: str):
     for doc in aggregation_cursor:
         results[doc["_id"]] = doc["count"]
     return results
+
+
+async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
+    query_exp = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id)
+    eval_scenarios = await engine.find(EvaluationScenarioDB, query_exp)
+
+    list_of_scores = []
+    for scenario in eval_scenarios:
+        score = scenario.score
+        if not scenario.score:
+            score = 0
+        list_of_scores.append(round(float(score), 2))
+
+    average_score = sum(list_of_scores) / len(list_of_scores)
+    return average_score
