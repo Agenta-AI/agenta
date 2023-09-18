@@ -88,18 +88,6 @@ async def add_variant_based_on_image(
     if already_exists:
         raise ValueError("App variant with the same name already exists")
 
-    is_new_app = not await does_app_exist(app_variant.app_name, **kwargs)
-    if is_new_app:
-        await create_environment(
-            name="development", app_name=app_variant.app_name, **kwargs
-        )
-        await create_environment(
-            name="staging", app_name=app_variant.app_name, **kwargs
-        )
-        await create_environment(
-            name="production", app_name=app_variant.app_name, **kwargs
-        )
-
     # Get user instance
     user_instance = await get_user_object(kwargs["uid"])
     user_db_image = await get_user_image_instance(user_instance.uid, image.docker_id)
@@ -684,15 +672,23 @@ async def list_environments(app_name: str, **kwargs: dict) -> List[Environment]:
     """
     Lists all the environments for the given app name from the DB
     """
+
+    async def fetch_environments() -> List[EnvironmentDB]:
+        query_filters = query.eq(EnvironmentDB.app_name, app_name) & query.eq(
+            EnvironmentDB.user_id, user.id
+        )
+        return await engine.find(EnvironmentDB, query_filters)
+
     user = await get_user_object(kwargs["uid"])
 
-    # Find the environments for the given app name and user
-    query_filters = query.eq(EnvironmentDB.app_name, app_name) & query.eq(
-        EnvironmentDB.user_id, user.id
-    )
-    environments_db: List[EnvironmentDB] = await engine.find(
-        EnvironmentDB, query_filters
-    )
+    # Fetch the environments for the given app name and user
+    environments_db: List[EnvironmentDB] = await fetch_environments()
+
+    if environments_db:
+        return environments_db
+
+    await initialize_environments(app_name, **kwargs)
+    environments_db: List[EnvironmentDB] = await fetch_environments()
 
     return environments_db
 
@@ -773,6 +769,12 @@ async def deploy_to_environment(
     # Update the environment with the new variant name
     environment_db.deployed_app_variant = variant_name
     await engine.save(environment_db)
+
+
+async def initialize_environments(app_name: str, **kwargs: dict):
+    await create_environment("development", app_name, **kwargs)
+    await create_environment("staging", app_name, **kwargs)
+    await create_environment("production", app_name, **kwargs)
 
 
 async def does_app_exist(app_name: str, **kwargs: dict) -> bool:

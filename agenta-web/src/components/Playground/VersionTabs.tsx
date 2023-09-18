@@ -6,8 +6,8 @@ import ViewNavigation from "./ViewNavigation"
 import VariantRemovalWarningModal from "./VariantRemovalWarningModal"
 import NewVariantModal from "./NewVariantModal"
 import router, {useRouter} from "next/router"
-import {fetchVariants, removeVariant} from "@/lib/services/api"
-import {Variant, PlaygroundTabsItem} from "@/lib/Types"
+import {fetchEnvironments, fetchVariants, removeVariant} from "@/lib/services/api"
+import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
 
 import {SyncOutlined} from "@ant-design/icons"
 
@@ -104,6 +104,24 @@ const VersionTabs: React.FC = () => {
         fetchData()
     }, [appName])
 
+    // Load environments
+    const [environments, setEnvironments] = useState<Environment[]>([])
+    const loadEnvironments = async () => {
+        const response: Environment[] = await fetchEnvironments(appName)
+        if (response.length === 0) return
+
+        setEnvironments(
+            response.map((env) => ({
+                name: env.name,
+                deployed_app_variant: env.deployed_app_variant,
+            })),
+        )
+    }
+    useEffect(() => {
+        if (!appName) return
+        loadEnvironments()
+    }, [appName, activeKey])
+
     if (isError) return <div>failed to load variants</div>
     if (isLoading) return <div>loading variants...</div>
 
@@ -164,7 +182,7 @@ const VersionTabs: React.FC = () => {
                 setRemovalVariantName={setRemovalVariantName}
                 setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
                 isDeleteLoading={isDeleteLoading && removalVariantName === variant.variantName}
-                activeVariant={activeKey}
+                environments={environments}
             />
         ),
         closable: !variant.persistent,
