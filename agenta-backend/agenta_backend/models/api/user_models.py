@@ -13,7 +13,7 @@ class User(TimestampModel):
     uid: str
     username: str
     email: str  # switch to EmailStr when langchain support pydantic>=2.1
-    organizations: Optional[List[ObjectId]]
+    organizations: Optional[List[str]]
 
 
 class UserUpdate(BaseModel):

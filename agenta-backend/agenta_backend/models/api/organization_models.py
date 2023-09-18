@@ -15,7 +15,7 @@ class Organization(TimestampModel):
     description: Optional[str]
     type: Optional[str]
     owner: User
-    members: Optional[List[ObjectId]]
+    members: Optional[List[str]]
     invitations: Optional[List]
 
 
