@@ -8,7 +8,6 @@ from agenta_backend.routers import testset_router
 from fastapi.middleware.cors import CORSMiddleware
 from agenta_backend.routers import container_router
 from agenta_backend.routers import evaluation_router
-from agenta_backend.routers import organization_router
 from agenta_backend.services.db_manager import (
     add_template,
     remove_old_template_from_db,
@@ -90,13 +89,14 @@ app.include_router(app_variant.router, prefix="/app_variant")
 app.include_router(evaluation_router.router, prefix="/evaluations")
 app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
-app.include_router(organizsation_router.router, prefix="/organizations")
 
 allow_headers = ["Content-Type"]
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     import agenta_backend.ee.main as ee
+    from agenta_backend.ee.routers import organization_router
 
+    app.include_router(organization_router.router, prefix="/organizations")
     app, allow_headers = ee.extend_main(app)
 # this is the prefix in which we are reverse proxying the api
 #

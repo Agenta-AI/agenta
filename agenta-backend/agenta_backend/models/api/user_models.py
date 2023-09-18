@@ -1,4 +1,5 @@
 from datetime import datetime
+from bson import ObjectId
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
@@ -12,7 +13,7 @@ class User(TimestampModel):
     uid: str
     username: str
     email: str  # switch to EmailStr when langchain support pydantic>=2.1
-    organizations: Optional[List]
+    organizations: Optional[List[ObjectId]]
 
 
 class UserUpdate(BaseModel):

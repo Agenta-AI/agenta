@@ -61,7 +61,7 @@ async def get_user_own_org(user_uid: str) -> Organization: # I'm having issues w
     
     # Build the query expression for the two conditions
     query_expression = query.eq(
-        OrganizationDB.owner.id, ObjectId(user.id)
+        OrganizationDB.owner, user.id
     ) & query.eq(OrganizationDB.type, "default")
     
     # get the organization
