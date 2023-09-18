@@ -1,21 +1,22 @@
 """Main Business logic
 """
-import os
 import logging
-from typing import Optional
+import os
+from typing import List, Optional
+
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
     URI,
     App,
     AppVariant,
-    Image,
     DockerEnvVars,
+    Environment,
+    Image,
     ImageExtended,
 )
 from agenta_backend.models.db_models import AppVariantDB, TestSetDB
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -203,19 +204,29 @@ async def remove_app(app: App, **kwargs: dict):
         msg = f"App {app_name} not found in DB"
         logger.error(msg)
         raise ValueError(msg)
-    else:
-        try:
-            for app_variant in app_variants:
-                await remove_app_variant(app_variant, **kwargs)
-                logger.info(
-                    f"App variant {app_variant.app_name}/{app_variant.variant_name} deleted"
-                )
 
-            await remove_app_testsets(app_name, **kwargs)
-            logger.info(f"Tatasets for {app_name} app deleted")
-        except Exception as e:
-            logger.error(f"Error deleting app variants: {str(e)}")
-            raise
+    try:
+        # Delete associated environments
+        environments: List[Environment] = await db_manager.list_environments(
+            app_name, **kwargs
+        )
+        for environment in environments:
+            await db_manager.remove_environment(environment.name, app_name, **kwargs)
+            logger.info(f"Environment {environment.name} deleted")
+
+        # Delete associated variants
+        for app_variant in app_variants:
+            await remove_app_variant(app_variant, **kwargs)
+            logger.info(
+                f"App variant {app_variant.app_name}/{app_variant.variant_name} deleted"
+            )
+
+        # Delete associated testsets
+        await remove_app_testsets(app_name, **kwargs)
+        logger.info(f"Tatasets for {app_name} app deleted")
+    except Exception as e:
+        logger.error(f"Error deleting app variants: {str(e)}")
+        raise
 
 
 async def remove_app_testsets(app_name: str, **kwargs):
