@@ -1,5 +1,6 @@
 import {Variant, Parameter, InputParameter} from "@/lib/Types"
 import {getVariantParametersFromOpenAPI} from "@/lib/services/api"
+import {globalErrorHandler} from "./errorHandler"
 
 const inputParamsToParameters = (additionalInputs: InputParameter[]): Parameter[] => {
     return additionalInputs.map((value) => ({
@@ -47,22 +48,37 @@ export const updateInputParams = (
 export const getAllVariantParameters = async (appName: string, variant: Variant) => {
     let parameters: Parameter[] = []
     let inputs: Parameter[] = []
-    const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(appName, variant)
-    if (variant.parameters) {
-        const updatedInitOptParams = initOptParams.map((param) => {
-            return variant.parameters && variant.parameters.hasOwnProperty(param.name)
-                ? {...param, default: variant.parameters[param.name]}
-                : param
-        })
-        parameters = [...updatedInitOptParams]
-    } else {
-        parameters = [...initOptParams]
+    try {
+        const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(
+            appName,
+            variant,
+            true,
+        )
+        if (variant.parameters) {
+            const updatedInitOptParams = initOptParams.map((param) => {
+                return variant.parameters && variant.parameters.hasOwnProperty(param.name)
+                    ? {...param, default: variant.parameters[param.name]}
+                    : param
+            })
+            parameters = [...updatedInitOptParams]
+        } else {
+            parameters = [...initOptParams]
+        }
+        inputs = updateInputParams(parameters, inputParams)
+        const URIPath = `${appName}/${
+            variant.templateVariantName ? variant.templateVariantName : variant.variantName
+        }`
+        return {parameters, inputs, URIPath}
+    } catch (err: any) {
+        const errorResponse: any = err.response.request
+        const apiCallURL: string = err.response.request.responseURL
+        if (apiCallURL && apiCallURL.includes("openapi.json") && errorResponse?.status == 404) {
+            globalErrorHandler("Container is not running. Consider restarting it.")
+        } else {
+            globalErrorHandler(err)
+        }
+        throw err
     }
-    inputs = updateInputParams(parameters, inputParams)
-    const URIPath = `${appName}/${
-        variant.templateVariantName ? variant.templateVariantName : variant.variantName
-    }`
-    return {parameters, inputs, URIPath}
 }
 
 export const getVariantInputParameters = async (appName: string, variant: Variant) => {

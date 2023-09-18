@@ -1,7 +1,7 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
-from datetime import datetime
 from enum import Enum
+from datetime import datetime
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
 
 
 class EvaluationTypeSettings(BaseModel):
@@ -19,6 +19,7 @@ class EvaluationType(str, Enum):
     auto_ai_critique = "auto_ai_critique"
     human_a_b_testing = "human_a_b_testing"
     human_scoring = "human_scoring"
+    custom_code_run = "custom_code_run"
 
 
 class EvaluationStatusEnum(str, Enum):
@@ -33,6 +34,9 @@ class Evaluation(BaseModel):
     status: str
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
+    custom_code_evaluation_id: Optional[
+        str
+    ]  # will be added when running custom code evaluation
     llm_app_prompt_template: Optional[str]
     variants: Optional[List[str]]
     app_name: str
@@ -70,13 +74,21 @@ class EvaluationScenario(BaseModel):
 class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
     score: Optional[str]
+    correct_answer: Optional[str]  # will be used when running custom code evaluation
     outputs: List[EvaluationScenarioOutput]
     evaluation_prompt_template: Optional[str]
     open_ai_key: Optional[str]
 
 
+class EvaluationScenarioScoreUpdate(BaseModel):
+    score: float
+
+
 class NewEvaluation(BaseModel):
     evaluation_type: EvaluationType
+    custom_code_evaluation_id: Optional[
+        str
+    ]  # will be added when running custom code evaluation
     evaluation_type_settings: Optional[EvaluationTypeSettings]
     app_name: str
     variants: List[str]
@@ -88,6 +100,41 @@ class NewEvaluation(BaseModel):
 
 class DeleteEvaluation(BaseModel):
     evaluations_ids: List[str]
+
+
+class CreateCustomEvaluation(BaseModel):
+    evaluation_name: str
+    python_code: str
+    app_name: str
+
+
+class CustomEvaluationOutput(BaseModel):
+    id: str
+    app_name: str
+    evaluation_name: str
+    created_at: datetime
+
+
+class CustomEvaluationDetail(BaseModel):
+    id: str
+    app_name: str
+    evaluation_name: str
+    python_code: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class CustomEvaluationNames(BaseModel):
+    id: str
+    evaluation_name: str
+
+
+class ExecuteCustomEvaluationCode(BaseModel):
+    inputs: List[Dict[str, Any]]
+    app_name: str
+    variant_name: str
+    correct_answer: str
+    outputs: List[Dict[str, Any]]
 
 
 class EvaluationWebhook(BaseModel):
