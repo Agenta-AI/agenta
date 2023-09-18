@@ -153,9 +153,9 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
         raise ValueError(msg)
 
     try:
-        is_last_variant = await db_manager.check_is_last_variant(app_variant_db)
+        is_last_variant_for_image = await db_manager.check_is_last_variant_for_image(app_variant_db)
 
-        if is_last_variant:
+        if is_last_variant_for_image:
             image = await _fetch_image_from_db(app_variant, **kwargs)
 
             if image:

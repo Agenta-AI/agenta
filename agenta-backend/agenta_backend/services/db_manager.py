@@ -400,7 +400,7 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
     pending_variant_to_delete = await engine.find_one(
         AppVariantDB, delete_var_query_expression
     )
-    is_last_variant = await check_is_last_variant(app_variant_db)
+    is_last_variant_for_image = await check_is_last_variant_for_image(app_variant_db)
     if app_variant_db is None:
         raise ValueError("App variant not found")
 
@@ -417,7 +417,7 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
         if pending_variant_to_delete is not None:
             await engine.delete(pending_variant_to_delete)
 
-    elif is_last_variant:  # last variant using the image, okay to delete
+    elif is_last_variant_for_image:  # last variant using the image, okay to delete
         await engine.delete(app_variant_db)
         if pending_variant_to_delete is not None:
             await engine.delete(pending_variant_to_delete)
@@ -453,7 +453,7 @@ async def remove_image(image: ImageExtended, **kwargs: dict):
     await engine.delete(image_db)
 
 
-async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
+async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     """Checks whether the input variant is the sole variant that uses its linked image
     This is a helpful function to determine whether to delete the image when removing a variant
     Usually many variants will use the same image (these variants would have been created using the UI)
@@ -741,11 +741,11 @@ async def remove_environment(environment_name: str, app_name: str, **kwargs: dic
     await engine.delete(environment_db)
 
 
-async def deploy_environment(
+async def deploy_to_environment(
     app_name: str, environment_name: str, variant_name: str, **kwargs: dict
 ):
     """
-    Deploys the given environment for the given app with the given variant.
+    Deploys a variant to a given environment.
     """
     user = await get_user_object(kwargs["uid"])
 
@@ -764,9 +764,9 @@ async def deploy_environment(
     )
     environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
     if environment_db is None:
-        raise ValueError("Environment not found")
+        raise ValueError(f"Environment {environment_name} not found")
     if environment_db.deployed_app_variant == variant_name:
-        raise ValueError("Environment already deployed with the given variant")
+        raise ValueError(f"Variant {app_name}/{variant_name} is already deployed to the environment {environment_name}")
 
     # Update the environment with the new variant name
     environment_db.deployed_app_variant = variant_name
