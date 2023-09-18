@@ -29,6 +29,7 @@ import {getOpenAIKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import { useAppTheme } from "../Layout/ThemeContextProvider"
 
 const {Title} = Typography
 
@@ -90,7 +91,6 @@ const useStyles = createUseStyles({
         border: "1px solid #ccc",
         marginRight: "24px",
         marginBottom: 30,
-        backgroundColor: "rgb(246 253 245)",
         "& .ant-card-head": {
             minHeight: 44,
             padding: "0px 12px",
@@ -108,7 +108,6 @@ const useStyles = createUseStyles({
     evaluationResult: {
         padding: "30px 10px",
         marginBottom: 20,
-        backgroundColor: "rgb(244 244 244)",
         border: "1px solid #ccc",
         borderRadius: 5,
     },
@@ -146,6 +145,8 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
         : router.query.app_name || ""
 
     const variants = evaluation.variants
+
+    const {appTheme} = useAppTheme();
 
     const variantData = useVariants(appName, variants)
 
@@ -189,7 +190,7 @@ Answer ONLY with one of the given grading or evaluation options.
     }, [evaluationScenarios])
 
     useEffect(() => {
-        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
+        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED && shouldFetchResults) {
             fetchEvaluationResults(evaluation.id)
                 .then((data) => setEvaluationResults(data))
                 .catch((err) => console.error("Failed to fetch results:", err))
@@ -401,7 +402,7 @@ Answer ONLY with one of the given grading or evaluation options.
             <Title level={2}>AI Critique Evaluation</Title>
             <div>
                 <div>
-                    <Card className={classes.card} title="Evaluation strategy prompt">
+                    <Card className={classes.card} style={{ backgroundColor: appTheme === "light" ? "rgb(246 253 245)" : "#000"}} title="Evaluation strategy prompt">
                         <Input.TextArea
                             className={classes.cardTextarea}
                             rows={5}
@@ -433,10 +434,10 @@ Answer ONLY with one of the given grading or evaluation options.
                     </Col>
                 </Row>
             </div>
-            <div className={classes.evaluationResult}>
+            <div className={classes.evaluationResult} style={{ background: appTheme === "light" ? "rgb(244 244 244)" : "#000"}}>
                 <center>
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
-                        <div>Run evaluation to see results!</div>
+                        <div style={{ color: appTheme === "light" ? "#000" : "#fff"}}>Run evaluation to see results!</div>
                     )}
                     {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
                     {evaluationResults && evaluationResults.results_data && (
