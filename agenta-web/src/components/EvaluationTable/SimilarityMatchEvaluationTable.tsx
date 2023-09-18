@@ -199,7 +199,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 },
                 status: EvaluationFlow.EVALUATION_FINISHED,
             }).then(() => {
-                setSettings({similarityThreshold})
                 message.success("Evaluation Results Saved")
             })
         })
@@ -450,7 +449,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     requiredMark={false}
                 >
                     <Form.Item label="Similarity Threshold" name="similarityThreshold">
-                        <Slider min={0} max={1} step={0.01} className={classes.slider} />
+                        <Slider
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            className={classes.slider}
+                            onChange={(value: number) => setSettings({similarityThreshold: value})}
+                        />
                     </Form.Item>
                 </Form>
             )}
