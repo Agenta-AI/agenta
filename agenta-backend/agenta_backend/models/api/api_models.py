@@ -8,6 +8,7 @@ class AppVariant(BaseModel):
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
+    organization_id: Optional[str]
 
 
 class RestartAppContainer(BaseModel):
