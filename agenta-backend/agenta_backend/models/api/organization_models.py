@@ -1,4 +1,5 @@
 from datetime import datetime
+from bson import ObjectId
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from agenta_backend.models.api.user_models import User
@@ -14,7 +15,7 @@ class Organization(TimestampModel):
     description: Optional[str]
     type: Optional[str]
     owner: User
-    members: Optional[List]
+    members: Optional[List[ObjectId]]
     invitations: Optional[List]
 
 
@@ -22,5 +23,5 @@ class OrganizationUpdate(BaseModel):
     name: Optional[str]
     description: Optional[str]
     owner: User
-    members: Optional[List]
+    members: Optional[List[User]]
     invitations: Optional[List]
