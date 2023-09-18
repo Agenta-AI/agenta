@@ -1,19 +1,13 @@
-name: NextJS Build
+name: Lint and Build
 
 on:
-  workflow_run:
-    workflows: ["Lint and Types"]
-    types: [completed]
   pull_request:
-    branches:
-      - main
     paths:
       - "agenta-web/**"
 
 jobs:
-  build:
+  lint_and_build:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v2
@@ -25,6 +19,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --omit=dev
+        working-directory: agenta-web
+
+      - name: Run Lint
+        run: npm run lint
         working-directory: agenta-web
 
       - name: Run Build
