@@ -122,7 +122,7 @@ async def add_variant_based_on_image(
             user_id=user_instance,
             parameters=parameters,
             previous_variant_name=app_variant.previous_variant_name,
-            organization=organization
+            organization=organization if organization is not None else ""
         )
         await engine.save(db_app_variant)
     except Exception as e:
