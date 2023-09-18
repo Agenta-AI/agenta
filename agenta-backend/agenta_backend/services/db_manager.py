@@ -296,6 +296,37 @@ async def get_app_variant_by_app_name_and_variant_name(
     return app_variant
 
 
+async def get_app_variant_by_app_name_and_environment(
+    app_name: str, environment: str, **kwargs: dict
+) -> AppVariant:
+    # Get the user object using the user ID
+    user = await get_user_object(kwargs["uid"])
+
+    # Construct the base query for the user
+    users_query = query.eq(EnvironmentDB.user_id, user.id)
+
+    # Construct the final query filters
+    query_filters = (
+        query.eq(EnvironmentDB.name, environment)
+        & query.eq(EnvironmentDB.app_name, app_name)
+        & users_query
+    )
+
+    # Perform the database query
+    environment_db = await engine.find(
+        EnvironmentDB, query_filters, sort=(EnvironmentDB.app_name, EnvironmentDB.name)
+    )
+
+    if environment_db is None:
+        return None
+
+    variant_name = environment_db[0].deployed_app_variant
+
+    return get_app_variant_by_app_name_and_variant_name(
+        app_name, variant_name, **kwargs
+    )
+
+
 async def list_apps(**kwargs: dict) -> List[App]:
     """
     Lists all the unique app names from the database
