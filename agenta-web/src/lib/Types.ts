@@ -1,3 +1,4 @@
+import {AbsoluteString} from "next/dist/lib/metadata/types/metadata-types"
 import {EvaluationFlow, EvaluationType} from "./enums"
 
 export interface testset {
@@ -61,6 +62,33 @@ export interface Evaluation {
     appName: string
 }
 
+export interface CreateCustomEvaluation {
+    evaluation_name: string
+    python_code: string
+    app_name: string
+}
+
+export interface CreateCustomEvaluationSuccessResponse {
+    status: string
+    message: string
+    evaluation_id: string
+}
+
+export interface ExecuteCustomEvalCode {
+    evaluation_id: string
+    inputs: Array<Object>
+    outputs: Array<Object>
+    app_name: string
+    variant_name: string
+    correct_answer: string
+}
+
+export interface SingleCustomEvaluation {
+    id: string
+    app_name: string
+    evaluation_name: string
+}
+
 export interface Parameter {
     name: string
     type: string
@@ -91,6 +119,7 @@ export interface EvaluationResponseType {
         regex_should_match: boolean
         webhook_url: string
     }
+    custom_code_evaluation_id?: string
     llm_app_prompt_template?: string
     testset: {
         _id: string
@@ -114,6 +143,7 @@ export interface ResultsTableDataType {
     scoresData?: any
     evaluationType: EvaluationType
     createdAt?: string
+    avgScore?: number
 }
 
 /**
@@ -169,4 +199,13 @@ export type KeyValuePair = Record<string, string>
 export interface Environment {
     name: string
     deployed_app_variant: string
+}
+
+export interface CustomEvaluation {
+    id: string
+    app_name: string
+    evaluation_name: string
+    python_code: string
+    created_at: string
+    updated_at: string
 }
