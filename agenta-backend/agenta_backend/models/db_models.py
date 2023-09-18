@@ -14,6 +14,7 @@ class InvitationDB(EmbeddedModel):
 class OrganizationDB(Model):
     name: str = Field(default="agenta")
     description: str = Field(default="")
+    type: Optional[str]
     owner: "UserDB"
     members: Optional[List["UserDB"]]
     invitations: Optional[List[InvitationDB]] = []
