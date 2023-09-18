@@ -11,6 +11,8 @@ import {
     TemplateImage,
     RestartVariantDocker,
     RestartVariantDockerResponse,
+    CreateCustomEvaluation,
+    ExecuteCustomEvalCode,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
@@ -361,6 +363,7 @@ export const createNewEvaluation = async (
         evaluationTypeSettings,
         inputs,
         llmAppPromptTemplate,
+        selectedCustomEvaluationID,
         testset,
     }: {
         variants: string[]
@@ -369,6 +372,7 @@ export const createNewEvaluation = async (
         evaluationTypeSettings: Partial<EvaluationResponseType["evaluation_type_settings"]>
         inputs: string[]
         llmAppPromptTemplate?: string
+        selectedCustomEvaluationID?: string
         testset: {_id: string; name: string}
     },
     ignoreAxiosError: boolean = false,
@@ -380,6 +384,7 @@ export const createNewEvaluation = async (
         evaluation_type: evaluationType,
         evaluation_type_settings: evaluationTypeSettings,
         llm_app_prompt_template: llmAppPromptTemplate,
+        custom_code_evaluation_id: selectedCustomEvaluationID,
         testset,
         status: EvaluationFlow.EVALUATION_INITIALIZED,
     }
@@ -426,6 +431,83 @@ export const fetchEvaluationResults = async (evaluationId: string) => {
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}/results`,
     )
     return response.data
+}
+
+export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: string) => {
+    const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
+    )
+    return response
+}
+
+export const saveCustomCodeEvaluation = async (
+    payload: CreateCustomEvaluation,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/`,
+        payload,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
+export const fetchCustomEvaluations = async (
+    app_name: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_name}`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
+export const fetchCustomEvaluationDetail = async (
+    id: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${id}`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response.data
+}
+
+export const fetchCustomEvaluationNames = async (
+    app_name: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${app_name}/names/`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
+export const executeCustomEvaluationCode = async (
+    payload: ExecuteCustomEvalCode,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/execute/${payload.evaluation_id}/`,
+        payload,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
+export const updateEvaluationScenarioScore = async (
+    evaluation_scenario_id: string,
+    score: number,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.put(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
+        {score: score},
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
 }
 
 export const fetchApps = () => {
