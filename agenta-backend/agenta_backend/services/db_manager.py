@@ -404,6 +404,14 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
     if app_variant_db is None:
         raise ValueError("App variant not found")
 
+    # Remove the variant from the associated environments
+    environments = await list_environments_by_variant(
+        app_variant.app_name, app_variant.variant_name, **kwargs
+    )
+    for environment in environments:
+        environment.deployed_app_variant = None
+        await engine.save(environment)
+
     if app_variant_db.previous_variant_name is not None:  # forked variant
         await engine.delete(app_variant_db)
         if pending_variant_to_delete is not None:
@@ -687,6 +695,50 @@ async def list_environments(app_name: str, **kwargs: dict) -> List[Environment]:
     )
 
     return environments_db
+
+
+async def list_environments_by_variant(
+    app_name: str, variant_name: str, **kwargs: dict
+) -> List[Environment]:
+    """
+    Lists all the environments for the given app name and variant from the DB
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    # Find the environments for the given app name and user
+    query_filters = (
+        query.eq(EnvironmentDB.app_name, app_name)
+        & query.eq(EnvironmentDB.user_id, user.id)
+        & query.eq(EnvironmentDB.deployed_app_variant, variant_name)
+    )
+    environments_db: List[EnvironmentDB] = await engine.find(
+        EnvironmentDB, query_filters
+    )
+
+    return environments_db
+
+
+async def remove_environment(environment_name: str, app_name: str, **kwargs: dict):
+    """
+    Removes the given environment for the given app.
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    query_filters = (
+        query.eq(EnvironmentDB.app_name, app_name)
+        & query.eq(EnvironmentDB.user_id, user.id)
+        & query.eq(EnvironmentDB.name, environment_name)
+    )
+    environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
+    if environment_db is None:
+        raise ValueError("Environment not found")
+
+    print(
+        f"Deleting environment: {environment_db.name} for app: {environment_db.app_name}"
+    )
+    print(environment_db)
+
+    await engine.delete(environment_db)
 
 
 async def deploy_environment(
