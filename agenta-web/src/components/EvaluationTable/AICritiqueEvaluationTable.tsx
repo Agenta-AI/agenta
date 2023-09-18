@@ -29,7 +29,7 @@ import {getOpenAIKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
-import { useAppTheme } from "../Layout/ThemeContextProvider"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 const {Title} = Typography
 
@@ -146,7 +146,7 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
 
     const variants = evaluation.variants
 
-    const {appTheme} = useAppTheme();
+    const {appTheme} = useAppTheme()
 
     const variantData = useVariants(appName, variants)
 
@@ -402,7 +402,13 @@ Answer ONLY with one of the given grading or evaluation options.
             <Title level={2}>AI Critique Evaluation</Title>
             <div>
                 <div>
-                    <Card className={classes.card} style={{ backgroundColor: appTheme === "light" ? "rgb(246 253 245)" : "#000"}} title="Evaluation strategy prompt">
+                    <Card
+                        className={classes.card}
+                        style={{
+                            backgroundColor: appTheme === "light" ? "rgb(246 253 245)" : "#000",
+                        }}
+                        title="Evaluation strategy prompt"
+                    >
                         <Input.TextArea
                             className={classes.cardTextarea}
                             rows={5}
@@ -434,10 +440,15 @@ Answer ONLY with one of the given grading or evaluation options.
                     </Col>
                 </Row>
             </div>
-            <div className={classes.evaluationResult} style={{ background: appTheme === "light" ? "rgb(244 244 244)" : "#000"}}>
+            <div
+                className={classes.evaluationResult}
+                style={{background: appTheme === "light" ? "rgb(244 244 244)" : "#000"}}
+            >
                 <center>
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
-                        <div style={{ color: appTheme === "light" ? "#000" : "#fff"}}>Run evaluation to see results!</div>
+                        <div style={{color: appTheme === "light" ? "#000" : "#fff"}}>
+                            Run evaluation to see results!
+                        </div>
                     )}
                     {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
                     {evaluationResults && evaluationResults.results_data && (
