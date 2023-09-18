@@ -20,14 +20,14 @@ interface Props {
     variantName: string
     isModalOpen: boolean
     setIsModalOpen: (value: boolean) => void
-    activeVariant: string
+    environments: Environment[]
 }
 
 const PublishVariantModal: React.FC<Props> = ({
     variantName,
     isModalOpen,
     setIsModalOpen,
-    activeVariant,
+    environments,
 }) => {
     const classes = useStyles()
     const closeModal = () => {
@@ -61,6 +61,8 @@ const PublishVariantModal: React.FC<Props> = ({
     const [envOptions, setEnvOptions] = useState<Environment[]>([])
     const loadEnvironments = async () => {
         const response: Environment[] = await fetchEnvironments(appName)
+        if (response.length === 0) return
+
         setEnvOptions(
             response.map((env) => ({
                 name: env.name,
@@ -69,8 +71,8 @@ const PublishVariantModal: React.FC<Props> = ({
         )
     }
     useEffect(() => {
-        loadEnvironments()
-    }, [appName, activeVariant])
+        setEnvOptions(environments)
+    }, [environments])
 
     const checkboxElement = (env: Environment): JSX.Element => {
         if (!env.deployed_app_variant) {

@@ -642,10 +642,16 @@ export const createAndStartTemplate = async ({
 }
 
 export const fetchEnvironments = async (appName: string): Promise<Environment[]> => {
-    const response: Environment[] = await fetchData(
+    const response = await fetch(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/environments/?app_name=${appName}`,
     )
-    return response
+
+    if (response.status !== 200) {
+        throw new Error("Failed to fetch environments")
+    }
+
+    const data: Environment[] = await response.json()
+    return data
 }
 
 export const publishVariant = async (

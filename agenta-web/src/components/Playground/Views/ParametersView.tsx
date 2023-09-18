@@ -1,4 +1,4 @@
-import {Parameter} from "@/lib/Types"
+import {Environment, Parameter} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
 import React, {useState} from "react"
@@ -18,7 +18,7 @@ interface Props {
     isPersistent: boolean
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
-    activeVariant: string
+    environments: Environment[]
 }
 
 const useStyles = createUseStyles({
@@ -55,7 +55,7 @@ const ParametersView: React.FC<Props> = ({
     isPersistent,
     isParamsCollapsed,
     setIsParamsCollapsed,
-    activeVariant,
+    environments,
 }) => {
     const classes = useStyles()
     const [inputValue, setInputValue] = useState(1)
@@ -173,7 +173,7 @@ const ParametersView: React.FC<Props> = ({
                 variantName={variantName}
                 isModalOpen={isPublishModalOpen}
                 setIsModalOpen={setPublishModalOpen}
-                activeVariant={activeVariant}
+                environments={environments}
             />
         </div>
     )
