@@ -1,6 +1,9 @@
 name: NextJS Build
 
 on:
+  workflow_run:
+    workflows: ["Lint and Types"]
+    types: [completed]
   pull_request:
     branches:
       - main
@@ -10,6 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v2
@@ -20,7 +24,7 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --omit=dev
         working-directory: agenta-web
 
       - name: Run Build
