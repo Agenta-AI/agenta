@@ -124,7 +124,7 @@ async def add_variant_based_on_image(
             user_id=user_instance,
             parameters=parameters,
             previous_variant_name=app_variant.previous_variant_name,
-            organization_id=str(organization.id) if organization is not None else ""
+            organization_id=str(organization.id) if organization is not None else "",
         )
         await engine.save(db_app_variant)
     except Exception as e:
@@ -204,7 +204,7 @@ async def add_variant_based_on_previous(
         parameters=parameters,
         previous_variant_name=template_variant.variant_name,
         user_id=user_instance,
-        organization_id=str(organization.id) if organization is not None else ""
+        organization_id=str(organization.id) if organization is not None else "",
     )
     await engine.save(db_app_variant)
 
@@ -659,7 +659,6 @@ async def get_user_object(user_uid: str) -> UserDB:
     user = await engine.find_one(UserDB, UserDB.uid == user_uid)
     if user is None:
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
-
             create_user = UserDB(uid="0")
             await engine.save(create_user)
 
