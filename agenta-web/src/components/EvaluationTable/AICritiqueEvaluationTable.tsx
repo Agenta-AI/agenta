@@ -29,6 +29,7 @@ import {getOpenAIKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 const {Title} = Typography
 
@@ -52,6 +53,10 @@ interface AICritiqueEvaluationTableRow {
     correctAnswer: string
     evaluation: string
     evaluationFlow: EvaluationFlow
+}
+
+type StyleProps = {
+    themeMode: "dark" | "light"
 }
 /**
  *
@@ -84,13 +89,13 @@ const useStyles = createUseStyles({
     tag: {
         fontSize: "14px",
     },
-    card: {
+    card: ({themeMode}: StyleProps) => ({
         marginTop: 16,
         width: "100%",
         border: "1px solid #ccc",
         marginRight: "24px",
         marginBottom: 30,
-        backgroundColor: "rgb(246 253 245)",
+        background: themeMode === "light" ? "rgb(246 253 245)" : "#000000",
         "& .ant-card-head": {
             minHeight: 44,
             padding: "0px 12px",
@@ -99,19 +104,20 @@ const useStyles = createUseStyles({
             padding: "4px 16px",
             border: "0px solid #ccc",
         },
-    },
+    }),
     cardTextarea: {
         height: 120,
         padding: "0px 0px",
     },
     row: {marginBottom: 20},
-    evaluationResult: {
+    evaluationResult: ({themeMode}: StyleProps) => ({
         padding: "30px 10px",
         marginBottom: 20,
-        backgroundColor: "rgb(244 244 244)",
         border: "1px solid #ccc",
+        background: themeMode === "light" ? "rgb(244 244 244)" : "#000000",
+        color: themeMode === "light" ? "#000" : "#fff",
         borderRadius: 5,
-    },
+    }),
     h3: {
         marginTop: 0,
     },
@@ -139,7 +145,8 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
@@ -189,7 +196,7 @@ Answer ONLY with one of the given grading or evaluation options.
     }, [evaluationScenarios])
 
     useEffect(() => {
-        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
+        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED && shouldFetchResults) {
             fetchEvaluationResults(evaluation.id)
                 .then((data) => setEvaluationResults(data))
                 .catch((err) => console.error("Failed to fetch results:", err))
