@@ -54,6 +54,10 @@ interface AICritiqueEvaluationTableRow {
     evaluation: string
     evaluationFlow: EvaluationFlow
 }
+
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
 /**
  *
  * @param evaluation - Evaluation object
@@ -85,12 +89,13 @@ const useStyles = createUseStyles({
     tag: {
         fontSize: "14px",
     },
-    card: {
+    card: ({themeMode}: StyleProps) => ({
         marginTop: 16,
         width: "100%",
         border: "1px solid #ccc",
         marginRight: "24px",
         marginBottom: 30,
+        background: themeMode === "light" ? "rgb(246 253 245)" : "#000000",
         "& .ant-card-head": {
             minHeight: 44,
             padding: "0px 12px",
@@ -99,18 +104,19 @@ const useStyles = createUseStyles({
             padding: "4px 16px",
             border: "0px solid #ccc",
         },
-    },
+    }),
     cardTextarea: {
         height: 120,
         padding: "0px 0px",
     },
     row: {marginBottom: 20},
-    evaluationResult: {
+    evaluationResult: ({themeMode}: StyleProps) => ({
         padding: "30px 10px",
         marginBottom: 20,
         border: "1px solid #ccc",
+        background: themeMode === "light" ? "rgb(244 244 244)" : "#000000",
         borderRadius: 5,
-    },
+    }),
     h3: {
         marginTop: 0,
     },
@@ -138,15 +144,14 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     evaluationScenarios,
     columnsCount,
 }) => {
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const router = useRouter()
     const appName = Array.isArray(router.query.app_name)
         ? router.query.app_name[0]
         : router.query.app_name || ""
 
     const variants = evaluation.variants
-
-    const {appTheme} = useAppTheme()
 
     const variantData = useVariants(appName, variants)
 
@@ -402,13 +407,7 @@ Answer ONLY with one of the given grading or evaluation options.
             <Title level={2}>AI Critique Evaluation</Title>
             <div>
                 <div>
-                    <Card
-                        className={classes.card}
-                        style={{
-                            backgroundColor: appTheme === "light" ? "rgb(246 253 245)" : "#000",
-                        }}
-                        title="Evaluation strategy prompt"
-                    >
+                    <Card className={classes.card} title="Evaluation strategy prompt">
                         <Input.TextArea
                             className={classes.cardTextarea}
                             rows={5}
@@ -440,10 +439,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     </Col>
                 </Row>
             </div>
-            <div
-                className={classes.evaluationResult}
-                style={{background: appTheme === "light" ? "rgb(244 244 244)" : "#000"}}
-            >
+            <div className={classes.evaluationResult}>
                 <center>
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
                         <div style={{color: appTheme === "light" ? "#000" : "#fff"}}>
