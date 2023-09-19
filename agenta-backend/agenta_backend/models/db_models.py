@@ -171,6 +171,7 @@ class TraceDB(Model):
     variant_name: Optional[str]
     cost: Optional[float]
     latency: float
+    status: str  # initiated, completed, stopped, cancelled
     token_consumption: Optional[int]
     user: UserDB = Reference()
     tags: Optional[List[str]]
