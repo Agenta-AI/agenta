@@ -1,26 +1,33 @@
-from typing import Dict
 from bson import ObjectId
 from datetime import datetime
+from typing import Dict, List, Any
 
 from fastapi import HTTPException
 
 from agenta_backend.models.api.evaluation_model import (
+    CustomEvaluationNames,
     Evaluation,
     EvaluationScenario,
+    CustomEvaluationOutput,
+    CustomEvaluationDetail,
     EvaluationType,
     NewEvaluation,
     EvaluationScenarioUpdate,
+    CreateCustomEvaluation,
     EvaluationUpdate,
 )
+
 from agenta_backend.utills.common import engine
 from agenta_backend.services.db_manager import query, get_user_object
 from agenta_backend.models.db_models import (
+    AppVariantDB,
     EvaluationDB,
     EvaluationScenarioDB,
     TestSetDB,
     EvaluationTypeSettings,
     EvaluationScenarioInput,
     EvaluationScenarioOutput,
+    CustomEvaluationDB,
 )
 
 from langchain.chains import LLMChain
@@ -61,6 +68,7 @@ async def create_new_evaluation(payload: NewEvaluation, **kwargs: dict) -> Dict:
     eval_instance = EvaluationDB(
         status=payload.status,
         evaluation_type=payload.evaluation_type,
+        custom_code_evaluation_id=payload.custom_code_evaluation_id,
         evaluation_type_settings=evaluation_type_settings,
         llm_app_prompt_template=payload.llm_app_prompt_template,
         variants=payload.variants,
@@ -249,6 +257,10 @@ async def update_evaluation_scenario(
         new_evaluation_set["score"] = evaluation_scenario_dict["score"]
     elif evaluation_type == EvaluationType.human_a_b_testing:
         new_evaluation_set["vote"] = evaluation_scenario_dict["vote"]
+    elif evaluation_type == EvaluationType.custom_code_run:
+        new_evaluation_set["correct_answer"] = evaluation_scenario_dict[
+            "correct_answer"
+        ]
     elif evaluation_type == EvaluationType.auto_ai_critique:
         current_evaluation_scenario = await engine.find_one(
             EvaluationScenarioDB, query_expression_eval_scen
@@ -320,6 +332,60 @@ async def update_evaluation_scenario(
             return evaluation_scenario_response
 
     raise UpdateEvaluationScenarioError("Failed to create evaluation_scenario")
+
+
+async def update_evaluation_scenario_score(
+    evaluation_scenario_id: str, score: float, **kwargs: dict
+) -> None:
+    """Update the score of the provided evaluation scenario.
+
+    Args:
+        evaluation_scenario_id (str): the evaluation scenario to update
+        score (float): the value to update
+    """
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(
+        EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
+    ) & query.eq(EvaluationScenarioDB.user, user.id)
+
+    # Find evaluation scenario if it meets with the query expression
+    evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
+    evaluation_scenario.score = score
+
+    # Save the evaluation scenario
+    await engine.save(evaluation_scenario)
+
+
+async def get_evaluation_scenario_score(
+    evaluation_scenario_id: str, **kwargs: dict
+) -> Dict[str, str]:
+    """Get the evaluation scenario score
+
+    Args:
+        scenario_id (str): the evaluation scenario score
+
+    Returns:
+        Dict[str, str]: scenario id and score
+    """
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(
+        EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
+    ) & query.eq(EvaluationScenarioDB.user, user.id)
+
+    # Find evaluation scenario if it meets with the query expression
+    evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
+    return {
+        "scenario_id": str(evaluation_scenario.id),
+        "score": evaluation_scenario.score,
+    }
 
 
 def evaluate_with_ai_critique(
@@ -416,3 +482,201 @@ def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
         if row["correct_answer"]:
             correct_answer["correct_answer"] = row["correct_answer"]
     return correct_answer
+
+
+async def create_custom_code_evaluation(
+    payload: CreateCustomEvaluation, **kwargs: dict
+) -> str:
+    """Save the custom evaluation code in the database.
+
+    Args:
+        payload (CreateCustomEvaluation): the required payload
+
+    Returns:
+        str: the custom evaluation id
+    """
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Initialize custom evaluation instance
+    custom_eval = CustomEvaluationDB(**payload.dict(), user=user)
+
+    await engine.save(custom_eval)
+    return str(custom_eval.id)
+
+
+async def execute_custom_code_evaluation(
+    evaluation_id: str,
+    app_name: str,
+    output: str,
+    correct_answer: str,
+    variant_name: str,
+    inputs: Dict[str, Any],
+    **kwargs: dict,
+):
+    """Execute the custom evaluation code.
+
+    Args:
+        evaluation_id (str): the custom evaluation id
+        app_name (str): the name of the app
+        output (str): required by the custom code
+        correct_answer (str): required by the custom code
+        variant_name (str): required by the custom code
+        inputs (Dict[str, Any]): required by the custom code
+
+    Raises:
+        HTTPException: Evaluation not found
+        HTTPException: App variant not found
+        HTTPException: Failed to execute custom code evaluation
+
+    Returns:
+        result: The result of the executed custom code
+    """
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(
+        CustomEvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(CustomEvaluationDB.user, user.id)
+
+    # Get custom evaluation
+    custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
+    if not custom_eval:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+
+    # Build query expression for app variant
+    appvar_query_expression = query.eq(AppVariantDB.app_name, app_name) & query.eq(
+        AppVariantDB.variant_name, variant_name
+    )
+
+    # Get app variant object
+    app_variant = await engine.find_one(AppVariantDB, appvar_query_expression)
+    if not app_variant:
+        raise HTTPException(status_code=404, detail="App variant not found")
+
+    # Execute the Python code with the provided inputs
+    try:
+        result = execute_code_safely(
+            app_variant.parameters,
+            inputs,
+            output,
+            correct_answer,
+            custom_eval.python_code,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to execute custom code evaluation: {str(e)}",
+        )
+    return result
+
+
+async def fetch_custom_evaluations(
+    app_name: str, **kwargs: dict
+) -> List[CustomEvaluationOutput]:
+    """Fetch a list of custom evaluations from the database.
+
+    Args:
+        app_name (str): the name of the app
+
+    Returns:
+        List[CustomEvaluationOutput]: ls=ist of custom evaluations
+    """
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
+        CustomEvaluationDB.app_name, app_name
+    )
+
+    # Get custom evaluations
+    custom_evals = await engine.find(CustomEvaluationDB, query_expression)
+    if not custom_evals:
+        return []
+
+    # Convert custom evaluations to evaluations
+    evaluations = []
+    for custom_eval in custom_evals:
+        evaluations.append(
+            CustomEvaluationOutput(
+                id=str(custom_eval.id),
+                app_name=custom_eval.app_name,
+                evaluation_name=custom_eval.evaluation_name,
+                created_at=custom_eval.created_at,
+            )
+        )
+    return evaluations
+
+
+async def fetch_custom_evaluation_detail(
+    id: str, **kwargs: dict
+) -> CustomEvaluationDetail:
+    """Fetch the detail of custom evaluation from the database.
+
+    Args:
+        id (str): the id of the custom evaluation
+
+    Returns:
+        CustomEvaluationDetail: Detail of the custom evaluation
+    """
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
+        CustomEvaluationDB.id, ObjectId(id)
+    )
+
+    # Get custom evaluation
+    custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
+    if not custom_eval:
+        raise HTTPException(status_code=404, detail="Custom evaluation not found")
+
+    return CustomEvaluationDetail(
+        id=str(custom_eval.id),
+        app_name=custom_eval.app_name,
+        python_code=custom_eval.python_code,
+        evaluation_name=custom_eval.evaluation_name,
+        created_at=custom_eval.created_at,
+        updated_at=custom_eval.updated_at,
+    )
+
+
+async def fetch_custom_evaluation_names(
+    app_name: str, **kwargs: dict
+) -> List[CustomEvaluationNames]:
+    """Fetch the names of custom evaluation from the database.
+
+    Args:
+        id (str): the name of the app the evaluation belongs to
+
+    Returns:
+        List[CustomEvaluationNames]: the list of name of custom evaluations
+    """
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Build query expression
+    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
+        CustomEvaluationDB.app_name, app_name
+    )
+
+    # Get custom evaluation
+    custom_evals = await engine.find(CustomEvaluationDB, query_expression)
+
+    list_of_custom_eval_names = []
+    for custom_eval in custom_evals:
+        list_of_custom_eval_names.append(
+            CustomEvaluationNames(
+                id=str(custom_eval.id),
+                evaluation_name=custom_eval.evaluation_name,
+            )
+        )
+    return list_of_custom_eval_names

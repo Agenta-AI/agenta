@@ -9,7 +9,7 @@ import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {createAndStartTemplate, fetchApps, getTemplates} from "@/lib/services/api"
+import {createAndStartTemplate, useApps, getTemplates} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
@@ -274,7 +274,7 @@ const AppSelector: React.FC = () => {
         })
     }
 
-    const {data, error, isLoading} = fetchApps()
+    const {data, error, isLoading} = useApps()
     useEffect(() => {
         setTimeout(() => {
             if (data) {
@@ -319,7 +319,7 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo && data.length > 0) {
+                                            if (isDemo && data.length > 1) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()
@@ -367,7 +367,7 @@ const AppSelector: React.FC = () => {
                 }}
             />
             <Modal
-                title="Input app name"
+                title="Enter the app name"
                 open={isInputTemplateModalOpen}
                 onCancel={handleInputTemplateModalCancel}
                 width={500}
