@@ -1,3 +1,4 @@
+from bson import ObjectId
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from odmantic import Field, Model, Reference, EmbeddedModel
@@ -138,3 +139,53 @@ class TestSetDB(Model):
 
     class Config:
         collection = "testsets"
+
+
+class SpanDB(Model):
+    parent_span_id: Optional[ObjectId]
+    meta: Optional[Dict[str, Any]]
+    event_name: str  # Function or execution name
+    event_type: Optional[str]
+    start_time: datetime
+    duration: Optional[int]
+    status: str  # initiated, completed, stopped, cancelled
+    end_time: datetime = Field(default=datetime.utcnow())
+    inputs: Optional[List[str]]
+    outputs: Optional[List[str]]
+    prompt_template: Optional[str]
+    tokens_input: Optional[int]
+    tokens_output: Optional[int]
+    token_total: Optional[int]
+    cost: Optional[float]
+    tags: Optional[List[str]]
+
+    class Config:
+        collection = "spans"
+
+
+class TraceDB(Model):
+    spans: List[SpanDB]
+    start_time: datetime
+    end_time: datetime = Field(default=datetime.utcnow())
+    app_name: Optional[str]
+    variant_name: Optional[str]
+    cost: Optional[float]
+    latency: float
+    token_consumption: Optional[int]
+    user: UserDB = Reference()
+    tags: Optional[List[str]]
+
+    class Config:
+        collection = "traces"
+
+
+class FeedbackDB(Model):
+    feedback: str
+    user_id: ObjectId
+    trace_id: ObjectId
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    score: Optional[float]
+
+    class Config:
+        collection = "feedbacks"
+        
