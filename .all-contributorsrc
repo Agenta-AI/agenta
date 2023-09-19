@@ -185,7 +185,7 @@
     },
     {
       "login": "kangsuhyun-yanolja",
-      "name": "Kang Suhuyn",
+      "name": "Kang Suhyun",
       "avatar_url": "https://avatars.githubusercontent.com/u/124246127?v=4",
       "profile": "https://github.com/kangsuhyun-yanolja",
       "contributions": [
@@ -206,6 +206,15 @@
       "name": "Kirthi Bagrecha Jain",
       "avatar_url": "https://avatars.githubusercontent.com/u/53830546?v=4",
       "profile": "https://mrkirthi24.netlify.app/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "navdeep1840",
+      "name": "Navdeep",
+      "avatar_url": "https://avatars.githubusercontent.com/u/80774259?v=4",
+      "profile": "https://github.com/navdeep1840",
       "contributions": [
         "code"
       ]
