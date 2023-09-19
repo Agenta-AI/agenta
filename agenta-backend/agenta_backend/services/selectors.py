@@ -9,7 +9,7 @@ from odmantic import query
 from agenta_backend.utills.common import engine
 from agenta_backend.models.api.organization_models import Organization
 
-async def get_user_and_org_id(session) -> Dict[str, str]:
+async def get_user_and_org_id(session) -> Dict[str, List]:
     """Retrieves the user ID and organization ID based on the logged-in session.
 
     Arguments:
@@ -47,7 +47,7 @@ async def get_user_objectid(user_uid: str) -> Tuple[str, List]:
     return None, []
 
 
-async def get_user_own_org(user_uid: str) -> Organization: # I'm having issues with this query
+async def get_user_own_org(user_uid: str) -> Organization:
     """Get's the default users' organization from the database.
 
     Arguments:
@@ -61,7 +61,7 @@ async def get_user_own_org(user_uid: str) -> Organization: # I'm having issues w
     
     # Build the query expression for the two conditions
     query_expression = query.eq(
-        OrganizationDB.owner, user.id
+        OrganizationDB.owner, str(user.id)
     ) & query.eq(OrganizationDB.type, "default")
     
     # get the organization
