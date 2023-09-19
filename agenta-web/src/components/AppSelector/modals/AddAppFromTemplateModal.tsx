@@ -76,7 +76,9 @@ const AddAppFromTemplatedModal: React.FC<Props> = ({
                                 onClick={() => {
                                     onCardClick(template)
                                 }}
-                                tag={template.image.architecture}
+
+                                // commented to remove the tag amd64 tag
+                                // tag={template.image.architecture}
                             />
                         </div>
                     ))
