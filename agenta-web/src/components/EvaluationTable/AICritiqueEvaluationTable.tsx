@@ -443,9 +443,7 @@ Answer ONLY with one of the given grading or evaluation options.
             <div className={classes.evaluationResult}>
                 <center>
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
-                        <div>
-                            Run evaluation to see results!
-                        </div>
+                        <div>Run evaluation to see results!</div>
                     )}
                     {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
                     {evaluationResults && evaluationResults.results_data && (
