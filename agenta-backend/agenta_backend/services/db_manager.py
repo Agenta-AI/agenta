@@ -78,7 +78,9 @@ async def add_variant_based_on_image(
         if app_variant.parameters is not None:
             raise ValueError("Parameters are not supported when adding based on image")
 
-        soft_deleted_variants = await list_app_variants(show_soft_deleted=True, **kwargs)
+        soft_deleted_variants = await list_app_variants(
+            show_soft_deleted=True, **kwargs
+        )
         already_exists = any(
             [
                 av
@@ -92,7 +94,9 @@ async def add_variant_based_on_image(
 
         # Get user instance
         user_instance = await get_user_object(kwargs["uid"])
-        user_db_image = await get_user_image_instance(user_instance.uid, image.docker_id)
+        user_db_image = await get_user_image_instance(
+            user_instance.uid, image.docker_id
+        )
 
         if app_variant.organization_id is None:
             organization = await get_user_own_org(kwargs["uid"])
