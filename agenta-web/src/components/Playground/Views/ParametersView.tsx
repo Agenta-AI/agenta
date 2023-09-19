@@ -1,10 +1,13 @@
-import {useState} from "react"
-import React from "react"
-import {Parameter} from "@/lib/Types"
-import {Row, Col, Button, Tooltip, message, Space, Collapse} from "antd"
+import {Environment, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
-import {ModelParameters, StringParameters, ObjectParameters} from "./ParametersCards"
+import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
+import PublishVariantModal from "./PublishVariantModal"
+import {fetchVariants} from "@/lib/services/api"
+import {useRouter} from "next/router"
+
 interface Props {
     variantName: string // The name of the variant
     optParams: Parameter[] | null // The optional parameters
@@ -17,6 +20,7 @@ interface Props {
     isPersistent: boolean
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
+    environments: Environment[]
 }
 
 const useStyles = createUseStyles({
@@ -53,10 +57,28 @@ const ParametersView: React.FC<Props> = ({
     isPersistent,
     isParamsCollapsed,
     setIsParamsCollapsed,
+    environments,
 }) => {
     const classes = useStyles()
     const [inputValue, setInputValue] = useState(1)
     const [messageApi, contextHolder] = message.useMessage()
+
+    const [isPublishModalOpen, setPublishModalOpen] = useState(false)
+
+    // Check if the variant exists and display the publish button if it does
+    const router = useRouter()
+    const appName = router.query.app_name?.toString() || ""
+    const [isVariantExisting, setIsVariantExisting] = useState(false)
+    const fetchVariant = async () => {
+        const variants: Variant[] = await fetchVariants(appName)
+        const isExisting = variants.some((variant) => variant.variantName === variantName)
+
+        setIsVariantExisting(isExisting)
+    }
+    useEffect(() => {
+        fetchVariant()
+    }, [appName, variantName])
+
     const onChange = (param: Parameter, newValue: number | string) => {
         setInputValue(+newValue)
         handleParamChange(param.name, newValue)
@@ -68,6 +90,7 @@ const ParametersView: React.FC<Props> = ({
         newOptParams && onOptParamsChange(newOptParams, false, false)
     }
     const success = () => {
+        fetchVariant()
         messageApi.open({
             type: "success",
             content: "Changes saved successfully!",
@@ -89,6 +112,16 @@ const ParametersView: React.FC<Props> = ({
                         </Col>
                         <Col span={12} className={classes.col}>
                             <Space>
+                                {isVariantExisting && (
+                                    <Button onClick={() => setPublishModalOpen(true)}>
+                                        <Tooltip
+                                            placement="bottom"
+                                            title="Publish the variant to different environments"
+                                        >
+                                            Publish
+                                        </Tooltip>
+                                    </Button>
+                                )}
                                 <Button
                                     type="primary"
                                     onClick={async () => {
@@ -154,6 +187,12 @@ const ParametersView: React.FC<Props> = ({
                 onChange={onChangeCollapse}
                 className={classes.collapse}
                 collapsible="icon"
+            />
+            <PublishVariantModal
+                variantName={variantName}
+                isModalOpen={isPublishModalOpen}
+                setIsModalOpen={setPublishModalOpen}
+                environments={environments}
             />
         </div>
     )
