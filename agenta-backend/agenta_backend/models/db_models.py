@@ -15,8 +15,8 @@ class OrganizationDB(Model):
     name: str = Field(default="agenta")
     description: str = Field(default="")
     type: Optional[str]
-    owner: "UserDB"
-    members: Optional[List["UserDB"]]
+    owner: str
+    members: Optional[List[ObjectId]]
     invitations: Optional[List[InvitationDB]] = []
 
     class Config:
@@ -53,7 +53,7 @@ class AppVariantDB(Model):
     user_id: UserDB = Reference(key_name="user")
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
-    organization: Optional[OrganizationDB]
+    organization_id: Optional[str]
     is_deleted: bool = Field(
         default=False
     )  # soft deletion for using the template variants
@@ -106,7 +106,7 @@ class EvaluationDB(Model):
     app_name: str
     testset: Dict[str, str]
     user: UserDB = Reference(key_name="user")
-    organization: Optional[OrganizationDB]
+    organization_id: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -122,7 +122,7 @@ class EvaluationScenarioDB(Model):
     evaluation: Optional[str]
     evaluation_id: str
     user: UserDB = Reference(key_name="user")
-    organization: Optional[OrganizationDB]
+    organization_id: Optional[str]
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -148,12 +148,10 @@ class TestSetDB(Model):
     app_name: str
     csvdata: List[Dict[str, str]]
     user: UserDB = Reference(key_name="user")
-    organization: Optional[OrganizationDB]
+    organization_id: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "testsets"
 
-
-OrganizationDB.update_forward_refs()
