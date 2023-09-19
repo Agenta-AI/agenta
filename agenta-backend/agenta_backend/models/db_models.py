@@ -188,4 +188,3 @@ class FeedbackDB(Model):
 
     class Config:
         collection = "feedbacks"
-        
