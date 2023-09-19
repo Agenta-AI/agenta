@@ -154,4 +154,3 @@ class TestSetDB(Model):
 
     class Config:
         collection = "testsets"
-
