@@ -9,6 +9,7 @@ from odmantic import query
 from agenta_backend.utills.common import engine
 from agenta_backend.models.api.organization_models import Organization
 
+
 async def get_user_and_org_id(session) -> Dict[str, str]:
     """Retrieves the user ID and organization ID based on the logged-in session.
 
@@ -47,7 +48,9 @@ async def get_user_objectid(user_uid: str) -> Tuple[str, List]:
     return None, []
 
 
-async def get_user_own_org(user_uid: str) -> Organization: # I'm having issues with this query
+async def get_user_own_org(
+    user_uid: str,
+) -> Organization:  # I'm having issues with this query
     """Get's the default users' organization from the database.
 
     Arguments:
@@ -56,18 +59,16 @@ async def get_user_own_org(user_uid: str) -> Organization: # I'm having issues w
     Returns:
         Organization: Instance of OrganizationDB
     """
-    
+
     user = await engine.find_one(UserDB, UserDB.uid == user_uid)
-    
+
     # Build the query expression for the two conditions
-    query_expression = query.eq(
-        OrganizationDB.owner, user.id
-    ) & query.eq(OrganizationDB.type, "default")
-    
-    # get the organization
-    org: OrganizationDB = await engine.find_one(
-        OrganizationDB, query_expression
+    query_expression = query.eq(OrganizationDB.owner, user.id) & query.eq(
+        OrganizationDB.type, "default"
     )
+
+    # get the organization
+    org: OrganizationDB = await engine.find_one(OrganizationDB, query_expression)
 
     if org is not None:
         return org
