@@ -137,6 +137,13 @@ async def add_variant_based_on_image(
                 "country": "Italy",
                 "correct_answer": "The capital of Italy is Rome.",
             },
+            {"country": "Nauru", "correct_answer": "Funafuti"},
+            {"country": "Tuvalu", "correct_answer": "Funafuti"},
+            {"country": "Brunei", "correct_answer": "Bandar Seri Begawan"},
+            {"country": "Kiribati", "correct_answer": "Tarawa"},
+            {"country": "Comoros", "correct_answer": "Moroni"},
+            {"country": "Kyrgyzstan", "correct_answer": "Bishkek"},
+            {"country": "Azerbaijan", "correct_answer": "Baku"},
         ]
         testset = {
             "name": f"{app_variant.app_name}_demo_testset",
