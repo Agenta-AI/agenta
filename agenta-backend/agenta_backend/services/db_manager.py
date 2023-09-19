@@ -26,11 +26,10 @@ from agenta_backend.models.db_models import (
 )
 from agenta_backend.services import helpers
 from agenta_backend.utills.common import engine
+from agenta_backend.services.selectors import get_user_own_org
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.organization_service import get_organization
-else:
-    from agenta_backend.services.selectors import get_user_own_org
 
 from odmantic import query
 
@@ -100,7 +99,6 @@ async def add_variant_based_on_image(
         else:
             organization = await get_organization(app_variant.organization_id)
 
-
         # Add image
         if user_db_image is None:
             db_image = ImageDB(
@@ -122,7 +120,7 @@ async def add_variant_based_on_image(
             user_id=user_instance,
             parameters=parameters,
             previous_variant_name=app_variant.previous_variant_name,
-            organization=organization if organization is not None else ""
+            organization_id=str(organization.id) if organization is not None else ""
         )
         await engine.save(db_app_variant)
     except Exception as e:
@@ -190,6 +188,11 @@ async def add_variant_based_on_previous(
         raise ValueError("App variant with the same name already exists")
 
     user_instance = await get_user_object(kwargs["uid"])
+    if previous_app_variant.organization_id is None:
+        organization = await get_user_own_org(kwargs["uid"])
+    else:
+        organization = await get_organization(previous_app_variant.organization_id)
+
     db_app_variant = AppVariantDB(
         app_name=template_variant.app_name,
         variant_name=new_variant_name,
@@ -197,6 +200,7 @@ async def add_variant_based_on_previous(
         parameters=parameters,
         previous_variant_name=template_variant.variant_name,
         user_id=user_instance,
+        organization_id=str(organization.id) if organization is not None else ""
     )
     await engine.save(db_app_variant)
 
@@ -321,16 +325,20 @@ async def list_apps(**kwargs: dict) -> List[App]:
         )
 
         # Get AppVariantDB documents where the organization matches one of the organizations the user belongs to and is not deleted
-        org_apps = await engine.find(
-            AppVariantDB,
-            query.and_(
-                query.in_(AppVariantDB.organization, user_organizations),
-                query.eq(AppVariantDB.is_deleted, False),
-            ),
-        )
+        org_apps_list = []
+
+        for org_id in user_organizations:
+            org_app = await engine.find(
+                AppVariantDB,
+                query.and_(
+                    query.eq(AppVariantDB.organization_id, str(org_id)),
+                    query.eq(AppVariantDB.is_deleted, False),
+                ),
+            )
+            org_apps_list.extend(org_app)
 
         # Combine the results and remove duplicates
-        apps_variants = user_apps + org_apps
+        apps_variants = user_apps + org_apps_list
         apps_names = [app.app_name for app in apps_variants]
         sorted_names = sorted(set(apps_names))
         return [App(app_name=app_name) for app_name in sorted_names]
@@ -646,12 +654,12 @@ async def get_user_object(user_uid: str) -> UserDB:
 
     user = await engine.find_one(UserDB, UserDB.uid == user_uid)
     if user is None:
-        if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-            
+        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+
             create_user = UserDB(uid="0")
             await engine.save(create_user)
 
-            org = OrganizationDB(type="default", owner=create_user)
+            org = OrganizationDB(type="default", owner=str(create_user.id))
             await engine.save(org)
 
             create_user.organizations.append(org.id)
