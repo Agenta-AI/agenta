@@ -99,6 +99,7 @@ class EvaluationScenarioOutput(EmbeddedModel):
 class EvaluationDB(Model):
     status: str
     evaluation_type: str
+    custom_code_evaluation_id: Optional[str]
     evaluation_type_settings: EvaluationTypeSettings
     llm_app_prompt_template: str
     variants: List[str]
@@ -128,6 +129,18 @@ class EvaluationScenarioDB(Model):
 
     class Config:
         collection = "evaluation_scenarios"
+
+
+class CustomEvaluationDB(Model):
+    evaluation_name: str
+    python_code: str
+    app_name: str
+    user: UserDB = Reference()
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "custom_evaluations"
 
 
 class TestSetDB(Model):
