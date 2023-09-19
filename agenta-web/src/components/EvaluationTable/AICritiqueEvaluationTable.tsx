@@ -115,6 +115,7 @@ const useStyles = createUseStyles({
         marginBottom: 20,
         border: "1px solid #ccc",
         background: themeMode === "light" ? "rgb(244 244 244)" : "#000000",
+        color: themeMode === "light" ? "#000" : "#fff",
         borderRadius: 5,
     }),
     h3: {
@@ -442,7 +443,7 @@ Answer ONLY with one of the given grading or evaluation options.
             <div className={classes.evaluationResult}>
                 <center>
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
-                        <div style={{color: appTheme === "light" ? "#000" : "#fff"}}>
+                        <div>
                             Run evaluation to see results!
                         </div>
                     )}
