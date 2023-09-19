@@ -17,10 +17,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
-        run: npm ci
-        working-directory: agenta-web
-
       - name: Run Prettier
         run: npx prettier --check .
         working-directory: agenta-web
