@@ -56,9 +56,9 @@ async def get_user_own_org(user_uid: str) -> Organization:
     Returns:
         Organization: Instance of OrganizationDB
     """
-    
+
     user = await engine.find_one(UserDB, UserDB.uid == user_uid)
-    
+
     # Build the query expression for the two conditions
     query_expression = query.eq(
         OrganizationDB.owner, str(user.id)
@@ -68,6 +68,9 @@ async def get_user_own_org(user_uid: str) -> Organization:
     org: OrganizationDB = await engine.find_one(
         OrganizationDB, query_expression
     )
+
+    # get the organization
+    org: OrganizationDB = await engine.find_one(OrganizationDB, query_expression)
 
     if org is not None:
         return org
