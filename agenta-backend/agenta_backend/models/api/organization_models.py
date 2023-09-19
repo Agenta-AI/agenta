@@ -10,11 +10,11 @@ class TimestampModel(BaseModel):
     updated_at: datetime = Field(datetime.utcnow())
 
 
-class Organization(TimestampModel):
+class Organization(BaseModel):
     name: str
     description: Optional[str]
     type: Optional[str]
-    owner: User
+    owner: str
     members: Optional[List[str]]
     invitations: Optional[List]
 
@@ -22,6 +22,7 @@ class Organization(TimestampModel):
 class OrganizationUpdate(BaseModel):
     name: Optional[str]
     description: Optional[str]
-    owner: User
-    members: Optional[List[User]]
+    type: Optional[str]
+    owner: str
+    members: Optional[List[str]]
     invitations: Optional[List]
