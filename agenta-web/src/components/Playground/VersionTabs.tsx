@@ -1,13 +1,13 @@
 // VersionTabs.tsx
 
-import React, {useState, useEffect} from "react"
+import React, {useState, useEffect, useRef} from "react"
 import {Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import VariantRemovalWarningModal from "./VariantRemovalWarningModal"
 import NewVariantModal from "./NewVariantModal"
 import router, {useRouter} from "next/router"
 import {fetchVariants, removeVariant} from "@/lib/services/api"
-import {Variant, PlaygroundTabsItem} from "@/lib/Types"
+import {Variant, PlaygroundTabsItem, Parameter} from "@/lib/Types"
 
 import {SyncOutlined} from "@ant-design/icons"
 import useStateCallback from "@/hooks/useStateCallback"
@@ -91,6 +91,7 @@ const VersionTabs: React.FC = () => {
     const [isChanged, setIsChanged] = useState(false)
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
     const variantData = useVariants(appName, variants)
+    const data = useRef<{newOptParams: Parameter[]; persist: boolean; updateVariant: boolean}[]>([])
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -98,14 +99,12 @@ const VersionTabs: React.FC = () => {
             "You have unsaved changes in your playground. Do you want to save these changes before leaving the page?",
         okText: "Save",
         onOk: async () => {
-            for (let i in variantData) {
-                await variantData[i].saveOptParams(
-                    variantData[i].optParams!,
-                    true,
-                    variants[i].persistent,
-                )
-                return !!variantData[i].optParams
-            }
+            await Promise.all(
+                data.current.map(({updateVariant, persist, newOptParams}, index) => {
+                    return variantData[index].saveOptParams(newOptParams, true, true)
+                }),
+            )
+            return true
         },
         cancelText: "Proceed without saving",
     })
@@ -184,6 +183,15 @@ const VersionTabs: React.FC = () => {
         })
     }
 
+    const handleOnOptParamsChange = (
+        newOptParams: Parameter[],
+        persist: boolean,
+        updateVariant: boolean,
+        index: number,
+    ) => {
+        data.current[index] = {newOptParams, persist, updateVariant}
+    }
+
     // Map the variants array to create the items array conforming to the Tab interface
     const tabItems: PlaygroundTabsItem[] = variants.map((variant, index) => ({
         key: variant.variantName,
@@ -198,6 +206,7 @@ const VersionTabs: React.FC = () => {
                 isChanged={isChanged}
                 setIsChanged={setIsChanged}
                 setUnSavedChanges={setUnSavedChanges}
+                onOptParamsChange={(...args) => handleOnOptParamsChange(...args, index)}
             />
         ),
         closable: !variant.persistent,

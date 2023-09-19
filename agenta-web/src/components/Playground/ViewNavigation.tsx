@@ -3,7 +3,7 @@ import {Col, Row, Divider, Button, Tooltip, Spin, notification} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {RestartVariantDocker, Variant} from "@/lib/Types"
+import {Parameter, RestartVariantDocker, Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
@@ -19,6 +19,11 @@ interface Props {
     isChanged: boolean
     setIsChanged: React.Dispatch<React.SetStateAction<boolean>>
     setUnSavedChanges: Dispatch<React.SetStateAction<boolean>>
+    onOptParamsChange?: (
+        newOptParams: Parameter[],
+        persist: boolean,
+        updateVariant: boolean,
+    ) => void
 }
 
 const useStyles = createUseStyles({
@@ -38,6 +43,7 @@ const ViewNavigation: React.FC<Props> = ({
     isDeleteLoading,
     setIsChanged,
     setUnSavedChanges,
+    onOptParamsChange,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -56,6 +62,15 @@ const ViewNavigation: React.FC<Props> = ({
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURIPath, setContainerURIPath] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
+
+    const handleOnOptParamsChange = (
+        newOptParams: Parameter[],
+        persist: boolean,
+        updateVariant: boolean,
+    ) => {
+        saveOptParams(newOptParams, persist, updateVariant)
+        onOptParamsChange?.(newOptParams, persist, updateVariant)
+    }
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -189,7 +204,7 @@ const ViewNavigation: React.FC<Props> = ({
                         variantName={variant.variantName}
                         optParams={optParams}
                         isParamSaveLoading={isParamSaveLoading}
-                        onOptParamsChange={saveOptParams}
+                        onOptParamsChange={handleOnOptParamsChange}
                         handlePersistVariant={handlePersistVariant}
                         isPersistent={variant.persistent} // if the variant persists in the backend, then saveoptparams will need to know to update and not save new variant
                         setRemovalVariantName={setRemovalVariantName}
