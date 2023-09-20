@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
 
 
 class AppVariant(BaseModel):
@@ -62,7 +63,6 @@ class CreateAppVariant(BaseModel):
     image_tag: str
     env_vars: Dict[str, str]
 
-
 class OrganizationInvite(BaseModel):
     organization_id: str
     email_address: str
@@ -71,3 +71,7 @@ class OrganizationInvite(BaseModel):
 class OrganizationToken(BaseModel):
     organization_id: str
     token: str
+
+class Environment(BaseModel):
+    name: str
+    deployed_app_variant: Optional[str]

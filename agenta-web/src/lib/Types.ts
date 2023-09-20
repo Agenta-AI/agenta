@@ -196,6 +196,11 @@ export interface ISession {
 export type GenericObject = Record<string, any>
 export type KeyValuePair = Record<string, string>
 
+export interface Environment {
+    name: string
+    deployed_app_variant: string
+}
+
 export interface CustomEvaluation {
     id: string
     app_name: string

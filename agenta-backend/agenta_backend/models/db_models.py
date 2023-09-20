@@ -62,6 +62,16 @@ class AppVariantDB(Model):
         collection = "app_variants"
 
 
+class EnvironmentDB(Model):
+    name: str
+    user_id: UserDB = Reference(key_name="user")
+    app_name: str
+    deployed_app_variant: Optional[str]
+
+    class Config:
+        collection = "environments"
+
+
 class TemplateDB(Model):
     template_id: int
     name: str
