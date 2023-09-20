@@ -9,6 +9,7 @@ class TimestampModel(BaseModel):
 
 
 class User(TimestampModel):
+    id: Optional[str]
     uid: str
     username: str
     email: str  # switch to EmailStr when langchain support pydantic>=2.1
