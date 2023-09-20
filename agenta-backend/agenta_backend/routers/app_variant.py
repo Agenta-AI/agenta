@@ -136,7 +136,7 @@ async def get_variant_by_env(
 @router.get("/list_apps/", response_model=List[App])
 async def list_apps(
     org_id: str = None,
-    stoken_session: SessionContainer = Depends(verify_session(session_required=False)),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> List[App]:
     """Lists the apps from our repository.
 

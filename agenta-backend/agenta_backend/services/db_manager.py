@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from agenta_backend.models.api.api_models import (
     App,
     AppVariant,
+    Environment,
     Image,
     ImageExtended,
     Template,
