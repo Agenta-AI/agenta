@@ -105,7 +105,8 @@ async def get_variant_by_name(
 
 @router.get("/list_apps/", response_model=List[App])
 async def list_apps(
-    stoken_session: SessionContainer = Depends(verify_session()),
+    org_id: str = None,
+    stoken_session: SessionContainer = Depends(verify_session(session_required=False)),
 ) -> List[App]:
     """Lists the apps from our repository.
 
@@ -117,7 +118,7 @@ async def list_apps(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        apps = await db_manager.list_apps(**kwargs)
+        apps = await db_manager.list_apps(org_id, **kwargs)
         return apps
     except Exception as e:
         logger.error(f"list_apps exception ===> {e}")

@@ -1,6 +1,7 @@
 import os
 import logging
 from bson import ObjectId
+from fastapi.responses import JSONResponse
 from typing import Dict, List, Any, Union
 
 from fastapi import HTTPException
@@ -29,7 +30,10 @@ from agenta_backend.utills.common import engine
 from agenta_backend.services.selectors import get_user_own_org
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.organization_service import get_organization
+    from agenta_backend.ee.services.organization_service import (
+        get_organization,
+        check_user_org_access
+        )
 
 from odmantic import query
 
@@ -304,9 +308,15 @@ async def get_app_variant_by_app_name_and_variant_name(
     return app_variant
 
 
-async def list_apps(**kwargs: dict) -> List[App]:
+async def list_apps(org_id: str, **kwargs: dict) -> List[App]:
     """
     Lists all the unique app names from the database
+    
+    Errors:
+        JSONResponse: You do not have permission to access this organization; status_code: 403
+        
+    Returns:
+        List[App names]
     """
     await clean_soft_deleted_variants()
 
@@ -314,38 +324,25 @@ async def list_apps(**kwargs: dict) -> List[App]:
     user = await get_user_object(kwargs["uid"])
     if user is None:
         return []
+    
+    if org_id is not None:
+        
+        organization_access = await check_user_org_access(kwargs, org_id)
+        if organization_access:
 
-    # Get the organizations the user belongs to
-    user_organizations = await get_user_organizations(user)
-
-    if user_organizations is not None:
-        # Get AppVariantDB documents where user_id matches the specified user's id and is not deleted
-        user_apps = await engine.find(
-            AppVariantDB,
-            query.and_(
-                query.eq(AppVariantDB.user_id, user.id),
-                query.eq(AppVariantDB.is_deleted, False),
-            ),
-        )
-
-        # Get AppVariantDB documents where the organization matches one of the organizations the user belongs to and is not deleted
-        org_apps_list = []
-
-        for org_id in user_organizations:
-            org_app = await engine.find(
-                AppVariantDB,
-                query.and_(
-                    query.eq(AppVariantDB.organization_id, str(org_id)),
-                    query.eq(AppVariantDB.is_deleted, False),
-                ),
+            query_expression = query.eq(AppVariantDB.organization_id, org_id) & query.eq(
+                AppVariantDB.is_deleted, False
             )
-            org_apps_list.extend(org_app)
+            apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
+            apps_names = [app.app_name for app in apps]
+            sorted_names = sorted(set(apps_names))
+            return [App(app_name=app_name) for app_name in sorted_names]
+        
+        else:
+            return JSONResponse(
+                    {"error": "You do not have permission to access this organization"}, status_code=403
+            )
 
-        # Combine the results and remove duplicates
-        apps_variants = user_apps + org_apps_list
-        apps_names = [app.app_name for app in apps_variants]
-        sorted_names = sorted(set(apps_names))
-        return [App(app_name=app_name) for app_name in sorted_names]
     else:
         query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(
             AppVariantDB.is_deleted, False
