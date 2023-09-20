@@ -13,6 +13,9 @@ from agenta_backend.models.api.api_models import (
     AppVariant,
     ImageExtended,
     Template,
+    TemplateImageInfo,
+)
+from agenta_backend.models.api.observability_models import (
     Span,
     Trace,
     TraceInputs,
@@ -20,7 +23,6 @@ from agenta_backend.models.api.api_models import (
     SpanInputs,
     SpanOutputs,
     Feedback,
-    TemplateImageInfo,
 )
 
 
