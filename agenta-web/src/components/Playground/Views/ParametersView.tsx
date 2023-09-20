@@ -61,7 +61,9 @@ const ParametersView: React.FC<Props> = ({
     isPersistent,
     isParamsCollapsed,
     setIsParamsCollapsed,
-    setIsChanged,setUnSavedChanges,environments
+    setIsChanged,
+    setUnSavedChanges,
+    environments,
 }) => {
     const classes = useStyles()
     const [inputValue, setInputValue] = useState(1)
