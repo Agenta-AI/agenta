@@ -130,7 +130,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [settings, setSettings] = useState(evaluation.evaluationTypeSettings)
     const [loading, setLoading] = useState<boolean[]>([])
     const [form] = Form.useForm()
-
     const {Text} = Typography
 
     useEffect(() => {
@@ -200,7 +199,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 },
                 status: EvaluationFlow.EVALUATION_FINISHED,
             }).then(() => {
-                setSettings({similarityThreshold})
                 message.success("Evaluation Results Saved")
             })
         })
@@ -383,8 +381,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     return (
         <div>
             <Title level={2}>
-                Similarity match Evaluation (Threshold:{" "}
-                {evaluation.evaluationTypeSettings.similarityThreshold})
+                Similarity match Evaluation (Threshold: {settings.similarityThreshold})
             </Title>
             <div className={classes.div}>
                 <Text>
@@ -452,7 +449,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     requiredMark={false}
                 >
                     <Form.Item label="Similarity Threshold" name="similarityThreshold">
-                        <Slider min={0} max={1} step={0.01} className={classes.slider} />
+                        <Slider
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            className={classes.slider}
+                            onChange={(value: number) => setSettings({similarityThreshold: value})}
+                        />
                     </Form.Item>
                 </Form>
             )}
