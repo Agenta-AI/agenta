@@ -63,15 +63,6 @@ class CreateAppVariant(BaseModel):
     image_tag: str
     env_vars: Dict[str, str]
 
-class OrganizationInvite(BaseModel):
-    organization_id: str
-    email_address: str
-
-
-class OrganizationToken(BaseModel):
-    organization_id: str
-    token: str
-
 class Environment(BaseModel):
     name: str
     deployed_app_variant: Optional[str]

@@ -11,6 +11,7 @@ class TimestampModel(BaseModel):
 
 
 class Organization(BaseModel):
+    id: Optional[str]
     name: str
     description: Optional[str]
     type: Optional[str]
