@@ -171,7 +171,7 @@ class TraceDB(Model):
     variant_name: Optional[str]
     cost: Optional[float]
     latency: float
-    status: str  # initiated, completed, stopped, cancelled
+    status: str  # initiated, completed, stopped, cancelled, failed
     token_consumption: Optional[int]
     user: UserDB = Reference()
     tags: Optional[List[str]]
@@ -184,8 +184,9 @@ class FeedbackDB(Model):
     feedback: str
     user_id: ObjectId
     trace_id: ObjectId
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
     score: Optional[float]
+    created_at: datetime
+    updated_at: datetime = Field(default=datetime.utcnow())
 
     class Config:
         collection = "feedbacks"
