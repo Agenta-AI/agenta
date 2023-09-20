@@ -3,7 +3,7 @@ import {Col, Row, Divider, Button, Tooltip, Spin, notification} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {Parameter, RestartVariantDocker, Variant} from "@/lib/Types"
+import {RestartVariantDocker, Variant,Parameter,Environment} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
@@ -16,6 +16,7 @@ interface Props {
     setRemovalVariantName: (variantName: string) => void
     setRemovalWarningModalOpen: (value: boolean) => void
     isDeleteLoading: boolean
+    environments: Environment[]
     isChanged: boolean
     setIsChanged: React.Dispatch<React.SetStateAction<boolean>>
     setUnSavedChanges: Dispatch<React.SetStateAction<boolean>>
@@ -41,9 +42,7 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalVariantName,
     setRemovalWarningModalOpen,
     isDeleteLoading,
-    setIsChanged,
-    setUnSavedChanges,
-    onOptParamsChange,
+    environments,setIsChanged,setUnSavedChanges,onOptParamsChange
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -212,6 +211,7 @@ const ViewNavigation: React.FC<Props> = ({
                         isDeleteLoading={isDeleteLoading}
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
+                        environments={environments}
                         setUnSavedChanges={setUnSavedChanges}
                         setIsChanged={setIsChanged}
                     />
