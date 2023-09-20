@@ -1,12 +1,11 @@
-import os
 import logging
-from bson import ObjectId
-from typing import Dict, List, Any
-
+import os
+from typing import Any, Dict, List
 
 from agenta_backend.models.api.api_models import (
     App,
     AppVariant,
+    Environment,
     Image,
     ImageExtended,
     Template,
@@ -16,18 +15,18 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
+from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppVariantDB,
+    EnvironmentDB,
     ImageDB,
+    OrganizationDB,
     TemplateDB,
     UserDB,
-    OrganizationDB,
 )
 from agenta_backend.services import helpers
-from agenta_backend.models.db_engine import DBEngine
-
+from bson import ObjectId
 from odmantic import query
-
 
 # Initialize database engine
 engine = DBEngine(mode="default").engine()
@@ -285,6 +284,54 @@ async def get_app_variant_by_app_name_and_variant_name(
     return app_variant
 
 
+async def get_app_variant_by_app_name_and_environment(
+    app_name: str, environment: str, **kwargs: dict
+) -> AppVariant:
+    # Get the user object using the user ID
+    user = await get_user_object(kwargs["uid"])
+
+    # Construct the base query for the user
+    users_query = query.eq(EnvironmentDB.user_id, user.id)
+
+    # Construct query filters for finding the environment in the database
+    query_filters_for_environment = (
+        query.eq(EnvironmentDB.name, environment)
+        & query.eq(EnvironmentDB.app_name, app_name)
+        & users_query
+    )
+
+    # Perform the database query to find the environment
+    environment_db = await engine.find(
+        EnvironmentDB,
+        query_filters_for_environment,
+        sort=(EnvironmentDB.app_name, EnvironmentDB.name),
+    )
+
+    if not environment_db:
+        return None
+
+    # Construct query filters for finding the app variant in the database
+    query_filters_for_app_variant = (
+        query.eq(AppVariantDB.app_name, app_name)
+        & query.eq(AppVariantDB.variant_name, environment_db[0].deployed_app_variant)
+        & users_query
+    )
+
+    # Perform the database query to find the app variant
+    app_variants_db = await engine.find(
+        AppVariantDB,
+        query_filters_for_app_variant,
+        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
+    )
+
+    # Convert the first matching database object to AppVariant and return it
+    app_variant = (
+        app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
+    )
+
+    return app_variant
+
+
 async def list_apps(**kwargs: dict) -> List[App]:
     """
     Lists all the unique app names from the database
@@ -389,16 +436,24 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
     pending_variant_to_delete = await engine.find_one(
         AppVariantDB, delete_var_query_expression
     )
-    is_last_variant = await check_is_last_variant(app_variant_db)
+    is_last_variant_for_image = await check_is_last_variant_for_image(app_variant_db)
     if app_variant_db is None:
         raise ValueError("App variant not found")
+
+    # Remove the variant from the associated environments
+    environments = await list_environments_by_variant(
+        app_variant.app_name, app_variant.variant_name, **kwargs
+    )
+    for environment in environments:
+        environment.deployed_app_variant = None
+        await engine.save(environment)
 
     if app_variant_db.previous_variant_name is not None:  # forked variant
         await engine.delete(app_variant_db)
         if pending_variant_to_delete is not None:
             await engine.delete(pending_variant_to_delete)
 
-    elif is_last_variant:  # last variant using the image, okay to delete
+    elif is_last_variant_for_image:  # last variant using the image, okay to delete
         await engine.delete(app_variant_db)
         if pending_variant_to_delete is not None:
             await engine.delete(pending_variant_to_delete)
@@ -434,7 +489,7 @@ async def remove_image(image: ImageExtended, **kwargs: dict):
     await engine.delete(image_db)
 
 
-async def check_is_last_variant(db_app_variant: AppVariantDB) -> bool:
+async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     """Checks whether the input variant is the sole variant that uses its linked image
     This is a helpful function to determine whether to delete the image when removing a variant
     Usually many variants will use the same image (these variants would have been created using the UI)
@@ -645,3 +700,143 @@ async def get_user_image_instance(user_id: str, docker_id: str) -> ImageDB:
     )
     image = await engine.find_one(ImageDB, query_expression)
     return image
+
+
+async def create_environment(name: str, app_name: str, **kwargs: dict):
+    """
+    Creates a new environment for the given app with the given name.
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    environment_db = EnvironmentDB(
+        name=name,
+        app_name=app_name,
+        user_id=user,
+    )
+    await engine.save(environment_db)
+
+
+async def list_environments(app_name: str, **kwargs: dict) -> List[Environment]:
+    """
+    Lists all the environments for the given app name from the DB
+    """
+
+    async def fetch_environments() -> List[EnvironmentDB]:
+        query_filters = query.eq(EnvironmentDB.app_name, app_name) & query.eq(
+            EnvironmentDB.user_id, user.id
+        )
+        return await engine.find(EnvironmentDB, query_filters)
+
+    user = await get_user_object(kwargs["uid"])
+
+    # Fetch the environments for the given app name and user
+    environments_db: List[EnvironmentDB] = await fetch_environments()
+
+    if environments_db:
+        return environments_db
+
+    await initialize_environments(app_name, **kwargs)
+    environments_db: List[EnvironmentDB] = await fetch_environments()
+
+    return environments_db
+
+
+async def list_environments_by_variant(
+    app_name: str, variant_name: str, **kwargs: dict
+) -> List[Environment]:
+    """
+    Lists all the environments for the given app name and variant from the DB
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    # Find the environments for the given app name and user
+    query_filters = (
+        query.eq(EnvironmentDB.app_name, app_name)
+        & query.eq(EnvironmentDB.user_id, user.id)
+        & query.eq(EnvironmentDB.deployed_app_variant, variant_name)
+    )
+    environments_db: List[EnvironmentDB] = await engine.find(
+        EnvironmentDB, query_filters
+    )
+
+    return environments_db
+
+
+async def remove_environment(environment_name: str, app_name: str, **kwargs: dict):
+    """
+    Removes the given environment for the given app.
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    query_filters = (
+        query.eq(EnvironmentDB.app_name, app_name)
+        & query.eq(EnvironmentDB.user_id, user.id)
+        & query.eq(EnvironmentDB.name, environment_name)
+    )
+    environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
+    if environment_db is None:
+        raise ValueError("Environment not found")
+
+    print(
+        f"Deleting environment: {environment_db.name} for app: {environment_db.app_name}"
+    )
+    print(environment_db)
+
+    await engine.delete(environment_db)
+
+
+async def deploy_to_environment(
+    app_name: str, environment_name: str, variant_name: str, **kwargs: dict
+):
+    """
+    Deploys a variant to a given environment.
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    # Check whether the app variant exists first
+    app_variant = await get_app_variant_by_app_name_and_variant_name(
+        app_name, variant_name, **kwargs
+    )
+    if app_variant is None:
+        raise ValueError("App variant not found")
+
+    # Find the environment for the given app name and user
+    query_filters = (
+        query.eq(EnvironmentDB.app_name, app_name)
+        & query.eq(EnvironmentDB.user_id, user.id)
+        & query.eq(EnvironmentDB.name, environment_name)
+    )
+    environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
+    if environment_db is None:
+        raise ValueError(f"Environment {environment_name} not found")
+    if environment_db.deployed_app_variant == variant_name:
+        raise ValueError(
+            f"Variant {app_name}/{variant_name} is already deployed to the environment {environment_name}"
+        )
+
+    # Update the environment with the new variant name
+    environment_db.deployed_app_variant = variant_name
+    await engine.save(environment_db)
+
+
+async def initialize_environments(app_name: str, **kwargs: dict):
+    await create_environment("development", app_name, **kwargs)
+    await create_environment("staging", app_name, **kwargs)
+    await create_environment("production", app_name, **kwargs)
+
+
+async def does_app_exist(app_name: str, **kwargs: dict) -> bool:
+    """
+    Checks if a specific app exists in the database
+    """
+    user = await get_user_object(kwargs["uid"])
+
+    query_expression = (
+        query.eq(AppVariantDB.user_id, user.id)
+        & query.eq(AppVariantDB.is_deleted, False)
+        & query.eq(AppVariantDB.app_name, app_name)
+    )
+
+    app: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
+
+    return app is not None
