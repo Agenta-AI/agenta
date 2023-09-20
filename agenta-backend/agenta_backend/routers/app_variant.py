@@ -103,6 +103,36 @@ async def get_variant_by_name(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/get_variant_by_env/", response_model=AppVariant)
+async def get_variant_by_env(
+    app_name: str,
+    environment: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Fetches a specific app variant based on the given app_name and environment."""
+
+    try:
+        # Retrieve the user and organization ID based on the session token
+        kwargs = await get_user_and_org_id(stoken_session)
+
+        # Fetch the app variant using the provided app_name and variant_name
+        app_variant = await db_manager.get_app_variant_by_app_name_and_environment(
+            app_name=app_name, environment=environment, **kwargs
+        )
+        # Check if the fetched app variant is None and raise 404 if it is
+        if app_variant is None:
+            raise HTTPException(status_code=500, detail="App Variant not found")
+        return app_variant
+    except ValueError as e:
+        # Handle ValueErrors and return 400 status code
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        # Handle all other exceptions and return 500 status code
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/list_apps/", response_model=List[App])
 async def list_apps(
     org_id: str = None,
