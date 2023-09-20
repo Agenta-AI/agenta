@@ -1,21 +1,22 @@
 """Main Business logic
 """
-import os
 import logging
-from typing import Optional
+import os
+from typing import List, Optional
+
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
     URI,
     App,
     AppVariant,
-    Image,
     DockerEnvVars,
+    Environment,
+    Image,
     ImageExtended,
 )
 from agenta_backend.models.db_models import AppVariantDB, TestSetDB
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -125,7 +126,7 @@ def _delete_docker_image(image: Image) -> None:
         logger.info(f"Image {image.tags} deleted")
     except Exception as e:
         logger.warning(
-            f"Warning: Error deleting image {image.tags}. Probably multiple variants using it."
+            f"Warning: Error deleting image {image.tags}. Probably multiple variants using it.\n {str(e)}"
         )
 
 
@@ -147,14 +148,16 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
     app_variant_db = await _fetch_app_variant_from_db(app_variant, **kwargs)
 
     if app_variant_db is None:
-        msg = f"App variant {app_variant.app_name}/{app_variant.variant_name} not found in DB"
-        logger.error(msg)
-        raise ValueError(msg)
+        error_msg = f"Failed to delete app variant {app_variant.app_name}/{app_variant.variant_name}: Not found in DB."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     try:
-        is_last_variant = await db_manager.check_is_last_variant(app_variant_db)
+        is_last_variant_for_image = await db_manager.check_is_last_variant_for_image(
+            app_variant_db
+        )
 
-        if is_last_variant:
+        if is_last_variant_for_image:
             image = await _fetch_image_from_db(app_variant, **kwargs)
 
             if image:
@@ -168,14 +171,22 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
                 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
                     _delete_docker_image(image)
             else:
-                print("Debug: Image not found. Skipping deletion.")
-
+                logger.debug(
+                    f"Image associated with app variant {app_variant.app_name}/{app_variant.variant_name} not found. Skipping deletion."
+                )
         else:
             await db_manager.remove_app_variant(app_variant, **kwargs)
 
+        app_variants = await db_manager.list_app_variants(
+            app_name=app_variant.app_name, **kwargs
+        )
+        if len(app_variants) == 0:  # this was the last variant for an app
+            await remove_app_related_resources(app_variant.app_name, **kwargs)
     except Exception as e:
-        logger.error(f"Error deleting app variant: {str(e)}")
-        raise
+        logger.error(
+            f"An error occurred while deleting app variant {app_variant.app_name}/{app_variant.variant_name}: {str(e)}"
+        )
+        raise e from None
 
 
 async def remove_app(app: App, **kwargs: dict):
@@ -190,32 +201,65 @@ async def remove_app(app: App, **kwargs: dict):
     app_name = app.app_name
     apps = await db_manager.list_apps(**kwargs)
     if app_name not in [app.app_name for app in apps]:
-        msg = f"App {app_name} not found in DB"
-        logger.error(msg)
-        raise ValueError(msg)
+        error_msg = f"Failed to delete app {app_name}: Not found in DB."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
     try:
         app_variants = await db_manager.list_app_variants(app_name=app_name, **kwargs)
     except Exception as e:
         logger.error(f"Error fetching app variants from the database: {str(e)}")
-        raise
+        raise e from None
 
     if app_variants is None:
-        msg = f"App {app_name} not found in DB"
-        logger.error(msg)
-        raise ValueError(msg)
-    else:
-        try:
-            for app_variant in app_variants:
-                await remove_app_variant(app_variant, **kwargs)
-                logger.info(
-                    f"App variant {app_variant.app_name}/{app_variant.variant_name} deleted"
-                )
+        error_msg = (
+            f"Failed to fetch app variants for app {app_name}: No variants found in DB."
+        )
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
-            await remove_app_testsets(app_name, **kwargs)
-            logger.info(f"Tatasets for {app_name} app deleted")
-        except Exception as e:
-            logger.error(f"Error deleting app variants: {str(e)}")
-            raise
+    try:
+        # Delete associated variants
+        for app_variant in app_variants:
+            await remove_app_variant(app_variant, **kwargs)
+            logger.info(
+                f"Successfully deleted app variant {app_variant.app_name}/{app_variant.variant_name}."
+            )
+
+        await remove_app_related_resources(app_name, **kwargs)
+    except Exception as e:
+        logger.error(
+            f"An error occurred while deleting app {app_name} and its associated resources: {str(e)}"
+        )
+        raise e from None
+
+
+async def remove_app_related_resources(app_name: str, **kwargs: dict):
+    """Removes environments and testsets associated with an app after its deletion.
+
+    When an app or its last variant is deleted, this function ensures that
+    all related resources such as environments and testsets are also deleted.
+
+    Args:
+        app_name: The name of the app whose associated resources are to be removed.
+    """
+    try:
+        # Delete associated environments
+        environments: List[Environment] = await db_manager.list_environments(
+            app_name, **kwargs
+        )
+        for environment in environments:
+            await db_manager.remove_environment(environment.name, app_name, **kwargs)
+            logger.info(
+                f"Successfully deleted environment {environment.name} associated with app {app_name}."
+            )
+        # Delete associated testsets
+        await remove_app_testsets(app_name, **kwargs)
+        logger.info(f"Successfully deleted test sets associated with app {app_name}.")
+    except Exception as e:
+        logger.error(
+            f"An error occurred while cleaning up resources for app {app_name}: {str(e)}"
+        )
+        raise e from None
 
 
 async def remove_app_testsets(app_name: str, **kwargs):
@@ -315,22 +359,22 @@ async def update_variant_parameters(app_variant: AppVariant, **kwargs: dict):
         "",
         None,
     ]:
-        msg = f"App name and variant name cannot be empty"
+        msg = "App name and variant name cannot be empty"
         logger.error(msg)
         raise ValueError(msg)
     if app_variant.parameters is None:
-        msg = f"Parameters cannot be empty when updating app variant"
+        msg = "Parameters cannot be empty when updating app variant"
         logger.error(msg)
         raise ValueError(msg)
     try:
         await db_manager.update_variant_parameters(
             app_variant, app_variant.parameters, **kwargs
         )
-    except:
+    except Exception as e:
         logger.error(
             f"Error updating app variant {app_variant.app_name}/{app_variant.variant_name}"
         )
-        raise
+        raise e from None
 
 
 async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: dict):
@@ -391,5 +435,5 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
             f"Starting variant {app_variant.app_name}/{app_variant.variant_name}"
         )
         await start_variant(app_variant, **kwargs)
-    except:
-        raise
+    except Exception as e:
+        raise e from None
