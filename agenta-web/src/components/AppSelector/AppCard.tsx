@@ -1,11 +1,12 @@
-import {Modal, message, Card, Avatar} from "antd"
+import {Modal, Card, Avatar} from "antd"
 import {DeleteOutlined} from "@ant-design/icons"
 import {removeApp} from "@/lib/services/api"
-import useSWR, {mutate} from "swr"
+import {mutate} from "swr"
 import {useState} from "react"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
+import {getGradientFromStr} from "@/lib/helpers/colors"
 
 const useStyles = createUseStyles({
     card: {
@@ -77,22 +78,6 @@ const AppCard: React.FC<{
     const handleDeleteCancel = () => {
         setVisibleDelete(false)
     }
-    const gradients = [
-        "linear-gradient(to bottom right, #424242, #9F1239, #560BAD)",
-        "linear-gradient(to bottom right, #C6F6D5, #34D399, #3B82F6)",
-        "linear-gradient(to bottom right, #FEEBC8, #F59E0B, #9A3412)",
-        "linear-gradient(to bottom right, #C6F6D5, #22D3EE, #7137F1)",
-        "linear-gradient(to bottom right, #BFDBFE, #60A5FA, #3B82F6)",
-        "linear-gradient(to bottom right, #8B5CF6, #FDE047)",
-        "linear-gradient(to bottom right, #B91C1C, #D97706, #F59E0B)",
-        "linear-gradient(to bottom right, #93C5FD, #C6F6D5, #FDE047)",
-        "linear-gradient(to bottom right, #3B82F6, #1D4ED8, #111827)",
-        "linear-gradient(to bottom right, #34D399, #A78BFA)",
-        "linear-gradient(to bottom right, #FEEBC8, #F9A8D4, #F43F5E)",
-        "linear-gradient(to bottom right, #10B981, #047857)",
-        "linear-gradient(to bottom right, #F472B6, #D946EF, #4F46E5)",
-        "linear-gradient(to bottom right, #60A5FA, #3B82F6)",
-    ]
 
     const classes = useStyles()
 
@@ -108,7 +93,7 @@ const AppCard: React.FC<{
                         avatar={
                             <Avatar
                                 size="large"
-                                style={{backgroundImage: gradients[index % gradients.length]}}
+                                style={{backgroundImage: getGradientFromStr(appName)}}
                             >
                                 {appName.charAt(0).toUpperCase()}
                             </Avatar>
