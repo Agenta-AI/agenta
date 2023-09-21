@@ -63,12 +63,14 @@ class CreateAppVariant(BaseModel):
     image_tag: str
     env_vars: Dict[str, str]
 
+
 class InviteRequest(BaseModel):
     email: str
 
 
 class InviteToken(BaseModel):
     token: str
+
 
 class Environment(BaseModel):
     name: str

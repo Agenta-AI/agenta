@@ -19,22 +19,20 @@ else:
     )
     from agenta_backend.services.selectors import get_user_and_org_id
 
+
 @router.get("/")
 async def user_profile(
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    
     try:
-        
         kwargs: dict = await get_user_and_org_id(stoken_session)
         user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
         return User(
             id=str(user.id),
             uid=str(user.uid),
             username=str(user.username),
-            email=str(user.email)
+            email=str(user.email),
         ).dict(exclude_unset=True)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
