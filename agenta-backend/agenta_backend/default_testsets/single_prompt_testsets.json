@@ -1,11 +1,9 @@
-{
-	"single_prompt": [
-		{"country": "Nauru", "correct_answer": "The capital of Nauru is Funafuti"},
-		{"country": "Tuvalu", "correct_answer": "The capital of Tuvalu is Funafuti"},
-		{"country": "Brunei", "correct_answer": "The capital of Brunei is Bandar Seri Begawan"},
-		{"country": "Kiribati", "correct_answer": "The capital of Kiribati is Tarawa"},
-		{"country": "Comoros", "correct_answer": "The capital of Comoros is Moroni"},
-		{"country": "Kyrgyzstan", "correct_answer": "The capital of Kyrgyzstan is Bishkek"},
-		{"country": "Azerbaijan", "correct_answer": "The capital of Azerbaijan is Baku"}
-	]
-}
+[
+	{"country": "Nauru", "correct_answer": "The capital of Nauru is Funafuti"},
+	{"country": "Tuvalu", "correct_answer": "The capital of Tuvalu is Funafuti"},
+	{"country": "Brunei", "correct_answer": "The capital of Brunei is Bandar Seri Begawan"},
+	{"country": "Kiribati", "correct_answer": "The capital of Kiribati is Tarawa"},
+	{"country": "Comoros", "correct_answer": "The capital of Comoros is Moroni"},
+	{"country": "Kyrgyzstan", "correct_answer": "The capital of Kyrgyzstan is Bishkek"},
+	{"country": "Azerbaijan", "correct_answer": "The capital of Azerbaijan is Baku"}
+]
