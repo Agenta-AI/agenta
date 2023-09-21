@@ -119,41 +119,50 @@ async def add_variant_based_on_image(
     )
     await engine.save(db_app_variant)
 
-    # Create testset for demonstration purposes
-    if os.environ["FEATURE_FLAG"] == "demo":
-        csvdata = [
-            {
-                "country": "Nigeria",
-                "correct_answer": "The capital of Nigeria is Abuja.",
-            },
-            {
-                "country": "France",
-                "correct_answer": "The capital of France is Paris.",
-            },
-            {
-                "country": "Germany",
-                "correct_answer": "The capital of Nigeria is Berlin.",
-            },
-            {
-                "country": "Italy",
-                "correct_answer": "The capital of Italy is Rome.",
-            },
-            {"country": "Nauru", "correct_answer": "Funafuti"},
-            {"country": "Tuvalu", "correct_answer": "Funafuti"},
-            {"country": "Brunei", "correct_answer": "Bandar Seri Begawan"},
-            {"country": "Kiribati", "correct_answer": "Tarawa"},
-            {"country": "Comoros", "correct_answer": "Moroni"},
-            {"country": "Kyrgyzstan", "correct_answer": "Bishkek"},
-            {"country": "Azerbaijan", "correct_answer": "Baku"},
-        ]
-        testset = {
-            "name": f"{app_variant.app_name}_demo_testset",
-            "app_name": app_variant.app_name,
-            "created_at": datetime.now().isoformat(),
-            "csvdata": csvdata,
-        }
-        testset = TestSetDB(**testset, user=user_instance)
-        await engine.save(testset)
+
+async def create_testsets_for_app_variant(app_variant: AppVariant, **kwargs: dict):
+    """Create testsets for a given app variant
+
+    Args:
+        app_variant (AppVariant): the app variant model
+    """
+
+    # Get user instance
+    user_instance = await get_user_object(kwargs["uid"])
+
+    csvdata = [
+        {
+            "country": "Nigeria",
+            "correct_answer": "The capital of Nigeria is Abuja.",
+        },
+        {
+            "country": "France",
+            "correct_answer": "The capital of France is Paris.",
+        },
+        {
+            "country": "Germany",
+            "correct_answer": "The capital of Nigeria is Berlin.",
+        },
+        {
+            "country": "Italy",
+            "correct_answer": "The capital of Italy is Rome.",
+        },
+        {"country": "Nauru", "correct_answer": "Funafuti"},
+        {"country": "Tuvalu", "correct_answer": "Funafuti"},
+        {"country": "Brunei", "correct_answer": "Bandar Seri Begawan"},
+        {"country": "Kiribati", "correct_answer": "Tarawa"},
+        {"country": "Comoros", "correct_answer": "Moroni"},
+        {"country": "Kyrgyzstan", "correct_answer": "Bishkek"},
+        {"country": "Azerbaijan", "correct_answer": "Baku"},
+    ]
+    testset = {
+        "name": f"{app_variant.app_name}_demo_testset",
+        "app_name": app_variant.app_name,
+        "created_at": datetime.now().isoformat(),
+        "csvdata": csvdata,
+    }
+    testset = TestSetDB(**testset, user=user_instance)
+    await engine.save(testset)
 
 
 async def add_variant_based_on_previous(
