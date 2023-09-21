@@ -135,11 +135,11 @@ async def add_testset_to_app_variant(
         image (Image): the image
     """
 
-    json_path = f"{PARENT_DIRECTORY}/default_testsets/single_prompt_testsets.json"
     user_instance = await get_user_object(kwargs["uid"])
 
     app_template_name = image.tags.split(":")[-1]
     if app_template_name == "single_prompt":
+        json_path = f"{PARENT_DIRECTORY}/default_testsets/single_prompt_testsets.json"
         csvdata = get_json(json_path)["single_prompt"]
         testset = {
             "name": f"{app_variant.app_name}_testset",
