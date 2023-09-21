@@ -16,9 +16,7 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
-from agenta_backend.default_testsets.services import (
-    get_single_prompt_testsets
-)
+from agenta_backend.default_testsets.services import get_single_prompt_testsets
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppVariantDB,
