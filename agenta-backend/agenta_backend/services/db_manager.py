@@ -82,9 +82,13 @@ async def add_variant_based_on_image(
     ):
         raise ValueError("App variant or image is None")
     if app_variant.parameters is not None:
-        raise ValueError("Parameters are not supported when adding based on image")
+        raise ValueError(
+            "Parameters are not supported when adding based on image"
+        )
 
-    soft_deleted_variants = await list_app_variants(show_soft_deleted=True, **kwargs)
+    soft_deleted_variants = await list_app_variants(
+        show_soft_deleted=True, **kwargs
+    )
     already_exists = any(
         [
             av
@@ -98,7 +102,9 @@ async def add_variant_based_on_image(
 
     # Get user instance
     user_instance = await get_user_object(kwargs["uid"])
-    user_db_image = await get_user_image_instance(user_instance.uid, image.docker_id)
+    user_db_image = await get_user_image_instance(
+        user_instance.uid, image.docker_id
+    )
 
     # Add image
     if user_db_image is None:
@@ -112,7 +118,9 @@ async def add_variant_based_on_image(
     user_db_image = db_image
 
     # Add app variant and link it to the app variant
-    parameters = {} if app_variant.parameters is None else app_variant.parameters
+    parameters = (
+        {} if app_variant.parameters is None else app_variant.parameters
+    )
 
     db_app_variant = AppVariantDB(
         image_id=user_db_image,
@@ -139,7 +147,7 @@ async def add_testset_to_app_variant(
 
     app_template_name = image.tags.split(":")[-1]
     if app_template_name == "single_prompt":
-        json_path = f"{PARENT_DIRECTORY}/default_testsets/single_prompt_testsets.json"
+        json_path = f"{PARENT_DIRECTORY}/resources/default_testsets/single_prompt_testsets.json"
         csvdata = get_json(json_path)
         testset = {
             "name": f"{app_variant.app_name}_testset",
@@ -315,7 +323,9 @@ async def get_app_variant_by_app_name_and_variant_name(
     # Convert the database object to AppVariant and return it
     # Assuming that find will return a list, take the first element if it exists
     app_variant: AppVariant = (
-        app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
+        app_variant_db_to_pydantic(app_variants_db[0])
+        if app_variants_db
+        else None
     )
 
     return app_variant
@@ -350,7 +360,9 @@ async def get_app_variant_by_app_name_and_environment(
     # Construct query filters for finding the app variant in the database
     query_filters_for_app_variant = (
         query.eq(AppVariantDB.app_name, app_name)
-        & query.eq(AppVariantDB.variant_name, environment_db[0].deployed_app_variant)
+        & query.eq(
+            AppVariantDB.variant_name, environment_db[0].deployed_app_variant
+        )
         & users_query
     )
 
@@ -363,7 +375,9 @@ async def get_app_variant_by_app_name_and_environment(
 
     # Convert the first matching database object to AppVariant and return it
     app_variant = (
-        app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
+        app_variant_db_to_pydantic(app_variants_db[0])
+        if app_variants_db
+        else None
     )
 
     return app_variant
@@ -383,7 +397,9 @@ async def list_apps(**kwargs: dict) -> List[App]:
     query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(
         AppVariantDB.is_deleted, False
     )
-    apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
+    apps: List[AppVariantDB] = await engine.find(
+        AppVariantDB, query_expression
+    )
     apps_names = [app.app_name for app in apps]
     sorted_names = sorted(set(apps_names))
     return [App(app_name=app_name) for app_name in sorted_names]
@@ -400,7 +416,9 @@ async def count_apps(**kwargs: dict) -> int:
     if user is None:
         return 0
 
-    no_of_apps = await engine.count(AppVariantDB, AppVariantDB.user_id == user.id)
+    no_of_apps = await engine.count(
+        AppVariantDB, AppVariantDB.user_id == user.id
+    )
     return no_of_apps
 
 
@@ -424,7 +442,9 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
         & query.eq(AppVariantDB.user_id, user.id)
     )
 
-    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
+    db_app_variant: AppVariantDB = await engine.find_one(
+        AppVariantDB, query_expression
+    )
     if db_app_variant:
         image_db: ImageDB = await engine.find_one(
             ImageDB, ImageDB.id == ObjectId(db_app_variant.image_id.id)
@@ -473,7 +493,9 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
     pending_variant_to_delete = await engine.find_one(
         AppVariantDB, delete_var_query_expression
     )
-    is_last_variant_for_image = await check_is_last_variant_for_image(app_variant_db)
+    is_last_variant_for_image = await check_is_last_variant_for_image(
+        app_variant_db
+    )
     if app_variant_db is None:
         raise ValueError("App variant not found")
 
@@ -490,7 +512,9 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
         if pending_variant_to_delete is not None:
             await engine.delete(pending_variant_to_delete)
 
-    elif is_last_variant_for_image:  # last variant using the image, okay to delete
+    elif (
+        is_last_variant_for_image
+    ):  # last variant using the image, okay to delete
         await engine.delete(app_variant_db)
         if pending_variant_to_delete is not None:
             await engine.delete(pending_variant_to_delete)
@@ -506,7 +530,11 @@ async def remove_image(image: ImageExtended, **kwargs: dict):
     Arguments:
         image -- Image to remove
     """
-    if image is None or image.docker_id in [None, ""] or image.tags in [None, ""]:
+    if (
+        image is None
+        or image.docker_id in [None, ""]
+        or image.tags in [None, ""]
+    ):
         raise ValueError("Image is None")
 
     # Get user object
@@ -557,7 +585,9 @@ async def check_is_last_variant_for_image(
         return False
 
 
-async def get_variant_from_db(app_variant: AppVariant, **kwargs: dict) -> AppVariantDB:
+async def get_variant_from_db(
+    app_variant: AppVariant, **kwargs: dict
+) -> AppVariantDB:
     """Checks whether the app variant exists in our db
     and returns the AppVariantDB object if it does
 
@@ -579,7 +609,9 @@ async def get_variant_from_db(app_variant: AppVariant, **kwargs: dict) -> AppVar
     )
 
     # Find app_variant in the database
-    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
+    db_app_variant: AppVariantDB = await engine.find_one(
+        AppVariantDB, query_expression
+    )
     logger.info(f"Found app variant: {db_app_variant}")
     if db_app_variant:
         return db_app_variant
@@ -650,7 +682,9 @@ async def update_variant_parameters(
         & query.eq(AppVariantDB.user_id, user.id)
     )
 
-    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
+    db_app_variant: AppVariantDB = await engine.find_one(
+        AppVariantDB, query_expression
+    )
 
     if db_app_variant is None:
         raise ValueError("App variant not found")
@@ -755,7 +789,9 @@ async def create_environment(name: str, app_name: str, **kwargs: dict):
     await engine.save(environment_db)
 
 
-async def list_environments(app_name: str, **kwargs: dict) -> List[Environment]:
+async def list_environments(
+    app_name: str, **kwargs: dict
+) -> List[Environment]:
     """
     Lists all the environments for the given app name from the DB
     """
@@ -801,7 +837,9 @@ async def list_environments_by_variant(
     return environments_db
 
 
-async def remove_environment(environment_name: str, app_name: str, **kwargs: dict):
+async def remove_environment(
+    environment_name: str, app_name: str, **kwargs: dict
+):
     """
     Removes the given environment for the given app.
     """
@@ -812,7 +850,9 @@ async def remove_environment(environment_name: str, app_name: str, **kwargs: dic
         & query.eq(EnvironmentDB.user_id, user.id)
         & query.eq(EnvironmentDB.name, environment_name)
     )
-    environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
+    environment_db: EnvironmentDB = await engine.find_one(
+        EnvironmentDB, query_filters
+    )
     if environment_db is None:
         raise ValueError("Environment not found")
 
@@ -845,7 +885,9 @@ async def deploy_to_environment(
         & query.eq(EnvironmentDB.user_id, user.id)
         & query.eq(EnvironmentDB.name, environment_name)
     )
-    environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
+    environment_db: EnvironmentDB = await engine.find_one(
+        EnvironmentDB, query_filters
+    )
     if environment_db is None:
         raise ValueError(f"Environment {environment_name} not found")
     if environment_db.deployed_app_variant == variant_name:
