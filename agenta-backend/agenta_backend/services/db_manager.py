@@ -1,4 +1,6 @@
+import os
 import logging
+from pathlib import Path
 from bson import ObjectId
 from datetime import datetime
 from typing import Dict, List, Any
@@ -16,7 +18,7 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
-from agenta_backend.services.json_importer_helper import get_single_prompt_testsets
+from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppVariantDB,
@@ -36,6 +38,9 @@ engine = DBEngine(mode="default").engine()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# Define parent directory
+PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 
 async def get_templates() -> List[Template]:
@@ -129,12 +134,13 @@ async def add_testset_to_app_variant(
         app_variant (AppVariant): the app variant
         image (Image): the image
     """
-
+    
+    json_path = f"{PARENT_DIRECTORY}/default_testsets/single_prompt_testsets.json"
     user_instance = await get_user_object(kwargs["uid"])
 
     app_template_name = image.tags.split(":")[-1]
     if app_template_name == "single_prompt":
-        csvdata = get_single_prompt_testsets()
+        csvdata = get_json(json_path)["single_prompt"]
         testset = {
             "name": f"{app_variant.app_name}_testset",
             "app_name": app_variant.app_name,
