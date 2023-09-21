@@ -438,6 +438,11 @@ export default function Evaluations() {
                                 className={classes.radioBtn}
                             >
                                 <div className={classes.evaluationType}>
+                                    <Image
+                                        src={abTesting}
+                                        alt="Picture of the author"
+                                        className={classes.evaluationImg}
+                                    />
                                     <span>
                                         {EvaluationTypeLabels[EvaluationType.human_a_b_testing]}
                                     </span>
