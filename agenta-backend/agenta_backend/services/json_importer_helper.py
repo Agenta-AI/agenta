@@ -1,22 +1,14 @@
-import os
 import json
-from typing import Dict
-from pathlib import Path
 
 
-def get_single_prompt_testsets() -> Dict[str, str]:
+def get_json(json_path: str):
     """Reads and returns the contents of a JSON file as a list of
     dictionaries.
-
-    Returns:
-        Dict[str, str]: dictionary of csv data
+    
+    Args:
+		json_path (str): The path of json
     """
 
-    parent_directory = Path(os.path.dirname(__file__)).parent
-    working_directory = "default_testsets"
-    with open(
-        f"{parent_directory}/{working_directory}/single_prompt_testsets.json",
-        "r",
-    ) as f:
+    with open(json_path) as f:
         json_data = json.loads(f.read())
-    return json_data["single_prompt"]
+    return json_data
