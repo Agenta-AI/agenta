@@ -1,27 +1,11 @@
 {
 	"single_prompt": [
-		{
-			"country": "Nigeria",
-			"correct_answer": "The capital of Nigeria is Abuja."
-		},
-		{
-			"country": "France",
-			"correct_answer": "The capital of France is Paris."
-		},
-		{
-			"country": "Germany",
-			"correct_answer": "The capital of Nigeria is Berlin."
-		},
-		{
-			"country": "Italy",
-			"correct_answer": "The capital of Italy is Rome."
-		},
-		{"country": "Nauru", "correct_answer": "Funafuti"},
-		{"country": "Tuvalu", "correct_answer": "Funafuti"},
-		{"country": "Brunei", "correct_answer": "Bandar Seri Begawan"},
-		{"country": "Kiribati", "correct_answer": "Tarawa"},
-		{"country": "Comoros", "correct_answer": "Moroni"},
-		{"country": "Kyrgyzstan", "correct_answer": "Bishkek"},
-		{"country": "Azerbaijan", "correct_answer": "Baku"}
+		{"country": "Nauru", "correct_answer": "The capital of Nauru is Funafuti"},
+		{"country": "Tuvalu", "correct_answer": "The capital of Tuvalu is Funafuti"},
+		{"country": "Brunei", "correct_answer": "The capital of Brunei is Bandar Seri Begawan"},
+		{"country": "Kiribati", "correct_answer": "The capital of Kiribati is Tarawa"},
+		{"country": "Comoros", "correct_answer": "The capital of Comoros is Moroni"},
+		{"country": "Kyrgyzstan", "correct_answer": "The capital of Kyrgyzstan is Bishkek"},
+		{"country": "Azerbaijan", "correct_answer": "The capital of Azerbaijan is Baku"}
 	]
 }
