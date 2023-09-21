@@ -34,8 +34,8 @@ from agenta_backend.services.selectors import get_user_own_org
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.organization_service import (
         get_organization,
-        check_user_org_access
-        )
+        check_user_org_access,
+    )
 
 from odmantic import query
 
@@ -361,10 +361,10 @@ async def get_app_variant_by_app_name_and_environment(
 async def list_apps(org_id: str, **kwargs: dict) -> List[App]:
     """
     Lists all the unique app names from the database
-    
+
     Errors:
         JSONResponse: You do not have permission to access this organization; status_code: 403
-        
+
     Returns:
         List[App names]
     """
@@ -374,23 +374,22 @@ async def list_apps(org_id: str, **kwargs: dict) -> List[App]:
     user = await get_user_object(kwargs["uid"])
     if user is None:
         return []
-    
+
     if org_id is not None:
-        
         organization_access = await check_user_org_access(kwargs, org_id)
         if organization_access:
-
-            query_expression = query.eq(AppVariantDB.organization_id, org_id) & query.eq(
-                AppVariantDB.is_deleted, False
-            )
+            query_expression = query.eq(
+                AppVariantDB.organization_id, org_id
+            ) & query.eq(AppVariantDB.is_deleted, False)
             apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
             apps_names = [app.app_name for app in apps]
             sorted_names = sorted(set(apps_names))
             return [App(app_name=app_name) for app_name in sorted_names]
-        
+
         else:
             return JSONResponse(
-                    {"error": "You do not have permission to access this organization"}, status_code=403
+                {"error": "You do not have permission to access this organization"},
+                status_code=403,
             )
 
     else:
