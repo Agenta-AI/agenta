@@ -90,7 +90,7 @@ type LayoutProps = {
 
 const App: React.FC<LayoutProps> = ({children}) => {
     const router = useRouter()
-    const {app_name: appName} = router.query
+    const {app_name: appName, variant_name: variantName} = router.query
     const {appTheme} = useAppTheme()
     const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
@@ -120,6 +120,36 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [appTheme])
 
+    const computePlaygroundBreadCrumbs = () => {
+        const playground = `/playground`
+        if (router?.pathname?.includes(playground)) {
+            const inclusions = {apps: "apps", [appName]: `apps/${appName}/playground`}
+            const paths = router.asPath
+            const urlPaths = paths?.replace(playground, "").slice(1, paths.length).split("/")
+            if (urlPaths?.length) {
+                return urlPaths.map((u) => {
+                    const decoded = decodeURI(u)
+                    const isLink = inclusions[decoded]
+
+                    if (isLink) {
+                        return {
+                            title: (
+                                <Link href={`/${isLink}`}>
+                                    {renameVariablesCapitalizeAll(decoded)}
+                                </Link>
+                            ),
+                        }
+                    }
+                    return {title: renameVariablesCapitalizeAll(decoded)}
+                })
+            }
+        }
+
+        return [{title: <Link href="/apps">Apps</Link>}, {title: capitalizedAppName}]
+    }
+
+    const breadCrumbItems = computePlaygroundBreadCrumbs()
+
     return (
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
@@ -135,10 +165,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             <Space className={classes.breadcrumbContainer}>
                                 <Breadcrumb
                                     className={classes.breadcrumb}
-                                    items={[
-                                        {title: <Link href="/apps">Apps</Link>},
-                                        {title: capitalizedAppName},
-                                    ]}
+                                    items={breadCrumbItems}
                                 />
                                 <Button
                                     className={classes.star}
