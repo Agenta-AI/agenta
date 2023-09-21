@@ -22,24 +22,24 @@ class Span(BaseModel):
     token_total: Optional[int]
     cost: Optional[float]
     tags: Optional[List[str]]
-    
+
 
 class CreateFeedback(BaseModel):
     feedback: str
     score: Optional[float]
-    
-    
+
+
 class Feedback(CreateFeedback):
     feedback_id: str
     trace_id: str
     created_at: Optional[datetime]
-    
-    
+
+
 class UpdateFeedback(BaseModel):
     feedback: str
     score: Optional[float]
-    
-    
+
+
 class Trace(BaseModel):
     trace_id: str
     app_name: Optional[str]
@@ -52,11 +52,11 @@ class Trace(BaseModel):
     start_time: datetime
     end_time: datetime
     spans: Optional[List[Span]]
-    
-    
+
+
 class CreateTrace(Trace):
     pass
-    
+
 
 class UpdateTrace(BaseModel):
     status: str
@@ -65,8 +65,8 @@ class UpdateTrace(BaseModel):
 class SpanInputs(BaseModel):
     span_id: str
     inputs: List[str]
-    
-    
+
+
 class SpanOutputs(BaseModel):
     span_id: str
     outputs: List[str]
@@ -80,4 +80,3 @@ class TraceInputs(BaseModel):
 class TraceOutputs(BaseModel):
     trace_id: str
     outputs: List[SpanOutputs]
-    

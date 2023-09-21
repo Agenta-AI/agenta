@@ -95,9 +95,7 @@ async def latency_of_llm_run(trace_id: str, **kwargs: dict) -> float:
     return trace.latency
 
 
-async def inputs_of_llm_run(
-    trace_id: str, **kwargs: dict
-) -> List[TraceInputs]:
+async def inputs_of_llm_run(trace_id: str, **kwargs: dict) -> List[TraceInputs]:
     """Gets the inputs of the llm run trace.
 
     Args:
@@ -117,9 +115,7 @@ async def inputs_of_llm_run(
     return trace_inputs_to_pydantic(str(trace.id), trace.spans)
 
 
-async def outputs_of_llm_run(
-    trace_id: str, **kwargs: dict
-) -> List[TraceOutputs]:
+async def outputs_of_llm_run(trace_id: str, **kwargs: dict) -> List[TraceOutputs]:
     """Gets the outputs of the llm run trace.
 
     Args:
@@ -295,15 +291,13 @@ async def get_trace_feedbacks(trace_id: str, **kwargs: dict) -> List[Feedback]:
     """
 
     user = await db_manager.get_user_object(kwargs["uid"])
-    query_expressions = query.eq(
-        FeedbackDB.trace_id, ObjectId(trace_id)
-    ) & query.eq(FeedbackDB.user_id, user.id)
+    query_expressions = query.eq(FeedbackDB.trace_id, ObjectId(trace_id)) & query.eq(
+        FeedbackDB.user_id, user.id
+    )
 
     # Get feedbacks
     feedbacks_db = await engine.find(FeedbackDB, query_expressions)
-    feedbacks = [
-        feedback_db_to_pydantic(feedback) for feedback in feedbacks_db
-    ]
+    feedbacks = [feedback_db_to_pydantic(feedback) for feedback in feedbacks_db]
     return feedbacks
 
 
