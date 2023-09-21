@@ -204,5 +204,3 @@ async def update_feedback(
     kwargs: dict = await get_user_and_org_id(stoken_session)
     feedback = await update_trace_feedback(trace_id, feedback_id, payload, **kwargs)
     return feedback
-
-

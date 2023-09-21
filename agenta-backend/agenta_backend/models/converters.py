@@ -115,9 +115,7 @@ def trace_db_to_pydantic(trace_db: TraceDB) -> Trace:
     ).dict(exclude_unset=True)
 
 
-def trace_outputs_to_pydantic(
-    trace_id: str, trace_spans: List[SpanDB]
-) -> TraceOutputs:
+def trace_outputs_to_pydantic(trace_id: str, trace_spans: List[SpanDB]) -> TraceOutputs:
     return TraceOutputs(
         trace_id=trace_id,
         outputs=[
@@ -125,15 +123,12 @@ def trace_outputs_to_pydantic(
             for span in trace_spans
         ],
     )
-    
 
-def trace_inputs_to_pydantic(
-    trace_id: str, trace_spans: List[SpanDB]
-) -> TraceInputs:
+
+def trace_inputs_to_pydantic(trace_id: str, trace_spans: List[SpanDB]) -> TraceInputs:
     return TraceInputs(
         trace_id=trace_id,
         inputs=[
-            SpanInputs(span_id=str(span.id), inputs=span.inputs)
-            for span in trace_spans
+            SpanInputs(span_id=str(span.id), inputs=span.inputs) for span in trace_spans
         ],
     )
