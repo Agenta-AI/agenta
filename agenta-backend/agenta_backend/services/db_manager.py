@@ -134,7 +134,7 @@ async def add_testset_to_app_variant(
         app_variant (AppVariant): the app variant
         image (Image): the image
     """
-    
+
     json_path = f"{PARENT_DIRECTORY}/default_testsets/single_prompt_testsets.json"
     user_instance = await get_user_object(kwargs["uid"])
 
