@@ -95,14 +95,14 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     try:
         click.echo(
             click.style(
-                f"Preparing variant {variant_name} into a tar file...", fg="yellow"
+                f"Preparing variant {variant_name} into a tar file...", fg="bright_black"
             )
         )
         tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
 
         click.echo(
             click.style(
-                f"Building variant {variant_name} into a docker image...", fg="yellow"
+                f"Building variant {variant_name} into a docker image...", fg="bright_black"
             )
         )
         image: Image = client.send_docker_tar(app_name, variant_name, tar_path, host)
@@ -115,7 +115,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
         if overwrite:
             click.echo(
                 click.style(
-                    f"Updating variant {variant_name} to server...", fg="yellow"
+                    f"Updating variant {variant_name} to server...", fg="bright_black"
                 )
             )
             client.update_variant_image(app_name, variant_name, image, host)
@@ -133,7 +133,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     if overwrite:
         click.echo(
             click.style(
-                f"Variant {variant_name} for App {app_name} updated successfully to Agenta!",
+                f"Variant {variant_name} for App {app_name} updated successfully 🎉", bold=True,
                 fg="green",
             )
         )
@@ -279,7 +279,7 @@ def config_check(app_folder: str):
         app_folder -- the app folder
     """
 
-    click.echo(click.style("\nChecking and updating config file...", fg="yellow"))
+    click.echo(click.style("\nChecking and updating config file...", fg="bright_black"))
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     if not config_file.exists():
