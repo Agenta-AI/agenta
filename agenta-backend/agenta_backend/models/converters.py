@@ -67,7 +67,7 @@ def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
 def spans_db_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
     return [
         Span(
-            span_id=str(span_db.span_id),
+            span_id=str(span_db.id),
             parent_span_id=str(span_db.parent_span_id),
             meta=span_db.meta,
             event_name=span_db.event_name,
@@ -91,7 +91,7 @@ def spans_db_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
 
 def feedback_db_to_pydantic(feedback_db: FeedbackDB) -> Feedback:
     return Feedback(
-        feedback_id=str(feedback_db.feedback_id),
+        feedback_id=str(feedback_db.id),
         feedback=feedback_db.feedback,
         trace_id=str(feedback_db.trace_id),
         score=feedback_db.score,
@@ -101,7 +101,7 @@ def feedback_db_to_pydantic(feedback_db: FeedbackDB) -> Feedback:
 
 def trace_db_to_pydantic(trace_db: TraceDB) -> Trace:
     return Trace(
-        trace_id=str(trace_db.trace_id),
+        trace_id=str(trace_db.id),
         app_name=trace_db.app_name,
         variant_name=trace_db.variant_name,
         cost=trace_db.cost,
@@ -121,7 +121,7 @@ def trace_outputs_to_pydantic(
     return TraceOutputs(
         trace_id=trace_id,
         outputs=[
-            SpanOutputs(id=str(span.id), outputs=span.outputs)
+            SpanOutputs(span_id=str(span.id), outputs=span.outputs)
             for span in trace_spans
         ],
     )
@@ -132,8 +132,8 @@ def trace_inputs_to_pydantic(
 ) -> TraceInputs:
     return TraceInputs(
         trace_id=trace_id,
-        outputs=[
-            SpanInputs(id=str(span.id), inputs=span.inputs)
+        inputs=[
+            SpanInputs(span_id=str(span.id), inputs=span.inputs)
             for span in trace_spans
         ],
     )
