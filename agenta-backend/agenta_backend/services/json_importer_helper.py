@@ -10,5 +10,8 @@ def get_json(json_path: str):
     """
 
     with open(json_path) as f:
-        json_data = json.loads(f.read())
+        try:
+            json_data = json.loads(f.read())
+        except Exception:
+            raise ValueError(f"Could not read JSON file: {json_path}")
     return json_data
