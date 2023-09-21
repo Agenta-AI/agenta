@@ -181,7 +181,7 @@ class TraceDB(Model):
 
 
 class FeedbackDB(Model):
-    feedback: str
+    feedback: Optional[str]
     user_id: ObjectId
     trace_id: ObjectId
     score: Optional[float]
