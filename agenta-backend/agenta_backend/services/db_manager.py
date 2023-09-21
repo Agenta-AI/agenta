@@ -1,7 +1,4 @@
-import json
-import os
 import logging
-from pathlib import Path
 from bson import ObjectId
 from datetime import datetime
 from typing import Dict, List, Any
@@ -18,6 +15,9 @@ from agenta_backend.models.converters import (
     app_variant_db_to_pydantic,
     image_db_to_pydantic,
     templates_db_to_pydantic,
+)
+from agenta_backend.default_testsets.services import (
+    get_single_prompt_testsets
 )
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
@@ -122,21 +122,6 @@ async def add_variant_based_on_image(
     await engine.save(db_app_variant)
 
 
-def get_json_testset() -> List[Dict[str, str]]:
-    """Reads and returns the contents of a JSON file as a list of
-    dictionaries.
-
-    Returns:
-        List[Dict[str, str]]: the list of dictionaries
-    """
-
-    parent_directory = Path(os.path.dirname(__file__)).parent
-    working_directory = "services/"
-    with open(f"{parent_directory}/{working_directory}/testsets.json", "r") as f:
-        json_data = json.loads(f.read())
-    return json_data
-
-
 async def add_testset_to_app_variant(
     app_variant: AppVariant, image: Image, **kwargs: dict
 ):
@@ -148,11 +133,10 @@ async def add_testset_to_app_variant(
     """
 
     user_instance = await get_user_object(kwargs["uid"])
-    json_testset_data = get_json_testset()
 
     app_template_name = image.tags.split(":")[-1]
     if app_template_name == "single_prompt":
-        csvdata = json_testset_data["single_prompt"]
+        csvdata = get_single_prompt_testsets()
         testset = {
             "name": f"{app_variant.app_name}_testset",
             "app_name": app_variant.app_name,
