@@ -439,12 +439,8 @@ async def add_app_variant_from_template(
         # Save variant based on the image to database
         await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
 
-        # Create testset for apps created with the single_prompt template
-        if (
-            os.environ["FEATURE_FLAG"] == "demo"
-            and image.tags.split(":")[-1] == "single_prompt"
-        ):
-            await db_manager.create_testsets_for_app_variant(app_variant, **kwargs)
+        # Create testset for apps created
+        await db_manager.add_testset_to_app_variant(app_variant, image, **kwargs)
     else:
         # Update variant based on the image
         await app_manager.update_variant_image(app_variant, image, **kwargs)
