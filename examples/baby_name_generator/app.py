@@ -1,27 +1,31 @@
-import os
-
+import agenta as ag
 import openai
-from agenta import FloatParam, TextParam, post
-from fastapi import Body
-from jinja2 import Template
+from agenta.types import FloatParam, TextParam
 
-default_prompt = "Give me five cool names for a baby from this country {{country}} with this gender {{gender}}!!!!"
+default_prompt = "Give me 5 names for a baby from this country {country} with gender {gender}!!!!"
+
+ag.init()
+ag.config.default(temperature=FloatParam(0.9),
+                  prompt_template=TextParam(default_prompt))
 
 
-@post
+@ag.entrypoint
 def generate(
-    country: str,
-    gender: str,
-    temperature: FloatParam = FloatParam(0.9),
-    prompt_template: TextParam = default_prompt,
-) -> str:
-    template = Template(prompt_template)
-    prompt = template.render(country=country, gender=gender)
+        country: str,
+        gender: str) -> str:
+    """
+    Generate a baby name based on the given country and gender.
 
-    openai.api_key = os.environ.get("OPENAI_API_KEY")  # make sure to set this manually!
+    Args:
+        country (str): The country to generate the name from.
+        gender (str): The gender of the baby.
+
+    Returns:
+        str: The generated baby name.
+    """
+    prompt = ag.config.prompt_template.format(country=country, gender=gender)
+
     chat_completion = openai.ChatCompletion.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
-
-    result = chat_completion.choices[0].message.content
-    return result
+    return chat_completion.choices[0].message.content
