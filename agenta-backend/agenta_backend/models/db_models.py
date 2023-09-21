@@ -142,7 +142,7 @@ class TestSetDB(Model):
 
 
 class SpanDB(Model):
-    parent_span_id: Optional[ObjectId]
+    parent_span_id: Optional[str]
     meta: Optional[Dict[str, Any]]
     event_name: str  # Function or execution name
     event_type: Optional[str]
