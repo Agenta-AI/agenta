@@ -9,13 +9,19 @@ import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {createAndStartTemplate, useApps, getTemplates} from "@/lib/services/api"
+import {createAndStartTemplate, getTemplates} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
+
+const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
+
+// conditionally import the useApps hook based on the demo flag
+let useApps: any = () => ({isLoading: true})
+import(`@/lib/services/api${isDemo ? "_ee" : ""}`).then((module) => (useApps = module.useApps))
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -100,7 +106,6 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
-    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
