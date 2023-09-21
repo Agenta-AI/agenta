@@ -25,7 +25,7 @@ class Span(BaseModel):
 
 
 class CreateFeedback(BaseModel):
-    feedback: str
+    feedback: Optional[str]
     score: Optional[float]
 
 
