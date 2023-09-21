@@ -164,7 +164,7 @@ class SpanDB(Model):
 
 
 class TraceDB(Model):
-    spans: List[SpanDB]
+    spans: List[ObjectId]
     start_time: datetime
     end_time: datetime = Field(default=datetime.utcnow())
     app_name: Optional[str]
@@ -185,6 +185,7 @@ class FeedbackDB(Model):
     user_id: ObjectId
     trace_id: ObjectId
     score: Optional[float]
+    meta: Optional[Dict]
     created_at: datetime
     updated_at: datetime = Field(default=datetime.utcnow())
 
