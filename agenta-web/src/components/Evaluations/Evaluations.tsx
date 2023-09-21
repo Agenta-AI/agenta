@@ -458,7 +458,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={exactMatch}
-                                        alt="Picture of the author"
+                                        alt="Exact match"
                                         className={classes.evaluationImg}
                                     />
 
@@ -474,7 +474,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={similarity}
-                                        alt="Picture of the author"
+                                        alt="Similarity"
                                         className={classes.evaluationImg}
                                     />
 
@@ -490,7 +490,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={regexIcon}
-                                        alt="Picture of the author"
+                                        alt="Regex"
                                         className={classes.evaluationImg}
                                     />
 
@@ -506,7 +506,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={webhookIcon}
-                                        alt="Picture of the author"
+                                        alt="Webhook"
                                         className={classes.evaluationImg}
                                     />
 
@@ -520,11 +520,7 @@ export default function Evaluations() {
                                 className={classes.radioBtn}
                             >
                                 <div className={classes.evaluationType}>
-                                    <Image
-                                        src={ai}
-                                        alt="Picture of the author"
-                                        className={classes.evaluationImg}
-                                    />
+                                    <Image src={ai} alt="AI" className={classes.evaluationImg} />
 
                                     <span>
                                         {EvaluationTypeLabels[EvaluationType.auto_ai_critique]}
