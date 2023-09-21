@@ -317,17 +317,26 @@ def remove_variant_cli(variant_name: str, app_folder: str):
     )
 
 
-@variant.command(name="serve")
+@variant.command(name="serve", context_settings=dict(
+    ignore_unknown_options=True,
+    allow_extra_args=True,
+))
 @click.option("--app_folder", default=".")
-@click.option("--file_name", help="The name of the file to run")
-def serve_cli(app_folder: str, file_name: str):
-    """Adds a variant to the web ui and serves the api locally."""
+@click.option("--file_name", default=None, help="The name of the file to run")
+@click.pass_context
+def serve_cli(ctx, app_folder: str, file_name: str):
+    """Adds a variant to the web ui and serves the API locally."""
 
     if not file_name:
-        error_msg = "To serve variant, kindly provide the filename and run:\n"
-        error_msg += ">>> agenta variant serve --file_name <filename>.py"
-        click.echo(click.style(f"{error_msg}", fg="red"))
-        sys.exit(0)
+        if ctx.args:
+            file_name = ctx.args[0]
+        else:
+            error_msg = "To serve variant, kindly provide the filename and run:\n"
+            error_msg += ">>> agenta variant serve --file_name <filename>.py\n"
+            error_msg += "or\n"
+            error_msg += ">>> agenta variant serve <filename>.py"
+            click.echo(click.style(f"{error_msg}", fg="red"))
+            sys.exit(0)
 
     try:
         config_check(app_folder)
