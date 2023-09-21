@@ -92,9 +92,7 @@ allow_headers = ["Content-Type"]
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     import agenta_backend.ee.main as ee
-    from agenta_backend.ee.routers import organization_router
 
-    app.include_router(organization_router.router, prefix="/organizations")
     app, allow_headers = ee.extend_main(app)
 # this is the prefix in which we are reverse proxying the api
 #
