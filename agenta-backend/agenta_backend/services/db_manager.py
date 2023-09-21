@@ -1,6 +1,10 @@
-import logging
 import os
-from typing import Any, Dict, List
+import logging
+from bson import ObjectId
+from fastapi.responses import JSONResponse
+from typing import Dict, List, Any, Union
+
+from fastapi import HTTPException
 
 from agenta_backend.models.api.api_models import (
     App,
@@ -15,21 +19,25 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppVariantDB,
     EnvironmentDB,
     ImageDB,
-    OrganizationDB,
     TemplateDB,
     UserDB,
+    OrganizationDB,
 )
 from agenta_backend.services import helpers
-from bson import ObjectId
-from odmantic import query
+from agenta_backend.utills.common import engine
+from agenta_backend.services.selectors import get_user_own_org
 
-# Initialize database engine
-engine = DBEngine(mode="default").engine()
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+    from agenta_backend.ee.services.organization_service import (
+        get_organization,
+        check_user_org_access,
+    )
+
+from odmantic import query
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -62,59 +70,71 @@ async def add_variant_based_on_image(
     Raises:
         ValueError: if variant exists or missing inputs
     """
+    try:
+        await clean_soft_deleted_variants()
+        if (
+            app_variant is None
+            or image is None
+            or app_variant.app_name in [None, ""]
+            or app_variant.variant_name in [None, ""]
+            or image.docker_id in [None, ""]
+            or image.tags in [None, ""]
+        ):
+            raise ValueError("App variant or image is None")
+        if app_variant.parameters is not None:
+            raise ValueError("Parameters are not supported when adding based on image")
 
-    await clean_soft_deleted_variants()
-    if (
-        app_variant is None
-        or image is None
-        or app_variant.app_name in [None, ""]
-        or app_variant.variant_name in [None, ""]
-        or image.docker_id in [None, ""]
-        or image.tags in [None, ""]
-    ):
-        raise ValueError("App variant or image is None")
-    if app_variant.parameters is not None:
-        raise ValueError("Parameters are not supported when adding based on image")
-
-    soft_deleted_variants = await list_app_variants(show_soft_deleted=True, **kwargs)
-    already_exists = any(
-        [
-            av
-            for av in soft_deleted_variants
-            if av.app_name == app_variant.app_name
-            and av.variant_name == app_variant.variant_name
-        ]
-    )
-    if already_exists:
-        raise ValueError("App variant with the same name already exists")
-
-    # Get user instance
-    user_instance = await get_user_object(kwargs["uid"])
-    user_db_image = await get_user_image_instance(user_instance.uid, image.docker_id)
-
-    # Add image
-    if user_db_image is None:
-        db_image = ImageDB(
-            docker_id=image.docker_id,
-            tags=image.tags,
-            user_id=user_instance,
+        soft_deleted_variants = await list_app_variants(
+            show_soft_deleted=True, **kwargs
         )
-        await engine.save(db_image)
+        already_exists = any(
+            [
+                av
+                for av in soft_deleted_variants
+                if av.app_name == app_variant.app_name
+                and av.variant_name == app_variant.variant_name
+            ]
+        )
+        if already_exists:
+            raise ValueError("App variant with the same name already exists")
 
-    user_db_image = db_image
+        # Get user instance
+        user_instance = await get_user_object(kwargs["uid"])
+        user_db_image = await get_user_image_instance(
+            user_instance.uid, image.docker_id
+        )
 
-    # Add app variant and link it to the app variant
-    parameters = {} if app_variant.parameters is None else app_variant.parameters
+        if app_variant.organization_id is None:
+            organization = await get_user_own_org(kwargs["uid"])
+        else:
+            organization = await get_organization(app_variant.organization_id)
 
-    db_app_variant = AppVariantDB(
-        image_id=user_db_image,
-        app_name=app_variant.app_name,
-        variant_name=app_variant.variant_name,
-        user_id=user_instance,
-        parameters=parameters,
-        previous_variant_name=app_variant.previous_variant_name,
-    )
-    await engine.save(db_app_variant)
+        # Add image
+        if user_db_image is None:
+            db_image = ImageDB(
+                docker_id=image.docker_id,
+                tags=image.tags,
+                user_id=user_instance,
+            )
+            await engine.save(db_image)
+
+        user_db_image = db_image
+
+        # Add app variant and link it to the app variant
+        parameters = {} if app_variant.parameters is None else app_variant.parameters
+
+        db_app_variant = AppVariantDB(
+            image_id=user_db_image,
+            app_name=app_variant.app_name,
+            variant_name=app_variant.variant_name,
+            user_id=user_instance,
+            parameters=parameters,
+            previous_variant_name=app_variant.previous_variant_name,
+            organization_id=str(organization.id) if organization is not None else "",
+        )
+        await engine.save(db_app_variant)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 async def add_variant_based_on_previous(
@@ -178,6 +198,11 @@ async def add_variant_based_on_previous(
         raise ValueError("App variant with the same name already exists")
 
     user_instance = await get_user_object(kwargs["uid"])
+    if previous_app_variant.organization_id is None:
+        organization = await get_user_own_org(kwargs["uid"])
+    else:
+        organization = await get_organization(previous_app_variant.organization_id)
+
     db_app_variant = AppVariantDB(
         app_name=template_variant.app_name,
         variant_name=new_variant_name,
@@ -185,6 +210,7 @@ async def add_variant_based_on_previous(
         parameters=parameters,
         previous_variant_name=template_variant.variant_name,
         user_id=user_instance,
+        organization_id=str(organization.id) if organization is not None else "",
     )
     await engine.save(db_app_variant)
 
@@ -332,9 +358,15 @@ async def get_app_variant_by_app_name_and_environment(
     return app_variant
 
 
-async def list_apps(**kwargs: dict) -> List[App]:
+async def list_apps(org_id: str, **kwargs: dict) -> List[App]:
     """
     Lists all the unique app names from the database
+
+    Errors:
+        JSONResponse: You do not have permission to access this organization; status_code: 403
+
+    Returns:
+        List[App names]
     """
     await clean_soft_deleted_variants()
 
@@ -343,13 +375,31 @@ async def list_apps(**kwargs: dict) -> List[App]:
     if user is None:
         return []
 
-    query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(
-        AppVariantDB.is_deleted, False
-    )
-    apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
-    apps_names = [app.app_name for app in apps]
-    sorted_names = sorted(set(apps_names))
-    return [App(app_name=app_name) for app_name in sorted_names]
+    if org_id is not None:
+        organization_access = await check_user_org_access(kwargs, org_id)
+        if organization_access:
+            query_expression = query.eq(
+                AppVariantDB.organization_id, org_id
+            ) & query.eq(AppVariantDB.is_deleted, False)
+            apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
+            apps_names = [app.app_name for app in apps]
+            sorted_names = sorted(set(apps_names))
+            return [App(app_name=app_name) for app_name in sorted_names]
+
+        else:
+            return JSONResponse(
+                {"error": "You do not have permission to access this organization"},
+                status_code=403,
+            )
+
+    else:
+        query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(
+            AppVariantDB.is_deleted, False
+        )
+        apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
+        apps_names = [app.app_name for app in apps]
+        sorted_names = sorted(set(apps_names))
+        return [App(app_name=app_name) for app_name in sorted_names]
 
 
 async def count_apps(**kwargs: dict) -> int:
@@ -662,26 +712,50 @@ async def get_user_object(user_uid: str) -> UserDB:
 
     user = await engine.find_one(UserDB, UserDB.uid == user_uid)
     if user is None:
-        org = OrganizationDB()
-        return UserDB(uid="0", organization_id=org)
-    return user
+        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+            create_user = UserDB(uid="0")
+            await engine.save(create_user)
+
+            org = OrganizationDB(type="default", owner=str(create_user.id))
+            await engine.save(org)
+
+            create_user.organizations.append(org.id)
+            await engine.save(create_user)
+            await engine.save(org)
+
+            return create_user
+        else:
+            raise Exception("Please login or signup")
+    else:
+        return user
 
 
-async def get_user_organization(user_id: str) -> OrganizationDB:
-    """Get the user organization object from the database.
+async def get_user_organizations(
+    user_id_or_user: Union[str, UserDB] = None
+) -> List[OrganizationDB]:
+    """Get the list of the user's organizations from the database.
 
     Arguments:
-        user_id (str): The user unique identifier
+        user_id_or_user (Union[str, UserDB]): Either the user's unique identifier (str) or the user object (UserDB).
 
     Returns:
-        OrganizationDB: instance of user organization
+        List[OrganizationDB]: list of user's organizations.
     """
 
-    user = await get_user_object(user_id)
-    organization = await engine.find_one(
-        OrganizationDB, OrganizationDB.id == user.organization_id
-    )
-    return organization
+    if isinstance(user_id_or_user, str):
+        user = await get_user_object(user_id_or_user)
+    elif isinstance(user_id_or_user, UserDB):
+        user = user_id_or_user
+    else:
+        raise ValueError("user_id_or_user must be either a string or UserDB object")
+
+    organizations = []
+
+    if user.organizations is not None:
+        for org in user.organizations:
+            organizations.append(org)
+        return organizations
+    return None
 
 
 async def get_user_image_instance(user_id: str, docker_id: str) -> ImageDB:
