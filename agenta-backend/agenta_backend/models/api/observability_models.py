@@ -26,17 +26,17 @@ class Span(BaseModel):
 
 class CreateFeedback(BaseModel):
     feedback: str
-    trace_id: str
     score: Optional[float]
     
     
 class Feedback(CreateFeedback):
     feedback_id: str
+    trace_id: str
     created_at: Optional[datetime]
     
     
 class UpdateFeedback(BaseModel):
-    feedback:str
+    feedback: str
     score: Optional[float]
     
     
