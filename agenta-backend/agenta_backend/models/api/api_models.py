@@ -70,7 +70,7 @@ class Environment(BaseModel):
     deployed_app_variant: Optional[str]
 
 
-class VariantConfigPayload(BaseModel):
+class PostVariantConfigPayload(BaseModel):
     app_name: str
     base_name: str
     config_name: str

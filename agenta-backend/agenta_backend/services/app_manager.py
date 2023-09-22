@@ -13,7 +13,7 @@ from agenta_backend.models.api.api_models import (
     Environment,
     Image,
     ImageExtended,
-    VariantConfigPayload,
+    PostVariantConfigPayload,
 )
 from agenta_backend.models.db_models import AppVariantDB, TestSetDB
 from agenta_backend.services import db_manager, docker_utils
@@ -353,8 +353,49 @@ async def start_variant(
     return uri
 
 
+async def fetch_variant_config(
+    app_name: str,
+    variant_name: str,
+    base_name: str,
+    config_name: str,
+    **kwargs: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Fetch a variant configuration from the server based on the variant's name and app's name.
+
+    Args:
+        kwargs (Dict[str, Any]): Additional keyword arguments.
+
+    Raises:
+        ValueError: If `app_name`, `variant_name`, `base_name`, or `config_name` are empty.
+        Exception: If no variant is found.
+
+    Returns:
+        dict: The requested variant configuration.
+    """
+    if not app_name or not variant_name:
+        msg = "App name and variant name cannot be empty."
+        logger.error(msg)
+        raise ValueError(msg)
+
+    variant_name = f"{base_name}.{config_name}"
+
+    try:
+        found_variant = await db_manager.get_app_variant_by_app_name_and_variant_name(
+            app_name=app_name, variant_name=variant_name, **kwargs
+        )
+        if not found_variant:
+            msg = f"No variant called {variant_name} found."
+            raise Exception(msg)
+
+        return found_variant.parameters
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        raise e
+
+
 async def save_variant_config(
-    variant_config: VariantConfigPayload, **kwargs: Dict[str, Any]
+    variant_config: PostVariantConfigPayload, **kwargs: Dict[str, Any]
 ) -> None:
     """
     Save or update a variant configuration to the server.
@@ -444,7 +485,9 @@ async def _update_variant(
 
 
 async def _create_new_variant(
-    variant_config: VariantConfigPayload, variant_name: str, **kwargs: Dict[str, Any]
+    variant_config: PostVariantConfigPayload,
+    variant_name: str,
+    **kwargs: Dict[str, Any],
 ) -> None:
     """
     Create a new app variant based on an existing base variant.
