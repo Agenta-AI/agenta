@@ -43,7 +43,7 @@ logger.setLevel(logging.INFO)
 
 
 @router.get("/list_variants/", response_model=List[AppVariant], tags=["depracated"])
-@router.get("/variants/", response_model=List[AppVariant], tags=["v2"])
+@router.get("/variants/", response_model=List[AppVariant], tags=["default"])
 async def list_app_variants(
     app_name: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -67,7 +67,7 @@ async def list_app_variants(
 
 
 @router.get("/get_variant_by_name/", response_model=AppVariant, tags=["depracated"])
-@router.get("/variant_by_name/", response_model=AppVariant, tags=["v2"])
+@router.get("/variant_by_name/", response_model=AppVariant, tags=["default"])
 async def get_variant_by_name(
     app_name: str,
     variant_name: str,
@@ -110,7 +110,7 @@ async def get_variant_by_name(
 
 
 @router.get("/get_variant_by_env/", response_model=AppVariant, tags=["depracated"])
-@router.get("/variant_by_env/", response_model=AppVariant, tags=["v2"])
+@router.get("/variant_by_env/", response_model=AppVariant, tags=["default"])
 async def get_variant_by_env(
     app_name: str,
     environment: str,
@@ -141,7 +141,7 @@ async def get_variant_by_env(
 
 
 @router.get("/list_apps/", response_model=List[App], tags=["depracated"])
-@router.get("/apps/", response_model=List[App], tags=["v2"])
+@router.get("/apps/", response_model=List[App], tags=["default"])
 async def list_apps(
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> List[App]:
@@ -277,7 +277,7 @@ async def stop_variant(app_variant: AppVariant):
 
 
 @router.get("/list_images/", response_model=List[Image], tags=["depracated"])
-@router.get("/images/", response_model=List[Image], tags=["v2"])
+@router.get("/images/", response_model=List[Image], tags=["default"])
 async def list_images(stoken_session: SessionContainer = Depends(verify_session())):
     """Lists the images from our repository
 
@@ -295,7 +295,7 @@ async def list_images(stoken_session: SessionContainer = Depends(verify_session(
 
 
 @router.delete("/remove_variant/", tags=["depracated"])
-@router.delete("/variant/", tags=["v2"])
+@router.delete("/variant/", tags=["default"])
 async def remove_variant(
     app_variant: AppVariant,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -324,7 +324,7 @@ async def remove_variant(
 
 
 @router.delete("/remove_app/", tags=["depracated"])
-@router.delete("/app/", tags=["v2"])
+@router.delete("/app/", tags=["default"])
 async def remove_app(
     app: App, stoken_session: SessionContainer = Depends(verify_session())
 ):
@@ -410,7 +410,7 @@ async def update_variant_parameters(
 
 
 @router.put("/update_variant_image/", tags=["depracated"])
-@router.put("/variant_image/", tags=["v2"])
+@router.put("/variant_image/", tags=["default"])
 async def update_variant_image(
     app_variant: AppVariant,
     image: Image,
