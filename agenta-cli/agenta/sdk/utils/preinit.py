@@ -1,5 +1,6 @@
 from typing import Any, Optional
 from dotenv import load_dotenv
+
 # from .context import setup_db
 
 load_dotenv()
@@ -38,15 +39,3 @@ class PreInitObject:
             raise RuntimeError(f"You must call agenta.init() before {self._name}.{key}")
         else:
             raise AttributeError
-
-    def set(self, **kwargs):
-        pass
-
-    def default(self, **kwargs):
-        pass
-
-    def fetch(self):
-        pass
-
-    def all(self):
-        pass

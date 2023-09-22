@@ -43,9 +43,21 @@ class Config:
         pass
         # TODO: remove this part and instead use the pull function in the future
         # ( For now we are setting the default values directly)
-        self.set(**kwargs)
+        self.push(config_name="default", overwrite=False, **kwargs)
+        self.set(
+            **kwargs
+        )  # In case there is no connectivity, we still can use the default values
 
-    def fetch(self):
+    def push(self, config_name: str, overwrite=True, **kwargs):
+        """Pushes the parameters for the app variant to the server
+        Args:
+            config_name: Name of the configuration to push to
+            overwrite: Whether to overwrite the existing configuration or not
+            **kwargs: A dict containing the parameters
+        """
+        pass
+
+    def pull(self, config_name: str = None):
         """Pulls the parameters for the app variant from the server"""
         pass
 

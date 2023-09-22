@@ -24,10 +24,12 @@ def variant():
     pass
 
 
-def add_variant(app_folder: str, file_name: str, host: str, config_name="default") -> str:
+def add_variant(
+    app_folder: str, file_name: str, host: str, config_name="default"
+) -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
-    The app variant name to be added is 
+    The app variant name to be added is
     {file_name.removesuffix(".py")}.{config_name}
     Args:
         variant_name: the name of the variant
@@ -107,7 +109,8 @@ def add_variant(app_folder: str, file_name: str, host: str, config_name="default
 
         click.echo(
             click.style(
-                f"Building code base {base_name} for {variant_name} into a docker image...", fg="bright_black"
+                f"Building code base {base_name} for {variant_name} into a docker image...",
+                fg="bright_black",
             )
         )
         image: Image = client.send_docker_tar(app_name, base_name, tar_path, host)
@@ -123,12 +126,16 @@ def add_variant(app_folder: str, file_name: str, host: str, config_name="default
                     f"Updating variant {variant_name} to server...", fg="bright_black"
                 )
             )
-            client.update_variant_image(app_name, variant_name, base_name, config_name, image, host)
+            client.update_variant_image(
+                app_name, variant_name, base_name, config_name, image, host
+            )
         else:
             click.echo(
                 click.style(f"Adding variant {variant_name} to server...", fg="yellow")
             )
-            client.add_variant_to_server(app_name, variant_name, base_name, config_name, image, host)
+            client.add_variant_to_server(
+                app_name, variant_name, base_name, config_name, image, host
+            )
     except Exception as ex:
         if overwrite:
             click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
@@ -138,7 +145,8 @@ def add_variant(app_folder: str, file_name: str, host: str, config_name="default
     if overwrite:
         click.echo(
             click.style(
-                f"Variant {variant_name} for App {app_name} updated successfully 🎉", bold=True,
+                f"Variant {variant_name} for App {app_name} updated successfully 🎉",
+                bold=True,
                 fg="green",
             )
         )
@@ -159,7 +167,9 @@ def add_variant(app_folder: str, file_name: str, host: str, config_name="default
         return variant_name, base_name, config_name
 
 
-def start_variant(variant_name: str, base_name: str, config_name: str, app_folder: str, host: str):
+def start_variant(
+    variant_name: str, base_name: str, config_name: str, app_folder: str, host: str
+):
     """
     Starts a container for an existing variant
     Args:
@@ -189,7 +199,9 @@ def start_variant(variant_name: str, base_name: str, config_name: str, app_folde
             "Please choose a variant", choices=config["variants"]
         ).ask()
 
-    endpoint = client.start_variant(app_name, variant_name, base_name, config_name, host=host)
+    endpoint = client.start_variant(
+        app_name, variant_name, base_name, config_name, host=host
+    )
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style(f"Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -322,10 +334,13 @@ def remove_variant_cli(variant_name: str, app_folder: str):
     )
 
 
-@variant.command(name="serve", context_settings=dict(
-    ignore_unknown_options=True,
-    allow_extra_args=True,
-))
+@variant.command(
+    name="serve",
+    context_settings=dict(
+        ignore_unknown_options=True,
+        allow_extra_args=True,
+    ),
+)
 @click.option("--app_folder", default=".")
 @click.option("--file_name", default=None, help="The name of the file to run")
 @click.pass_context
@@ -368,8 +383,13 @@ def serve_cli(ctx, app_folder: str, file_name: str):
 
     if variant_name:
         try:
-            start_variant(variant_name=variant_name, base_name=base_name,
-                          config_name=config_name, app_folder=app_folder, host=host)
+            start_variant(
+                variant_name=variant_name,
+                base_name=base_name,
+                config_name=config_name,
+                app_folder=app_folder,
+                host=host,
+            )
         except ConnectionError:
             error_msg = "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
             error_msg += "- First, please ensure that the backend service is running and accessible.\n"

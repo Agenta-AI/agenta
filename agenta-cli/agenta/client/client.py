@@ -14,7 +14,14 @@ class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
-def add_variant_to_server(app_name: str, variant_name: str, base_name: str, config_name: str, image: Image, host: str):
+def add_variant_to_server(
+    app_name: str,
+    variant_name: str,
+    base_name: str,
+    config_name: str,
+    image: Image,
+    host: str,
+):
     """Adds a variant to the server.
 
     Arguments:
@@ -22,8 +29,12 @@ def add_variant_to_server(app_name: str, variant_name: str, base_name: str, conf
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(app_name=app_name, variant_name=variant_name,
-                                         base_name=base_name, config_name=config_name)
+    app_variant: AppVariant = AppVariant(
+        app_name=app_name,
+        variant_name=variant_name,
+        base_name=base_name,
+        config_name=config_name,
+    )
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/add/from_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
@@ -36,7 +47,9 @@ def add_variant_to_server(app_name: str, variant_name: str, base_name: str, conf
         )
 
 
-def start_variant(app_name: str, variant_name: str, base_name: str, config_name: str, host: str) -> str:
+def start_variant(
+    app_name: str, variant_name: str, base_name: str, config_name: str, host: str
+) -> str:
     """Starts a container with the variant an expose its endpoint
 
     Arguments:
@@ -46,8 +59,12 @@ def start_variant(app_name: str, variant_name: str, base_name: str, config_name:
     Returns:
         The endpoint of the container
     """
-    app_variant: AppVariant = AppVariant(app_name=app_name, variant_name=variant_name,
-                                         base_name=base_name, config_name=config_name)
+    app_variant: AppVariant = AppVariant(
+        app_name=app_name,
+        variant_name=variant_name,
+        base_name=base_name,
+        config_name=config_name,
+    )
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/start/",
         json={"app_variant": app_variant.dict()},
@@ -133,7 +150,14 @@ def remove_variant(app_name: str, variant_name: str, host: str):
         )
 
 
-def update_variant_image(app_name: str, variant_name: str, base_name: str, config_name: str, image: Image, host: str):
+def update_variant_image(
+    app_name: str,
+    variant_name: str,
+    base_name: str,
+    config_name: str,
+    image: Image,
+    host: str,
+):
     """Adds a variant to the server.
 
     Arguments:
@@ -141,8 +165,12 @@ def update_variant_image(app_name: str, variant_name: str, base_name: str, confi
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(app_name=app_name, variant_name=variant_name,
-                                         base_name=base_name, config_name=config_name)
+    app_variant: AppVariant = AppVariant(
+        app_name=app_name,
+        variant_name=variant_name,
+        base_name=base_name,
+        config_name=config_name,
+    )
     response = requests.put(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/update_variant_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
@@ -155,9 +183,7 @@ def update_variant_image(app_name: str, variant_name: str, base_name: str, confi
         )
 
 
-def send_docker_tar(
-    app_name: str, base_name: str, tar_path: Path, host: str
-) -> Image:
+def send_docker_tar(app_name: str, base_name: str, tar_path: Path, host: str) -> Image:
     with tar_path.open("rb") as tar_file:
         response = requests.post(
             f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_name={app_name}&base_name={base_name}",
