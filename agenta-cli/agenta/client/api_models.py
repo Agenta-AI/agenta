@@ -7,6 +7,8 @@ class AppVariant(BaseModel):
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
+    base_name: Optional[str]
+    config_name: Optional[str]
 
 
 class Image(BaseModel):
