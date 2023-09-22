@@ -10,6 +10,8 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
             templateVariantName: null,
             persistent: true,
             parameters: null,
+            baseName: null,
+            configName: null,
         }
         return variant
     })

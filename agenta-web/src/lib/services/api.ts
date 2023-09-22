@@ -214,12 +214,14 @@ export async function saveNewVariant(appName: string, variant: Variant, paramete
     const appVariant = {
         app_name: appName,
         variant_name: variant.templateVariantName,
+        base_name: variant.baseName,
     }
     await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_previous/`,
         {
             previous_app_variant: appVariant,
             new_variant_name: variant.variantName,
+            new_variant_config_name: variant.configName,
             parameters: parameters.reduce((acc, param) => {
                 return {...acc, [param.name]: param.default}
             }, {}),
