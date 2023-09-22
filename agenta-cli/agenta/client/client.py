@@ -1,11 +1,12 @@
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any
 
 import agenta.config
 import requests
-from agenta.client.api_models import AppVariant, Image
+from agenta.client.api_models import AppVariant, Image, VariantConfigPayload
 from docker.models.images import Image as DockerImage
+from requests.exceptions import RequestException
 
 BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
 
@@ -205,3 +206,54 @@ def send_docker_tar(app_name: str, base_name: str, tar_path: Path, host: str) ->
     response.raise_for_status()
     image = Image.parse_obj(response.json())
     return image
+
+
+def save_variant_config(
+    app_name: str,
+    base_name: str,
+    config_name: str,
+    parameters: Dict[str, Any],
+    overwrite: bool,
+    host: str,
+) -> None:
+    """
+    Save or update a variant configuration to the server.
+
+    Args:
+        variant_config (VariantConfigPayload): Pydantic model containing the variant configuration.
+        host (str): The server host URL.
+        session_token (str): The session token.
+
+    Raises:
+        APIRequestError: If the API request fails.
+    """
+    if host is None:
+        raise ValueError("The 'host' is not specified in save_variant_config")
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+    variant_config = VariantConfigPayload(
+        app_name=app_name,
+        base_name=base_name,
+        config_name=config_name,
+        parameters=parameters,
+        overwrite=overwrite,
+    )
+    try:
+        response = requests.post(
+            f"{host}/{BACKEND_URL_SUFFIX}/app_variant/config/",
+            json=variant_config.dict(),
+            headers=headers,
+            timeout=600,
+        )
+        request = f"POST {host}/{BACKEND_URL_SUFFIX}/app_variant/config/ {variant_config.dict()}"
+
+        # Check for successful request
+        if response.status_code != 200:
+            error_message = response.json().get("detail", "Unknown error")
+            raise APIRequestError(
+                f"Request {request} to save_variant_config endpoint failed with status code {response.status_code}. Error message: {error_message}"
+            )
+    except RequestException as e:
+        raise APIRequestError(f"Request failed: {str(e)}")

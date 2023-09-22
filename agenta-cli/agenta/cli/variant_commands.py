@@ -162,7 +162,7 @@ def add_variant(
     if overwrite:
         # In the case we are overwriting, don't return anything. Otherwise the command server would attempt to start the container which would result in an error!!!
         # TODO: Improve this stupid design
-        return None
+        return None, None, None
     else:
         return variant_name, base_name, config_name
 

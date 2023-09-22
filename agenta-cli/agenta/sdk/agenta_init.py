@@ -1,4 +1,7 @@
 import os
+from typing import Any, Optional
+from agenta.client import client
+
 from .utils.globals import set_global
 
 
@@ -14,39 +17,69 @@ class AgentaSingleton:
             cls._instance = super(AgentaSingleton, cls).__new__(cls)
         return cls._instance
 
-    def init(self, app_name=None, variant_name=None, **kwargs):
+    def init(
+        self,
+        app_name: Optional[str] = None,
+        base_name: Optional[str] = None,
+        host: Optional[str] = None,
+        **kwargs: Any
+    ) -> None:
         """Main function to initialize the singleton.
 
+        Initializes the singleton with the given `app_name`, `base_name`, and `host`. If any of these arguments are not provided,
+        the function will look for them in environment variables.
+
         Args:
-            app_name: _description_. Defaults to None.
-            variant_name: _description_. Defaults to None.
+            app_name (Optional[str]): Name of the Agenta application. Defaults to None. If not provided, will look for "AGENTA_APP_NAME" in environment variables.
+            base_name (Optional[str]): Base name for the Agenta setup. Defaults to None. If not provided, will look for "AGENTA_BASE_NAME" in environment variables.
+            host (Optional[str]): Host name of the backend server. Defaults to None. If not provided, will look for "AGENTA_HOST" in environment variables.
+            kwargs (Any): Additional keyword arguments.
+
+        Raises:
+            ValueError: If `app_name`, `base_name`, or `host` are not specified either as arguments or in the environment variables.
         """
         if app_name is None:
             app_name = os.environ.get("AGENTA_APP_NAME")
-        if variant_name is None:
-            variant_name = os.environ.get("AGENTA_VARIANT_NAME")
-        self.setup = AgentaSetup(app_name=app_name, variant_name=variant_name, **kwargs)
-        self.config = Config(app_name=app_name, variant_name=variant_name)
+        if base_name is None:
+            base_name = os.environ.get("AGENTA_BASE_NAME")
+        if host is None:
+            host = os.environ.get("AGENTA_HOST")
+
+        if app_name is None:
+            raise ValueError(
+                "The 'app_name' is not specified. Please provide it as an argument or set the 'AGENTA_APP_NAME' environment variable."
+            )
+        if base_name is None:
+            raise ValueError(
+                "The 'base_name' is not specified. Please provide it as an argument or set the 'AGENTA_BASE_NAME' environment variable."
+            )
+        if host is None:
+            raise ValueError(
+                "The 'host' is not specified. Please provide it as an argument or set the 'AGENTA_HOST' environment variable."
+            )
+
+        self.setup = AgentaSetup(app_name=app_name, base_name=base_name, **kwargs)
+        self.config = Config(app_name=app_name, base_name=base_name, host=host)
 
 
 class Config:
-    def __init__(self, app_name=None, variant_name=None):
+    def __init__(self, app_name=None, base_name=None, host=None):
         self.app_name = app_name
-        self.variant_name = variant_name
+        self.base_name = base_name
+        self.host = host
 
     def default(self, **kwargs):
-        """Saves the default parameters to the app_name and variant_name in case they are not alredy saved.
+        """Saves the default parameters to the app_name and base_name in case they are not already saved.
         Args:
             **kwargs: A dict containing the parameters
         """
-        # TODO: Check whether there is an older version of these paramters for the same app_name and variant_name
-        pass
-        # TODO: remove this part and instead use the pull function in the future
-        # ( For now we are setting the default values directly)
-        self.push(config_name="default", overwrite=False, **kwargs)
         self.set(
             **kwargs
         )  # In case there is no connectivity, we still can use the default values
+        try:
+            self.push(config_name="default", overwrite=False, **kwargs)
+        except Exception as ex:
+            raise
 
     def push(self, config_name: str, overwrite=True, **kwargs):
         """Pushes the parameters for the app variant to the server
@@ -55,7 +88,19 @@ class Config:
             overwrite: Whether to overwrite the existing configuration or not
             **kwargs: A dict containing the parameters
         """
-        pass
+        try:
+            client.save_variant_config(
+                app_name=self.app_name,
+                base_name=self.base_name,
+                config_name=config_name,
+                parameters=kwargs,
+                overwrite=overwrite,
+                host=self.host,
+            )
+        except Exception as ex:
+            raise Exception(
+                "Failed to push the configuration to the server with error: " + str(ex)
+            )
 
     def pull(self, config_name: str = None):
         """Pulls the parameters for the app variant from the server"""
@@ -64,9 +109,7 @@ class Config:
     def all(self):
         """Returns all the parameters for the app variant"""
         return {
-            k: v
-            for k, v in self.__dict__.items()
-            if k not in ["app_name", "variant_name"]
+            k: v for k, v in self.__dict__.items() if k not in ["app_name", "base_name"]
         }
 
     # function to set the parameters for the app variant
@@ -81,22 +124,22 @@ class Config:
 
 
 class AgentaSetup:
-    """Saves the setup of the LLM app (app_name, variant_name, etc.)"""
+    """Saves the setup of the LLM app (app_name, base_name, etc.)"""
 
-    def __init__(self, app_name=None, variant_name=None, **kwargs):
+    def __init__(self, app_name=None, base_name=None, **kwargs):
         self.app_name = app_name
-        self.variant_name = variant_name
+        self.base_name = base_name
         for key, value in kwargs.items():
             setattr(self, key, value)
 
 
-def init(app_name=None, variant_name=None, **kwargs):
+def init(app_name=None, base_name=None, **kwargs):
     """Main function to be called by the user to initialize the sdk.
 
     Args:
         app_name: _description_. Defaults to None.
-        variant_name: _description_. Defaults to None.
+        base_name: _description_. Defaults to None.
     """
     singleton = AgentaSingleton()
-    singleton.init(app_name=app_name, variant_name=variant_name, **kwargs)
+    singleton.init(app_name=app_name, base_name=base_name, **kwargs)
     set_global(setup=singleton.setup, config=singleton.config)

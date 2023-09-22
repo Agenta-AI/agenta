@@ -32,15 +32,19 @@ CHAT_LLM_GPT = [
     "gpt-4",
 ]
 
-ag.config.default(temperature=ag.FloatParam(0.9),
-                  model=MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT + list(replicate_dict.keys())),
-                  maximum_length=ag.IntParam(100, 0, 4000),
-                  prompt_system=ag.TextParam(prompts["system_prompt"]),
-                  prompt_human=ag.TextParam(prompts["human_prompt"]),
-                  stop_sequence=ag.TextParam(""),
-                  top_p=ag.FloatParam(0.9),
-                  frequence_penalty=ag.FloatParam(0.0),
-                  presence_penalty=ag.FloatParam(0.0))
+ag.config.default(
+    temperature=ag.FloatParam(0.9),
+    model=MultipleChoiceParam(
+        "gpt-3.5-turbo", CHAT_LLM_GPT + list(replicate_dict.keys())
+    ),
+    maximum_length=ag.IntParam(100, 0, 4000),
+    prompt_system=ag.TextParam(prompts["system_prompt"]),
+    prompt_human=ag.TextParam(prompts["human_prompt"]),
+    stop_sequence=ag.TextParam(""),
+    top_p=ag.FloatParam(0.9),
+    frequence_penalty=ag.FloatParam(0.0),
+    presence_penalty=ag.FloatParam(0.0),
+)
 
 
 def call_llm(prompt_system, prompt_human):

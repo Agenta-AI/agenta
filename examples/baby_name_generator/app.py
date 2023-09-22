@@ -2,17 +2,18 @@ import agenta as ag
 import openai
 from agenta.types import FloatParam, TextParam
 
-default_prompt = "Give me 5 names for a baby from this country {country} with gender {gender}!!!!"
+default_prompt = (
+    "Give me 5 names for a baby from this country {country} with gender {gender}!!!!"
+)
 
 ag.init()
-ag.config.default(temperature=FloatParam(0.9),
-                  prompt_template=TextParam(default_prompt))
+ag.config.default(
+    temperature=FloatParam(0.9), prompt_template=TextParam(default_prompt)
+)
 
 
 @ag.entrypoint
-def generate(
-        country: str,
-        gender: str) -> str:
+def generate(country: str, gender: str) -> str:
     """
     Generate a baby name based on the given country and gender.
 

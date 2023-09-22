@@ -91,11 +91,14 @@ def start_container(
             labels.update(development_labels)
 
         env_vars = {} if env_vars is None else env_vars
+        # TODO: Make sure this works on Linux
+        domain_name = os.environ.get("DOMAIN_NAME") or "http://host.docker.internal"
         env_vars.update(
             {
                 "AGENTA_APP_NAME": app_name,
-                "AGENTA_VARIANT_NAME": base_name,
+                "AGENTA_BASE_NAME": base_name,
                 "AGENTA_USER_ID": user_id,
+                "AGENTA_HOST": domain_name,
             }
         )
         container = client.containers.run(
