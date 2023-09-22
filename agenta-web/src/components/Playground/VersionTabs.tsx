@@ -31,7 +31,7 @@ function addTab(
     const newTemplateVariantName = templateVariant.templateVariantName
         ? templateVariant.templateVariantName
         : templateVariantName
-    const updateNewVariantName = `${newTemplateVariantName}.${newVariantName}`
+    const updateNewVariantName = `${templateVariant.baseName}.${newVariantName}`
 
     // Check if variant with the same name already exists
     const existingVariant = variants.find((variant) => variant.variantName === updateNewVariantName)
@@ -47,6 +47,8 @@ function addTab(
         templateVariantName: newTemplateVariantName,
         persistent: false,
         parameters: templateVariant.parameters,
+        baseName: templateVariant.baseName,
+        configName: newVariantName,
     }
 
     setVariants((prevState: any) => [...prevState, newVariant])
