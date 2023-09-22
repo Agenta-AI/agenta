@@ -12,6 +12,7 @@ from agenta_backend.models.api.api_models import (
     Image,
     DockerEnvVars,
     CreateAppVariant,
+    VariantConfigPayload,
 )
 
 from agenta_backend.services import app_manager, db_manager, docker_utils
@@ -20,12 +21,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from fastapi import APIRouter, Body, HTTPException, Depends
 from agenta_backend.config import settings
 
+# pylint: disable=E0401,E0611
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
         SessionContainer,
         verify_session,
     )
+
     from agenta_backend.ee.services.selectors import get_user_and_org_id
+# pylint: enable=E0401,E0611
 else:
     from agenta_backend.services.auth_helper import (
         SessionContainer,
@@ -38,7 +42,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-@router.get("/list_variants/", response_model=List[AppVariant])
+@router.get("/list_variants/", response_model=List[AppVariant], tags=["depracated"])
+@router.get("/variants/", response_model=List[AppVariant], tags=["v2"])
 async def list_app_variants(
     app_name: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -61,7 +66,8 @@ async def list_app_variants(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/get_variant_by_name/", response_model=AppVariant)
+@router.get("/get_variant_by_name/", response_model=AppVariant, tags=["depracated"])
+@router.get("/variant_by_name/", response_model=AppVariant, tags=["v2"])
 async def get_variant_by_name(
     app_name: str,
     variant_name: str,
@@ -103,7 +109,8 @@ async def get_variant_by_name(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/get_variant_by_env/", response_model=AppVariant)
+@router.get("/get_variant_by_env/", response_model=AppVariant, tags=["depracated"])
+@router.get("/variant_by_env/", response_model=AppVariant, tags=["v2"])
 async def get_variant_by_env(
     app_name: str,
     environment: str,
@@ -133,7 +140,8 @@ async def get_variant_by_env(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/list_apps/", response_model=List[App])
+@router.get("/list_apps/", response_model=List[App], tags=["depracated"])
+@router.get("/apps/", response_model=List[App], tags=["v2"])
 async def list_apps(
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> List[App]:
@@ -219,7 +227,11 @@ async def add_variant_from_previous(
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
         await db_manager.add_variant_based_on_previous(
-            previous_app_variant, new_variant_name, new_variant_config_name, parameters, **kwargs
+            previous_app_variant,
+            new_variant_name,
+            new_variant_config_name,
+            parameters,
+            **kwargs,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -264,7 +276,8 @@ async def stop_variant(app_variant: AppVariant):
     assert NotImplementedError("Not implemented yet")
 
 
-@router.get("/list_images/", response_model=List[Image])
+@router.get("/list_images/", response_model=List[Image], tags=["depracated"])
+@router.get("/images/", response_model=List[Image], tags=["v2"])
 async def list_images(stoken_session: SessionContainer = Depends(verify_session())):
     """Lists the images from our repository
 
@@ -281,7 +294,8 @@ async def list_images(stoken_session: SessionContainer = Depends(verify_session(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/remove_variant/")
+@router.delete("/remove_variant/", tags=["depracated"])
+@router.delete("/variant/", tags=["v2"])
 async def remove_variant(
     app_variant: AppVariant,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -309,7 +323,8 @@ async def remove_variant(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.delete("/remove_app/")
+@router.delete("/remove_app/", tags=["depracated"])
+@router.delete("/app/", tags=["v2"])
 async def remove_app(
     app: App, stoken_session: SessionContainer = Depends(verify_session())
 ):
@@ -335,7 +350,42 @@ async def remove_app(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put("/update_variant_parameters/")
+@router.post("/config/")
+async def save_variant_config(
+    variant_config: VariantConfigPayload,
+    stoken_session: SessionContainer = Depends(verify_session),
+):
+    """Save or update a variant configuration to the server.
+
+    This function either creates a new variant or updates an existing one based on the provided configuration.
+
+    Args:
+        variant_config (VariantConfigPayload): Configuration for the app variant.
+        stoken_session (SessionContainer, optional): Session information. Defaults to result of verify_session().
+
+    Raises:
+        HTTPException: Raised if the app variant cannot be updated.
+        HTTPException: Raised on database-related errors.
+        HTTPException: Raised for unexpected errors.
+
+    Returns:
+        dict: Success message indicating the operation was completed.
+    """
+    try:
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        await app_manager.save_variant_config(variant_config, **kwargs)
+    except ValueError as e:
+        detail = f"Error updating the app variant: {str(e)}"
+        raise HTTPException(status_code=400, detail=detail)
+    except SQLAlchemyError as e:
+        detail = f"Database error: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except Exception as e:
+        detail = f"Unexpected error: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+
+
+@router.put("/update_variant_parameters/", tags=["depracated"])
 async def update_variant_parameters(
     app_variant: AppVariant,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -359,7 +409,8 @@ async def update_variant_parameters(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put("/update_variant_image/")
+@router.put("/update_variant_image/", tags=["depracated"])
+@router.put("/variant_image/", tags=["v2"])
 async def update_variant_image(
     app_variant: AppVariant,
     image: Image,
