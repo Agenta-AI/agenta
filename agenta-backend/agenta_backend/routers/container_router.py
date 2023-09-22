@@ -44,7 +44,7 @@ router = APIRouter()
 @router.post("/build_image/")
 async def build_image(
     app_name: str,
-    variant_name: str,
+    base_name: str,
     tar_file: UploadFile,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Image:
@@ -53,8 +53,8 @@ async def build_image(
     Arguments:
         app_name -- The `app_name` parameter is a string that represents the name of \
             the application for which the docker image is being built
-        variant_name -- The `variant_name` parameter is a string that represents the \
-            name or type of the variant for which the docker image is being built.
+        base_name -- The `base_name` parameter is a string that represents the \
+            name of the codebase used in the variant. variantname is basename.configname.
         tar_file -- The `tar_file` parameter is of type `UploadFile`. It represents the \
             uploaded tar file that will be used to build the Docker image
 
@@ -83,7 +83,7 @@ async def build_image(
     with tar_path.open("wb") as buffer:
         buffer.write(await tar_file.read())
 
-    image_name = f"agentaai/{app_name.lower()}_{variant_name.lower()}:latest"
+    image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
 
     # Use the thread pool to run the build_image_job function in a separate thread
     future = loop.run_in_executor(
@@ -91,7 +91,7 @@ async def build_image(
         build_image_job,
         *(
             app_name,
-            variant_name,
+            base_name,
             str(user.id),
             tar_path,
             image_name,

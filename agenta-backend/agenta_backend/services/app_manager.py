@@ -101,8 +101,8 @@ async def _stop_and_delete_app_container(
     """
     try:
         user = await db_manager.get_user_object(kwargs["uid"])
-        variant_name = app_variant.variant_name.split(".")[0]
-        container_id = f"{app_variant.app_name}-{variant_name}-{str(user.id)}"
+        base_name = app_variant.variant_name.split(".")[0]  # TODO: exchange later with app_variant.base_name
+        container_id = f"{app_variant.app_name}-{base_name}-{str(user.id)}"
         docker_utils.stop_container(container_id)
         logger.info(f"Container {container_id} stopped")
         docker_utils.delete_container(container_id)
@@ -331,19 +331,19 @@ async def start_variant(
         uri: URI = docker_utils.start_container(
             image_name=image.tags,
             app_name=app_variant.app_name,
-            variant_name=app_variant.variant_name,
+            base_name=app_variant.base_name,
             env_vars=env_vars,
             user_id=str(user.id),
         )
         logger.info(
-            f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
+            f"Started Docker container for app codebase {app_variant.app_name}/{app_variant.base_name} at URI {uri}"
         )
     except Exception as e:
         logger.error(
-            f"Error starting Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}: {str(e)}"
+            f"Error starting Docker container for app codebase {app_variant.app_name}/{app_variant.base_name}: {str(e)}"
         )
         raise Exception(
-            f"Failed to start Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} \n {str(e)}"
+            f"Failed to start Docker container for app codebase {app_variant.app_name}/{app_variant.base_name} \n {str(e)}"
         )
 
     return uri

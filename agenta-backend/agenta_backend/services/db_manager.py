@@ -109,7 +109,9 @@ async def add_variant_based_on_image(
     db_app_variant = AppVariantDB(
         image_id=user_db_image,
         app_name=app_variant.app_name,
-        variant_name=app_variant.variant_name,
+        variant_name=app_variant.variant_name,  # variant name is <base_name>.<config_name>
+        base_name=app_variant.base_name,
+        config_name=app_variant.config_name,
         user_id=user_instance,
         parameters=parameters,
         previous_variant_name=app_variant.previous_variant_name,
