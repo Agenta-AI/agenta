@@ -1,6 +1,7 @@
+from uuid import uuid4
 from bson import ObjectId
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Any
 from odmantic import Field, Model, Reference, EmbeddedModel
 
 
@@ -163,6 +164,16 @@ class SpanDB(Model):
         collection = "spans"
 
 
+class Feedback(EmbeddedModel):
+    uid: str = Field(default=str(uuid4()))
+    user_id: str
+    feedback: Optional[str]
+    score: Optional[float]
+    meta: Optional[Dict[str, Any]]
+    created_at: datetime
+    updated_at: datetime = Field(default=datetime.utcnow())
+    
+    
 class TraceDB(Model):
     spans: List[ObjectId]
     start_time: datetime
@@ -175,19 +186,7 @@ class TraceDB(Model):
     token_consumption: Optional[int]
     user: UserDB = Reference()
     tags: Optional[List[str]]
+    feedbacks: Optional[List[Feedback]]
 
     class Config:
         collection = "traces"
-
-
-class FeedbackDB(Model):
-    feedback: Optional[str]
-    user_id: ObjectId
-    trace_id: ObjectId
-    score: Optional[float]
-    meta: Optional[Dict]
-    created_at: datetime
-    updated_at: datetime = Field(default=datetime.utcnow())
-
-    class Config:
-        collection = "feedbacks"
