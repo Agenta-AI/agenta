@@ -14,11 +14,13 @@ export interface AppVariant {
 }
 
 export interface Variant {
-    variantName: string
+    variantName: string // name of the variant: <baseName>-<configName>
     templateVariantName: string | null // template name of the variant in case it has a precursor. Needed to compute the URI path
     persistent: boolean // whether the variant is persistent in the backend or not
     parameters: Record<string, string> | null // parameters of the variant. Only set in the case of forked variants
     previousVariantName?: null | string // name of the variant that was forked from. Only set in the case of forked variants
+    baseName?: null | string // name of the codebase for the variant (not available in old versions of the SDK)
+    configName?: null | string // name of the config for the variant (not available in old versions of the SDK)
 }
 
 export interface RestartVariantDocker {
