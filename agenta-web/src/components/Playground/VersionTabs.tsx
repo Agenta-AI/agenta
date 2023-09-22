@@ -69,8 +69,9 @@ function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], act
 const VersionTabs: React.FC = () => {
     const router = useRouter()
     const appName = router.query.app_name as unknown as string
+    const variantName = router.query.variant_name as unknown as string
     const [templateVariantName, setTemplateVariantName] = useState("") // We use this to save the template variant name when the user creates a new variant
-    const [activeKey, setActiveKey] = useState("1")
+    const [activeKey, setActiveKey] = useState("")
     const [tabList, setTabList] = useState([])
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [variants, setVariants] = useState<Variant[]>([]) // These are the variants that exist in the backend
@@ -102,6 +103,16 @@ const VersionTabs: React.FC = () => {
 
         fetchData()
     }, [appName])
+
+    useEffect(() => {
+        let pushUrl = '';
+        if (variantName){
+            pushUrl = router.asPath?.replace(encodeURI(variantName), activeKey) as string
+        } else {
+            pushUrl = [router.asPath, activeKey].join("/") as string
+        }
+        router.push(pushUrl);
+    }, [activeKey])
 
     if (isError) return <div>failed to load variants</div>
     if (isLoading) return <div>loading variants...</div>
