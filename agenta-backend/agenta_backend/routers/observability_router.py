@@ -4,15 +4,11 @@ from typing import List
 from fastapi import APIRouter, Depends
 
 from agenta_backend.services.event_db_manager import (
-    costs_of_llm_run,
-    tokens_of_llm_run,
-    latency_of_llm_run,
-    inputs_of_llm_run,
-    outputs_of_llm_run,
     get_variant_traces,
     create_app_trace,
+    create_trace_span,
     get_single_trace,
-    update_trace_status,
+    trace_status_update,
     get_trace_spans,
     add_feedback_to_trace,
     get_trace_feedbacks,
@@ -21,14 +17,13 @@ from agenta_backend.services.event_db_manager import (
 )
 from agenta_backend.models.api.observability_models import (
     Span,
+    CreateSpan,
     CreateFeedback,
     Feedback,
     UpdateFeedback,
     Trace,
     CreateTrace,
     UpdateTrace,
-    TraceInputs,
-    TraceOutputs,
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
@@ -48,7 +43,7 @@ else:
 router = APIRouter()
 
 
-@router.post("/traces/", response_model=Trace)
+@router.post("/traces/", response_model=str)
 async def create_trace(
     payload: CreateTrace,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -82,6 +77,17 @@ async def get_trace(
     return trace
 
 
+@router.post("/spans/", response_model=str)
+async def create_span(
+    payload: CreateSpan,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    # Get user and org id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    spans_id = await create_trace_span(payload, **kwargs)
+    return spans_id
+
+
 @router.get("/spans/{trace_id}/", response_model=List[Span])
 async def get_spans_of_trace(
     trace_id: str,
@@ -90,76 +96,22 @@ async def get_spans_of_trace(
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
     spans = await get_trace_spans(trace_id, **kwargs)
-    print("Spans: ", spans)
     return spans
 
 
-@router.get("/costs/{trace_id}/", response_model=float)
-async def get_costs_of_trace(
-    trace_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    costs = await costs_of_llm_run(trace_id, **kwargs)
-    return costs
-
-
-@router.get("/tokens/{trace_id}/", response_model=int)
-async def get_tokens_of_trace(
-    trace_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    tokens = await tokens_of_llm_run(trace_id, **kwargs)
-    return tokens
-
-
-@router.get("/latency/{trace_id}/", response_model=float)
-async def get_latency_of_trace(
-    trace_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    latency = await latency_of_llm_run(trace_id, **kwargs)
-    return latency
-
-
-@router.get("/inputs/{trace_id}/", response_model=TraceInputs)
-async def get_trace_inputs(
-    trace_id: str, stoken_session: SessionContainer = Depends(verify_session())
-):
-    # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    inputs = await inputs_of_llm_run(trace_id, **kwargs)
-    return inputs
-
-
-@router.get("/outputs/{trace_id}/", response_model=TraceOutputs)
-async def get_trace_outputs(
-    trace_id: str, stoken_session: SessionContainer = Depends(verify_session())
-):
-    # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    outputs = await outputs_of_llm_run(trace_id, **kwargs)
-    return outputs
-
-
 @router.put("/traces/{trace_id}/", response_model=bool)
-async def update_trace(
+async def update_trace_status(
     trace_id: str,
     payload: UpdateTrace,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    trace = await update_trace_status(trace_id, payload, **kwargs)
+    trace = await trace_status_update(trace_id, payload, **kwargs)
     return trace
 
 
-@router.post("/feedbacks/{trace_id}/", response_model=Feedback)
+@router.post("/feedbacks/{trace_id}/", response_model=str)
 async def create_feedback(
     trace_id: str,
     payload: CreateFeedback,
