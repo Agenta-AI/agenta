@@ -189,7 +189,7 @@ async def add_variant_based_on_previous(
         previous_variant_name=template_variant.variant_name,
         user_id=user_instance,
         base_name=template_variant.base_name,
-        config_name=new_variant_config_name
+        config_name=new_variant_config_name,
     )
     await engine.save(db_app_variant)
 
@@ -227,6 +227,45 @@ async def list_app_variants(
             & query.eq(AppVariantDB.app_name, app_name)
             & users_query
         )
+
+    app_variants_db: List[AppVariantDB] = await engine.find(
+        AppVariantDB,
+        query_filters,
+        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
+    )
+
+    # Include previous variant name
+    app_variants: List[AppVariant] = [
+        app_variant_db_to_pydantic(av) for av in app_variants_db
+    ]
+    return app_variants
+
+
+async def get_app_variants_by_app_name_and_base_name(
+    app_name: str, base_name: str, show_soft_deleted: bool = True, **kwargs: dict
+) -> List[AppVariant]:
+    """Returns all the app variants based on app_name and base_name
+
+    Args:
+        app_name: Name of the app.
+        base_name: Name of the base.
+        show_soft_deleted: If true, returns soft deleted variants as well. Defaults to True.
+
+    Returns:
+        List[AppVariant]: List of AppVariant objects.
+    """
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+
+    # Construct query expressions
+    query_filters = (
+        query.eq(AppVariantDB.user_id, user.id)
+        & query.eq(AppVariantDB.app_name, app_name)
+        & query.eq(AppVariantDB.base_name, base_name)
+    )
+
+    if not show_soft_deleted:
+        query_filters &= query.eq(AppVariantDB.is_deleted, False)
 
     app_variants_db: List[AppVariantDB] = await engine.find(
         AppVariantDB,

@@ -2,7 +2,7 @@
 """
 import logging
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
@@ -13,6 +13,7 @@ from agenta_backend.models.api.api_models import (
     Environment,
     Image,
     ImageExtended,
+    VariantConfigPayload,
 )
 from agenta_backend.models.db_models import AppVariantDB, TestSetDB
 from agenta_backend.services import db_manager, docker_utils
@@ -101,7 +102,9 @@ async def _stop_and_delete_app_container(
     """
     try:
         user = await db_manager.get_user_object(kwargs["uid"])
-        base_name = app_variant.variant_name.split(".")[0]  # TODO: exchange later with app_variant.base_name
+        base_name = app_variant.variant_name.split(".")[
+            0
+        ]  # TODO: exchange later with app_variant.base_name
         container_id = f"{app_variant.app_name}-{base_name}-{str(user.id)}"
         docker_utils.stop_container(container_id)
         logger.info(f"Container {container_id} stopped")
@@ -349,11 +352,140 @@ async def start_variant(
     return uri
 
 
+async def save_variant_config(
+    variant_config: VariantConfigPayload, **kwargs: Dict[str, Any]
+) -> None:
+    """
+    Save or update a variant configuration to the server.
+
+    If the variant `<base_name>.<config_name>` exists and `overwrite` is True, it updates the variant.
+    If the variant `<base_name>.<config_name>` doesn't exist, it creates a new variant.
+    Raises an error if no variant with `<base_name>` exists.
+
+    Args:
+        variant_config (VariantConfigPayload): The configuration payload.
+        **kwargs (dict): Additional keyword arguments.
+
+    Raises:
+        ValueError: If `app_name`, `base_name` or `parameters` are empty.
+        Exception: If a variant already exists but `overwrite` is False.
+        Exception: If no variant with `base_name` is found.
+
+    Returns:
+        None
+    """
+    if not variant_config.app_name or not variant_config.base_name:
+        msg = "App name and base name cannot be empty."
+        logger.error(msg)
+        raise ValueError(msg)
+
+    if variant_config.parameters is None:
+        msg = "Parameters must be specified when updating app variant."
+        logger.error(msg)
+        raise ValueError(msg)
+
+    variant_name = f"{variant_config.base_name}.{variant_config.config_name}"
+
+    try:
+        search_variant = AppVariant(
+            app_name=variant_config.app_name, variant_name=variant_name
+        )
+        found_variant = db_manager.get_variant_from_db(search_variant, **kwargs)
+
+        if not found_variant:
+            if variant_config.overwrite:
+                await _update_variant(
+                    found_variant, variant_config.parameters, **kwargs
+                )
+            else:
+                msg = f"A variant called {variant_name} already exists. Set overwrite=True to update it."
+                raise Exception(msg)
+        else:
+            await _create_new_variant(variant_config, variant_name, **kwargs)
+
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        raise e
+
+
+async def _update_variant(
+    found_variant: AppVariant, new_parameters: Dict[str, Any], **kwargs: Dict[str, Any]
+) -> None:
+    """
+    Update an existing variant's parameters.
+
+    Args:
+        found_variant (AppVariant): The variant to be updated.
+        new_parameters (Dict[str, Any]): New parameters for the variant.
+        kwargs (Dict[str, Any]): Additional keyword arguments.
+
+    Raises:
+        Exception: If an error occurs during the update.
+
+    Returns:
+        None
+    """
+    try:
+        await db_manager.update_variant_parameters(
+            found_variant, new_parameters, **kwargs
+        )
+    except Exception as e:
+        logger.error(
+            f"Error updating app variant {found_variant.app_name}/{found_variant.variant_name}"
+        )
+        raise e
+
+
+async def _create_new_variant(
+    variant_config: VariantConfigPayload, variant_name: str, **kwargs: Dict[str, Any]
+) -> None:
+    """
+    Create a new app variant based on an existing base variant.
+
+    Args:
+        variant_config (VariantConfigPayload): The configuration payload for the new variant.
+        variant_name (str): The name of the new variant.
+        kwargs (Dict[str, Any]): Additional keyword arguments.
+
+    Raises:
+        Exception: If the base variant doesn't exist or an error occurs during creation.
+
+    Returns:
+        None
+    """
+    try:
+        base_variants = await db_manager.get_app_variants_by_app_name_and_base_name(
+            app_name=variant_config.app_name,
+            base_name=variant_config.base_name,
+            show_soft_deleted=True,
+            **kwargs,
+        )
+
+        if not base_variants:
+            msg = f"No variant with base name {variant_config.base_name} found."
+            raise Exception(msg)
+
+        await db_manager.add_variant_based_on_previous(
+            previous_app_variant=base_variants[0],
+            new_variant_name=variant_name,
+            new_variant_config_name=variant_config.config_name,
+            new_variant_parameters=variant_config.parameters,
+            **kwargs,
+        )
+    except Exception as e:
+        logger.error(
+            f"Error adding app variant {variant_config.app_name}/{variant_name}"
+        )
+        raise e
+
+
 async def update_variant_parameters(app_variant: AppVariant, **kwargs: dict):
     """Updates the parameters for app variant in the database.
 
     Arguments:
         app_variant -- the app variant to update
+
+    # TODO: Deprecate this function and use save_variant_config instead
     """
     if app_variant.app_name in ["", None] or app_variant.variant_name == [
         "",
