@@ -223,9 +223,7 @@ async def get_trace_feedbacks(trace_id: str, **kwargs: dict) -> List[Feedback]:
 
     # Get feedbacks in trace
     trace = await engine.find_one(TraceDB, query_expressions)
-    feedbacks = [
-        feedback_db_to_pydantic(feedback) for feedback in trace.feedbacks
-    ]
+    feedbacks = [feedback_db_to_pydantic(feedback) for feedback in trace.feedbacks]
     return feedbacks
 
 
