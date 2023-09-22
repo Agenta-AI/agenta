@@ -68,3 +68,11 @@ class CreateAppVariant(BaseModel):
 class Environment(BaseModel):
     name: str
     deployed_app_variant: Optional[str]
+
+
+class VariantConfigPayload(BaseModel):
+    app_name: str
+    base_name: str
+    config_name: str
+    parameters: Dict[str, Any]
+    overwrite: bool
