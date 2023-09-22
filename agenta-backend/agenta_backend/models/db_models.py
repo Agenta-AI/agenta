@@ -42,6 +42,8 @@ class AppVariantDB(Model):
     user_id: UserDB = Reference(key_name="user")
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
+    base_name: Optional[str]
+    config_name: Optional[str]
     is_deleted: bool = Field(
         default=False
     )  # soft deletion for using the template variants
