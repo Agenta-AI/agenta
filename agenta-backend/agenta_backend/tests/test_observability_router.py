@@ -1,6 +1,5 @@
 import pytest
 import random
-import logging
 from typing import List
 
 from agenta_backend.models.db_models import (
@@ -188,7 +187,7 @@ async def test_create_feedback_endpoint(feedbacks_create_data):
 
 
 @pytest.mark.asyncio
-async def test_get_trace_feedbacks():
+async def test_get_trace_feedbacks_endpoint():
     traces = await engine.find(TraceDB)
     response = await test_client.get(
         f"http://localhost:8000/observability/feedbacks/{str(traces[0].id)}/"
