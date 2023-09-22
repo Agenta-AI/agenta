@@ -32,7 +32,7 @@ from odmantic import query
 
 
 # Initialize database engine
-engine = DBEngine(mode="default").engine()
+engine = DBEngine().engine()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
