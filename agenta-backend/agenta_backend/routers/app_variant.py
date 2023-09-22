@@ -196,6 +196,7 @@ async def add_variant_from_image(
 async def add_variant_from_previous(
     previous_app_variant: AppVariant,
     new_variant_name: str = Body(...),
+    new_variant_config_name: str = Body(...),
     parameters: Dict[str, Any] = Body(...),
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
@@ -218,7 +219,7 @@ async def add_variant_from_previous(
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
         await db_manager.add_variant_based_on_previous(
-            previous_app_variant, new_variant_name, parameters, **kwargs
+            previous_app_variant, new_variant_name, new_variant_config_name, parameters, **kwargs
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
