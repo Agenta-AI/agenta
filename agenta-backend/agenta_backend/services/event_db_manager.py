@@ -3,26 +3,29 @@ from typing import List
 from bson import ObjectId
 from datetime import datetime
 
+from fastapi import HTTPException
+
 from agenta_backend.models.api.observability_models import (
     Span,
+    CreateSpan,
     Feedback,
     CreateFeedback,
     UpdateFeedback,
     Trace,
     CreateTrace,
     UpdateTrace,
-    TraceInputs,
-    TraceOutputs,
 )
 from agenta_backend.models.converters import (
     spans_db_to_pydantic,
     feedback_db_to_pydantic,
     trace_db_to_pydantic,
-    trace_inputs_to_pydantic,
-    trace_outputs_to_pydantic,
 )
 from agenta_backend.services import db_manager
-from agenta_backend.models.db_models import TraceDB, FeedbackDB, SpanDB
+from agenta_backend.models.db_models import (
+    TraceDB,
+    Feedback as FeedbackDB,
+    SpanDB,
+)
 from agenta_backend.models.db_engine import DBEngine
 
 from odmantic import query
@@ -33,106 +36,6 @@ engine = DBEngine(mode="default").engine()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-
-async def costs_of_llm_run(trace_id: str, **kwargs: dict) -> float:
-    """Gets the cost of the llm run trace.
-
-    Args:
-        trace_id (str): the Id of the trace
-
-    Returns:
-        float: the costs of the run
-    """
-
-    user = await db_manager.get_user_object(kwargs["uid"])
-    query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
-        TraceDB.user, user.id
-    )
-
-    # Get trace
-    trace = await engine.find_one(TraceDB, query_expressions)
-    return trace.cost
-
-
-async def tokens_of_llm_run(trace_id: str, **kwargs: dict) -> int:
-    """Gets the tokens of the llm run trace.
-
-    Args:
-        trace_id (str): the Id of the trace
-
-    Returns:
-        int: the tokens of the run
-    """
-
-    user = await db_manager.get_user_object(kwargs["uid"])
-    query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
-        TraceDB.user, user.id
-    )
-
-    # Get trace
-    trace = await engine.find_one(TraceDB, query_expressions)
-    return trace.token_consumption
-
-
-async def latency_of_llm_run(trace_id: str, **kwargs: dict) -> float:
-    """Gets the latency of the llm run trace.
-
-    Args:
-        trace_id (str): the Id of the trace
-
-    Returns:
-        float: the latency of the run
-    """
-
-    user = await db_manager.get_user_object(kwargs["uid"])
-    query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
-        TraceDB.user, user.id
-    )
-
-    # Get trace
-    trace = await engine.find_one(TraceDB, query_expressions)
-    return trace.latency
-
-
-async def inputs_of_llm_run(trace_id: str, **kwargs: dict) -> List[TraceInputs]:
-    """Gets the inputs of the llm run trace.
-
-    Args:
-        trace_id (str): the Id of the trace
-
-    Returns:
-        List[TraceInputs]: the inputs of the llm run trace
-    """
-
-    user = await db_manager.get_user_object(kwargs["uid"])
-    query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
-        TraceDB.user, user.id
-    )
-
-    # Get trace
-    trace = await engine.find_one(TraceDB, query_expressions)
-    return trace_inputs_to_pydantic(str(trace.id), trace.spans)
-
-
-async def outputs_of_llm_run(trace_id: str, **kwargs: dict) -> List[TraceOutputs]:
-    """Gets the outputs of the llm run trace.
-
-    Args:
-        trace_id (str): the Id of the trace
-
-    Returns:
-        List[TraceOutputs]: the outputs of the llm run trace
-    """
-
-    user = await db_manager.get_user_object(kwargs["uid"])
-    query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
-        TraceDB.user, user.id
-    )
-
-    # Get trace
-    trace = await engine.find_one(TraceDB, query_expressions)
-    return trace_outputs_to_pydantic(str(trace.id), trace.spans)
 
 
 async def get_variant_traces(
@@ -159,7 +62,7 @@ async def get_variant_traces(
     return [trace_db_to_pydantic(trace) for trace in traces]
 
 
-async def create_app_trace(payload: CreateTrace, **kwargs: dict) -> Trace:
+async def create_app_trace(payload: CreateTrace, **kwargs: dict) -> str:
     """Create a new trace.
 
     Args:
@@ -171,17 +74,15 @@ async def create_app_trace(payload: CreateTrace, **kwargs: dict) -> Trace:
 
     user = await db_manager.get_user_object(kwargs["uid"])
 
-    trace_payload_dict = payload.dict()
-    spans_payload_dict = trace_payload_dict["spans"]
+    # Ensure spans exists in the db
+    for span in payload.spans:
+        span_db = await engine.find_one(SpanDB, SpanDB.id == ObjectId(span))
+        if span_db is None:
+            raise HTTPException(404, detail=f"Span {span} does not exist")
 
-    del trace_payload_dict["spans"]
-
-    spans = [SpanDB(**span_payload) for span_payload in spans_payload_dict]
-    await engine.save_all(spans)
-
-    trace = TraceDB(**trace_payload_dict, user=user, spans=spans)
+    trace = TraceDB(**payload.dict(), user=user)
     await engine.save(trace)
-    return trace_db_to_pydantic(trace)
+    return trace_db_to_pydantic(trace)["trace_id"]
 
 
 async def get_single_trace(trace_id: str, **kwargs: dict) -> Trace:
@@ -204,10 +105,10 @@ async def get_single_trace(trace_id: str, **kwargs: dict) -> Trace:
     return trace_db_to_pydantic(trace)
 
 
-async def update_trace_status(
+async def trace_status_update(
     trace_id: str, payload: UpdateTrace, **kwargs: dict
 ) -> bool:
-    """Mark a trace as failed.
+    """Update status of trace.
 
     Args:
         trace_id (str): the Id of the trace
@@ -229,6 +130,23 @@ async def update_trace_status(
     trace.status = payload.status
     await engine.save(trace)
     return True
+
+
+async def create_trace_span(payload: CreateSpan, **kwargs: dict) -> str:
+    """Create a new span for a given trace.
+
+    Args:
+        payload (CreateSpan): the required payload
+
+    Returns:
+        str: the created span id
+    """
+
+    user = await db_manager.get_user_object(kwargs["uid"])
+
+    span_db = SpanDB(**payload.dict())
+    await engine.save(span_db)
+    return str(span_db.id)
 
 
 async def get_trace_spans(trace_id: str, **kwargs: dict) -> List[Span]:
@@ -256,7 +174,7 @@ async def get_trace_spans(trace_id: str, **kwargs: dict) -> List[Span]:
 
 async def add_feedback_to_trace(
     trace_id: str, payload: CreateFeedback, **kwargs: dict
-) -> Feedback:
+) -> str:
     """Add a feedback to a trace.
 
     Args:
@@ -264,20 +182,26 @@ async def add_feedback_to_trace(
         payload (CreateFeedback): the required payload
 
     Returns:
-        Feedback: the feedback
+        str: the feedback id
     """
 
     user = await db_manager.get_user_object(kwargs["uid"])
     feedback = FeedbackDB(
+        user_id=str(user.id),
         feedback=payload.feedback,
-        user_id=user.id,
         score=payload.score,
-        trace_id=ObjectId(trace_id),
         created_at=datetime.utcnow(),
     )
 
-    await engine.save(feedback)
-    return feedback_db_to_pydantic(feedback)
+    trace = await engine.find_one(TraceDB, TraceDB.id == ObjectId(trace_id))
+    if trace.feedbacks is None:
+        trace.feedbacks = [feedback]
+    else:
+        trace.feedbacks.append(feedback)
+
+    # Update trace
+    await engine.save(trace)
+    return feedback.uid
 
 
 async def get_trace_feedbacks(trace_id: str, **kwargs: dict) -> List[Feedback]:
@@ -291,13 +215,17 @@ async def get_trace_feedbacks(trace_id: str, **kwargs: dict) -> List[Feedback]:
     """
 
     user = await db_manager.get_user_object(kwargs["uid"])
-    query_expressions = query.eq(FeedbackDB.trace_id, ObjectId(trace_id)) & query.eq(
-        FeedbackDB.user_id, user.id
+
+    # Build query expressions
+    query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
+        TraceDB.user, user.id
     )
 
-    # Get feedbacks
-    feedbacks_db = await engine.find(FeedbackDB, query_expressions)
-    feedbacks = [feedback_db_to_pydantic(feedback) for feedback in feedbacks_db]
+    # Get feedbacks in trace
+    trace = await engine.find_one(TraceDB, query_expressions)
+    feedbacks = [
+        feedback_db_to_pydantic(feedback) for feedback in trace.feedbacks
+    ]
     return feedbacks
 
 
@@ -315,15 +243,22 @@ async def get_feedback_detail(
     """
 
     user = await db_manager.get_user_object(kwargs["uid"])
-    query_expressions = (
-        query.eq(FeedbackDB.id, ObjectId(feedback_id))
-        & query.eq(FeedbackDB.trace_id, ObjectId(trace_id))
-        & query.eq(FeedbackDB.user_id, user.id)
+
+    # Build query expressions
+    query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
+        TraceDB.user, user.id
     )
 
+    # Get trace
+    trace = await engine.find_one(TraceDB, query_expressions)
+
     # Get feedback
-    feedback = await engine.find_one(FeedbackDB, query_expressions)
-    return feedback_db_to_pydantic(feedback)
+    feedback = [
+        feedback_db_to_pydantic(feedback)
+        for feedback in trace.feedbacks
+        if feedback.uid == feedback_id
+    ]
+    return feedback[0]
 
 
 async def update_trace_feedback(
@@ -341,19 +276,26 @@ async def update_trace_feedback(
     """
 
     user = await db_manager.get_user_object(kwargs["uid"])
-    query_expressions = (
-        query.eq(FeedbackDB.id, ObjectId(feedback_id))
-        & query.eq(FeedbackDB.trace_id, ObjectId(trace_id))
-        & query.eq(FeedbackDB.user_id, user.id)
+
+    # Build query expressions
+    query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
+        TraceDB.user, user.id
     )
 
-    # Get feedback
-    feedback = await engine.find_one(FeedbackDB, query_expressions)
+    # Get trace
+    trace = await engine.find_one(TraceDB, query_expressions)
 
-    # Update feedback
-    feedback.update(payload.dict())
-    feedback.updated_at = updated_at = datetime.utcnow()
+    # update feedback
+    feedback_json = {}
+    for feedback in trace.feedbacks:
+        if feedback.uid == feedback_id:
+            feedback.update(payload.dict())
+            feedback_json = feedback.dict()
+            break
 
-    # Save feedback and convert it to json
-    await engine.save(feedback)
-    return feedback_db_to_pydantic(feedback)
+    # Save feedback in trace and return a copy
+    await engine.save(trace)
+
+    # Replace key and transform into a pydantic representation
+    feedback_json["feedback_id"] = feedback_json.pop("uid")
+    return Feedback(**feedback_json)
