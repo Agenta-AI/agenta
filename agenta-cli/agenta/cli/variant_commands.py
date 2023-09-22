@@ -24,23 +24,27 @@ def variant():
     pass
 
 
-def add_variant(app_folder: str, file_name: str, host: str) -> str:
+def add_variant(app_folder: str, file_name: str, host: str, config_name="default") -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
+    The app variant name to be added is 
+    {file_name.removesuffix(".py")}.{config_name}
     Args:
         variant_name: the name of the variant
         app_folder: the folder of the app
-        file_name: the name of the file to run
+        file_name: the name of the file to run.
         host: the host to use for the variant
+        config_name: the name of the config to use for now it is always default
     Returns:
-        the name of the variant(useful for serve)
+        the name of the code base and variant(useful for serve)
     """
 
     app_path = Path(app_folder)
     config_file = app_path / "config.toml"
     config = toml.load(config_file)
     app_name = config["app-name"]
-    variant_name = file_name.removesuffix(".py")
+    base_name = file_name.removesuffix(".py")
+
     # check files in folder
     app_file = app_path / file_name
     if not app_file.exists():
@@ -71,16 +75,17 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
             sys.exit(0)
 
     # Validate variant name
-    if not re.match("^[a-zA-Z0-9_]+$", variant_name):
+    if not re.match("^[a-zA-Z0-9_]+$", base_name):
         click.echo(
             click.style(
-                "Invalid input. Please use only alphanumeric characters without spaces.",
+                "Invalid input. Please use only alphanumeric characters without spaces in the filename.",
                 fg="red",
             )
         )
         sys.exit(0)
 
     # update the config file with the variant names from the backend
+    variant_name = f"{base_name}.{config_name}"
     overwrite = False
     if variant_name in config["variants"]:
         overwrite = questionary.confirm(
@@ -95,17 +100,17 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     try:
         click.echo(
             click.style(
-                f"Preparing variant {variant_name} into a tar file...", fg="bright_black"
+                f"Preparing code base {base_name} into a tar file...", fg="bright_black"
             )
         )
         tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
 
         click.echo(
             click.style(
-                f"Building variant {variant_name} into a docker image...", fg="bright_black"
+                f"Building code base {base_name} for {variant_name} into a docker image...", fg="bright_black"
             )
         )
-        image: Image = client.send_docker_tar(app_name, variant_name, tar_path, host)
+        image: Image = client.send_docker_tar(app_name, base_name, tar_path, host)
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
@@ -118,12 +123,12 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
                     f"Updating variant {variant_name} to server...", fg="bright_black"
                 )
             )
-            client.update_variant_image(app_name, variant_name, image, host)
+            client.update_variant_image(app_name, variant_name, base_name, config_name, image, host)
         else:
             click.echo(
                 click.style(f"Adding variant {variant_name} to server...", fg="yellow")
             )
-            client.add_variant_to_server(app_name, variant_name, image, host)
+            client.add_variant_to_server(app_name, variant_name, base_name, config_name, image, host)
     except Exception as ex:
         if overwrite:
             click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
@@ -151,10 +156,10 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
         # TODO: Improve this stupid design
         return None
     else:
-        return variant_name
+        return variant_name, base_name, config_name
 
 
-def start_variant(variant_name: str, app_folder: str, host: str):
+def start_variant(variant_name: str, base_name: str, config_name: str, app_folder: str, host: str):
     """
     Starts a container for an existing variant
     Args:
@@ -184,7 +189,7 @@ def start_variant(variant_name: str, app_folder: str, host: str):
             "Please choose a variant", choices=config["variants"]
         ).ask()
 
-    endpoint = client.start_variant(app_name, variant_name, host=host)
+    endpoint = client.start_variant(app_name, variant_name, base_name, config_name, host=host)
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style(f"Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -353,7 +358,7 @@ def serve_cli(ctx, app_folder: str, file_name: str):
         return
 
     try:
-        variant_name = add_variant(
+        variant_name, base_name, config_name = add_variant(
             app_folder=app_folder, file_name=file_name, host=host
         )
     except Exception as e:
@@ -363,7 +368,8 @@ def serve_cli(ctx, app_folder: str, file_name: str):
 
     if variant_name:
         try:
-            start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
+            start_variant(variant_name=variant_name, base_name=base_name,
+                          config_name=config_name, app_folder=app_folder, host=host)
         except ConnectionError:
             error_msg = "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
             error_msg += "- First, please ensure that the backend service is running and accessible.\n"
