@@ -54,6 +54,7 @@ const DeleteModal: React.FC<{
 
 const AppCard: React.FC<{
     appName: string
+    variantName: string
     key: number
     index: number
 }> = ({appName, index}) => {
@@ -102,7 +103,7 @@ const AppCard: React.FC<{
                 className={classes.card}
                 actions={[<DeleteOutlined key="delete" onClick={showDeleteModal} />]}
             >
-                <Link data-cy="app-card-link" href={`/apps/${appName}/playground`}>
+                <Link data-cy="app-card-link" href={`/apps/${appName}/playground/${variantName}`}>
                     <Card.Meta
                         title={<div>{renameVariablesCapitalizeAll(appName)}</div>}
                         avatar={

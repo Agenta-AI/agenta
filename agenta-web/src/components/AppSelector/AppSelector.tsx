@@ -311,6 +311,7 @@ const AppSelector: React.FC = () => {
                                         <div key={index}>
                                             <AppCard
                                                 appName={app.app_name}
+                                                variantName={app.app_variant}
                                                 key={index}
                                                 index={index}
                                             />
