@@ -46,9 +46,7 @@ class DBEngine(object):
             logger.info("Using test database...")
             return aio_engine
         elif self.mode == "default":
-            aio_engine = AIOEngine(
-                client=self.initialize_client, database="agenta"
-            )
+            aio_engine = AIOEngine(client=self.initialize_client, database="agenta")
             logger.info("Using default database...")
             return aio_engine
 

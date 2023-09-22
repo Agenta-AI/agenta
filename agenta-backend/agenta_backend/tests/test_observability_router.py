@@ -167,9 +167,7 @@ async def test_get_trace_endpoint():
 @pytest.mark.asyncio
 async def test_update_trace_status_endpoint():
     payload = {
-        "status": random.choice(
-            ["initiated", "completed", "stopped", "cancelled"]
-        )
+        "status": random.choice(["initiated", "completed", "stopped", "cancelled"])
     }
 
     traces = await engine.find(TraceDB)

@@ -172,8 +172,8 @@ class Feedback(EmbeddedModel):
     meta: Optional[Dict[str, Any]]
     created_at: datetime
     updated_at: datetime = Field(default=datetime.utcnow())
-    
-    
+
+
 class TraceDB(Model):
     spans: List[ObjectId]
     start_time: datetime

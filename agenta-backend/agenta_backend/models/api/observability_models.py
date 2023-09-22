@@ -25,7 +25,7 @@ class BaseSpan(BaseModel):
 
 class CreateSpan(BaseSpan):
     pass
-    
+
 
 class Span(BaseSpan):
     span_id: str
@@ -64,6 +64,7 @@ class Trace(BaseTrace):
     trace_id: str
     spans: List[str]
     feedbacks: Optional[List[Feedback]]
+
 
 class CreateTrace(BaseTrace):
     spans: List[str]
