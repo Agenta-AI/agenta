@@ -122,6 +122,7 @@ async def add_variant_based_on_image(
 async def add_variant_based_on_previous(
     previous_app_variant: AppVariant,
     new_variant_name: str,
+    new_variant_config_name: str,
     parameters: Dict[str, Any],
     **kwargs: dict,
 ):
@@ -187,6 +188,8 @@ async def add_variant_based_on_previous(
         parameters=parameters,
         previous_variant_name=template_variant.variant_name,
         user_id=user_instance,
+        base_name=template_variant.base_name,
+        config_name=new_variant_config_name
     )
     await engine.save(db_app_variant)
 
