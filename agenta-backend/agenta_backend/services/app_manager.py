@@ -2,7 +2,7 @@
 """
 import logging
 import os
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
@@ -17,6 +17,7 @@ from agenta_backend.models.api.api_models import (
 )
 from agenta_backend.models.db_models import AppVariantDB, TestSetDB
 from agenta_backend.services import db_manager, docker_utils
+from agenta_backend.services.db_manager import app_variant_db_to_pydantic
 from docker.errors import DockerException
 
 logging.basicConfig(level=logging.INFO)
@@ -390,12 +391,14 @@ async def save_variant_config(
         search_variant = AppVariant(
             app_name=variant_config.app_name, variant_name=variant_name
         )
-        found_variant = db_manager.get_variant_from_db(search_variant, **kwargs)
-
-        if not found_variant:
+        found_variant = await db_manager.get_variant_from_db(search_variant, **kwargs)
+        logger.info(f"Found variant: {found_variant}")
+        if found_variant:
             if variant_config.overwrite:
                 await _update_variant(
-                    found_variant, variant_config.parameters, **kwargs
+                    app_variant_db_to_pydantic(found_variant),
+                    variant_config.parameters,
+                    **kwargs,
                 )
             else:
                 msg = f"A variant called {variant_name} already exists. Set overwrite=True to update it."
@@ -425,6 +428,9 @@ async def _update_variant(
     Returns:
         None
     """
+    logger.info(
+        f"Updating variant {found_variant.app_name}/{found_variant.variant_name}"
+    )
     try:
         await db_manager.update_variant_parameters(
             found_variant, new_parameters, **kwargs
@@ -453,6 +459,9 @@ async def _create_new_variant(
     Returns:
         None
     """
+    logger.info(
+        f"Creating new variant {variant_config.app_name}/{variant_name} based on {variant_config.base_name}"
+    )
     try:
         base_variants = await db_manager.get_app_variants_by_app_name_and_base_name(
             app_name=variant_config.app_name,
@@ -469,7 +478,7 @@ async def _create_new_variant(
             previous_app_variant=base_variants[0],
             new_variant_name=variant_name,
             new_variant_config_name=variant_config.config_name,
-            new_variant_parameters=variant_config.parameters,
+            parameters=variant_config.parameters,
             **kwargs,
         )
     except Exception as e:
