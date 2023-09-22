@@ -39,6 +39,7 @@ class ImageDB(Model):
     docker_id: str = Field(index=True)
     tags: str
     user_id: UserDB = Reference(key_name="user")
+    organization_id: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -146,6 +147,7 @@ class CustomEvaluationDB(Model):
     python_code: str
     app_name: str
     user: UserDB = Reference()
+    organization_id: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
