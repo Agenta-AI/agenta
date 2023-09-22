@@ -22,10 +22,6 @@ engine = DBEngine().engine()
 # Initialize http client
 test_client = httpx.AsyncClient()
 
-# Set logger configuration
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
 
 @pytest.mark.asyncio
 async def test_create_spans_endpoint(spans_db_data):
