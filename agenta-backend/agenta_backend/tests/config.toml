@@ -1,0 +1,3 @@
+docker_registry_url="registry:5000"
+database_url="localhost:5432"
+registry="agenta-server"
