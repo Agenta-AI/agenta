@@ -91,6 +91,13 @@ def start_container(
             labels.update(development_labels)
 
         env_vars = {} if env_vars is None else env_vars
+        env_vars.update(
+            {
+                "AGENTA_APP_NAME": app_name,
+                "AGENTA_VARIANT_NAME": base_name,
+                "AGENTA_USER_ID": user_id,
+            }
+        )
         container = client.containers.run(
             image,
             detach=True,
