@@ -7,7 +7,7 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     SpanDB,
     TraceDB,
-    FeedbackDB,
+    Feedback as FeedbackDB,
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
@@ -18,11 +18,7 @@ from agenta_backend.models.api.api_models import (
 from agenta_backend.models.api.observability_models import (
     Span,
     Trace,
-    TraceInputs,
-    TraceOutputs,
-    SpanInputs,
-    SpanOutputs,
-    Feedback,
+    Feedback as FeedbackOutput,
 )
 
 
@@ -89,17 +85,27 @@ def spans_db_to_pydantic(spans_db: List[SpanDB]) -> List[Span]:
     ]
 
 
-def feedback_db_to_pydantic(feedback_db: FeedbackDB) -> Feedback:
-    return Feedback(
-        feedback_id=str(feedback_db.id),
+def feedback_db_to_pydantic(feedback_db: FeedbackDB) -> FeedbackOutput:
+    return FeedbackOutput(
+        feedback_id=str(feedback_db.uid),
         feedback=feedback_db.feedback,
-        trace_id=str(feedback_db.trace_id),
         score=feedback_db.score,
+        meta=feedback_db.meta,
         created_at=feedback_db.created_at,
     ).dict(exclude_unset=True)
 
 
 def trace_db_to_pydantic(trace_db: TraceDB) -> Trace:
+    feedbacks = trace_db.feedbacks
+    if feedbacks is None:
+        result = []
+    else:
+        result = [
+            feedback_db_to_pydantic(feedback)
+            for feedback in feedbacks
+            if feedback is not None
+        ]
+
     return Trace(
         trace_id=str(trace_db.id),
         app_name=trace_db.app_name,
@@ -111,24 +117,6 @@ def trace_db_to_pydantic(trace_db: TraceDB) -> Trace:
         tags=trace_db.tags,
         start_time=trace_db.start_time,
         end_time=trace_db.end_time,
-        spans=spans_db_to_pydantic(trace_db.spans),
+        feedbacks=result,
+        spans=[str(span) for span in trace_db.spans],
     ).dict(exclude_unset=True)
-
-
-def trace_outputs_to_pydantic(trace_id: str, trace_spans: List[SpanDB]) -> TraceOutputs:
-    return TraceOutputs(
-        trace_id=trace_id,
-        outputs=[
-            SpanOutputs(span_id=str(span.id), outputs=span.outputs)
-            for span in trace_spans
-        ],
-    )
-
-
-def trace_inputs_to_pydantic(trace_id: str, trace_spans: List[SpanDB]) -> TraceInputs:
-    return TraceInputs(
-        trace_id=trace_id,
-        inputs=[
-            SpanInputs(span_id=str(span.id), inputs=span.inputs) for span in trace_spans
-        ],
-    )
