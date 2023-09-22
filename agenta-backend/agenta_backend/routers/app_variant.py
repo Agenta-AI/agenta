@@ -12,7 +12,7 @@ from agenta_backend.models.api.api_models import (
     Image,
     DockerEnvVars,
     CreateAppVariant,
-    VariantConfigPayload,
+    PostVariantConfigPayload,
 )
 
 from agenta_backend.services import app_manager, db_manager, docker_utils
@@ -352,7 +352,7 @@ async def remove_app(
 
 @router.post("/config/")
 async def save_variant_config(
-    variant_config: VariantConfigPayload,
+    variant_config: PostVariantConfigPayload,
     stoken_session: SessionContainer = Depends(verify_session),
 ):
     """Save or update a variant configuration to the server.
@@ -365,7 +365,6 @@ async def save_variant_config(
 
     Raises:
         HTTPException: Raised if the app variant cannot be updated.
-        HTTPException: Raised on database-related errors.
         HTTPException: Raised for unexpected errors.
 
     Returns:
@@ -377,9 +376,41 @@ async def save_variant_config(
     except ValueError as e:
         detail = f"Error updating the app variant: {str(e)}"
         raise HTTPException(status_code=400, detail=detail)
-    except SQLAlchemyError as e:
-        detail = f"Database error: {str(e)}"
+    except Exception as e:
+        detail = f"Unexpected error: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
+
+
+@router.get("/config/")
+async def fetch_variant_config(
+    app_name: str,
+    variant_name: str,
+    base_name: str,
+    config_name: str,
+    stoken_session: SessionContainer = Depends(verify_session),
+) -> Dict[str, Any]:
+    """Fetch a variant configuration from the server.
+
+    Args:
+        fetch_config (FetchVariantConfigPayload): The data needed to fetch the app variant.
+        stoken_session (SessionContainer, optional): Session information. Defaults to result of verify_session().
+
+    Raises:
+        HTTPException: Raised if the app variant cannot be fetched.
+        HTTPException: Raised for unexpected errors.
+
+    Returns:
+        dict: The requested variant configuration.
+    """
+    try:
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        variant_config = await app_manager.fetch_variant_config(
+            app_name, variant_name, base_name, config_name, **kwargs
+        )
+        return variant_config
+    except ValueError as e:
+        detail = f"Error fetching the app variant: {str(e)}"
+        raise HTTPException(status_code=400, detail=detail)
     except Exception as e:
         detail = f"Unexpected error: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
