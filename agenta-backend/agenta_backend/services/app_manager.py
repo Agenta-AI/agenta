@@ -394,7 +394,7 @@ async def save_variant_config(
         found_variant = await db_manager.get_variant_from_db(search_variant, **kwargs)
         logger.info(f"Found variant: {found_variant}")
         if found_variant:
-            if variant_config.overwrite:
+            if variant_config.overwrite or found_variant.parameters == {}:
                 await _update_variant(
                     app_variant_db_to_pydantic(found_variant),
                     variant_config.parameters,
@@ -402,7 +402,8 @@ async def save_variant_config(
                 )
             else:
                 msg = f"A variant called {variant_name} already exists. Set overwrite=True to update it."
-                raise Exception(msg)
+                logger.info(msg)
+                return
         else:
             await _create_new_variant(variant_config, variant_name, **kwargs)
 
