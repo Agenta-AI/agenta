@@ -519,12 +519,15 @@ async def add_app_variant_from_template(
     if variant_exist is None:
         # Save variant based on the image to database
         await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
+
+        # Create testset for apps created
+        await db_manager.add_testset_to_app_variant(app_variant, image, **kwargs)
     else:
         # Update variant based on the image
         await app_manager.update_variant_image(app_variant, image, **kwargs)
 
     # Start variant
-    url = await app_manager.start_variant(app_variant, envvars, **kwargs)
+    await app_manager.start_variant(app_variant, envvars, **kwargs)
 
     return {
         "message": "Variant created and running!",

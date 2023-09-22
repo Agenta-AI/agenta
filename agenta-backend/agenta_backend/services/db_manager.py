@@ -1,6 +1,9 @@
-import logging
 import os
-from typing import Any, Dict, List
+import logging
+from pathlib import Path
+from bson import ObjectId
+from datetime import datetime
+from typing import Dict, List, Any
 
 from agenta_backend.models.api.api_models import (
     App,
@@ -15,6 +18,7 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
+from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppVariantDB,
@@ -22,6 +26,7 @@ from agenta_backend.models.db_models import (
     ImageDB,
     OrganizationDB,
     TemplateDB,
+    TestSetDB,
     UserDB,
 )
 from agenta_backend.services import helpers
@@ -33,6 +38,9 @@ engine = DBEngine(mode="default").engine()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# Define parent directory
+PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 
 async def get_templates() -> List[Template]:
@@ -117,6 +125,34 @@ async def add_variant_based_on_image(
         previous_variant_name=app_variant.previous_variant_name,
     )
     await engine.save(db_app_variant)
+
+
+async def add_testset_to_app_variant(
+    app_variant: AppVariant, image: Image, **kwargs: dict
+):
+    """Add testset to app variant.
+
+    Args:
+        app_variant (AppVariant): the app variant
+        image (Image): the image
+    """
+
+    user_instance = await get_user_object(kwargs["uid"])
+
+    app_template_name = image.tags.split(":")[-1]
+    if app_template_name == "single_prompt":
+        json_path = (
+            f"{PARENT_DIRECTORY}/resources/default_testsets/single_prompt_testsets.json"
+        )
+        csvdata = get_json(json_path)
+        testset = {
+            "name": f"{app_variant.app_name}_testset",
+            "app_name": app_variant.app_name,
+            "created_at": datetime.now().isoformat(),
+            "csvdata": csvdata,
+        }
+        testset = TestSetDB(**testset, user=user_instance)
+        await engine.save(testset)
 
 
 async def add_variant_based_on_previous(
@@ -281,7 +317,10 @@ async def get_app_variants_by_app_name_and_base_name(
 
 
 async def get_app_variant_by_app_name_and_variant_name(
-    app_name: str, variant_name: str, show_soft_deleted: bool = False, **kwargs: dict
+    app_name: str,
+    variant_name: str,
+    show_soft_deleted: bool = False,
+    **kwargs: dict,
 ) -> AppVariant:
     """Fetches an app variant based on app_name and variant_name.
 
@@ -533,7 +572,9 @@ async def remove_image(image: ImageExtended, **kwargs: dict):
     await engine.delete(image_db)
 
 
-async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
+async def check_is_last_variant_for_image(
+    db_app_variant: AppVariantDB,
+) -> bool:
     """Checks whether the input variant is the sole variant that uses its linked image
     This is a helpful function to determine whether to delete the image when removing a variant
     Usually many variants will use the same image (these variants would have been created using the UI)
