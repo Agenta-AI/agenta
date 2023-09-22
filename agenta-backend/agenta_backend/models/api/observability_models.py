@@ -1,11 +1,10 @@
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 from pydantic import BaseModel
 
 
-class Span(BaseModel):
-    span_id: str
+class BaseSpan(BaseModel):
     parent_span_id: Optional[str]
     meta: Optional[Dict[str, Any]]
     event_name: str
@@ -24,24 +23,32 @@ class Span(BaseModel):
     tags: Optional[List[str]]
 
 
+class CreateSpan(BaseSpan):
+    pass
+    
+
+class Span(BaseSpan):
+    span_id: str
+
+
 class CreateFeedback(BaseModel):
     feedback: Optional[str]
     score: Optional[float]
+    meta: Optional[Dict]
 
 
 class Feedback(CreateFeedback):
     feedback_id: str
-    trace_id: str
     created_at: Optional[datetime]
 
 
 class UpdateFeedback(BaseModel):
     feedback: str
     score: Optional[float]
+    meta: Optional[Dict]
 
 
-class Trace(BaseModel):
-    trace_id: str
+class BaseTrace(BaseModel):
     app_name: Optional[str]
     variant_name: Optional[str]
     cost: Optional[float]
@@ -51,32 +58,16 @@ class Trace(BaseModel):
     tags: Optional[List[str]]
     start_time: datetime
     end_time: datetime
-    spans: Optional[List[Span]]
 
 
-class CreateTrace(Trace):
-    pass
+class Trace(BaseTrace):
+    trace_id: str
+    spans: List[str]
+    feedbacks: Optional[List[Feedback]]
+
+class CreateTrace(BaseTrace):
+    spans: List[str]
 
 
 class UpdateTrace(BaseModel):
     status: str
-
-
-class SpanInputs(BaseModel):
-    span_id: str
-    inputs: List[str]
-
-
-class SpanOutputs(BaseModel):
-    span_id: str
-    outputs: List[str]
-
-
-class TraceInputs(BaseModel):
-    trace_id: str
-    inputs: List[SpanInputs]
-
-
-class TraceOutputs(BaseModel):
-    trace_id: str
-    outputs: List[SpanOutputs]
