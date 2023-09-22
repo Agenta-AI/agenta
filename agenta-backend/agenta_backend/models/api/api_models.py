@@ -9,6 +9,7 @@ class AppVariant(BaseModel):
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
+    organization_id: Optional[str]
 
 
 class RestartAppContainer(BaseModel):
@@ -61,6 +62,14 @@ class CreateAppVariant(BaseModel):
     image_id: str
     image_tag: str
     env_vars: Dict[str, str]
+
+
+class InviteRequest(BaseModel):
+    email: str
+
+
+class InviteToken(BaseModel):
+    token: str
 
 
 class Environment(BaseModel):

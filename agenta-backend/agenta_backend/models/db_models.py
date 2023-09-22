@@ -1,12 +1,23 @@
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from bson import ObjectId
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any, List
+from odmantic import Field, Model, Reference, EmbeddedModel
 
-from odmantic import EmbeddedModel, Field, Model, Reference
+
+class InvitationDB(EmbeddedModel):
+    token: str = Field(unique=True)
+    email: str
+    expiration_date: datetime = Field(default="0")
+    used: bool = False
 
 
 class OrganizationDB(Model):
     name: str = Field(default="agenta")
     description: str = Field(default="")
+    type: Optional[str]
+    owner: str
+    members: Optional[List[ObjectId]]
+    invitations: Optional[List[InvitationDB]] = []
 
     class Config:
         collection = "organizations"
@@ -16,7 +27,7 @@ class UserDB(Model):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
-    organization_id: OrganizationDB = Reference(key_name="org")
+    organizations: Optional[List[ObjectId]] = []
 
     class Config:
         collection = "users"
@@ -28,6 +39,7 @@ class ImageDB(Model):
     docker_id: str = Field(index=True)
     tags: str
     user_id: UserDB = Reference(key_name="user")
+    organization_id: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -42,6 +54,7 @@ class AppVariantDB(Model):
     user_id: UserDB = Reference(key_name="user")
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
+    organization_id: Optional[str]
     is_deleted: bool = Field(
         default=False
     )  # soft deletion for using the template variants
@@ -104,6 +117,7 @@ class EvaluationDB(Model):
     app_name: str
     testset: Dict[str, str]
     user: UserDB = Reference(key_name="user")
+    organization_id: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -119,6 +133,7 @@ class EvaluationScenarioDB(Model):
     evaluation: Optional[str]
     evaluation_id: str
     user: UserDB = Reference(key_name="user")
+    organization_id: Optional[str]
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -132,6 +147,7 @@ class CustomEvaluationDB(Model):
     python_code: str
     app_name: str
     user: UserDB = Reference()
+    organization_id: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -144,6 +160,7 @@ class TestSetDB(Model):
     app_name: str
     csvdata: List[Dict[str, str]]
     user: UserDB = Reference(key_name="user")
+    organization_id: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
