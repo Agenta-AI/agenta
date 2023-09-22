@@ -1,14 +1,12 @@
-name: NextJS Build
+name: Lint and Build
 
 on:
   pull_request:
-    branches:
-      - main
     paths:
       - "agenta-web/**"
 
 jobs:
-  lint_and_types:
+  lint_and_build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -21,6 +19,10 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --omit=dev
+        working-directory: agenta-web
+
+      - name: Run Lint
+        run: npm run lint
         working-directory: agenta-web
 
       - name: Run Build

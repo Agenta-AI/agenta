@@ -7,18 +7,22 @@ import {
     Radio,
     RadioChangeEvent,
     Row,
-    Tag,
-    Slider,
+    Typography,
+    Select,
     message,
 } from "antd"
-import {DownOutlined} from "@ant-design/icons"
-import {fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
+import {DownOutlined, PlusOutlined} from "@ant-design/icons"
+import {
+    createNewEvaluation,
+    fetchVariants,
+    useLoadTestsetsList,
+    fetchCustomEvaluations,
+} from "@/lib/services/api"
 import {getOpenAIKey} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
-import {Variant, Parameter, GenericObject} from "@/lib/Types"
+import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
-import {Typography} from "antd"
 import EvaluationErrorModal from "./EvaluationErrorModal"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 
@@ -26,12 +30,15 @@ import Image from "next/image"
 import abTesting from "@/media/testing.png"
 import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
+import regexIcon from "@/media/programming.png"
+import webhookIcon from "@/media/link.png"
 import ai from "@/media/artificial-intelligence.png"
+import codeIcon from "@/media/browser.png"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import axios from "@/lib/helpers/axiosConfig"
 import {createUseStyles} from "react-jss"
 import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 import HumanEvaluationResult from "./HumanEvaluationResult"
+import {getErrorMessage} from "@/lib/helpers/errorHandler"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -54,6 +61,12 @@ const useStyles = createUseStyles({
         display: "flex",
         justifyContent: "flex-end",
     },
+    createCustomEvalBtn: {
+        color: "#fff  !important",
+        backgroundColor: "#0fbf0f",
+        marginRight: "20px",
+        borderColor: "#0fbf0f !important",
+    },
     evaluationType: {
         display: "flex",
         alignItems: "center",
@@ -69,12 +82,37 @@ const useStyles = createUseStyles({
         marginTop: 40,
         width: "100%",
     },
+    optionSelected: {
+        border: "1px solid #1668dc",
+        "& .ant-select-selection-item": {
+            color: "#1668dc !important",
+        },
+    },
     radioGroup: {
         width: "100%",
     },
     radioBtn: {
         display: "block",
         marginBottom: "10px",
+    },
+    selectGroup: {
+        width: "100%",
+        display: "block",
+        "& .ant-select-selector": {
+            borderRadius: 0,
+        },
+        "& .ant-select-selection-item": {
+            marginLeft: 34,
+        },
+    },
+    customCodeSelectContainer: {
+        position: "relative",
+    },
+    customCodeIcon: {
+        position: "absolute",
+        left: 16,
+        top: 4.5,
+        pointerEvents: "none",
     },
     thresholdStyles: {
         paddingLeft: 10,
@@ -84,10 +122,16 @@ const useStyles = createUseStyles({
         marginRight: 10,
         width: "100%",
     },
+    newCodeEval: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        color: "#1668dc",
+    },
 })
+const {Title} = Typography
 
 export default function Evaluations() {
-    const {Text, Title} = Typography
     const router = useRouter()
     const {appTheme} = useAppTheme()
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
@@ -95,7 +139,6 @@ export default function Evaluations() {
     const [variants, setVariants] = useState<any[]>([])
     const classes = useStyles({themeMode: appTheme} as StyleProps)
 
-    const [columnsCount, setColumnsCount] = useState(2)
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
         name: string
@@ -110,6 +153,7 @@ export default function Evaluations() {
     const [selectedEvaluationType, setSelectedEvaluationType] = useState<EvaluationType | string>(
         "Select an evaluation type",
     )
+    const [selectedCustomEvaluationID, setSelectedCustomEvaluationID] = useState("")
 
     const appName = router.query.app_name?.toString() || ""
 
@@ -117,11 +161,12 @@ export default function Evaluations() {
 
     const [variantsInputs, setVariantsInputs] = useState<Record<string, string[]>>({})
 
-    const [sliderValue, setSliderValue] = useState(0.3)
-
     const [error, setError] = useState({message: "", btnText: "", endpoint: ""})
 
     const [llmAppPromptTemplate, setLLMAppPromptTemplate] = useState("")
+
+    const [customCodeEvaluationList, setCustomCodeEvaluationList] =
+        useState<SingleCustomEvaluation[]>()
 
     useEffect(() => {
         const fetchData = async () => {
@@ -148,9 +193,10 @@ export default function Evaluations() {
                 try {
                     // Map the variants to an array of promises
                     const promises = variants.map((variant) =>
-                        getAllVariantParameters(appName, variant).then(({inputs}) => ({
+                        getAllVariantParameters(appName, variant).then((data) => ({
                             variantName: variant.variantName,
-                            inputs: inputs.map((inputParam: Parameter) => inputParam.name),
+                            inputs:
+                                data?.inputs.map((inputParam: Parameter) => inputParam.name) || [],
                         })),
                     )
 
@@ -181,41 +227,6 @@ export default function Evaluations() {
             setTestsetsList(testsets)
         }
     }, [testsets, isTestsetsLoadingError])
-
-    // TODO: move to api.ts
-    const createNewEvaluation = async (
-        evaluationType: string,
-        evaluationTypeSettings: any,
-        inputs: string[],
-        llmAppPromptTemplate?: string,
-    ) => {
-        const postData = async (url = "", data = {}) => {
-            const response = await axios.post(url, data)
-            return response.data
-        }
-
-        const data = {
-            variants: selectedVariants.map((variant) => variant.variantName), // TODO: Change to variant id
-            app_name: appName,
-            inputs: inputs,
-            evaluation_type: evaluationType,
-            evaluation_type_settings: evaluationTypeSettings,
-            llm_app_prompt_template: llmAppPromptTemplate,
-            testset: {
-                _id: selectedTestset._id,
-                name: selectedTestset.name,
-            },
-            status: EvaluationFlow.EVALUATION_INITIALIZED,
-        }
-
-        return postData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`, data)
-            .then((data) => {
-                return data.id
-            })
-            .catch((err) => {
-                setError({message: err.message, btnText: "Go to Test sets", endpoint: "testsets"})
-            })
-    }
 
     const onTestsetSelect = (selectedTestsetIndexInTestsetsList: number) => {
         setSelectedTestset(testsetsList[selectedTestsetIndexInTestsetsList])
@@ -313,16 +324,37 @@ export default function Evaluations() {
         }
 
         // 2. We create a new app evaluation
-        const evaluationTypeSettings: any = {}
+        const evaluationTypeSettings: GenericObject = {}
+        //set default settings upon creation
         if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
-            evaluationTypeSettings["similarity_threshold"] = sliderValue
+            evaluationTypeSettings.similarity_threshold = 0.3
+        } else if (selectedEvaluationType === EvaluationType.auto_regex_test) {
+            evaluationTypeSettings.regex_pattern = ""
+            evaluationTypeSettings.regex_should_match = true
+        } else if (selectedEvaluationType === EvaluationType.auto_webhook_test) {
+            evaluationTypeSettings.webhook_url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/webhook_example_fake`
         }
-        const evaluationTableId = await createNewEvaluation(
-            EvaluationType[selectedEvaluationType as keyof typeof EvaluationType],
+
+        const evaluationTableId = await createNewEvaluation({
+            variants: selectedVariants.map((variant) => variant.variantName),
+            appName,
+            inputs: variantsInputs[selectedVariants[0].variantName],
+            evaluationType: EvaluationType[selectedEvaluationType as keyof typeof EvaluationType],
             evaluationTypeSettings,
-            variantsInputs[selectedVariants[0].variantName],
             llmAppPromptTemplate,
-        )
+            selectedCustomEvaluationID,
+            testset: {
+                _id: selectedTestset._id!,
+                name: selectedTestset.name,
+            },
+        }).catch((err) => {
+            setError({
+                message: getErrorMessage(err),
+                btnText: "Go to Test sets",
+                endpoint: "testsets",
+            })
+        })
+
         if (!evaluationTableId) {
             return
         }
@@ -336,14 +368,23 @@ export default function Evaluations() {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/human_a_b_testing`)
         } else if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/similarity_match`)
+        } else if (selectedEvaluationType === EvaluationType.auto_regex_test) {
+            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_regex_test`)
+        } else if (selectedEvaluationType === EvaluationType.auto_webhook_test) {
+            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_webhook_test`)
         } else if (selectedEvaluationType === EvaluationType.auto_ai_critique) {
             router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_ai_critique`)
+        } else if (selectedEvaluationType === EvaluationType.custom_code_run) {
+            router.push(
+                `/apps/${appName}/evaluations/${evaluationTableId}/custom_code_run?custom_eval_id=${selectedCustomEvaluationID}`,
+            )
         }
     }
 
     const onChangeEvaluationType = (e: RadioChangeEvent) => {
         const evaluationType = e.target.value
         setSelectedEvaluationType(evaluationType)
+        setSelectedCustomEvaluationID("")
         let nbOfVariants = 1
         if (evaluationType === EvaluationType.human_a_b_testing) {
             nbOfVariants = 2
@@ -359,8 +400,21 @@ export default function Evaluations() {
         )
     }
 
-    const onChangeSlider = (value: number) => {
-        setSliderValue(value)
+    useEffect(() => {
+        if (appName)
+            fetchCustomEvaluations(appName).then((res) => {
+                if (res.status === 200) {
+                    setCustomCodeEvaluationList(res.data)
+                }
+            })
+    }, [appName])
+
+    const handleCustomEvaluationOptionChange = (id: string) => {
+        if (id === "new") {
+            router.push(`/apps/${appName}/evaluations/create_custom_evaluation`)
+        }
+        setSelectedCustomEvaluationID(id)
+        setSelectedEvaluationType(EvaluationType.custom_code_run)
     }
 
     return (
@@ -377,6 +431,7 @@ export default function Evaluations() {
                         <Radio.Group
                             onChange={(e) => onChangeEvaluationType(e)}
                             className={classes.radioGroup}
+                            value={selectedEvaluationType}
                         >
                             <Radio.Button
                                 value={EvaluationType.human_a_b_testing}
@@ -388,23 +443,11 @@ export default function Evaluations() {
                                         alt="Picture of the author"
                                         className={classes.evaluationImg}
                                     />
-
                                     <span>
                                         {EvaluationTypeLabels[EvaluationType.human_a_b_testing]}
                                     </span>
                                 </div>
                             </Radio.Button>
-                            {/* 
-                            <Radio.Button
-                                value={EvaluationType.human_scoring}
-                                disabled
-                                className={classes.radioBtn}
-                            >
-                                {EvaluationTypeLabels[EvaluationType.human_scoring]}
-                                <Tag color="orange" bordered={false}>
-                                    soon
-                                </Tag>
-                            </Radio.Button> */}
 
                             <Title level={5}>Automatic evaluation</Title>
 
@@ -415,7 +458,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={exactMatch}
-                                        alt="Picture of the author"
+                                        alt="Exact match"
                                         className={classes.evaluationImg}
                                     />
 
@@ -431,7 +474,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={similarity}
-                                        alt="Picture of the author"
+                                        alt="Similarity"
                                         className={classes.evaluationImg}
                                     />
 
@@ -440,34 +483,82 @@ export default function Evaluations() {
                                     </span>
                                 </div>
                             </Radio.Button>
-                            {selectedEvaluationType === EvaluationType.auto_similarity_match && (
-                                <div className={classes.thresholdStyles}>
-                                    <Text>Similarity threshold</Text>
-                                    <Slider
-                                        min={0}
-                                        max={1}
-                                        step={0.01}
-                                        defaultValue={sliderValue}
-                                        onChange={onChangeSlider}
+                            <Radio.Button
+                                value={EvaluationType.auto_regex_test}
+                                className={classes.radioBtn}
+                            >
+                                <div className={classes.evaluationType}>
+                                    <Image
+                                        src={regexIcon}
+                                        alt="Regex"
+                                        className={classes.evaluationImg}
                                     />
+
+                                    <span>
+                                        {EvaluationTypeLabels[EvaluationType.auto_regex_test]}
+                                    </span>
                                 </div>
-                            )}
+                            </Radio.Button>
+                            <Radio.Button
+                                value={EvaluationType.auto_webhook_test}
+                                className={classes.radioBtn}
+                            >
+                                <div className={classes.evaluationType}>
+                                    <Image
+                                        src={webhookIcon}
+                                        alt="Webhook"
+                                        className={classes.evaluationImg}
+                                    />
+
+                                    <span>
+                                        {EvaluationTypeLabels[EvaluationType.auto_webhook_test]}
+                                    </span>
+                                </div>
+                            </Radio.Button>
                             <Radio.Button
                                 value={EvaluationType.auto_ai_critique}
                                 className={classes.radioBtn}
                             >
                                 <div className={classes.evaluationType}>
-                                    <Image
-                                        src={ai}
-                                        alt="Picture of the author"
-                                        className={classes.evaluationImg}
-                                    />
+                                    <Image src={ai} alt="AI" className={classes.evaluationImg} />
 
                                     <span>
                                         {EvaluationTypeLabels[EvaluationType.auto_ai_critique]}
                                     </span>
                                 </div>
                             </Radio.Button>
+
+                            <div className={classes.customCodeSelectContainer}>
+                                <Select
+                                    className={`${classes.selectGroup} ${
+                                        selectedCustomEvaluationID ? classes.optionSelected : ""
+                                    }`}
+                                    value={selectedCustomEvaluationID || "Code Evaluation"}
+                                    onChange={handleCustomEvaluationOptionChange}
+                                    options={[
+                                        {
+                                            value: "new",
+                                            label: (
+                                                <div className={classes.newCodeEval}>
+                                                    <PlusOutlined />
+                                                    New code evaluation
+                                                </div>
+                                            ),
+                                        },
+                                        ...(customCodeEvaluationList || []).map(
+                                            (item: SingleCustomEvaluation) => ({
+                                                value: item.id,
+                                                label: `${item.evaluation_name}`,
+                                            }),
+                                        ),
+                                    ]}
+                                />
+                                <Image
+                                    src={codeIcon}
+                                    alt="Picture of the author"
+                                    className={`${classes.evaluationImg} ${classes.customCodeIcon}`}
+                                />
+                            </div>
                         </Radio.Group>
                     </Col>
                     <Col span={8}>
@@ -525,7 +616,6 @@ export default function Evaluations() {
                 message={error.message}
                 btnText={error.btnText}
             />
-
             <div>
                 <AutomaticEvaluationResult />
                 <HumanEvaluationResult />

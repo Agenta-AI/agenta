@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Optional, Dict, Any, List
-from odmantic import Field, Model, Reference, EmbeddedModel
+from typing import Any, Dict, List, Optional
+
+from odmantic import EmbeddedModel, Field, Model, Reference
 
 
 class OrganizationDB(Model):
@@ -49,6 +50,16 @@ class AppVariantDB(Model):
         collection = "app_variants"
 
 
+class EnvironmentDB(Model):
+    name: str
+    user_id: UserDB = Reference(key_name="user")
+    app_name: str
+    deployed_app_variant: Optional[str]
+
+    class Config:
+        collection = "environments"
+
+
 class TemplateDB(Model):
     template_id: int
     name: str
@@ -68,6 +79,9 @@ class TemplateDB(Model):
 
 class EvaluationTypeSettings(EmbeddedModel):
     similarity_threshold: Optional[float]
+    regex_pattern: Optional[str]
+    regex_should_match: Optional[bool]
+    webhook_url: Optional[str]
 
 
 class EvaluationScenarioInput(EmbeddedModel):
@@ -83,6 +97,7 @@ class EvaluationScenarioOutput(EmbeddedModel):
 class EvaluationDB(Model):
     status: str
     evaluation_type: str
+    custom_code_evaluation_id: Optional[str]
     evaluation_type_settings: EvaluationTypeSettings
     llm_app_prompt_template: str
     variants: List[str]
@@ -110,6 +125,18 @@ class EvaluationScenarioDB(Model):
 
     class Config:
         collection = "evaluation_scenarios"
+
+
+class CustomEvaluationDB(Model):
+    evaluation_name: str
+    python_code: str
+    app_name: str
+    user: UserDB = Reference()
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "custom_evaluations"
 
 
 class TestSetDB(Model):

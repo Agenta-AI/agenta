@@ -125,6 +125,53 @@ async def fetch_results_for_auto_similarity_match_evaluation(
     return results
 
 
+async def fetch_results_for_auto_regex_test(evaluation_id: str, variant: str):
+    results = {}
+    # Construct query expression builder for evaluation_rows_nb
+    query_exp_one = query.eq(
+        EvaluationScenarioDB.evaluation_id, evaluation_id
+    ) & query.ne(EvaluationScenarioDB.score, "")
+    evaluation_rows_nb = await engine.count(EvaluationScenarioDB, query_exp_one)
+
+    if evaluation_rows_nb == 0:
+        return results
+
+    results["variant"] = variant
+    results["nb_of_rows"] = evaluation_rows_nb
+
+    # Construct query expression builder for similar_scores_nb
+    query_exp_two = query.eq(EvaluationScenarioDB.score, "correct") & query.eq(
+        EvaluationScenarioDB.evaluation_id, evaluation_id
+    )
+    correct_score = await engine.count(EvaluationScenarioDB, query_exp_two)
+
+    # Construct query expression builder for wrong_scores_nb
+    query_exp_three = query.eq(EvaluationScenarioDB.score, "wrong") & query.eq(
+        EvaluationScenarioDB.evaluation_id, evaluation_id
+    )
+    incorrect_score: int = await engine.count(EvaluationScenarioDB, query_exp_three)
+
+    # Update results dict
+    results["scores"] = {}
+    results["scores"]["correct"] = correct_score
+    results["scores"]["wrong"] = incorrect_score
+    return results
+
+
+async def fetch_results_for_auto_webhook_test(evaluation_id: str):
+    pipeline = [
+        {"$match": {"evaluation_id": evaluation_id}},
+        {"$group": {"_id": "$score", "count": {"$sum": 1}}},
+    ]
+
+    results = {}
+    collection = engine.get_collection(EvaluationScenarioDB)
+    aggregation_cursor = await collection.aggregate(pipeline).to_list(length=None)
+    for doc in aggregation_cursor:
+        results[doc["_id"]] = doc["count"]
+    return results
+
+
 async def fetch_results_for_auto_ai_critique(evaluation_id: str):
     pipeline = [
         {"$match": {"evaluation_id": evaluation_id}},
@@ -137,3 +184,18 @@ async def fetch_results_for_auto_ai_critique(evaluation_id: str):
     for doc in aggregation_cursor:
         results[doc["_id"]] = doc["count"]
     return results
+
+
+async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
+    query_exp = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id)
+    eval_scenarios = await engine.find(EvaluationScenarioDB, query_exp)
+
+    list_of_scores = []
+    for scenario in eval_scenarios:
+        score = scenario.score
+        if not scenario.score:
+            score = 0
+        list_of_scores.append(round(float(score), 2))
+
+    average_score = sum(list_of_scores) / len(list_of_scores)
+    return average_score

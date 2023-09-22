@@ -1,19 +1,32 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
 import {LineChartOutlined} from "@ant-design/icons"
-import {Button, Card, Col, Input, Row, Space, Spin, Statistic, Table, Tag, message} from "antd"
 import {
-    updateEvaluationScenario,
-    callVariant,
-    updateEvaluation,
-    fetchEvaluationResults,
-} from "@/lib/services/api"
+    Button,
+    Card,
+    Col,
+    Form,
+    Input,
+    Row,
+    Slider,
+    Space,
+    Spin,
+    Statistic,
+    Table,
+    Tag,
+    message,
+} from "antd"
+import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {evaluateWithSimilarityMatch} from "@/lib/services/evaluations"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
+import {exportSimilarityEvaluationData} from "@/lib/helpers/evaluate"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
+
+const {Title} = Typography
 
 interface SimilarityMatchEvaluationTableProps {
     evaluation: any
@@ -84,6 +97,15 @@ const useStyles = createUseStyles({
             color: "#cf1322",
         },
     },
+    form: {
+        marginBottom: 20,
+        "& .ant-form-item-has-error": {
+            marginBottom: 0,
+        },
+    },
+    slider: {
+        width: 200,
+    },
 })
 
 const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTableProps> = ({
@@ -105,29 +127,27 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [dissimilarAnswers, setDissimilarAnswers] = useState<number>(0)
     const [similarAnswers, setSimilarAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
-    const [loadSpinner, setLoadingSpinners] = useState(false)
-    const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
-    const [evaluationResults, setEvaluationResults] = useState<any>(null)
-
+    const [settings, setSettings] = useState(evaluation.evaluationTypeSettings)
+    const [loading, setLoading] = useState<boolean[]>([])
+    const [form] = Form.useForm()
     const {Text} = Typography
 
     useEffect(() => {
         if (evaluationScenarios) {
-            setRows(evaluationScenarios)
+            setRows(
+                evaluationScenarios.map((item) => ({
+                    ...item,
+                    similarity: item.outputs?.[0]?.variant_output
+                        ? evaluateWithSimilarityMatch(
+                              item.outputs[0].variant_output,
+                              item.correctAnswer,
+                          )
+                        : NaN,
+                })),
+            )
+            setLoading(Array(evaluationScenarios.length).fill(false))
         }
     }, [evaluationScenarios])
-
-    useEffect(() => {
-        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
-            fetchEvaluationResults(evaluation.id)
-                .then((data) => setEvaluationResults(data))
-                .catch((err) => console.error("Failed to fetch results:", err))
-                .then(() => {
-                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
-                })
-                .catch((err) => console.error("Failed to fetch results:", err))
-        }
-    }, [evaluationStatus, evaluation.id])
 
     useEffect(() => {
         if (similarAnswers + dissimilarAnswers > 0) {
@@ -158,24 +178,34 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     }
 
     const runAllEvaluations = async () => {
-        // start loading spinner
-        setLoadingSpinners(true)
-        setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
+        //validate form
+        try {
+            await form.validateFields()
+        } catch {
+            return
+        }
+
+        const {similarityThreshold} = form.getFieldsValue()
         const promises: Promise<void>[] = []
 
         for (let i = 0; i < rows.length; i++) {
             promises.push(runEvaluation(i))
         }
 
-        Promise.all(promises)
-            .then(() => {
-                console.log("All functions finished.")
-                setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
+        Promise.all(promises).then(() => {
+            updateEvaluation(evaluation.id, {
+                evaluation_type_settings: {
+                    similarity_threshold: similarityThreshold,
+                },
+                status: EvaluationFlow.EVALUATION_FINISHED,
+            }).then(() => {
+                message.success("Evaluation Results Saved")
             })
-            .catch((err) => console.error("An error occurred:", err))
+        })
     }
 
     const runEvaluation = async (rowIndex: number) => {
+        setLoading((prev) => prev.map((val, i) => (i === rowIndex ? true : val)))
         const inputParamsDict = rows[rowIndex].inputs.reduce((acc: {[key: string]: any}, item) => {
             acc[item.input_name] = item.input_value
             return acc
@@ -183,79 +213,47 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
         const columnsDataNames = ["columnData0"]
         columnsDataNames.forEach(async (columnName: any, idx: number) => {
-            setRowValue(rowIndex, columnName, "loading...")
             try {
-                let result = await callVariant(
+                const result = await callVariant(
                     inputParamsDict,
                     variantData[idx].inputParams!,
                     variantData[idx].optParams!,
                     variantData[idx].URIPath!,
                 )
-                setRowValue(rowIndex, columnName, result)
-                setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
-                evaluate(rowIndex)
-                if (rowIndex === rows.length - 1) {
-                    message.success("Evaluation Results Saved")
+
+                const {similarityThreshold} = form.getFieldsValue()
+                const similarity = evaluateWithSimilarityMatch(result, rows[rowIndex].correctAnswer)
+                const evaluationScenarioId = rows[rowIndex].id
+                const isSimilar = similarity >= similarityThreshold ? "true" : "false"
+
+                if (evaluationScenarioId) {
+                    await updateEvaluationScenario(
+                        evaluation.id,
+                        evaluationScenarioId,
+                        {
+                            score: isSimilar,
+                            outputs: [
+                                {variant_name: variants[0].variantName, variant_output: result},
+                            ],
+                        },
+                        evaluation.evaluationType,
+                    )
                 }
+
+                setRowValue(rowIndex, "similarity", similarity)
+                setRowValue(rowIndex, "score", isSimilar)
+                if (isSimilar) {
+                    setSimilarAnswers((prevSimilar) => prevSimilar + 1)
+                } else {
+                    setDissimilarAnswers((prevDissimilar) => prevDissimilar + 1)
+                }
+                setRowValue(rowIndex, columnName, result)
             } catch {
                 setRowValue(rowIndex, columnName, "")
             } finally {
-                if (rowIndex === rows.length - 1) {
-                    setLoadingSpinners(false)
-                }
+                setLoading((prev) => prev.map((val, i) => (i === rowIndex ? false : val)))
             }
         })
-    }
-
-    /**
-     *
-     * @param rowNumber
-     *
-     * This method will:
-     * 1. perform an similarity match evaluation for the given row number
-     * 2. update the evaluation row with the result
-     * 3. update the score column in the table
-     */
-    const evaluate = (rowNumber: number) => {
-        const similarity = evaluateWithSimilarityMatch(
-            rows[rowNumber].columnData0,
-            rows[rowNumber].correctAnswer,
-        )
-        const isSimilar =
-            similarity >= evaluation.evaluationTypeSettings.similarityThreshold ? "true" : "false"
-
-        const evaluation_scenario_id = rows[rowNumber].id
-
-        // TODO: we need to improve this and make it dynamic
-        const appVariantNameX = variants[0].variantName
-        const outputVariantX = rows[rowNumber].columnData0
-
-        if (evaluation_scenario_id) {
-            const data = {
-                score: isSimilar,
-                outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
-            }
-
-            updateEvaluationScenario(
-                evaluation.id,
-                evaluation_scenario_id,
-                data,
-                evaluation.evaluationType,
-            )
-                .then((data) => {
-                    // NOTE: both rows are set in the UI and neither of them disrupt the other
-                    setRowValue(rowNumber, "similarity", similarity)
-                    setRowValue(rowNumber, "score", data.score)
-                    if (isSimilar) {
-                        setSimilarAnswers((prevSimilar) => prevSimilar + 1)
-                    } else {
-                        setDissimilarAnswers((prevDissimilar) => prevDissimilar + 1)
-                    }
-                })
-                .catch((err) => {
-                    console.error(err)
-                })
-        }
     }
 
     const setRowValue = (
@@ -285,11 +283,9 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 dataIndex: columnKey,
                 key: columnKey,
                 width: "25%",
-                render: (
-                    text: any,
-                    record: SimilarityMatchEvaluationTableRow,
-                    rowIndex: number,
-                ) => {
+                render: (text: any, record: SimilarityMatchEvaluationTableRow, ix: number) => {
+                    if (loading[ix]) return "Loading..."
+
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
                             (output: any) => output.variant_name === variants[i].variantName,
@@ -339,35 +335,23 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             dataIndex: "correctAnswer",
             key: "correctAnswer",
             width: "25%",
-
-            render: (text: any, record: any, rowIndex: number) => <div>{record.correctAnswer}</div>,
         },
         {
             title: "Evaluation",
-            dataIndex: "evaluation",
+            dataIndex: "score",
             key: "evaluation",
             width: 200,
             align: "center" as "left" | "right" | "center",
-            render: (text: any, record: any, rowIndex: number) => {
-                let tagColor = ""
-                if (record.score === "true") {
-                    tagColor = "green"
-                } else if (record.score === "false") {
-                    tagColor = "red"
-                }
-
+            render: (score: string, _: any, ix: number) => {
+                if (loading[ix]) return <Spin spinning />
                 return (
-                    <Spin spinning={loadSpinner}>
-                        <Space>
-                            <div>
-                                {!loadSpinner && rows[rowIndex].score !== "" && (
-                                    <Tag color={tagColor} className={classes.tag}>
-                                        {record.score}
-                                    </Tag>
-                                )}
-                            </div>
-                        </Space>
-                    </Spin>
+                    <Space>
+                        {score && (
+                            <Tag color={score === "true" ? "green" : "red"} className={classes.tag}>
+                                {score}
+                            </Tag>
+                        )}
+                    </Space>
                 )
             },
         },
@@ -377,26 +361,18 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             key: "similarity",
             width: 200,
             align: "center" as "left" | "right" | "center",
-            render: (text: any, record: any, rowIndex: number) => {
-                let tagColor = ""
-                if (record.score === "true") {
-                    tagColor = "green"
-                } else if (record.score === "false") {
-                    tagColor = "red"
-                }
+            render: (similarity: number, record: any, ix: number) => {
+                if (loading[ix]) return <Spin spinning />
 
+                const score = record.score
                 return (
-                    <Spin spinning={loadSpinner}>
-                        <Space>
-                            <div>
-                                {!loadSpinner && text !== undefined && (
-                                    <Tag color={tagColor} className={classes.tag}>
-                                        {text.toFixed(2)}
-                                    </Tag>
-                                )}
-                            </div>
-                        </Space>
-                    </Spin>
+                    <Space>
+                        {score && !isNaN(similarity) && (
+                            <Tag color={score === "true" ? "green" : "red"} className={classes.tag}>
+                                {similarity.toFixed(2)}
+                            </Tag>
+                        )}
+                    </Space>
                 )
             },
         },
@@ -404,10 +380,9 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     return (
         <div>
-            <h1>
-                Similarity match Evaluation (Threshold:{" "}
-                {evaluation.evaluationTypeSettings.similarityThreshold})
-            </h1>
+            <Title level={2}>
+                Similarity match Evaluation (Threshold: {settings.similarityThreshold})
+            </Title>
             <div className={classes.div}>
                 <Text>
                     This evaluation type is calculating the similarity using Jaccard similarity.
@@ -416,14 +391,22 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             <div>
                 <Row align="middle">
                     <Col span={12}>
-                        <Button
-                            type="primary"
-                            onClick={runAllEvaluations}
-                            icon={<LineChartOutlined />}
-                            size="large"
-                        >
-                            Run Evaluation
-                        </Button>
+                        <Space>
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                icon={<LineChartOutlined />}
+                                size="large"
+                            >
+                                Run Evaluation
+                            </Button>
+                            <SecondaryButton
+                                onClick={() => exportSimilarityEvaluationData(evaluation, rows)}
+                                disabled={!rows?.[0]?.score}
+                            >
+                                Export results
+                            </SecondaryButton>
+                        </Space>
                     </Col>
 
                     <Col span={12}>
@@ -456,6 +439,27 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     </Col>
                 </Row>
             </div>
+
+            {settings && (
+                <Form
+                    initialValues={settings}
+                    layout="inline"
+                    className={classes.form}
+                    form={form}
+                    requiredMark={false}
+                >
+                    <Form.Item label="Similarity Threshold" name="similarityThreshold">
+                        <Slider
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            className={classes.slider}
+                            onChange={(value: number) => setSettings({similarityThreshold: value})}
+                        />
+                    </Form.Item>
+                </Form>
+            )}
+
             <div>
                 <Table
                     dataSource={rows}

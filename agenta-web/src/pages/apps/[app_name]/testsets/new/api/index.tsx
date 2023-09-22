@@ -44,10 +44,17 @@ export default function NewTestsetWithAPI() {
             <Typography.Title level={5} className={classes.title}>
                 Create a new Test Set with JSON
             </Typography.Title>
+            <Typography.Text>
+                Use this endpoint to create a new Test Set for your App.
+            </Typography.Text>
             <DynamicCodeBlock codeSnippets={codeSnippets} />
+
             <Typography.Title level={5} className={classes.title}>
                 Create a new Test Set with uploading a CSV file
             </Typography.Title>
+            <Typography.Text>
+                Use this endpoint to create a new Test Set for your App.
+            </Typography.Text>
             <DynamicCodeBlock codeSnippets={codeSnippetsUpload} />
         </div>
     )

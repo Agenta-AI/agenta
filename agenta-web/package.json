@@ -21,10 +21,12 @@
         "@heroicons/react": "^2.0.17",
         "@mdx-js/loader": "^2.3.0",
         "@mdx-js/react": "^2.3.0",
+        "@monaco-editor/react": "^4.5.2",
         "@next/mdx": "^13.4.13",
         "@types/js-beautify": "^1.14.0",
         "@types/mdx": "^2.0.6",
         "@types/react-dom": "18.2.1",
+        "@types/react-highlight-words": "^0.16.4",
         "@types/react-syntax-highlighter": "^15.5.7",
         "ag-grid-community": "^30.0.6",
         "ag-grid-react": "^30.0.3",
@@ -42,6 +44,7 @@
         "react": "18.2.0",
         "react-dom": "18.2.0",
         "react-error-boundary": "^4.0.11",
+        "react-highlight-words": "^0.20.0",
         "react-jss": "^10.10.0",
         "react-markdown": "^8.0.7",
         "react-syntax-highlighter": "^15.5.0",
@@ -54,7 +57,6 @@
     },
     "devDependencies": {
         "cypress": "^12.11.0",
-        "eslint-config-prettier": "^8.8.0",
         "node-mocks-http": "^1.12.2",
         "prettier": "^3.0.0"
     }

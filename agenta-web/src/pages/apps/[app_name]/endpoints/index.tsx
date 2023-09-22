@@ -2,24 +2,63 @@ import cURLCode from "@/code_snippets/endpoints/curl"
 import pythonCode from "@/code_snippets/endpoints/python"
 import tsCode from "@/code_snippets/endpoints/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
-import {GenericObject, LanguageItem, Parameter, Variant} from "@/lib/Types"
+import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {fetchVariants, getAppContainerURL} from "@/lib/services/api"
+import {fetchEnvironments, fetchVariants, getAppContainerURL} from "@/lib/services/api"
+import {ApiOutlined, DownOutlined} from "@ant-design/icons"
+import {Alert, Button, Dropdown, Space, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
+import {createUseStyles} from "react-jss"
+
+const {Text, Title} = Typography
+
+const useStyles = createUseStyles({
+    container: {
+        display: "flex",
+        flexDirection: "column",
+        rowGap: 20,
+    },
+})
 
 export default function VariantEndpoint() {
+    const classes = useStyles()
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
 
-    const [variants, setVariants] = useState<Variant[]>([])
+    // Load URL for the given environment
+    const [uri, setURI] = useState<string | null>(null)
+    const loadURL = async (environment: Environment) => {
+        const url = await getAppContainerURL(appName, environment.deployed_app_variant)
+        setURI(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${url}/generate`)
+    }
 
+    // Load environments for the given app
+    const [selectedEnvironment, setSelectedEnvironment] = useState<Environment | null>(null)
+    const [environments, setEnvironments] = useState<Environment[]>([])
+    const loadEnvironments = async () => {
+        const response: Environment[] = await fetchEnvironments(appName)
+        setEnvironments(response)
+        setSelectedEnvironment(response[0])
+
+        await loadURL(response[0])
+    }
+    useEffect(() => {
+        if (!appName) return
+        loadEnvironments()
+    }, [appName])
+
+    const handleEnvironmentClick = ({key}: {key: string}) => {
+        const chosenEnvironment = environments.find((env) => env.name === key)
+        if (!chosenEnvironment) return
+        setSelectedEnvironment(chosenEnvironment)
+        loadURL(chosenEnvironment)
+    }
+
+    // Initialize variants
+    const [variants, setVariants] = useState<Variant[]>([])
     const [isVariantsLoading, setIsVariantsLoading] = useState(false)
     const [isVariantsError, setIsVariantsError] = useState<boolean | string>(false)
-    const [variantURI, setVariantURI] = useState<string | null>(null)
-    const [variant, setVariant] = useState<Variant | null>(null)
-    const [selectedLanguage, setSelectedLanguage] = useState<LanguageItem | null>(null)
-
     useEffect(() => {
         const fetchData = async () => {
             setIsVariantsLoading(true)
@@ -27,7 +66,6 @@ export default function VariantEndpoint() {
                 const backendVariants = await fetchVariants(appName)
                 if (backendVariants.length > 0) {
                     setVariants(backendVariants)
-                    setVariant(backendVariants[0])
                 }
                 setIsVariantsLoading(false)
             } catch (error) {
@@ -38,32 +76,25 @@ export default function VariantEndpoint() {
         fetchData()
     }, [appName])
 
+    // Set the variant to the variant deployed in the selected environment
+    const [variant, setVariant] = useState<Variant | null>(null)
+    useEffect(() => {
+        if (!selectedEnvironment) return
+        const variant = variants.find(
+            (variant) => variant.variantName === selectedEnvironment.deployed_app_variant,
+        )
+        if (!variant) return
+
+        setVariant(variant)
+    }, [selectedEnvironment, variants])
+
     useEffect(() => {
         if (variants.length > 0) {
             setVariant(variants[0])
         }
     }, [variants, appName])
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                if (appName && variant) {
-                    const variantDesignator = variant.templateVariantName ?? variant.variantName
-                    const url = await getAppContainerURL(appName, variantDesignator)
-                    setVariantURI(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${url}/generate`)
-                }
-            } catch (error) {
-                console.error("An error occurred:", error)
-            }
-        }
-
-        fetchData()
-    }, [appName, variant])
-
-    const {inputParams, optParams, URIPath, isLoading, isError, error} = useVariant(
-        appName,
-        variant!,
-    )
+    const {inputParams, optParams, isLoading, isError, error} = useVariant(appName, variant!)
     const createParams = (
         inputParams: Parameter[] | null,
         optParams: Parameter[] | null,
@@ -92,51 +123,65 @@ export default function VariantEndpoint() {
         return JSON.stringify(mainParams, null, 2)
     }
 
-    const handleVariantChange = (variantName: string) => {
-        const selectedVariant = variants.find((variant) => variant.variantName === variantName)
-        if (selectedVariant) {
-            setVariant(selectedVariant)
-        }
-    }
-
-    const handleLanguageChange = (selectedLanguage: LanguageItem) => {
-        setSelectedLanguage(selectedLanguage)
-    }
-
-    let renderElement = null
     if (isVariantsError) {
-        renderElement = <div>Failed to load variants</div>
-    } else if (isVariantsLoading) {
-        renderElement = <div>Loading variants...</div>
-    } else if (!variant) {
-        renderElement = <div>No variant available</div>
-    } else if (isLoading) {
-        renderElement = <div>Loading variant...</div>
-    } else if (isError) {
-        renderElement = <div>{error?.message || "Error loading variant"}</div>
-    } else {
-        const params = createParams(inputParams, optParams, "add_a_value")
-
-        const codeSnippets: Record<string, string> = {
-            Python: pythonCode(variantURI!, params),
-            cURL: cURLCode(variantURI!, params),
-            TypeScript: tsCode(variantURI!, params),
-        }
-
-        renderElement = (
-            <div>
-                <DynamicCodeBlock
-                    codeSnippets={codeSnippets}
-                    includeVariantsDropdown={true}
-                    variants={variants}
-                    selectedVariant={variant}
-                    selectedLanguage={selectedLanguage}
-                    onVariantChange={handleVariantChange}
-                    onLanguageChange={handleLanguageChange}
-                />
-            </div>
-        )
+        return <div>Failed to load variants</div>
+    }
+    if (isVariantsLoading) {
+        return <div>Loading variants...</div>
+    }
+    if (!variant) {
+        return <div>No variant available</div>
+    }
+    if (isLoading) {
+        return <div>Loading variant...</div>
+    }
+    if (isError) {
+        return <div>{error?.message || "Error loading variant"}</div>
     }
 
-    return renderElement
+    const params = createParams(inputParams, optParams, "add_a_value")
+    const codeSnippets: Record<string, string> = {
+        Python: pythonCode(uri!, params),
+        cURL: cURLCode(uri!, params),
+        TypeScript: tsCode(uri!, params),
+    }
+    return (
+        <div className={classes.container}>
+            <Title level={3}>
+                <ApiOutlined />
+                API endpoint
+            </Title>
+            <Text>
+                Select an environment then use this endpoint to send requests to the LLM app.
+            </Text>
+
+            <div>
+                <Text>Environment: </Text>
+                <Dropdown
+                    menu={{
+                        items: environments.map((env) => ({label: env.name, key: env.name})),
+                        onClick: handleEnvironmentClick,
+                    }}
+                >
+                    <Button size="small">
+                        <Space>
+                            {selectedEnvironment?.name || "Select a variant"}
+                            <DownOutlined />
+                        </Space>
+                    </Button>
+                </Dropdown>
+            </div>
+
+            {selectedEnvironment?.deployed_app_variant ? (
+                <DynamicCodeBlock codeSnippets={codeSnippets} />
+            ) : (
+                <Alert
+                    message="Publish Required"
+                    description={`No variants have been published to ${selectedEnvironment?.name} environment. Please publish a variant from the playground to proceed`}
+                    type="warning"
+                    showIcon
+                />
+            )}
+        </div>
+    )
 }

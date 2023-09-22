@@ -48,7 +48,7 @@ const fetchData = async (url: string): Promise<any> => {
     return response.data
 }
 
-export default function testsets() {
+export default function Testsets() {
     const classes = useStyles()
     const router = useRouter()
     const {app_name} = router.query

@@ -110,22 +110,22 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
   </picture>
 </a>
 </br>
-  <a href="https://docs.agenta.ai/installation">  
+  <a href="https://docs.agenta.ai/installation">
     <picture>
       <img src="https://github.com/Agenta-AI/agenta/assets/4510758/29f3fc9a-8a7c-4b39-81a8-776a472a2baf" />
-    </picture> 
-  </a> 
-  <a href="https://docs.agenta.ai/getting-started">  
-    <picture>
-      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/18decb9c-eba5-4d2f-9735-048a1e9d9386" /> 
     </picture>
-  </a> 
-  <a href="https://docs.agenta.ai/tutorials">  
+  </a>
+  <a href="https://docs.agenta.ai/getting-started">
     <picture>
-      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/e665d66d-d0fe-4b0a-ae7b-5e08350e5e6c" /> 
+      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/18decb9c-eba5-4d2f-9735-048a1e9d9386" />
     </picture>
-  </a> 
-<a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation#aws">  
+  </a>
+  <a href="https://docs.agenta.ai/tutorials">
+    <picture>
+      <img src="https://github.com/Agenta-AI/agenta/assets/4510758/e665d66d-d0fe-4b0a-ae7b-5e08350e5e6c" />
+    </picture>
+  </a>
+<a href="https://docs.agenta.ai/installation/self-hosting/self-hosted-installation-aws">
   <picture>
     <img src="https://github.com/Agenta-AI/agenta/assets/4510758/65c1487e-5233-4509-8e8d-d967235ccfd7"  />
   </picture>
@@ -221,7 +221,7 @@ Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-s
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-20-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-22-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -254,8 +254,12 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/lazyfuhrer"><img src="https://avatars.githubusercontent.com/u/64888892?v=4?s=100" width="100px;" alt="Biswarghya Biswas"/><br /><sub><b>Biswarghya Biswas</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=lazyfuhrer" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/okieLoki"><img src="https://avatars.githubusercontent.com/u/96105929?v=4?s=100" width="100px;" alt="Uddeepta Raaj Kashyap"/><br /><sub><b>Uddeepta Raaj Kashyap</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=okieLoki" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://www.linkedin.com/in/nayeem-abdullah-317098141"><img src="https://avatars.githubusercontent.com/u/32274108?v=4?s=100" width="100px;" alt="Nayeem Abdullah"/><br /><sub><b>Nayeem Abdullah</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=nayeem01" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kangsuhyun-yanolja"><img src="https://avatars.githubusercontent.com/u/124246127?v=4?s=100" width="100px;" alt="Kang Suhuyn"/><br /><sub><b>Kang Suhuyn</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=kangsuhyun-yanolja" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kangsuhyun-yanolja"><img src="https://avatars.githubusercontent.com/u/124246127?v=4?s=100" width="100px;" alt="Kang Suhyun"/><br /><sub><b>Kang Suhyun</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=kangsuhyun-yanolja" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/yeokyeong-yanolja"><img src="https://avatars.githubusercontent.com/u/128676129?v=4?s=100" width="100px;" alt="Yoon"/><br /><sub><b>Yoon</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=yeokyeong-yanolja" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://mrkirthi24.netlify.app/"><img src="https://avatars.githubusercontent.com/u/53830546?v=4?s=100" width="100px;" alt="Kirthi Bagrecha Jain"/><br /><sub><b>Kirthi Bagrecha Jain</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=mrkirthi-24" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/navdeep1840"><img src="https://avatars.githubusercontent.com/u/80774259?v=4?s=100" width="100px;" alt="Navdeep"/><br /><sub><b>Navdeep</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=navdeep1840" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
