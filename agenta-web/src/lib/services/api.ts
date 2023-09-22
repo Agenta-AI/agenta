@@ -44,6 +44,8 @@ export async function fetchVariants(
                 persistent: true,
                 parameters: variant.parameters,
                 previousVariantName: variant.previous_variant_name || null,
+                baseName: variant.base_name || null,
+                configName: variant.config_name || null,
             }
             return v
         })
@@ -132,9 +134,10 @@ export const getVariantParametersFromOpenAPI = async (
     variant: Variant,
     ignoreAxiosError: boolean = false,
 ) => {
-    const sourceName = variant.templateVariantName
+    const sourceName_ = variant.templateVariantName
         ? variant.templateVariantName
         : variant.variantName
+    const sourceName = variant.baseName ?? sourceName_
     const appContainerURIPath = await getAppContainerURL(app, sourceName)
     const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/openapi.json`
     const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
