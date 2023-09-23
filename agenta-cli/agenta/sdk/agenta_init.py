@@ -22,7 +22,7 @@ class AgentaSingleton:
         app_name: Optional[str] = None,
         base_name: Optional[str] = None,
         host: Optional[str] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Main function to initialize the singleton.
 
@@ -68,16 +68,17 @@ class Config:
         self.base_name = base_name
         self.host = host
 
-    def default(self, **kwargs):
+    def default(self, overwrite=False, **kwargs):
         """Saves the default parameters to the app_name and base_name in case they are not already saved.
         Args:
+            overwrite: Whether to overwrite the existing configuration or not
             **kwargs: A dict containing the parameters
         """
         self.set(
             **kwargs
         )  # In case there is no connectivity, we still can use the default values
         try:
-            self.push(config_name="default", overwrite=False, **kwargs)
+            self.push(config_name="default", overwrite=overwrite, **kwargs)
         except Exception as ex:
             raise
 
@@ -103,13 +104,34 @@ class Config:
             )
 
     def pull(self, config_name: str = None):
-        """Pulls the parameters for the app variant from the server"""
-        pass
+        """Pulls the parameters for the app variant from the server and sets them to the config"""
+        variant_name = f"{self.base_name}.{config_name}"
+        try:
+            config = client.fetch_variant_config(
+                app_name=self.app_name,
+                variant_name=variant_name,
+                base_name=self.base_name,
+                config_name=config_name,
+                host=self.host,
+            )
+        except Exception as ex:
+            raise Exception(
+                "Failed to pull the configuration from the server with error: "
+                + str(ex)
+            ) from ex
+        try:
+            self.set(**config)
+        except Exception as ex:
+            raise Exception(
+                "Failed to set the configuration with error: " + str(ex)
+            ) from ex
 
     def all(self):
         """Returns all the parameters for the app variant"""
         return {
-            k: v for k, v in self.__dict__.items() if k not in ["app_name", "base_name"]
+            k: v
+            for k, v in self.__dict__.items()
+            if k not in ["app_name", "base_name", "host"]
         }
 
     # function to set the parameters for the app variant

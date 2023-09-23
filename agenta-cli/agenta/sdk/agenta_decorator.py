@@ -16,7 +16,15 @@ from fastapi.responses import JSONResponse
 
 from .context import get_contexts, save_context
 from .router import router as router
-from .types import Context, DictInput, FloatParam, InFile, IntParam, MultipleChoiceParam
+from .types import (
+    Context,
+    DictInput,
+    FloatParam,
+    InFile,
+    IntParam,
+    MultipleChoiceParam,
+    TextParam,
+)
 
 app = FastAPI()
 
@@ -64,12 +72,24 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
     def wrapper(*args, **kwargs) -> Any:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
         ingest_files(func_params, ingestible_files)
+        print("api_config_params", api_config_params)
         agenta.config.set(**api_config_params)
         return execute_function(func, *args, **func_params)
 
+    @functools.wraps(func)
+    def wrapper_deployed(*args, **kwargs) -> Any:
+        func_params, api_config_params = split_kwargs(kwargs, config_params)
+        ingest_files(func_params, ingestible_files)
+        agenta.config.pull("default")
+        return execute_function(func, *args, **func_params)
+
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
+
     route = f"/{endpoint_name}"
     app.post(route)(wrapper)
+    update_function_signature(wrapper_deployed, func_signature, {}, ingestible_files)
+    route_deployed = f"/{endpoint_name}_deployed"
+    app.post(route_deployed)(wrapper_deployed)
     override_schema(
         openapi_schema=app.openapi(),
         func_name=func.__name__,
@@ -82,7 +102,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
             func, func_signature.parameters, config_params, ingestible_files
         )
 
-    return wrapper
+    return None
 
 
 def extract_ingestible_files(
@@ -156,7 +176,7 @@ def add_config_params_to_parser(
             inspect.Parameter(
                 name,
                 inspect.Parameter.KEYWORD_ONLY,
-                default=Body(param),
+                default=Body(None),
                 annotation=Optional[type(param)],
             )
         )
@@ -293,9 +313,7 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
         f"Body_{func_name}_{endpoint}_post"
     ]["properties"]
     for param_name, param_val in params.items():
-        print(
-            "param_name", param_name, "param_val", param_val, "tyupe", type(param_val)
-        )
+        print(param_name, param_val)
         if isinstance(param_val, MultipleChoiceParam):
             subschema = find_in_schema(schema_to_override, param_name, "choice")
             default = str(param_val)
@@ -323,3 +341,6 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
         ):
             subschema = find_in_schema(schema_to_override, param_name, "dict")
             subschema["default"] = param_val.default["default_keys"]
+        if isinstance(param_val, TextParam):
+            subschema = find_in_schema(schema_to_override, param_name, "text")
+            subschema["default"] = param_val
