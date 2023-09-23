@@ -80,14 +80,19 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
     def wrapper_deployed(*args, **kwargs) -> Any:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
         ingest_files(func_params, ingestible_files)
-        agenta.config.pull()
+        agenta.config.pull(func_params["config"])
         return execute_function(func, *args, **func_params)
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
     route = f"/{endpoint_name}"
     app.post(route)(wrapper)
 
-    update_function_signature(wrapper_deployed, func_signature, {}, ingestible_files)
+    update_function_signature(
+        wrapper_deployed,
+        func_signature,
+        {"config": "default", "environment": ""},
+        ingestible_files,
+    )
     route_deployed = f"/{endpoint_name}_deployed"
     app.post(route_deployed)(wrapper_deployed)
     override_schema(
