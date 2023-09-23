@@ -103,7 +103,7 @@ class Config:
                 "Failed to push the configuration to the server with error: " + str(ex)
             )
 
-    def pull(self, config_name: str = None):
+    def pull(self, config_name: str = "default"):
         """Pulls the parameters for the app variant from the server and sets them to the config"""
         variant_name = f"{self.base_name}.{config_name}"
         try:

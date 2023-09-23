@@ -72,7 +72,6 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
     def wrapper(*args, **kwargs) -> Any:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
         ingest_files(func_params, ingestible_files)
-        print("api_config_params", api_config_params)
         agenta.config.set(**api_config_params)
         return execute_function(func, *args, **func_params)
 
@@ -80,13 +79,13 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
     def wrapper_deployed(*args, **kwargs) -> Any:
         func_params, api_config_params = split_kwargs(kwargs, config_params)
         ingest_files(func_params, ingestible_files)
-        agenta.config.pull("default")
+        agenta.config.pull()
         return execute_function(func, *args, **func_params)
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
-
     route = f"/{endpoint_name}"
     app.post(route)(wrapper)
+
     update_function_signature(wrapper_deployed, func_signature, {}, ingestible_files)
     route_deployed = f"/{endpoint_name}_deployed"
     app.post(route_deployed)(wrapper_deployed)
@@ -198,7 +197,7 @@ def add_func_params_to_parser(
                 inspect.Parameter(
                     name,
                     inspect.Parameter.KEYWORD_ONLY,
-                    default=Body(...),
+                    default=Body(..., embed=True),
                     annotation=param.annotation,
                 )
             )
