@@ -701,21 +701,18 @@ async def update_variant_parameters(
     if db_app_variant is None:
         raise ValueError("App variant not found")
 
-    if (
-        db_app_variant.parameters == {}
-        or db_app_variant.parameters is not None
-        and set(db_app_variant.parameters.keys()) == set(parameters.keys())
-    ):
+    if db_app_variant.parameters == {} or db_app_variant.parameters is not None:
         db_app_variant.parameters = parameters
         await engine.save(db_app_variant)
 
-    elif db_app_variant.parameters is not None and set(
-        db_app_variant.parameters.keys()
-    ) != set(parameters.keys()):
-        logger.error(
-            f"Parameters keys don't match: {db_app_variant.parameters.keys()} vs {parameters.keys()}"
-        )
-        raise ValueError("Parameters keys don't match")
+    # TODO: Currently we're ignoring this because of the issue with DictInput parameters
+    # elif db_app_variant.parameters is not None and set(
+    #     db_app_variant.parameters.keys()
+    # ) != set(parameters.keys()):
+    #     logger.error(
+    #         f"Parameters keys don't match: {db_app_variant.parameters.keys()} vs {parameters.keys()}"
+    #     )
+    #     raise ValueError("Parameters keys don't match")
 
 
 async def remove_old_template_from_db(template_ids: list) -> None:
