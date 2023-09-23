@@ -257,3 +257,59 @@ def save_variant_config(
             )
     except RequestException as e:
         raise APIRequestError(f"Request failed: {str(e)}")
+
+
+def fetch_variant_config(
+    app_name: str, variant_name: str, base_name: str, config_name: str, host: str
+) -> Dict[str, Any]:
+    """
+    Fetch a variant configuration from the server.
+
+    Args:
+        app_name (str): Name of the app.
+        variant_name (str): Name of the variant.
+        base_name (str): Base name for the configuration.
+        config_name (str): Configuration name.
+        session_token (str): The session token.
+        host (str): The server host URL.
+
+    Raises:
+        APIRequestError: If the API request fails.
+
+    Returns:
+        dict: The requested variant configuration.
+    """
+
+    if host is None:
+        raise ValueError("The 'host' is not specified in fetch_variant_config")
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = requests.get(
+            f"{host}/{BACKEND_URL_SUFFIX}/app_variant/config/",
+            params={
+                "app_name": app_name,
+                "variant_name": variant_name,
+                "base_name": base_name,
+                "config_name": config_name,
+            },
+            headers=headers,
+            timeout=600,
+        )
+
+        request = f"GET {host}/{BACKEND_URL_SUFFIX}/app_variant/config/ {app_name} {variant_name} {base_name} {config_name}"
+
+        # Check for successful request
+        if response.status_code != 200:
+            error_message = response.json().get("detail", "Unknown error")
+            raise APIRequestError(
+                f"Request {request} to fetch_variant_config endpoint failed with status code {response.status_code}. Error message: {error_message}"
+            )
+
+        return response.json()
+
+    except RequestException as e:
+        raise APIRequestError(f"Request failed: {str(e)}")
