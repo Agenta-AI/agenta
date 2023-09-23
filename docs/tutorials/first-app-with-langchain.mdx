@@ -1,8 +1,8 @@
 ---
-title: Writing your first LLM app using Langchain
+title: Simple App with Langchain
 ---
 
-This tutorial guides you through writing of your first LLM app using Agenta. The objective is to create an app that can produce a persuasive startup pitch, using the startup's name and core idea. By the end of this tutorial, your app will be set up locally and ready for testing and refinement in the playground.
+This tutorial guides you through writing of your first LLM app using Langchain and Agenta. The objective is to create an app that can produce a persuasive startup pitch, using the startup's name and core idea. By the end of this tutorial, your app will be set up locally and ready for testing and refinement in the playground.
 
 ## Prerequisites
 
@@ -51,25 +51,29 @@ from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 
-startup_name = "agenta"
-startup_idea = "the open-source developer-first llmops platform"
 
 default_prompt = """
-    please write a short linkedin message (2 SENTENCES MAX) to an investor pitching the following startup:
-    startup name: {startup_name}
-    startup idea: {startup_idea}"""
+Write a short message to an investor pitching this startup:
+startup name: {startup_name}
+startup idea: {startup_idea}"""
 
-#template is a float, it is used to decide what sampling temperature to use. Default to 0.7
 temperature = 0.5
 
-llm = OpenAI(temperature=temperature)
-prompt = PromptTemplate(
-    input_variables=["startup_name", "startup_idea"],
-    template=prompt_template)
+def generate(
+    startup_name: str,
+    startup_idea: str) -> str:
+    llm = OpenAI(temperature=temperature)
+    prompt = PromptTemplate(
+        input_variables=["startup_name", "startup_idea"],
+        template=prompt_template)
 
-chain = LLMChain(llm=llm, prompt=prompt)
-output = chain.run(startup_name=startup_name, startup_idea=startup_idea)
-print(output)
+    chain = LLMChain(llm=llm, prompt=prompt)
+    output = chain.run(startup_name=startup_name,
+                       startup_idea=startup_idea)
+    return output
+
+print(generate("agenta",
+               "the open-source developer-first llmops platform"))
 ```
 
 ## 3. Add the Agenta SDK
@@ -87,43 +91,50 @@ default_prompt = """
     startup name: {startup_name}
     startup idea: {startup_idea}"""
 
-@ag.post
+ag.init()
+ag.config.default(prompt_template=default_prompt, temperature=0.5)
+
+@ag.entrypoint
 def generate(
     startup_name: str,
     startup_idea: str,
-    prompt_template: ag.TextParam = default_prompt,
-    temperature: ag.FloatParam = 0.5,
 ) -> str:
-    llm = OpenAI(temperature=temperature)
+    llm = OpenAI(temperature=ag.config.temperature)
     prompt = PromptTemplate(
         input_variables=["startup_name", "startup_idea"],
-        template=prompt_template)
+        template=ag.config.prompt_template)
 
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(startup_name=startup_name, startup_idea=startup_idea)
     return output
 ```
 
-Let's examine how we modified the original code by encapsulating it within a function and further decorating it with @ag.post. This critical transformation serves two primary purposes:
-
+Let's examine how we modified the original code.
 
 ```python
-@ag.post
+ag.init()
+ag.config.default(prompt_template=ag.TextParam(default_prompt), temperature=ag.FloatParam(0.5))
+```
+
+These two lines initialize agenta, then set a default configuration for the app. 
+
+```python
+@ag.entrypoint
 def generate(
     startup_name: str,
     startup_idea: str,
-    prompt_template: ag.TextParam = default_prompt,
-    temperature: ag.FloatParam = 0.5)
+) -> str:
 ```
 
-#### Main Function Designation:
-By using the `@ag.post` decorator (a Python feature that adds functionality to functions or methods), we signal to Agenta that this specific function acts as the app's main entry point.
+The decorator @ag.entrypoint signals to agenta that this function is the app's entrypoint. This function will be the one that will be made into an api endpoint, and the one that will be called in the playground.
 
-#### Parameter Typing:
-The function's parameters play key roles:
-  - **Inputs**: The `str` type designates inputs for the app.
-  - **Configuration Parameters**: Types like `ag.TextParam`, `ag.FloatParam`, `ag.IntParam`, and `ag.MultiChoiceParam` designate the app's configuration, we can later modify these in the playground. 
+```python
+ag.config.temperature
+```
 
+All parameters for the app can be accessed using `ag.config.paramname`
+
+Note that later when we modify the configuration in the playground, we will see the parameters modified in the code. 
 
 ## 4. API Key Integration
 
@@ -148,7 +159,7 @@ Hi there, I'm excited to tell you about Agenta, the open source Dev First LLMOPS
 Our app is still local. To make it available in the playground, add it to Agenta by running:
 
 ```bash
-agenta variant serve --file_name app.py
+agenta variant serve app.py
 ```
 
 Now you can interact with the app through the API or experiment in the playground.

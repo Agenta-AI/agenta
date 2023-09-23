@@ -73,7 +73,7 @@
     {
       "group": "Tutorials",
       "pages": [
-        "tutorials/your-first-llm-app"
+        "tutorials/first-app-with-langchain"
       ]
     },
     {
