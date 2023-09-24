@@ -141,6 +141,16 @@ class CustomEvaluationDB(Model):
         collection = "custom_evaluations"
 
 
+class PinnedEvaluationResultsDB(Model):
+    evaluation_id: ObjectId
+    results: Dict[str, Any]
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    
+    class Config:
+        collection = "pinned_evaluation_results"
+
+
 class TestSetDB(Model):
     name: str
     app_name: str
