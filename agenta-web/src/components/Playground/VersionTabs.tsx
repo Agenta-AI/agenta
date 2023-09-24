@@ -55,15 +55,10 @@ async function addTab(
         parameters: templateVariant.parameters,
     }
 
-    try {
-        await saveNewVariant(appName, newVariant, optParams.current)
-        setVariants((prevState: any) => [...prevState, newVariant])
-        setActiveKey(updateNewVariantName)
-        setUnSavedChanges(true)
-    } catch (error) {
-        console.error("Error saving new variant:", error)
-        message.error("An error occurred while saving the new variant.")
-    }
+    await saveNewVariant(appName, newVariant, optParams.current)
+    setVariants((prevState: any) => [...prevState, newVariant])
+    setActiveKey(updateNewVariantName)
+    setUnSavedChanges(true)
 }
 
 async function removeTab(
@@ -81,14 +76,9 @@ async function removeTab(
     if (newVariants.length > 0) {
         newActiveKey = newVariants[newVariants.length - 1].variantName
     }
-    try {
-        await removeVariant(appName, activeKey)
-        setVariants(newVariants)
-        setActiveKey(newActiveKey)
-    } catch (error) {
-        console.error("Error saving new variant:", error)
-        message.error("An error occurred while saving the new variant.")
-    }
+    await removeVariant(appName, activeKey)
+    setVariants(newVariants)
+    setActiveKey(newActiveKey)
 }
 
 const VersionTabs: React.FC = () => {
