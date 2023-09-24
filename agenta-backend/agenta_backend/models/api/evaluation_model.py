@@ -135,6 +135,12 @@ class ExecuteCustomEvaluationCode(BaseModel):
     variant_name: str
     correct_answer: str
     outputs: List[Dict[str, Any]]
+    
+
+class PinnedEvaluationResults(BaseModel):
+    pinned_id: str
+    evaluation_id: str
+    results: Dict[str, Any]
 
 
 class EvaluationWebhook(BaseModel):
