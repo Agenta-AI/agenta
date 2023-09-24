@@ -57,6 +57,8 @@ class EnvironmentDB(Model):
     user_id: UserDB = Reference(key_name="user")
     app_name: str
     deployed_app_variant: Optional[str]
+    deployed_base_name: Optional[str]
+    deployed_config_name: Optional[str]
 
     class Config:
         collection = "environments"
