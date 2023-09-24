@@ -1,4 +1,5 @@
 import os
+import toml
 import logging
 
 from odmantic import AIOEngine
@@ -6,8 +7,12 @@ from pymongo import MongoClient
 from motor.motor_asyncio import AsyncIOMotorClient
 
 
+# Configure and set logging level
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# Load the settings from the .toml file
+toml_config = toml.load("agenta_backend/config.toml")
 
 
 class DBEngine(object):
@@ -15,8 +20,8 @@ class DBEngine(object):
     Database engine to initialize client and return engine based on mode
     """
 
-    def __init__(self, mode: str) -> None:
-        self.mode = mode
+    def __init__(self) -> None:
+        self.mode = toml_config["database_mode"]
         self.db_url = os.environ["MONGODB_URI"]
 
     @property
@@ -42,8 +47,12 @@ class DBEngine(object):
             return aio_engine
         elif self.mode == "default":
             aio_engine = AIOEngine(client=self.initialize_client, database="agenta")
-            logger.info("Using default database")
+            logger.info("Using default database...")
             return aio_engine
+
+        raise ValueError(
+            "Mode of database is unknown. Did you mean 'default' or 'test'?"
+        )
 
     def remove_db(self) -> None:
         client = MongoClient(self.db_url)
