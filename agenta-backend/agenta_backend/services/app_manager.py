@@ -355,7 +355,6 @@ async def start_variant(
 
 async def fetch_variant_config(
     app_name: str,
-    variant_name: str,
     base_name: str,
     config_name: str,
     **kwargs: Dict[str, Any],
@@ -373,8 +372,8 @@ async def fetch_variant_config(
     Returns:
         dict: The requested variant configuration.
     """
-    if not app_name or not variant_name:
-        msg = "App name and variant name cannot be empty."
+    if not app_name or not base_name:
+        msg = "App name and base name cannot be empty."
         logger.error(msg)
         raise ValueError(msg)
 
@@ -569,21 +568,22 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         app_variant -- the app variant to update
         image -- the image to update
     """
-    if app_variant.app_name in ["", None] or app_variant.variant_name == [
-        "",
-        None,
-    ]:
+    if app_variant.app_name in ["", None] or app_variant.variant_name == ["", None]:
         msg = "App name and variant name cannot be empty"
         logger.error(msg)
         raise ValueError(msg)
+
     if image.tags in ["", None]:
         msg = "Image tags cannot be empty"
+        print(f"Step 3a: {msg}")
         logger.error(msg)
         raise ValueError(msg)
+
     if not image.tags.startswith(settings.registry):
         raise ValueError(
             "Image should have a tag starting with the registry name (agenta-server)"
         )
+
     if image not in docker_utils.list_images():
         raise DockerException(
             f"Image {image.docker_id} with tags {image.tags} not found"
@@ -594,31 +594,26 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         msg = f"App variant {app_variant.app_name}/{app_variant.variant_name} not found in DB"
         logger.error(msg)
         raise ValueError(msg)
+
     try:
         old_variant = await db_manager.get_variant_from_db(app_variant, **kwargs)
+
         old_image = await db_manager.get_image(old_variant, **kwargs)
+
         container_ids = docker_utils.stop_containers_based_on_image(old_image)
-        logger.info(f"Containers {container_ids} stopped")
+
         for container_id in container_ids:
             docker_utils.delete_container(container_id)
-            logger.info(f"Container {container_id} deleted")
+
         await db_manager.remove_app_variant(old_variant, **kwargs)
     except Exception as e:
         logger.error(f"Error removing old variant: {str(e)}")
-        logger.error(
-            f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}"
-        )
-        logger.error("Previous variant removed but new variant not added. Rolling back")
-        await db_manager.add_variant_based_on_image(old_variant, old_image, **kwargs)
         raise
+
     try:
-        logger.info(
-            f"Updating variant {app_variant.app_name}/{app_variant.variant_name}"
-        )
         await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
-        logger.info(
-            f"Starting variant {app_variant.app_name}/{app_variant.variant_name}"
-        )
+
         await start_variant(app_variant, **kwargs)
     except Exception as e:
+        print(f"Step 8c: Error updating or starting variant: {str(e)}")
         raise e from None

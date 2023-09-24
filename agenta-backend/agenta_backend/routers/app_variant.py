@@ -384,15 +384,19 @@ async def save_variant_config(
 @router.get("/config/")
 async def fetch_variant_config(
     app_name: str,
-    variant_name: str,
     base_name: str,
-    config_name: str,
+    config_name: Optional[str] = None,
+    environment_name: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session),
 ) -> Dict[str, Any]:
-    """Fetch a variant configuration from the server.
+    """
+    Fetch a variant configuration from the server.
 
     Args:
-        fetch_config (FetchVariantConfigPayload): The data needed to fetch the app variant.
+        app_name (str): The name of the app.
+        base_name (str): The base name for the variant.
+        config_name (Optional[str]): The name of the config. Defaults to None.
+        environment_name (Optional[str]): The name of the environment. Defaults to None.
         stoken_session (SessionContainer, optional): Session information. Defaults to result of verify_session().
 
     Raises:
@@ -400,14 +404,46 @@ async def fetch_variant_config(
         HTTPException: Raised for unexpected errors.
 
     Returns:
-        dict: The requested variant configuration.
+        Dict[str, Any]: The requested variant configuration.
     """
-    try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
-        variant_config = await app_manager.fetch_variant_config(
-            app_name, variant_name, base_name, config_name, **kwargs
+
+    if config_name is None and environment_name is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Either config_name or environment_name must be provided.",
         )
+    if config_name is not None and environment_name is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Only one of config_name or environment_name can be provided.",
+        )
+    try:
+        kwargs: Dict[str, Any] = await get_user_and_org_id(stoken_session)
+
+        if config_name is not None:
+            variant_config = await app_manager.fetch_variant_config(
+                app_name, base_name, config_name, **kwargs
+            )
+        else:
+            environments = await db_manager.list_environments(app_name, **kwargs)
+            environment = next(
+                (env for env in environments if env.name == environment_name), None
+            )
+            if environment is None:
+                raise ValueError(f"No environment named {environment_name} found.")
+            if environment.deployed_base_name != base_name:
+                raise ValueError(
+                    f"Environment {environment_name} has a different base name ({environment.deployed_base_name}) than the one provided ({base_name})."
+                )
+            variant_config = await app_manager.fetch_variant_config(
+                app_name,
+                environment.deployed_base_name,
+                environment.deployed_config_name,
+                **kwargs,
+            )
+
         return variant_config
+
     except ValueError as e:
         detail = f"Error fetching the app variant: {str(e)}"
         raise HTTPException(status_code=400, detail=detail)

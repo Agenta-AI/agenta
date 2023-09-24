@@ -181,14 +181,14 @@ async def pull_image(
 @router.get("/container_url/")
 async def construct_app_container_url(
     app_name: str,
-    variant_name: str,
+    base_name: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     """Construct and return the app container url path.
 
     Arguments:
         app_name -- The name of app to construct the container url path
-        variant_name -- The  variant name of the app to construct the container url path
+        base_name -- The  base name of the app to construct the container url path
         stoken_session (SessionContainer) -- the user session.
 
     Returns:
@@ -202,5 +202,5 @@ async def construct_app_container_url(
     user = await get_user_object(kwargs["uid"])
 
     # Set user backend url path and container name
-    user_backend_url_path = f"{str(user.id)}/{app_name}/{variant_name}"
+    user_backend_url_path = f"{str(user.id)}/{app_name}/{base_name}"
     return URI(uri=f"{user_backend_url_path}")
