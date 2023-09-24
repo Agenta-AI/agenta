@@ -78,19 +78,22 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
 
     @functools.wraps(func)
     def wrapper_deployed(*args, **kwargs) -> Any:
-        func_params, api_config_params = split_kwargs(kwargs, config_params)
-        ingest_files(func_params, ingestible_files)
-        agenta.config.pull(func_params["config"])
+        func_params = {
+            k: v for k, v in kwargs.items() if k not in ["config", "environment"]
+        }
+        if "config" in kwargs and kwargs["config"] is not None:
+            agenta.config.pull(kwargs["config"])
+        else:  # if no config is specified in the api call, we pull the default config
+            agenta.config.pull("default")
         return execute_function(func, *args, **func_params)
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
     route = f"/{endpoint_name}"
     app.post(route)(wrapper)
 
-    update_function_signature(
+    update_deployed_function_signature(
         wrapper_deployed,
         func_signature,
-        {"config": "default", "environment": ""},
         ingestible_files,
     )
     route_deployed = f"/{endpoint_name}_deployed"
@@ -172,6 +175,29 @@ def update_function_signature(
     wrapper.__signature__ = func_signature.replace(parameters=updated_params)
 
 
+def update_deployed_function_signature(
+    wrapper: Callable[..., Any],
+    func_signature: inspect.Signature,
+    ingestible_files: Dict[str, inspect.Parameter],
+) -> None:
+    """Update the function signature to include new parameters."""
+    updated_params = []
+    add_func_params_to_parser(updated_params, func_signature, ingestible_files)
+    for param in [
+        "config",
+        "environment",
+    ]:  # we add the config and environment parameters
+        updated_params.append(
+            inspect.Parameter(
+                param,
+                inspect.Parameter.KEYWORD_ONLY,
+                default=Body(None),
+                annotation=str,
+            )
+        )
+    wrapper.__signature__ = func_signature.replace(parameters=updated_params)
+
+
 def add_config_params_to_parser(
     updated_params: list, config_params: Dict[str, Any]
 ) -> None:
@@ -181,7 +207,7 @@ def add_config_params_to_parser(
             inspect.Parameter(
                 name,
                 inspect.Parameter.KEYWORD_ONLY,
-                default=Body(None),
+                default=Body(param),
                 annotation=Optional[type(param)],
             )
         )
