@@ -1,3 +1,5 @@
+from uuid import uuid4
+from bson import ObjectId
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -149,3 +151,53 @@ class TestSetDB(Model):
 
     class Config:
         collection = "testsets"
+
+
+class SpanDB(Model):
+    parent_span_id: Optional[str]
+    meta: Optional[Dict[str, Any]]
+    event_name: str  # Function or execution name
+    event_type: Optional[str]
+    start_time: datetime
+    duration: Optional[int]
+    status: str  # initiated, completed, stopped, cancelled
+    end_time: datetime = Field(default=datetime.utcnow())
+    inputs: Optional[List[str]]
+    outputs: Optional[List[str]]
+    prompt_template: Optional[str]
+    tokens_input: Optional[int]
+    tokens_output: Optional[int]
+    token_total: Optional[int]
+    cost: Optional[float]
+    tags: Optional[List[str]]
+
+    class Config:
+        collection = "spans"
+
+
+class Feedback(EmbeddedModel):
+    uid: str = Field(default=str(uuid4()))
+    user_id: str
+    feedback: Optional[str]
+    score: Optional[float]
+    meta: Optional[Dict[str, Any]]
+    created_at: datetime
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+
+class TraceDB(Model):
+    spans: List[ObjectId]
+    start_time: datetime
+    end_time: datetime = Field(default=datetime.utcnow())
+    app_name: Optional[str]
+    variant_name: Optional[str]
+    cost: Optional[float]
+    latency: float
+    status: str  # initiated, completed, stopped, cancelled, failed
+    token_consumption: Optional[int]
+    user: UserDB = Reference()
+    tags: Optional[List[str]]
+    feedbacks: Optional[List[Feedback]]
+
+    class Config:
+        collection = "traces"
