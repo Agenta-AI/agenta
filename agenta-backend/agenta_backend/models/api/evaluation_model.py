@@ -138,11 +138,11 @@ class ExecuteCustomEvaluationCode(BaseModel):
     
 
 class CreatePinnedEvaluationResult(BaseModel):
-    evaluation_id: str
-    results: Dict[str, Any]
+    results: str
 
 
 class PinnedEvaluationResults(CreatePinnedEvaluationResult):
+    evaluation_id: str
     pinned_id: str
 
 

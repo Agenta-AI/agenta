@@ -143,7 +143,7 @@ class CustomEvaluationDB(Model):
 
 class PinnedEvaluationResultsDB(Model):
     evaluation_id: ObjectId
-    results: Dict[str, Any]
+    results: str
     created_at: Optional[datetime]
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
     
