@@ -29,8 +29,8 @@ export default function VariantEndpoint() {
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
     const loadURL = async (environment: Environment) => {
-        const url = await getAppContainerURL(appName, environment.deployed_app_variant)
-        setURI(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${url}/generate`)
+        const url = await getAppContainerURL(appName, environment.deployedBaseName)
+        setURI(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${url}/generate_deployed`)
     }
 
     // Load environments for the given app
@@ -80,8 +80,9 @@ export default function VariantEndpoint() {
     const [variant, setVariant] = useState<Variant | null>(null)
     useEffect(() => {
         if (!selectedEnvironment) return
+        console.log(selectedEnvironment)
         const variant = variants.find(
-            (variant) => variant.variantName === selectedEnvironment.deployed_app_variant,
+            (variant) => variant.variantName === selectedEnvironment.deployedVariantName,
         )
         if (!variant) return
 
@@ -97,7 +98,7 @@ export default function VariantEndpoint() {
     const {inputParams, optParams, isLoading, isError, error} = useVariant(appName, variant!)
     const createParams = (
         inputParams: Parameter[] | null,
-        optParams: Parameter[] | null,
+        environmentName: string,
         value: string | number,
     ) => {
         let mainParams: GenericObject = {}
@@ -114,11 +115,7 @@ export default function VariantEndpoint() {
             mainParams["inputs"] = secondaryParams
         }
 
-        optParams
-            ?.filter((item) => item.type !== "object")
-            .forEach((item) => {
-                mainParams[item.name] = item.default
-            })
+        mainParams["environment"] = environmentName
 
         return JSON.stringify(mainParams, null, 2)
     }
@@ -139,7 +136,7 @@ export default function VariantEndpoint() {
         return <div>{error?.message || "Error loading variant"}</div>
     }
 
-    const params = createParams(inputParams, optParams, "add_a_value")
+    const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
     const codeSnippets: Record<string, string> = {
         Python: pythonCode(uri!, params),
         cURL: cURLCode(uri!, params),
@@ -172,7 +169,7 @@ export default function VariantEndpoint() {
                 </Dropdown>
             </div>
 
-            {selectedEnvironment?.deployed_app_variant ? (
+            {selectedEnvironment?.deployedVariantName ? (
                 <DynamicCodeBlock codeSnippets={codeSnippets} />
             ) : (
                 <Alert
