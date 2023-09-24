@@ -200,7 +200,9 @@ export type KeyValuePair = Record<string, string>
 
 export interface Environment {
     name: string
-    deployed_app_variant: string
+    deployedVariantName: string
+    deployedBaseName: string
+    deployedConfigName: string
 }
 
 export interface CustomEvaluation {

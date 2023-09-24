@@ -134,6 +134,7 @@ export const getVariantParametersFromOpenAPI = async (
     variant: Variant,
     ignoreAxiosError: boolean = false,
 ) => {
+    // TODO: Change this to variant.baseName
     const sourceName_ = variant.templateVariantName
         ? variant.templateVariantName
         : variant.variantName
@@ -176,15 +177,15 @@ const urlCache: Cache = {}
  * @returns {Promise<string>} - Returns the URL path or an empty string
  * @throws {Error} - Throws an error if the request fails
  */
-export const getAppContainerURL = async (app: string, variantName: string): Promise<string> => {
+export const getAppContainerURL = async (app: string, baseName: string): Promise<string> => {
     try {
         // Null-check for the environment variable
         if (!process.env.NEXT_PUBLIC_AGENTA_API_URL) {
             throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
         }
 
-        const queryParam = `?app_name=${app}&variant_name=${variantName}`
-        const cacheKey = `${app}_${variantName}`
+        const queryParam = `?app_name=${app}&base_name=${baseName}`
+        const cacheKey = `${app}_${baseName}`
 
         // Check if the URL is already cached
         if (urlCache[cacheKey]) {
@@ -655,8 +656,16 @@ export const fetchEnvironments = async (appName: string): Promise<Environment[]>
         throw new Error("Failed to fetch environments")
     }
 
-    const data: Environment[] = await response.json()
-    return data
+    const data: any[] = await response.json()
+    console.log("data: ", data)
+    const environments: Environment[] = data.map((env: any) => ({
+        name: env.name,
+        deployedVariantName: env.deployed_app_variant,
+        deployedBaseName: env.deployed_base_name,
+        deployedConfigName: env.deployed_config_name,
+    }))
+    console.log("environments: ", environments)
+    return environments
 }
 
 export const publishVariant = async (

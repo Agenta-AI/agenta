@@ -62,9 +62,9 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     if (isError) {
-        let variantDesignator = variant.templateVariantName
         let imageName = `agentaai/${appName.toLowerCase()}_`
-
+        // TODO: Change this to variant.baseName
+        let variantDesignator = variant.templateVariantName
         if (!variantDesignator || variantDesignator === "") {
             variantDesignator = variant.variantName
             imageName += variantDesignator.toLowerCase()
