@@ -183,8 +183,8 @@ const VersionTabs: React.FC = () => {
         if (removalVariantName) {
             setIsDeleteLoading(true)
             // only call the backend if the variant is persistent
-            if (variants.find((variant) => variant.variantName === removalVariantName)?.persistent)
-                await removeVariant(appName, removalVariantName)
+            // if (variants.find((variant) => variant.variantName === removalVariantName)?.persistent)
+            //     await removeVariant(appName, removalVariantName)
 
             removeTab(appName, setActiveKey, setVariants, variants, removalVariantName)
             setIsDeleteLoading(false)
