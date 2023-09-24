@@ -21,7 +21,6 @@ interface Props {
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
     setUnSavedChanges: Dispatch<React.SetStateAction<boolean>>
-    setIsChanged: React.Dispatch<React.SetStateAction<boolean>>
     environments: Environment[]
 }
 
@@ -59,7 +58,6 @@ const ParametersView: React.FC<Props> = ({
     isPersistent,
     isParamsCollapsed,
     setIsParamsCollapsed,
-    setIsChanged,
     setUnSavedChanges,
     environments,
 }) => {
@@ -86,14 +84,14 @@ const ParametersView: React.FC<Props> = ({
     const onChange = (param: Parameter, newValue: number | string) => {
         setInputValue(+newValue)
         handleParamChange(param.name, newValue)
-        setIsChanged(true)
+        setUnSavedChanges(true)
     }
     const handleParamChange = (name: string, newVal: any) => {
         const newOptParams = optParams?.map((param) =>
             param.name === name ? {...param, default: newVal} : param,
         )
         newOptParams && onOptParamsChange(newOptParams, false, false)
-        setIsChanged(true)
+        setUnSavedChanges(true)
     }
     const success = () => {
         fetchVariant()
@@ -133,7 +131,6 @@ const ParametersView: React.FC<Props> = ({
                                     onClick={async () => {
                                         await onOptParamsChange(optParams!, true, isPersistent)
                                         setUnSavedChanges(false)
-                                        setIsChanged(false)
                                         success()
                                     }}
                                     loading={isParamSaveLoading}

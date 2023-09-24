@@ -6,7 +6,7 @@ import ViewNavigation from "./ViewNavigation"
 import VariantRemovalWarningModal from "./VariantRemovalWarningModal"
 import NewVariantModal from "./NewVariantModal"
 import router, {useRouter} from "next/router"
-import {fetchEnvironments, fetchVariants, removeVariant} from "@/lib/services/api"
+import {fetchEnvironments, fetchVariants, removeVariant, saveNewVariant} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem, Environment, Parameter} from "@/lib/Types"
 
 import {SyncOutlined} from "@ant-design/icons"
@@ -14,13 +14,15 @@ import useStateCallback from "@/hooks/useStateCallback"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
 import {useVariants} from "@/lib/hooks/useVariant"
 
-function addTab(
+async function addTab(
     setActiveKey: any,
     setVariants: any,
     variants: Variant[],
     templateVariantName: string,
     newVariantName: string,
-    setIsChanged: React.Dispatch<React.SetStateAction<boolean>>,
+    setUnSavedChanges: React.Dispatch<React.SetStateAction<boolean>>,
+    appName: string,
+    optParams: React.MutableRefObject<Parameter[]>,
 ) {
     // Find the template variant
     const templateVariant = variants.find((variant) => variant.variantName === templateVariantName)
@@ -53,13 +55,24 @@ function addTab(
         parameters: templateVariant.parameters,
     }
 
-    setVariants((prevState: any) => [...prevState, newVariant])
-    setActiveKey(updateNewVariantName)
-    setIsChanged(true)
+    try {
+        await saveNewVariant(appName, newVariant, optParams.current)
+        setVariants((prevState: any) => [...prevState, newVariant])
+        setActiveKey(updateNewVariantName)
+        setUnSavedChanges(true)
+    } catch (error) {
+        console.error("Error saving new variant:", error)
+        message.error("An error occurred while saving the new variant.")
+    }
 }
 
-function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], activeKey: string) {
-    console.log(activeKey)
+async function removeTab(
+    appName: string,
+    setActiveKey: any,
+    setVariants: any,
+    variants: Variant[],
+    activeKey: string,
+) {
     const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
     if (newVariants.length < 1) {
         router.push(`/apps`)
@@ -68,9 +81,14 @@ function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], act
     if (newVariants.length > 0) {
         newActiveKey = newVariants[newVariants.length - 1].variantName
     }
-    console.log(newActiveKey, newVariants)
-    setVariants(newVariants)
-    setActiveKey(newActiveKey)
+    try {
+        await removeVariant(appName, activeKey)
+        setVariants(newVariants)
+        setActiveKey(newActiveKey)
+    } catch (error) {
+        console.error("Error saving new variant:", error)
+        message.error("An error occurred while saving the new variant.")
+    }
 }
 
 const VersionTabs: React.FC = () => {
@@ -88,10 +106,10 @@ const VersionTabs: React.FC = () => {
     const [removalVariantName, setRemovalVariantName] = useState<string | null>(null)
     const [isDeleteLoading, setIsDeleteLoading] = useState(false)
     const [messageApi, contextHolder] = message.useMessage()
-    const [isChanged, setIsChanged] = useState(false)
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
     const variantData = useVariants(appName, variants)
     const data = useRef<{newOptParams: Parameter[]; persist: boolean; updateVariant: boolean}[]>([])
+    const optParams = useRef<Parameter[]>([])
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -100,7 +118,7 @@ const VersionTabs: React.FC = () => {
         okText: "Save",
         onOk: async () => {
             await Promise.all(
-                data.current.map(({updateVariant, persist, newOptParams}, index) => {
+                data.current.map(({newOptParams, persist, updateVariant}, index) => {
                     return variantData[index].saveOptParams(newOptParams, true, true)
                 }),
             )
@@ -110,7 +128,7 @@ const VersionTabs: React.FC = () => {
     })
 
     useEffect(() => {
-        if (isChanged) {
+        if (unSavedChanges) {
             setUnSavedChanges(true)
         }
     }, [variantData])
@@ -157,7 +175,7 @@ const VersionTabs: React.FC = () => {
 
     const handleRemove = () => {
         if (removalVariantName) {
-            removeTab(setActiveKey, setVariants, variants, removalVariantName)
+            removeTab(appName, setActiveKey, setVariants, variants, removalVariantName)
         }
         setRemovalWarningModalOpen1(false)
     }
@@ -168,7 +186,7 @@ const VersionTabs: React.FC = () => {
             if (variants.find((variant) => variant.variantName === removalVariantName)?.persistent)
                 await removeVariant(appName, removalVariantName)
 
-            removeTab(setActiveKey, setVariants, variants, removalVariantName)
+            removeTab(appName, setActiveKey, setVariants, variants, removalVariantName)
             setIsDeleteLoading(false)
         }
         setRemovalWarningModalOpen1(false)
@@ -208,6 +226,7 @@ const VersionTabs: React.FC = () => {
         index: number,
     ) => {
         data.current[index] = {newOptParams, persist, updateVariant}
+        optParams.current = newOptParams
     }
 
     // Map the variants array to create the items array conforming to the Tab interface
@@ -222,8 +241,6 @@ const VersionTabs: React.FC = () => {
                 setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
                 isDeleteLoading={isDeleteLoading && removalVariantName === variant.variantName}
                 environments={environments}
-                isChanged={isChanged}
-                setIsChanged={setIsChanged}
                 setUnSavedChanges={setUnSavedChanges}
                 onOptParamsChange={(...args) => handleOnOptParamsChange(...args, index)}
             />
@@ -271,7 +288,9 @@ const VersionTabs: React.FC = () => {
                         variants,
                         templateVariantName,
                         newVariantName,
-                        setIsChanged,
+                        setUnSavedChanges,
+                        appName,
+                        optParams,
                     )
                 }
                 variants={variants}

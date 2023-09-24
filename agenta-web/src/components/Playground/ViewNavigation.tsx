@@ -17,8 +17,6 @@ interface Props {
     setRemovalWarningModalOpen: (value: boolean) => void
     isDeleteLoading: boolean
     environments: Environment[]
-    isChanged: boolean
-    setIsChanged: React.Dispatch<React.SetStateAction<boolean>>
     setUnSavedChanges: Dispatch<React.SetStateAction<boolean>>
     onOptParamsChange?: (
         newOptParams: Parameter[],
@@ -43,7 +41,6 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalWarningModalOpen,
     isDeleteLoading,
     environments,
-    setIsChanged,
     setUnSavedChanges,
     onOptParamsChange,
 }) => {
@@ -216,7 +213,6 @@ const ViewNavigation: React.FC<Props> = ({
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         environments={environments}
                         setUnSavedChanges={setUnSavedChanges}
-                        setIsChanged={setIsChanged}
                     />
                 </Col>
             </Row>
