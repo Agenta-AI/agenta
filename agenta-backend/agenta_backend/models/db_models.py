@@ -1,6 +1,7 @@
+from uuid import uuid4
 from bson import ObjectId
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Any
 from odmantic import Field, Model, Reference, EmbeddedModel
 
 
@@ -142,7 +143,7 @@ class TestSetDB(Model):
 
 
 class SpanDB(Model):
-    parent_span_id: Optional[ObjectId]
+    parent_span_id: Optional[str]
     meta: Optional[Dict[str, Any]]
     event_name: str  # Function or execution name
     event_type: Optional[str]
@@ -163,29 +164,29 @@ class SpanDB(Model):
         collection = "spans"
 
 
+class Feedback(EmbeddedModel):
+    uid: str = Field(default=str(uuid4()))
+    user_id: str
+    feedback: Optional[str]
+    score: Optional[float]
+    meta: Optional[Dict[str, Any]]
+    created_at: datetime
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+
 class TraceDB(Model):
-    spans: List[SpanDB]
+    spans: List[ObjectId]
     start_time: datetime
     end_time: datetime = Field(default=datetime.utcnow())
     app_name: Optional[str]
     variant_name: Optional[str]
     cost: Optional[float]
     latency: float
-    status: str  # initiated, completed, stopped, cancelled
+    status: str  # initiated, completed, stopped, cancelled, failed
     token_consumption: Optional[int]
     user: UserDB = Reference()
     tags: Optional[List[str]]
+    feedbacks: Optional[List[Feedback]]
 
     class Config:
         collection = "traces"
-
-
-class FeedbackDB(Model):
-    feedback: str
-    user_id: ObjectId
-    trace_id: ObjectId
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    score: Optional[float]
-
-    class Config:
-        collection = "feedbacks"
