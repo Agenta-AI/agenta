@@ -898,6 +898,8 @@ async def deploy_to_environment(
 
     # Update the environment with the new variant name
     environment_db.deployed_app_variant = variant_name
+    environment_db.deployed_base_name = app_variant.base_name
+    environment_db.deployed_config_name = app_variant.config_name
     await engine.save(environment_db)
 
 

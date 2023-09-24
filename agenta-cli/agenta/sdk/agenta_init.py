@@ -103,17 +103,24 @@ class Config:
                 "Failed to push the configuration to the server with error: " + str(ex)
             )
 
-    def pull(self, config_name: str = "default"):
+    def pull(self, config_name: str = "default", environment_name: str = None):
         """Pulls the parameters for the app variant from the server and sets them to the config"""
-        variant_name = f"{self.base_name}.{config_name}"
         try:
-            config = client.fetch_variant_config(
-                app_name=self.app_name,
-                variant_name=variant_name,
-                base_name=self.base_name,
-                config_name=config_name,
-                host=self.host,
-            )
+            if environment_name:
+                config = client.fetch_variant_config(
+                    app_name=self.app_name,
+                    base_name=self.base_name,
+                    environment_name=environment_name,
+                    host=self.host,
+                )
+
+            else:
+                config = client.fetch_variant_config(
+                    app_name=self.app_name,
+                    base_name=self.base_name,
+                    config_name=config_name,
+                    host=self.host,
+                )
         except Exception as ex:
             raise Exception(
                 "Failed to pull the configuration from the server with error: "

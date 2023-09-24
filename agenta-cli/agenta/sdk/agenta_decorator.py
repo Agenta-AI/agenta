@@ -81,10 +81,12 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         func_params = {
             k: v for k, v in kwargs.items() if k not in ["config", "environment"]
         }
-        if "config" in kwargs and kwargs["config"] is not None:
-            agenta.config.pull(kwargs["config"])
+        if "environment" in kwargs and kwargs["environment"] is not None:
+            agenta.config.pull(environment_name=kwargs["environment"])
+        elif "config" in kwargs and kwargs["config"] is not None:
+            agenta.config.pull(config_name=kwargs["config"])
         else:  # if no config is specified in the api call, we pull the default config
-            agenta.config.pull("default")
+            agenta.config.pull(config_name="default")
         return execute_function(func, *args, **func_params)
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)

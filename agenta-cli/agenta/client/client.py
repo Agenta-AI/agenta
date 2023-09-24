@@ -260,7 +260,11 @@ def save_variant_config(
 
 
 def fetch_variant_config(
-    app_name: str, variant_name: str, base_name: str, config_name: str, host: str
+    app_name: str,
+    base_name: str,
+    host: str,
+    config_name: str = None,
+    environment_name: str = None,
 ) -> Dict[str, Any]:
     """
     Fetch a variant configuration from the server.
@@ -292,15 +296,15 @@ def fetch_variant_config(
             f"{host}/{BACKEND_URL_SUFFIX}/app_variant/config/",
             params={
                 "app_name": app_name,
-                "variant_name": variant_name,
                 "base_name": base_name,
                 "config_name": config_name,
+                "environment_name": environment_name,
             },
             headers=headers,
             timeout=600,
         )
 
-        request = f"GET {host}/{BACKEND_URL_SUFFIX}/app_variant/config/ {app_name} {variant_name} {base_name} {config_name}"
+        request = f"GET {host}/{BACKEND_URL_SUFFIX}/app_variant/config/ {app_name} {base_name} {config_name} {environment_name}"
 
         # Check for successful request
         if response.status_code != 200:
