@@ -137,10 +137,13 @@ class ExecuteCustomEvaluationCode(BaseModel):
     outputs: List[Dict[str, Any]]
     
 
-class PinnedEvaluationResults(BaseModel):
-    pinned_id: str
+class CreatePinnedEvaluationResult(BaseModel):
     evaluation_id: str
     results: Dict[str, Any]
+
+
+class PinnedEvaluationResults(CreatePinnedEvaluationResult):
+    pinned_id: str
 
 
 class EvaluationWebhook(BaseModel):
