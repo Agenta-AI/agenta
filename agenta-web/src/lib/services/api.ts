@@ -135,10 +135,9 @@ export const getVariantParametersFromOpenAPI = async (
     ignoreAxiosError: boolean = false,
 ) => {
     // TODO: Change this to variant.baseName
-    const sourceName_ = variant.templateVariantName
-        ? variant.templateVariantName
-        : variant.variantName
-    const sourceName = variant.baseName ?? sourceName_
+    const sourceName =
+        variant.baseName ??
+        (variant.templateVariantName ? variant.templateVariantName : variant.variantName)
     const appContainerURIPath = await getAppContainerURL(app, sourceName)
     const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/openapi.json`
     const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
@@ -648,23 +647,16 @@ export const createAndStartTemplate = async ({
 }
 
 export const fetchEnvironments = async (appName: string): Promise<Environment[]> => {
-    const response = await fetch(
+    const {data} = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/environments/?app_name=${appName}`,
     )
 
-    if (response.status !== 200) {
-        throw new Error("Failed to fetch environments")
-    }
-
-    const data: any[] = await response.json()
-    console.log("data: ", data)
     const environments: Environment[] = data.map((env: any) => ({
         name: env.name,
         deployedVariantName: env.deployed_app_variant,
         deployedBaseName: env.deployed_base_name,
         deployedConfigName: env.deployed_config_name,
     }))
-    console.log("environments: ", environments)
     return environments
 }
 
