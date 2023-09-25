@@ -360,13 +360,13 @@ async def get_app_variant_by_app_name_and_environment(
 
 async def list_apps(org_id: str, **kwargs: dict) -> List[App]:
     """
-    Lists all the unique app names from the database
+    Lists all the unique app names and their IDs from the database
 
     Errors:
         JSONResponse: You do not have permission to access this organization; status_code: 403
 
     Returns:
-        List[App names]
+        List[App]
     """
     await clean_soft_deleted_variants()
 
@@ -382,9 +382,9 @@ async def list_apps(org_id: str, **kwargs: dict) -> List[App]:
                 AppVariantDB.organization_id, org_id
             ) & query.eq(AppVariantDB.is_deleted, False)
             apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
-            apps_names = [app.app_name for app in apps]
-            sorted_names = sorted(set(apps_names))
-            return [App(app_name=app_name) for app_name in sorted_names]
+            app_info = [App(app_name=app.app_name, app_id=app.id) for app in apps]
+            sorted_info = sorted(app_info, key=lambda x: x.app_name)
+            return sorted_info
 
         else:
             return JSONResponse(
@@ -397,10 +397,9 @@ async def list_apps(org_id: str, **kwargs: dict) -> List[App]:
             AppVariantDB.is_deleted, False
         )
         apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
-        apps_names = [app.app_name for app in apps]
-        sorted_names = sorted(set(apps_names))
-        return [App(app_name=app_name) for app_name in sorted_names]
-
+        app_info = [App(app_name=app.app_name, app_id=app.id) for app in apps]
+        sorted_info = sorted(app_info, key=lambda x: x.app_name)
+        return sorted_info
 
 async def count_apps(**kwargs: dict) -> int:
     """
