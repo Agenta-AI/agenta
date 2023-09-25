@@ -22,6 +22,17 @@ from agenta_backend.models.api.api_models import (
     DockerEnvVars,
     CreateAppVariant,
 )
+from agenta_backend.models.db_models import (
+    AppDB,
+    AppVariantDB,
+    EnvironmentDB,
+    ImageDB,
+    TemplateDB,
+    UserDB,
+    OrganizationDB,
+    BaseDB,
+    ConfigDB,
+)
 
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
@@ -487,7 +498,7 @@ async def update_variant_image(
 async def add_app_variant_from_template(
     payload: CreateAppVariant,
     stoken_session: SessionContainer = Depends(verify_session()),
-):
+) -> AppVariantDB:
     """Creates or updates an app variant based on the provided image and starts the variant
 
     Arguments:
@@ -545,11 +556,6 @@ async def add_app_variant_from_template(
     else:
         envvars = {} if payload.env_vars is None else payload.env_vars
 
-    url = await new_app_manager.start_variant(db_app_variant, envvars, **kwargs)
+    await new_app_manager.start_variant(db_app_variant, envvars, **kwargs)
 
-    return {
-        "message": "Variant created and running!",
-        "data": {
-            "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",  # TODO: change to url
-        },
-    }
+    return db_app_variant
