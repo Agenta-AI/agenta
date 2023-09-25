@@ -142,6 +142,7 @@ class CustomEvaluationDB(Model):
 
 
 class PinnedEvaluationResultsDB(Model):
+    user_id: ObjectId
     evaluation_id: ObjectId
     results: str
     created_at: Optional[datetime]
