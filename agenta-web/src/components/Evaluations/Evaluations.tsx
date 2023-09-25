@@ -355,9 +355,6 @@ export default function Evaluations() {
                 _id: selectedTestset._id!,
                 name: selectedTestset.name,
             },
-            // create a filter on the variants map that lists variants so that it doesn't show variants that have
-            // been selected. So in the filter, check that variants avaiable are not in the selected
-            // variants array
         }).catch((err) => {
             setError({
                 message: getErrorMessage(err),
