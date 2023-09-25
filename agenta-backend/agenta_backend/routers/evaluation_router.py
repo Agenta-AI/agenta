@@ -23,6 +23,9 @@ from agenta_backend.models.api.evaluation_model import (
     CreateCustomEvaluation,
     EvaluationUpdate,
     EvaluationWebhook,
+    CreatePinnedEvaluationResult,
+    PinnedEvaluationResults as PinnedEvalResultOutput,
+    UnpinEvaluationResult,
 )
 from agenta_backend.services.results_service import (
     fetch_average_score_for_custom_code_run,
@@ -38,6 +41,7 @@ from agenta_backend.services.evaluation_service import (
     fetch_custom_evaluation_names,
     fetch_custom_evaluations,
     fetch_custom_evaluation_detail,
+    get_all_pinned_evaluation_results,
     get_evaluation_scenario_score,
     update_evaluation_scenario,
     update_evaluation_scenario_score,
@@ -46,6 +50,8 @@ from agenta_backend.services.evaluation_service import (
     create_new_evaluation_scenario,
     create_custom_code_evaluation,
     execute_custom_code_evaluation,
+    pin_evaluation_result,
+    unpin_evaluation_result,
 )
 from agenta_backend.services.db_manager import engine, query, get_user_object
 from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
@@ -158,7 +164,9 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
+@router.post(
+    "/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario
+)
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
@@ -337,9 +345,9 @@ async def fetch_evaluation(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     evaluation = await engine.find_one(EvaluationDB, query_expression)
     if evaluation is not None:
         return Evaluation(
@@ -401,6 +409,65 @@ async def delete_evaluations(
     return deleted_ids
 
 
+@router.get("/results/pinned", response_model=List[PinnedEvalResultOutput])
+async def fetch_all_pinned_results(
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Fetch all the pinned evaluation results of a user.
+
+    Returns:
+        List[PinnedEvalResultOutput]: the list of pinned evaluation results
+    """
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    pinned_results = await get_all_pinned_evaluation_results(**kwargs)
+    return pinned_results
+
+
+@router.post(
+    "/{evaluation_id}/results/pin", response_model=PinnedEvalResultOutput
+)
+async def pin_result_of_evaluation(
+    evaluation_id: str,
+    payload: CreatePinnedEvaluationResult,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Pin the result of an evaluation
+
+    Args:
+        evaluation_id (str): the evaluation to pin
+        payload (CreatePinnedEvaluationResult): the required payload
+
+    Returns:
+        PinnedEvalResultOutput: the api response
+    """
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+    pinned_result = await pin_evaluation_result(
+        payload, evaluation_id, **kwargs
+    )
+    return pinned_result
+
+
+@router.post("/{evaluation_id}/results/unpin", response_model=bool)
+async def unpin_result_of_evaluation(
+    evaluation_id: str,
+    payload: UnpinEvaluationResult,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Unpin the result of an evaluation
+
+    Args:
+        evaluation_id (str): the evaluation to unpin
+        payload (UnpinEvaluationResult): the required payload
+    """
+
+    await unpin_evaluation_result(payload.pinned_id, evaluation_id)
+    return True
+
+
 @router.get("/{evaluation_id}/results")
 async def fetch_results(
     evaluation_id: str,
@@ -420,9 +487,9 @@ async def fetch_results(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder and retrieve evaluation from database
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     evaluation = await engine.find_one(EvaluationDB, query_expression)
 
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
@@ -591,7 +658,9 @@ async def execute_custom_evaluation(
     result = await execute_custom_code_evaluation(
         evaluation_id,
         payload.app_name,
-        formatted_outputs[payload.variant_name],  # gets the output of the app variant
+        formatted_outputs[
+            payload.variant_name
+        ],  # gets the output of the app variant
         payload.correct_answer,
         payload.variant_name,
         formatted_inputs,
