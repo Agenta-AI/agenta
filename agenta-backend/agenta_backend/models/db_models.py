@@ -15,7 +15,7 @@ class OrganizationDB(Model):
     name: str = Field(default="agenta")
     description: str = Field(default="")
     type: Optional[str]
-    owner: str
+    owner: str  # user id
     members: Optional[List[ObjectId]]
     invitations: Optional[List[InvitationDB]] = []
 
@@ -39,7 +39,7 @@ class ImageDB(Model):
     docker_id: str = Field(index=True)
     tags: str
     user_id: UserDB = Reference(key_name="user")
-    organization_id: Optional[str]
+    organization_id: Reference[OrganizationDB] = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -47,14 +47,41 @@ class ImageDB(Model):
         collection = "docker_images"
 
 
-class AppVariantDB(Model):
+class AppDB(Model):
     app_name: str
+    organization_id: OrganizationDB = Reference(key_name="organization")
+    user_id: UserDB = Reference(key_name="user")
+
+
+class BaseDB(Model):  # not used
+    base_name: str
+    image_id: ImageDB = Reference(key_name="image")
+
+    class Config:
+        collection = "bases"
+
+
+class ConfigDB(Model):  # not used
+    config_name: str
+    parameters: Dict[str, Any] = Field(default=dict)
+
+    class Config:
+        collection = "configs"
+
+
+class AppVariantDB(Model):
+    app_id: AppDB = Reference(key_name="app")
     variant_name: str
     image_id: ImageDB = Reference(key_name="image")
     user_id: UserDB = Reference(key_name="user")
+    organization_id: OrganizationDB = Reference(key_name="organization")
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
-    organization_id: Optional[str]
+    base_name: Optional[str]
+    base_id: Optional[Reference[BaseDB]] = Reference(key_name="bases")
+    config_name: Optional[str]
+    config_id: Optional[Reference[ConfigDB]] = Reference(key_name="configs")
+
     is_deleted: bool = Field(
         default=False
     )  # soft deletion for using the template variants
@@ -64,11 +91,13 @@ class AppVariantDB(Model):
 
 
 class EnvironmentDB(Model):
+    app_id: AppDB = Reference(key_name="app")
     name: str
     user_id: UserDB = Reference(key_name="user")
-    app_name: str
+    organization_id: OrganizationDB = Reference(key_name="organization")
     deployed_app_variant: Optional[str]
-    organization_id: Optional[str]
+    deployed_base_name: Optional[str]
+    deployed_config_name: Optional[str]
 
     class Config:
         collection = "environments"
@@ -104,7 +133,7 @@ class EvaluationScenarioInput(EmbeddedModel):
 
 
 class EvaluationScenarioOutput(EmbeddedModel):
-    variant_name: str
+    variant_id: Reference[AppVariantDB] = Reference(key_name="app_variants")
     variant_output: str
 
 
@@ -114,11 +143,11 @@ class EvaluationDB(Model):
     custom_code_evaluation_id: Optional[str]
     evaluation_type_settings: EvaluationTypeSettings
     llm_app_prompt_template: str
-    variants: List[str]
-    app_name: str
+    variant_ids: List[Reference[AppVariantDB]] = Reference(key_name="app_variants")
+    app_id: Reference[AppDB] = Reference(key_name="app")
     testset: Dict[str, str]
     user: UserDB = Reference(key_name="user")
-    organization_id: Optional[str]
+    organization_id: Optional[Reference[OrganizationDB]] = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -132,9 +161,9 @@ class EvaluationScenarioDB(Model):
     vote: Optional[str]
     score: Optional[str]
     evaluation: Optional[str]
-    evaluation_id: str
+    evaluation_id: Reference[EvaluationDB] = Reference(key_name="evaluations")
     user: UserDB = Reference(key_name="user")
-    organization_id: Optional[str]
+    organization_id: Reference[OrganizationDB] = Reference(key_name="organization")
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -144,11 +173,11 @@ class EvaluationScenarioDB(Model):
 
 
 class CustomEvaluationDB(Model):
-    evaluation_name: str
+    evaluation_id: Reference[EvaluationDB] = Reference(key_name="evaluations")
     python_code: str
-    app_name: str
-    user: UserDB = Reference()
-    organization_id: Optional[str]
+    app_id: Reference[AppDB] = Reference(key_name="app")
+    user: UserDB = Reference(key_name="user")
+    organization_id: Reference[OrganizationDB] = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -158,10 +187,10 @@ class CustomEvaluationDB(Model):
 
 class TestSetDB(Model):
     name: str
-    app_name: str
+    app_id: Reference[AppDB] = Reference(key_name="app")
     csvdata: List[Dict[str, str]]
     user: UserDB = Reference(key_name="user")
-    organization_id: Optional[str]
+    organization_id: Reference[OrganizationDB] = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 

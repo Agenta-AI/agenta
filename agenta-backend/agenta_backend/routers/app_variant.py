@@ -510,16 +510,27 @@ async def add_app_variant_from_template(
 
     if payload.organization_id is None:
         organization = await get_user_own_org(kwargs["uid"])
-        organization_id = str(organization.id)
+        organization_id = organization.id
     else:
         organization_id = payload.organization_id
 
-    # Create an AppVariant with the provided app name
-    app_variant: AppVariant = AppVariant(
-        app_name=payload.app_name.lower(),
-        variant_name="v1",
-        organization_id=organization_id,
-    )
+    # Check if the app exists, if not create it
+    app_name = payload.app_name.lower()
+    app = await db_manager.fetch_app_by_name_and_organization(app_name, organization_id, **kwargs)
+    if app is None:
+        app = db_manager.create_app(app_name, organization_id, **kwargs)
+
+    # Create an Image instance with the extracted image id, and defined image name
+    image_name = f"agentaai/templates:{payload.image_tag}"
+    # Save variant based on the image to database
+    await db_manager.create_variant_based_on_image(app_id=app.id,
+                                                   variant_name="app",
+                                                   docker_id=payload.image_id,
+                                                   tags=f"{image_name}",
+                                                   organization_id=organization_id,
+                                                   base_name=None,
+                                                   config_name="default",
+                                                   **kwargs)
 
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] == "demo":
@@ -534,27 +545,12 @@ async def add_app_variant_from_template(
     else:
         envvars = {} if payload.env_vars is None else payload.env_vars
 
-    # Create an Image instance with the extracted image id, and defined image name
-    image_name = f"agentaai/templates:{payload.image_tag}"
-    image: Image = Image(
-        docker_id=payload.image_id,
-        tags=f"{image_name}",
-        organization_id=organization_id,
-    )
-    variant_exist = await db_manager.get_variant_from_db(app_variant, **kwargs)
-    if variant_exist is None:
-        # Save variant based on the image to database
-        await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
-    else:
-        # Update variant based on the image
-        await app_manager.update_variant_image(app_variant, image, **kwargs)
-
     # Start variant
-    url = await app_manager.start_variant(app_variant, envvars, **kwargs)
+    url = await app_manager.start_variant_new(app_variant, envvars, **kwargs)
 
     return {
         "message": "Variant created and running!",
         "data": {
-            "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",
+            "playground": f"http://localhost:3000/apps/{payload.app_name}/playground",  # TODO: change to url
         },
     }
