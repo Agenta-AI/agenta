@@ -9,6 +9,7 @@ from fastapi import HTTPException, APIRouter, Body, Depends
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (
+    AICritiqueCreate,
     CustomEvaluationNames,
     Evaluation,
     EvaluationScenario,
@@ -35,6 +36,7 @@ from agenta_backend.services.results_service import (
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
+    evaluate_with_ai_critique,
     fetch_custom_evaluation_names,
     fetch_custom_evaluations,
     fetch_custom_evaluation_detail,
@@ -158,7 +160,9 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
+@router.post(
+    "/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario
+)
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
@@ -227,6 +231,61 @@ async def update_evaluation_scenario_router(
         )
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post(
+    "/evaluation_scenario/{evaluation_scenario_id}/ai_critique",
+    response_model=str,
+)
+async def evaluate_ai_critique(
+    evaluation_scenario_id: str,
+    payload: AICritiqueCreate,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    try:
+        # Get user and organization id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+
+        # Get user object
+        user = await get_user_object(kwargs["uid"])
+
+        # Construct query expression builder for evaluation and evaluation scenario
+        query_expression_eval = query.eq(EvaluationDB.user, user.id)
+        query_expression_eval_scen = query.eq(
+            EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
+        ) & query.eq(EvaluationScenarioDB.user, user.id)
+
+        # Get current evaluation scenario
+        current_evaluation_scenario = await engine.find_one(
+            EvaluationScenarioDB, query_expression_eval_scen
+        )
+
+        # Get current evaluation
+        current_evaluation = await engine.find_one(
+            EvaluationDB,
+            query_expression_eval
+            & query.eq(
+                EvaluationDB.id,
+                ObjectId(current_evaluation_scenario.evaluation_id),
+            ),
+        )
+        
+        # Run ai critique evaluation
+        payload_dict = payload.dict()
+        output = evaluate_with_ai_critique(
+            llm_app_prompt_template=current_evaluation.llm_app_prompt_template,
+            llm_app_inputs=[
+                scenario_input.dict()
+                for scenario_input in current_evaluation_scenario.inputs
+            ],
+            correct_answer=current_evaluation_scenario.correct_answer,
+            app_variant_output=payload_dict["outputs"][0]["variant_output"],
+            evaluation_prompt_template=payload_dict["evaluation_prompt_template"],
+            open_ai_key=payload_dict["open_ai_key"],
+        )
+        return output
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score")
@@ -337,9 +396,9 @@ async def fetch_evaluation(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     evaluation = await engine.find_one(EvaluationDB, query_expression)
     if evaluation is not None:
         return Evaluation(
@@ -420,9 +479,9 @@ async def fetch_results(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder and retrieve evaluation from database
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     evaluation = await engine.find_one(EvaluationDB, query_expression)
 
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
@@ -591,7 +650,9 @@ async def execute_custom_evaluation(
     result = await execute_custom_code_evaluation(
         evaluation_id,
         payload.app_name,
-        formatted_outputs[payload.variant_name],  # gets the output of the app variant
+        formatted_outputs[
+            payload.variant_name
+        ],  # gets the output of the app variant
         payload.correct_answer,
         payload.variant_name,
         formatted_inputs,
