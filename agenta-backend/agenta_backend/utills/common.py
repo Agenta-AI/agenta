@@ -25,6 +25,9 @@ async def get_app_instance(
     show_deleted: bool = False
 ) -> AppVariantDB:
     
+    print("app_name: " + str(app_name))
+    print("variant_name: " + str(variant_name))
+    
     if variant_name is not None:
         query_expression = (
             query.eq(AppVariantDB.is_deleted, show_deleted)
@@ -36,15 +39,15 @@ async def get_app_instance(
             query.eq(AppVariantDB.is_deleted, show_deleted)
             & query.eq(AppVariantDB.app_name, app_name)
         )
+        
+    print("query_expression: " + str(query_expression))
 
-    app_instance: AppVariantDB = await engine.find_one(
+    app_instance =  await engine.find_one(
         AppVariantDB, query_expression
     )
-
-    if app_instance is not None:
-        return app_instance
-    else:
-        return None
+    
+    print("app_instance: " + str(app_instance))
+    return app_instance
 
 async def check_user_org_access(kwargs: dict, organization_id: str, owner=False) -> bool:
     if owner == False:
@@ -77,20 +80,15 @@ async def check_access_to_app(
     app_name: Optional[str] = None,
     check_owner: bool = False
 ) -> bool:
-    if app_variant is None:
-        if app_name is None:
-            return JSONResponse(
-                    {"detail": "Check for app access failed, provide AppVaraint"},
-                    status_code=500,
-                )
-
-        app_variant = await engine.find_one(AppVariantDB, AppVariantDB.app_name == app_name)
-
-    if app_variant is None:
+    if app_variant is None and app_name is None:
         return JSONResponse(
                 {"detail": "Check for app access failed, provide AppVaraint"},
                 status_code=500,
             )
+
+    if app_variant is None:
+        app_variant = await engine.find_one(AppVariantDB, AppVariantDB.app_name == app_name)
+
 
     organization_id = app_variant.organization_id
     return await check_user_org_access(kwargs, str(organization_id), check_owner)

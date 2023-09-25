@@ -23,7 +23,7 @@ logger.setLevel(logging.INFO)
 def build_image_job(
     app_name: str,
     variant_name: str,
-    user_id: str,
+    organization_id: str,
     tar_path: Path,
     image_name: str,
     temp_dir: Path,
@@ -37,7 +37,7 @@ def build_image_job(
         variant_name --  The `variant_name` parameter is a string that represents the variant of the \
             application. It could be a specific version, configuration, or any other distinguishing \
                 factor for the application
-        user_id -- The unique id of the user
+        organization_id -- The id of the organization the app belongs to
         tar_path --  The `tar_path` parameter is the path to the tar file that contains the source code \
             or files needed to build the Docker image
         image_name --  The `image_name` parameter is a string that represents the name of the Docker \
@@ -60,12 +60,12 @@ def build_image_job(
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
-            buildargs={"ROOT_PATH": f"/{user_id}/{app_name}/{variant_name}"},
+            buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{variant_name}"},
             rm=True,
         )
         for line in build_log:
             logger.info(line)
-        return Image(docker_id=image.id, tags=image.tags[0])
+        return Image(docker_id=image.id, tags=image.tags[0], organization_id=organization_id)
     except docker.errors.BuildError as ex:
         log = "Error building Docker image:\n"
         log += str(ex) + "\n"
