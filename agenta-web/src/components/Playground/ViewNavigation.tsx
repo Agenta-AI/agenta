@@ -23,6 +23,7 @@ interface Props {
         persist: boolean,
         updateVariant: boolean,
     ) => void
+    addedVariant: Variant
 }
 
 const useStyles = createUseStyles({
@@ -43,6 +44,7 @@ const ViewNavigation: React.FC<Props> = ({
     environments,
     setUnSavedChanges,
     onOptParamsChange,
+    addedVariant,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -67,7 +69,9 @@ const ViewNavigation: React.FC<Props> = ({
         persist: boolean,
         updateVariant: boolean,
     ) => {
-        saveOptParams(newOptParams, persist, updateVariant)
+        if (!addedVariant.variantName) {
+            saveOptParams(newOptParams, persist, updateVariant)
+        }
         onOptParamsChange?.(newOptParams, persist, updateVariant)
     }
 

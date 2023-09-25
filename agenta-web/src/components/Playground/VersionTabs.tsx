@@ -23,6 +23,7 @@ async function addTab(
     setUnSavedChanges: React.Dispatch<React.SetStateAction<boolean>>,
     appName: string,
     optParams: React.MutableRefObject<Parameter[]>,
+    addedVariant: React.MutableRefObject<Variant>,
 ) {
     // Find the template variant
     const templateVariant = variants.find((variant) => variant.variantName === templateVariantName)
@@ -55,7 +56,10 @@ async function addTab(
         parameters: templateVariant.parameters,
     }
 
-    await saveNewVariant(appName, newVariant, optParams.current)
+    addedVariant.current = newVariant
+    if (addedVariant.current.variantName) {
+        await saveNewVariant(appName, newVariant, optParams.current)
+    }
     setVariants((prevState: any) => [...prevState, newVariant])
     setActiveKey(updateNewVariantName)
     setUnSavedChanges(true)
@@ -100,6 +104,12 @@ const VersionTabs: React.FC = () => {
     const variantData = useVariants(appName, variants)
     const data = useRef<{newOptParams: Parameter[]; persist: boolean; updateVariant: boolean}[]>([])
     const optParams = useRef<Parameter[]>([])
+    const addedVariant = useRef<Variant>({
+        variantName: "",
+        templateVariantName: "",
+        persistent: true,
+        parameters: {},
+    })
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -233,6 +243,7 @@ const VersionTabs: React.FC = () => {
                 environments={environments}
                 setUnSavedChanges={setUnSavedChanges}
                 onOptParamsChange={(...args) => handleOnOptParamsChange(...args, index)}
+                addedVariant={addedVariant.current}
             />
         ),
         closable: !variant.persistent,
@@ -281,6 +292,7 @@ const VersionTabs: React.FC = () => {
                         setUnSavedChanges,
                         appName,
                         optParams,
+                        addedVariant,
                     )
                 }
                 variants={variants}
