@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 
 class AppVariant(BaseModel):
+    variant_id: str
     app_name: str
     variant_name: str
     parameters: Optional[Dict[str, Any]]
