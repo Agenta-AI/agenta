@@ -327,7 +327,6 @@ async def start_variant(
         )
 
     try:
-        
         uri: URI = docker_utils.start_container(
             image_name=image.tags,
             app_name=app_variant.app_name,
@@ -384,7 +383,15 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         app_variant -- the app variant to update
         image -- the image to update
     """
-    if app_variant.app_name in ["", None] or app_variant.variant_name == ["", None,] or app_variant.organization_id == ["", None]:
+    if (
+        app_variant.app_name in ["", None]
+        or app_variant.variant_name
+        == [
+            "",
+            None,
+        ]
+        or app_variant.organization_id == ["", None]
+    ):
         msg = "App name and variant name, or organization_id cannot be empty"
         logger.error(msg)
         raise ValueError(msg)
