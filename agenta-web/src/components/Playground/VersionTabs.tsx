@@ -22,6 +22,7 @@ async function addTab(
     newVariantName: string,
     appName: string,
     optParams: React.MutableRefObject<Parameter[]>,
+    mssgModal: (mssg: string) => void,
 ) {
     // Find the template variant
     const templateVariant = variants.find((variant) => variant.variantName === templateVariantName)
@@ -57,6 +58,7 @@ async function addTab(
     await saveNewVariant(appName, newVariant, optParams.current)
     setVariants((prevState: any) => [...prevState, newVariant])
     setActiveKey(updateNewVariantName)
+    mssgModal("Variant added successfully!")
 }
 
 async function removeTab(
@@ -65,6 +67,7 @@ async function removeTab(
     setVariants: any,
     variants: Variant[],
     activeKey: string,
+    mssgModal: (mssg: string) => void,
 ) {
     const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
     if (newVariants.length < 1) {
@@ -77,6 +80,7 @@ async function removeTab(
     await removeVariant(appName, activeKey)
     setVariants(newVariants)
     setActiveKey(newActiveKey)
+    mssgModal("Variant removed successfully!")
 }
 
 const VersionTabs: React.FC = () => {
@@ -167,18 +171,17 @@ const VersionTabs: React.FC = () => {
 
     const handleRemove = () => {
         if (removalVariantName) {
-            removeTab(appName, setActiveKey, setVariants, variants, removalVariantName)
+            removeTab(appName, setActiveKey, setVariants, variants, removalVariantName, mssgModal)
         }
         setRemovalWarningModalOpen1(false)
     }
     const handleBackendRemove = async () => {
         if (removalVariantName) {
             setIsDeleteLoading(true)
-            removeTab(appName, setActiveKey, setVariants, variants, removalVariantName)
+            removeTab(appName, setActiveKey, setVariants, variants, removalVariantName, mssgModal)
             setIsDeleteLoading(false)
         }
         setRemovalWarningModalOpen1(false)
-        removedSuccessfully()
     }
 
     const handleCancel1 = () => setRemovalWarningModalOpen1(false)
@@ -200,10 +203,10 @@ const VersionTabs: React.FC = () => {
             })
         })
     }
-    const removedSuccessfully = () => {
+    const mssgModal = (mssg: string) => {
         messageApi.open({
             type: "success",
-            content: "Variant removed successfully!",
+            content: mssg,
         })
     }
 
@@ -279,6 +282,7 @@ const VersionTabs: React.FC = () => {
                         newVariantName,
                         appName,
                         optParams,
+                        mssgModal,
                     )
                 }
                 variants={variants}
