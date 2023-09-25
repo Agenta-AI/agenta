@@ -21,6 +21,7 @@ from agenta_backend.models.api.api_models import (
     Image,
     DockerEnvVars,
     CreateAppVariant,
+    AddVariantFromPreviousPayload,
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -232,11 +233,9 @@ async def add_variant_from_image(
 
 @router.post("/add/from_previous/")
 async def add_variant_from_previous(
-    previous_app_variant: AppVariant,
-    new_variant_name: str = Body(...),
-    parameters: Dict[str, Any] = Body(...),
+    payload: AddVariantFromPreviousPayload,
     stoken_session: SessionContainer = Depends(verify_session()),
-):
+) -> AppVariantDB:
     """Add a variant to the server based on a previous variant.
 
     Arguments:
@@ -247,21 +246,43 @@ async def add_variant_from_previous(
     Raises:
         HTTPException: If there is a problem adding the app variant
     """
-    print(
-        f"previous_app_variant: {previous_app_variant}, type: {type(previous_app_variant)}"
-    )
-    print(f"new_variant_name: {new_variant_name}, type: {type(new_variant_name)}")
-    print(f"parameters: {parameters}, type: {type(parameters)}")
-    try:
-        if previous_app_variant.organization_id is None:
-            organization = await get_user_own_org(kwargs["uid"])
-            previous_app_variant.organization_id = str(organization.id)
-
-        # Get user and org id
-        kwargs: dict = await get_user_and_org_id(stoken_session)
-        await db_manager.add_variant_based_on_previous(
-            previous_app_variant, new_variant_name, parameters, **kwargs
+    if payload.previous_variant_id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Previous app variant id is required",
         )
+    if payload.new_variant_name is None:
+        raise HTTPException(
+            status_code=500,
+            detail="New variant name is required",
+        )
+    if payload.parameters is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Parameters are required",
+        )
+
+    try:
+        app_variant_db = await new_db_manager.fetch_app_variant_by_id(payload.previous_variant_id)
+        if app_variant_db is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Previous app variant not found",
+            )
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        if app_variant_db.organization_id.id not in kwargs["organization_ids"]:
+            raise HTTPException(
+                status_code=500,
+                detail="You do not have permission to access this app variant",
+            )
+
+        db_app_variant = await new_db_manager.add_variant_based_on_previous(
+            previous_app_variant=app_variant_db,
+            new_variant_name=payload.new_variant_name,
+            parameters=payload.parameters,
+            **kwargs
+        )
+        return db_app_variant
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

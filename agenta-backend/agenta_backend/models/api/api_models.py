@@ -13,6 +13,12 @@ class AppVariant(BaseModel):
     organization_id: Optional[str] = None
 
 
+class AddVariantFromPreviousPayload(BaseModel):
+    previous_variant_id: str
+    new_variant_name: str
+    parameters: Dict[str, Any]
+
+
 class AppVariantFromImage(BaseModel):
     app_id: str
     variant_name: str
