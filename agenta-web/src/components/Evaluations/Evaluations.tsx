@@ -276,12 +276,21 @@ export default function Evaluations() {
         }
 
     const getVariantsDropdownMenu = (index: number): MenuProps => {
-        const items: MenuProps["items"] = variants.map((variant) => {
-            return {
-                label: variant.variantName,
-                key: variant.variantName,
+        const selectedVariantsNames = selectedVariants.map((variant) => variant.variantName)
+
+        const items = variants.reduce((filteredVariants, variant) => {
+            const label = variant.variantName
+
+            if (!selectedVariantsNames.includes(label)) {
+                filteredVariants.push({
+                    label,
+                    key: label,
+                })
             }
-        })
+
+            return filteredVariants
+        }, [])
+
         const menuProps: MenuProps = {
             items,
             onClick: handleAppVariantsMenuClick(index),
