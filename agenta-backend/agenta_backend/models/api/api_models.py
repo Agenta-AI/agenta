@@ -13,9 +13,16 @@ class AppVariant(BaseModel):
     organization_id: Optional[str] = None
 
 
-class RestartAppContainer(BaseModel):
-    app_name: str
+class AppVariantFromImage(BaseModel):
+    app_id: str
     variant_name: str
+    parameters: Optional[Dict[str, Any]]
+    previous_variant_name: Optional[str]
+    organization_id: Optional[str] = None
+
+
+class RestartAppContainer(BaseModel):
+    variant_id: Reference[AppVariantDB] = Reference(key_name="variant")
     organization_id: Optional[str] = None
 
 
