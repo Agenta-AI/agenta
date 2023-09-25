@@ -89,13 +89,11 @@ export interface SingleCustomEvaluation {
     evaluation_name: string
 }
 
-
 export interface AICritiqueCreate {
     outputs: Array<Object>
     evaluation_prompt_template: string
     open_ai_key: string
 }
-
 
 export interface Parameter {
     name: string

@@ -83,7 +83,7 @@ class EvaluationScenarioUpdate(BaseModel):
     ai_critique_score: Optional[str]
     correct_answer: Optional[str]  # will be used when running custom code evaluation
     outputs: List[EvaluationScenarioOutput]
-    
+
 
 class EvaluationScenarioScoreUpdate(BaseModel):
     score: float
