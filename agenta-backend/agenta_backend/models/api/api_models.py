@@ -13,6 +13,20 @@ class AppVariant(BaseModel):
     organization_id: Optional[str] = None
 
 
+class AppVariantOutput(BaseModel):
+    app_id: str
+    variant_id: str
+    variant_name: str
+    parameters: Optional[Dict[str, Any]]
+    previous_variant_name: Optional[str]
+    organization_id: str
+    user_id: str
+    base_name: str
+    base_id: str
+    config_name: str
+    config_id: str
+
+
 class AddVariantFromPreviousPayload(BaseModel):
     previous_variant_id: str
     new_variant_name: str

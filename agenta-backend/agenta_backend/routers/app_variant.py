@@ -13,7 +13,7 @@ from fastapi import APIRouter, Body, HTTPException, Depends
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import app_manager, db_manager, docker_utils, new_db_manager, new_app_manager
 from agenta_backend.utills.common import check_access_to_app, get_app_instance
-
+from agenta_backend.models.converters import (app_variant_db_to_output)
 from agenta_backend.models.api.api_models import (
     URI,
     App,
@@ -22,6 +22,7 @@ from agenta_backend.models.api.api_models import (
     DockerEnvVars,
     CreateAppVariant,
     AddVariantFromPreviousPayload,
+    AppVariantOutput,
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -34,7 +35,6 @@ from agenta_backend.models.db_models import (
     BaseDB,
     ConfigDB,
 )
-
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
@@ -235,7 +235,7 @@ async def add_variant_from_image(
 async def add_variant_from_previous(
     payload: AddVariantFromPreviousPayload,
     stoken_session: SessionContainer = Depends(verify_session()),
-) -> AppVariantDB:
+) -> AppVariantOutput:
     """Add a variant to the server based on a previous variant.
 
     Arguments:
@@ -282,7 +282,7 @@ async def add_variant_from_previous(
             parameters=payload.parameters,
             **kwargs
         )
-        return db_app_variant
+        return app_variant_db_to_output(db_app_variant)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -519,7 +519,7 @@ async def update_variant_image(
 async def add_app_variant_from_template(
     payload: CreateAppVariant,
     stoken_session: SessionContainer = Depends(verify_session()),
-) -> AppVariantDB:
+) -> AppVariantOutput:
     """Creates or updates an app variant based on the provided image and starts the variant
 
     Arguments:
@@ -579,4 +579,4 @@ async def add_app_variant_from_template(
 
     await new_app_manager.start_variant(db_app_variant, envvars, **kwargs)
 
-    return db_app_variant
+    return app_variant_db_to_output(db_app_variant)
