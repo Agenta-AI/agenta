@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-@router.get("/list_variants/", response_model=List[AppVariant])
+@router.get("/list_variants/", response_model=List[AppVariantOutput])
 async def list_app_variants(
     app_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -74,19 +74,19 @@ async def list_app_variants(
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
 
-        if app_name is not None:
-            access_app = await check_access_to_app(kwargs, app_name=app_name)
+        if app_id is not None:
+            access_app = await check_access_to_app(kwargs, app_id=app_id)
 
             if not access_app:
-                error_msg = f"You cannot access app: {app_name}"
+                error_msg = f"You cannot access app: {app_id}"
                 logger.error(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=400,
                 )
 
-        app_variants = await db_manager.list_app_variants(app_name=app_name, **kwargs)
-        return app_variants
+        app_variants = await new_db_manager.list_app_variants(app_id=app_id, **kwargs)
+        return [app_variant_db_to_output(app_variant) for app_variant in app_variants]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

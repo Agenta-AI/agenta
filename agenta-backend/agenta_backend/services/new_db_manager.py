@@ -428,3 +428,32 @@ async def list_apps(org_id: str = None, **kwargs: dict) -> List[App]:
     else:
         apps: List[AppVariantDB] = await engine.find(AppDB, AppDB.user_id == user.id)
         return [app_db_to_pydantic(app) for app in apps]
+
+
+async def list_app_variants(
+    app_id: str = None, show_soft_deleted=False, **kwargs: dict
+) -> List[AppVariantDB]:
+    """
+    Lists all the app variants from the db
+    Args:
+        app_name: if specified, only returns the variants for the app name
+        show_soft_deleted: if true, returns soft deleted variants as well
+    Returns:
+        List[AppVariant]: List of AppVariant objects
+    """
+
+    # Construct query expressions
+    logger.debug("app_id: %s", app_id)
+    query_filters = query.QueryExpression()
+    if app_id is not None:
+        query_filters = query_filters & (AppVariantDB.app_id == ObjectId(app_id))
+    if not show_soft_deleted:
+        query_filters = query_filters & query.eq(AppVariantDB.is_deleted, False)
+    logger.debug("query_filters: %s", query_filters)
+    app_variants_db: List[AppVariantDB] = await engine.find(
+        AppVariantDB,
+        query_filters
+    )
+
+    # Include previous variant name
+    return app_variants_db

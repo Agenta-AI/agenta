@@ -7,6 +7,7 @@ from agenta_backend.models.db_models import (
     UserDB,
     AppVariantDB,
     OrganizationDB,
+    AppDB,
 )
 import logging
 engine = DBEngine(mode="default").engine()
@@ -67,20 +68,20 @@ async def check_user_org_access(
 
 async def check_access_to_app(
     kwargs: Dict[str, Union[str, list]],
-    app_variant: Optional[AppVariantDB] = None,
-    app_name: Optional[str] = None,
+    app: Optional[AppDB] = None,
+    app_id: Optional[str] = None,
     check_owner: bool = False,
 ) -> bool:
-    if app_variant is None and app_name is None:
-        return JSONResponse(
-            {"detail": "Check for app access failed, provide AppVaraint"},
-            status_code=500,
-        )
+    if app_id is None and app is None:
+        raise Exception("No app or app_id provided")
 
-    if app_variant is None:
-        app_variant = await engine.find_one(
-            AppVariantDB, AppVariantDB.app_name == app_name
+    if app is None:
+        app = await engine.find_one(
+            AppDB, AppDB.id == ObjectId(app_id)
         )
+        if app is None:
+            logger.error("App not found")
+            return False
 
-    organization_id = app_variant.organization_id
+    organization_id = app.organization_id.id
     return await check_user_org_access(kwargs, str(organization_id), check_owner)
