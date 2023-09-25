@@ -14,6 +14,7 @@ from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import app_manager, db_manager, docker_utils, new_db_manager, new_app_manager
 from agenta_backend.utills.common import check_access_to_app, get_app_instance
 from agenta_backend.models.converters import (app_variant_db_to_output)
+from agenta_backend.utills.common import check_user_org_access
 from agenta_backend.models.api.api_models import (
     URI,
     App,
@@ -56,7 +57,7 @@ logger.setLevel(logging.INFO)
 
 @router.get("/list_variants/", response_model=List[AppVariant])
 async def list_app_variants(
-    app_name: Optional[str] = None,
+    app_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Lists the app variants from our repository.
@@ -178,7 +179,7 @@ async def list_apps(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        apps = await db_manager.list_apps(org_id, **kwargs)
+        apps = await new_db_manager.list_apps(org_id, **kwargs)
         return apps
     except Exception as e:
         logger.error(f"list_apps exception ===> {e}")
@@ -270,12 +271,12 @@ async def add_variant_from_previous(
                 detail="Previous app variant not found",
             )
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        if app_variant_db.organization_id.id not in kwargs["organization_ids"]:
+        access = await check_user_org_access(kwargs, app_variant_db.organization_id.id)
+        if not access:
             raise HTTPException(
                 status_code=500,
                 detail="You do not have permission to access this app variant",
             )
-
         db_app_variant = await new_db_manager.add_variant_based_on_previous(
             previous_app_variant=app_variant_db,
             new_variant_name=payload.new_variant_name,

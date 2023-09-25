@@ -14,10 +14,11 @@ from agenta_backend.models.api.api_models import (
     ImageExtended,
     Template,
 )
-from agenta_backend.models.new_converters import (
+from agenta_backend.models.converters import (
     app_variant_db_to_pydantic,
     image_db_to_pydantic,
     templates_db_to_pydantic,
+    app_db_to_pydantic,
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -35,6 +36,7 @@ from agenta_backend.utills.common import engine, check_user_org_access, get_orga
 from agenta_backend.services.selectors import get_user_own_org
 
 from odmantic import query
+import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -393,3 +395,36 @@ async def add_variant_based_on_previous(
         is_deleted=False)
     await engine.save(db_app_variant)
     return db_app_variant
+
+
+async def list_apps(org_id: str = None, **kwargs: dict) -> List[App]:
+    """
+    Lists all the unique app names and their IDs from the database
+
+    Errors:
+        JSONResponse: You do not have permission to access this organization; status_code: 403
+
+    Returns:
+        List[App]
+    """
+    await clean_soft_deleted_variants()
+
+    # Get user object
+    user = await get_user_object(kwargs["uid"])
+    assert user is not None, "User is None"
+
+    if org_id is not None:
+        organization_access = await check_user_org_access(kwargs, org_id)
+        if organization_access:
+            apps: List[AppDB] = await engine.find(AppDB, AppDB.organization_id == ObjectId(org_id))
+            return [app_db_to_pydantic(app) for app in apps]
+
+        else:
+            return JSONResponse(
+                {"error": "You do not have permission to access this organization"},
+                status_code=403,
+            )
+
+    else:
+        apps: List[AppVariantDB] = await engine.find(AppDB, AppDB.user_id == user.id)
+        return [app_db_to_pydantic(app) for app in apps]

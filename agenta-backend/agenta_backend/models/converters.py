@@ -1,13 +1,14 @@
 """Converts db models to pydantic models
 """
 from typing import List
-from agenta_backend.models.db_models import AppVariantDB, ImageDB, TemplateDB
+from agenta_backend.models.db_models import AppVariantDB, ImageDB, TemplateDB, AppDB
 from agenta_backend.models.api.api_models import (
     AppVariant,
     ImageExtended,
     Template,
     TemplateImageInfo,
     AppVariantOutput,
+    App,
 )
 
 
@@ -39,6 +40,15 @@ def app_variant_db_to_output(
         base_id=str(app_variant_db.base_id.id),
         config_name=app_variant_db.config_name,
         config_id=str(app_variant_db.config_id.id),
+    )
+
+
+def app_db_to_pydantic(
+    app_db: AppDB
+) -> App:
+    return App(
+        app_name=app_db.app_name,
+        app_id=str(app_db.id)
     )
 
 
