@@ -57,27 +57,24 @@ async def list_app_variants(
     Returns:
         List[AppVariant]
     """
-        
-    try:
 
+    try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        
+
         if app_name is not None:
             access_app = await check_access_to_app(kwargs, app_name=app_name)
-                
+
             if not access_app:
-                error_msg = (
-                    f"You cannot access app: {app_name}"
-                )
+                error_msg = f"You cannot access app: {app_name}"
                 logger.error(error_msg)
                 return JSONResponse(
-                        {"detail": error_msg},
-                        status_code=400,
-                    )
+                    {"detail": error_msg},
+                    status_code=400,
+                )
 
         app_variants = await db_manager.list_app_variants(app_name=app_name, **kwargs)
         return app_variants
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -209,14 +206,14 @@ async def add_variant_from_image(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        
+
         if app_variant.organization_id is None:
             organization = await get_user_own_org(kwargs["uid"])
             app_variant.organization_id = str(organization.id)
-            
+
         if image.organization_id is None:
             image.organization_id = str(organization.id)
-        
+
         await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -245,11 +242,10 @@ async def add_variant_from_previous(
     print(f"new_variant_name: {new_variant_name}, type: {type(new_variant_name)}")
     print(f"parameters: {parameters}, type: {type(parameters)}")
     try:
-        
         if previous_app_variant.organization_id is None:
             organization = await get_user_own_org(kwargs["uid"])
             previous_app_variant.organization_id = str(organization.id)
-        
+
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
         await db_manager.add_variant_based_on_previous(
@@ -283,7 +279,7 @@ async def start_variant(
             }
         else:
             envvars = {} if env_vars is None else env_vars.env_vars
-            
+
         if app_variant.organization_id is None:
             organization = await get_user_own_org(kwargs["uid"])
             app_variant.organization_id = str(organization.id)
@@ -335,19 +331,19 @@ async def remove_variant(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        
+
         # Check app access
-        access_app = await check_access_to_app(kwargs, app_variant=app_variant, check_owner=True)
-            
+        access_app = await check_access_to_app(
+            kwargs, app_variant=app_variant, check_owner=True
+        )
+
         if not access_app:
-            error_msg = (
-                f"You do not have permission to delete app variant: {app_variant.variant_name}"
-            )
+            error_msg = f"You do not have permission to delete app variant: {app_variant.variant_name}"
             logger.error(error_msg)
             return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=400,
-                )
+                {"detail": error_msg},
+                status_code=400,
+            )
         else:
             await app_manager.remove_app_variant(app_variant, **kwargs)
     except SQLAlchemyError as e:
@@ -373,17 +369,17 @@ async def remove_app(
 
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        access_app = await check_access_to_app(kwargs, app_name=app.app_name, check_owner=True)
-            
+        access_app = await check_access_to_app(
+            kwargs, app_name=app.app_name, check_owner=True
+        )
+
         if not access_app:
-            error_msg = (
-                f"You do not have permission to delete app: {app.app_name}"
-            )
+            error_msg = f"You do not have permission to delete app: {app.app_name}"
             logger.error(error_msg)
             return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=400,
-                )
+                {"detail": error_msg},
+                status_code=400,
+            )
         else:
             await app_manager.remove_app(app, **kwargs)
     except SQLAlchemyError as e:
@@ -407,26 +403,25 @@ async def update_variant_parameters(
     Arguments:
         app_variant -- Appvariant to update
     """
-     
-    try:  
-        
+
+    try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
         if app_variant.organization_id is None:
-            app_instance = await get_app_instance(app_variant.app_name, app_variant.variant_name)
-            app_variant.organization_id = str(app_instance.organization_id)
-        
-        access_app = await check_access_to_app(kwargs, app_variant=app_variant)
-            
-        if not access_app:
-            error_msg = (
-                f"You do not have permission to update app variant: {app_variant.variant_name}"
+            app_instance = await get_app_instance(
+                app_variant.app_name, app_variant.variant_name
             )
+            app_variant.organization_id = str(app_instance.organization_id)
+
+        access_app = await check_access_to_app(kwargs, app_variant=app_variant)
+
+        if not access_app:
+            error_msg = f"You do not have permission to update app variant: {app_variant.variant_name}"
             logger.error(error_msg)
             return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=400,
-                )
-        else:   
+                {"detail": error_msg},
+                status_code=400,
+            )
+        else:
             await app_manager.update_variant_parameters(app_variant, **kwargs)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
@@ -455,24 +450,24 @@ async def update_variant_image(
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
         if app_variant.organization_id is None:
-            app_instance = await get_app_instance(app_variant.app_name, app_variant.variant_name)
+            app_instance = await get_app_instance(
+                app_variant.app_name, app_variant.variant_name
+            )
             app_variant.organization_id = str(app_instance.organization_id)
-            
+
         if image.organization_id is None:
             image.organization_id = str(app_instance.organization_id.id)
-        
+
         access_app = await check_access_to_app(kwargs, app_variant=app_variant)
-            
+
         if not access_app:
-            error_msg = (
-                f"You do not have permission to make an update"
-            )
+            error_msg = f"You do not have permission to make an update"
             logger.error(error_msg)
             return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=400,
-                )
-        else:    
+                {"detail": error_msg},
+                status_code=400,
+            )
+        else:
             await app_manager.update_variant_image(app_variant, image, **kwargs)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
@@ -512,7 +507,7 @@ async def add_app_variant_from_template(
                 status_code=500,
                 detail="Sorry, you can only create two Apps at this time.",
             )
-            
+
     if payload.organization_id is None:
         organization = await get_user_own_org(kwargs["uid"])
         organization_id = str(organization.id)
@@ -523,7 +518,7 @@ async def add_app_variant_from_template(
     app_variant: AppVariant = AppVariant(
         app_name=payload.app_name.lower(),
         variant_name="v1",
-        organization_id=organization_id, 
+        organization_id=organization_id,
     )
 
     # Inject env vars to docker container
@@ -542,7 +537,7 @@ async def add_app_variant_from_template(
     # Create an Image instance with the extracted image id, and defined image name
     image_name = f"agentaai/templates:{payload.image_tag}"
     image: Image = Image(
-        docker_id=payload.image_id, 
+        docker_id=payload.image_id,
         tags=f"{image_name}",
         organization_id=organization_id,
     )

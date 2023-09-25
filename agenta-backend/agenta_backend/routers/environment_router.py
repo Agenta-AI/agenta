@@ -28,20 +28,20 @@ async def list_environments(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        
+
         # Check if has app access
         access_app = await check_access_to_app(kwargs, app_name=app_name)
-        
+
         if not access_app:
-            error_msg = (
-                f"You do not have access to this app: {app_name}"
-            )
+            error_msg = f"You do not have access to this app: {app_name}"
             return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=400,
-                )
+                {"detail": error_msg},
+                status_code=400,
+            )
         else:
-            app_variants = await db_manager.list_environments(app_name=app_name, **kwargs)
+            app_variants = await db_manager.list_environments(
+                app_name=app_name, **kwargs
+            )
             return app_variants
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -67,18 +67,16 @@ async def deploy_to_environment(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        
+
         # Check if has app access
         access_app = await check_access_to_app(kwargs, app_name=app_name)
-        
+
         if not access_app:
-            error_msg = (
-                f"You do not have access to this app: {app_name}"
-            )
+            error_msg = f"You do not have access to this app: {app_name}"
             return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=400,
-                )
+                {"detail": error_msg},
+                status_code=400,
+            )
         else:
             await db_manager.deploy_to_environment(
                 app_name, environment_name, variant_name, **kwargs

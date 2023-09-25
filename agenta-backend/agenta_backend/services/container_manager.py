@@ -65,7 +65,9 @@ def build_image_job(
         )
         for line in build_log:
             logger.info(line)
-        return Image(docker_id=image.id, tags=image.tags[0], organization_id=organization_id)
+        return Image(
+            docker_id=image.id, tags=image.tags[0], organization_id=organization_id
+        )
     except docker.errors.BuildError as ex:
         log = "Error building Docker image:\n"
         log += str(ex) + "\n"

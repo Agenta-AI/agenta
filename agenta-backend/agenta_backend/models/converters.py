@@ -19,13 +19,16 @@ def app_variant_db_to_pydantic(
         variant_name=app_variant_db.variant_name,
         parameters=app_variant_db.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
-        organization_id=app_variant_db.organization_id
+        organization_id=app_variant_db.organization_id,
     )
 
 
 def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
     return ImageExtended(
-        organization_id=image_db.organization_id, docker_id=image_db.docker_id, tags=image_db.tags, id=str(image_db.id)
+        organization_id=image_db.organization_id,
+        docker_id=image_db.docker_id,
+        tags=image_db.tags,
+        id=str(image_db.id),
     )
 
 
