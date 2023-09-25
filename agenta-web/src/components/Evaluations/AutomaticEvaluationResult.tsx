@@ -68,6 +68,9 @@ const useStyles = createUseStyles({
             color: "#1677ff",
         },
     },
+    pinBtn: {
+        marginRight: 10
+    }
 })
 
 const {Title} = Typography
@@ -257,6 +260,12 @@ export default function AutomaticEvaluationResult() {
                 }
                 return (
                     <div className="hover-button-wrapper">
+                        {record.status === EvaluationFlow.EVALUATION_FINISHED && (
+                            <Button type="primary" className={classes.pinBtn} onClick={() => onCompleteEvaluation(record)}>
+                                Pin
+                            </Button>
+                        )}
+
                         <Button type="primary" onClick={() => onCompleteEvaluation(record)}>
                             {actionText}
                         </Button>
