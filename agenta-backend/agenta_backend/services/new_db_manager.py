@@ -76,15 +76,14 @@ async def add_variant_based_on_image(
         ):
             raise ValueError("App variant or image is None")
 
-        soft_deleted_variants = await list_app_variants(
-            show_soft_deleted=True, **kwargs
-        )
+        soft_deleted_variants = await list_app_variants_for_app_id(app_id=app_id,
+                                                                   show_soft_deleted=True, **kwargs
+                                                                   )
         already_exists = any(
             [
                 av
                 for av in soft_deleted_variants
-                if av.app_id == app_id
-                and av.variant_name == variant_name
+                if av.variant_name == variant_name
             ]
         )
         if already_exists:
@@ -154,6 +153,23 @@ async def fetch_app_by_name_and_organization(app_name: str, organization_id: str
     return app
 
 
+async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]:
+    """
+    Fetches an app variant by its ID.
+
+    Args:
+        app_variant_id (str): The ID of the app variant to fetch.
+
+    Returns:
+        AppVariantDB: The fetched app variant, or None if no app variant was found.
+    """
+    assert app_variant_id is not None, "app_variant_id cannot be None"
+    app_variant = await engine.find_one(
+        AppVariantDB, AppVariantDB.id == ObjectId(app_variant_id)
+    )
+    return app_variant
+
+
 async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
     """
     Create a new app with the given name and organization ID.
@@ -195,8 +211,8 @@ async def get_organization_object(organization_id: str) -> OrganizationDB:
     return organization
 
 
-async def list_app_variants(
-    app_id: str = None, show_soft_deleted=False, **kwargs: dict
+async def list_app_variants_for_app_id(
+    app_id: str, show_soft_deleted=False, **kwargs: dict
 ) -> List[AppVariantDB]:
     """
     Lists all the app variants from the db
@@ -206,40 +222,17 @@ async def list_app_variants(
     Returns:
         List[AppVariant]: List of AppVariant objects
     """
-
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    # Construct query expressions
-    query_filters = None
-
-    if app_id is not None:
-        app_variant = await engine.find_one(
-            AppVariantDB, AppVariantDB.app_id == ObjectId(app_id)
-        )
-        obj_query = query.eq(AppVariantDB.organization_id, app_variant.organization_id)
-    else:
-        obj_query = query.eq(AppVariantDB.user_id, user.id)
-
+    assert app_id is not None, "app_id cannot be None"
     if not show_soft_deleted:
-        query_filters = query.eq(AppVariantDB.is_deleted, False) & obj_query
-
-    if show_soft_deleted:
-        query_filters = query.eq(AppVariantDB.is_deleted, True) & obj_query
-
-    if app_id is not None:
-        query_filters = (AppVariantDB.app_id == ObjectId(app_id)) & obj_query
-
-    if not show_soft_deleted and app_id is not None:
-        query_filters = (
-            query.eq(AppVariantDB.is_deleted, False)
-            & (AppVariantDB.app_name == ObjectId(app_id))
-            & obj_query
+        query_expression = (
+            (AppVariantDB.app_id == ObjectId(app_id))
+            & (AppVariantDB.is_deleted == False)
         )
-
+    else:
+        query_expression = (AppVariantDB.app_id == ObjectId(app_id))
     app_variants_db: List[AppVariantDB] = await engine.find(
         AppVariantDB,
-        query_filters,
+        query_expression,
         sort=(AppVariantDB.variant_name),
     )
 
@@ -328,3 +321,75 @@ async def get_app_instance_by_id(app_id: str) -> AppDB:
 
     app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
     return app
+
+
+async def add_variant_based_on_previous(
+    previous_app_variant: AppVariantDB,
+    new_variant_name: str,
+    parameters: Dict[str, Any],
+    new_config_name: str = None,
+    **kwargs: dict,
+):
+    """Adds a new variant from a previous/template one by changing the parameters.
+
+    Arguments:
+        app_variant -- contains the name of the app and variant
+
+    Keyword Arguments:
+        parameters -- the new parameters.
+
+    Raises:
+        ValueError: _description_
+    """
+
+    await clean_soft_deleted_variants()
+    if (
+        previous_app_variant is None
+        or previous_app_variant.app_id in [None, ""]
+        or previous_app_variant.variant_name in [None, ""]
+    ):
+        raise ValueError("App variant is None")
+    elif previous_app_variant.organization_id in [None, ""]:
+        raise ValueError("App organization_id is None")
+    if parameters is None:
+        raise ValueError("Parameters is None")
+
+    elif previous_app_variant.previous_variant_name is not None:
+        raise ValueError(
+            "Template app variant is not a template, it is a forked variant itself"
+        )
+
+    soft_deleted_app_variants = await list_app_variants_for_app_id(app_id=str(previous_app_variant.app_id.id),
+                                                                   show_soft_deleted=True, **kwargs
+                                                                   )
+
+    logger.debug("soft_deleted_app_variants: %s", soft_deleted_app_variants)
+    already_exists = any(
+        [
+            av
+            for av in soft_deleted_app_variants
+            if av.variant_name == new_variant_name
+        ]
+    )
+    if already_exists:
+        raise ValueError("App variant with the same name already exists")
+
+    user_instance = await get_user_object(kwargs["uid"])
+    if new_config_name is None:
+        new_config_name = new_variant_name.split(".")[1]
+    config_instance = ConfigDB(config_name=new_config_name, parameters=parameters)
+    db_app_variant = AppVariantDB(
+        app_id=previous_app_variant.app_id,
+        variant_name=new_variant_name,
+        image_id=previous_app_variant.image_id,
+        user_id=user_instance,
+        organization_id=previous_app_variant.organization_id,
+        parameters=parameters,
+        previous_variant_name=previous_app_variant.variant_name,
+        base_name=previous_app_variant.base_name,
+        base_id=previous_app_variant.base_id,
+        config_name=new_config_name,
+        config_id=config_instance,
+        is_deleted=False)
+    await engine.save(db_app_variant)
+    return db_app_variant
