@@ -327,13 +327,13 @@ async def start_variant(
         )
 
     try:
-        user = await db_manager.get_user_object(kwargs["uid"])
+        
         uri: URI = docker_utils.start_container(
             image_name=image.tags,
             app_name=app_variant.app_name,
             variant_name=app_variant.variant_name,
             env_vars=env_vars,
-            user_id=str(user.id),
+            organization_id=app_variant.organization_id,
         )
         logger.info(
             f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
@@ -384,11 +384,8 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         app_variant -- the app variant to update
         image -- the image to update
     """
-    if app_variant.app_name in ["", None] or app_variant.variant_name == [
-        "",
-        None,
-    ]:
-        msg = "App name and variant name cannot be empty"
+    if app_variant.app_name in ["", None] or app_variant.variant_name == ["", None,] or app_variant.organization_id == ["", None]:
+        msg = "App name and variant name, or organization_id cannot be empty"
         logger.error(msg)
         raise ValueError(msg)
     if image.tags in ["", None]:
@@ -410,7 +407,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         logger.error(msg)
         raise ValueError(msg)
     try:
-        old_variant = await db_manager.get_variant_from_db(app_variant, **kwargs)
+        old_variant = variant_exist
         old_image = await db_manager.get_image(old_variant, **kwargs)
         container_ids = docker_utils.stop_containers_based_on_image(old_image)
         logger.info(f"Containers {container_ids} stopped")
