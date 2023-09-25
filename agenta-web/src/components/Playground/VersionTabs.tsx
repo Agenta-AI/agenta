@@ -20,7 +20,6 @@ async function addTab(
     variants: Variant[],
     templateVariantName: string,
     newVariantName: string,
-    setUnSavedChanges: React.Dispatch<React.SetStateAction<boolean>>,
     appName: string,
     optParams: React.MutableRefObject<Parameter[]>,
 ) {
@@ -58,7 +57,6 @@ async function addTab(
     await saveNewVariant(appName, newVariant, optParams.current)
     setVariants((prevState: any) => [...prevState, newVariant])
     setActiveKey(updateNewVariantName)
-    setUnSavedChanges(true)
 }
 
 async function removeTab(
@@ -279,7 +277,6 @@ const VersionTabs: React.FC = () => {
                         variants,
                         templateVariantName,
                         newVariantName,
-                        setUnSavedChanges,
                         appName,
                         optParams,
                     )
