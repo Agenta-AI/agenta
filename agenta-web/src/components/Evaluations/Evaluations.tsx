@@ -27,6 +27,7 @@ import EvaluationErrorModal from "./EvaluationErrorModal"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 
 import Image from "next/image"
+import abTesting from "@/media/testing.png"
 import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import regexIcon from "@/media/programming.png"
