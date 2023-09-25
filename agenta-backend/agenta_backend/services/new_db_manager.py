@@ -95,12 +95,14 @@ async def add_variant_based_on_image(
             organization_id=organization_id,
             docker_id=docker_id
         )
+        organization_db = await get_organization_object(organization_id)
         if db_image is None:
+            logger.debug("Creating new image")
             db_image = ImageDB(
                 docker_id=docker_id,
                 tags=tags,
                 user_id=user_instance,
-                organization_id=organization_id,
+                organization_id=organization_db,
             )
             await engine.save(db_image)
 
@@ -119,7 +121,7 @@ async def add_variant_based_on_image(
             variant_name=variant_name,
             image_id=db_image,
             user_id=user_instance,
-            organization_id=organization_id,
+            organization_id=organization_db,
             parameters={},
             base_name=base_name,
             config_name=config_name,
@@ -307,7 +309,7 @@ async def get_orga_image_instance(organization_id: str, docker_id: str) -> Image
         ImageDB: instance of image object
     """
 
-    query_expression = query.eq(ImageDB.organization_id, organization_id) & query.eq(
+    query_expression = (ImageDB.organization_id == ObjectId(organization_id)) & query.eq(
         ImageDB.docker_id, docker_id
     )
     image = await engine.find_one(ImageDB, query_expression)
