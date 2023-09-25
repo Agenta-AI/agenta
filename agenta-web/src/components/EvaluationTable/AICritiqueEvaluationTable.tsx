@@ -264,13 +264,14 @@ Answer ONLY with one of the given grading or evaluation options.
         if (evaluation_scenario_id) {
             const data = {
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
-                inputs: rows[rowNumber].inputs,
             }
 
             const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario(
-                evaluation_scenario_id,
                 {
-                    outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+                    correct_answer: rows[rowNumber].correctAnswer,
+                    llm_app_prompt_template: evaluation.llmAppPromptTemplate,
+                    inputs: rows[rowNumber].inputs,
+                    outputs: data.outputs,
                     evaluation_prompt_template: evaluationPromptTemplate,
                     open_ai_key: getOpenAIKey(),
                 },
@@ -280,7 +281,7 @@ Answer ONLY with one of the given grading or evaluation options.
                 const responseData = await updateEvaluationScenario(
                     evaluation.id,
                     evaluation_scenario_id,
-                    {...data, ai_critique_score: aiCritiqueScoreResponse.data},
+                    {...data, score: aiCritiqueScoreResponse.data},
                     evaluation.evaluationType as EvaluationType,
                 )
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
