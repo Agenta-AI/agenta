@@ -9,17 +9,19 @@ class AppVariant(BaseModel):
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
-    organization_id: Optional[str]
+    organization_id: Optional[str] = None
 
 
 class RestartAppContainer(BaseModel):
     app_name: str
     variant_name: str
+    organization_id: Optional[str] = None
 
 
 class Image(BaseModel):
     docker_id: str
     tags: str
+    organization_id: Optional[str] = None
 
 
 class ImageExtended(Image):
@@ -51,6 +53,7 @@ class URI(BaseModel):
 
 class App(BaseModel):
     app_name: str
+    organization_id: Optional[str] = None
 
 
 class DockerEnvVars(BaseModel):
@@ -62,6 +65,7 @@ class CreateAppVariant(BaseModel):
     image_id: str
     image_tag: str
     env_vars: Dict[str, str]
+    organization_id: Optional[str] = None
 
 
 class InviteRequest(BaseModel):
@@ -75,3 +79,4 @@ class InviteToken(BaseModel):
 class Environment(BaseModel):
     name: str
     deployed_app_variant: Optional[str]
+    organization_id: Optional[str] = None

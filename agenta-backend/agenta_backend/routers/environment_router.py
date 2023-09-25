@@ -1,9 +1,11 @@
 import os
 from typing import List
 
-from agenta_backend.models.api.api_models import Environment
+from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
 from fastapi import APIRouter, Depends, HTTPException
+from agenta_backend.utills.common import check_access_to_app
+from agenta_backend.models.api.api_models import Environment
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
@@ -26,8 +28,21 @@ async def list_environments(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        app_variants = await db_manager.list_environments(app_name=app_name, **kwargs)
-        return app_variants
+        
+        # Check if has app access
+        access_app = await check_access_to_app(kwargs, app_name=app_name)
+        
+        if not access_app:
+            error_msg = (
+                f"You do not have access to this app: {app_name}"
+            )
+            return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=400,
+                )
+        else:
+            app_variants = await db_manager.list_environments(app_name=app_name, **kwargs)
+            return app_variants
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -52,8 +67,21 @@ async def deploy_to_environment(
     """
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        await db_manager.deploy_to_environment(
-            app_name, environment_name, variant_name, **kwargs
-        )
+        
+        # Check if has app access
+        access_app = await check_access_to_app(kwargs, app_name=app_name)
+        
+        if not access_app:
+            error_msg = (
+                f"You do not have access to this app: {app_name}"
+            )
+            return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=400,
+                )
+        else:
+            await db_manager.deploy_to_environment(
+                app_name, environment_name, variant_name, **kwargs
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
