@@ -135,7 +135,7 @@ class ExecuteCustomEvaluationCode(BaseModel):
     variant_name: str
     correct_answer: str
     outputs: List[Dict[str, Any]]
-    
+
 
 class CreatePinnedEvaluationResult(BaseModel):
     results: str
@@ -143,7 +143,7 @@ class CreatePinnedEvaluationResult(BaseModel):
 
 class UnpinEvaluationResult(BaseModel):
     pinned_id: str
-    
+
 
 class PinnedEvaluationResults(CreatePinnedEvaluationResult):
     evaluation_id: str

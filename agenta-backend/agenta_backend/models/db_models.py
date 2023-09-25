@@ -147,7 +147,7 @@ class PinnedEvaluationResultsDB(Model):
     results: str
     created_at: Optional[datetime]
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-    
+
     class Config:
         collection = "pinned_evaluation_results"
 
