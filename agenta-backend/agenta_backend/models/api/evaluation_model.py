@@ -71,14 +71,19 @@ class EvaluationScenario(BaseModel):
     id: Optional[str]
 
 
-class EvaluationScenarioUpdate(BaseModel):
-    vote: Optional[str]
-    score: Optional[str]
-    correct_answer: Optional[str]  # will be used when running custom code evaluation
+class AICritiqueCreate(BaseModel):
     outputs: List[EvaluationScenarioOutput]
     evaluation_prompt_template: Optional[str]
     open_ai_key: Optional[str]
 
+
+class EvaluationScenarioUpdate(BaseModel):
+    vote: Optional[str]
+    score: Optional[str]
+    ai_critique_score: Optional[str]
+    correct_answer: Optional[str]  # will be used when running custom code evaluation
+    outputs: List[EvaluationScenarioOutput]
+    
 
 class EvaluationScenarioScoreUpdate(BaseModel):
     score: float
