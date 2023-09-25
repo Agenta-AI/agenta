@@ -63,7 +63,7 @@ async def create_variant_based_on_image(
     base_name: str = None,
     config_name: str = "default",
     **kwargs: dict
-):
+) -> AppVariantDB:
     """
     Adds an app variant based on an image.
     Used both when createa an app variant from template and from CLI
@@ -140,6 +140,7 @@ async def create_variant_based_on_image(
             config_id=db_config
         )
         await engine.save(db_app_variant)
+        return db_app_variant
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

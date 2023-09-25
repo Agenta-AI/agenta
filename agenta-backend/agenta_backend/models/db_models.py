@@ -39,7 +39,7 @@ class ImageDB(Model):
     docker_id: str = Field(index=True)
     tags: str
     user_id: UserDB = Reference(key_name="user")
-    organization_id: Reference[OrganizationDB] = Reference(key_name="organization")
+    organization_id: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -78,9 +78,9 @@ class AppVariantDB(Model):
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
     base_name: Optional[str]
-    base_id: Optional[Reference[BaseDB]] = Reference(key_name="bases")
+    base_id: Optional[BaseDB] = Reference(key_name="bases")
     config_name: Optional[str]
-    config_id: Optional[Reference[ConfigDB]] = Reference(key_name="configs")
+    config_id: Optional[ConfigDB] = Reference(key_name="configs")
 
     is_deleted: bool = Field(
         default=False
@@ -133,7 +133,7 @@ class EvaluationScenarioInput(EmbeddedModel):
 
 
 class EvaluationScenarioOutput(EmbeddedModel):
-    variant_id: Reference[AppVariantDB] = Reference(key_name="app_variants")
+    variant_id: AppVariantDB = Reference(key_name="app_variants")
     variant_output: str
 
 
@@ -143,11 +143,11 @@ class EvaluationDB(Model):
     custom_code_evaluation_id: Optional[str]
     evaluation_type_settings: EvaluationTypeSettings
     llm_app_prompt_template: str
-    variant_ids: List[Reference[AppVariantDB]] = Reference(key_name="app_variants")
-    app_id: Reference[AppDB] = Reference(key_name="app")
+    variant_ids: List[AppVariantDB] = Reference(key_name="app_variants")
+    app_id: AppDB = Reference(key_name="app")
     testset: Dict[str, str]
     user: UserDB = Reference(key_name="user")
-    organization_id: Optional[Reference[OrganizationDB]] = Reference(key_name="organization")
+    organization_id: Optional[OrganizationDB] = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -161,9 +161,9 @@ class EvaluationScenarioDB(Model):
     vote: Optional[str]
     score: Optional[str]
     evaluation: Optional[str]
-    evaluation_id: Reference[EvaluationDB] = Reference(key_name="evaluations")
+    evaluation_id: EvaluationDB = Reference(key_name="evaluations")
     user: UserDB = Reference(key_name="user")
-    organization_id: Reference[OrganizationDB] = Reference(key_name="organization")
+    organization_id: OrganizationDB = Reference(key_name="organization")
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -173,11 +173,11 @@ class EvaluationScenarioDB(Model):
 
 
 class CustomEvaluationDB(Model):
-    evaluation_id: Reference[EvaluationDB] = Reference(key_name="evaluations")
+    evaluation_id: EvaluationDB = Reference(key_name="evaluations")
     python_code: str
-    app_id: Reference[AppDB] = Reference(key_name="app")
+    app_id: AppDB = Reference(key_name="app")
     user: UserDB = Reference(key_name="user")
-    organization_id: Reference[OrganizationDB] = Reference(key_name="organization")
+    organization_id: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -187,10 +187,10 @@ class CustomEvaluationDB(Model):
 
 class TestSetDB(Model):
     name: str
-    app_id: Reference[AppDB] = Reference(key_name="app")
+    app_id: AppDB = Reference(key_name="app")
     csvdata: List[Dict[str, str]]
     user: UserDB = Reference(key_name="user")
-    organization_id: Reference[OrganizationDB] = Reference(key_name="organization")
+    organization_id: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 

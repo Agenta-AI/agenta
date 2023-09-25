@@ -349,7 +349,7 @@ async def start_variant(
 
 
 async def start_variant_new(
-    app_variant: AppVariant, env_vars: DockerEnvVars = None, **kwargs: dict
+    db_app_variant: AppVariantDB, env_vars: DockerEnvVars = None, **kwargs: dict
 ) -> URI:
     """
     Starts a Docker container for a given app variant.
@@ -369,32 +369,23 @@ async def start_variant_new(
         RuntimeError: If there is an error starting the Docker container.
     """
     try:
-        image: Image = await db_manager.get_image(app_variant, **kwargs)
-    except Exception as e:
-        logger.error(
-            f"Error fetching image for app variant {app_variant.app_name}/{app_variant.variant_name} from database: {str(e)}"
-        )
-        raise Exception(
-            f"Image for app variant {app_variant.app_name}/{app_variant.variant_name} not found in database \n {str(e)}"
-        )
-
-    try:
+        db_app_variant.image_id
         uri: URI = docker_utils.start_container(
-            image_name=image.tags,
-            app_name=app_variant.app_name,
-            variant_name=app_variant.variant_name,
+            image_name=db_app_variant.image_id.tags,
+            app_name=db_app_variant.app_id.app_name,
+            variant_name=db_app_variant.variant_name,
             env_vars=env_vars,
-            organization_id=app_variant.organization_id,
+            organization_id=db_app_variant.organization_id,
         )
         logger.info(
-            f"Started Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} at URI {uri}"
+            f"Started Docker container for app variant {db_app_variant.app_name}/{db_app_variant.variant_name} at URI {uri}"
         )
     except Exception as e:
         logger.error(
-            f"Error starting Docker container for app variant {app_variant.app_name}/{app_variant.variant_name}: {str(e)}"
+            f"Error starting Docker container for app variant {db_app_variant.app_name}/{db_app_variant.variant_name}: {str(e)}"
         )
         raise Exception(
-            f"Failed to start Docker container for app variant {app_variant.app_name}/{app_variant.variant_name} \n {str(e)}"
+            f"Failed to start Docker container for app variant {db_app_variant.app_name}/{db_app_variant.variant_name} \n {str(e)}"
         )
 
     return uri
