@@ -518,12 +518,12 @@ async def add_app_variant_from_template(
     app_name = payload.app_name.lower()
     app = await db_manager.fetch_app_by_name_and_organization(app_name, organization_id, **kwargs)
     if app is None:
-        app = db_manager.create_app(app_name, organization_id, **kwargs)
+        app = await db_manager.create_app(app_name, organization_id, **kwargs)
 
     # Create an Image instance with the extracted image id, and defined image name
     image_name = f"agentaai/templates:{payload.image_tag}"
     # Save variant based on the image to database
-    db_app_variant = await db_manager.create_variant_based_on_image(app_id=app.id,
+    db_app_variant = await db_manager.create_variant_based_on_image(app_id=app,
                                                                     variant_name="app",
                                                                     docker_id=payload.image_id,
                                                                     tags=f"{image_name}",
@@ -545,7 +545,6 @@ async def add_app_variant_from_template(
     else:
         envvars = {} if payload.env_vars is None else payload.env_vars
 
-    # Start variant
     url = await app_manager.start_variant_new(db_app_variant, envvars, **kwargs)
 
     return {
