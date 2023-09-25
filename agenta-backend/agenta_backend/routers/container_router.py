@@ -11,6 +11,10 @@ from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
 from agenta_backend.services.docker_utils import restart_container
+from agenta_backend.utills.common import (
+    get_app_instance,
+    check_access_to_app
+)
 from agenta_backend.models.api.api_models import (
     Image,
     RestartAppContainer,
@@ -46,6 +50,7 @@ async def build_image(
     app_name: str,
     variant_name: str,
     tar_file: UploadFile,
+    organization_id: str = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Image:
     """Takes a tar file and builds a docker image from it
@@ -65,8 +70,23 @@ async def build_image(
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
+    # Check app access
+    if organization_id is None:
+        app_variant = await get_app_instance(app_name, variant_name)
+        organization_id = str(app_variant.organization_id)
+        app_access = await check_access_to_app(kwargs, app_variant=app_variant)
+    else:
+        organization_id = organization_id
+        app_access = await check_access_to_app(kwargs, app_name=app_name)
+
+    if not app_access:
+        error_msg = (
+            f"You do not have access to this app: {app_name}"
+        )
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
 
     # Get event loop
     loop = asyncio.get_event_loop()
@@ -92,7 +112,7 @@ async def build_image(
         *(
             app_name,
             variant_name,
-            str(user.id),
+            organization_id,
             tar_path,
             image_name,
             temp_dir,
@@ -118,15 +138,33 @@ async def restart_docker_container(
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
+    # Get App object
+    if payload.organization_id is None:
+        app_variant = await get_app_instance(payload.app_name, payload.variant_name)
+        print("app_variant: " + str(app_variant))
+        organization_id = str(app_variant.organization_id)
+        app_access = await check_access_to_app(kwargs, app_variant=app_variant)
+    else:
+        organization_id = payload.organization_id
+        app_access = await check_access_to_app(kwargs, app_name=payload.app_name)
 
-    try:
-        container_id = f"{payload.app_name}-{payload.variant_name}-{str(user.id)}"
-        restart_container(container_id)
-        return {"message": "Please wait a moment. The container is now restarting."}
-    except Exception as ex:
-        return JSONResponse({"message": str(ex)}, status_code=500)
+    if app_access:
+
+        try:
+
+            container_id = f"{payload.app_name}-{payload.variant_name}-{str(organization_id)}"
+            restart_container(container_id)
+            return {"message": "Please wait a moment. The container is now restarting."}
+        except Exception as ex:
+            return JSONResponse({"message": str(ex)}, status_code=500)
+    else:
+        error_msg = (
+            f"You do not have access to this app: {payload.app_name}"
+        )
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
 
 
 @router.get("/templates/")
@@ -182,6 +220,7 @@ async def pull_image(
 async def construct_app_container_url(
     app_name: str,
     variant_name: str,
+    organization_id: str = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     """Construct and return the app container url path.
@@ -195,12 +234,10 @@ async def construct_app_container_url(
         URI -- the url path of the container
     """
 
-    # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    if organization_id is None:
+        app_variant = await get_app_instance(app_name)
+        organization_id = str(app_variant.organization_id)
 
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    # Set user backend url path and container name
-    user_backend_url_path = f"{str(user.id)}/{app_name}/{variant_name}"
-    return URI(uri=f"{user_backend_url_path}")
+    # Set organization backend url path and container name
+    org_backend_url_path = f"{organization_id}/{app_name}/{variant_name}"
+    return URI(uri=f"{org_backend_url_path}")

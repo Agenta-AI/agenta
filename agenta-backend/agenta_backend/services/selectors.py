@@ -68,9 +68,6 @@ async def get_user_own_org(user_uid: str) -> Organization:
     # get the organization
     org: OrganizationDB = await engine.find_one(OrganizationDB, query_expression)
 
-    # get the organization
-    org: OrganizationDB = await engine.find_one(OrganizationDB, query_expression)
-
     if org is not None:
         return org
     else:
