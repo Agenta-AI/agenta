@@ -8,8 +8,10 @@ from agenta_backend.models.db_models import (
     AppVariantDB,
     OrganizationDB,
 )
-
+import logging
 engine = DBEngine(mode="default").engine()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 async def get_organization(org_id: str) -> OrganizationDB:
@@ -48,29 +50,19 @@ async def get_app_instance(
 async def check_user_org_access(
     kwargs: dict, organization_id: str, owner=False
 ) -> bool:
-    if owner == False:
+    if not owner:
         user_organizations: List = kwargs["organization_ids"]
         object_organization_id = ObjectId(
             organization_id
-        )  # Parse the provided organization_id
-
-        if object_organization_id in user_organizations:
-            return True
-        else:
-            return False
-    elif owner == True:
+        )
+        return object_organization_id in user_organizations
+    elif owner:
         user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
         organization = await get_organization(organization_id)
-        if organization is not None:
-            if organization.owner != str(user.id):
-                return False
-            else:
-                return True
-        else:
-            return JSONResponse(
-                {"detail": "This organization doesn't exist"},
-                status_code=400,
-            )
+        if not organization:
+            logger.error("Organization not found")
+            raise Exception("Organization not found")
+        return organization.owner == str(user.id)
 
 
 async def check_access_to_app(
