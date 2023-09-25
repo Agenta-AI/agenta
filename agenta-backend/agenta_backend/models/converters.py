@@ -14,7 +14,7 @@ def app_variant_db_to_pydantic(
     app_variant_db: AppVariantDB, previous_variant_name: str = None
 ) -> AppVariant:
     return AppVariant(
-        variant_id=str(app_variant_db.id),
+        app_id=str(app_variant_db.id),
         app_name=app_variant_db.app_name,
         variant_name=app_variant_db.variant_name,
         parameters=app_variant_db.parameters,
