@@ -765,24 +765,6 @@ async def get_user_image_instance(user_id: str, docker_id: str) -> ImageDB:
     return image
 
 
-async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
-    """Get the image object from the database with the provided id.
-
-    Arguments:
-        organization_id (str): Ther orga unique identifier
-        docker_id (str): The image id
-
-    Returns:
-        ImageDB: instance of image object
-    """
-
-    query_expression = query.eq(ImageDB.organization_id, organization_id) & query.eq(
-        ImageDB.docker_id, docker_id
-    )
-    image = await engine.find_one(ImageDB, query_expression)
-    return image
-
-
 async def create_environment(name: str, app_name: str, organization_id, **kwargs: dict):
     """
     Creates a new environment for the given app with the given name.

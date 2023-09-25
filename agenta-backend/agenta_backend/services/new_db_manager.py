@@ -14,7 +14,7 @@ from agenta_backend.models.api.api_models import (
     ImageExtended,
     Template,
 )
-from agenta_backend.models.converters import (
+from agenta_backend.models.new_converters import (
     app_variant_db_to_pydantic,
     image_db_to_pydantic,
     templates_db_to_pydantic,
@@ -195,7 +195,7 @@ async def get_organization_object(organization_id: str) -> OrganizationDB:
 
 async def list_app_variants(
     app_id: str = None, show_soft_deleted=False, **kwargs: dict
-) -> List[AppVariant]:
+) -> List[AppVariantDB]:
     """
     Lists all the app variants from the db
     Args:
@@ -228,21 +228,87 @@ async def list_app_variants(
     if app_id is not None:
         query_filters = (AppVariantDB.app_id == ObjectId(app_id)) & obj_query
 
-    if not show_soft_deleted and app_name is not None:
+    if not show_soft_deleted and app_id is not None:
         query_filters = (
             query.eq(AppVariantDB.is_deleted, False)
-            & query.eq(AppVariantDB.app_name, app_name)
+            & (AppVariantDB.app_name == ObjectId(app_id))
             & obj_query
         )
 
     app_variants_db: List[AppVariantDB] = await engine.find(
         AppVariantDB,
         query_filters,
-        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
+        sort=(AppVariantDB.variant_name),
     )
 
-    # Include previous variant name
-    app_variants: List[AppVariant] = [
-        app_variant_db_to_pydantic(av) for av in app_variants_db
-    ]
-    return app_variants
+    return app_variants_db
+
+
+async def get_user_object(user_uid: str) -> UserDB:
+    """Get the user object from the database.
+
+    Arguments:
+        user_id (str): The user unique identifier
+
+    Returns:
+        UserDB: instance of user
+    """
+
+    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
+    if user is None:
+        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+            create_user = UserDB(uid="0")
+            await engine.save(create_user)
+
+            org = OrganizationDB(type="default", owner=str(create_user.id))
+            await engine.save(org)
+
+            create_user.organizations.append(org.id)
+            await engine.save(create_user)
+            await engine.save(org)
+
+            return create_user
+        else:
+            raise Exception("Please login or signup")
+    else:
+        return user
+
+
+async def clean_soft_deleted_variants():
+    """Remove soft-deleted app variants if their image is not used by any existing variant."""
+
+    # Get all soft-deleted app variants
+    soft_deleted_variants: List[AppVariantDB] = await engine.find(
+        AppVariantDB, AppVariantDB.is_deleted == True
+    )
+
+    for variant in soft_deleted_variants:
+        # Build the query expression for the two conditions
+        query_expression = query.eq(
+            AppVariantDB.image_id, variant.image_id.id
+        ) & query.eq(AppVariantDB.is_deleted, False)
+
+        # Get non-deleted variants that use the same image
+        image_used = await engine.find_one(AppVariantDB, query_expression)
+
+        # If the image is not used by any non-deleted variant, delete the variant
+        if image_used is None:
+            await engine.delete(variant)
+
+
+async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
+    """Get the image object from the database with the provided id.
+
+    Arguments:
+        organization_id (str): Ther orga unique identifier
+        docker_id (str): The image id
+
+    Returns:
+        ImageDB: instance of image object
+    """
+
+    query_expression = query.eq(ImageDB.organization_id, organization_id) & query.eq(
+        ImageDB.docker_id, docker_id
+    )
+    image = await engine.find_one(ImageDB, query_expression)
+    return image
