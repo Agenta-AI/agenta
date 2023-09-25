@@ -72,6 +72,9 @@ class EvaluationScenario(BaseModel):
 
 
 class AICritiqueCreate(BaseModel):
+    correct_answer: str
+    llm_app_prompt_template: Optional[str]
+    inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]
     evaluation_prompt_template: Optional[str]
     open_ai_key: Optional[str]
@@ -80,7 +83,6 @@ class AICritiqueCreate(BaseModel):
 class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
     score: Optional[str]
-    ai_critique_score: Optional[str]
     correct_answer: Optional[str]  # will be used when running custom code evaluation
     outputs: List[EvaluationScenarioOutput]
 
