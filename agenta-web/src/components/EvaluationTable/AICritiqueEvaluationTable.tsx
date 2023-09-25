@@ -21,6 +21,7 @@ import {
     callVariant,
     fetchEvaluationResults,
     updateEvaluation,
+    evaluateAICritiqueForEvalScenario,
 } from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
@@ -264,15 +265,19 @@ Answer ONLY with one of the given grading or evaluation options.
             const data = {
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
                 inputs: rows[rowNumber].inputs,
-                evaluation_prompt_template: evaluationPromptTemplate,
-                open_ai_key: getOpenAIKey(),
             }
+
+            const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario(evaluation_scenario_id, {
+                outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+                evaluation_prompt_template: evaluationPromptTemplate,
+                open_ai_key: getOpenAIKey()
+            })
 
             try {
                 const responseData = await updateEvaluationScenario(
                     evaluation.id,
                     evaluation_scenario_id,
-                    data,
+                    {...data, ai_critique_score: aiCritiqueScoreResponse.data},
                     evaluation.evaluationType as EvaluationType,
                 )
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
