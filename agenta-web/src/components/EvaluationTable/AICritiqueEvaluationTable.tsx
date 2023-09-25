@@ -266,16 +266,14 @@ Answer ONLY with one of the given grading or evaluation options.
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
             }
 
-            const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario(
-                {
-                    correct_answer: rows[rowNumber].correctAnswer,
-                    llm_app_prompt_template: evaluation.llmAppPromptTemplate,
-                    inputs: rows[rowNumber].inputs,
-                    outputs: data.outputs,
-                    evaluation_prompt_template: evaluationPromptTemplate,
-                    open_ai_key: getOpenAIKey(),
-                },
-            )
+            const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario({
+                correct_answer: rows[rowNumber].correctAnswer,
+                llm_app_prompt_template: evaluation.llmAppPromptTemplate,
+                inputs: rows[rowNumber].inputs,
+                outputs: data.outputs,
+                evaluation_prompt_template: evaluationPromptTemplate,
+                open_ai_key: getOpenAIKey(),
+            })
 
             try {
                 const responseData = await updateEvaluationScenario(
