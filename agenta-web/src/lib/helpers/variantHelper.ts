@@ -65,10 +65,9 @@ export const getAllVariantParameters = async (appName: string, variant: Variant)
             parameters = [...initOptParams]
         }
         inputs = updateInputParams(parameters, inputParams)
-        const baseName_ = variant.templateVariantName
-            ? variant.templateVariantName
-            : variant.variantName
-        const baseName = variant.baseName ?? baseName_
+        const baseName =
+            variant.baseName ??
+            (variant.templateVariantName ? variant.templateVariantName : variant.variantName)
         const URIPath = `${appName}/${baseName}`
         return {parameters, inputs, URIPath}
     } catch (err: any) {
