@@ -260,7 +260,7 @@ async def update_evaluation_scenario(
             "correct_answer"
         ]
     elif evaluation_type == EvaluationType.auto_ai_critique:
-        new_evaluation_set["evaluation"] = evaluation_scenario_dict["ai_critique_score"]
+        new_evaluation_set["evaluation"] = evaluation_scenario_dict["score"]
 
     # Get an evaluation scenario with the provided id
     result = await engine.find_one(EvaluationScenarioDB, query_expression_eval_scen)
@@ -365,7 +365,7 @@ async def get_evaluation_scenario_score(
 
 def evaluate_with_ai_critique(
     llm_app_prompt_template: str,
-    llm_app_inputs: dict,
+    llm_app_inputs: list,
     correct_answer: str,
     app_variant_output: str,
     evaluation_prompt_template: str,
@@ -380,7 +380,7 @@ def evaluate_with_ai_critique(
 
     Args:
         llm_app_prompt_template (str): the prompt template of the llm app variant
-        llm_app_inputs (dict): parameters
+        llm_app_inputs (list): parameters
         correct_answer (str): correct answer
         app_variant_output (str): the output of an ll app variant with given parameters
         evaluation_prompt_template (str): evaluation prompt set by an agenta user in the ai evaluation view
