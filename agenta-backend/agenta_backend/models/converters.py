@@ -7,6 +7,7 @@ from agenta_backend.models.api.api_models import (
     ImageExtended,
     Template,
     TemplateImageInfo,
+    AppVariantOutput,
 )
 
 
@@ -20,6 +21,24 @@ def app_variant_db_to_pydantic(
         parameters=app_variant_db.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         organization_id=app_variant_db.organization_id,
+    )
+
+
+def app_variant_db_to_output(
+    app_variant_db: AppVariantDB
+) -> AppVariantOutput:
+    return AppVariantOutput(
+        app_id=str(app_variant_db.app_id.id),
+        variant_name=app_variant_db.variant_name,
+        variant_id=str(app_variant_db.id),
+        user_id=str(app_variant_db.user_id.id),
+        organization_id=str(app_variant_db.organization_id.id),
+        parameters=app_variant_db.parameters,
+        previous_variant_name=app_variant_db.previous_variant_name,
+        base_name=app_variant_db.base_name,
+        base_id=str(app_variant_db.base_id.id),
+        config_name=app_variant_db.config_name,
+        config_id=str(app_variant_db.config_id.id),
     )
 
 

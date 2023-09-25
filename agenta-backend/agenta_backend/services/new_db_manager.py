@@ -41,7 +41,7 @@ logger.setLevel(logging.DEBUG)
 
 
 async def add_variant_based_on_image(
-    app_id: str,
+    app_id: AppDB,
     variant_name: str,
     docker_id: str,
     tags: str,
@@ -76,7 +76,7 @@ async def add_variant_based_on_image(
         ):
             raise ValueError("App variant or image is None")
 
-        soft_deleted_variants = await list_app_variants_for_app_id(app_id=app_id,
+        soft_deleted_variants = await list_app_variants_for_app_id(app_id=str(app_id.id),
                                                                    show_soft_deleted=True, **kwargs
                                                                    )
         already_exists = any(
