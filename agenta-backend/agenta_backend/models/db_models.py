@@ -78,9 +78,9 @@ class AppVariantDB(Model):
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
     base_name: Optional[str]
-    base_id: Optional[BaseDB] = Reference(key_name="bases")
+    base_id: BaseDB = Reference(key_name="bases")
     config_name: Optional[str]
-    config_id: Optional[ConfigDB] = Reference(key_name="configs")
+    config_id: ConfigDB = Reference(key_name="configs")
 
     is_deleted: bool = Field(
         default=False
@@ -143,11 +143,11 @@ class EvaluationDB(Model):
     custom_code_evaluation_id: Optional[str]
     evaluation_type_settings: EvaluationTypeSettings
     llm_app_prompt_template: str
-    variant_ids: List[AppVariantDB] = Reference(key_name="app_variants")
+    variant_ids: List[ObjectId]
     app_id: AppDB = Reference(key_name="app")
     testset: Dict[str, str]
     user: UserDB = Reference(key_name="user")
-    organization_id: Optional[OrganizationDB] = Reference(key_name="organization")
+    organization_id: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -157,7 +157,7 @@ class EvaluationDB(Model):
 
 class EvaluationScenarioDB(Model):
     inputs: List[EvaluationScenarioInput]
-    outputs: List[EvaluationScenarioOutput]
+    outputs: List[ObjectId]
     vote: Optional[str]
     score: Optional[str]
     evaluation: Optional[str]

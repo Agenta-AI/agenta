@@ -22,7 +22,7 @@ class AppVariantFromImage(BaseModel):
 
 
 class RestartAppContainer(BaseModel):
-    variant_id: Reference[AppVariantDB] = Reference(key_name="variant")
+    variant_id: str
     organization_id: Optional[str] = None
 
 
