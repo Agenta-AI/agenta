@@ -141,6 +141,10 @@ class CreatePinnedEvaluationResult(BaseModel):
     results: str
 
 
+class UnpinEvaluationResult(BaseModel):
+    pinned_id: str
+    
+
 class PinnedEvaluationResults(CreatePinnedEvaluationResult):
     evaluation_id: str
     pinned_id: str
