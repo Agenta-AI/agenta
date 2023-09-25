@@ -429,12 +429,11 @@ export const postEvaluationScenario = async (evaluationTableId: string, data: Ge
 }
 
 export const evaluateAICritiqueForEvalScenario = async (
-    evaluation_scenario_id: string,
     data: AICritiqueCreate,
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/ai_critique`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/ai_critique`,
         data,
         {_ignoreError: ignoreAxiosError} as any,
     )
