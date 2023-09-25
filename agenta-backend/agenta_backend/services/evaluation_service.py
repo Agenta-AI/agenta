@@ -15,6 +15,8 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioUpdate,
     CreateCustomEvaluation,
     EvaluationUpdate,
+    CreatePinnedEvaluationResult,
+    PinnedEvaluationResults as PinnedEvalResultOutput,
 )
 from agenta_backend.services.security.sandbox import execute_code_safely
 from agenta_backend.services.db_manager import engine, query, get_user_object
@@ -27,6 +29,7 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioInput,
     EvaluationScenarioOutput,
     CustomEvaluationDB,
+    PinnedEvaluationResultsDB,
 )
 
 from langchain.chains import LLMChain
@@ -40,7 +43,9 @@ class UpdateEvaluationScenarioError(Exception):
     pass
 
 
-async def create_new_evaluation(payload: NewEvaluation, **kwargs: dict) -> Dict:
+async def create_new_evaluation(
+    payload: NewEvaluation, **kwargs: dict
+) -> Dict:
     # Get user object
     user = await get_user_object(kwargs["uid"])
 
@@ -50,7 +55,9 @@ async def create_new_evaluation(payload: NewEvaluation, **kwargs: dict) -> Dict:
     evaluation_dict["updated_at"] = datetime.utcnow()
 
     # Initialize evaluation type settings embedded model
-    similarity_threshold = payload.evaluation_type_settings.similarity_threshold
+    similarity_threshold = (
+        payload.evaluation_type_settings.similarity_threshold
+    )
     regex_pattern = payload.evaluation_type_settings.regex_pattern
     regex_should_match = payload.evaluation_type_settings.regex_should_match
     webhook_url = payload.evaluation_type_settings.webhook_url
@@ -59,7 +66,9 @@ async def create_new_evaluation(payload: NewEvaluation, **kwargs: dict) -> Dict:
         if similarity_threshold is None
         else similarity_threshold,
         regex_pattern="" if regex_pattern is None else regex_pattern,
-        regex_should_match=True if regex_should_match is None else regex_should_match,
+        regex_should_match=True
+        if regex_should_match is None
+        else regex_should_match,
         webhook_url="" if webhook_url is None else webhook_url,
     )
 
@@ -86,7 +95,9 @@ async def create_new_evaluation(payload: NewEvaluation, **kwargs: dict) -> Dict:
 
     # Get testset using the provided _id
     testsetId = eval_instance.testset["_id"]
-    testset = await engine.find_one(TestSetDB, TestSetDB.id == ObjectId(testsetId))
+    testset = await engine.find_one(
+        TestSetDB, TestSetDB.id == ObjectId(testsetId)
+    )
 
     csvdata = testset.csvdata
     for datum in csvdata:
@@ -183,9 +194,9 @@ async def update_evaluation(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression for evaluation
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
+    query_expression = query.eq(
+        EvaluationDB.id, ObjectId(evaluation_id)
+    ) & query.eq(EvaluationDB.user, user.id)
     result = await engine.find_one(EvaluationDB, query_expression)
 
     if result is not None:
@@ -196,13 +207,16 @@ async def update_evaluation(
         if update_payload.evaluation_type_settings is not None:
             updates["evaluation_type_settings"] = EvaluationTypeSettings(
                 similarity_threshold=result.evaluation_type_settings.similarity_threshold
-                if update_payload.evaluation_type_settings.similarity_threshold is None
+                if update_payload.evaluation_type_settings.similarity_threshold
+                is None
                 else update_payload.evaluation_type_settings.similarity_threshold,
                 regex_pattern=result.evaluation_type_settings.regex_pattern
-                if update_payload.evaluation_type_settings.regex_pattern is None
+                if update_payload.evaluation_type_settings.regex_pattern
+                is None
                 else update_payload.evaluation_type_settings.regex_pattern,
                 regex_should_match=result.evaluation_type_settings.regex_should_match
-                if update_payload.evaluation_type_settings.regex_should_match is None
+                if update_payload.evaluation_type_settings.regex_should_match
+                is None
                 else update_payload.evaluation_type_settings.regex_should_match,
                 webhook_url=result.evaluation_type_settings.webhook_url
                 if update_payload.evaluation_type_settings.webhook_url is None
@@ -225,7 +239,9 @@ async def update_evaluation(
             updated_at=result.updated_at,
         )
     else:
-        raise UpdateEvaluationScenarioError("Failed to update evaluation status")
+        raise UpdateEvaluationScenarioError(
+            "Failed to update evaluation status"
+        )
 
 
 async def update_evaluation_scenario(
@@ -280,7 +296,9 @@ async def update_evaluation_scenario(
                 for scenario_input in current_evaluation_scenario.inputs
             ],
             correct_answer=current_evaluation_scenario.correct_answer,
-            app_variant_output=new_evaluation_set["outputs"][0]["variant_output"],
+            app_variant_output=new_evaluation_set["outputs"][0][
+                "variant_output"
+            ],
             evaluation_prompt_template=evaluation_scenario_dict[
                 "evaluation_prompt_template"
             ],
@@ -289,7 +307,9 @@ async def update_evaluation_scenario(
         new_evaluation_set["evaluation"] = evaluation
 
     # Get an evaluation scenario with the provided id
-    result = await engine.find_one(EvaluationScenarioDB, query_expression_eval_scen)
+    result = await engine.find_one(
+        EvaluationScenarioDB, query_expression_eval_scen
+    )
 
     # Loop through the evaluation set outputs, create an evaluation scenario
     # output instance and append the instance in the list
@@ -352,7 +372,9 @@ async def update_evaluation_scenario_score(
     ) & query.eq(EvaluationScenarioDB.user, user.id)
 
     # Find evaluation scenario if it meets with the query expression
-    evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
+    evaluation_scenario = await engine.find_one(
+        EvaluationScenarioDB, query_expression
+    )
     evaluation_scenario.score = score
 
     # Save the evaluation scenario
@@ -380,7 +402,9 @@ async def get_evaluation_scenario_score(
     ) & query.eq(EvaluationScenarioDB.user, user.id)
 
     # Find evaluation scenario if it meets with the query expression
-    evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
+    evaluation_scenario = await engine.find_one(
+        EvaluationScenarioDB, query_expression
+    )
     return {
         "scenario_id": str(evaluation_scenario.id),
         "score": evaluation_scenario.score,
@@ -547,9 +571,9 @@ async def execute_custom_code_evaluation(
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
     # Build query expression for app variant
-    appvar_query_expression = query.eq(AppVariantDB.app_name, app_name) & query.eq(
-        AppVariantDB.variant_name, variant_name
-    )
+    appvar_query_expression = query.eq(
+        AppVariantDB.app_name, app_name
+    ) & query.eq(AppVariantDB.variant_name, variant_name)
 
     # Get app variant object
     app_variant = await engine.find_one(AppVariantDB, appvar_query_expression)
@@ -635,7 +659,9 @@ async def fetch_custom_evaluation_detail(
     # Get custom evaluation
     custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
     if not custom_eval:
-        raise HTTPException(status_code=404, detail="Custom evaluation not found")
+        raise HTTPException(
+            status_code=404, detail="Custom evaluation not found"
+        )
 
     return CustomEvaluationDetail(
         id=str(custom_eval.id),
@@ -679,3 +705,95 @@ async def fetch_custom_evaluation_names(
             )
         )
     return list_of_custom_eval_names
+
+
+async def pin_evaluation_result(
+    payload: CreatePinnedEvaluationResult, evaluation_id: str, **kwargs: dict
+) -> PinnedEvalResultOutput:
+    """Pin the result of an evaluation
+
+    Args:
+        payload (CreatePinnedEvaluationResult): the required payload
+        evaluation_id: the evaluation to pin
+
+    Raises:
+        HTTPException (404): evaluation not found
+
+    Returns:
+        PinnedEvalResultOutput: the pydantic
+    """
+
+    user = await get_user_object(kwargs["uid"])
+    evaluation = await engine.find_one(
+        EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
+    )
+    if evaluation is None:
+        raise HTTPException(404, "No evaluation found")
+
+    pinned_result = PinnedEvaluationResultsDB(
+        **payload.dict(),
+        user_id=user.id,
+        evaluation_id=ObjectId(evaluation_id),
+        created_at=datetime.utcnow(),
+    )
+    await engine.save(pinned_result)
+
+    return PinnedEvalResultOutput(
+        pinned_id=str(pinned_result.id),
+        evaluation_id=str(pinned_result.evaluation_id),
+        results=pinned_result.results,
+    )
+
+
+async def unpin_evaluation_result(pinned_id: str, evaluation_id: str):
+    """Unpin the result of an evaluation
+
+    Args:
+        pinned_id (str): the id of the pinned evaluation result
+        evaluation_id (str): the id of the evaluation
+
+    Raises:
+        HTTPException (404): evaluation not found
+    """
+
+    evaluation = await engine.find_one(
+        EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
+    )
+    if evaluation is None:
+        raise HTTPException(404, "No evaluation found")
+
+    # Build query expression
+    query_expressions = query.eq(
+        PinnedEvaluationResultsDB.id, ObjectId(pinned_id)
+    ) & query.eq(
+        PinnedEvaluationResultsDB.evaluation_id, ObjectId(evaluation_id)
+    )
+
+    # Find and delete pinned result
+    pinned_result = await engine.find_one(
+        PinnedEvaluationResultsDB, query_expressions
+    )
+    await engine.delete(pinned_result)
+
+
+async def get_all_pinned_evaluation_results(
+    **kwargs: dict,
+) -> List[PinnedEvalResultOutput]:
+    """Retrieve all the pinned evaluation results
+
+    Returns:
+        List[PinnedEvalResultOutput]: the list of pinned eval result
+    """
+
+    user = await get_user_object(kwargs["uid"])
+    pinned_results = await engine.find(
+        PinnedEvaluationResultsDB, PinnedEvaluationResultsDB.user_id == user.id
+    )
+    return [
+        PinnedEvalResultOutput(
+            pinned_id=str(pinned_result.id),
+            evaluation_id=str(pinned_result.evaluation_id),
+            results=pinned_result.results,
+        )
+        for pinned_result in pinned_results
+    ]
