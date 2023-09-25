@@ -1,77 +1,59 @@
-import {Button, Divider} from "antd"
+import {Button, Tag, Tooltip} from "antd"
 import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
+// import Image from "next/image"
+// import SimpleStartImg from "/assets/simple-img.png"
 
 type StyleProps = {
     themeMode: "dark" | "light"
 }
 
 const useStyles = createUseStyles({
-    heading: {
+    wrapper: {
         display: "flex",
-        alignItems: "center",
-        gap: "1rem",
-
-        "& > h1": {
-            margin: 0,
-            fontSize: 42,
-        },
-
-        "& > img": {
-            animation: "$wave 1.8s ease-in-out infinite",
-            height: 44,
-        },
-    },
-    h2: {
-        fontSize: "24px",
-        margin: "20px 0",
-    },
-    divider: ({themeMode}: StyleProps) => ({
-        borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.15)",
-        marginTop: 0,
-    }),
-    blueBox: ({themeMode}: StyleProps) => ({
-        backgroundColor: themeMode === "dark" ? "rgb(24, 36, 58)" : "#e6f4ff",
+        justifyContent: "space-between",
         borderRadius: 10,
-        padding: "1rem",
-        "&> h3": {
-            margin: 0,
-            fontSize: 20,
+        padding: 20,
+        gap: 20,
+    },
+    container: ({themeMode}: StyleProps) => ({
+        display: "flex",
+        flexDirection: "column",
+        border: "1px solid #000",
+        padding: "20px",
+        borderRadius: 10,
+        flex: 1,
+        backgroundColor: themeMode === "dark" ? "#000" : "#fff",
+        "&:hover": {
+            backgroundColor: themeMode === "dark" ? "rgba(0,0,0,0.3)" : "#e6fae7",
         },
     }),
-    description: {
-        padding: "0 10px",
-        lineHeight: 1.7,
-        marginBottom: "2rem",
-        "& > p:nth-of-type(2)": {
-            fontWeight: 600,
-            fontSize: 18,
-        },
+    title: {display: "flex", alignItems: "center", justifyContent: "center", gap: "15px"},
+    tag: ({themeMode}: StyleProps) => ({
+        fontSize: 14,
+        padding: "4px 10px",
+        color: "#fff",
+        backgroundColor: themeMode === "dark" ? "#006006" : "#0b8834b1",
+        border: `1px solid ${themeMode === "dark" ? "#006006" : "#000"}`,
+    }),
+    btnContainer: {
+        textAlign: "right",
+        marginTop: "auto",
     },
-    "@keyframes wave": {
-        "0%": {
-            transform: "rotate(0deg)",
+    btn: ({themeMode}: StyleProps) => ({
+        backgroundColor: themeMode === "dark" ? "#fa8416" : "#009432",
+        "&:not([disabled]):hover": {
+            backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
         },
-        "10%": {
-            transform: "rotate(-10deg)",
+        "&:not([disabled]):active": {
+            backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
         },
-        "20%": {
-            transform: "rotate(12deg)",
-        },
-        "30%": {
-            transform: "rotate(-10deg)",
-        },
-        "40%": {
-            transform: "rotate(9deg)",
-        },
-        "50%": {
-            transform: "rotate(0deg)",
-        },
-        "100%": {
-            transform: "rotate(0deg)",
-        },
-    },
+    }),
+    img: ({themeMode}: StyleProps) => ({
+        width: "100%",
+        filter: themeMode === "dark" ? "invert(1)" : "none",
+    }),
 })
 
 interface Props {
@@ -83,83 +65,77 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
     return (
-        <div>
-            <div>
-                <div className={classes.heading}>
-                    <h1>Welcome to Agenta</h1>
-                    <img src="/assets/wave.png" />
-                </div>
-                <h2 className={classes.h2}>The developer-first open source LLMOps platform.</h2>
-                <Divider className={classes.divider} />
-            </div>
-            <div className={classes.description}>
-                <p>
-                    🛠️ <strong>Agenta</strong> is an open-source LLMOps platform designed to
-                    streamline the development of robust LLM applications.
-                    <br />
-                    <br />
-                    🔬 Agenta provides with the tools for quick experimentation, prompt-engineering,
-                    and evaluation, making it easier to iterate on your LLM apps.
-                    <br />
-                    <br />
-                    🤝 With Agenta, you can:
+        <>
+            <section className={classes.wrapper}>
+                <div className={classes.container}>
+                    <div className={classes.title}>
+                        <h1 style={{fontWeight: 600, fontSize: 24}}>Simple start</h1>
+                        <Tag className={classes.tag}>2-3 mins</Tag>
+                    </div>
+
+                    <img
+                        src="/assets/simple-img.png"
+                        alt="Simple start Image"
+                        className={classes.img}
+                    />
+
                     <ul>
-                        <li>🔄 Experiment and evaluate performance</li>
-                        <li>📊 Make data-driven improvements</li>
-                        <li>👥 Enable team collaboration</li>
-                        <li>🔐 Manage version control</li>
-                        <li>🚀 Enjoy one-click deployment</li>
+                        <li>Start from a template</li>
+                        <li>Compare prompts and models</li>
+                        <li>Create testsets</li>
+                        <li>Evaluate outputs</li>
+                        <li>Deploy in one click</li>
                     </ul>
-                    📚 And yes, you're free to use any framework, library, or model you prefer.
-                    <br />
-                </p>
-                <p>
-                    Read{" "}
-                    <a href="https://docs.agenta.ai/introduction" target="_blank">
-                        Documentation
-                    </a>{" "}
-                    on how to get started.
-                </p>
-            </div>
-            <div className={classes.blueBox}>
-                <h3>Get started creating your first LLM App</h3>
 
-                {!isDemo && (
-                    <p>
-                        This guide assumes you have completed the installation process. If not,
-                        please follow our{" "}
-                        <a href="https://docs.agenta.ai/installation" target="_blank">
-                            installation guide
-                        </a>
-                        .
-                    </p>
-                )}
-                {isDemo && (
-                    <p>
-                        Important Note: You are using the demo version of Agenta. Don't forget to
-                        regularly back up your data!
-                        <br />
-                        If you're considering integrating Agenta into your workflow, feel free to{" "}
-                        <a
-                            href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
-                            target="_blank"
+                    <div className={classes.btnContainer}>
+                        <Button
+                            size="large"
+                            type="primary"
+                            className={classes.btn}
+                            onClick={onCreateAppClick}
                         >
-                            {" "}
-                            join us on Slack{" "}
-                        </a>{" "}
-                        or{" "}
-                        <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo" target="_blank">
-                            schedule an onboarding session
-                        </a>
-                        .
-                    </p>
-                )}
+                            Start
+                        </Button>
+                    </div>
+                </div>
+                <div className={classes.container}>
+                    <div className={classes.title}>
+                        <h1 style={{fontWeight: 600, fontSize: 24}}>Build complex apps</h1>
+                        <Tag className={classes.tag}>12-15 mins</Tag>
+                    </div>
 
-                <Button type="primary" onClick={onCreateAppClick}>
-                    Create New App
-                </Button>
-            </div>
-        </div>
+                    <img
+                        src="/assets/complex-img.png"
+                        alt="Complex build Image"
+                        className={classes.img}
+                    />
+
+                    <ul>
+                        <li>Start from code</li>
+                        <li>Compare different workflows</li>
+                        <li>Test parameters in the UI</li>
+                        <li>Evaluate outputs</li>
+                        <li>Deploy in one click</li>
+                        <li>Start from a template</li>
+                        <li>Compare prompts and models</li>
+                        <li>Create testsets</li>
+                        <li>Evaluate outputs</li>
+                        <li>Deploy in one click</li>
+                    </ul>
+
+                    <div className={classes.btnContainer}>
+                        <Button
+                            size="large"
+                            type="primary"
+                            className={classes.btn}
+                            disabled={!isDemo}
+                        >
+                            <Tooltip title="start">Start</Tooltip>
+                        </Button>
+                    </div>
+                </div>
+            </section>
+        </>
     )
 }
 
