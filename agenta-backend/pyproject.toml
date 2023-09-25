@@ -29,6 +29,7 @@ restrictedpython = { version = "^6.2", python = ">=3.9,<3.12" }
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
 httpx = "^0.24.0"
+pytest-asyncio = "^0.21.1"
 
 [build-system]
 requires = ["poetry-core"]
