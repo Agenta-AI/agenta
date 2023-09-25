@@ -301,7 +301,9 @@ async def update_evaluation_scenario(
 
             # Update evaluation response if type of evaluation is auto ai critique
             if evaluation_type == EvaluationType.auto_ai_critique:
-                evaluation_scenario_response.evaluation = new_evaluation_set["evaluation"]
+                evaluation_scenario_response.evaluation = new_evaluation_set[
+                    "evaluation"
+                ]
             return evaluation_scenario_response
 
     raise UpdateEvaluationScenarioError("Failed to create evaluation_scenario")

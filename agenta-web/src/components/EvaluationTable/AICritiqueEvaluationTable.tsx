@@ -267,11 +267,14 @@ Answer ONLY with one of the given grading or evaluation options.
                 inputs: rows[rowNumber].inputs,
             }
 
-            const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario(evaluation_scenario_id, {
-                outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
-                evaluation_prompt_template: evaluationPromptTemplate,
-                open_ai_key: getOpenAIKey()
-            })
+            const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario(
+                evaluation_scenario_id,
+                {
+                    outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+                    evaluation_prompt_template: evaluationPromptTemplate,
+                    open_ai_key: getOpenAIKey(),
+                },
+            )
 
             try {
                 const responseData = await updateEvaluationScenario(

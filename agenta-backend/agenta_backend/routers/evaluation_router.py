@@ -160,9 +160,7 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post(
-    "/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario
-)
+@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
@@ -269,7 +267,7 @@ async def evaluate_ai_critique(
                 ObjectId(current_evaluation_scenario.evaluation_id),
             ),
         )
-        
+
         # Run ai critique evaluation
         payload_dict = payload.dict()
         output = evaluate_with_ai_critique(
@@ -396,9 +394,9 @@ async def fetch_evaluation(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder
-    query_expression = query.eq(
-        EvaluationDB.id, ObjectId(evaluation_id)
-    ) & query.eq(EvaluationDB.user, user.id)
+    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
+        EvaluationDB.user, user.id
+    )
     evaluation = await engine.find_one(EvaluationDB, query_expression)
     if evaluation is not None:
         return Evaluation(
@@ -479,9 +477,9 @@ async def fetch_results(
     user = await get_user_object(kwargs["uid"])
 
     # Construct query expression builder and retrieve evaluation from database
-    query_expression = query.eq(
-        EvaluationDB.id, ObjectId(evaluation_id)
-    ) & query.eq(EvaluationDB.user, user.id)
+    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
+        EvaluationDB.user, user.id
+    )
     evaluation = await engine.find_one(EvaluationDB, query_expression)
 
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
@@ -650,9 +648,7 @@ async def execute_custom_evaluation(
     result = await execute_custom_code_evaluation(
         evaluation_id,
         payload.app_name,
-        formatted_outputs[
-            payload.variant_name
-        ],  # gets the output of the app variant
+        formatted_outputs[payload.variant_name],  # gets the output of the app variant
         payload.correct_answer,
         payload.variant_name,
         formatted_inputs,
