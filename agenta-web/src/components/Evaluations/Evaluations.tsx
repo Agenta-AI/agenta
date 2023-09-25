@@ -27,7 +27,6 @@ import EvaluationErrorModal from "./EvaluationErrorModal"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 
 import Image from "next/image"
-import abTesting from "@/media/testing.png"
 import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import regexIcon from "@/media/programming.png"
@@ -276,12 +275,21 @@ export default function Evaluations() {
         }
 
     const getVariantsDropdownMenu = (index: number): MenuProps => {
-        const items: MenuProps["items"] = variants.map((variant) => {
-            return {
-                label: variant.variantName,
-                key: variant.variantName,
+        const selectedVariantsNames = selectedVariants.map((variant) => variant.variantName)
+
+        const items = variants.reduce((filteredVariants, variant) => {
+            const label = variant.variantName
+
+            if (!selectedVariantsNames.includes(label)) {
+                filteredVariants.push({
+                    label,
+                    key: label,
+                })
             }
-        })
+
+            return filteredVariants
+        }, [])
+
         const menuProps: MenuProps = {
             items,
             onClick: handleAppVariantsMenuClick(index),
@@ -347,6 +355,9 @@ export default function Evaluations() {
                 _id: selectedTestset._id!,
                 name: selectedTestset.name,
             },
+            // create a filter on the variants map that lists variants so that it doesn't show variants that have
+            // been selected. So in the filter, check that variants avaiable are not in the selected
+            // variants array
         }).catch((err) => {
             setError({
                 message: getErrorMessage(err),
