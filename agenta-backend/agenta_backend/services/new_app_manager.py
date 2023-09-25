@@ -15,10 +15,10 @@ from agenta_backend.models.api.api_models import (
     ImageExtended,
 )
 from agenta_backend.models.db_models import AppVariantDB, TestSetDB
-from agenta_backend.services import db_manager, docker_utils
+from agenta_backend.services import new_db_manager, docker_utils
 from docker.errors import DockerException
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -43,7 +43,9 @@ async def start_variant(
         RuntimeError: If there is an error starting the Docker container.
     """
     try:
-        db_app_variant.image_id
+
+        logger.debug("Starting variant %s with image name %s and tags %s and app_name %s and organization %s", db_app_variant.variant_name,
+                     db_app_variant.image_id.docker_id, db_app_variant.image_id.tags, db_app_variant.app_id.app_name, db_app_variant.organization_id)
         uri: URI = docker_utils.start_container(
             image_name=db_app_variant.image_id.tags,
             app_name=db_app_variant.app_id.app_name,
@@ -52,14 +54,14 @@ async def start_variant(
             organization_id=db_app_variant.organization_id,
         )
         logger.info(
-            f"Started Docker container for app variant {db_app_variant.app_name}/{db_app_variant.variant_name} at URI {uri}"
+            f"Started Docker container for app variant {db_app_variant.app_id.app_name}/{db_app_variant.variant_name} at URI {uri}"
         )
     except Exception as e:
         logger.error(
-            f"Error starting Docker container for app variant {db_app_variant.app_name}/{db_app_variant.variant_name}: {str(e)}"
+            f"Error starting Docker container for app variant {db_app_variant.app_id.app_name}/{db_app_variant.variant_name}: {str(e)}"
         )
         raise Exception(
-            f"Failed to start Docker container for app variant {db_app_variant.app_name}/{db_app_variant.variant_name} \n {str(e)}"
+            f"Failed to start Docker container for app variant {db_app_variant.app_id.app_name}/{db_app_variant.variant_name} \n {str(e)}"
         )
 
     return uri
