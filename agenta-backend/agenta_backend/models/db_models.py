@@ -157,7 +157,7 @@ class EvaluationDB(Model):
 
 class EvaluationScenarioDB(Model):
     inputs: List[EvaluationScenarioInput]
-    outputs: List[ObjectId]
+    outputs: List[ObjectId]  # EvaluationScenarioOutput
     vote: Optional[str]
     score: Optional[str]
     evaluation: Optional[str]

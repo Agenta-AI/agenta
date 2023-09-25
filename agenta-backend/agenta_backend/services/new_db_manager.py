@@ -314,3 +314,17 @@ async def get_orga_image_instance(organization_id: str, docker_id: str) -> Image
     )
     image = await engine.find_one(ImageDB, query_expression)
     return image
+
+
+async def get_app_instance_by_id(app_id: str) -> AppDB:
+    """Get the app object from the database with the provided id.
+
+    Arguments:
+        app_id (str): The app unique identifier
+
+    Returns:
+        AppDB: instance of app object
+    """
+
+    app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
+    return app
