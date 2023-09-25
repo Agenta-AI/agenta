@@ -22,6 +22,7 @@ interface Props {
     setIsParamsCollapsed: (value: string) => void
     setUnSavedChanges: Dispatch<React.SetStateAction<boolean>>
     environments: Environment[]
+    saveAllVariantChanges: () => Promise<void>
 }
 
 const useStyles = createUseStyles({
@@ -60,6 +61,7 @@ const ParametersView: React.FC<Props> = ({
     setIsParamsCollapsed,
     setUnSavedChanges,
     environments,
+    saveAllVariantChanges,
 }) => {
     const classes = useStyles()
     const [inputValue, setInputValue] = useState(1)
@@ -129,7 +131,7 @@ const ParametersView: React.FC<Props> = ({
                                 <Button
                                     type="primary"
                                     onClick={async () => {
-                                        await onOptParamsChange(optParams!, true, isPersistent)
+                                        await saveAllVariantChanges()
                                         setUnSavedChanges(false)
                                         success()
                                     }}

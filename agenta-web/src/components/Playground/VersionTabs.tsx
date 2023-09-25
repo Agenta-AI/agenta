@@ -23,7 +23,6 @@ async function addTab(
     setUnSavedChanges: React.Dispatch<React.SetStateAction<boolean>>,
     appName: string,
     optParams: React.MutableRefObject<Parameter[]>,
-    addedVariant: React.MutableRefObject<Variant>,
 ) {
     // Find the template variant
     const templateVariant = variants.find((variant) => variant.variantName === templateVariantName)
@@ -56,10 +55,7 @@ async function addTab(
         parameters: templateVariant.parameters,
     }
 
-    addedVariant.current = newVariant
-    if (addedVariant.current.variantName) {
-        await saveNewVariant(appName, newVariant, optParams.current)
-    }
+    await saveNewVariant(appName, newVariant, optParams.current)
     setVariants((prevState: any) => [...prevState, newVariant])
     setActiveKey(updateNewVariantName)
     setUnSavedChanges(true)
@@ -104,12 +100,6 @@ const VersionTabs: React.FC = () => {
     const variantData = useVariants(appName, variants)
     const data = useRef<{newOptParams: Parameter[]; persist: boolean; updateVariant: boolean}[]>([])
     const optParams = useRef<Parameter[]>([])
-    const addedVariant = useRef<Variant>({
-        variantName: "",
-        templateVariantName: "",
-        persistent: true,
-        parameters: {},
-    })
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",
@@ -117,11 +107,7 @@ const VersionTabs: React.FC = () => {
             "You have unsaved changes in your playground. Do you want to save these changes before leaving the page?",
         okText: "Save",
         onOk: async () => {
-            await Promise.all(
-                data.current.map(({newOptParams, persist, updateVariant}, index) => {
-                    return variantData[index].saveOptParams(newOptParams, true, true)
-                }),
-            )
+            await saveAllVariantChanges()
             return true
         },
         cancelText: "Proceed without saving",
@@ -132,6 +118,14 @@ const VersionTabs: React.FC = () => {
             setUnSavedChanges(true)
         }
     }, [variantData])
+
+    const saveAllVariantChanges = async () => {
+        await Promise.all(
+            data.current.map(({newOptParams, persist, updateVariant}, index) => {
+                return variantData[index]?.saveOptParams(newOptParams, true, true)
+            }),
+        )
+    }
 
     const fetchData = async () => {
         try {
@@ -182,10 +176,6 @@ const VersionTabs: React.FC = () => {
     const handleBackendRemove = async () => {
         if (removalVariantName) {
             setIsDeleteLoading(true)
-            // only call the backend if the variant is persistent
-            // if (variants.find((variant) => variant.variantName === removalVariantName)?.persistent)
-            //     await removeVariant(appName, removalVariantName)
-
             removeTab(appName, setActiveKey, setVariants, variants, removalVariantName)
             setIsDeleteLoading(false)
         }
@@ -243,7 +233,7 @@ const VersionTabs: React.FC = () => {
                 environments={environments}
                 setUnSavedChanges={setUnSavedChanges}
                 onOptParamsChange={(...args) => handleOnOptParamsChange(...args, index)}
-                addedVariant={addedVariant.current}
+                saveAllVariantChanges={saveAllVariantChanges}
             />
         ),
         closable: !variant.persistent,
@@ -292,7 +282,6 @@ const VersionTabs: React.FC = () => {
                         setUnSavedChanges,
                         appName,
                         optParams,
-                        addedVariant,
                     )
                 }
                 variants={variants}
