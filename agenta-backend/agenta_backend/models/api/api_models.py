@@ -31,6 +31,12 @@ class AppVariantOutput(BaseModel):
     config_id: str
 
 
+class EnvironmentOutput(BaseModel):
+    name: str
+    app_id: str
+    deployed_app_variant_id: str
+
+
 class AddVariantFromPreviousPayload(BaseModel):
     previous_variant_id: str
     new_variant_name: str

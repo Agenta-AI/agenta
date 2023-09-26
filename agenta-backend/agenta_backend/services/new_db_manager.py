@@ -595,7 +595,7 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
     return app
 
 
-async def list_environments(app_id: str, **kwargs: dict) -> List[Environment]:
+async def list_environments(app_id: str, **kwargs: dict) -> List[EnvironmentDB]:
     """
     Lists all the environments for the given app name from the DB
     """
@@ -604,10 +604,30 @@ async def list_environments(app_id: str, **kwargs: dict) -> List[Environment]:
 
     environments_db: List[EnvironmentDB] = await engine.find(EnvironmentDB, EnvironmentDB.app_id == app_instance)
 
-    if environments_db:
-        return environments_db
-
-    await initialize_environments(app_name, str(app_instance.organization_id), **kwargs)
-    environments_db: List[EnvironmentDB] = await fetch_environments()
+    if not environments_db:  # not created yet
+        environments_db = await initialize_environments(app_ref=app_instance, **kwargs)
 
     return environments_db
+
+
+async def initialize_environments(app_ref: AppDB, **kwargs: dict) -> List[EnvironmentDB]:
+    environments = []
+    for env_name in ["development", "staging", "production"]:
+        env = await create_environment(name=env_name, app_ref=app_ref, **kwargs)
+        environments.append(env)
+    return environments
+
+
+async def create_environment(name: str, app_ref: AppDB, **kwargs: dict) -> EnvironmentDB:
+    """
+    Creates a new environment for the given app with the given name.
+    """
+
+    environment_db = EnvironmentDB(
+        app_id=app_ref,
+        name=name,
+        user_id=app_ref.user_id,
+        organization_id=app_ref.organization_id,
+    )
+    await engine.save(environment_db)
+    return environment_db
