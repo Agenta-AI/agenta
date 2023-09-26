@@ -16,7 +16,7 @@ import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
-import { isDemo } from "@/constants/environment"
+import {isDemo} from "@/constants/environment"
 
 type StyleProps = {
     themeMode: "dark" | "light"
