@@ -262,26 +262,30 @@ async def update_testset(
     Returns:
     str: The id of the test set updated.
     """
-    testset = {
+    testset_update = {
         "name": csvdata.name,
         "csvdata": csvdata.csvdata,
         "updated_at": datetime.now().isoformat(),
     }
-    try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
-        user = await get_user_object(kwargs["uid"])
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-        # Define query expression
-        query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
-            TestSetDB.id, ObjectId(testset_id)
+    test_set = await new_db_manager.fetch_testset_by_id(testset_id=testset_id)
+    if test_set is None:
+        raise HTTPException(status_code=404, detail="testset not found")
+    access_app = await check_access_to_app(
+        kwargs=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
+    )
+    if not access_app:
+        error_msg = f"You do not have access to this app: {test_set.app_id.id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
         )
+    try:
+        test_set.update(testset_update)
+        await engine.save(test_set)
 
-        # Find and update testset
-        result = await engine.find_one(TestSetDB, query_expression)
-        result.update(testset)
-        await engine.save(result)
-
-        if isinstance(result.id, ObjectId):
+        if isinstance(test_set.id, ObjectId):
             return {
                 "status": "success",
                 "message": "testset updated successfully",
