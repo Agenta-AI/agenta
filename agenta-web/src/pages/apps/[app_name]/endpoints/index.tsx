@@ -80,7 +80,6 @@ export default function VariantEndpoint() {
     const [variant, setVariant] = useState<Variant | null>(null)
     useEffect(() => {
         if (!selectedEnvironment) return
-        console.log(selectedEnvironment)
         const variant = variants.find(
             (variant) => variant.variantName === selectedEnvironment.deployedVariantName,
         )
@@ -95,7 +94,7 @@ export default function VariantEndpoint() {
         }
     }, [variants, appName])
 
-    const {inputParams, optParams, isLoading, isError, error} = useVariant(appName, variant!)
+    const {inputParams, isLoading, isError, error} = useVariant(appName, variant!)
     const createParams = (
         inputParams: Parameter[] | null,
         environmentName: string,

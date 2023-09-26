@@ -109,15 +109,10 @@ const VersionTabs: React.FC = () => {
     // Load environments
     const [environments, setEnvironments] = useState<Environment[]>([])
     const loadEnvironments = async () => {
-        const response: Environment[] = await fetchEnvironments(appName)
+        const response = await fetchEnvironments(appName)
         if (response.length === 0) return
 
-        setEnvironments(
-            response.map((env) => ({
-                name: env.name,
-                deployed_app_variant: env.deployed_app_variant,
-            })),
-        )
+        setEnvironments(response)
     }
     useEffect(() => {
         if (!appName) return
