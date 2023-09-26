@@ -105,14 +105,14 @@ const VersionTabs: React.FC = () => {
     }, [appName])
 
     useEffect(() => {
-        let pushUrl = '';
-        if (variantName){
+        let pushUrl = ""
+        if (variantName) {
             pushUrl = router.asPath?.replace(encodeURI(variantName), activeKey) as string
         } else {
-            pushUrl = [router.asPath, activeKey].join("/") as string
+            pushUrl = `${router.asPath}?variant_name=${activeKey}` as string
         }
-        router.push(pushUrl);
-    }, [activeKey])
+        router.push(pushUrl)
+    }, [variantName, activeKey])
 
     if (isError) return <div>failed to load variants</div>
     if (isLoading) return <div>loading variants...</div>

@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react"
+import React, {useEffect, useMemo, useState} from "react"
 import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
@@ -90,7 +90,7 @@ type LayoutProps = {
 
 const App: React.FC<LayoutProps> = ({children}) => {
     const router = useRouter()
-    const {app_name: appName, variant_name: variantName} = router.query
+    const {app_name: appName} = router.query
     const {appTheme} = useAppTheme()
     const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
@@ -123,32 +123,22 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const computePlaygroundBreadCrumbs = () => {
         const playground = `/playground`
         if (router?.pathname?.includes(playground)) {
-            const inclusions = {apps: "apps", [appName]: `apps/${appName}/playground`}
-            const paths = router.asPath
-            const urlPaths = paths?.replace(playground, "").slice(1, paths.length).split("/")
-            if (urlPaths?.length) {
-                return urlPaths.map((u) => {
-                    const decoded = decodeURI(u)
-                    const isLink = inclusions[decoded]
-
-                    if (isLink) {
-                        return {
-                            title: (
-                                <Link href={`/${isLink}`}>
-                                    {renameVariablesCapitalizeAll(decoded)}
-                                </Link>
-                            ),
-                        }
-                    }
-                    return {title: renameVariablesCapitalizeAll(decoded)}
-                })
-            }
+            const {app_name, variant_name} = router.query
+            return [
+                {title: <Link href="/apps">Apps</Link>},
+                {title: <Link href={`/apps/${app_name}/playground`}>Playground</Link>},
+                {
+                    title:
+                        variant_name &&
+                        renameVariablesCapitalizeAll(decodeURI(variant_name as string)),
+                },
+            ]
         }
 
         return [{title: <Link href="/apps">Apps</Link>}, {title: capitalizedAppName}]
     }
 
-    const breadCrumbItems = computePlaygroundBreadCrumbs()
+    const breadCrumbItems = useMemo(computePlaygroundBreadCrumbs, [router])
 
     return (
         <NoSSRWrapper>
