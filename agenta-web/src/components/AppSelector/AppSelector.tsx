@@ -16,6 +16,7 @@ import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
+import { isDemo } from "@/constants/environment"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -100,7 +101,6 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
-    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)

@@ -10,6 +10,7 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {deleteTestsets} from "@/lib/services/api"
 import axios from "@/lib/helpers/axiosConfig"
 import {createUseStyles} from "react-jss"
+import { isDemo } from "@/constants/environment"
 
 type testsetTableDatatype = {
     key: string
@@ -56,7 +57,6 @@ export default function Testsets() {
     const [loading, setLoading] = useState<boolean>(true)
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     useEffect(() => {
         if (!app_name) {

@@ -3,6 +3,7 @@ import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import {ClockCircleOutlined} from "@ant-design/icons"
+import { isDemo } from "@/constants/environment"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -76,7 +77,6 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const {Text} = Typography
-    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     return (
         <>
@@ -99,14 +99,14 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                         className={classes.img}
                     />
 
-                    <div className={classes.steps}>
-                        <h3>Workflow Essentials</h3>
-                        <Text>- Start from a template</Text>
-                        <Text>- Compare prompts and models</Text>
-                        <Text>- Create testsets</Text>
-                        <Text>- Evaluate outputs</Text>
-                        <Text>- Deploy in one click</Text>
-                    </div>
+                    <ul className={classes.steps}>
+                        {/* <h3>Workflow Essentials</h3> */}
+                        <li>Start from a template</li>
+                        <li>Compare prompts and models</li>
+                        <li>Create testsets</li>
+                        <li>Evaluate outputs</li>
+                        <li>Deploy in one click</li>
+                    </ul>
 
                     <div className={classes.btnContainer}>
                         <Button size="large" type="primary" onClick={onCreateAppClick}>
@@ -132,19 +132,19 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                         className={classes.img}
                     />
 
-                    <div className={classes.steps}>
+                    <ul className={classes.steps}>
                         <h3>Workflow Essentials</h3>
-                        <Text>- Start from code</Text>
-                        <Text>- Compare different workflows</Text>
-                        <Text>- Test parameters in the UI</Text>
-                        <Text>- Evaluate outputs</Text>
-                        <Text>- Deploy in one click</Text>
-                        <Text>- Start from a template</Text>
-                        <Text>- Compare prompts and models</Text>
-                        <Text>- Create testsets</Text>
-                        <Text>- Evaluate outputs</Text>
-                        <Text>- Deploy in one click</Text>
-                    </div>
+                        <li>Start from code</li>
+                        <li>Compare different workflows</li>
+                        <li>Test parameters in the UI</li>
+                        <li>Evaluate outputs</li>
+                        <li>Deploy in one click</li>
+                        <li>Start from a template</li>
+                        <li>Compare prompts and models</li>
+                        <li>Create testsets</li>
+                        <li>Evaluate outputs</li>
+                        <li>Deploy in one click</li>
+                    </ul>
 
                     <div className={classes.btnContainer}>
                         <Tooltip
