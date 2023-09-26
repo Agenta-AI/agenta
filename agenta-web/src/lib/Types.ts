@@ -60,6 +60,7 @@ export interface Evaluation {
         name: string
     }
     appName: string
+    llmAppPromptTemplate?: string
 }
 
 export interface CreateCustomEvaluation {
@@ -87,6 +88,15 @@ export interface SingleCustomEvaluation {
     id: string
     app_name: string
     evaluation_name: string
+}
+
+export interface AICritiqueCreate {
+    correct_answer: string
+    llm_app_prompt_template?: string
+    inputs: Array<Object>
+    outputs: Array<Object>
+    evaluation_prompt_template: string
+    open_ai_key: string
 }
 
 export interface Parameter {
