@@ -3,6 +3,7 @@
 import logging
 import os
 from typing import List, Optional
+from bson import ObjectId
 
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
@@ -103,7 +104,7 @@ async def remove_app_variant(app_variant_id: str, **kwargs: dict) -> None:
                 # TODO: This needs to change to use a db schema to save the container name
                 await _stop_and_delete_app_container(app_variant_db, **kwargs)
 
-                await new_db_manager.remove_app_variant(app_variant_db, **kwargs)  # TODO: Mahmoud not done
+                await new_db_manager.remove_app_variant(app_variant_db, **kwargs)
 
                 await new_db_manager.remove_image(image, **kwargs)
 
@@ -112,16 +113,16 @@ async def remove_app_variant(app_variant_id: str, **kwargs: dict) -> None:
                     _delete_docker_image(image)  # TODO: To implement in ee version
             else:
                 logger.debug(
-                    f"Image associated with app variant {app_variant_db.app_id.name}/{app_variant_db.variant_name} not found. Skipping deletion."
-                )  # TODO: unfinished
+                    f"Image associated wit`h app variant {app_variant_db.app_id.name}/{app_variant_db.variant_name} not found. Skipping deletion."
+                )
         else:
             await new_db_manager.remove_app_variant(app_variant_db, **kwargs)
 
         app_variants = await new_db_manager.list_app_variants(
-            app_id=app_id, **kwargs
-        )  # TODO: unfinished
+            app_id=app_id, show_soft_deleted=True, **kwargs
+        )
         if len(app_variants) == 0:  # this was the last variant for an app
-            await remove_app_related_resources(app_id=app_id, **kwargs)  # TODO: unfinished
+            await remove_app_related_resources(app_id=app_id, **kwargs)
     except Exception as e:
         logger.error(
             f"An error occurred while deleting app variant {app_variant_db.app_id.name}/{app_variant_db.variant_name}: {str(e)}"
@@ -171,10 +172,10 @@ async def remove_app_related_resources(app_id: str, **kwargs: dict):
                 f"Successfully deleted environment {environment_db.name}."
             )
         # Delete associated testsets
-        await remove_app_testsets(app_name, **kwargs)  # TODO: unfinished
-        logger.info(f"Successfully deleted test sets associated with app {app_name}.")  # TODO: unfinished
+        await new_db_manager.remove_app_testsets(app_id, **kwargs)
+        logger.info(f"Successfully deleted test sets associated with app {app_id}.")
     except Exception as e:
         logger.error(
-            f"An error occurred while cleaning up resources for app {app_name}: {str(e)}"  # TODO: unfinished
+            f"An error occurred while cleaning up resources for app {app_id}: {str(e)}"
         )
         raise e from None

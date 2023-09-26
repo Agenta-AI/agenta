@@ -30,6 +30,7 @@ from agenta_backend.models.db_models import (
     OrganizationDB,
     BaseDB,
     ConfigDB,
+    TestSetDB
 )
 from agenta_backend.services import helpers
 from agenta_backend.utills.common import engine, check_user_org_access, get_organization
@@ -281,8 +282,8 @@ async def clean_soft_deleted_variants():
 
     for variant in soft_deleted_variants:
         # Build the query expression for the two conditions
-        query_expression = query.eq(
-            AppVariantDB.image_id, variant.image_id.id
+        query_expriantDB.image_id, variant.image_idression = query.eq(
+            AppVa.id
         ) & query.eq(AppVariantDB.is_deleted, False)
 
         # Get non-deleted variants that use the same image
@@ -537,16 +538,12 @@ async def remove_app_variant(app_variant_db: AppVariantDB, **kwargs: dict):
 
     if app_variant_db.previous_variant_name is not None:  # forked variant
         await engine.delete(app_variant_db)
-        if pending_variant_to_delete is not None:
-            await engine.delete(pending_variant_to_delete)
-
+        await clean_soft_deleted_variants()  # TODO: Too costly, let's refactor
     elif is_last_variant_for_image:  # last variant using the image, okay to delete
         await engine.delete(app_variant_db)
-        if pending_variant_to_delete is not None:
-            await engine.delete(pending_variant_to_delete)
-
+        await clean_soft_deleted_variants()  # TODO: Too costly, let's refactor
     else:
-        app_variant_db.is_deleted = True  # soft deletion
+        app_variant_db.is_deleted = True  # soft deletion  # TODO: Switch this to use base_id instead
         await engine.save(app_variant_db)
 
 
@@ -662,3 +659,32 @@ async def remove_environment(environment_db: EnvironmentDB, **kwargs: dict):
     """
     assert environment_db is not None, "environment_db is missing"
     await engine.delete(environment_db)
+
+
+async def remove_app_testsets(app_id: str, **kwargs):
+    """Returns a list of testsets owned by an app.
+
+    Args:
+        app_id (str): The name of the app
+
+    Returns:
+        int: The number of testsets deleted
+    """
+
+    # Get user object
+    # Find testsets owned by the app
+    deleted_count: int = 0
+
+    # Build query expression
+    testsets = await engine.find(TestSetDB, TestSetDB.app_id == ObjectId(app_id))
+
+    # Perform deletion if there are testsets to delete
+    if testsets is not None:
+        for testset in testsets:
+            await engine.delete(testset)
+            deleted_count += 1
+            logger.info(f"{deleted_count} testset(s) deleted for app {app_id}")
+            return deleted_count
+
+    logger.info(f"No testsets found for app {app_id}")
+    return 0
