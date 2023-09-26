@@ -11,9 +11,15 @@ from agenta_backend.config import settings
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Body, HTTPException, Depends
 from agenta_backend.services.selectors import get_user_own_org
-from agenta_backend.services import app_manager, db_manager, docker_utils, new_db_manager, new_app_manager
+from agenta_backend.services import (
+    app_manager,
+    db_manager,
+    docker_utils,
+    new_db_manager,
+    new_app_manager,
+)
 from agenta_backend.utills.common import check_access_to_app, get_app_instance
-from agenta_backend.models.converters import (app_variant_db_to_output)
+from agenta_backend.models.converters import app_variant_db_to_output
 from agenta_backend.utills.common import check_user_org_access, check_access_to_variant
 from agenta_backend.models.api.api_models import (
     URI,
@@ -24,7 +30,8 @@ from agenta_backend.models.api.api_models import (
     CreateAppVariant,
     AddVariantFromPreviousPayload,
     AppVariantOutput,
-    Variant, UpdateVariantParameterPayload,
+    Variant,
+    UpdateVariantParameterPayload,
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -224,7 +231,9 @@ async def add_variant_from_previous(
         )
 
     try:
-        app_variant_db = await new_db_manager.fetch_app_variant_by_id(payload.previous_variant_id)
+        app_variant_db = await new_db_manager.fetch_app_variant_by_id(
+            payload.previous_variant_id
+        )
         if app_variant_db is None:
             raise HTTPException(
                 status_code=500,
@@ -241,7 +250,7 @@ async def add_variant_from_previous(
             previous_app_variant=app_variant_db,
             new_variant_name=payload.new_variant_name,
             parameters=payload.parameters,
-            **kwargs
+            **kwargs,
         )
         return app_variant_db_to_output(db_app_variant)
     except Exception as e:
@@ -339,7 +348,9 @@ async def remove_variant(
                 status_code=400,
             )
         else:
-            await new_app_manager.remove_app_variant(app_variant_id=variant.variant_id, **kwargs)
+            await new_app_manager.remove_app_variant(
+                app_variant_id=variant.variant_id, **kwargs
+            )
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -410,7 +421,9 @@ async def update_variant_parameters(
         )
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        access_variant = await check_access_to_variant(kwargs=kwargs, variant_id=payload.variant_id)
+        access_variant = await check_access_to_variant(
+            kwargs=kwargs, variant_id=payload.variant_id
+        )
 
         if not access_variant:
             error_msg = f"You do not have permission to update app variant: {payload.variant_id}"
@@ -420,9 +433,11 @@ async def update_variant_parameters(
                 status_code=400,
             )
         else:
-            await new_app_manager.update_variant_parameters(app_variant_id=payload.variant_id,
-                                                            parameters=payload.parameters,
-                                                            **kwargs)
+            await new_app_manager.update_variant_parameters(
+                app_variant_id=payload.variant_id,
+                parameters=payload.parameters,
+                **kwargs,
+            )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -516,21 +531,25 @@ async def add_app_variant_from_template(
 
     # Check if the app exists, if not create it
     app_name = payload.app_name.lower()
-    app = await new_db_manager.fetch_app_by_name_and_organization(app_name, organization_id, **kwargs)
+    app = await new_db_manager.fetch_app_by_name_and_organization(
+        app_name, organization_id, **kwargs
+    )
     if app is None:
         app = await new_db_manager.create_app(app_name, organization_id, **kwargs)
         await new_db_manager.initialize_environments(app_ref=app, **kwargs)
     # Create an Image instance with the extracted image id, and defined image name
     image_name = f"agentaai/templates:{payload.image_tag}"
     # Save variant based on the image to database
-    db_app_variant = await new_db_manager.add_variant_based_on_image(app_id=app,
-                                                                     variant_name="app",
-                                                                     docker_id=payload.image_id,
-                                                                     tags=f"{image_name}",
-                                                                     organization_id=organization_id,
-                                                                     base_name="app",
-                                                                     config_name="default",
-                                                                     **kwargs)
+    db_app_variant = await new_db_manager.add_variant_based_on_image(
+        app_id=app,
+        variant_name="app",
+        docker_id=payload.image_id,
+        tags=f"{image_name}",
+        organization_id=organization_id,
+        base_name="app",
+        config_name="default",
+        **kwargs,
+    )
 
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] == "demo":
