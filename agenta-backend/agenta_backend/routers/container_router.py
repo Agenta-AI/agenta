@@ -53,6 +53,7 @@ router = APIRouter()
 
 @router.post("/build_image/")
 async def build_image(
+    app_id: str,
     app_name: str,
     variant_name: str,
     tar_file: UploadFile,
@@ -62,6 +63,7 @@ async def build_image(
     """Takes a tar file and builds a docker image from it
 
     Arguments:
+        app_id -- The ID of the app
         app_name -- The `app_name` parameter is a string that represents the name of \
             the application for which the docker image is being built
         variant_name -- The `variant_name` parameter is a string that represents the \
@@ -78,12 +80,14 @@ async def build_image(
 
     # Check app access
     if organization_id is None:
-        app_variant = await get_app_instance(app_name, variant_name)
-        organization_id = str(app_variant.organization_id)
-        app_access = await check_access_to_app(kwargs, app_variant=app_variant)
+        app_db = await new_db_manager.fetch_app_by_id(app_id, **kwargs)
+        organization_id = str(app_db.organization_id.id)
+        app_access = await check_access_to_app(
+            kwargs, app_id=app_id, check_owner=True
+        )
     else:
         organization_id = organization_id
-        app_access = await check_access_to_app(kwargs, app_name=app_name)
+        app_access = await check_access_to_app(kwargs, app_id=app_id)
 
     if not app_access:
         error_msg = f"You do not have access to this app: {app_name}"
@@ -214,7 +218,9 @@ async def pull_image(
     image_id = await get_image_details_from_docker_hub(
         repo_owner, repo_name, image_tag_name
     )
-    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
+    return JSONResponse(
+        {"image_tag": image_tag_name, "image_id": image_id}, 200
+    )
 
 
 @router.get("/container_url/")
