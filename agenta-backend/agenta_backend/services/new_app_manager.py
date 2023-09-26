@@ -181,8 +181,30 @@ async def remove_app_related_resources(app_id: str, **kwargs: dict):
         # Delete associated testsets
         await new_db_manager.remove_app_testsets(app_id, **kwargs)
         logger.info(f"Successfully deleted test sets associated with app {app_id}.")
+
+        await new_db_manager.remove_app_by_id(app_id, **kwargs)
+        logger.info(f"Successfully remove app object {app_id}.")
     except Exception as e:
         logger.error(
             f"An error occurred while cleaning up resources for app {app_id}: {str(e)}"
         )
         raise e from None
+
+
+def _delete_docker_image(image: Image) -> None:
+    """
+    Deletes a Docker image.
+
+    Args:
+        image (Image): The Docker image to be deleted.
+
+    Raises:
+        Exception: Any exception raised during Docker operations.
+    """
+    try:
+        docker_utils.delete_image(image)
+        logger.info(f"Image {image.tags} deleted")
+    except Exception as e:
+        logger.warning(
+            f"Warning: Error deleting image {image.tags}. Probably multiple variants using it.\n {str(e)}"
+        )
