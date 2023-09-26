@@ -39,10 +39,10 @@ const useStyles = createUseStyles({
     tag: {
         padding: "2px 6px",
     },
-    btnContainer:({themeMode}:StyleProps)=> ({
+    btnContainer: ({themeMode}: StyleProps) => ({
         textAlign: "right",
         marginTop: "auto",
-        "& button":{
+        "& button": {
             backgroundColor: themeMode === "dark" ? "#fa8416" : "#009432",
             "&:not([disabled]):hover": {
                 backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
@@ -50,17 +50,8 @@ const useStyles = createUseStyles({
             "&:not([disabled]):active": {
                 backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
             },
-        }
+        },
     }),
-    // btn: ({themeMode}: StyleProps) => ({
-    //     backgroundColor: themeMode === "dark" ? "#fa8416" : "#009432",
-    //     "&:not([disabled]):hover": {
-    //         backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
-    //     },
-    //     "&:not([disabled]):active": {
-    //         backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
-    //     },
-    // }),
     img: ({themeMode}: StyleProps) => ({
         width: "100%",
         filter: themeMode === "dark" ? "invert(1)" : "none",
@@ -118,12 +109,7 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                     </div>
 
                     <div className={classes.btnContainer}>
-                        <Button
-                            size="large"
-                            type="primary"
-                            // className={classes.btn}
-                            onClick={onCreateAppClick}
-                        >
+                        <Button size="large" type="primary" onClick={onCreateAppClick}>
                             Start
                         </Button>
                     </div>
@@ -164,12 +150,7 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                         <Tooltip
                             title={!isDemo ? "Feature Available only in Open-Source Version" : ""}
                         >
-                            <Button
-                                size="large"
-                                type="primary"
-                                // className={classes.btn}
-                                disabled={!isDemo}
-                            >
+                            <Button size="large" type="primary" disabled={!isDemo}>
                                 Start
                             </Button>
                         </Tooltip>
