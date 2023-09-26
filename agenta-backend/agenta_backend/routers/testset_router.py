@@ -194,9 +194,9 @@ async def import_testset(
         ) from error
 
 
-@router.post("/{app_name}")
+@router.post("/{app_id}")
 async def create_testset(
-    app_name: str,
+    app_id: str,
     csvdata: NewTestset,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
@@ -212,15 +212,29 @@ async def create_testset(
     str: The id of the test set created.
     """
 
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(user_org_data["uid"])
+    access_app = await check_access_to_app(
+        kwargs=user_org_data, app_id=app_id, check_owner=False
+    )
+    if not access_app:
+        error_msg = f"You do not have access to this app: {app_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app_ref = await new_db_manager.fetch_app_by_id(app_id=app_id)
     testset = {
-        "name": csvdata.name,
-        "app_name": app_name,
         "created_at": datetime.now().isoformat(),
+        "name": csvdata.name,
+        "app_id": app_ref,
+        "organization_id": app_ref.organization_id,
         "csvdata": csvdata.csvdata,
+        "user": user,
     }
+
     try:
-        user = await get_user_object(kwargs["uid"])
+
         testset_instance = TestSetDB(**testset, user=user)
         await engine.save(testset_instance)
 
