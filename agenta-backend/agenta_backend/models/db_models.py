@@ -56,6 +56,10 @@ class AppDB(Model):
 class BaseDB(Model):  # not used
     base_name: str
     image_id: ImageDB = Reference(key_name="image")
+    status: Optional[str]
+    container_name: Optional[str]
+    container_id: Optional[str]
+    uri: Optional[str]
 
     class Config:
         collection = "bases"
@@ -95,9 +99,9 @@ class EnvironmentDB(Model):
     name: str
     user_id: UserDB = Reference(key_name="user")
     organization_id: OrganizationDB = Reference(key_name="organization")
-    deployed_app_variant: Optional[str]
-    deployed_base_name: Optional[str]
-    deployed_config_name: Optional[str]
+    deployed_app_variant_ref: Optional[ObjectId]
+    deployed_base_ref: Optional[ObjectId]
+    deployed_config_ref: Optional[ObjectId]
 
     class Config:
         collection = "environments"

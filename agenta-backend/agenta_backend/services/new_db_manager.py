@@ -457,3 +457,157 @@ async def list_app_variants(
 
     # Include previous variant name
     return app_variants_db
+
+
+async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
+    """Checks whether the input variant is the sole variant that uses its linked image
+    This is a helpful function to determine whether to delete the image when removing a variant
+    Usually many variants will use the same image (these variants would have been created using the UI)
+    We only delete the image and shutdown the container if the variant is the last one using the image
+
+    Arguments:
+        app_variant -- AppVariant to check
+    Returns:
+        true if it's the last variant, false otherwise
+    """
+
+    # Build the query expression for the two conditions
+    query_expression = (
+        query.eq(AppVariantDB.organization_id, db_app_variant.organization_id)
+        & query.eq(AppVariantDB.image_id, db_app_variant.image_id.id)
+        & query.eq(AppVariantDB.is_deleted, False)
+    )
+
+    # Count the number of variants that match the query expression
+    count_variants = await engine.count(AppVariantDB, query_expression)
+
+    # If it's the only variant left that uses the image, delete the image
+    if count_variants == 1:
+        return True
+    else:
+        return False
+
+# async def get_image(db_app_variant: AppVariantDB, **kwargs: dict) -> ImageExtended:
+#     """Returns the image associated with the app variant
+
+#     Arguments:
+#         app_variant -- AppVariant to fetch the image for
+
+#     Returns:
+#         Image -- The Image associated with the app variant
+#     """
+
+#     # Build the query expression for the two conditions
+#     query_expression = (
+#         query.eq(AppVariantDB.app_name, app_variant.app_name)
+#         & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
+#         & query.eq(AppVariantDB.organization_id, app_variant.organization_id)
+#     )
+
+#     db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
+#     if db_app_variant:
+#         image_db: ImageDB = await engine.find_one(
+#             ImageDB, ImageDB.id == ObjectId(db_app_variant.image_id.id)
+#         )
+#         return image_db_to_pydantic(image_db)
+#     else:
+#         raise Exception("App variant not found")
+
+
+async def remove_app_variant(app_variant_db: AppVariantDB, **kwargs: dict):
+    """Remove an app variant from the db
+    the logic for removing the image is in app_manager.py
+
+    Arguments:
+        app_variant -- AppVariant to remove
+    """
+    logger.debug("Removing app variant")
+    assert app_variant_db is not None, "app_variant_db is missing"
+
+    is_last_variant_for_image = await check_is_last_variant_for_image(app_variant_db)
+
+    # Remove the variant from the associated environments
+    environments = await list_environments_by_variant(
+        app_variant.app_name,
+        app_variant.variant_name,
+        app_variant.organization_id,
+        **kwargs,
+    )
+    for environment in environments:
+        environment.deployed_app_variant = None
+        await engine.save(environment)
+
+    if app_variant_db.previous_variant_name is not None:  # forked variant
+        await engine.delete(app_variant_db)
+        if pending_variant_to_delete is not None:
+            await engine.delete(pending_variant_to_delete)
+
+    elif is_last_variant_for_image:  # last variant using the image, okay to delete
+        await engine.delete(app_variant_db)
+        if pending_variant_to_delete is not None:
+            await engine.delete(pending_variant_to_delete)
+
+    else:
+        app_variant_db.is_deleted = True  # soft deletion
+        await engine.save(app_variant_db)
+
+
+async def deploy_to_environment(
+    environment_name: str, variant_id: str, **kwargs: dict
+):
+    """
+    Deploys a variant to a given environment.
+    """
+    app_variant_db = await fetch_app_variant_by_id(variant_id)
+    if app_variant_db is None:
+        raise ValueError("App variant not found")
+
+    # Find the environment for the given app name and user
+    query_filters = (
+        query.eq(EnvironmentDB.app_id, app_variant_db.app_id)
+        & query.eq(EnvironmentDB.name, environment_name)
+    )
+    environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
+    if environment_db is None:
+        raise ValueError(f"Environment {environment_name} not found")
+    if environment_db.deployed_app_variant_ref == app_variant_db:
+        raise ValueError(
+            f"Variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name} is already deployed to the environment {environment_name}"
+        )
+
+    # Update the environment with the new variant name
+    environment_db.deployed_app_variant_ref = app_variant_db
+    environment_db.deployed_base_ref = app_variant_db.base_id
+    environment_db.deployed_config_ref = app_variant_db.config_id
+    await engine.save(environment_db)
+
+
+async def fetch_app_by_id(app_id: str) -> AppDB:
+    """_summary_
+
+    Args:
+        app_id: _description_
+    """
+    assert app_id is not None, "app_id cannot be None"
+    app = await engine.find_one(
+        AppDB, AppDB.id == ObjectId(app_id)
+    )
+    return app
+
+
+async def list_environments(app_id: str, **kwargs: dict) -> List[Environment]:
+    """
+    Lists all the environments for the given app name from the DB
+    """
+
+    app_instance = await fetch_app_by_id(app_id=app_id)
+
+    environments_db: List[EnvironmentDB] = await engine.find(EnvironmentDB, EnvironmentDB.app_id == app_instance)
+
+    if environments_db:
+        return environments_db
+
+    await initialize_environments(app_name, str(app_instance.organization_id), **kwargs)
+    environments_db: List[EnvironmentDB] = await fetch_environments()
+
+    return environments_db

@@ -88,7 +88,7 @@ def _stop_and_delete_containers(image: Image) -> None:
 
 
 async def _stop_and_delete_app_container(
-    app_variant: AppVariant, **kwargs: dict
+    app_variant: AppVariantDB, **kwargs: dict
 ) -> None:
     """
     Stops and deletes Docker container associated with a given app.
@@ -102,7 +102,7 @@ async def _stop_and_delete_app_container(
     try:
         user = await db_manager.get_user_object(kwargs["uid"])
         variant_name = app_variant.variant_name.split(".")[0]
-        container_id = f"{app_variant.app_name}-{variant_name}-{str(user.id)}"
+        container_id = f"{app_variant.app_id.app_name}-{app_variant.variant_name}-{app_variant.organization_id.id}"
         docker_utils.stop_container(container_id)
         logger.info(f"Container {container_id} stopped")
         docker_utils.delete_container(container_id)
