@@ -378,7 +378,7 @@ async def remove_variant(
                 status_code=400,
             )
         else:
-            await app_manager.remove_app_variant(app_variant, **kwargs)
+            await new_app_manager.remove_app_variant(app_variant, **kwargs)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -558,7 +558,7 @@ async def add_app_variant_from_template(
                                                                      docker_id=payload.image_id,
                                                                      tags=f"{image_name}",
                                                                      organization_id=organization_id,
-                                                                     base_name=None,
+                                                                     base_name="app",
                                                                      config_name="default",
                                                                      **kwargs)
 
