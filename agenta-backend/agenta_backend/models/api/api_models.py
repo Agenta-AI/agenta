@@ -90,7 +90,6 @@ class URI(BaseModel):
 
 
 class App(BaseModel):
-    app_name: str
     app_id: str
 
 

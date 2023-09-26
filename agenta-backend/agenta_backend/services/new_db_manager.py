@@ -471,10 +471,13 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     Returns:
         true if it's the last variant, false otherwise
     """
+
     # Build the query expression for the two conditions
+    logger.debug("db_app_variant: %s", db_app_variant)
     query_expression = (
         (AppVariantDB.organization_id == ObjectId(db_app_variant.organization_id.id))
         & (AppVariantDB.image_id == ObjectId(db_app_variant.image_id.id))
+        & query.eq(AppVariantDB.is_deleted, False)
     )
     # Count the number of variants that match the query expression
     count_variants = await engine.count(AppVariantDB,
