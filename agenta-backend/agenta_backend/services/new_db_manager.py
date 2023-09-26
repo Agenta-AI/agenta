@@ -282,8 +282,8 @@ async def clean_soft_deleted_variants():
 
     for variant in soft_deleted_variants:
         # Build the query expression for the two conditions
-        query_expriantDB.image_id, variant.image_idression = query.eq(
-            AppVa.id
+        query_expression = query.eq(
+            AppVariantDB.image_id, variant.image_id.id
         ) & query.eq(AppVariantDB.is_deleted, False)
 
         # Get non-deleted variants that use the same image
@@ -471,24 +471,18 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     Returns:
         true if it's the last variant, false otherwise
     """
-
     # Build the query expression for the two conditions
     query_expression = (
-        query.eq(AppVariantDB.organization_id, db_app_variant.organization_id)
-        & query.eq(AppVariantDB.image_id, db_app_variant.image_id.id)
-        & query.eq(AppVariantDB.is_deleted, False)
+        (AppVariantDB.organization_id == ObjectId(db_app_variant.organization_id.id))
+        & (AppVariantDB.image_id == ObjectId(db_app_variant.image_id.id))
     )
-
     # Count the number of variants that match the query expression
-    count_variants = await engine.count(AppVariantDB, query_expression)
+    count_variants = await engine.count(AppVariantDB,
+                                        query_expression)
 
     # If it's the only variant left that uses the image, delete the image
-    if count_variants == 1:
-        return True
-    else:
-        return False
+    return bool(count_variants == 1)
 
-# async def get_image(db_app_variant: AppVariantDB, **kwargs: dict) -> ImageExtended:
 #     """Returns the image associated with the app variant
 
 #     Arguments:
@@ -528,6 +522,7 @@ async def remove_app_variant(app_variant_db: AppVariantDB, **kwargs: dict):
     is_last_variant_for_image = await check_is_last_variant_for_image(app_variant_db)
 
     # Remove the variant from the associated environments
+    logger.debug("list_environments_by_variant")
     environments = await list_environments_by_variant(
         app_variant_db,
         **kwargs,
@@ -636,7 +631,7 @@ async def list_environments_by_variant(
     """
 
     environments_db: List[EnvironmentDB] = await engine.find(
-        EnvironmentDB, (EnvironmentDB.app_id == app_variant.app_id)
+        EnvironmentDB, (EnvironmentDB.app_id == ObjectId(app_variant.app_id.id))
     )
 
     return environments_db
