@@ -24,6 +24,7 @@ from agenta_backend.models.api.api_models import (
     CreateAppVariant,
     AddVariantFromPreviousPayload,
     AppVariantOutput,
+    Variant
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -367,7 +368,7 @@ async def remove_variant(
 
         # Check app access
         access_app = await check_access_to_variant(
-            kwargs, variant_id=variant.id, check_owner=True
+            kwargs, variant_id=variant.variant_id, check_owner=True
         )
 
         if not access_app:
@@ -378,7 +379,7 @@ async def remove_variant(
                 status_code=400,
             )
         else:
-            await new_app_manager.remove_app_variant(app_variant, **kwargs)
+            await new_app_manager.remove_app_variant(app_variant_id=variant.variant_id, **kwargs)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
