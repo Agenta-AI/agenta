@@ -14,7 +14,7 @@ from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import app_manager, db_manager, docker_utils, new_db_manager, new_app_manager
 from agenta_backend.utills.common import check_access_to_app, get_app_instance
 from agenta_backend.models.converters import (app_variant_db_to_output)
-from agenta_backend.utills.common import check_user_org_access
+from agenta_backend.utills.common import check_user_org_access, check_access_to_variant
 from agenta_backend.models.api.api_models import (
     URI,
     App,
@@ -350,7 +350,7 @@ async def list_images(stoken_session: SessionContainer = Depends(verify_session(
 
 @router.delete("/remove_variant/")
 async def remove_variant(
-    app_variant: AppVariant,
+    variant: Variant,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Remove a variant from the server.
@@ -366,12 +366,12 @@ async def remove_variant(
         kwargs: dict = await get_user_and_org_id(stoken_session)
 
         # Check app access
-        access_app = await check_access_to_app(
-            kwargs, app_variant=app_variant, check_owner=True
+        access_app = await check_access_to_variant(
+            kwargs, variant_id=variant.id, check_owner=True
         )
 
         if not access_app:
-            error_msg = f"You do not have permission to delete app variant: {app_variant.variant_name}"
+            error_msg = f"You do not have permission to delete app variant: {variant.variant_id}"
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
@@ -379,9 +379,6 @@ async def remove_variant(
             )
         else:
             await app_manager.remove_app_variant(app_variant, **kwargs)
-    except SQLAlchemyError as e:
-        detail = f"Database error while trying to remove the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
