@@ -74,15 +74,15 @@ async def check_access_to_app(
 ) -> bool:
     if app_id is None and app is None:
         raise Exception("No app or app_id provided")
-
-    if app is None:
+    if app_id is not None and app is not None:
+        raise Exception("Provide either app or app_id, not both")
+    if app is None and app_id is not None:
         app = await engine.find_one(
             AppDB, AppDB.id == ObjectId(app_id)
         )
         if app is None:
             logger.error("App not found")
             return False
-
     organization_id = app.organization_id.id
     return await check_user_org_access(kwargs, str(organization_id), check_owner)
 

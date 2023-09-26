@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager, new_db_manager
 from fastapi import APIRouter, Depends, HTTPException
 from agenta_backend.utills.common import check_access_to_app, check_access_to_variant
-from agenta_backend.models.api.api_models import EnvironmentOutput
+from agenta_backend.models.api.api_models import EnvironmentOutput, DeployToEnvironmentPayload
 from agenta_backend.models.converters import environment_db_to_output
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
@@ -13,7 +13,9 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
 else:
     from agenta_backend.services.auth_helper import SessionContainer, verify_session
     from agenta_backend.services.selectors import get_user_and_org_id
-
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 router = APIRouter()
 
@@ -26,12 +28,15 @@ async def list_environments(
     """
     Lists the environments for the given app.
     """
+    logger.debug(f"Listing environments for app: {app_id}")
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        logger.debug(f"get user and org data")
+        user_and_org_data: dict = await get_user_and_org_id(stoken_session)
 
         # Check if has app access
-        access_app = await check_access_to_app(kwargs, app_id=app_id)
-
+        logger.debug(f"check_access_to_app")
+        access_app = await check_access_to_app(kwargs=user_and_org_data, app_id=app_id)
+        logger.debug(f"access_app: {access_app}")
         if not access_app:
             error_msg = f"You do not have access to this app: {app_id}"
             return JSONResponse(
@@ -40,17 +45,17 @@ async def list_environments(
             )
         else:
             environments_db = await new_db_manager.list_environments(
-                app_id=app_id, **kwargs
+                app_id=app_id, **user_and_org_data
             )
-            return environment_db_to_output(environments_db)
+            logger.debug(f"environments_db: {environments_db}")
+            return [environment_db_to_output(env) for env in environments_db]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/deploy/")
 async def deploy_to_environment(
-    environment_name: str,
-    variant_id: str,
+    payload: DeployToEnvironmentPayload,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Deploys a given variant to an environment.
@@ -67,17 +72,17 @@ async def deploy_to_environment(
         kwargs: dict = await get_user_and_org_id(stoken_session)
 
         # Check if has app access
-        access_app = await check_access_to_variant(kwargs, variant_id=variant_id)
+        access_app = await check_access_to_variant(kwargs, variant_id=payload.variant_id)
 
         if not access_app:
-            error_msg = f"You do not have access to this variant: {variant_id}"
+            error_msg = f"You do not have access to this variant: {payload.variant_id}"
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=400,
             )
         else:
             await new_db_manager.deploy_to_environment(
-                environment_name=environment_name, variant_id=variant_id, **kwargs
+                environment_name=payload.environment_name, variant_id=payload.variant_id, **kwargs
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

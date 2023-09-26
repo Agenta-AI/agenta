@@ -46,10 +46,12 @@ def app_variant_db_to_output(
 def environment_db_to_output(
     environment_db: EnvironmentDB
 ) -> EnvironmentOutput:
+    deployed_app_variant_id = str(
+        environment_db.deployed_app_variant_ref) if environment_db.deployed_app_variant_ref else None
     return EnvironmentOutput(
         name=environment_db.name,
         app_id=str(environment_db.app_id.id),
-        deployed_app_variant_id=str(environment_db.deployed_app_variant_ref.id)
+        deployed_app_variant_id=deployed_app_variant_id
     )
 
 
