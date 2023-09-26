@@ -10,7 +10,7 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {deleteTestsets} from "@/lib/services/api"
 import axios from "@/lib/helpers/axiosConfig"
 import {createUseStyles} from "react-jss"
-import { isDemo } from "@/constants/environment"
+import {isDemo} from "@/constants/environment"
 
 type testsetTableDatatype = {
     key: string
