@@ -24,6 +24,8 @@ from agenta_backend.utills.common import check_user_org_access, check_access_to_
 from agenta_backend.models.api.api_models import (
     URI,
     App,
+    CreateApp,
+    CreateAppOutput,
     AppVariant,
     Image,
     DockerEnvVars,
@@ -129,6 +131,39 @@ async def get_variant_by_env(
         raise e
     except Exception as e:
         # Handle all other exceptions and return 500 status code
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/apps/", response_model=CreateAppOutput)
+async def create_app(
+    payload: CreateApp,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> CreateAppOutput:
+    """Create a new app.
+
+    Arguments:
+        app_name (str): Name of app
+        
+    Returns:
+        CreateAppOutput: the app id and name
+    """
+    
+    try:
+        # Get user and org id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        
+        # Retrieve or create user organization
+        organization = await get_user_own_org(kwargs["uid"])
+        if organization is None:
+            organization = await new_db_manager.create_user_organization(kwargs["uid"])
+            
+        # Create new app and return the output 
+        app_db = await new_db_manager.create_app(payload.app_name, str(organization.id), **kwargs)
+        return CreateAppOutput(
+            app_id=str(app_db.id),
+            app_name=str(app_db.app_name)
+        )
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
