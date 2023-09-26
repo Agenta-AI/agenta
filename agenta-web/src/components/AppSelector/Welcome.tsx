@@ -1,9 +1,8 @@
-import {Button, Tag, Tooltip} from "antd"
+import {Button, Tag, Tooltip, Typography} from "antd"
 import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
-// import Image from "next/image"
-// import SimpleStartImg from "/assets/simple-img.png"
+import {ClockCircleOutlined} from "@ant-design/icons"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -13,8 +12,6 @@ const useStyles = createUseStyles({
     wrapper: {
         display: "flex",
         justifyContent: "space-between",
-        borderRadius: 10,
-        padding: 20,
         gap: 20,
     },
     container: ({themeMode}: StyleProps) => ({
@@ -29,14 +26,19 @@ const useStyles = createUseStyles({
             backgroundColor: themeMode === "dark" ? "rgba(0,0,0,0.3)" : "#e6fae7",
         },
     }),
-    title: {display: "flex", alignItems: "center", justifyContent: "center", gap: "15px"},
-    tag: ({themeMode}: StyleProps) => ({
-        fontSize: 14,
-        padding: "4px 10px",
-        color: "#fff",
-        backgroundColor: themeMode === "dark" ? "#006006" : "#0b8834b1",
-        border: `1px solid ${themeMode === "dark" ? "#006006" : "#000"}`,
-    }),
+    title: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "15px",
+        "& h1": {
+            fontWeight: 600,
+            fontSize: 24,
+        },
+    },
+    tag: {
+        padding: "2px 6px",
+    },
     btnContainer: {
         textAlign: "right",
         marginTop: "auto",
@@ -54,6 +56,16 @@ const useStyles = createUseStyles({
         width: "100%",
         filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
+    steps: {
+        fontSize: 16,
+        margin: "10px 0",
+        display: "flex",
+        flexDirection: "column",
+        "& h3": {
+            fontSize: 18,
+            fontWeight: 600,
+        },
+    },
 })
 
 interface Props {
@@ -63,14 +75,22 @@ interface Props {
 const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const {Text} = Typography
     const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
+
     return (
         <>
             <section className={classes.wrapper}>
                 <div className={classes.container}>
                     <div className={classes.title}>
-                        <h1 style={{fontWeight: 600, fontSize: 24}}>Simple start</h1>
-                        <Tag className={classes.tag}>2-3 mins</Tag>
+                        <h1>Simple start</h1>
+                        <Tag
+                            className={classes.tag}
+                            icon={<ClockCircleOutlined />}
+                            color={"warning"}
+                        >
+                            2-3 mins
+                        </Tag>
                     </div>
 
                     <img
@@ -79,13 +99,14 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                         className={classes.img}
                     />
 
-                    <ul>
-                        <li>Start from a template</li>
-                        <li>Compare prompts and models</li>
-                        <li>Create testsets</li>
-                        <li>Evaluate outputs</li>
-                        <li>Deploy in one click</li>
-                    </ul>
+                    <div className={classes.steps}>
+                        <h3>Workflow Essentials</h3>
+                        <Text>- Start from a template</Text>
+                        <Text>- Compare prompts and models</Text>
+                        <Text>- Create testsets</Text>
+                        <Text>- Evaluate outputs</Text>
+                        <Text>- Deploy in one click</Text>
+                    </div>
 
                     <div className={classes.btnContainer}>
                         <Button
@@ -100,8 +121,10 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                 </div>
                 <div className={classes.container}>
                     <div className={classes.title}>
-                        <h1 style={{fontWeight: 600, fontSize: 24}}>Build complex apps</h1>
-                        <Tag className={classes.tag}>12-15 mins</Tag>
+                        <h1>Build complex apps</h1>
+                        <Tag className={classes.tag} icon={<ClockCircleOutlined />} color="warning">
+                            12-15 mins
+                        </Tag>
                     </div>
 
                     <img
@@ -110,18 +133,19 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                         className={classes.img}
                     />
 
-                    <ul>
-                        <li>Start from code</li>
-                        <li>Compare different workflows</li>
-                        <li>Test parameters in the UI</li>
-                        <li>Evaluate outputs</li>
-                        <li>Deploy in one click</li>
-                        <li>Start from a template</li>
-                        <li>Compare prompts and models</li>
-                        <li>Create testsets</li>
-                        <li>Evaluate outputs</li>
-                        <li>Deploy in one click</li>
-                    </ul>
+                    <div className={classes.steps}>
+                        <h3>Workflow Essentials</h3>
+                        <Text>- Start from code</Text>
+                        <Text>- Compare different workflows</Text>
+                        <Text>- Test parameters in the UI</Text>
+                        <Text>- Evaluate outputs</Text>
+                        <Text>- Deploy in one click</Text>
+                        <Text>- Start from a template</Text>
+                        <Text>- Compare prompts and models</Text>
+                        <Text>- Create testsets</Text>
+                        <Text>- Evaluate outputs</Text>
+                        <Text>- Deploy in one click</Text>
+                    </div>
 
                     <div className={classes.btnContainer}>
                         <Button
