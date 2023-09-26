@@ -294,11 +294,6 @@ async def start_variant(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/stop/")
-async def stop_variant(app_variant: AppVariant):
-    assert NotImplementedError("Not implemented yet")
-
-
 @router.get("/list_images/", response_model=List[Image])
 async def list_images(stoken_session: SessionContainer = Depends(verify_session())):
     """Lists the images from our repository

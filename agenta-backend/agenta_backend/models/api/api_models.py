@@ -126,3 +126,11 @@ class Environment(BaseModel):
 class DeployToEnvironmentPayload(BaseModel):
     environment_name: str
     variant_id: str
+
+
+class TestSetOutput(BaseModel):
+    id: str
+    name: str
+    csvdata: List[Dict[str, Any]]
+    created_at: str
+    updated_at: str

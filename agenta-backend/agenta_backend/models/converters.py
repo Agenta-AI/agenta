@@ -7,6 +7,7 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     AppDB,
     EnvironmentDB,
+    TestSetDB,
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
@@ -16,6 +17,7 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     App,
     EnvironmentOutput,
+    TestSetOutput,
 )
 
 import logging
@@ -96,3 +98,22 @@ def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
         )
         for template in templates_db
     ]
+
+
+def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
+    """
+    Convert a TestSetDB object to a TestSetAPI object.
+
+    Args:
+        test_set_db (Dict): The TestSetDB object to be converted.
+
+    Returns:
+        TestSetAPI: The converted TestSetAPI object.
+    """
+    return TestSetOutput(
+        name=test_set_db.name,
+        csvdata=test_set_db.csvdata,
+        created_at=str(test_set_db.created_at),
+        updated_at=str(test_set_db.updated_at),
+        id=str(test_set_db.id)
+    )

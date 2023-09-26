@@ -778,3 +778,15 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
     assert testset_id is not None, "testset_id cannot be None"
     testset = await engine.find_one(TestSetDB, TestSetDB.id == ObjectId(testset_id))
     return testset
+
+
+async def fetch_testsets_by_app_id(app_id: str) -> List[TestSetDB]:
+    """Fetches all testsets for a given app.
+    Args:
+        app_id (str): The ID of the app to fetch testsets for.
+    Returns:
+        List[TestSetDB]: The fetched testsets.
+    """
+    assert app_id is not None, "app_id cannot be None"
+    testsets = await engine.find(TestSetDB, TestSetDB.app_id == ObjectId(app_id))
+    return testsets
