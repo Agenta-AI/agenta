@@ -71,7 +71,7 @@ async def start_variant(
     return uri
 
 
-async def remove_app_variant(app_variant_id: str, **kwargs: dict) -> None:
+async def remove_app_variant(app_variant_id: str = None, app_variant_db=None, **kwargs: dict) -> None:
     """
     Removes app variant from the database. If it's the last one using an image, performs additional operations:
     - Deletes the image from the db.
@@ -85,8 +85,11 @@ async def remove_app_variant(app_variant_id: str, **kwargs: dict) -> None:
         ValueError: If the app variant is not found in the database.
         Exception: Any other exception raised during the operation.
     """
+    assert app_variant_id or app_variant_db, "Either app_variant_id or app_variant_db must be provided"
+    assert not (app_variant_id and app_variant_db), "Only one of app_variant_id or app_variant_db must be provided"
     logger.debug(f"Removing app variant {app_variant_id}")
-    app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
+    if app_variant_id:
+        app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
     logger.debug(f"Fetched app variant {app_variant_db}")
     app_id = app_variant_db.app_id.id
     if app_variant_db is None:
@@ -208,3 +211,36 @@ def _delete_docker_image(image: Image) -> None:
         logger.warning(
             f"Warning: Error deleting image {image.tags}. Probably multiple variants using it.\n {str(e)}"
         )
+
+
+async def remove_app(app_id: str, **kwargs: dict):
+    """Removes all app variants from db, if it is the last one using an image, then
+    deletes the image from the db, shutdowns the container, deletes it and remove
+    the image from the registry
+
+    Arguments:
+        app_name -- the app name to remove
+    """
+    # checks if it is the last app variant using its image
+    app = await new_db_manager.fetch_app_by_id(app_id)
+    if app is None:
+        error_msg = f"Failed to delete app {app_id}: Not found in DB."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    try:
+        app_variants = await new_db_manager.list_app_variants(app_id=app_id, **kwargs)
+        if len(app_variants) == 0:
+            raise ValueError(
+                f"Failed to delete app {app_id}: No variants found in DB."
+            )
+        for app_variant_db in app_variants:
+            await remove_app_variant(app_variant_db=app_variant_db, **kwargs)
+            logger.info(
+                f"Successfully deleted app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name}."
+            )
+
+    except Exception as e:
+        logger.error(
+            f"An error occurred while deleting app {app_id} and its associated resources: {str(e)}"
+        )
+        raise e from None

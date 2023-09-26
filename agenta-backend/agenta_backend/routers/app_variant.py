@@ -398,11 +398,15 @@ async def remove_app(
     Arguments:
         app -- App to remove
     """
-
+    if app.app_id is None:
+        raise HTTPException(
+            status_code=500,
+            detail="App id is required",
+        )
     try:
         kwargs: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
-            kwargs, app_name=app.app_name, check_owner=True
+            kwargs, app_id=app.app_id, check_owner=True
         )
 
         if not access_app:
@@ -413,7 +417,7 @@ async def remove_app(
                 status_code=400,
             )
         else:
-            await app_manager.remove_app(app, **kwargs)
+            await new_app_manager.remove_app(app_id=app.app_id, **kwargs)
     except SQLAlchemyError as e:
         detail = f"Database error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
