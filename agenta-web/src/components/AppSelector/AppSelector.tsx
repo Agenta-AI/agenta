@@ -339,7 +339,10 @@ const AppSelector: React.FC = () => {
                         <TipsAndFeatures />
                     </>
                 ) : (
-                    <Welcome onCreateAppClick={showCreateAppModal} />
+                    <Welcome
+                        onWriteOwnApp={showWriteAppModal}
+                        onCreateFromTemplate={showCreateAppFromTemplateModal}
+                    />
                 )}
             </div>
 
