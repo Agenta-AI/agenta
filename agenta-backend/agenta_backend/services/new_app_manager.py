@@ -2,7 +2,7 @@
 """
 import logging
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from bson import ObjectId
 
 from agenta_backend.config import settings
@@ -242,5 +242,29 @@ async def remove_app(app_id: str, **kwargs: dict):
     except Exception as e:
         logger.error(
             f"An error occurred while deleting app {app_id} and its associated resources: {str(e)}"
+        )
+        raise e from None
+
+
+async def update_variant_parameters(app_variant_id: str, parameters: Dict[str, Any], **kwargs: dict):
+    """Updates the parameters for app variant in the database.
+
+    Arguments:
+        app_variant -- the app variant to update
+    """
+    assert app_variant_id is not None, "app_variant_id must be provided"
+    assert parameters is not None, "parameters must be provided"
+    app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
+    if app_variant_db is None:
+        error_msg = f"Failed to update app variant {app_variant_id}: Not found in DB."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    try:
+        await new_db_manager.update_variant_parameters(
+            app_variant_db=app_variant_db, parameters=parameters, **kwargs
+        )
+    except Exception as e:
+        logger.error(
+            f"Error updating app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name}"
         )
         raise e from None

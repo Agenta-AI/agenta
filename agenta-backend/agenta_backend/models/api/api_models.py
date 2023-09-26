@@ -8,6 +8,11 @@ class Variant(BaseModel):
     variant_id: str
 
 
+class UpdateVariantParameterPayload(BaseModel):
+    variant_id: str
+    parameters: Dict[str, Any]
+
+
 class AppVariant(BaseModel):
     app_id: str
     app_name: str
@@ -34,7 +39,7 @@ class AppVariantOutput(BaseModel):
 class EnvironmentOutput(BaseModel):
     name: str
     app_id: str
-    deployed_app_variant_id: str
+    deployed_app_variant_id: Optional[str]
 
 
 class AddVariantFromPreviousPayload(BaseModel):
@@ -117,3 +122,8 @@ class Environment(BaseModel):
     name: str
     deployed_app_variant: Optional[str]
     organization_id: Optional[str] = None
+
+
+class DeployToEnvironmentPayload(BaseModel):
+    environment_name: str
+    variant_id: str

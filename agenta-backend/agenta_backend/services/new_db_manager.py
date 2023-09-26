@@ -557,7 +557,7 @@ async def deploy_to_environment(
 
     # Find the environment for the given app name and user
     query_filters = (
-        query.eq(EnvironmentDB.app_id, app_variant_db.app_id)
+        (EnvironmentDB.app_id == ObjectId(app_variant_db.app_id.id))
         & query.eq(EnvironmentDB.name, environment_name)
     )
     environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
@@ -569,9 +569,9 @@ async def deploy_to_environment(
         )
 
     # Update the environment with the new variant name
-    environment_db.deployed_app_variant_ref = app_variant_db
-    environment_db.deployed_base_ref = app_variant_db.base_id
-    environment_db.deployed_config_ref = app_variant_db.config_id
+    environment_db.deployed_app_variant_ref = app_variant_db.id
+    environment_db.deployed_base_ref = app_variant_db.base_id.id
+    environment_db.deployed_config_ref = app_variant_db.config_id.id
     await engine.save(environment_db)
 
 
@@ -592,16 +592,13 @@ async def list_environments(app_id: str, **kwargs: dict) -> List[EnvironmentDB]:
     """
     Lists all the environments for the given app name from the DB
     """
-
+    logging.debug("Listing environments for app %s", app_id)
     app_instance = await fetch_app_by_id(app_id=app_id)
     if app_instance is None:
         logging.error(f"App with id {app_id} not found")
         raise ValueError("App not found")
 
     environments_db: List[EnvironmentDB] = await engine.find(EnvironmentDB, EnvironmentDB.app_id == ObjectId(app_id))
-
-    if not environments_db:  # not created yet
-        environments_db = await initialize_environments(app_ref=app_instance, **kwargs)
 
     return environments_db
 
@@ -701,3 +698,26 @@ async def remove_app_by_id(app_id: str, **kwargs):
     app_instance = await fetch_app_by_id(app_id=app_id)
     assert app_instance is not None, f"app instance for {app_id} could not be found"
     await engine.delete(app_instance)
+
+
+async def update_variant_parameters(
+    app_variant_db: AppVariantDB, parameters: Dict[str, Any], **kwargs: dict
+):
+    """Updates the parameters of a specific variant
+
+    Arguments:
+        app_variant -- contains the name of the app and variant
+        parameters -- the new parameters.
+
+    Raises:
+        ValueError: If the variant doesn't exist or parameters is None.
+    """
+    assert app_variant_db is not None, "app_variant is missing"
+    assert parameters is not None, "parameters is missing"
+    try:
+        logging.debug("Updating variant parameters")
+        app_variant_db.parameters = parameters
+        app_variant_db.config_id.parameters = parameters
+        await engine.save(app_variant_db)
+    except Exception as e:
+        raise ValueError("Issue updating variant parameters")
