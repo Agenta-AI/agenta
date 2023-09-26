@@ -6,7 +6,6 @@ from agenta_backend.services import db_manager, new_db_manager
 from fastapi import APIRouter, Depends, HTTPException
 from agenta_backend.utills.common import check_access_to_app, check_access_to_variant
 from agenta_backend.models.api.api_models import EnvironmentOutput
-
 from agenta_backend.models.converters import environment_db_to_output
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
