@@ -367,6 +367,7 @@ async def remove_variant(
         kwargs: dict = await get_user_and_org_id(stoken_session)
 
         # Check app access
+
         access_app = await check_access_to_variant(
             kwargs, variant_id=variant.variant_id, check_owner=True
         )

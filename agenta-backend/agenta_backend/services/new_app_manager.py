@@ -85,7 +85,9 @@ async def remove_app_variant(app_variant_id: str, **kwargs: dict) -> None:
         ValueError: If the app variant is not found in the database.
         Exception: Any other exception raised during the operation.
     """
+    logger.debug(f"Removing app variant {app_variant_id}")
     app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
+    logger.debug(f"Fetched app variant {app_variant_db}")
     app_id = app_variant_db.app_id.id
     if app_variant_db is None:
         error_msg = f"Failed to delete app variant {app_variant_id}: Not found in DB."
@@ -93,19 +95,21 @@ async def remove_app_variant(app_variant_id: str, **kwargs: dict) -> None:
         raise ValueError(error_msg)
 
     try:
+        logger.debug(f"check_is_last_variant_for_image {app_variant_db}")
         is_last_variant_for_image = await new_db_manager.check_is_last_variant_for_image(
             app_variant_db
         )
-
+        logger.debug(f"Result {is_last_variant_for_image}")
         if is_last_variant_for_image:
             image = app_variant_db.base_id.image_id
 
             if image:
                 # TODO: This needs to change to use a db schema to save the container name
+                logger.debug(f"_stop_and_delete_app_container")
                 await _stop_and_delete_app_container(app_variant_db, **kwargs)
-
+                logger.debug(f"remove_app_variant")
                 await new_db_manager.remove_app_variant(app_variant_db, **kwargs)
-
+                logger.debug(f"remove_image")
                 await new_db_manager.remove_image(image, **kwargs)
 
                 # Only delete the docker image for users that are running the oss version
@@ -113,19 +117,22 @@ async def remove_app_variant(app_variant_id: str, **kwargs: dict) -> None:
                     _delete_docker_image(image)  # TODO: To implement in ee version
             else:
                 logger.debug(
-                    f"Image associated wit`h app variant {app_variant_db.app_id.name}/{app_variant_db.variant_name} not found. Skipping deletion."
+                    f"Image associated wit`h app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
                 )
         else:
+            logger.debug(f"remove_app_variant")
             await new_db_manager.remove_app_variant(app_variant_db, **kwargs)
-
+        logger.debug(f"list_app_variants")
         app_variants = await new_db_manager.list_app_variants(
             app_id=app_id, show_soft_deleted=True, **kwargs
         )
+        logger.debug(f"{app_variants}")
         if len(app_variants) == 0:  # this was the last variant for an app
+            logger.debug(f"remove_app_related_resources")
             await remove_app_related_resources(app_id=app_id, **kwargs)
     except Exception as e:
         logger.error(
-            f"An error occurred while deleting app variant {app_variant_db.app_id.name}/{app_variant_db.variant_name}: {str(e)}"
+            f"An error occurred while deleting app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name}: {str(e)}"
         )
         raise e from None
 
