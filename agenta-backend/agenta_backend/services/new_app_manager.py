@@ -108,11 +108,11 @@ async def remove_app_variant(app_variant_id: str = None, app_variant_db=None, **
 
             if image:
                 # TODO: This needs to change to use a db schema to save the container name
-                logger.debug(f"_stop_and_delete_app_container")
+                logger.debug("_stop_and_delete_app_container")
                 await _stop_and_delete_app_container(app_variant_db, **kwargs)
-                logger.debug(f"remove_app_variant")
+                logger.debug("remove_app_variant")
                 await new_db_manager.remove_app_variant(app_variant_db, **kwargs)
-                logger.debug(f"remove_image")
+                logger.debug("remove_image")
                 await new_db_manager.remove_image(image, **kwargs)
 
                 # Only delete the docker image for users that are running the oss version
