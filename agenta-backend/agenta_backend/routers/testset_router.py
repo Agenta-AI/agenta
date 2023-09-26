@@ -71,12 +71,13 @@ async def upload_file(
             {"detail": error_msg},
             status_code=400,
         )
-    app_ref = new_db_manager.fetch_app_by_id(app_id=app_id)
+    app_ref = await new_db_manager.fetch_app_by_id(app_id=app_id)
     # Create a document
     document = {
         "created_at": datetime.now().isoformat(),
         "name": testset_name if testset_name else file.filename,
         "app_id": app_ref,
+        "organization_id": app_ref.organization_id,
         "csvdata": [],
     }
 
