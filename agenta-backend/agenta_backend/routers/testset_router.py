@@ -21,6 +21,7 @@ from agenta_backend.utills.common import engine, check_access_to_app
 from agenta_backend.models.db_models import TestSetDB
 from agenta_backend.services.db_manager import query, get_user_object
 from agenta_backend.services import new_db_manager
+from agenta_backend.models.converters import testset_db_to_pydantic
 
 upload_folder = "./path/to/upload/folder"
 
@@ -298,9 +299,9 @@ async def update_testset(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/")
+@router.get("/", tags=["testsets"])
 async def get_testsets(
-    app_name: Optional[str] = None,
+    app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> List[TestSetOutputResponse]:
     """
@@ -312,20 +313,26 @@ async def get_testsets(
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
-
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
-
-    # Define query expression
-    query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
-        TestSetDB.app_name, app_name
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    access_app = await check_access_to_app(
+        kwargs=user_org_data, app_id=app_id, check_owner=False
     )
-    testsets: List[TestSetDB] = await engine.find(TestSetDB, query_expression)
+    if not access_app:
+        error_msg = f"You do not have access to this app: {app_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app_ref = await new_db_manager.fetch_app_by_id(app_id=app_id)
+
+    if app_ref is None:
+        raise HTTPException(status_code=404, detail="App not found")
+
+    testsets: List[TestSetDB] = await new_db_manager.fetch_testsets_by_app_id(app_id=app_id)
     return [
         TestSetOutputResponse(
             id=str(testset.id),
             name=testset.name,
-            app_name=testset.app_name,
             created_at=testset.created_at,
         )
         for testset in testsets
@@ -346,22 +353,20 @@ async def get_testset(
     Returns:
         The requested testset if found, else an HTTPException.
     """
-
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
-
-    # Define query expression
-    query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
-        TestSetDB.id, ObjectId(testset_id)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    test_set = await new_db_manager.fetch_testset_by_id(testset_id=testset_id)
+    if test_set is None:
+        raise HTTPException(status_code=404, detail="testset not found")
+    access_app = await check_access_to_app(
+        kwargs=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
     )
-
-    testset = await engine.find_one(TestSetDB, query_expression)
-    if testset is not None:
-        return testset
-    else:
-        raise HTTPException(
-            status_code=404, detail=f"testset with id {testset_id} not found"
+    if not access_app:
+        error_msg = f"You do not have access to this test set"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
         )
+    return testset_db_to_pydantic(test_set)
 
 
 @router.delete("/", response_model=List[str])
@@ -378,24 +383,24 @@ async def delete_testsets(
     Returns:
     A list of the deleted testsets' IDs.
     """
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+
     deleted_ids = []
 
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
-
     for testset_id in delete_testsets.testset_ids:
-        # Define query expression
-        query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
-            TestSetDB.id, ObjectId(testset_id)
+        test_set = await new_db_manager.fetch_testset_by_id(testset_id=testset_id)
+        if test_set is None:
+            raise HTTPException(status_code=404, detail="testset not found")
+        access_app = await check_access_to_app(
+            kwargs=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
         )
-        testset = await engine.find_one(TestSetDB, query_expression)
-
-        if testset is not None:
-            await engine.delete(testset)
-            deleted_ids.append(testset_id)
-        else:
-            raise HTTPException(
-                status_code=404, detail=f"testset {testset_id} not found"
+        if not access_app:
+            error_msg = f"You do not have access to this test set"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
             )
+        await engine.delete(test_set)
+        deleted_ids.append(testset_id)
 
     return deleted_ids
