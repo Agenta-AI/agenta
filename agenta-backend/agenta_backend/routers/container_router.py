@@ -11,7 +11,11 @@ from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
 from agenta_backend.services.docker_utils import restart_container
-from agenta_backend.utills.common import get_app_instance, check_access_to_app, check_access_to_variant
+from agenta_backend.utills.common import (
+    get_app_instance,
+    check_access_to_app,
+    check_access_to_variant,
+)
 from agenta_backend.models.api.api_models import (
     Image,
     RestartAppContainer,
@@ -25,6 +29,7 @@ from agenta_backend.services.container_manager import (
     get_image_details_from_docker_hub,
     pull_image_from_docker_hub,
 )
+
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
         SessionContainer,
@@ -38,6 +43,7 @@ else:
     )
     from agenta_backend.services.selectors import get_user_and_org_id
 import logging
+
 logger = logging.getLogger(__name__)
 
 logger.setLevel(logging.DEBUG)
@@ -135,14 +141,18 @@ async def restart_docker_container(
     logger.debug(f"Restarting container for variant {payload.variant_id}")
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = check_access_to_variant(kwargs=user_org_data, variant_id=payload.variant_id)
+    access = check_access_to_variant(
+        kwargs=user_org_data, variant_id=payload.variant_id
+    )
     if not access:
         error_msg = f"You do not have access to this variant: {payload.variant_id}"
         return JSONResponse(
             {"detail": error_msg},
             status_code=400,
         )
-    app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id=payload.variant_id)
+    app_variant_db = await new_db_manager.fetch_app_variant_by_id(
+        app_variant_id=payload.variant_id
+    )
     if app_variant_db is None:
         error_msg = f"Variant with id {payload.variant_id} does not exist"
         return JSONResponse(
@@ -232,7 +242,9 @@ async def construct_app_container_url(
             {"detail": error_msg},
             status_code=400,
         )
-    app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
+    app_variant_db = await new_db_manager.fetch_app_variant_by_id(
+        app_variant_id=variant_id
+    )
     if app_variant_db is None:
         error_msg = f"Variant with id {variant_id} does not exist"
         return JSONResponse(
