@@ -5,8 +5,9 @@ from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager, new_db_manager
 from fastapi import APIRouter, Depends, HTTPException
 from agenta_backend.utills.common import check_access_to_app, check_access_to_variant
-from agenta_backend.models.api.api_models import Environment
+from agenta_backend.models.api.api_models import EnvironmentOutput
 
+from agenta_backend.models.converters import environment_db_to_output
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import SessionContainer, verify_session
     from agenta_backend.ee.services.selectors import get_user_and_org_id
@@ -18,7 +19,7 @@ else:
 router = APIRouter()
 
 
-@router.get("/", response_model=List[Environment])
+@router.get("/", response_model=List[EnvironmentOutput])
 async def list_environments(
     app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -39,10 +40,10 @@ async def list_environments(
                 status_code=400,
             )
         else:
-            app_variants = await new_db_manager.list_environments(
+            environments_db = await new_db_manager.list_environments(
                 app_id=app_id, **kwargs
             )
-            return app_variants
+            return environment_db_to_output(environments_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
