@@ -1,8 +1,8 @@
-import {Button, Tag, Tooltip, Typography} from "antd"
+import {Button, Tag, Tooltip} from "antd"
 import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
-import {ClockCircleOutlined} from "@ant-design/icons"
+import {CheckCircleFilled, ClockCircleOutlined} from "@ant-design/icons"
 import {isDemo} from "@/constants/environment"
 
 type StyleProps = {
@@ -57,16 +57,25 @@ const useStyles = createUseStyles({
         width: "100%",
         filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
-    steps: {
+    steps: ({themeMode}: StyleProps) => ({
         fontSize: 16,
         margin: "10px 0",
         display: "flex",
         flexDirection: "column",
-        "& h3": {
-            fontSize: 18,
-            fontWeight: 600,
+        listStyleType: "none",
+        gap: 10,
+        borderRadius: 10,
+        padding: 20,
+        "& svg": {
+            color: themeMode === "dark" ? "#fa8416" : "#009432",
+            marginRight: 10,
         },
-    },
+        "& span": {
+            color: themeMode === "dark" ? "#fa8416" : "#009432",
+            fontWeight: 600,
+            textTransform: "capitalize",
+        },
+    }),
 })
 
 interface Props {
@@ -76,7 +85,6 @@ interface Props {
 const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const {Text} = Typography
 
     return (
         <>
@@ -100,12 +108,21 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                     />
 
                     <ul className={classes.steps}>
-                        {/* <h3>Workflow Essentials</h3> */}
-                        <li>Start from a template</li>
-                        <li>Compare prompts and models</li>
-                        <li>Create testsets</li>
-                        <li>Evaluate outputs</li>
-                        <li>Deploy in one click</li>
+                        <li>
+                            <CheckCircleFilled /> Start from a template
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Compare prompts and models
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Create testsets
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Evaluate outputs
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Deploy in one click
+                        </li>
                     </ul>
 
                     <div className={classes.btnContainer}>
@@ -133,17 +150,36 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                     />
 
                     <ul className={classes.steps}>
-                        <h3>Workflow Essentials</h3>
-                        <li>Start from code</li>
-                        <li>Compare different workflows</li>
-                        <li>Test parameters in the UI</li>
-                        <li>Evaluate outputs</li>
-                        <li>Deploy in one click</li>
-                        <li>Start from a template</li>
-                        <li>Compare prompts and models</li>
-                        <li>Create testsets</li>
-                        <li>Evaluate outputs</li>
-                        <li>Deploy in one click</li>
+                        <li>
+                            <CheckCircleFilled /> Start <span>from code</span>
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Compare different workflows
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Test parameters in the UI
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Evaluate outputs
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Deploy in one click
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Start from a template
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Compare prompts and models
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Create testsets
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Evaluate outputs
+                        </li>
+                        <li>
+                            <CheckCircleFilled /> Deploy in one click
+                        </li>
                     </ul>
 
                     <div className={classes.btnContainer}>
