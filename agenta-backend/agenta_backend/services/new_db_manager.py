@@ -528,13 +528,11 @@ async def remove_app_variant(app_variant_db: AppVariantDB, **kwargs: dict):
 
     # Remove the variant from the associated environments
     environments = await list_environments_by_variant(
-        app_variant.app_name,
-        app_variant.variant_name,
-        app_variant.organization_id,
+        app_variant_db,
         **kwargs,
     )
     for environment in environments:
-        environment.deployed_app_variant = None
+        environment.deployed_app_variant_ref = None
         await engine.save(environment)
 
     if app_variant_db.previous_variant_name is not None:  # forked variant
@@ -631,3 +629,36 @@ async def create_environment(name: str, app_ref: AppDB, **kwargs: dict) -> Envir
     )
     await engine.save(environment_db)
     return environment_db
+
+
+async def list_environments_by_variant(
+    app_variant: AppVariantDB, **kwargs: dict
+) -> List[EnvironmentDB]:
+    """
+    Lists all the environments for the given app name and variant from the DB
+    """
+
+    environments_db: List[EnvironmentDB] = await engine.find(
+        EnvironmentDB, (EnvironmentDB.app_id == app_variant.app_id)
+    )
+
+    return environments_db
+
+
+async def remove_image(image: ImageDB, **kwargs: dict):
+    """Remove image from db 
+
+    Arguments:
+        image -- Image to remove
+    """
+    if image is None:
+        raise ValueError("Image is None")
+    await engine.delete(image)
+
+
+async def remove_environment(environment_db: EnvironmentDB, **kwargs: dict):
+    """
+    Removes the given environment for the given app.
+    """
+    assert environment_db is not None, "environment_db is missing"
+    await engine.delete(environment_db)

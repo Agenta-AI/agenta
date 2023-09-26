@@ -14,7 +14,7 @@ from agenta_backend.models.api.api_models import (
     Image,
     ImageExtended,
 )
-from agenta_backend.models.db_models import AppVariantDB, TestSetDB
+from agenta_backend.models.db_models import AppVariantDB, TestSetDB, EnvironmentDB
 from agenta_backend.services import new_db_manager, docker_utils
 from docker.errors import DockerException
 
@@ -85,6 +85,7 @@ async def remove_app_variant(app_variant_id: str, **kwargs: dict) -> None:
         Exception: Any other exception raised during the operation.
     """
     app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
+    app_id = app_variant_db.app_id.id
     if app_variant_db is None:
         error_msg = f"Failed to delete app variant {app_variant_id}: Not found in DB."
         logger.error(error_msg)
@@ -102,28 +103,28 @@ async def remove_app_variant(app_variant_id: str, **kwargs: dict) -> None:
                 # TODO: This needs to change to use a db schema to save the container name
                 await _stop_and_delete_app_container(app_variant_db, **kwargs)
 
-                await db_manager.remove_app_variant(app_variant, **kwargs)
+                await new_db_manager.remove_app_variant(app_variant_db, **kwargs)  # TODO: Mahmoud not done
 
-                await db_manager.remove_image(image, **kwargs)
+                await new_db_manager.remove_image(image, **kwargs)
 
                 # Only delete the docker image for users that are running the oss version
                 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
-                    _delete_docker_image(image)
+                    _delete_docker_image(image)  # TODO: To implement in ee version
             else:
                 logger.debug(
-                    f"Image associated with app variant {app_variant_db.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
-                )
+                    f"Image associated with app variant {app_variant_db.app_id.name}/{app_variant_db.variant_name} not found. Skipping deletion."
+                )  # TODO: unfinished
         else:
-            await db_manager.remove_app_variant(app_variant, **kwargs)
+            await new_db_manager.remove_app_variant(app_variant_db, **kwargs)
 
-        app_variants = await db_manager.list_app_variants(
-            app_name=app_variant.app_name, **kwargs
-        )
+        app_variants = await new_db_manager.list_app_variants(
+            app_id=app_id, **kwargs
+        )  # TODO: unfinished
         if len(app_variants) == 0:  # this was the last variant for an app
-            await remove_app_related_resources(app_variant.app_name, **kwargs)
+            await remove_app_related_resources(app_id=app_id, **kwargs)  # TODO: unfinished
     except Exception as e:
         logger.error(
-            f"An error occurred while deleting app variant {app_variant.app_name}/{app_variant.variant_name}: {str(e)}"
+            f"An error occurred while deleting app variant {app_variant_db.app_id.name}/{app_variant_db.variant_name}: {str(e)}"
         )
         raise e from None
 
@@ -148,3 +149,32 @@ async def _stop_and_delete_app_container(
         logger.info(f"Container {container_id} deleted")
     except Exception as e:
         logger.error(f"Error stopping and deleting Docker container: {str(e)}")
+
+
+async def remove_app_related_resources(app_id: str, **kwargs: dict):
+    """Removes environments and testsets associated with an app after its deletion.
+
+    When an app or its last variant is deleted, this function ensures that
+    all related resources such as environments and testsets are also deleted.
+
+    Args:
+        app_name: The name of the app whose associated resources are to be removed.
+    """
+    try:
+        # Delete associated environments
+        environments: List[EnvironmentDB] = await new_db_manager.list_environments(
+            app_id, **kwargs
+        )
+        for environment_db in environments:
+            await new_db_manager.remove_environment(environment_db, **kwargs)
+            logger.info(
+                f"Successfully deleted environment {environment_db.name}."
+            )
+        # Delete associated testsets
+        await remove_app_testsets(app_name, **kwargs)  # TODO: unfinished
+        logger.info(f"Successfully deleted test sets associated with app {app_name}.")  # TODO: unfinished
+    except Exception as e:
+        logger.error(
+            f"An error occurred while cleaning up resources for app {app_name}: {str(e)}"  # TODO: unfinished
+        )
+        raise e from None
