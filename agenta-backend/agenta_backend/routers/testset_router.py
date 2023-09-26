@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Depends
+from fastapi.responses import JSONResponse
 
 from agenta_backend.models.api.testset_model import (
     UploadResponse,
@@ -16,10 +17,10 @@ from agenta_backend.models.api.testset_model import (
     TestSetOutputResponse,
 )
 from agenta_backend.config import settings
-from agenta_backend.utills.common import engine
+from agenta_backend.utills.common import engine, check_access_to_app
 from agenta_backend.models.db_models import TestSetDB
 from agenta_backend.services.db_manager import query, get_user_object
-
+from agenta_backend.services import new_db_manager
 
 upload_folder = "./path/to/upload/folder"
 
@@ -45,7 +46,7 @@ async def upload_file(
     upload_type: str = Form(None),
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
-    app_name: str = Form(None),
+    app_id: str = Form(None),
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """
@@ -60,55 +61,59 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    access_app = await check_access_to_app(
+        kwargs=user_org_data, app_id=app_id, check_owner=False
+    )
+    if not access_app:
+        error_msg = f"You do not have access to this app: {app_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app_ref = new_db_manager.fetch_app_by_id(app_id=app_id)
+    # Create a document
+    document = {
+        "created_at": datetime.now().isoformat(),
+        "name": testset_name if testset_name else file.filename,
+        "app_id": app_ref,
+        "csvdata": [],
+    }
 
-    try:
-        # Create a document
-        document = {
-            "created_at": datetime.now().isoformat(),
-            "name": testset_name if testset_name else file.filename,
-            "app_name": app_name,
-            "csvdata": [],
-        }
+    if upload_type == "JSON":
+        # Read and parse the JSON file
+        json_data = await file.read()
+        json_text = json_data.decode("utf-8")
+        json_object = json.loads(json_text)
 
-        if upload_type == "JSON":
-            # Read and parse the JSON file
-            json_data = await file.read()
-            json_text = json_data.decode("utf-8")
-            json_object = json.loads(json_text)
+        # Populate the document with column names and values
+        for row in json_object:
+            document["csvdata"].append(row)
 
-            # Populate the document with column names and values
-            for row in json_object:
-                document["csvdata"].append(row)
+    else:
+        # Read and parse the CSV file
+        csv_data = await file.read()
+        csv_text = csv_data.decode("utf-8")
+        csv_reader = csv.reader(csv_text.splitlines())
+        columns = next(csv_reader)  # Get the column names
 
-        else:
-            # Read and parse the CSV file
-            csv_data = await file.read()
-            csv_text = csv_data.decode("utf-8")
-            csv_reader = csv.reader(csv_text.splitlines())
-            columns = next(csv_reader)  # Get the column names
+        # Populate the document with column names and values
+        for row in csv_reader:
+            row_data = {}
+            for i, value in enumerate(row):
+                row_data[columns[i]] = value
+            document["csvdata"].append(row_data)
 
-            # Populate the document with column names and values
-            for row in csv_reader:
-                row_data = {}
-                for i, value in enumerate(row):
-                    row_data[columns[i]] = value
-                document["csvdata"].append(row_data)
+    user = await get_user_object(user_org_data["uid"])
+    testset_instance = TestSetDB(**document, user=user)
+    result = await engine.save(testset_instance)
 
-        user = await get_user_object(kwargs["uid"])
-        testset_instance = TestSetDB(**document, user=user)
-        result = await engine.save(testset_instance)
-
-        if isinstance(result.id, ObjectId):
-            return UploadResponse(
-                id=str(result.id),
-                name=document["name"],
-                created_at=document["created_at"],
-            )
-
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail="Failed to process file") from e
+    if isinstance(result.id, ObjectId):
+        return UploadResponse(
+            id=str(result.id),
+            name=document["name"],
+            created_at=document["created_at"],
+        )
 
 
 @router.post("/endpoint", response_model=UploadResponse)

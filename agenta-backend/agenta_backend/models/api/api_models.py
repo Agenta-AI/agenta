@@ -58,7 +58,6 @@ class AppVariantFromImage(BaseModel):
 
 class RestartAppContainer(BaseModel):
     variant_id: str
-    organization_id: Optional[str] = None
 
 
 class Image(BaseModel):

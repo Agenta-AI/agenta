@@ -100,7 +100,7 @@ async def list_app_variants(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/get_variant_by_env/", response_model=AppVariant)
+@router.get("/get_variant_by_env/", response_model=AppVariantOutput)
 async def get_variant_by_env(
     app_id: str,
     environment: str,
@@ -112,15 +112,14 @@ async def get_variant_by_env(
         # Retrieve the user and organization ID based on the session token
         kwargs = await get_user_and_org_id(stoken_session)
         await check_access_to_app(kwargs, app_id=app_id)
-        # TODO: RETURN HERE
         # Fetch the app variant using the provided app_name and variant_name
-        app_variant = await db_manager.get_app_variant_by_app_name_and_environment(
-            app_name=app_name, environment=environment, **kwargs
+        app_variant_db = await new_db_manager.get_app_variant_by_app_name_and_environment(
+            app_id=app_id, environment=environment, **kwargs
         )
         # Check if the fetched app variant is None and raise 404 if it is
-        if app_variant is None:
+        if app_variant_db is None:
             raise HTTPException(status_code=500, detail="App Variant not found")
-        return app_variant
+        return app_variant_db_to_output(app_variant_db)
     except ValueError as e:
         # Handle ValueErrors and return 400 status code
         raise HTTPException(status_code=400, detail=str(e))

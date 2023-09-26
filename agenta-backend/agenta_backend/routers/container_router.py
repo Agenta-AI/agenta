@@ -11,7 +11,7 @@ from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
 from agenta_backend.services.docker_utils import restart_container
-from agenta_backend.utills.common import get_app_instance, check_access_to_app
+from agenta_backend.utills.common import get_app_instance, check_access_to_app, check_access_to_variant
 from agenta_backend.models.api.api_models import (
     Image,
     RestartAppContainer,
@@ -19,12 +19,12 @@ from agenta_backend.models.api.api_models import (
     URI,
 )
 from agenta_backend.services.db_manager import get_templates, get_user_object
+from agenta_backend.services import new_db_manager
 from agenta_backend.services.container_manager import (
     build_image_job,
     get_image_details_from_docker_hub,
     pull_image_from_docker_hub,
 )
-
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
         SessionContainer,
@@ -37,7 +37,10 @@ else:
         verify_session,
     )
     from agenta_backend.services.selectors import get_user_and_org_id
+import logging
+logger = logging.getLogger(__name__)
 
+logger.setLevel(logging.DEBUG)
 
 router = APIRouter()
 
@@ -129,35 +132,30 @@ async def restart_docker_container(
     Args:
         payload (RestartAppContainer) -- the required data (app_name and variant_name)
     """
-
+    logger.debug(f"Restarting container for variant {payload.variant_id}")
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-
-    # Get App object
-    if payload.organization_id is None:
-        app_variant = await get_app_instance(payload.app_name, payload.variant_name)
-        print("app_variant: " + str(app_variant))
-        organization_id = str(app_variant.organization_id)
-        app_access = await check_access_to_app(kwargs, app_variant=app_variant)
-    else:
-        organization_id = payload.organization_id
-        app_access = await check_access_to_app(kwargs, app_name=payload.app_name)
-
-    if app_access:
-        try:
-            container_id = (
-                f"{payload.app_name}-{payload.variant_name}-{str(organization_id)}"
-            )
-            restart_container(container_id)
-            return {"message": "Please wait a moment. The container is now restarting."}
-        except Exception as ex:
-            return JSONResponse({"message": str(ex)}, status_code=500)
-    else:
-        error_msg = f"You do not have access to this app: {payload.app_name}"
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    access = check_access_to_variant(kwargs=user_org_data, variant_id=payload.variant_id)
+    if not access:
+        error_msg = f"You do not have access to this variant: {payload.variant_id}"
         return JSONResponse(
             {"detail": error_msg},
             status_code=400,
         )
+    app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id=payload.variant_id)
+    if app_variant_db is None:
+        error_msg = f"Variant with id {payload.variant_id} does not exist"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    try:
+        user_backend_container_name = f"{app_variant_db.app_id.app_name}-{app_variant_db.variant_name}-{str(app_variant_db.organization_id.id)}"
+        logger.debug(f"Restarting container with id: {user_backend_container_name}")
+        restart_container(user_backend_container_name)
+        return {"message": "Please wait a moment. The container is now restarting."}
+    except Exception as ex:
+        return JSONResponse({"message": str(ex)}, status_code=500)
 
 
 @router.get("/templates/")
@@ -211,9 +209,7 @@ async def pull_image(
 
 @router.get("/container_url/")
 async def construct_app_container_url(
-    app_name: str,
-    variant_name: str,
-    organization_id: str = None,
+    variant_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     """Construct and return the app container url path.
@@ -227,10 +223,25 @@ async def construct_app_container_url(
         URI -- the url path of the container
     """
 
-    if organization_id is None:
-        app_variant = await get_app_instance(app_name)
-        organization_id = str(app_variant.organization_id)
-
+    # Get user and org id
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    access = check_access_to_variant(kwargs=user_org_data, variant_id=variant_id)
+    if access is False:
+        error_msg = f"You do not have access to this variant: {variant_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
+    if app_variant_db is None:
+        error_msg = f"Variant with id {variant_id} does not exist"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    organization_id = str(app_variant_db.organization_id.id)
+    app_name = app_variant_db.app_id.app_name
+    variant_name = app_variant_db.variant_name
     # Set organization backend url path and container name
     org_backend_url_path = f"{organization_id}/{app_name}/{variant_name}"
     return URI(uri=f"{org_backend_url_path}")

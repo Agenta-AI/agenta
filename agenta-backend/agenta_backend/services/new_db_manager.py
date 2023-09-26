@@ -723,3 +723,46 @@ async def update_variant_parameters(
         await engine.save(app_variant_db)
     except Exception as e:
         raise ValueError("Issue updating variant parameters")
+
+
+async def get_app_variant_by_app_name_and_environment(
+    app_id: str, environment: str, **kwargs: dict
+) -> Optional[AppVariantDB]:
+
+    # Get the environment
+    # Construct query filters for finding the environment in the database
+    query_filters_for_environment = (
+        query.eq(EnvironmentDB.name, environment)
+        & (EnvironmentDB.app_id == ObjectId(app_id))
+    )
+
+    # Perform the database query to find the environment
+    environment_db = await engine.find_one(
+        EnvironmentDB,
+        query_filters_for_environment
+    )
+
+    if not environment_db:
+        logger.info(f"Environment {environment} not found")
+        return None
+    if environment_db.deployed_app_variant_ref is None:
+        logger.info(f"No variant deployed to environment {environment}")
+        return None
+
+    app_variant_db = await get_app_variant_instance_by_id(str(environment_db.deployed_app_variant_ref))
+
+    return app_variant_db
+
+
+async def get_app_variant_instance_by_id(variant_id: str):
+    """Get the app variant object from the database with the provided id.
+
+    Arguments:
+        variant_id (str): The app variant unique identifier
+
+    Returns:
+        AppVariantDB: instance of app variant object
+    """
+
+    app_variant_db = await engine.find_one(AppVariantDB, AppVariantDB.id == ObjectId(variant_id))
+    return app_variant_db
