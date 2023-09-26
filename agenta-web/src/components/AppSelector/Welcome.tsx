@@ -23,7 +23,7 @@ const useStyles = createUseStyles({
         flex: 1,
         backgroundColor: themeMode === "dark" ? "#000" : "#fff",
         "&:hover": {
-            backgroundColor: themeMode === "dark" ? "rgba(0,0,0,0.3)" : "#e6fae7",
+            backgroundColor: themeMode === "dark" ? "#ff9c3f31" : "#ebffeb",
         },
     }),
     title: {
@@ -39,19 +39,28 @@ const useStyles = createUseStyles({
     tag: {
         padding: "2px 6px",
     },
-    btnContainer: {
+    btnContainer:({themeMode}:StyleProps)=> ({
         textAlign: "right",
         marginTop: "auto",
-    },
-    btn: ({themeMode}: StyleProps) => ({
-        backgroundColor: themeMode === "dark" ? "#fa8416" : "#009432",
-        "&:not([disabled]):hover": {
-            backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
-        },
-        "&:not([disabled]):active": {
-            backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
-        },
+        "& button":{
+            backgroundColor: themeMode === "dark" ? "#fa8416" : "#009432",
+            "&:not([disabled]):hover": {
+                backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
+            },
+            "&:not([disabled]):active": {
+                backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
+            },
+        }
     }),
+    // btn: ({themeMode}: StyleProps) => ({
+    //     backgroundColor: themeMode === "dark" ? "#fa8416" : "#009432",
+    //     "&:not([disabled]):hover": {
+    //         backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
+    //     },
+    //     "&:not([disabled]):active": {
+    //         backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
+    //     },
+    // }),
     img: ({themeMode}: StyleProps) => ({
         width: "100%",
         filter: themeMode === "dark" ? "invert(1)" : "none",
@@ -87,7 +96,7 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                         <Tag
                             className={classes.tag}
                             icon={<ClockCircleOutlined />}
-                            color={"warning"}
+                            color={appTheme === "dark" ? "warning" : "green"}
                         >
                             2-3 mins
                         </Tag>
@@ -112,7 +121,7 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                         <Button
                             size="large"
                             type="primary"
-                            className={classes.btn}
+                            // className={classes.btn}
                             onClick={onCreateAppClick}
                         >
                             Start
@@ -122,7 +131,11 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                 <div className={classes.container}>
                     <div className={classes.title}>
                         <h1>Build complex apps</h1>
-                        <Tag className={classes.tag} icon={<ClockCircleOutlined />} color="warning">
+                        <Tag
+                            className={classes.tag}
+                            icon={<ClockCircleOutlined />}
+                            color={appTheme === "dark" ? "warning" : "green"}
+                        >
                             12-15 mins
                         </Tag>
                     </div>
@@ -148,14 +161,18 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                     </div>
 
                     <div className={classes.btnContainer}>
-                        <Button
-                            size="large"
-                            type="primary"
-                            className={classes.btn}
-                            disabled={!isDemo}
+                        <Tooltip
+                            title={!isDemo ? "Feature Available only in Open-Source Version" : ""}
                         >
-                            <Tooltip title="start">Start</Tooltip>
-                        </Button>
+                            <Button
+                                size="large"
+                                type="primary"
+                                // className={classes.btn}
+                                disabled={!isDemo}
+                            >
+                                Start
+                            </Button>
+                        </Tooltip>
                     </div>
                 </div>
             </section>
