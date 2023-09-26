@@ -44,9 +44,14 @@ async def start_variant(
         RuntimeError: If there is an error starting the Docker container.
     """
     try:
-
-        logger.debug("Starting variant %s with image name %s and tags %s and app_name %s and organization %s", db_app_variant.variant_name,
-                     db_app_variant.image_id.docker_id, db_app_variant.image_id.tags, db_app_variant.app_id.app_name, db_app_variant.organization_id)
+        logger.debug(
+            "Starting variant %s with image name %s and tags %s and app_name %s and organization %s",
+            db_app_variant.variant_name,
+            db_app_variant.image_id.docker_id,
+            db_app_variant.image_id.tags,
+            db_app_variant.app_id.app_name,
+            db_app_variant.organization_id,
+        )
         logger.debug("App name is %s", db_app_variant.app_id.app_name)
         uri: URI = docker_utils.start_container(
             image_name=db_app_variant.image_id.tags,
@@ -71,7 +76,9 @@ async def start_variant(
     return uri
 
 
-async def remove_app_variant(app_variant_id: str = None, app_variant_db=None, **kwargs: dict) -> None:
+async def remove_app_variant(
+    app_variant_id: str = None, app_variant_db=None, **kwargs: dict
+) -> None:
     """
     Removes app variant from the database. If it's the last one using an image, performs additional operations:
     - Deletes the image from the db.
@@ -85,8 +92,12 @@ async def remove_app_variant(app_variant_id: str = None, app_variant_db=None, **
         ValueError: If the app variant is not found in the database.
         Exception: Any other exception raised during the operation.
     """
-    assert app_variant_id or app_variant_db, "Either app_variant_id or app_variant_db must be provided"
-    assert not (app_variant_id and app_variant_db), "Only one of app_variant_id or app_variant_db must be provided"
+    assert (
+        app_variant_id or app_variant_db
+    ), "Either app_variant_id or app_variant_db must be provided"
+    assert not (
+        app_variant_id and app_variant_db
+    ), "Only one of app_variant_id or app_variant_db must be provided"
     logger.debug(f"Removing app variant {app_variant_id}")
     if app_variant_id:
         app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
@@ -99,8 +110,8 @@ async def remove_app_variant(app_variant_id: str = None, app_variant_db=None, **
 
     try:
         logger.debug(f"check_is_last_variant_for_image {app_variant_db}")
-        is_last_variant_for_image = await new_db_manager.check_is_last_variant_for_image(
-            app_variant_db
+        is_last_variant_for_image = (
+            await new_db_manager.check_is_last_variant_for_image(app_variant_db)
         )
         logger.debug(f"Result {is_last_variant_for_image}")
         if is_last_variant_for_image:
@@ -178,9 +189,7 @@ async def remove_app_related_resources(app_id: str, **kwargs: dict):
         )
         for environment_db in environments:
             await new_db_manager.remove_environment(environment_db, **kwargs)
-            logger.info(
-                f"Successfully deleted environment {environment_db.name}."
-            )
+            logger.info(f"Successfully deleted environment {environment_db.name}.")
         # Delete associated testsets
         await new_db_manager.remove_app_testsets(app_id, **kwargs)
         logger.info(f"Successfully deleted test sets associated with app {app_id}.")
@@ -230,9 +239,7 @@ async def remove_app(app_id: str, **kwargs: dict):
     try:
         app_variants = await new_db_manager.list_app_variants(app_id=app_id, **kwargs)
         if len(app_variants) == 0:
-            raise ValueError(
-                f"Failed to delete app {app_id}: No variants found in DB."
-            )
+            raise ValueError(f"Failed to delete app {app_id}: No variants found in DB.")
         for app_variant_db in app_variants:
             await remove_app_variant(app_variant_db=app_variant_db, **kwargs)
             logger.info(
@@ -246,7 +253,9 @@ async def remove_app(app_id: str, **kwargs: dict):
         raise e from None
 
 
-async def update_variant_parameters(app_variant_id: str, parameters: Dict[str, Any], **kwargs: dict):
+async def update_variant_parameters(
+    app_variant_id: str, parameters: Dict[str, Any], **kwargs: dict
+):
     """Updates the parameters for app variant in the database.
 
     Arguments:
