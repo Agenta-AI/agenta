@@ -591,8 +591,11 @@ async def list_environments(app_id: str, **kwargs: dict) -> List[EnvironmentDB]:
     """
 
     app_instance = await fetch_app_by_id(app_id=app_id)
+    if app_instance is None:
+        logging.error(f"App with id {app_id} not found")
+        raise ValueError("App not found")
 
-    environments_db: List[EnvironmentDB] = await engine.find(EnvironmentDB, EnvironmentDB.app_id == app_instance)
+    environments_db: List[EnvironmentDB] = await engine.find(EnvironmentDB, EnvironmentDB.app_id == ObjectId(app_id))
 
     if not environments_db:  # not created yet
         environments_db = await initialize_environments(app_ref=app_instance, **kwargs)
@@ -683,3 +686,15 @@ async def remove_app_testsets(app_id: str, **kwargs):
 
     logger.info(f"No testsets found for app {app_id}")
     return 0
+
+
+async def remove_app_by_id(app_id: str, **kwargs):
+    """
+
+    Args:
+        app_id: _description_
+    """
+    assert app_id is not None, "app_id cannot be None"
+    app_instance = await fetch_app_by_id(app_id=app_id)
+    assert app_instance is not None, f"app instance for {app_id} could not be found"
+    await engine.delete(app_instance)
