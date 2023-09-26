@@ -85,3 +85,20 @@ async def check_access_to_app(
 
     organization_id = app.organization_id.id
     return await check_user_org_access(kwargs, str(organization_id), check_owner)
+
+
+async def check_access_to_variant(
+    kwargs: Dict[str, Union[str, list]],
+    variant_id: str,
+    check_owner: bool = False,
+) -> bool:
+    if variant_id is None:
+        raise Exception("No variant_id provided")
+    variant = await engine.find_one(
+        AppVariantDB, AppVariantDB.id == ObjectId(variant_id)
+    )
+    if variant is None:
+        logger.error("Variant not found")
+        return False
+    organization_id = variant.organization_id.id
+    return await check_user_org_access(kwargs, str(organization_id), check_owner)
