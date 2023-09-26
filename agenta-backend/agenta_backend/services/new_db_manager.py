@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from agenta_backend.models.api.api_models import (
     App,
+    AppVariantOutput,
     AppVariant,
     Environment,
     Image,
@@ -19,6 +20,7 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
     app_db_to_pydantic,
+    app_variant_db_to_output
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -55,11 +57,11 @@ async def add_variant_based_on_image(
     organization_id: str,
     base_name: str = None,
     config_name: str = "default",
-    **kwargs: dict,
-) -> AppVariantDB:
+    **kwargs: dict
+) -> AppVariantOutput:
     """
     Adds an app variant based on an image.
-    Used both when createa an app variant from template and from CLI
+    Used both when create an app variant from template and from CLI
 
     Arguments:
         app_id {str} -- [description]
@@ -137,7 +139,7 @@ async def add_variant_based_on_image(
         )
         await engine.save(db_app_variant)
         logger.debug("Created db_app_variant: %s", db_app_variant)
-        return db_app_variant
+        return app_variant_db_to_output(db_app_variant)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -158,6 +160,22 @@ async def fetch_app_by_name_and_organization(
     query_expression = (AppDB.app_name == app_name) & (
         AppDB.organization_id == ObjectId(organization_id)
     )
+    app = await engine.find_one(AppDB, query_expression)
+    return app
+
+
+async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
+    """Fetches an app by its ID.
+
+    Args:
+        app_id (str): The ID of the app to fetch.
+
+    Returns:
+        AppDB: the instance of the app
+    """
+    
+    user = await get_user_object(kwargs["uid"])
+    query_expression = (AppDB.id == ObjectId(app_id)) & (AppDB.user_id == user.id)
     app = await engine.find_one(AppDB, query_expression)
     return app
 
@@ -194,10 +212,12 @@ async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
     Raises:
         ValueError: If an app with the same name already exists.
     """
+    
     user_instance = await get_user_object(kwargs["uid"])
     app = await fetch_app_by_name_and_organization(app_name, organization_id, **kwargs)
     if app is not None:
         raise ValueError("App with the same name already exists")
+    
     organization_db = await get_organization_object(organization_id)
     app = AppDB(
         app_name=app_name, organization_id=organization_db, user_id=user_instance
@@ -205,6 +225,38 @@ async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
     await engine.save(app)
     return app
 
+
+async def create_user_organization(user_uid: str) -> OrganizationDB:
+    """Create a default organization for a user.
+
+    Args:
+        user_uid (str): The uid of the user
+
+    Returns:
+        OrganizationDB: Instance of OrganizationDB
+    """
+    
+    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
+    org_db = OrganizationDB(owner=str(user.id), type="default")
+    await engine.save(org_db)
+    return org_db
+    
+
+async def create_user_organization(user_uid: str) -> OrganizationDB:
+    """Create a default organization for a user.
+
+    Args:
+        user_uid (str): The uid of the user
+
+    Returns:
+        OrganizationDB: Instance of OrganizationDB
+    """
+    
+    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
+    org_db = OrganizationDB(owner=str(user.id), type="default")
+    await engine.save(org_db)
+    return org_db
+    
 
 async def get_organization_object(organization_id: str) -> OrganizationDB:
     """
