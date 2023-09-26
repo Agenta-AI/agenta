@@ -18,6 +18,10 @@ from agenta_backend.models.api.api_models import (
     EnvironmentOutput,
 )
 
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 
 def app_variant_db_to_pydantic(
     app_variant_db: AppVariantDB, previous_variant_name: str = None
