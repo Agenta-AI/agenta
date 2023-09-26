@@ -21,6 +21,7 @@ from agenta_backend.models.api.api_models import (
 )
 
 import logging
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -115,5 +116,5 @@ def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
         csvdata=test_set_db.csvdata,
         created_at=str(test_set_db.created_at),
         updated_at=str(test_set_db.updated_at),
-        id=str(test_set_db.id)
+        id=str(test_set_db.id),
     )

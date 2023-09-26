@@ -235,7 +235,6 @@ async def create_testset(
     }
 
     try:
-
         testset_instance = TestSetDB(**testset, user=user)
         await engine.save(testset_instance)
 
@@ -328,7 +327,9 @@ async def get_testsets(
     if app_ref is None:
         raise HTTPException(status_code=404, detail="App not found")
 
-    testsets: List[TestSetDB] = await new_db_manager.fetch_testsets_by_app_id(app_id=app_id)
+    testsets: List[TestSetDB] = await new_db_manager.fetch_testsets_by_app_id(
+        app_id=app_id
+    )
     return [
         TestSetOutputResponse(
             id=str(testset.id),
