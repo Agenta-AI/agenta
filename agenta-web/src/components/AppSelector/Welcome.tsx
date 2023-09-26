@@ -1,9 +1,8 @@
-import {Button, Tag, Tooltip} from "antd"
+import {Button, Tag} from "antd"
 import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import {CheckCircleFilled, ClockCircleOutlined} from "@ant-design/icons"
-import {isDemo} from "@/constants/environment"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -18,7 +17,7 @@ const useStyles = createUseStyles({
     container: ({themeMode}: StyleProps) => ({
         display: "flex",
         flexDirection: "column",
-        border: "1px solid #000",
+        border: `1px solid ${themeMode === "dark" ? "#000" : "#009432"}`,
         padding: "20px",
         borderRadius: 10,
         flex: 1,
@@ -79,10 +78,11 @@ const useStyles = createUseStyles({
 })
 
 interface Props {
-    onCreateAppClick: () => void
+    onWriteOwnApp: () => void
+    onCreateFromTemplate: () => void
 }
 
-const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
+const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
 
@@ -126,7 +126,7 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                     </ul>
 
                     <div className={classes.btnContainer}>
-                        <Button size="large" type="primary" onClick={onCreateAppClick}>
+                        <Button size="large" type="primary" onClick={onCreateFromTemplate}>
                             Start
                         </Button>
                     </div>
@@ -183,13 +183,9 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                     </ul>
 
                     <div className={classes.btnContainer}>
-                        <Tooltip
-                            title={!isDemo ? "Feature Available only in Open-Source Version" : ""}
-                        >
-                            <Button size="large" type="primary" disabled={!isDemo}>
-                                Start
-                            </Button>
-                        </Tooltip>
+                        <Button size="large" type="primary" onClick={onWriteOwnApp}>
+                            Start
+                        </Button>
                     </div>
                 </div>
             </section>
