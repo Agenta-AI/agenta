@@ -766,3 +766,15 @@ async def get_app_variant_instance_by_id(variant_id: str):
 
     app_variant_db = await engine.find_one(AppVariantDB, AppVariantDB.id == ObjectId(variant_id))
     return app_variant_db
+
+
+async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
+    """Fetches a testset by its ID.
+    Args:
+        testset_id (str): The ID of the testset to fetch.
+    Returns:
+        TestSetDB: The fetched testset, or None if no testset was found.
+    """
+    assert testset_id is not None, "testset_id cannot be None"
+    testset = await engine.find_one(TestSetDB, TestSetDB.id == ObjectId(testset_id))
+    return testset
