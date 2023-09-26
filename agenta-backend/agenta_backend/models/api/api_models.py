@@ -4,6 +4,15 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 
+class CreateApp(BaseModel):
+    app_name: str
+    
+
+class CreateAppOutput(BaseModel):
+    app_id: str
+    app_name: str
+
+
 class Variant(BaseModel):
     variant_id: str
 
