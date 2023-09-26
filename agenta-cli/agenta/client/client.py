@@ -14,6 +14,27 @@ class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
+def create_new_app(app_name: str, host: str) -> str:
+    """Creates new app on the server.
+
+    Args:
+        app_name (str): Name of the app
+        host (str): Hostname of the server
+    """
+    
+    response = requests.post(
+        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/apps/",
+        json={"app_name": app_name},
+        timeout=600
+    )
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to create new app failed with status code {response.status_code} and error message: {error_message}."
+        )
+    return response.json()["app_id"]
+
+
 def add_variant_to_server(app_name: str, variant_name: str, image: Image, host: str):
     """Adds a variant to the server.
 
@@ -33,6 +54,7 @@ def add_variant_to_server(app_name: str, variant_name: str, image: Image, host: 
         raise APIRequestError(
             f"Request to app_variant endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
+    return response.json()
 
 
 def start_variant(app_name: str, variant_name: str, host: str) -> str:
@@ -69,7 +91,7 @@ def list_variants(app_name: str, host: str) -> List[AppVariant]:
         a list of the variants using the pydantic model
     """
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/list_variants/?app_name={app_name}",
+        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/list_variants/?app_id={app_name}",
         timeout=600,
     )
 
