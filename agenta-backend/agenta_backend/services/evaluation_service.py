@@ -44,167 +44,9 @@ class UpdateEvaluationScenarioError(Exception):
     pass
 
 
-async def create_new_evaluation(
-    payload: NewEvaluation, **user_org_data: dict
+async def _fetch_evaluation_and_check_access(
+    evaluation_id: str, **user_org_data: dict
 ) -> EvaluationDB:
-    """
-    Create a new evaluation based on the provided payload and additional arguments.
-
-    Args:
-        payload (NewEvaluation): The evaluation payload.
-        **user_org_data (dict): Additional keyword arguments, e.g., user id.
-
-    Returns:
-        EvaluationDB
-    """
-    user = await get_user_object(user_org_data["uid"])
-
-    # Initialize evaluation type settings
-    settings = payload.evaluation_type_settings
-    evaluation_type_settings = EvaluationTypeSettings(
-        similarity_threshold=settings.similarity_threshold or 0.0,
-        regex_pattern=settings.regex_pattern or "",
-        regex_should_match=settings.regex_should_match or True,
-        webhook_url=settings.webhook_url or "",
-        custom_code_evaluation_id=settings.custom_code_evaluation_id or "",
-        llm_app_prompt_template=settings.llm_app_prompt_template or "",
-    )
-
-    current_time = datetime.utcnow()
-
-    # Fetch app
-    app = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
-    if app is None:
-        raise HTTPException(
-            status_code=404, detail=f"App with id {payload.app_id} does not exist"
-        )
-
-    variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
-
-    testset = await new_db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
-    # Initialize and save evaluation instance to database
-    eval_instance = EvaluationDB(
-        app=app,
-        organization=app.organization_id,  # Assuming user has an organization_id attribute
-        user=user,
-        status=payload.status,
-        evaluation_type=payload.evaluation_type,
-        evaluation_type_settings=evaluation_type_settings,
-        variants=variants,
-        testset=testset,
-        created_at=current_time,
-        updated_at=current_time,
-    )
-    newEvaluation = await engine.save(eval_instance)
-
-    if newEvaluation is None:
-        raise HTTPException(
-            status_code=500, detail="Failed to create evaluation_scenario"
-        )
-
-    csvdata = testset.csvdata
-    for datum in csvdata:
-        # Check whether the inputs in the test set match the inputs in the variant
-        try:
-            inputs = [
-                {"input_name": name, "input_value": datum[name]}
-                for name in payload.inputs
-            ]
-        except KeyError:
-            await engine.delete(newEvaluation)
-            msg = f"""
-            Columns in the test set should match the names of the inputs in the variant.
-            Inputs names in variant are: {payload.inputs} while
-            columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
-            """
-            raise HTTPException(
-                status_code=400,
-                detail=msg,
-            )
-        # Create evaluation scenarios
-        list_of_scenario_input = []
-        for scenario_input in inputs:
-            eval_scenario_input_instance = EvaluationScenarioInput(
-                input_name=scenario_input["input_name"],
-                input_value=scenario_input["input_value"],
-            )
-            list_of_scenario_input.append(eval_scenario_input_instance)
-
-        evaluation_scenario_payload = {
-            **{
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-            **extend_with_evaluation(payload.evaluation_type),
-            **extend_with_correct_answer(payload.evaluation_type, datum),
-        }
-
-        eval_scenario_instance = EvaluationScenarioDB(
-            **evaluation_scenario_payload,
-            user=user,
-            organization=app.organization_id,
-            evaluation=newEvaluation,
-            inputs=list_of_scenario_input,
-            outputs=[],
-        )
-        await engine.save(eval_scenario_instance)
-
-    return newEvaluation
-
-
-async def create_new_evaluation_scenario(
-    evaluation_id: str, payload: EvaluationScenario, **user_org_data: dict
-) -> Dict:
-    # Get user object
-    user = await get_user_object(user_org_data["uid"])
-
-    list_of_scenario_input = []
-    for scenario_input in payload.inputs:
-        eval_scenario_input_instance = EvaluationScenarioInput(
-            input_name=scenario_input["input_name"],
-            input_value=scenario_input["input_value"],
-        )
-        list_of_scenario_input.append(eval_scenario_input_instance)
-
-    evaluation_scenario_payload = {
-        **{
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        },
-        **extend_with_evaluation(payload.evaluation_type),
-    }
-    eval_scenario_instance = EvaluationScenarioDB(
-        **evaluation_scenario_payload,
-        evaluation_id=evaluation_id,
-        user=user,
-        inputs=list_of_scenario_input,
-        outputs=[],
-    )
-    await engine.save(eval_scenario_instance)
-    return EvaluationScenario(
-        evaluation_id=evaluation_id,
-        inputs=eval_scenario_instance.inputs,
-        outputs=eval_scenario_instance.outputs,
-        vote=eval_scenario_instance.vote,
-        score=eval_scenario_instance.score,
-        correct_answer=eval_scenario_instance.correct_answer,
-        id=str(eval_scenario_instance.id),
-    )
-
-
-async def update_evaluation(
-    evaluation_id: str, update_payload: EvaluationUpdate, **user_org_data: dict
-) -> None:
-    """
-    Update an existing evaluation based on the provided payload.
-
-    Args:
-        evaluation_id (str): The existing evaluation ID.
-        update_payload (EvaluationUpdate): The payload for the update.
-
-    Raises:
-        HTTPException: If the evaluation is not found or access is denied.
-    """
     # Fetch the evaluation by ID
     evaluation = await new_db_manager.fetch_evaluation_by_id(
         evaluation_id=evaluation_id
@@ -225,6 +67,206 @@ async def update_evaluation(
             status_code=403,
             detail=f"You do not have access to this app: {str(evaluation.app.id)}",
         )
+    return evaluation
+
+async def _fetch_evaluation_scenario_and_check_access(
+    evaluation_scenario_id: str, **user_org_data: dict
+) -> EvaluationDB:
+    # Fetch the evaluation by ID
+    evaluation_scenario = await new_db_manager.fetch_evaluation_scenario_by_id(
+        evaluation_scenario_id=evaluation_scenario_id
+    )
+    if evaluation_scenario is None:
+        raise HTTPException(
+            status_code=404, detail=f"Evaluation scenario with id {evaluation_scenario_id} not found"
+        )
+    evaluation = evaluation_scenario.evaluation
+    
+    # Check if the evaluation exists
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404, detail=f"Evaluation scenario for evaluation scenario with id {evaluation_scenario_id} not found"
+        )
+
+    # Check for access rights
+    access = await common.check_access_to_app(
+        kwargs=user_org_data, app_id=evaluation.app.id
+    )
+    if not access:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
+        )
+    return evaluation_scenario
+
+
+# async def create_new_evaluation(
+#     payload: NewEvaluation, **user_org_data: dict
+# ) -> EvaluationDB:
+#     """
+#     Create a new evaluation based on the provided payload and additional arguments.
+
+#     Args:
+#         payload (NewEvaluation): The evaluation payload.
+#         **user_org_data (dict): Additional keyword arguments, e.g., user id.
+
+#     Returns:
+#         EvaluationDB
+#     """
+#     user = await get_user_object(user_org_data["uid"])
+
+#     # Initialize evaluation type settings
+#     settings = payload.evaluation_type_settings
+#     evaluation_type_settings = EvaluationTypeSettings(
+#         similarity_threshold=settings.similarity_threshold or 0.0,
+#         regex_pattern=settings.regex_pattern or "",
+#         regex_should_match=settings.regex_should_match or True,
+#         webhook_url=settings.webhook_url or "",
+#         custom_code_evaluation_id=settings.custom_code_evaluation_id or "",
+#         llm_app_prompt_template=settings.llm_app_prompt_template or "",
+#     )
+
+#     current_time = datetime.utcnow()
+
+#     # Fetch app
+#     app = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
+#     if app is None:
+#         raise HTTPException(
+#             status_code=404, detail=f"App with id {payload.app_id} does not exist"
+#         )
+
+#     variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
+
+#     testset = await new_db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
+#     # Initialize and save evaluation instance to database
+#     eval_instance = EvaluationDB(
+#         app=app,
+#         organization=app.organization_id,  # Assuming user has an organization_id attribute
+#         user=user,
+#         status=payload.status,
+#         evaluation_type=payload.evaluation_type,
+#         evaluation_type_settings=evaluation_type_settings,
+#         variants=variants,
+#         testset=testset,
+#         created_at=current_time,
+#         updated_at=current_time,
+#     )
+#     newEvaluation = await engine.save(eval_instance)
+
+#     if newEvaluation is None:
+#         raise HTTPException(
+#             status_code=500, detail="Failed to create evaluation_scenario"
+#         )
+
+#     csvdata = testset.csvdata
+#     for datum in csvdata:
+#         # Check whether the inputs in the test set match the inputs in the variant
+#         try:
+#             inputs = [
+#                 {"input_name": name, "input_value": datum[name]}
+#                 for name in payload.inputs
+#             ]
+#         except KeyError:
+#             await engine.delete(newEvaluation)
+#             msg = f"""
+#             Columns in the test set should match the names of the inputs in the variant.
+#             Inputs names in variant are: {payload.inputs} while
+#             columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
+#             """
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail=msg,
+#             )
+#         # Create evaluation scenarios
+#         list_of_scenario_input = []
+#         for scenario_input in inputs:
+#             eval_scenario_input_instance = EvaluationScenarioInput(
+#                 input_name=scenario_input["input_name"],
+#                 input_value=scenario_input["input_value"],
+#             )
+#             list_of_scenario_input.append(eval_scenario_input_instance)
+
+#         evaluation_scenario_payload = {
+#             **{
+#                 "created_at": datetime.utcnow(),
+#                 "updated_at": datetime.utcnow(),
+#             },
+#             **extend_with_evaluation(payload.evaluation_type),
+#             **extend_with_correct_answer(payload.evaluation_type, datum),
+#         }
+
+#         eval_scenario_instance = EvaluationScenarioDB(
+#             **evaluation_scenario_payload,
+#             user=user,
+#             organization=app.organization_id,
+#             evaluation=newEvaluation,
+#             inputs=list_of_scenario_input,
+#             outputs=[],
+#         )
+#         await engine.save(eval_scenario_instance)
+
+#     return newEvaluation
+
+
+async def create_evaluation_scenario(
+    evaluation_id: str, payload: EvaluationScenario, **user_org_data: dict
+) -> None:
+    """
+    Create a new evaluation scenario.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation.
+        payload (EvaluationScenario): Evaluation scenario data.
+        user_org_data (dict): User and organization data.
+
+    Raises:
+        HTTPException: If evaluation not found or access denied.
+    """
+    evaluation = await _fetch_evaluation_and_check_access(
+        evaluation_id=evaluation_id, **user_org_data
+    )
+
+    scenario_inputs = [
+        EvaluationScenarioInput(
+            input_name=input_item.input_name,
+            input_value=input_item.input_value
+        )
+        for input_item in payload.inputs
+    ]
+
+    new_eval_scenario = EvaluationScenarioDB(
+        user=evaluation.user,
+        organization=evaluation.organization,
+        evaluation=evaluation,
+        inputs=scenario_inputs,
+        outputs=[],
+        **extend_with_evaluation(evaluation.evaluation_type),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        evaluation_id=evaluation_id,
+    )
+
+    await engine.save(new_eval_scenario)
+
+
+async def update_evaluation(
+    evaluation_id: str, update_payload: EvaluationUpdate, **user_org_data: dict
+) -> None:
+    """
+    Update an existing evaluation based on the provided payload.
+
+    Args:
+        evaluation_id (str): The existing evaluation ID.
+        update_payload (EvaluationUpdate): The payload for the update.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+    """
+    # Fetch the evaluation by ID
+    evaluation = await _fetch_evaluation_and_check_access(
+        evaluation_id=evaluation_id,
+        **user_org_data,
+    )
 
     # Prepare updates
     updates = {}
@@ -267,25 +309,10 @@ async def fetch_evaluation_scenarios_for_evaluation(
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
-    evaluation = await new_db_manager.fetch_evaluation_by_id(
-        evaluation_id=evaluation_id
+    evaluation = await _fetch_evaluation_and_check_access(
+        evaluation_id=evaluation_id,
+        **user_org_data,
     )
-
-    # Check if the evaluation exists
-    if evaluation is None:
-        raise HTTPException(
-            status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
-        )
-
-    # Check for access rights
-    access = await common.check_access_to_app(
-        kwargs=user_org_data, app_id=evaluation.app.id
-    )
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
-        )
     scenarios = await engine.find(
         EvaluationScenarioDB, EvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
     )
@@ -302,12 +329,20 @@ async def update_evaluation_scenario(
     evaluation_type: EvaluationType,
     **user_org_data,
 ) -> Dict:
+    
+    # Fetch the evaluation by ID
+    evaluation_scenario = await _fetch_evaluation_scenario_and_check_access(
+        evaluation_id=evaluation_scenario_id,
+        **user_org_data,
+    )
+
+    
     evaluation_scenario_dict = evaluation_scenario_data.dict()
     evaluation_scenario_dict["updated_at"] = datetime.utcnow()
 
     # Construct new evaluation set and get user object
     new_evaluation_set = {"outputs": evaluation_scenario_dict["outputs"]}
-    user = await get_user_object(user_org_data["uid"])
+    
 
     # COnstruct query expression builder for evaluation and evaluation scenario
     query_expression_eval = query.eq(EvaluationDB.user, user.id)
@@ -497,7 +532,7 @@ def evaluate_with_ai_critique(
             input_variables.append(var)
 
     # Iterate over llm_app_inputs and check if the variable name exists in the evaluation_prompt_template
-    for input_item in llm_app_inputs:
+    for input_item in llm_app_inputs:update_evaluation_scenario
         if "{%s}" % input_item["input_name"] in evaluation_prompt_template:
             input_variables.append(input_item["input_name"])
 

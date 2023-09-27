@@ -74,7 +74,7 @@ async def list_app_variants(
     """Lists the app variants from our repository.
 
     Arguments:
-        app_name -- If specified, only returns the app variants for the specified app
+        app_id -- If specified, only returns the app variants for the specified app
     Raises:
         HTTPException: _description_
 

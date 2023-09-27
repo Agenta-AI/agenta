@@ -43,8 +43,6 @@ from agenta_backend.services.evaluation_service import (
     update_evaluation_scenario,
     update_evaluation_scenario_score,
     update_evaluation,
-    create_new_evaluation,
-    create_new_evaluation_scenario,
     create_custom_code_evaluation,
     execute_custom_code_evaluation,
 )
@@ -116,7 +114,7 @@ async def create_evaluation(
         )
 
 
-@router.put("/{evaluation_id}", response_model=Evaluation)
+@router.put("/{evaluation_id}")
 async def update_evaluation_router(
     evaluation_id: str,
     update_data: EvaluationUpdate = Body(...),
@@ -170,41 +168,25 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
+@router.post("/{evaluation_id}/evaluation_scenario")
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    stoken_session: SessionContainer = Depends(verify_session),
 ):
-    """Creates an empty evaluation row
-
-    Arguments:
-        evaluation_scenario -- _description_
+    """Create a new evaluation scenario for a given evaluation ID.
 
     Raises:
-        HTTPException: _description_
+        HTTPException: If evaluation not found or access denied.
 
     Returns:
-        _description_
+        None: 204 No Content status code upon success.
     """
-    evaluation_scenario_dict = evaluation_scenario.dict()
-    evaluation_scenario_dict.pop("id", None)
-
-    evaluation_scenario_dict["created_at"] = evaluation_scenario_dict[
-        "updated_at"
-    ] = datetime.utcnow()
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
-    result = await create_new_evaluation_scenario(
+    user_org_data = await get_user_and_org_id(stoken_session)
+    await evaluation_service.create_evaluation_scenario(
         evaluation_id, evaluation_scenario, **user_org_data
     )
-    if result is not None:
-        return result
-    else:
-        raise HTTPException(
-            status_code=500, detail="Failed to create evaluation_scenario"
-        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put(
@@ -232,9 +214,9 @@ async def update_evaluation_scenario_router(
         # Get user and organization id
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         return await update_evaluation_scenario(
-            evaluation_scenario_id,
-            evaluation_scenario,
-            evaluation_type,
+            evaluation_scenario_id=evaluation_scenario_id,
+            evaluation_scenario_data=evaluation_scenario,
+            evaluation_type=evaluation_type,
             **user_org_data,
         )
     except UpdateEvaluationScenarioError as e:
