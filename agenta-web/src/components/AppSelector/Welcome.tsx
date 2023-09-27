@@ -91,7 +91,7 @@ const useStyles = createUseStyles({
     },
     tag: {
         padding: "2px 6px",
-        fontWeight: "bold"
+        fontWeight: "bold",
     },
     btnContainer: ({themeMode}: StyleProps) => ({
         textAlign: "right",
