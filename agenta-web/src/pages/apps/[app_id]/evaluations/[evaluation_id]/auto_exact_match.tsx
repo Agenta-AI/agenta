@@ -1,4 +1,4 @@
-import ABTestingEvaluationTable from "@/components/EvaluationTable/ABTestingEvaluationTable"
+import ExactMatchEvaluationTable from "../../../../../components/EvaluationTable/ExactMatchEvaluationTable"
 import {Evaluation} from "@/lib/Types"
 import {loadEvaluation, loadEvaluationsScenarios} from "@/lib/services/api"
 import {useRouter} from "next/router"
@@ -12,8 +12,8 @@ export default function Evaluation() {
         : ""
     const [evaluationScenarios, setEvaluationScenarios] = useState([])
     const [evaluation, setEvaluation] = useState<Evaluation | undefined>()
-    const appName = router.query.app_name as unknown as string
-    const columnsCount = 2
+    const appId = router.query.app_id as string
+    const columnsCount = 1
 
     useEffect(() => {
         if (!evaluation) {
@@ -32,14 +32,14 @@ export default function Evaluation() {
         }
         const init = async () => {
             const evaluation: Evaluation = await loadEvaluation(evaluationTableId)
-            const backendVariants = await fetchVariants(appName)
+            const backendVariants = await fetchVariants(appId)
             // Create a map for faster access to first array elements
             let backendVariantsMap = new Map()
-            backendVariants.forEach((obj) => backendVariantsMap.set(obj.variantName, obj))
+            backendVariants.forEach((obj) => backendVariantsMap.set(obj.variantId, obj))
 
             // Update variants in second object
             evaluation.variants = evaluation.variants.map((variant) => {
-                let backendVariant = backendVariantsMap.get(variant.variantName)
+                let backendVariant = backendVariantsMap.get(variant.variantId)
                 return backendVariant ? backendVariant : variant
             })
             setEvaluation(evaluation)
@@ -51,7 +51,7 @@ export default function Evaluation() {
     return (
         <div className="evalautionContainer">
             {evaluationTableId && evaluationScenarios && evaluation && (
-                <ABTestingEvaluationTable
+                <ExactMatchEvaluationTable
                     columnsCount={columnsCount}
                     evaluationScenarios={evaluationScenarios}
                     evaluation={evaluation}

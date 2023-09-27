@@ -12,6 +12,7 @@ import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
 import {fetchData} from "@/lib/services/api"
+import {useAppContext} from "@/contexts/app.context"
 
 const {Content, Footer} = Layout
 
@@ -90,9 +91,10 @@ type LayoutProps = {
 
 const App: React.FC<LayoutProps> = ({children}) => {
     const router = useRouter()
-    const {app_name: appName} = router.query
+    const appId = router.query?.app_id as string
     const {appTheme} = useAppTheme()
-    const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || "")
+    const {currentApp} = useAppContext()
+    const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const [starCount, setStarCount] = useState(0)

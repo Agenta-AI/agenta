@@ -90,16 +90,16 @@ export default function HumanEvaluationResult() {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
 
-    const app_name = router.query.app_name?.toString() || ""
+    const app_id = router.query.app_id?.toString() || ""
 
     useEffect(() => {
-        if (!app_name) {
+        if (!app_id) {
             return
         }
         const fetchEvaluations = async () => {
             try {
                 fetchData(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_name=${app_name}`,
+                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_id=${app_id}`,
                 )
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
@@ -140,7 +140,7 @@ export default function HumanEvaluationResult() {
         }
 
         fetchEvaluations()
-    }, [app_name])
+    }, [app_id])
 
     const onCompleteEvaluation = (evaluation: any) => {
         // TODO: improve type
@@ -148,7 +148,7 @@ export default function HumanEvaluationResult() {
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/human_a_b_testing`)
         }
     }
 

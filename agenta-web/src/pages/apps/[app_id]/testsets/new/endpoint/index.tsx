@@ -30,7 +30,7 @@ export default function ImportTestsetFromEndpoint() {
     const classes = useStyles()
 
     const router = useRouter()
-    const appName = router.query.app_name?.toString() || ""
+    const appId = router.query.app_id as string
 
     const handleSubmit = async (values: FieldType) => {
         if (values.name.trim() === "" || values.endpoint.trim() === "") {
@@ -43,7 +43,7 @@ export default function ImportTestsetFromEndpoint() {
         const formData = new FormData()
         formData.append("endpoint", values.endpoint)
         formData.append("testset_name", values.name)
-        formData.append("app_name", appName?.toString() || "")
+        formData.append("app_id", appId)
 
         try {
             // TODO: move to api.ts
@@ -52,7 +52,7 @@ export default function ImportTestsetFromEndpoint() {
                 formData,
                 {headers: {"Content-Type": "multipart/form-data"}},
             )
-            router.push(`/apps/${appName}/testsets`)
+            router.push(`/apps/${appId}/testsets`)
         } catch (_) {
             // Errors will be handled by Axios interceptor
             // Do nothing here
