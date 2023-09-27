@@ -9,6 +9,7 @@ from fastapi import HTTPException, APIRouter, Body, Depends
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (
+    AICritiqueCreate,
     CustomEvaluationNames,
     Evaluation,
     EvaluationScenario,
@@ -35,6 +36,7 @@ from agenta_backend.services.results_service import (
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
+    evaluate_with_ai_critique,
     fetch_custom_evaluation_names,
     fetch_custom_evaluations,
     fetch_custom_evaluation_detail,
@@ -227,6 +229,27 @@ async def update_evaluation_scenario_router(
         )
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/evaluation_scenario/ai_critique", response_model=str)
+async def evaluate_ai_critique(
+    payload: AICritiqueCreate,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    try:
+        # Run ai critique evaluation
+        payload_dict = payload.dict()
+        output = evaluate_with_ai_critique(
+            llm_app_prompt_template=payload_dict["llm_app_prompt_template"],
+            llm_app_inputs=payload_dict["inputs"],
+            correct_answer=payload_dict["correct_answer"],
+            app_variant_output=payload_dict["outputs"][0]["variant_output"],
+            evaluation_prompt_template=payload_dict["evaluation_prompt_template"],
+            open_ai_key=payload_dict["open_ai_key"],
+        )
+        return output
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score")
