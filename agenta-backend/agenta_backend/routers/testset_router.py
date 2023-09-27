@@ -29,11 +29,13 @@ router = APIRouter()
 
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (
-        SessionContainer,
-        verify_session,
+    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
+        SessionContainer,  # noqa pylint: disable-all
+        verify_session,  # noqa pylint: disable-all
     )
-    from agenta_backend.ee.services.selectors import get_user_and_org_id
+    from agenta_backend.ee.services.selectors import (
+        get_user_and_org_id,
+    )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.auth_helper import (
         SessionContainer,

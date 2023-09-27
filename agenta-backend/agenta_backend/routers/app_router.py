@@ -47,11 +47,13 @@ from agenta_backend.models.db_models import (
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (
+    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
         SessionContainer,
         verify_session,
     )
-    from agenta_backend.ee.services.selectors import get_user_and_org_id
+    from agenta_backend.ee.services.selectors import (
+        get_user_and_org_id,
+    )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.auth_helper import (
         SessionContainer,
@@ -281,10 +283,14 @@ async def add_variant_from_base(
         logger.debug(f"Received payload: {payload}")
 
         # Find the previous variant in the database
-        app_variant_db = await new_db_manager.find_previous_variant_from_base_id(payload.base_id)
+        app_variant_db = await new_db_manager.find_previous_variant_from_base_id(
+            payload.base_id
+        )
         if app_variant_db is None:
             logger.error("Failed to find the previous app variant in the database.")
-            raise HTTPException(status_code=500, detail="Previous app variant not found")
+            raise HTTPException(
+                status_code=500, detail="Previous app variant not found"
+            )
         logger.debug(f"Located previous variant: {app_variant_db}")
 
         # Get user and organization data
@@ -292,10 +298,17 @@ async def add_variant_from_base(
         logger.debug(f"Retrieved user and organization data: {user_org_data}")
 
         # Check user access permissions
-        access = await check_user_org_access(user_org_data, app_variant_db.organization_id.id)
+        access = await check_user_org_access(
+            user_org_data, app_variant_db.organization_id.id
+        )
         if not access:
-            logger.error("User does not have the required permissions to access this app variant.")
-            raise HTTPException(status_code=500, detail="You do not have permission to access this app variant")
+            logger.error(
+                "User does not have the required permissions to access this app variant."
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="You do not have permission to access this app variant",
+            )
         logger.debug("User has required permissions to access this app variant.")
 
         # Add new variant based on the previous one
