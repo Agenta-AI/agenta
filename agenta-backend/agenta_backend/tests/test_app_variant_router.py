@@ -37,10 +37,7 @@ async def test_successfully_creates_new_app_variant(get_first_user_object):
     }
 
     # Invoke the function
-    response = await test_client.get(
-        f"http://localhost:8000/app_variant/feedbacks/add/from_template/",
-        json=payload,
-    )
+    response = await add_app_variant_from_template(payload=payload)
 
     # Assertions
     assert response.status_code == 200
@@ -57,3 +54,4 @@ async def test_successfully_creates_new_app_variant(get_first_user_object):
         "config_name": "default",
         "config_id": None
     }
+    
