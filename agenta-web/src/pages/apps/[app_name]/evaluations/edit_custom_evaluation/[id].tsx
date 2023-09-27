@@ -1,10 +1,21 @@
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
+import {fetchCustomEvaluationDetail} from "@/lib/services/api"
+import {useEffect, useState} from "react"
 import CustomPythonCode from "@/components/Evaluations/CustomPythonCode"
 
 type StyleProps = {
     themeMode: "dark" | "light"
+}
+
+interface ICustomEvalDetails {
+    id: string
+    evaluation_name: string
+    app_name: string
+    python_code: string
+    created_at: string
+    updated_at: string
 }
 
 const useStyles = createUseStyles({
@@ -39,19 +50,35 @@ const useStyles = createUseStyles({
     },
 })
 
-export default function CreateCustomEvaluation() {
+export default function EditCustomEvaluation() {
     const router = useRouter()
     const appName = router.query.app_name?.toString() || ""
-
+    const id: string = router.query.id?.toString() || ""
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const [evalDetail, setEvalDetail] = useState<ICustomEvalDetails>()
+
+    useEffect(() => {
+        const evaluationDetails = async () => {
+            const response: any = await fetchCustomEvaluationDetail(id)
+            setEvalDetail(response)
+        }
+        evaluationDetails()
+    }, [])
 
     return (
-        <CustomPythonCode
-            classes={classes}
-            appName={appName}
-            appTheme={appTheme}
-            editMode={false}
-        />
+        <>
+            {evalDetail?.evaluation_name !== undefined && evalDetail?.evaluation_name !== "" && (
+                <CustomPythonCode
+                    classes={classes}
+                    appName={appName}
+                    appTheme={appTheme}
+                    editMode={true}
+                    editCode={evalDetail?.python_code}
+                    editName={evalDetail?.evaluation_name}
+                    editId={id}
+                />
+            )}
+        </>
     )
 }

@@ -2,7 +2,11 @@ import React, {useState, useEffect} from "react"
 import {useRouter} from "next/router"
 import {Input, Form, Button, Row, Col, Typography, notification} from "antd"
 import {CreateCustomEvaluationSuccessResponse} from "@/lib/Types"
-import {saveCustomCodeEvaluation, fetchCustomEvaluationNames} from "@/lib/services/api"
+import {
+    editCustomEvaluationDetail,
+    saveCustomCodeEvaluation,
+    fetchCustomEvaluationNames,
+} from "@/lib/services/api"
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import CopyButton from "../CopyButton/CopyButton"
 import Editor from "@monaco-editor/react"
@@ -11,6 +15,10 @@ interface ICustomPythonProps {
     classes: any
     appName: string
     appTheme: string
+    editMode: boolean // Add an editMode prop
+    editCode?: string // Optional for edit mode
+    editName?: string // Optional for edit mode
+    editId?: string // Optional for edit mode
 }
 
 interface ICustomEvalNames {
@@ -18,7 +26,15 @@ interface ICustomEvalNames {
     evaluation_name: string
 }
 
-const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTheme}) => {
+const CustomPythonCode: React.FC<ICustomPythonProps> = ({
+    classes,
+    appName,
+    appTheme,
+    editMode,
+    editCode = "", // Default to empty strings if not provided
+    editName = "",
+    editId = "",
+}) => {
     const {Title} = Typography
     const [form] = Form.useForm()
     const router = useRouter()
@@ -52,7 +68,9 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTh
             python_code: values.pythonCode,
             app_name: appName,
         }
-        const response = await saveCustomCodeEvaluation(data)
+        const response = editMode
+            ? await editCustomEvaluationDetail(editId, data)
+            : await saveCustomCodeEvaluation(data)
         if (response.status === 200) {
             const data: CreateCustomEvaluationSuccessResponse = response.data
 
@@ -118,7 +136,7 @@ def evaluate(
     return (
         <div className={classes.evaluationContainer}>
             <Title level={4} className={classes.customTitle}>
-                Save Python Code Evaluation
+                {editMode ? "Edit Python Code Evaluation" : "Save Python Code Evaluation"}
             </Title>
             <Form form={form} onFinish={handlerToSubmitFormData}>
                 <Row justify="start" gutter={24}>
@@ -132,6 +150,7 @@ def evaluate(
                                 disabled={submitting}
                                 onChange={checkForEvaluationName}
                                 placeholder="Input name of evaluation"
+                                defaultValue={editName}
                             />
                         </Form.Item>
                         <div className={classes.exampleContainer}>
@@ -165,7 +184,7 @@ def evaluate(
                                 theme={switchEditorThemeBasedOnTheme()}
                                 value={form.getFieldValue("pythonCode")}
                                 onChange={(code) => form.setFieldsValue({pythonCode: code})}
-                                defaultValue={pythonDefaultEvalCode()}
+                                defaultValue={editMode ? editCode : pythonDefaultEvalCode()}
                             />
                         </Form.Item>
                     </Col>
@@ -179,7 +198,7 @@ def evaluate(
                                     className={classes.submitBtn}
                                     disabled={isSaveButtonDisabled() || submitting}
                                 >
-                                    Save
+                                    {editMode ? "Save Changes" : "Save"}
                                 </Button>
                             )}
                         </Form.Item>

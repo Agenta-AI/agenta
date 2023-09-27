@@ -12,6 +12,7 @@ import {
     RestartVariantDocker,
     RestartVariantDockerResponse,
     Environment,
+    EditCustomEvaluation,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
 } from "@/lib/Types"
@@ -447,6 +448,19 @@ export const saveCustomCodeEvaluation = async (
 ) => {
     const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/`,
+        payload,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
+export const editCustomEvaluationDetail = async (
+    id: string,
+    payload: CreateCustomEvaluation,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.put(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/edit_custom_evaluation/${id}`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
