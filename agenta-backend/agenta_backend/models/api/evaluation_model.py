@@ -43,6 +43,14 @@ class Evaluation(BaseModel):
     updated_at: datetime
 
 
+class SimpleEvaluationOutput(BaseModel):
+    id: str
+    variant_ids: List[str]
+    app_id: str
+    status: str
+    evaluation_type: EvaluationType
+
+
 class EvaluationUpdate(BaseModel):
     status: Optional[EvaluationStatusEnum]
     evaluation_type_settings: Optional[EvaluationTypeSettings]

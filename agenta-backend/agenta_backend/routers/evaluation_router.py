@@ -23,6 +23,7 @@ from agenta_backend.models.api.evaluation_model import (
     CreateCustomEvaluation,
     EvaluationUpdate,
     EvaluationWebhook,
+    SimpleEvaluationOutput,
 )
 from agenta_backend.services.results_service import (
     fetch_average_score_for_custom_code_run,
@@ -47,11 +48,13 @@ from agenta_backend.services.evaluation_service import (
     create_custom_code_evaluation,
     execute_custom_code_evaluation,
 )
+from agenta_backend.services import evaluation_service
 from agenta_backend.utills.common import engine, check_access_to_app
 from agenta_backend.services.db_manager import query, get_user_object
 from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
 from agenta_backend.config import settings
 from agenta_backend.services import new_db_manager
+from agenta_backend.models import converters
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
@@ -65,15 +68,17 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
         SessionContainer,
         verify_session,
     )
-    from agenta_backend.services.selectors import (
+    from agenta_backend.services.selectors import (  # noqa pylint: disable-all
         get_user_and_org_id,
-    )  # noqa pylint: disable-all
-
+    )
+else:
+    from agenta_backend.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
 
 
-@router.post("/", response_model=Evaluation)
+@router.post("/", response_model=SimpleEvaluationOutput)
 async def create_evaluation(
     payload: NewEvaluation,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -95,12 +100,15 @@ async def create_evaluation(
                 {"detail": error_msg},
                 status_code=400,
             )
-        app_ref = await new_db_manager.fetch_app_by_id(app_id=app_id)
+        app_ref = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
 
         if app_ref is None:
             raise HTTPException(status_code=404, detail="App not found")
 
-        return await create_new_evaluation(payload, **kwargs)
+        new_evaluation_db = await evaluation_service.create_new_evaluation(
+            payload, **user_org_data
+        )
+        return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
     except KeyError:
         raise HTTPException(
             status_code=400,

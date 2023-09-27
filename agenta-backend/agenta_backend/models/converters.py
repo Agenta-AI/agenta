@@ -11,6 +11,7 @@ from agenta_backend.models.db_models import (
     SpanDB,
     TraceDB,
     Feedback as FeedbackDB,
+    EvaluationDB,
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
@@ -27,11 +28,26 @@ from agenta_backend.models.api.observability_models import (
     Trace,
     Feedback as FeedbackOutput,
 )
+from agenta_backend.models.api.evaluation_model import (
+    SimpleEvaluationOutput,
+)
 
 import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+def evaluation_db_to_simple_evaluation_output(
+    evaluation_db: EvaluationDB,
+) -> SimpleEvaluationOutput:
+    return SimpleEvaluationOutput(
+        id=str(evaluation_db.id),
+        app_id=str(evaluation_db.app_id.id),
+        status=evaluation_db.status,
+        evaluation_type=evaluation_db.evaluation_type,
+        variant_ids=[str(variant_id) for variant_id in evaluation_db.variant_ids],
+    )
 
 
 def app_variant_db_to_pydantic(
