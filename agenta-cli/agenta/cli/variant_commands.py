@@ -100,9 +100,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
                 fg="yellow",
             )
         )
-        tar_path = build_tar_docker_container(
-            folder=app_path, file_name=file_name
-        )
+        tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
 
         click.echo(
             click.style(
@@ -129,22 +127,14 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
             client.update_variant_image(app_id, app_name, variant_name, image, host)
         else:
             click.echo(
-                click.style(
-                    f"Adding variant {variant_name} to server...", fg="yellow"
-                )
+                click.style(f"Adding variant {variant_name} to server...", fg="yellow")
             )
-            client.add_variant_to_server(
-                app_id, app_name, variant_name, image, host
-            )
+            client.add_variant_to_server(app_id, app_name, variant_name, image, host)
     except Exception as ex:
         if overwrite:
-            click.echo(
-                click.style(f"Error while updating variant: {ex}", fg="red")
-            )
+            click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
         else:
-            click.echo(
-                click.style(f"Error while adding variant: {ex}", fg="red")
-            )
+            click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
         return None
     if overwrite:
         click.echo(
@@ -204,9 +194,7 @@ def start_variant(variant_name: str, app_folder: str, host: str):
     endpoint = client.start_variant(app_id, app_name, variant_name, host=host)
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
-        click.style(
-            f"Your app has been deployed locally as an API. 🚀", fg="cyan"
-        )
+        click.style(f"Your app has been deployed locally as an API. 🚀", fg="cyan")
         + click.style(f" You can access it here: ", fg="white")
         + click.style(f"{endpoint}/", bold=True, fg="yellow")
     )
@@ -290,9 +278,7 @@ def list_variants(app_folder: str, host: str):
         for variant in variants:
             helper.display_app_variant(variant)
     else:
-        click.echo(
-            click.style(f"No variants found for app {app_name}", fg="red")
-        )
+        click.echo(click.style(f"No variants found for app {app_name}", fg="red"))
 
 
 def config_check(app_folder: str):
@@ -302,9 +288,7 @@ def config_check(app_folder: str):
         app_folder -- the app folder
     """
 
-    click.echo(
-        click.style("\nChecking and updating config file...", fg="yellow")
-    )
+    click.echo(click.style("\nChecking and updating config file...", fg="yellow"))
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     if not config_file.exists():
@@ -381,20 +365,16 @@ def serve_cli(app_folder: str, file_name: str):
 
     if variant_name:
         try:
-            start_variant(
-                variant_name=variant_name, app_folder=app_folder, host=host
-            )
+            start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
         except ConnectionError:
             error_msg = "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
             error_msg += "- First, please ensure that the backend service is running and accessible.\n"
-            error_msg += "- Second, try restarting the containers (if using Docker Compose)."
+            error_msg += (
+                "- Second, try restarting the containers (if using Docker Compose)."
+            )
             click.echo(click.style(f"{error_msg}", fg="red"))
         except Exception as e:
-            click.echo(
-                click.style(
-                    "Failed to start container with LLM app.", fg="red"
-                )
-            )
+            click.echo(click.style("Failed to start container with LLM app.", fg="red"))
             click.echo(click.style(f"Error message: {str(e)}", fg="red"))
 
 

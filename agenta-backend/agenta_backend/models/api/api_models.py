@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 class CreateApp(BaseModel):
     app_name: str
-    
+
 
 class CreateAppOutput(BaseModel):
     app_id: str

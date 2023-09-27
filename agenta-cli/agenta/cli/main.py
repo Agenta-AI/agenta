@@ -107,7 +107,7 @@ def init(app_name: str):
 
     # Get app_id after creating new app in the backend server
     app_id = client.create_new_app(app_name, backend_host)
-    
+
     # Set app toml configuration
     config = {"app-name": app_name, "app_id": app_id, "backend_host": backend_host}
     with open("config.toml", "w") as config_file:

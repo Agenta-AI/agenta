@@ -69,6 +69,7 @@ async def _fetch_evaluation_and_check_access(
         )
     return evaluation
 
+
 async def _fetch_evaluation_scenario_and_check_access(
     evaluation_scenario_id: str, **user_org_data: dict
 ) -> EvaluationDB:
@@ -78,14 +79,16 @@ async def _fetch_evaluation_scenario_and_check_access(
     )
     if evaluation_scenario is None:
         raise HTTPException(
-            status_code=404, detail=f"Evaluation scenario with id {evaluation_scenario_id} not found"
+            status_code=404,
+            detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
         )
     evaluation = evaluation_scenario.evaluation
-    
+
     # Check if the evaluation exists
     if evaluation is None:
         raise HTTPException(
-            status_code=404, detail=f"Evaluation scenario for evaluation scenario with id {evaluation_scenario_id} not found"
+            status_code=404,
+            detail=f"Evaluation scenario for evaluation scenario with id {evaluation_scenario_id} not found",
         )
 
     # Check for access rights
@@ -228,8 +231,7 @@ async def create_evaluation_scenario(
 
     scenario_inputs = [
         EvaluationScenarioInput(
-            input_name=input_item.input_name,
-            input_value=input_item.input_value
+            input_name=input_item.input_name, input_value=input_item.input_value
         )
         for input_item in payload.inputs
     ]
@@ -329,20 +331,17 @@ async def update_evaluation_scenario(
     evaluation_type: EvaluationType,
     **user_org_data,
 ) -> Dict:
-    
     # Fetch the evaluation by ID
     evaluation_scenario = await _fetch_evaluation_scenario_and_check_access(
         evaluation_id=evaluation_scenario_id,
         **user_org_data,
     )
 
-    
     evaluation_scenario_dict = evaluation_scenario_data.dict()
     evaluation_scenario_dict["updated_at"] = datetime.utcnow()
 
     # Construct new evaluation set and get user object
     new_evaluation_set = {"outputs": evaluation_scenario_dict["outputs"]}
-    
 
     # Construct query expression builder for evaluation scenario
     query_expression_eval_scen = query.eq(
@@ -508,7 +507,7 @@ def evaluate_with_ai_critique(
             input_variables.append(var)
 
     # Iterate over llm_app_inputs and check if the variable name exists in the evaluation_prompt_template
-    for input_item in llm_app_inputs:update_evaluation_scenario
+    for input_item in llm_app_inputs:
         if "{%s}" % input_item["input_name"] in evaluation_prompt_template:
             input_variables.append(input_item["input_name"])
 
