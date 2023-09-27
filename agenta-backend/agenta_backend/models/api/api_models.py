@@ -48,6 +48,13 @@ class AddVariantFromPreviousPayload(BaseModel):
     parameters: Dict[str, Any]
 
 
+class AddVariantFromBasePayload(BaseModel):
+    base_id: str
+    new_variant_name: str
+    new_config_name: str
+    parameters: Dict[str, Any]
+
+
 class AppVariantFromImage(BaseModel):
     app_id: str
     variant_name: str

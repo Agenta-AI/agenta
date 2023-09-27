@@ -793,3 +793,27 @@ async def fetch_testsets_by_app_id(app_id: str) -> List[TestSetDB]:
     assert app_id is not None, "app_id cannot be None"
     testsets = await engine.find(TestSetDB, TestSetDB.app_id == ObjectId(app_id))
     return testsets
+
+
+async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVariantDB]:
+    """Find the previous variant from a base id.
+
+    Args:
+        base_id (str): The base id to search for.
+
+    Returns:
+        Optional[AppVariantDB]: The previous variant, or None if no previous variant was found.
+    """
+    assert base_id is not None, "base_id cannot be None"
+    previous_variants = await engine.find(
+        AppVariantDB, AppVariantDB.base_id == ObjectId(base_id)
+    )
+    logger.debug("previous_variants: %s", previous_variants)
+    if len(list(previous_variants)) == 0:
+        return None
+    # select the variant for which previous_variant_name is None
+    for previous_variant in previous_variants:
+        if previous_variant.previous_variant_name is None:
+            logger.debug("previous_variant: %s", previous_variant)
+            return previous_variant
+    assert False, "None of the previous variants has previous_variant_name=None"

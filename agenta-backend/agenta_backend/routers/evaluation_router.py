@@ -47,11 +47,11 @@ from agenta_backend.services.evaluation_service import (
     create_custom_code_evaluation,
     execute_custom_code_evaluation,
 )
-from agenta_backend.utills.common import engine
+from agenta_backend.utills.common import engine, check_access_to_app
 from agenta_backend.services.db_manager import query, get_user_object
 from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
 from agenta_backend.config import settings
-
+from agenta_backend.services import new_db_manager
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
         SessionContainer,
@@ -71,7 +71,7 @@ router = APIRouter()
 
 @router.post("/", response_model=Evaluation)
 async def create_evaluation(
-    newEvaluationData: NewEvaluation,
+    payload: NewEvaluation,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Creates a new comparison table document
@@ -83,10 +83,10 @@ async def create_evaluation(
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
-            kwargs=user_org_data, app_id=app_id, check_owner=False
+            kwargs=user_org_data, app_id=payload.app_id, check_owner=False
         )
         if not access_app:
-            error_msg = f"You do not have access to this app: {app_id}"
+            error_msg = f"You do not have access to this app: {payload.app_id}"
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=400,
@@ -96,7 +96,7 @@ async def create_evaluation(
         if app_ref is None:
             raise HTTPException(status_code=404, detail="App not found")
 
-        return await create_new_evaluation(newEvaluationData, **kwargs)
+        return await create_new_evaluation(payload, **kwargs)
     except KeyError:
         raise HTTPException(
             status_code=400,
