@@ -34,6 +34,7 @@ from agenta_backend.models.db_models import (
     ConfigDB,
     TestSetDB,
     EvaluationDB,
+    EvaluationScenarioDB,
 )
 from agenta_backend.services import helpers
 from agenta_backend.utills.common import (
@@ -893,6 +894,20 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
         EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
     )
     return evaluation
+
+
+async def fetch_evaluation_scenario_by_id(evaluation_scenario_id: str) -> Optional[EvaluationScenarioDB]:
+    """Fetches and evaluation scenario by its ID.
+    Args:
+        evaluation_scenario_id (str): The ID of the evaluation scenario to fetch.
+    Returns:
+        EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
+    """
+    assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
+    evaluation_scenario = await engine.find_one(
+        EvaluationScenarioDB, EvaluationScenarioDB.id == ObjectId(evaluation_scenario_id)
+    )
+    return evaluation_scenario
 
 
 async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVariantDB]:

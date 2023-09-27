@@ -62,11 +62,12 @@ class EvaluationScenarioInput(BaseModel):
 
 
 class EvaluationScenarioOutput(BaseModel):
-    variant_name: str
+    variant_id: str
     variant_output: str
 
 
 class EvaluationScenario(BaseModel):
+    id: Optional[str]
     evaluation_id: str
     inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]
@@ -74,7 +75,15 @@ class EvaluationScenario(BaseModel):
     score: Optional[str]
     evaluation: Optional[str]
     correct_answer: Optional[str]
-    id: Optional[str]
+
+
+class AICritiqueCreate(BaseModel):
+    correct_answer: str
+    llm_app_prompt_template: Optional[str]
+    inputs: List[EvaluationScenarioInput]
+    outputs: List[EvaluationScenarioOutput]
+    evaluation_prompt_template: Optional[str]
+    open_ai_key: Optional[str]
 
 
 class EvaluationScenarioUpdate(BaseModel):
@@ -82,8 +91,6 @@ class EvaluationScenarioUpdate(BaseModel):
     score: Optional[str]
     correct_answer: Optional[str]  # will be used when running custom code evaluation
     outputs: List[EvaluationScenarioOutput]
-    evaluation_prompt_template: Optional[str]
-    open_ai_key: Optional[str]
 
 
 class EvaluationScenarioScoreUpdate(BaseModel):
@@ -107,19 +114,19 @@ class DeleteEvaluation(BaseModel):
 class CreateCustomEvaluation(BaseModel):
     evaluation_name: str
     python_code: str
-    app_name: str
+    app_id: str
 
 
 class CustomEvaluationOutput(BaseModel):
     id: str
-    app_name: str
+    app_id: str
     evaluation_name: str
     created_at: datetime
 
 
 class CustomEvaluationDetail(BaseModel):
     id: str
-    app_name: str
+    app_id: str
     evaluation_name: str
     python_code: str
     created_at: datetime
@@ -133,8 +140,8 @@ class CustomEvaluationNames(BaseModel):
 
 class ExecuteCustomEvaluationCode(BaseModel):
     inputs: List[Dict[str, Any]]
-    app_name: str
-    variant_name: str
+    app_id: str
+    variant_id: str
     correct_answer: str
     outputs: List[Dict[str, Any]]
 
