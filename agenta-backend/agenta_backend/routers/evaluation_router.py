@@ -353,24 +353,10 @@ async def delete_evaluations(
 
     # Get user and organization id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    deleted_ids = []
-    for evaluations_id in delete_evaluations.evaluations_ids:
-        # Construct query expression builder
-        query_expression = query.eq(
-            EvaluationDB.id, ObjectId(evaluations_id)
-        ) & query.eq(EvaluationDB.user, user.id)
-        evaluation = await engine.find_one(EvaluationDB, query_expression)
-
-        if evaluation is not None:
-            await engine.delete(evaluation)
-            deleted_ids.append(evaluations_id)
-        else:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Comparison table {evaluations_id} not found",
-            )
-
-    return deleted_ids
+    await evaluation_service.delete_evaluations(
+        delete_evaluations.evaluations_ids, **user_org_data
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{evaluation_id}/results")
