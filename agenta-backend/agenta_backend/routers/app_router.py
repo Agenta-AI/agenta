@@ -99,13 +99,8 @@ async def list_app_variants(
                     status_code=400,
                 )
 
-        app_variants = await new_db_manager.list_app_variants(
-            app_id=app_id, **kwargs
-        )
-        return [
-            app_variant_db_to_output(app_variant)
-            for app_variant in app_variants
-        ]
+        app_variants = await new_db_manager.list_app_variants(app_id=app_id, **kwargs)
+        return [app_variant_db_to_output(app_variant) for app_variant in app_variants]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -164,17 +159,13 @@ async def create_app(
         # Retrieve or create user organization
         organization = await get_user_own_org(kwargs["uid"])
         if organization is None:
-            organization = await new_db_manager.create_user_organization(
-                kwargs["uid"]
-            )
+            organization = await new_db_manager.create_user_organization(kwargs["uid"])
 
         # Create new app and return the output
         app_db = await new_db_manager.create_app(
             payload.app_name, str(organization.id), **kwargs
         )
-        return CreateAppOutput(
-            app_id=str(app_db.id), app_name=str(app_db.app_name)
-        )
+        return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -239,13 +230,11 @@ async def add_variant_from_image(
         organization = await get_user_own_org(kwargs["uid"])
         if app_variant.organization_id is None:
             app_variant.organization_id = str(organization.id)
-        
+
         if image.organization_id is None:
             image.organization_id = str(organization.id)
 
-        app_db = await new_db_manager.fetch_app_by_id(
-            app_variant.app_id
-        )
+        app_db = await new_db_manager.fetch_app_by_id(app_variant.app_id)
         await new_db_manager.add_variant_based_on_image(
             app_db,
             app_variant.variant_name,
@@ -299,9 +288,7 @@ async def add_variant_from_previous(
                 detail="Previous app variant not found",
             )
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        access = await check_user_org_access(
-            kwargs, app_variant_db.organization_id.id
-        )
+        access = await check_user_org_access(kwargs, app_variant_db.organization_id.id)
         if not access:
             raise HTTPException(
                 status_code=500,
@@ -412,19 +399,13 @@ async def start_variant(
             organization = await get_user_own_org(kwargs["uid"])
             app_variant.organization_id = str(organization.id)
 
-        app_variant_db = (
-            await new_db_manager.fetch_app_variant_by_name_and_appid(
-                app_variant.variant_name, app_variant.app_id
-            )
+        app_variant_db = await new_db_manager.fetch_app_variant_by_name_and_appid(
+            app_variant.variant_name, app_variant.app_id
         )
-        url = await new_app_manager.start_variant(
-            app_variant_db, envvars, **kwargs
-        )
+        url = await new_app_manager.start_variant(app_variant_db, envvars, **kwargs)
         return url
     except Exception as e:
-        variant_from_db = await db_manager.get_variant_from_db(
-            app_variant, **kwargs
-        )
+        variant_from_db = await db_manager.get_variant_from_db(app_variant, **kwargs)
         if variant_from_db is not None:
             await app_manager.remove_app_variant(app_variant, **kwargs)
         raise HTTPException(status_code=500, detail=str(e))
@@ -484,9 +465,7 @@ async def remove_variant(
                 app_variant_id=variant.variant_id, **kwargs
             )
     except DockerException as e:
-        detail = (
-            f"Docker error while trying to remove the app variant: {str(e)}"
-        )
+        detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to remove the app variant: {str(e)}"
@@ -514,9 +493,7 @@ async def remove_app(
         )
 
         if not access_app:
-            error_msg = (
-                f"You do not have permission to delete app: {app.app_name}"
-            )
+            error_msg = f"You do not have permission to delete app: {app.app_name}"
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
@@ -578,9 +555,7 @@ async def update_variant_parameters(
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except SQLAlchemyError as e:
-        detail = (
-            f"Database error while trying to update the app variant: {str(e)}"
-        )
+        detail = f"Database error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
@@ -619,16 +594,12 @@ async def update_variant_image(
                 status_code=400,
             )
         else:
-            await new_app_manager.update_variant_image(
-                app_variant, image, **kwargs
-            )
+            await new_app_manager.update_variant_image(app_variant, image, **kwargs)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except DockerException as e:
-        detail = (
-            f"Docker error while trying to update the app variant: {str(e)}"
-        )
+        detail = f"Docker error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"

@@ -27,7 +27,6 @@ async def get_organization(org_id: str) -> OrganizationDB:
 async def get_app_instance(
     app_id: str, variant_name: str = None, show_deleted: bool = False
 ) -> AppVariantDB:
-
     if variant_name is not None:
         query_expression = (
             query.eq(AppVariantDB.is_deleted, show_deleted)

@@ -21,11 +21,11 @@ def create_new_app(app_name: str, host: str) -> str:
         app_name (str): Name of the app
         host (str): Hostname of the server
     """
-    
+
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/apps/",
         json={"app_name": app_name},
-        timeout=600
+        timeout=600,
     )
     if response.status_code != 200:
         error_message = response.json()
@@ -35,7 +35,9 @@ def create_new_app(app_name: str, host: str) -> str:
     return response.json()["app_id"]
 
 
-def add_variant_to_server(app_id: str, app_name: str, variant_name: str, image: Image, host: str):
+def add_variant_to_server(
+    app_id: str, app_name: str, variant_name: str, image: Image, host: str
+):
     """Adds a variant to the server.
 
     Arguments:
@@ -44,7 +46,9 @@ def add_variant_to_server(app_id: str, app_name: str, variant_name: str, image: 
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(app_id=app_id, app_name=app_name, variant_name=variant_name)
+    app_variant: AppVariant = AppVariant(
+        app_id=app_id, app_name=app_name, variant_name=variant_name
+    )
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/add/from_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
@@ -71,7 +75,13 @@ def start_variant(app_id: str, app_name: str, variant_name: str, host: str) -> s
     """
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/start/",
-        json={"app_variant": {"app_id": app_id, "app_name": app_name, "variant_name": variant_name}},
+        json={
+            "app_variant": {
+                "app_id": app_id,
+                "app_name": app_name,
+                "variant_name": variant_name,
+            }
+        },
         timeout=600,
     )
 
@@ -131,7 +141,9 @@ def remove_variant(app_name: str, variant_name: str, host: str):
         )
 
 
-def update_variant_image(app_id: str, app_name: str, variant_name: str, image: Image, host: str):
+def update_variant_image(
+    app_id: str, app_name: str, variant_name: str, image: Image, host: str
+):
     """Adds a variant to the server.
 
     Arguments:
@@ -140,7 +152,9 @@ def update_variant_image(app_id: str, app_name: str, variant_name: str, image: I
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(app_id=app_id, app_name=app_name, variant_name=variant_name)
+    app_variant: AppVariant = AppVariant(
+        app_id=app_id, app_name=app_name, variant_name=variant_name
+    )
     response = requests.put(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/update_variant_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
