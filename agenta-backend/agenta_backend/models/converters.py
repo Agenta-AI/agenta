@@ -49,6 +49,7 @@ def app_variant_db_to_pydantic(
 def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
     return AppVariantOutput(
         app_id=str(app_variant_db.app_id.id),
+        app_name=str(app_variant_db.app_id.app_name),
         variant_name=app_variant_db.variant_name,
         variant_id=str(app_variant_db.id),
         user_id=str(app_variant_db.user_id.id),
