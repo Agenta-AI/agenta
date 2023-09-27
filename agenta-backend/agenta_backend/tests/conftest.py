@@ -1,9 +1,16 @@
 import pytest
 import asyncio
+from bson import ObjectId
 from datetime import datetime
 
 from agenta_backend.models.db_engine import DBEngine
+from agenta_backend.models.db_models import (
+    UserDB,
+    OrganizationDB,
+)
 
+# Initialize database engine
+engine = DBEngine().engine()
 
 @pytest.fixture(scope="session", autouse=True)
 def event_loop():
@@ -138,3 +145,50 @@ def feedbacks_create_data():
         {"feedback": "thumbs up", "score": 0, "meta": {}},
         {"feedback": "thumbs down", "score": 10, "meta": {}},
     ]
+
+
+@pytest.fixture(scope="function")
+async def create_first_organization_data():
+    """Create an OrganizationDB instance for testing."""
+    organization = OrganizationDB(
+        name="Test Organization 1",
+        description="Description For Test Organization 1",
+        type="default",
+    )
+    await engine.save(organization)
+    yield organization
+    organization.delete()
+
+
+@pytest.fixture(scope="function")
+async def create_first_user():
+    """Create a UserDB instance for testing."""
+    user1 = UserDB(
+        uid="0",
+        username="TestUser1",
+        email="testuser1@example.com",
+    )
+    await engine.save(user1)
+    yield user1
+    user1.delete()
+    
+    
+@pytest.fixture(scope="function")
+async def get_first_user_object():
+    """Get the user object from the database or create a new one if not found."""
+
+    user = await engine.find_one(UserDB, UserDB.uid == "0")
+    if user is None:
+        create_user = UserDB(uid="0")
+        await engine.save(create_user)
+
+        org = OrganizationDB(type="default", owner=str(create_user.id))
+        await engine.save(org)
+
+        create_user.organizations.append(org.id)
+        await engine.save(create_user)
+        await engine.save(org)
+
+        return create_user
+    else:
+        return user
