@@ -9,10 +9,57 @@ type StyleProps = {
 }
 
 const useStyles = createUseStyles({
+    heading: {
+        display: "flex",
+        alignItems: "center",
+        gap: "1rem",
+        "& > h1": {
+            margin: 0,
+            fontSize: 42,
+        },
+
+        "& > img": {
+            animation: "$wave 1.8s ease-in-out infinite",
+            height: 44,
+        },
+    },
+    "@keyframes wave": {
+        "0%": {
+            transform: "rotate(0deg)",
+        },
+        "10%": {
+            transform: "rotate(-10deg)",
+        },
+        "20%": {
+            transform: "rotate(12deg)",
+        },
+        "30%": {
+            transform: "rotate(-10deg)",
+        },
+        "40%": {
+            transform: "rotate(9deg)",
+        },
+        "50%": {
+            transform: "rotate(0deg)",
+        },
+        "100%": {
+            transform: "rotate(0deg)",
+        },
+    },
+    h2: {
+        fontSize: "24px",
+        margin: "10px 0 30px",
+    },
+    description: {
+        lineHeight: 1.7,
+    },
     wrapper: {
         display: "flex",
         justifyContent: "space-between",
         gap: 20,
+        maxWidth: "1250px",
+        margin: "0 auto",
+        width: "100%",
     },
     container: ({themeMode}: StyleProps) => ({
         display: "flex",
@@ -88,106 +135,118 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
 
     return (
         <>
-            <section className={classes.wrapper}>
-                <div className={classes.container}>
-                    <div className={classes.title}>
-                        <h1>Simple start</h1>
-                        <Tag
-                            className={classes.tag}
-                            icon={<ClockCircleOutlined />}
-                            color={appTheme === "dark" ? "warning" : "green"}
-                        >
-                            2-3 mins
-                        </Tag>
-                    </div>
-
-                    <img
-                        src="/assets/simple-img.png"
-                        alt="Simple start Image"
-                        className={classes.img}
-                    />
-
-                    <ul className={classes.steps}>
-                        <li>
-                            <CheckCircleFilled /> Start from a template
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Compare prompts and models
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Create testsets
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Evaluate outputs
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Deploy in one click
-                        </li>
-                    </ul>
-
-                    <div className={classes.btnContainer}>
-                        <Button size="large" type="primary" onClick={onCreateFromTemplate}>
-                            Start
-                        </Button>
-                    </div>
+            <section
+            // style={{maxWidth: "1150px", margin: "0 auto", width: "100%"}}
+            >
+                <div className={classes.heading}>
+                    <h1>Welcome to Agenta</h1>
+                    <img src="/assets/wave.png" />
                 </div>
-                <div className={classes.container}>
-                    <div className={classes.title}>
-                        <h1>Build complex apps</h1>
-                        <Tag
-                            className={classes.tag}
-                            icon={<ClockCircleOutlined />}
-                            color={appTheme === "dark" ? "warning" : "green"}
-                        >
-                            12-15 mins
-                        </Tag>
+                <h2 className={classes.h2}>The developer-first open source LLMOps platform.</h2>
+                {/* <div className={classes.description}>
+                <p>Lorem ipsum dolor sit, amet consectetur adipisicing elit. Dolor commodi, repudiandae exercitationem neque ad, quidem magni possimus debitis corporis nostrum maxime quasi tenetur. Eius laboriosam beatae optio, soluta alias voluptatem?</p>
+                </div> */}
+                <section className={classes.wrapper}>
+                    <div className={classes.container}>
+                        <div className={classes.title}>
+                            <h1>Simple start</h1>
+                            <Tag
+                                className={classes.tag}
+                                icon={<ClockCircleOutlined />}
+                                color={appTheme === "dark" ? "warning" : "green"}
+                            >
+                                2-3 mins
+                            </Tag>
+                        </div>
+
+                        <img
+                            src="/assets/simple-img.png"
+                            alt="Simple start Image"
+                            className={classes.img}
+                        />
+
+                        <ul className={classes.steps}>
+                            <li>
+                                <CheckCircleFilled /> Start from a template
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Compare prompts and models
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Create testsets
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Evaluate outputs
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Deploy in one click
+                            </li>
+                        </ul>
+
+                        <div className={classes.btnContainer}>
+                            <Button size="large" type="primary" onClick={onCreateFromTemplate}>
+                                Start
+                            </Button>
+                        </div>
                     </div>
+                    <div className={classes.container}>
+                        <div className={classes.title}>
+                            <h1>Build complex apps</h1>
+                            <Tag
+                                className={classes.tag}
+                                icon={<ClockCircleOutlined />}
+                                color={appTheme === "dark" ? "warning" : "green"}
+                            >
+                                12-15 mins
+                            </Tag>
+                        </div>
 
-                    <img
-                        src="/assets/complex-img.png"
-                        alt="Complex build Image"
-                        className={classes.img}
-                    />
+                        <img
+                            src="/assets/complex-img.png"
+                            alt="Complex build Image"
+                            className={classes.img}
+                        />
 
-                    <ul className={classes.steps}>
-                        <li>
-                            <CheckCircleFilled /> Start <span>from code</span>
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Compare different workflows
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Test parameters in the UI
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Evaluate outputs
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Deploy in one click
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Start from a template
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Compare prompts and models
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Create testsets
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Evaluate outputs
-                        </li>
-                        <li>
-                            <CheckCircleFilled /> Deploy in one click
-                        </li>
-                    </ul>
+                        <ul className={classes.steps}>
+                            <li>
+                                <CheckCircleFilled /> Start <span>from code</span>
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Compare different workflows
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Test parameters in the UI
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Evaluate outputs
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Deploy in one click
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Start from a template
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Compare prompts and models
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Create testsets
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Evaluate outputs
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Deploy in one click
+                            </li>
+                        </ul>
 
-                    <div className={classes.btnContainer}>
-                        <Button size="large" type="primary" onClick={onWriteOwnApp}>
-                            Start
-                        </Button>
+                        <div className={classes.btnContainer}>
+                            <Button size="large" type="primary" onClick={onWriteOwnApp}>
+                                Start
+                            </Button>
+                        </div>
                     </div>
-                </div>
+                </section>
             </section>
         </>
     )

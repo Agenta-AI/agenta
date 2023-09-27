@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from "react"
 import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
-import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
+import {GithubFilled, LinkedinFilled, SlackOutlined, TwitterOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
@@ -140,16 +140,26 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                         {title: capitalizedAppName},
                                     ]}
                                 />
-                                <Button
-                                    className={classes.star}
-                                    href="https://github.com/Agenta-AI/agenta"
-                                >
-                                    <div>
-                                        <GithubFilled style={{fontSize: 18}} />
-                                        <p>Star</p>
-                                    </div>
-                                    <div>{starCount || 0}</div>
-                                </Button>
+                                <Space>
+                                    <Button
+                                        href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
+                                        target="_blank"
+                                        style={{width:"100%"}}
+                                    >
+                                        <img src="/assets/slack.png" alt="" style={{width:"100%"}} />
+                                        Join us
+                                    </Button>
+                                    <Button
+                                        className={classes.star}
+                                        href="https://github.com/Agenta-AI/agenta"
+                                    >
+                                        <div>
+                                            <GithubFilled style={{fontSize: 18}} />
+                                            <p>Star</p>
+                                        </div>
+                                        <div>{starCount || 0}</div>
+                                    </Button>
+                                </Space>
                             </Space>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                 {children}
