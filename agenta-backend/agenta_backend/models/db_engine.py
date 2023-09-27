@@ -20,8 +20,9 @@ class DBEngine(object):
     Database engine to initialize client and return engine based on mode
     """
 
-    def __init__(self) -> None:
-        self.mode = toml_config["database_mode"]
+    def __init__(self, mode=None) -> None:
+        if not mode:
+            self.mode = toml_config["database_mode"]
         self.db_url = os.environ["MONGODB_URI"]
 
     @property
