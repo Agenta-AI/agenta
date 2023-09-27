@@ -31,6 +31,8 @@ from agenta_backend.models.db_models import (
     CustomEvaluationDB,
 )
 
+from agenta_backend.utills import common
+
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
@@ -193,52 +195,69 @@ async def create_new_evaluation_scenario(
 async def update_evaluation(
     evaluation_id: str, update_payload: EvaluationUpdate, **user_org_data: dict
 ) -> Evaluation:
-    user = await get_user_object(user_org_data["uid"])
+    """
+    Update an existing evaluation based on the provided payload.
 
+    Args:
+        evaluation (EvaluationDB): The existing evaluation record.
+        update_payload (UpdateEvaluationPayload): The update payload.
+
+    Returns:
+        EvaluationDB: Updated evaluation record.
+    """
     # Construct query expression for evaluation
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
+    evaluation = await new_db_manager.fetch_evaluation_by_id(
+        evaluation_id=evaluation_id
     )
-    result = await engine.find_one(EvaluationDB, query_expression)
+    # Check access
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
+        )
 
-    if result is not None:
-        # Update status and save to database
-        updates = {}
-        if update_payload.status is not None:
-            updates["status"] = update_payload.status
-        if update_payload.evaluation_type_settings is not None:
-            updates["evaluation_type_settings"] = EvaluationTypeSettings(
-                similarity_threshold=result.evaluation_type_settings.similarity_threshold
-                if update_payload.evaluation_type_settings.similarity_threshold is None
-                else update_payload.evaluation_type_settings.similarity_threshold,
-                regex_pattern=result.evaluation_type_settings.regex_pattern
-                if update_payload.evaluation_type_settings.regex_pattern is None
-                else update_payload.evaluation_type_settings.regex_pattern,
-                regex_should_match=result.evaluation_type_settings.regex_should_match
-                if update_payload.evaluation_type_settings.regex_should_match is None
-                else update_payload.evaluation_type_settings.regex_should_match,
-                webhook_url=result.evaluation_type_settings.webhook_url
-                if update_payload.evaluation_type_settings.webhook_url is None
-                else update_payload.evaluation_type_settings.webhook_url,
+    access = await common.check_access_to_app(
+        kwargs=user_org_data, app_id=evaluation.app_id.id
+    )
+    if not access:
+        raise HTTPException(
+            status_code=500,
+            detail=f"You do not have access to this app: {str(evaluation.app_id.id)}",
+        )
+
+    # Update status and save to database
+    updates = {}
+    if update_payload.status is not None:
+        updates["status"] = update_payload.status
+    if update_payload.evaluation_type_settings is not None:
+        current_settings = evaluation.evaluation_type_settings
+        new_settings = update_payload.evaluation_type_settings
+
+        # Update only the fields that are explicitly set in the payload
+        for field in EvaluationTypeSettings.__annotations__.keys():
+            setattr(
+                current_settings,
+                field,
+                getattr(new_settings, field, None)
+                or getattr(current_settings, field, None),
             )
 
-        result.update(updates)
-        await engine.save(result)
+        updates["evaluation_type_settings"] = current_settings
 
-        return Evaluation(
-            id=str(result.id),
-            status=result.status,
-            evaluation_type=result.evaluation_type,
-            evaluation_type_settings=result.evaluation_type_settings,
-            llm_app_prompt_template=result.llm_app_prompt_template,
-            variants=result.variants,
-            app_name=result.app_name,
-            testset=result.testset,
-            created_at=result.created_at,
-            updated_at=result.updated_at,
-        )
-    else:
-        raise UpdateEvaluationScenarioError("Failed to update evaluation status")
+    evaluation.update(updates)
+    await engine.save(evaluation)
+    # Continue here
+    return Evaluation(
+        id=str(evaluation.id),
+        status=evaluation.status,
+        evaluation_type=evaluation.evaluation_type,
+        evaluation_type_settings=evaluation.evaluation_type_settings,
+        llm_app_prompt_template=evaluation.llm_app_prompt_template,
+        variants=evaluation.variants,
+        app_name=evaluation.app_name,
+        testset=evaluation.testset,
+        created_at=evaluation.created_at,
+        updated_at=evaluation.updated_at,
+    )
 
 
 async def update_evaluation_scenario(

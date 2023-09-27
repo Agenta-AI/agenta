@@ -31,6 +31,7 @@ from agenta_backend.models.db_models import (
     BaseDB,
     ConfigDB,
     TestSetDB,
+    EvaluationDB,
 )
 from agenta_backend.services import helpers
 from agenta_backend.utills.common import engine, check_user_org_access, get_organization
@@ -793,6 +794,20 @@ async def fetch_testsets_by_app_id(app_id: str) -> List[TestSetDB]:
     assert app_id is not None, "app_id cannot be None"
     testsets = await engine.find(TestSetDB, TestSetDB.app_id == ObjectId(app_id))
     return testsets
+
+
+async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
+    """Fetches a evaluation by its ID.
+    Args:
+        evaluation_id (str): The ID of the evaluation to fetch.
+    Returns:
+        EvaluationDB: The fetched evaluation, or None if no evaluation was found.
+    """
+    assert evaluation_id is not None, "evaluation_id cannot be None"
+    evaluation = await engine.find_one(
+        EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
+    )
+    return evaluation
 
 
 async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVariantDB]:

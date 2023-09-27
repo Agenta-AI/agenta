@@ -7,9 +7,10 @@ from agenta_backend.models.db_models import (
     OrganizationDB,
 )
 from agenta_backend.routers.app_variant import add_app_variant_from_template
+from agenta_backend.tests.app_variant_router_fixture import get_first_user_object
 
 # Initialize database engine
-engine = DBEngine().engine()
+engine = DBEngine(mode="test").engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
@@ -17,7 +18,6 @@ test_client = httpx.AsyncClient()
 
 @pytest.mark.asyncio
 async def test_successfully_creates_new_app_variant(get_first_user_object):
-
     user = await get_first_user_object
     query_expression = (OrganizationDB.type == "default") & (
         OrganizationDB.owner == str(user.id)
@@ -29,10 +29,7 @@ async def test_successfully_creates_new_app_variant(get_first_user_object):
         "app_name": "myapp",
         "image_id": "12345",
         "image_tag": "latest",
-        "env_vars": {
-            "ENV_VAR1": "value1",
-            "ENV_VAR2": "value2"
-        },
+        "env_vars": {"ENV_VAR1": "value1", "ENV_VAR2": "value2"},
         "organization_id": str(user_organization.id),
     }
 
@@ -52,6 +49,5 @@ async def test_successfully_creates_new_app_variant(get_first_user_object):
         "base_name": "app",
         "base_id": None,
         "config_name": "default",
-        "config_id": None
+        "config_id": None,
     }
-    
