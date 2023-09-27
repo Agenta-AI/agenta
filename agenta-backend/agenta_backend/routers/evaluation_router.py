@@ -26,15 +26,6 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationWebhook,
     SimpleEvaluationOutput,
 )
-from agenta_backend.services.results_service import (
-    fetch_average_score_for_custom_code_run,
-    fetch_results_for_human_a_b_testing_evaluation,
-    fetch_results_for_auto_exact_match_evaluation,
-    fetch_results_for_auto_similarity_match_evaluation,
-    fetch_results_for_auto_regex_test,
-    fetch_results_for_auto_webhook_test,
-    fetch_results_for_auto_ai_critique,
-)
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
     evaluate_with_ai_critique,
@@ -55,6 +46,7 @@ from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
 from agenta_backend.config import settings
 from agenta_backend.services import new_db_manager
 from agenta_backend.models import converters
+from agenta_backend.services import results_service
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
@@ -375,49 +367,41 @@ async def fetch_results(
 
     # Get user and organization id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(user_org_data["uid"])
-
-    # Construct query expression builder and retrieve evaluation from database
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
+    evaluation = await evaluation_service._fetch_evaluation_and_check_access(
+        evaluation_id, **user_org_data
     )
-    evaluation = await engine.find_one(EvaluationDB, query_expression)
-
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
-        results = await fetch_results_for_human_a_b_testing_evaluation(
-            evaluation_id, evaluation.variants
-        )
-        # TODO: replace votes_data by results_data
+        results = await results_service.fetch_results_for_evaluation(evaluation)
         return {"votes_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_exact_match:
-        results = await fetch_results_for_auto_exact_match_evaluation(
-            evaluation_id, evaluation.variants
-        )
+        results = await results_service.fetch_results_for_evaluation(evaluation)
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
-        results = await fetch_results_for_auto_similarity_match_evaluation(
-            evaluation_id, evaluation.variants
-        )
+        results = await results_service.fetch_results_for_evaluation(evaluation)
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
-        results = await fetch_results_for_auto_regex_test(
-            evaluation_id, evaluation.variants
-        )
+        results = await results_service.fetch_results_for_evaluation(evaluation)
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
-        results = await fetch_results_for_auto_webhook_test(evaluation_id)
+        results = await results_service.fetch_results_for_auto_webhook_test(
+            evaluation_id
+        )
         return {"results_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
-        results = await fetch_results_for_auto_ai_critique(evaluation_id)
+        results = await results_service.fetch_results_for_auto_ai_critique(
+            evaluation_id
+        )
         return {"results_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.custom_code_run:
-        results = await fetch_average_score_for_custom_code_run(evaluation_id)
+        results = await results_service.fetch_average_score_for_custom_code_run(
+            evaluation_id
+        )
         return {"avg_score": results}
 
 
