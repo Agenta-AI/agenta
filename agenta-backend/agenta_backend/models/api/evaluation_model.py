@@ -33,12 +33,14 @@ class EvaluationStatusEnum(str, Enum):
 
 class Evaluation(BaseModel):
     id: str
-    variant_ids: List[str]
     app_id: str
-    status: str
+    user_id: str
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
-    testset: Dict[str, str] = Field(...)
+    variant_ids: List[str]
+    testset_id: str
+    testset_name: str
+    status: str
     created_at: datetime
     updated_at: datetime
 
