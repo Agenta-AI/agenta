@@ -9,6 +9,8 @@ class EvaluationTypeSettings(BaseModel):
     regex_pattern: Optional[str]
     regex_should_match: Optional[bool]
     webhook_url: Optional[str]
+    custom_code_evaluation_id: Optional[str]
+    llm_app_prompt_template: Optional[str]
 
 
 class EvaluationType(str, Enum):
@@ -31,15 +33,11 @@ class EvaluationStatusEnum(str, Enum):
 
 class Evaluation(BaseModel):
     id: str
+    variant_ids: List[str]
+    app_id: str
     status: str
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
-    custom_code_evaluation_id: Optional[
-        str
-    ]  # will be added when running custom code evaluation
-    llm_app_prompt_template: Optional[str]
-    variants: Optional[List[str]]
-    app_name: str
     testset: Dict[str, str] = Field(...)
     created_at: datetime
     updated_at: datetime
@@ -85,17 +83,13 @@ class EvaluationScenarioScoreUpdate(BaseModel):
 
 
 class NewEvaluation(BaseModel):
+    app_id: str
+    variant_ids: List[str]
     evaluation_type: EvaluationType
-    custom_code_evaluation_id: Optional[
-        str
-    ]  # will be added when running custom code evaluation
     evaluation_type_settings: Optional[EvaluationTypeSettings]
-    app_name: str
-    variants: List[str]
     inputs: List[str]
-    testset: Dict[str, str] = Field(...)
-    status: str = Field(...)
-    llm_app_prompt_template: Optional[str]
+    testset: Dict[str, str]
+    status: str
 
 
 class DeleteEvaluation(BaseModel):
