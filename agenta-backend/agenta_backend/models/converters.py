@@ -43,10 +43,10 @@ def evaluation_db_to_simple_evaluation_output(
 ) -> SimpleEvaluationOutput:
     return SimpleEvaluationOutput(
         id=str(evaluation_db.id),
-        app_id=str(evaluation_db.app_id.id),
+        app_id=str(evaluation_db.app.id),
         status=evaluation_db.status,
         evaluation_type=evaluation_db.evaluation_type,
-        variant_ids=[str(variant_id) for variant_id in evaluation_db.variant_ids],
+        variant_ids=[str(variant) for variant in evaluation_db.variants],
     )
 
 

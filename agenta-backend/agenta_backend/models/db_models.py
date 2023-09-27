@@ -125,6 +125,19 @@ class TemplateDB(Model):
         collection = "templates"
 
 
+class TestSetDB(Model):
+    name: str
+    app_id: AppDB = Reference(key_name="app")
+    csvdata: List[Dict[str, str]]
+    user: UserDB = Reference(key_name="user")
+    organization_id: OrganizationDB = Reference(key_name="organization")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "testsets"
+
+
 class EvaluationTypeSettings(EmbeddedModel):
     similarity_threshold: Optional[float]
     regex_pattern: Optional[str]
@@ -145,14 +158,14 @@ class EvaluationScenarioOutput(EmbeddedModel):
 
 
 class EvaluationDB(Model):
-    app_id: AppDB = Reference(key_name="app")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
     user: UserDB = Reference(key_name="user")
     status: str
     evaluation_type: str
     evaluation_type_settings: EvaluationTypeSettings
-    variant_ids: List[ObjectId]
-    testset: Dict[str, str]
+    variants: List[ObjectId]
+    testset: TestSetDB = Reference(key_name="testsets")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -165,10 +178,10 @@ class EvaluationScenarioDB(Model):
     outputs: List[ObjectId]  # EvaluationScenarioOutput
     vote: Optional[str]
     score: Optional[str]
-    evaluation: Optional[str]
-    evaluation_id: EvaluationDB = Reference(key_name="evaluations")
+    evaluation: ObjectId  # EvaluationDB
+    evaluation: EvaluationDB = Reference(key_name="evaluations")
     user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    organization: OrganizationDB = Reference(key_name="organization")
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -188,19 +201,6 @@ class CustomEvaluationDB(Model):
 
     class Config:
         collection = "custom_evaluations"
-
-
-class TestSetDB(Model):
-    name: str
-    app_id: AppDB = Reference(key_name="app")
-    csvdata: List[Dict[str, str]]
-    user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Config:
-        collection = "testsets"
 
 
 class SpanDB(Model):
