@@ -121,12 +121,18 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [appTheme])
 
     const computePlaygroundBreadCrumbs = () => {
-        const playground = `/playground`
+        const {app_name, variant_name} = router.query
+        const [app, playground] = ["/apps", "/playground"]
         if (router?.pathname?.includes(playground)) {
-            const {app_name, variant_name} = router.query
             return [
-                {title: <Link href="/apps">Apps</Link>},
-                {title: <Link href={`/apps/${app_name}/playground`}>Playground</Link>},
+                {title: <Link href={app}>Apps</Link>},
+                {
+                    title: (
+                        <Link href={`${[app, `${app_name}${playground}`].join("/")}`}>
+                            Playground
+                        </Link>
+                    ),
+                },
                 {
                     title:
                         variant_name &&
@@ -138,7 +144,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
         return [{title: <Link href="/apps">Apps</Link>}, {title: capitalizedAppName}]
     }
 
-    const breadCrumbItems = useMemo(computePlaygroundBreadCrumbs, [router])
+    const breadCrumbItems = useMemo(computePlaygroundBreadCrumbs, [
+        capitalizedAppName,
+        router.pathname,
+        router.query,
+    ])
 
     return (
         <NoSSRWrapper>
