@@ -148,6 +148,33 @@ async def add_variant_based_on_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
+    """Returns the image associated with the app variant
+
+    Arguments:
+        app_variant -- AppVariant to fetch the image for
+
+    Returns:
+        Image -- The Image associated with the app variant
+    """
+
+    # Build the query expression for the two conditions
+    query_expression = (
+        query.eq(AppVariantDB.app_id, ObjectId(app_variant.app_id))
+        & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
+        & query.eq(AppVariantDB.organization_id, ObjectId(app_variant.organization_id))
+    )
+
+    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
+    if db_app_variant:
+        image_db: ImageDB = await engine.find_one(
+            ImageDB, ImageDB.id == ObjectId(db_app_variant.image_id.id)
+        )
+        return image_db_to_pydantic(image_db)
+    else:
+        raise Exception("App variant not found")
+    
+
 async def fetch_app_by_name_and_organization(
     app_name: str, organization_id: str, **kwargs
 ) -> Optional[AppDB]:
@@ -274,38 +301,6 @@ async def create_user_organization(user_uid: str) -> OrganizationDB:
     return org_db
     
 
-async def create_user_organization(user_uid: str) -> OrganizationDB:
-    """Create a default organization for a user.
-
-    Args:
-        user_uid (str): The uid of the user
-
-    Returns:
-        OrganizationDB: Instance of OrganizationDB
-    """
-    
-    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
-    org_db = OrganizationDB(owner=str(user.id), type="default")
-    await engine.save(org_db)
-    return org_db
-
-
-async def create_user_organization(user_uid: str) -> OrganizationDB:
-    """Create a default organization for a user.
-
-    Args:
-        user_uid (str): The uid of the user
-
-    Returns:
-        OrganizationDB: Instance of OrganizationDB
-    """
-
-    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
-    org_db = OrganizationDB(owner=str(user.id), type="default")
-    await engine.save(org_db)
-    return org_db
-
-
 async def get_organization_object(organization_id: str) -> OrganizationDB:
     """
     Fetches an organization by its ID.
@@ -407,7 +402,7 @@ async def get_orga_image_instance(
     """Get the image object from the database with the provided id.
 
     Arguments:
-        organization_id (str): Ther orga unique identifier
+        organization_id (str): The orga unique identifier
         docker_id (str): The image id
 
     Returns:
@@ -603,32 +598,6 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
 
     # If it's the only variant left that uses the image, delete the image
     return bool(count_variants == 1)
-
-
-#     """Returns the image associated with the app variant
-
-#     Arguments:
-#         app_variant -- AppVariant to fetch the image for
-
-#     Returns:
-#         Image -- The Image associated with the app variant
-#     """
-
-#     # Build the query expression for the two conditions
-#     query_expression = (
-#         query.eq(AppVariantDB.app_name, app_variant.app_name)
-#         & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
-#         & query.eq(AppVariantDB.organization_id, app_variant.organization_id)
-#     )
-
-#     db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
-#     if db_app_variant:
-#         image_db: ImageDB = await engine.find_one(
-#             ImageDB, ImageDB.id == ObjectId(db_app_variant.image_id.id)
-#         )
-#         return image_db_to_pydantic(image_db)
-#     else:
-#         raise Exception("App variant not found")
 
 
 async def remove_app_variant(app_variant_db: AppVariantDB, **kwargs: dict):
