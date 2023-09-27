@@ -24,29 +24,31 @@ const useStyles = createUseStyles({
 export default function VariantEndpoint() {
     const classes = useStyles()
     const router = useRouter()
-    const appName = router.query.app_name?.toString() || ""
+    const appId = router.query.app_id as string
 
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
     const loadURL = async (environment: Environment) => {
-        const url = await getAppContainerURL(appName, environment.deployed_app_variant)
-        setURI(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${url}/generate`)
+        if (environment.deployed_app_variant_id) {
+            const url = await getAppContainerURL(appId, environment.deployed_app_variant_id)
+            setURI(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${url}/generate`)
+        }
     }
 
     // Load environments for the given app
     const [selectedEnvironment, setSelectedEnvironment] = useState<Environment | null>(null)
     const [environments, setEnvironments] = useState<Environment[]>([])
     const loadEnvironments = async () => {
-        const response: Environment[] = await fetchEnvironments(appName)
+        const response: Environment[] = await fetchEnvironments(appId)
         setEnvironments(response)
         setSelectedEnvironment(response[0])
 
         await loadURL(response[0])
     }
     useEffect(() => {
-        if (!appName) return
+        if (!appId) return
         loadEnvironments()
-    }, [appName])
+    }, [appId])
 
     const handleEnvironmentClick = ({key}: {key: string}) => {
         const chosenEnvironment = environments.find((env) => env.name === key)
@@ -63,7 +65,7 @@ export default function VariantEndpoint() {
         const fetchData = async () => {
             setIsVariantsLoading(true)
             try {
-                const backendVariants = await fetchVariants(appName)
+                const backendVariants = await fetchVariants(appId)
                 if (backendVariants.length > 0) {
                     setVariants(backendVariants)
                 }
@@ -74,14 +76,14 @@ export default function VariantEndpoint() {
             }
         }
         fetchData()
-    }, [appName])
+    }, [appId])
 
     // Set the variant to the variant deployed in the selected environment
     const [variant, setVariant] = useState<Variant | null>(null)
     useEffect(() => {
         if (!selectedEnvironment) return
         const variant = variants.find(
-            (variant) => variant.variantName === selectedEnvironment.deployed_app_variant,
+            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_id,
         )
         if (!variant) return
 
@@ -92,9 +94,9 @@ export default function VariantEndpoint() {
         if (variants.length > 0) {
             setVariant(variants[0])
         }
-    }, [variants, appName])
+    }, [variants, appId])
 
-    const {inputParams, optParams, isLoading, isError, error} = useVariant(appName, variant!)
+    const {inputParams, optParams, isLoading, isError, error} = useVariant(appId, variant!)
     const createParams = (
         inputParams: Parameter[] | null,
         optParams: Parameter[] | null,
@@ -172,7 +174,7 @@ export default function VariantEndpoint() {
                 </Dropdown>
             </div>
 
-            {selectedEnvironment?.deployed_app_variant ? (
+            {selectedEnvironment?.deployed_app_variant_id ? (
                 <DynamicCodeBlock codeSnippets={codeSnippets} />
             ) : (
                 <Alert

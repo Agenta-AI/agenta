@@ -1,4 +1,4 @@
-import CustomCodeRunEvaluationTable from "../../../../../components/EvaluationTable/CustomCodeRunEvaluationTable"
+import SimilarityMatchEvaluationTable from "../../../../../components/EvaluationTable/SimilarityMatchEvaluationTable"
 import {Evaluation} from "@/lib/Types"
 import {loadEvaluation, loadEvaluationsScenarios} from "@/lib/services/api"
 import {useRouter} from "next/router"
@@ -10,10 +10,9 @@ export default function Evaluation() {
     const evaluationTableId = router.query.evaluation_id
         ? router.query.evaluation_id.toString()
         : ""
-    const customEvaluationId = router.query.custom_eval_id as string
     const [evaluationScenarios, setEvaluationScenarios] = useState([])
     const [evaluation, setEvaluation] = useState<Evaluation | undefined>()
-    const appName = router.query.app_name as unknown as string
+    const appId = router.query.app_id as string
     const columnsCount = 1
 
     useEffect(() => {
@@ -25,7 +24,7 @@ export default function Evaluation() {
             setEvaluationScenarios(data)
         }
         init()
-    }, [evaluation, evaluationTableId])
+    }, [evaluation])
 
     useEffect(() => {
         if (!evaluationTableId) {
@@ -33,30 +32,29 @@ export default function Evaluation() {
         }
         const init = async () => {
             const evaluation: Evaluation = await loadEvaluation(evaluationTableId)
-            const backendVariants = await fetchVariants(appName)
+            const backendVariants = await fetchVariants(appId)
             // Create a map for faster access to first array elements
             let backendVariantsMap = new Map()
-            backendVariants.forEach((obj) => backendVariantsMap.set(obj.variantName, obj))
+            backendVariants.forEach((obj) => backendVariantsMap.set(obj.variantId, obj))
 
             // Update variants in second object
             evaluation.variants = evaluation.variants.map((variant) => {
-                let backendVariant = backendVariantsMap.get(variant.variantName)
+                let backendVariant = backendVariantsMap.get(variant.variantId)
                 return backendVariant ? backendVariant : variant
             })
             setEvaluation(evaluation)
         }
 
         init()
-    }, [evaluationTableId, appName])
+    }, [evaluationTableId])
 
     return (
         <div className="evalautionContainer">
-            {evaluationTableId && evaluationScenarios && evaluation && customEvaluationId && (
-                <CustomCodeRunEvaluationTable
+            {evaluationTableId && evaluationScenarios && evaluation && (
+                <SimilarityMatchEvaluationTable
                     columnsCount={columnsCount}
                     evaluationScenarios={evaluationScenarios}
                     evaluation={evaluation}
-                    customEvaluationId={customEvaluationId}
                 />
             )}
         </div>
