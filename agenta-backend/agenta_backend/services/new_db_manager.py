@@ -20,7 +20,7 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
     app_db_to_pydantic,
-    app_variant_db_to_output
+    app_variant_db_to_output,
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -35,7 +35,11 @@ from agenta_backend.models.db_models import (
     TestSetDB,
 )
 from agenta_backend.services import helpers
-from agenta_backend.utills.common import engine, check_user_org_access, get_organization
+from agenta_backend.utills.common import (
+    engine,
+    check_user_org_access,
+    get_organization,
+)
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_engine import DBEngine
@@ -57,7 +61,7 @@ async def add_variant_based_on_image(
     organization_id: str,
     base_name: str = None,
     config_name: str = "default",
-    **kwargs: dict
+    **kwargs: dict,
 ) -> AppVariantOutput:
     """
     Adds an app variant based on an image.
@@ -173,14 +177,18 @@ async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
     Returns:
         AppDB: the instance of the app
     """
-    
+
     user = await get_user_object(kwargs["uid"])
-    query_expression = (AppDB.id == ObjectId(app_id)) & (AppDB.user_id == user.id)
+    query_expression = (AppDB.id == ObjectId(app_id)) & (
+        AppDB.user_id == user.id
+    )
     app = await engine.find_one(AppDB, query_expression)
     return app
 
 
-async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]:
+async def fetch_app_variant_by_id(
+    app_variant_id: str,
+) -> Optional[AppVariantDB]:
     """
     Fetches an app variant by its ID.
 
@@ -195,6 +203,26 @@ async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]
         AppVariantDB, AppVariantDB.id == ObjectId(app_variant_id)
     )
     return app_variant
+
+
+async def fetch_app_variant_by_name_and_appid(
+    variant_name: str, app_id: str
+) -> AppVariantDB:
+    """Fetch an app variant by it's name and app id.
+
+    Args:
+        variant_name (str): The name of the variant
+        app_id (str): The ID of the variant app
+
+    Returns:
+        AppVariantDB: the instance of the app variant
+    """
+
+    query_expression = (AppVariantDB.variant_name == variant_name) & (
+        AppVariantDB.app_id == ObjectId(app_id)
+    )
+    app_variant_db = await engine.find_one(AppVariantDB, query_expression)
+    return app_variant_db
 
 
 async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
@@ -212,15 +240,19 @@ async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
     Raises:
         ValueError: If an app with the same name already exists.
     """
-    
+
     user_instance = await get_user_object(kwargs["uid"])
-    app = await fetch_app_by_name_and_organization(app_name, organization_id, **kwargs)
+    app = await fetch_app_by_name_and_organization(
+        app_name, organization_id, **kwargs
+    )
     if app is not None:
         raise ValueError("App with the same name already exists")
-    
+
     organization_db = await get_organization_object(organization_id)
     app = AppDB(
-        app_name=app_name, organization_id=organization_db, user_id=user_instance
+        app_name=app_name,
+        organization_id=organization_db,
+        user_id=user_instance,
     )
     await engine.save(app)
     return app
@@ -256,7 +288,23 @@ async def create_user_organization(user_uid: str) -> OrganizationDB:
     org_db = OrganizationDB(owner=str(user.id), type="default")
     await engine.save(org_db)
     return org_db
-    
+
+
+async def create_user_organization(user_uid: str) -> OrganizationDB:
+    """Create a default organization for a user.
+
+    Args:
+        user_uid (str): The uid of the user
+
+    Returns:
+        OrganizationDB: Instance of OrganizationDB
+    """
+
+    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
+    org_db = OrganizationDB(owner=str(user.id), type="default")
+    await engine.save(org_db)
+    return org_db
+
 
 async def get_organization_object(organization_id: str) -> OrganizationDB:
     """
@@ -353,7 +401,9 @@ async def clean_soft_deleted_variants():
             await engine.delete(variant)
 
 
-async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
+async def get_orga_image_instance(
+    organization_id: str, docker_id: str
+) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
@@ -422,7 +472,9 @@ async def add_variant_based_on_previous(
         )
 
     soft_deleted_app_variants = await list_app_variants_for_app_id(
-        app_id=str(previous_app_variant.app_id.id), show_soft_deleted=True, **kwargs
+        app_id=str(previous_app_variant.app_id.id),
+        show_soft_deleted=True,
+        **kwargs,
     )
 
     logger.debug("soft_deleted_app_variants: %s", soft_deleted_app_variants)
@@ -435,7 +487,9 @@ async def add_variant_based_on_previous(
     user_instance = await get_user_object(kwargs["uid"])
     if new_config_name is None:
         new_config_name = new_variant_name.split(".")[1]
-    config_instance = ConfigDB(config_name=new_config_name, parameters=parameters)
+    config_instance = ConfigDB(
+        config_name=new_config_name, parameters=parameters
+    )
     db_app_variant = AppVariantDB(
         app_id=previous_app_variant.app_id,
         variant_name=new_variant_name,
@@ -480,12 +534,16 @@ async def list_apps(org_id: str = None, **kwargs: dict) -> List[App]:
 
         else:
             return JSONResponse(
-                {"error": "You do not have permission to access this organization"},
+                {
+                    "error": "You do not have permission to access this organization"
+                },
                 status_code=403,
             )
 
     else:
-        apps: List[AppVariantDB] = await engine.find(AppDB, AppDB.user_id == user.id)
+        apps: List[AppVariantDB] = await engine.find(
+            AppDB, AppDB.user_id == user.id
+        )
         return [app_db_to_pydantic(app) for app in apps]
 
 
@@ -505,11 +563,17 @@ async def list_app_variants(
     logger.debug("app_id: %s", app_id)
     query_filters = query.QueryExpression()
     if app_id is not None:
-        query_filters = query_filters & (AppVariantDB.app_id == ObjectId(app_id))
+        query_filters = query_filters & (
+            AppVariantDB.app_id == ObjectId(app_id)
+        )
     if not show_soft_deleted:
-        query_filters = query_filters & query.eq(AppVariantDB.is_deleted, False)
+        query_filters = query_filters & query.eq(
+            AppVariantDB.is_deleted, False
+        )
     logger.debug("query_filters: %s", query_filters)
-    app_variants_db: List[AppVariantDB] = await engine.find(AppVariantDB, query_filters)
+    app_variants_db: List[AppVariantDB] = await engine.find(
+        AppVariantDB, query_filters
+    )
 
     # Include previous variant name
     return app_variants_db
