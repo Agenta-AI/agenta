@@ -1,6 +1,6 @@
 from bson import ObjectId
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from fastapi import HTTPException
 
@@ -16,9 +16,10 @@ from agenta_backend.models.api.evaluation_model import (
     CreateCustomEvaluation,
     EvaluationUpdate,
 )
-
+from agenta_backend.models import converters
 from agenta_backend.utills.common import engine
 from agenta_backend.services.db_manager import query, get_user_object
+from agenta_backend.services import new_db_manager
 from agenta_backend.models.db_models import (
     AppVariantDB,
     EvaluationDB,
@@ -29,6 +30,8 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioOutput,
     CustomEvaluationDB,
 )
+
+from agenta_backend.utills import common
 
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
@@ -41,347 +44,379 @@ class UpdateEvaluationScenarioError(Exception):
     pass
 
 
-async def create_new_evaluation(payload: NewEvaluation, **kwargs: dict) -> Dict:
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    # Convert payload data to dictionary
-    evaluation_dict = payload.dict()
-    evaluation_dict["created_at"] = datetime.utcnow()
-    evaluation_dict["updated_at"] = datetime.utcnow()
-
-    # Initialize evaluation type settings embedded model
-    similarity_threshold = payload.evaluation_type_settings.similarity_threshold
-    regex_pattern = payload.evaluation_type_settings.regex_pattern
-    regex_should_match = payload.evaluation_type_settings.regex_should_match
-    webhook_url = payload.evaluation_type_settings.webhook_url
-    evaluation_type_settings = EvaluationTypeSettings(
-        similarity_threshold=0.0
-        if similarity_threshold is None
-        else similarity_threshold,
-        regex_pattern="" if regex_pattern is None else regex_pattern,
-        regex_should_match=True if regex_should_match is None else regex_should_match,
-        webhook_url="" if webhook_url is None else webhook_url,
+async def _fetch_evaluation_and_check_access(
+    evaluation_id: str, **user_org_data: dict
+) -> EvaluationDB:
+    # Fetch the evaluation by ID
+    evaluation = await new_db_manager.fetch_evaluation_by_id(
+        evaluation_id=evaluation_id
     )
 
-    # Initialize evaluation instance and save to database
-    eval_instance = EvaluationDB(
-        status=payload.status,
-        evaluation_type=payload.evaluation_type,
-        custom_code_evaluation_id=payload.custom_code_evaluation_id,
-        evaluation_type_settings=evaluation_type_settings,
-        llm_app_prompt_template=payload.llm_app_prompt_template,
-        variants=payload.variants,
-        app_name=payload.app_name,
-        testset=payload.testset,
-        user=user,
-        created_at=evaluation_dict["created_at"],
-        updated_at=evaluation_dict["updated_at"],
-    )
-    newEvaluation = await engine.save(eval_instance)
-
-    if newEvaluation is None:
+    # Check if the evaluation exists
+    if evaluation is None:
         raise HTTPException(
-            status_code=500, detail="Failed to create evaluation_scenario"
+            status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
         )
 
-    # Get testset using the provided _id
-    testsetId = eval_instance.testset["_id"]
-    testset = await engine.find_one(TestSetDB, TestSetDB.id == ObjectId(testsetId))
-
-    csvdata = testset.csvdata
-    for datum in csvdata:
-        try:
-            inputs = [
-                {"input_name": name, "input_value": datum[name]}
-                for name in payload.inputs
-            ]
-        except KeyError:
-            await engine.delete(newEvaluation)
-            msg = f"""
-            Columns in the test set should match the names of the inputs in the variant.
-            Inputs names in variant are: {payload.inputs} while
-            columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
-            """
-            raise HTTPException(
-                status_code=400,
-                detail=msg,
-            )
-
-        list_of_scenario_input = []
-        for scenario_input in inputs:
-            eval_scenario_input_instance = EvaluationScenarioInput(
-                input_name=scenario_input["input_name"],
-                input_value=scenario_input["input_value"],
-            )
-            list_of_scenario_input.append(eval_scenario_input_instance)
-
-        evaluation_scenario_payload = {
-            **{
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            },
-            **extend_with_evaluation(payload.evaluation_type),
-            **extend_with_correct_answer(payload.evaluation_type, datum),
-        }
-
-        eval_scenario_instance = EvaluationScenarioDB(
-            **evaluation_scenario_payload,
-            user=user,
-            evaluation_id=str(newEvaluation.id),
-            inputs=list_of_scenario_input,
-            outputs=[],
+    # Check for access rights
+    access = await common.check_access_to_app(
+        kwargs=user_org_data, app_id=evaluation.app.id
+    )
+    if not access:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
         )
-        await engine.save(eval_scenario_instance)
-
-    evaluation_dict["id"] = str(newEvaluation.id)
-    return evaluation_dict
+    return evaluation
 
 
-async def create_new_evaluation_scenario(
-    evaluation_id: str, payload: EvaluationScenario, **kwargs: dict
-) -> Dict:
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    list_of_scenario_input = []
-    for scenario_input in payload.inputs:
-        eval_scenario_input_instance = EvaluationScenarioInput(
-            input_name=scenario_input["input_name"],
-            input_value=scenario_input["input_value"],
+async def _fetch_evaluation_scenario_and_check_access(
+    evaluation_scenario_id: str, **user_org_data: dict
+) -> EvaluationDB:
+    # Fetch the evaluation by ID
+    evaluation_scenario = await new_db_manager.fetch_evaluation_scenario_by_id(
+        evaluation_scenario_id=evaluation_scenario_id
+    )
+    if evaluation_scenario is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
         )
-        list_of_scenario_input.append(eval_scenario_input_instance)
+    evaluation = evaluation_scenario.evaluation
 
-    evaluation_scenario_payload = {
-        **{
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        },
-        **extend_with_evaluation(payload.evaluation_type),
-    }
-    eval_scenario_instance = EvaluationScenarioDB(
-        **evaluation_scenario_payload,
-        evaluation_id=evaluation_id,
-        user=user,
-        inputs=list_of_scenario_input,
+    # Check if the evaluation exists
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation scenario for evaluation scenario with id {evaluation_scenario_id} not found",
+        )
+
+    # Check for access rights
+    access = await common.check_access_to_app(
+        kwargs=user_org_data, app_id=evaluation.app.id
+    )
+    if not access:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
+        )
+    return evaluation_scenario
+
+
+# async def create_new_evaluation(
+#     payload: NewEvaluation, **user_org_data: dict
+# ) -> EvaluationDB:
+#     """
+#     Create a new evaluation based on the provided payload and additional arguments.
+
+#     Args:
+#         payload (NewEvaluation): The evaluation payload.
+#         **user_org_data (dict): Additional keyword arguments, e.g., user id.
+
+#     Returns:
+#         EvaluationDB
+#     """
+#     user = await get_user_object(user_org_data["uid"])
+
+#     # Initialize evaluation type settings
+#     settings = payload.evaluation_type_settings
+#     evaluation_type_settings = EvaluationTypeSettings(
+#         similarity_threshold=settings.similarity_threshold or 0.0,
+#         regex_pattern=settings.regex_pattern or "",
+#         regex_should_match=settings.regex_should_match or True,
+#         webhook_url=settings.webhook_url or "",
+#         custom_code_evaluation_id=settings.custom_code_evaluation_id or "",
+#         llm_app_prompt_template=settings.llm_app_prompt_template or "",
+#     )
+
+#     current_time = datetime.utcnow()
+
+#     # Fetch app
+#     app = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
+#     if app is None:
+#         raise HTTPException(
+#             status_code=404, detail=f"App with id {payload.app_id} does not exist"
+#         )
+
+#     variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
+
+#     testset = await new_db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
+#     # Initialize and save evaluation instance to database
+#     eval_instance = EvaluationDB(
+#         app=app,
+#         organization=app.organization_id,  # Assuming user has an organization_id attribute
+#         user=user,
+#         status=payload.status,
+#         evaluation_type=payload.evaluation_type,
+#         evaluation_type_settings=evaluation_type_settings,
+#         variants=variants,
+#         testset=testset,
+#         created_at=current_time,
+#         updated_at=current_time,
+#     )
+#     newEvaluation = await engine.save(eval_instance)
+
+#     if newEvaluation is None:
+#         raise HTTPException(
+#             status_code=500, detail="Failed to create evaluation_scenario"
+#         )
+
+#     csvdata = testset.csvdata
+#     for datum in csvdata:
+#         # Check whether the inputs in the test set match the inputs in the variant
+#         try:
+#             inputs = [
+#                 {"input_name": name, "input_value": datum[name]}
+#                 for name in payload.inputs
+#             ]
+#         except KeyError:
+#             await engine.delete(newEvaluation)
+#             msg = f"""
+#             Columns in the test set should match the names of the inputs in the variant.
+#             Inputs names in variant are: {payload.inputs} while
+#             columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
+#             """
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail=msg,
+#             )
+#         # Create evaluation scenarios
+#         list_of_scenario_input = []
+#         for scenario_input in inputs:
+#             eval_scenario_input_instance = EvaluationScenarioInput(
+#                 input_name=scenario_input["input_name"],
+#                 input_value=scenario_input["input_value"],
+#             )
+#             list_of_scenario_input.append(eval_scenario_input_instance)
+
+#         evaluation_scenario_payload = {
+#             **{
+#                 "created_at": datetime.utcnow(),
+#                 "updated_at": datetime.utcnow(),
+#             },
+#             **_extend_with_evaluation(payload.evaluation_type),
+#             **_extend_with_correct_answer(payload.evaluation_type, datum),
+#         }
+
+#         eval_scenario_instance = EvaluationScenarioDB(
+#             **evaluation_scenario_payload,
+#             user=user,
+#             organization=app.organization_id,
+#             evaluation=newEvaluation,
+#             inputs=list_of_scenario_input,
+#             outputs=[],
+#         )
+#         await engine.save(eval_scenario_instance)
+
+#     return newEvaluation
+
+
+async def create_evaluation_scenario(
+    evaluation_id: str, payload: EvaluationScenario, **user_org_data: dict
+) -> None:
+    """
+    Create a new evaluation scenario.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation.
+        payload (EvaluationScenario): Evaluation scenario data.
+        user_org_data (dict): User and organization data.
+
+    Raises:
+        HTTPException: If evaluation not found or access denied.
+    """
+    evaluation = await _fetch_evaluation_and_check_access(
+        evaluation_id=evaluation_id, **user_org_data
+    )
+
+    scenario_inputs = [
+        EvaluationScenarioInput(
+            input_name=input_item.input_name, input_value=input_item.input_value
+        )
+        for input_item in payload.inputs
+    ]
+
+    new_eval_scenario = EvaluationScenarioDB(
+        user=evaluation.user,
+        organization=evaluation.organization,
+        evaluation=evaluation,
+        inputs=scenario_inputs,
         outputs=[],
-    )
-    await engine.save(eval_scenario_instance)
-    return EvaluationScenario(
+        **_extend_with_evaluation(evaluation.evaluation_type),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
         evaluation_id=evaluation_id,
-        inputs=eval_scenario_instance.inputs,
-        outputs=eval_scenario_instance.outputs,
-        vote=eval_scenario_instance.vote,
-        score=eval_scenario_instance.score,
-        correct_answer=eval_scenario_instance.correct_answer,
-        id=str(eval_scenario_instance.id),
     )
+
+    await engine.save(new_eval_scenario)
 
 
 async def update_evaluation(
-    evaluation_id: str, update_payload: EvaluationUpdate, **kwargs: dict
-) -> Evaluation:
-    user = await get_user_object(kwargs["uid"])
+    evaluation_id: str, update_payload: EvaluationUpdate, **user_org_data: dict
+) -> None:
+    """
+    Update an existing evaluation based on the provided payload.
 
-    # Construct query expression for evaluation
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
+    Args:
+        evaluation_id (str): The existing evaluation ID.
+        update_payload (EvaluationUpdate): The payload for the update.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+    """
+    # Fetch the evaluation by ID
+    evaluation = await _fetch_evaluation_and_check_access(
+        evaluation_id=evaluation_id,
+        **user_org_data,
     )
-    result = await engine.find_one(EvaluationDB, query_expression)
 
-    if result is not None:
-        # Update status and save to database
-        updates = {}
-        if update_payload.status is not None:
-            updates["status"] = update_payload.status
-        if update_payload.evaluation_type_settings is not None:
-            updates["evaluation_type_settings"] = EvaluationTypeSettings(
-                similarity_threshold=result.evaluation_type_settings.similarity_threshold
-                if update_payload.evaluation_type_settings.similarity_threshold is None
-                else update_payload.evaluation_type_settings.similarity_threshold,
-                regex_pattern=result.evaluation_type_settings.regex_pattern
-                if update_payload.evaluation_type_settings.regex_pattern is None
-                else update_payload.evaluation_type_settings.regex_pattern,
-                regex_should_match=result.evaluation_type_settings.regex_should_match
-                if update_payload.evaluation_type_settings.regex_should_match is None
-                else update_payload.evaluation_type_settings.regex_should_match,
-                webhook_url=result.evaluation_type_settings.webhook_url
-                if update_payload.evaluation_type_settings.webhook_url is None
-                else update_payload.evaluation_type_settings.webhook_url,
+    # Prepare updates
+    updates = {}
+    if update_payload.status is not None:
+        updates["status"] = update_payload.status
+
+    if update_payload.evaluation_type_settings is not None:
+        current_settings = evaluation.evaluation_type_settings
+        new_settings = update_payload.evaluation_type_settings
+
+        # Update only the fields that are explicitly set in the payload
+        for field in EvaluationTypeSettings.__annotations__.keys():
+            setattr(
+                current_settings,
+                field,
+                getattr(new_settings, field, None)
+                or getattr(current_settings, field, None),
             )
 
-        result.update(updates)
-        await engine.save(result)
+        updates["evaluation_type_settings"] = current_settings
 
-        return Evaluation(
-            id=str(result.id),
-            status=result.status,
-            evaluation_type=result.evaluation_type,
-            evaluation_type_settings=result.evaluation_type_settings,
-            llm_app_prompt_template=result.llm_app_prompt_template,
-            variants=result.variants,
-            app_name=result.app_name,
-            testset=result.testset,
-            created_at=result.created_at,
-            updated_at=result.updated_at,
-        )
-    else:
-        raise UpdateEvaluationScenarioError("Failed to update evaluation status")
+    # Update the evaluation
+    evaluation.update(updates)
+    await engine.save(evaluation)
+
+
+async def fetch_evaluation_scenarios_for_evaluation(
+    evaluation_id: str, **user_org_data: dict
+) -> List[EvaluationScenario]:
+    """
+    Fetch evaluation scenarios for a given evaluation ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation.
+        user_org_data (dict): User and organization data.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+    """
+    evaluation = await _fetch_evaluation_and_check_access(
+        evaluation_id=evaluation_id,
+        **user_org_data,
+    )
+    scenarios = await engine.find(
+        EvaluationScenarioDB, EvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
+    )
+    eval_scenarios = [
+        converters.evaluation_scenario_db_to_pydantic(scenario)
+        for scenario in scenarios
+    ]
+    return eval_scenarios
 
 
 async def update_evaluation_scenario(
     evaluation_scenario_id: str,
     evaluation_scenario_data: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
-    **kwargs,
-) -> Dict:
-    evaluation_scenario_dict = evaluation_scenario_data.dict()
-    evaluation_scenario_dict["updated_at"] = datetime.utcnow()
+    **user_org_data,
+) -> None:
+    """
+    Updates an evaluation scenario.
 
-    # Construct new evaluation set and get user object
-    new_evaluation_set = {"outputs": evaluation_scenario_dict["outputs"]}
-    user = await get_user_object(kwargs["uid"])
+    Args:
+        evaluation_scenario_id (str): The ID of the evaluation scenario.
+        evaluation_scenario_data (EvaluationScenarioUpdate): New data for the scenario.
+        evaluation_type (EvaluationType): Type of the evaluation.
+        user_org_data (dict): User and organization data.
 
-    # COnstruct query expression builder for evaluation and evaluation scenario
-    query_expression_eval = query.eq(EvaluationDB.user, user.id)
-    query_expression_eval_scen = query.eq(
-        EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
-    ) & query.eq(EvaluationScenarioDB.user, user.id)
+    Raises:
+        HTTPException: If evaluation scenario not found or access denied.
+    """
+    eval_scenario = await _fetch_evaluation_scenario_and_check_access(
+        evaluation_scenario_id=evaluation_scenario_id,
+        **user_org_data,
+    )
 
-    if (
-        evaluation_type == EvaluationType.auto_exact_match
-        or evaluation_type == EvaluationType.auto_similarity_match
-        or evaluation_type == EvaluationType.auto_regex_test
-        or evaluation_type == EvaluationType.auto_webhook_test
-    ):
-        new_evaluation_set["score"] = evaluation_scenario_dict["score"]
+    updated_data = evaluation_scenario_data.dict()
+    updated_data["updated_at"] = datetime.utcnow()
+
+    new_eval_set = {"outputs": updated_data["outputs"]}
+
+    if evaluation_type in [
+        EvaluationType.auto_exact_match,
+        EvaluationType.auto_similarity_match,
+        EvaluationType.auto_regex_test,
+        EvaluationType.auto_webhook_test,
+    ]:
+        new_eval_set["score"] = updated_data["score"]
     elif evaluation_type == EvaluationType.human_a_b_testing:
-        new_evaluation_set["vote"] = evaluation_scenario_dict["vote"]
+        new_eval_set["vote"] = updated_data["vote"]
     elif evaluation_type == EvaluationType.custom_code_run:
-        new_evaluation_set["correct_answer"] = evaluation_scenario_dict[
-            "correct_answer"
-        ]
-    elif evaluation_type == EvaluationType.auto_ai_critique:
-        current_evaluation_scenario = await engine.find_one(
-            EvaluationScenarioDB, query_expression_eval_scen
-        )
-        current_evaluation = await engine.find_one(
-            EvaluationDB,
-            query_expression_eval
-            & query.eq(
-                EvaluationDB.id,
-                ObjectId(current_evaluation_scenario.evaluation_id),
-            ),
-        )
+        new_eval_set["correct_answer"] = updated_data["correct_answer"]
 
-        evaluation = evaluate_with_ai_critique(
-            llm_app_prompt_template=current_evaluation.llm_app_prompt_template,
-            llm_app_inputs=[
-                scenario_input.dict()
-                for scenario_input in current_evaluation_scenario.inputs
-            ],
-            correct_answer=current_evaluation_scenario.correct_answer,
-            app_variant_output=new_evaluation_set["outputs"][0]["variant_output"],
-            evaluation_prompt_template=evaluation_scenario_dict[
-                "evaluation_prompt_template"
-            ],
-            open_ai_key=evaluation_scenario_dict["open_ai_key"],
-        )
-        new_evaluation_set["evaluation"] = evaluation
-
-    # Get an evaluation scenario with the provided id
-    result = await engine.find_one(EvaluationScenarioDB, query_expression_eval_scen)
-
-    # Loop through the evaluation set outputs, create an evaluation scenario
-    # output instance and append the instance in the list
-    list_of_eval_outputs = []
-    for output in new_evaluation_set["outputs"]:
-        eval_output = EvaluationScenarioOutput(
-            variant_name=output["variant_name"],
+    new_outputs = [
+        EvaluationScenarioOutput(
+            variant_id=output["variant_id"],
             variant_output=output["variant_output"],
-        )
-        list_of_eval_outputs.append(eval_output.dict())
+        ).dict()
+        for output in new_eval_set["outputs"]
+    ]
 
-    # Update evaluation scenario
-    new_evaluation_set["outputs"] = list_of_eval_outputs
-    result.update(new_evaluation_set)
-
-    # Save update to database
-    await engine.save(result)
-
-    if result is not None:
-        evaluation_scenario = await engine.find_one(
-            EvaluationScenarioDB,
-            EvaluationScenarioDB.id == ObjectId(evaluation_scenario_id),
-        )
-
-        if evaluation_scenario is not None:
-            evaluation_scenario_response = EvaluationScenario(
-                evaluation_id=evaluation_scenario.evaluation_id,
-                inputs=evaluation_scenario.inputs,
-                outputs=evaluation_scenario.outputs,
-                vote=evaluation_scenario.vote,
-                score=evaluation_scenario.score,
-                correct_answer=evaluation_scenario.correct_answer,
-                id=str(evaluation_scenario.id),
-            )
-
-            # Update evaluation response if type of evaluation is auto ai critique
-            if evaluation_type == EvaluationType.auto_ai_critique:
-                evaluation_scenario_response.evaluation = evaluation
-            return evaluation_scenario_response
-
-    raise UpdateEvaluationScenarioError("Failed to create evaluation_scenario")
+    new_eval_set["outputs"] = new_outputs
+    eval_scenario.update(new_eval_set)
+    await engine.save(eval_scenario)
 
 
 async def update_evaluation_scenario_score(
-    evaluation_scenario_id: str, score: float, **kwargs: dict
+    evaluation_scenario_id: str, score: float, **user_org_data: dict
 ) -> None:
-    """Update the score of the provided evaluation scenario.
+    """
+    Updates the score of an evaluation scenario.
 
     Args:
-        evaluation_scenario_id (str): the evaluation scenario to update
-        score (float): the value to update
+        evaluation_scenario_id (str): The ID of the evaluation scenario.
+        score (float): The new score to set.
+        user_org_data (dict): User and organization data.
+
+    Raises:
+        HTTPException: If evaluation scenario not found or access denied.
     """
+    eval_scenario = await _fetch_evaluation_scenario_and_check_access(
+        evaluation_scenario_id, **user_org_data
+    )
+    eval_scenario.score = score
 
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    # Build query expression
-    query_expression = query.eq(
-        EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
-    ) & query.eq(EvaluationScenarioDB.user, user.id)
-
-    # Find evaluation scenario if it meets with the query expression
-    evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
-    evaluation_scenario.score = score
-
-    # Save the evaluation scenario
-    await engine.save(evaluation_scenario)
+    # Save the updated evaluation scenario
+    await engine.save(eval_scenario)
 
 
 async def get_evaluation_scenario_score(
-    evaluation_scenario_id: str, **kwargs: dict
+    evaluation_scenario_id: str, **user_org_data: dict
 ) -> Dict[str, str]:
-    """Get the evaluation scenario score
+    """
+    Retrieve the score of a given evaluation scenario.
 
     Args:
-        scenario_id (str): the evaluation scenario score
+        evaluation_scenario_id: The ID of the evaluation scenario.
+        user_org_data: Additional user and organization data.
 
     Returns:
-        Dict[str, str]: scenario id and score
+        Dictionary with 'scenario_id' and 'score' keys.
     """
-
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    # Build query expression
-    query_expression = query.eq(
-        EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
-    ) & query.eq(EvaluationScenarioDB.user, user.id)
-
-    # Find evaluation scenario if it meets with the query expression
-    evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
+    evaluation_scenario = await _fetch_evaluation_scenario_and_check_access(
+        evaluation_scenario_id, **user_org_data
+    )
     return {
         "scenario_id": str(evaluation_scenario.id),
         "score": evaluation_scenario.score,
@@ -390,7 +425,7 @@ async def get_evaluation_scenario_score(
 
 def evaluate_with_ai_critique(
     llm_app_prompt_template: str,
-    llm_app_inputs: dict,
+    llm_app_inputs: list,
     correct_answer: str,
     app_variant_output: str,
     evaluation_prompt_template: str,
@@ -405,7 +440,7 @@ def evaluate_with_ai_critique(
 
     Args:
         llm_app_prompt_template (str): the prompt template of the llm app variant
-        llm_app_inputs (dict): parameters
+        llm_app_inputs (list): parameters
         correct_answer (str): correct answer
         app_variant_output (str): the output of an ll app variant with given parameters
         evaluation_prompt_template (str): evaluation prompt set by an agenta user in the ai evaluation view
@@ -452,7 +487,7 @@ def evaluate_with_ai_critique(
     return output.strip()
 
 
-def extend_with_evaluation(evaluation_type: EvaluationType):
+def _extend_with_evaluation(evaluation_type: EvaluationType):
     evaluation = {}
     if (
         evaluation_type == EvaluationType.auto_exact_match
@@ -470,7 +505,7 @@ def extend_with_evaluation(evaluation_type: EvaluationType):
     return evaluation
 
 
-def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
+def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     correct_answer = {}
     if (
         evaluation_type == EvaluationType.auto_exact_match
@@ -484,8 +519,48 @@ def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     return correct_answer
 
 
+async def fetch_list_evaluations(
+    app_id: str,
+    **user_org_data: dict,
+) -> List[Evaluation]:
+    """
+    Fetches a list of evaluations based on the provided filtering criteria.
+
+    Args:
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
+        user_org_data (dict): User and organization data.
+
+    Returns:
+        List[Evaluation]: A list of evaluations.
+    """
+    access = common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
+    if not access:
+        raise HTTPException(
+            status_code=403, detail=f"You do not have access to this app: {app_id}"
+        )
+
+    evaluations_db = await engine.find(
+        EvaluationDB, EvaluationDB.app == ObjectId(app_id)
+    )
+    return [
+        converters.evaluation_db_to_pydantic(evaluation)
+        for evaluation in evaluations_db
+    ]
+
+
+async def fetch_evaluation(
+    evaluation_id: str,
+    **user_org_data: dict,
+) -> Evaluation:
+    evaluation = await _fetch_evaluation_and_check_access(
+        evaluation_id=evaluation_id,
+        **user_org_data,
+    )
+    return converters.evaluation_db_to_pydantic(evaluation)
+
+
 async def create_custom_code_evaluation(
-    payload: CreateCustomEvaluation, **kwargs: dict
+    payload: CreateCustomEvaluation, **user_org_data: dict
 ) -> str:
     """Save the custom evaluation code in the database.
 
@@ -497,7 +572,7 @@ async def create_custom_code_evaluation(
     """
 
     # Get user object
-    user = await get_user_object(kwargs["uid"])
+    user = await get_user_object(user_org_data["uid"])
 
     # Initialize custom evaluation instance
     custom_eval = CustomEvaluationDB(**payload.dict(), user=user)
@@ -513,7 +588,7 @@ async def execute_custom_code_evaluation(
     correct_answer: str,
     variant_name: str,
     inputs: Dict[str, Any],
-    **kwargs: dict,
+    **user_org_data: dict,
 ):
     """Execute the custom evaluation code.
 
@@ -535,7 +610,7 @@ async def execute_custom_code_evaluation(
     """
 
     # Get user object
-    user = await get_user_object(kwargs["uid"])
+    user = await get_user_object(user_org_data["uid"])
 
     # Build query expression
     query_expression = query.eq(
@@ -575,7 +650,7 @@ async def execute_custom_code_evaluation(
 
 
 async def fetch_custom_evaluations(
-    app_name: str, **kwargs: dict
+    app_name: str, **user_org_data: dict
 ) -> List[CustomEvaluationOutput]:
     """Fetch a list of custom evaluations from the database.
 
@@ -587,7 +662,7 @@ async def fetch_custom_evaluations(
     """
 
     # Get user object
-    user = await get_user_object(kwargs["uid"])
+    user = await get_user_object(user_org_data["uid"])
 
     # Build query expression
     query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
@@ -614,7 +689,7 @@ async def fetch_custom_evaluations(
 
 
 async def fetch_custom_evaluation_detail(
-    id: str, **kwargs: dict
+    id: str, **user_org_data: dict
 ) -> CustomEvaluationDetail:
     """Fetch the detail of custom evaluation from the database.
 
@@ -626,7 +701,7 @@ async def fetch_custom_evaluation_detail(
     """
 
     # Get user object
-    user = await get_user_object(kwargs["uid"])
+    user = await get_user_object(user_org_data["uid"])
 
     # Build query expression
     query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
@@ -649,7 +724,7 @@ async def fetch_custom_evaluation_detail(
 
 
 async def fetch_custom_evaluation_names(
-    app_name: str, **kwargs: dict
+    app_name: str, **user_org_data: dict
 ) -> List[CustomEvaluationNames]:
     """Fetch the names of custom evaluation from the database.
 
@@ -661,7 +736,7 @@ async def fetch_custom_evaluation_names(
     """
 
     # Get user object
-    user = await get_user_object(kwargs["uid"])
+    user = await get_user_object(user_org_data["uid"])
 
     # Build query expression
     query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(

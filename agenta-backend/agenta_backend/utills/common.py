@@ -10,7 +10,8 @@ from agenta_backend.models.db_models import (
     AppDB,
 )
 import logging
-engine = DBEngine(mode="default").engine()
+
+engine = DBEngine().engine()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -53,9 +54,7 @@ async def check_user_org_access(
 ) -> bool:
     if not owner:
         user_organizations: List = kwargs["organization_ids"]
-        object_organization_id = ObjectId(
-            organization_id
-        )
+        object_organization_id = ObjectId(organization_id)
         return object_organization_id in user_organizations
     elif owner:
         user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
@@ -74,15 +73,13 @@ async def check_access_to_app(
 ) -> bool:
     if app_id is None and app is None:
         raise Exception("No app or app_id provided")
-
-    if app is None:
-        app = await engine.find_one(
-            AppDB, AppDB.id == ObjectId(app_id)
-        )
+    if app_id is not None and app is not None:
+        raise Exception("Provide either app or app_id, not both")
+    if app is None and app_id is not None:
+        app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
         if app is None:
             logger.error("App not found")
             return False
-
     organization_id = app.organization_id.id
     return await check_user_org_access(kwargs, str(organization_id), check_owner)
 
