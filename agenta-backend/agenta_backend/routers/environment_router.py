@@ -74,11 +74,11 @@ async def deploy_to_environment(
         HTTPException: If the deployment fails.
     """
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
 
         # Check if has app access
         access_app = await check_access_to_variant(
-            kwargs, variant_id=payload.variant_id
+            user_org_data, variant_id=payload.variant_id
         )
 
         if not access_app:
@@ -91,7 +91,7 @@ async def deploy_to_environment(
             await new_db_manager.deploy_to_environment(
                 environment_name=payload.environment_name,
                 variant_id=payload.variant_id,
-                **kwargs,
+                **user_org_data,
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -71,7 +71,7 @@ router = APIRouter()
 
 @router.post("/", response_model=Evaluation)
 async def create_evaluation(
-    newEvaluationData: NewEvaluation = Body(...),
+    newEvaluationData: NewEvaluation,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Creates a new comparison table document
@@ -81,8 +81,21 @@ async def create_evaluation(
         _description_
     """
     try:
-        # Get user and organization id
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        access_app = await check_access_to_app(
+            kwargs=user_org_data, app_id=app_id, check_owner=False
+        )
+        if not access_app:
+            error_msg = f"You do not have access to this app: {app_id}"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        app_ref = await new_db_manager.fetch_app_by_id(app_id=app_id)
+
+        if app_ref is None:
+            raise HTTPException(status_code=404, detail="App not found")
+
         return await create_new_evaluation(newEvaluationData, **kwargs)
     except KeyError:
         raise HTTPException(
