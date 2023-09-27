@@ -1,6 +1,6 @@
 from bson import ObjectId
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from fastapi import HTTPException
 
@@ -194,8 +194,8 @@ async def _fetch_evaluation_scenario_and_check_access(
 #                 "created_at": datetime.utcnow(),
 #                 "updated_at": datetime.utcnow(),
 #             },
-#             **extend_with_evaluation(payload.evaluation_type),
-#             **extend_with_correct_answer(payload.evaluation_type, datum),
+#             **_extend_with_evaluation(payload.evaluation_type),
+#             **_extend_with_correct_answer(payload.evaluation_type, datum),
 #         }
 
 #         eval_scenario_instance = EvaluationScenarioDB(
@@ -242,7 +242,7 @@ async def create_evaluation_scenario(
         evaluation=evaluation,
         inputs=scenario_inputs,
         outputs=[],
-        **extend_with_evaluation(evaluation.evaluation_type),
+        **_extend_with_evaluation(evaluation.evaluation_type),
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
         evaluation_id=evaluation_id,
@@ -487,7 +487,7 @@ def evaluate_with_ai_critique(
     return output.strip()
 
 
-def extend_with_evaluation(evaluation_type: EvaluationType):
+def _extend_with_evaluation(evaluation_type: EvaluationType):
     evaluation = {}
     if (
         evaluation_type == EvaluationType.auto_exact_match
@@ -505,7 +505,7 @@ def extend_with_evaluation(evaluation_type: EvaluationType):
     return evaluation
 
 
-def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
+def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     correct_answer = {}
     if (
         evaluation_type == EvaluationType.auto_exact_match
@@ -517,6 +517,46 @@ def extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
         if row["correct_answer"]:
             correct_answer["correct_answer"] = row["correct_answer"]
     return correct_answer
+
+
+async def fetch_list_evaluations(
+    app_id: str,
+    **user_org_data: dict,
+) -> List[Evaluation]:
+    """
+    Fetches a list of evaluations based on the provided filtering criteria.
+
+    Args:
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
+        user_org_data (dict): User and organization data.
+
+    Returns:
+        List[Evaluation]: A list of evaluations.
+    """
+    access = common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
+    if not access:
+        raise HTTPException(
+            status_code=403, detail=f"You do not have access to this app: {app_id}"
+        )
+
+    evaluations_db = await engine.find(
+        EvaluationDB, EvaluationDB.app == ObjectId(app_id)
+    )
+    return [
+        converters.evaluation_db_to_pydantic(evaluation)
+        for evaluation in evaluations_db
+    ]
+
+
+async def fetch_evaluation(
+    evaluation_id: str,
+    **user_org_data: dict,
+) -> Evaluation:
+    evaluation = await _fetch_evaluation_and_check_access(
+        evaluation_id=evaluation_id,
+        **user_org_data,
+    )
+    return converters.evaluation_db_to_pydantic(evaluation)
 
 
 async def create_custom_code_evaluation(

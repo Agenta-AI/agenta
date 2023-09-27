@@ -32,6 +32,7 @@ from agenta_backend.models.api.observability_models import (
 from agenta_backend.models.api.evaluation_model import (
     SimpleEvaluationOutput,
     EvaluationScenario,
+    Evaluation,
 )
 
 import logging
@@ -49,6 +50,24 @@ def evaluation_db_to_simple_evaluation_output(
         status=evaluation_db.status,
         evaluation_type=evaluation_db.evaluation_type,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
+    )
+
+
+def evaluation_db_to_pydantic(
+    evaluation_db: EvaluationDB,
+) -> Evaluation:
+    return Evaluation(
+        id=str(evaluation_db.id),
+        app_id=str(evaluation_db.app.id),
+        user_id=str(evaluation_db.user.id),
+        status=evaluation_db.status,
+        evaluation_type=evaluation_db.evaluation_type,
+        evaluation_type_settings=evaluation_db.evaluation_type_settings,
+        variant_ids=[str(variant) for variant in evaluation_db.variants],
+        testset_id=str(evaluation_db.testset.id),
+        testset_name=evaluation_db.testset.name,
+        created_at=evaluation_db.created_at,
+        updated_at=evaluation_db.updated_at,
     )
 
 

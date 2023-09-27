@@ -261,7 +261,7 @@ async def evaluate_ai_critique(
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score")
 async def get_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
-    stoken_session: SessionContainer = Depends(verify_session())
+    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Dict[str, str]:
     """
     Fetch the score of a specific evaluation scenario.
@@ -303,40 +303,21 @@ async def update_evaluation_scenario_score_router(
 
 @router.get("/", response_model=List[Evaluation])
 async def fetch_list_evaluations(
-    app_name: Optional[str] = None,
+    app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """lists of all comparison tables
+    """Fetches a list of evaluations, optionally filtered by an app ID.
+
+    Args:
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
 
     Returns:
-        _description_
+        List[Evaluation]: A list of evaluations.
     """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(user_org_data["uid"])
-
-    # Construct query expression builder
-    query_expression = query.eq(EvaluationDB.app_name, app_name) & query.eq(
-        EvaluationDB.user, user.id
+    user_org_data = await get_user_and_org_id(stoken_session)
+    return await evaluation_service.fetch_list_evaluations(
+        app_id=app_id, **user_org_data
     )
-    evaluations = await engine.find(EvaluationDB, query_expression)
-    return [
-        Evaluation(
-            id=str(evaluation.id),
-            status=evaluation.status,
-            evaluation_type=evaluation.evaluation_type,
-            custom_code_evaluation_id=evaluation.custom_code_evaluation_id,
-            evaluation_type_settings=evaluation.evaluation_type_settings,
-            llm_app_prompt_template=evaluation.llm_app_prompt_template,
-            variants=evaluation.variants,
-            app_name=evaluation.app_name,
-            testset=evaluation.testset,
-            created_at=evaluation.created_at,
-            updated_at=evaluation.updated_at,
-        )
-        for evaluation in evaluations
-    ]
 
 
 @router.get("/{evaluation_id}", response_model=Evaluation)
@@ -352,32 +333,7 @@ async def fetch_evaluation(
 
     # Get user and organization id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(user_org_data["uid"])
-
-    # Construct query expression builder
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
-    evaluation = await engine.find_one(EvaluationDB, query_expression)
-    if evaluation is not None:
-        return Evaluation(
-            id=str(evaluation.id),
-            status=evaluation.status,
-            evaluation_type=evaluation.evaluation_type,
-            custom_code_evaluation_id=evaluation.custom_code_evaluation_id,
-            evaluation_type_settings=evaluation.evaluation_type_settings,
-            llm_app_prompt_template=evaluation.llm_app_prompt_template,
-            variants=evaluation.variants,
-            app_name=evaluation.app_name,
-            testset=evaluation.testset,
-            created_at=evaluation.created_at,
-            updated_at=evaluation.updated_at,
-        )
-    else:
-        raise HTTPException(
-            status_code=404,
-            detail=f"dataset with id {evaluation_id} not found",
-        )
+    return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
 
 
 @router.delete("/", response_model=List[str])
