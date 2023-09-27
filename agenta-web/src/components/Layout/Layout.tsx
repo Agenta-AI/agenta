@@ -1,7 +1,7 @@
 import React, {useEffect, useState} from "react"
 import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
-import {GithubFilled, LinkedinFilled, SlackOutlined, TwitterOutlined} from "@ant-design/icons"
+import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
@@ -65,6 +65,17 @@ const useStyles = createUseStyles({
             padding: "0 15px",
         },
     }),
+    joinBtn: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        "& span": {
+            display: "block",
+        },
+        "& img": {
+            width: "15px",
+        },
+    },
     footer: {
         position: "absolute",
         bottom: 0,
@@ -144,10 +155,10 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                     <Button
                                         href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
                                         target="_blank"
-                                        style={{width:"100%"}}
+                                        className={classes.joinBtn}
                                     >
-                                        <img src="/assets/slack.png" alt="" style={{width:"100%"}} />
-                                        Join us
+                                        <img src="/assets/slack.png" alt="Slack Image" />
+                                        <span>Join us</span>
                                     </Button>
                                     <Button
                                         className={classes.star}

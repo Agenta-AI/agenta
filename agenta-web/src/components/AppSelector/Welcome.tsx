@@ -3,6 +3,7 @@ import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import {CheckCircleFilled, ClockCircleOutlined} from "@ant-design/icons"
+import TypingAnimator from "react-typing-animator"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -46,9 +47,14 @@ const useStyles = createUseStyles({
             transform: "rotate(0deg)",
         },
     },
-    h2: {
-        fontSize: "24px",
-        margin: "10px 0 30px",
+    typing: {
+        margin: "15px 0 20px",
+        lineHeight: 1.5,
+        fontWeight: "bold",
+        "& .cursor": {
+            width: 15,
+            display: "inline-block",
+        },
     },
     description: {
         lineHeight: 1.7,
@@ -132,20 +138,30 @@ interface Props {
 const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-
+    const textArray = [
+        "Agenta is the developer-first open source LLM-Ops platform.",
+        "Agenta is an open-source LLMOps platform designed to streamline the development of robust LLM applications.",
+        "Agenta provides with the tools for quick experimentation, prompt-engineering, and evaluation, making it easier to iterate on your LLM apps.",
+    ]
     return (
         <>
-            <section
-            // style={{maxWidth: "1150px", margin: "0 auto", width: "100%"}}
-            >
+            <section>
                 <div className={classes.heading}>
                     <h1>Welcome to Agenta</h1>
                     <img src="/assets/wave.png" />
                 </div>
-                <h2 className={classes.h2}>The developer-first open source LLMOps platform.</h2>
-                {/* <div className={classes.description}>
-                <p>Lorem ipsum dolor sit, amet consectetur adipisicing elit. Dolor commodi, repudiandae exercitationem neque ad, quidem magni possimus debitis corporis nostrum maxime quasi tenetur. Eius laboriosam beatae optio, soluta alias voluptatem?</p>
-                </div> */}
+                <div className={classes.typing}>
+                    <TypingAnimator
+                        fontSize="20px"
+                        textArray={textArray}
+                        loop
+                        typingSpeed={50}
+                        delaySpeed={2000}
+                        height="60px"
+                        cursorColor={appTheme === "dark" ? "#fff" : "#333"}
+                        textColor={appTheme === "dark" ? "#fff" : "#000"}
+                    />
+                </div>
                 <section className={classes.wrapper}>
                     <div className={classes.container}>
                         <div className={classes.title}>

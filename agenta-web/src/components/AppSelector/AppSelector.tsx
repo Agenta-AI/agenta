@@ -300,7 +300,7 @@ const AppSelector: React.FC = () => {
                         <CloseCircleFilled className={classes.closeIcon} />
                         <h1>failed to load</h1>
                     </div>
-                ) : !Array.isArray(data) && data.length ? (
+                ) : Array.isArray(data) && data.length ? (
                     <>
                         <h1 className={classes.h1}>LLM Applications</h1>
                         <Divider className={classes.divider} />
