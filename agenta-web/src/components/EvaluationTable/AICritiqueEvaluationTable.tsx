@@ -21,6 +21,7 @@ import {
     callVariant,
     fetchEvaluationResults,
     updateEvaluation,
+    evaluateAICritiqueForEvalScenario,
 } from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
@@ -263,16 +264,22 @@ Answer ONLY with one of the given grading or evaluation options.
         if (evaluation_scenario_id) {
             const data = {
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+            }
+
+            const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario({
+                correct_answer: rows[rowNumber].correctAnswer,
+                llm_app_prompt_template: evaluation.llmAppPromptTemplate,
                 inputs: rows[rowNumber].inputs,
+                outputs: data.outputs,
                 evaluation_prompt_template: evaluationPromptTemplate,
                 open_ai_key: getOpenAIKey(),
-            }
+            })
 
             try {
                 const responseData = await updateEvaluationScenario(
                     evaluation.id,
                     evaluation_scenario_id,
-                    data,
+                    {...data, score: aiCritiqueScoreResponse.data},
                     evaluation.evaluationType as EvaluationType,
                 )
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)

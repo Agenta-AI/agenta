@@ -9,6 +9,7 @@ from fastapi import HTTPException, APIRouter, Body, Depends, status, Response
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (
+    AICritiqueCreate,
     CustomEvaluationNames,
     Evaluation,
     EvaluationScenario,
@@ -36,6 +37,7 @@ from agenta_backend.services.results_service import (
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
+    evaluate_with_ai_critique,
     fetch_custom_evaluation_names,
     fetch_custom_evaluations,
     fetch_custom_evaluation_detail,
@@ -43,8 +45,6 @@ from agenta_backend.services.evaluation_service import (
     update_evaluation_scenario,
     update_evaluation_scenario_score,
     update_evaluation,
-    create_new_evaluation,
-    create_new_evaluation_scenario,
     create_custom_code_evaluation,
     execute_custom_code_evaluation,
 )
@@ -116,7 +116,7 @@ async def create_evaluation(
         )
 
 
-@router.put("/{evaluation_id}", response_model=Evaluation)
+@router.put("/{evaluation_id}")
 async def update_evaluation_router(
     evaluation_id: str,
     update_data: EvaluationUpdate = Body(...),
@@ -170,41 +170,25 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post("/{evaluation_id}/evaluation_scenario", response_model=EvaluationScenario)
+@router.post("/{evaluation_id}/evaluation_scenario")
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    stoken_session: SessionContainer = Depends(verify_session),
 ):
-    """Creates an empty evaluation row
-
-    Arguments:
-        evaluation_scenario -- _description_
+    """Create a new evaluation scenario for a given evaluation ID.
 
     Raises:
-        HTTPException: _description_
+        HTTPException: If evaluation not found or access denied.
 
     Returns:
-        _description_
+        None: 204 No Content status code upon success.
     """
-    evaluation_scenario_dict = evaluation_scenario.dict()
-    evaluation_scenario_dict.pop("id", None)
-
-    evaluation_scenario_dict["created_at"] = evaluation_scenario_dict[
-        "updated_at"
-    ] = datetime.utcnow()
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
-    result = await create_new_evaluation_scenario(
+    user_org_data = await get_user_and_org_id(stoken_session)
+    await evaluation_service.create_evaluation_scenario(
         evaluation_id, evaluation_scenario, **user_org_data
     )
-    if result is not None:
-        return result
-    else:
-        raise HTTPException(
-            status_code=500, detail="Failed to create evaluation_scenario"
-        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put(
@@ -232,13 +216,34 @@ async def update_evaluation_scenario_router(
         # Get user and organization id
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         return await update_evaluation_scenario(
-            evaluation_scenario_id,
-            evaluation_scenario,
-            evaluation_type,
+            evaluation_scenario_id=evaluation_scenario_id,
+            evaluation_scenario_data=evaluation_scenario,
+            evaluation_type=evaluation_type,
             **user_org_data,
         )
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/evaluation_scenario/ai_critique", response_model=str)
+async def evaluate_ai_critique(
+    payload: AICritiqueCreate,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    try:
+        # Run ai critique evaluation
+        payload_dict = payload.dict()
+        output = evaluate_with_ai_critique(
+            llm_app_prompt_template=payload_dict["llm_app_prompt_template"],
+            llm_app_inputs=payload_dict["inputs"],
+            correct_answer=payload_dict["correct_answer"],
+            app_variant_output=payload_dict["outputs"][0]["variant_output"],
+            evaluation_prompt_template=payload_dict["evaluation_prompt_template"],
+            open_ai_key=payload_dict["open_ai_key"],
+        )
+        return output
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score")

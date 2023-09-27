@@ -56,15 +56,15 @@ async def create_trace(
     return trace
 
 
-@router.get("/traces/{app_name}/{variant_name}/", response_model=List[Trace])
+@router.get("/traces/{app_id}/{variant_id}/", response_model=List[Trace])
 async def get_traces(
-    app_name: str,
-    variant_name: str,
+    app_id: str,
+    variant_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    traces = await get_variant_traces(app_name, variant_name, **kwargs)
+    traces = await get_variant_traces(app_id, variant_id, **kwargs)
     return traces
 
 
