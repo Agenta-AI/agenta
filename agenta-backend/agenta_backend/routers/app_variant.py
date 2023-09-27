@@ -241,7 +241,7 @@ async def add_variant_from_image(
             image.organization_id = str(organization.id)
 
         app_db = await new_db_manager.fetch_app_by_id(
-            app_variant.app_id, **kwargs
+            app_variant.app_id
         )
         await new_db_manager.add_variant_based_on_image(
             app_db,
@@ -551,16 +551,11 @@ async def update_variant_image(
                 status_code=400,
             )
         else:
-            await app_manager.update_variant_image(
+            await new_app_manager.update_variant_image(
                 app_variant, image, **kwargs
             )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-    except SQLAlchemyError as e:
-        detail = (
-            f"Database error while trying to update the app variant: {str(e)}"
-        )
         raise HTTPException(status_code=500, detail=detail)
     except DockerException as e:
         detail = (
