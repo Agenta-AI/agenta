@@ -155,7 +155,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                         fontSize="20px"
                         textArray={textArray}
                         loop
-                        typingSpeed={50}
+                        typingSpeed={30}
                         delaySpeed={2000}
                         height="60px"
                         cursorColor={appTheme === "dark" ? "#fff" : "#333"}
