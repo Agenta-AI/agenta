@@ -92,7 +92,7 @@ async def create_evaluation(
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
-            kwargs=user_org_data, app_id=payload.app_id, check_owner=False
+            user_org_data=user_org_data, app_id=payload.app_id, check_owner=False
         )
         if not access_app:
             error_msg = f"You do not have access to this app: {payload.app_id}"
@@ -130,8 +130,8 @@ async def update_evaluation_router(
     """
     try:
         # Get user and organization id
-        kwargs: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation(evaluation_id, update_data, **kwargs)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        return await update_evaluation(evaluation_id, update_data, **user_org_data)
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -160,8 +160,8 @@ async def fetch_evaluation_scenarios(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(user_org_data["uid"])
 
     # Create query expression builder
     query_expression = query.eq(
@@ -209,9 +209,9 @@ async def create_evaluation_scenario(
     ] = datetime.utcnow()
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
     result = await create_new_evaluation_scenario(
-        evaluation_id, evaluation_scenario, **kwargs
+        evaluation_id, evaluation_scenario, **user_org_data
     )
     if result is not None:
         return result
@@ -244,12 +244,12 @@ async def update_evaluation_scenario_router(
     """
     try:
         # Get user and organization id
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
         return await update_evaluation_scenario(
             evaluation_scenario_id,
             evaluation_scenario,
             evaluation_type,
-            **kwargs,
+            **user_org_data,
         )
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -276,9 +276,9 @@ async def get_evaluation_scenario_score_router(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
     scenario_score = await get_evaluation_scenario_score(
-        evaluation_scenario_id, **kwargs
+        evaluation_scenario_id, **user_org_data
     )
     return scenario_score
 
@@ -301,9 +301,9 @@ async def update_evaluation_scenario_score_router(
 
     try:
         # Get user and organization id
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
         return await update_evaluation_scenario_score(
-            evaluation_scenario_id, payload.score, **kwargs
+            evaluation_scenario_id, payload.score, **user_org_data
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -321,8 +321,8 @@ async def fetch_list_evaluations(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(user_org_data["uid"])
 
     # Construct query expression builder
     query_expression = query.eq(EvaluationDB.app_name, app_name) & query.eq(
@@ -359,8 +359,8 @@ async def fetch_evaluation(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(user_org_data["uid"])
 
     # Construct query expression builder
     query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
@@ -404,8 +404,8 @@ async def delete_evaluations(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(user_org_data["uid"])
 
     deleted_ids = []
     for evaluations_id in delete_evaluations.evaluations_ids:
@@ -442,8 +442,8 @@ async def fetch_results(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(user_org_data["uid"])
 
     # Construct query expression builder and retrieve evaluation from database
     query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
@@ -501,11 +501,11 @@ async def create_custom_evaluation(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # create custom evaluation in database
     evaluation_id = await create_custom_code_evaluation(
-        custom_evaluation_payload, **kwargs
+        custom_evaluation_payload, **user_org_data
     )
 
     return JSONResponse(
@@ -536,10 +536,10 @@ async def list_custom_evaluations(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Fetch custom evaluations from database
-    evaluations = await fetch_custom_evaluations(app_name, **kwargs)
+    evaluations = await fetch_custom_evaluations(app_name, **user_org_data)
     return evaluations
 
 
@@ -561,10 +561,10 @@ async def get_custom_evaluation(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Fetch custom evaluations from database
-    evaluation = await fetch_custom_evaluation_detail(id, **kwargs)
+    evaluation = await fetch_custom_evaluation_detail(id, **user_org_data)
     return evaluation
 
 
@@ -584,9 +584,9 @@ async def get_custom_evaluation_names(
         List[CustomEvaluationNames]: the list of name of custom evaluations
     """
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-    custom_eval_names = await fetch_custom_evaluation_names(app_name, **kwargs)
+    custom_eval_names = await fetch_custom_evaluation_names(app_name, **user_org_data)
     return custom_eval_names
 
 
@@ -609,7 +609,7 @@ async def execute_custom_evaluation(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Execute custom code evaluation
     formatted_inputs = format_inputs(payload.inputs)
@@ -621,7 +621,7 @@ async def execute_custom_evaluation(
         payload.correct_answer,
         payload.variant_name,
         formatted_inputs,
-        **kwargs,
+        **user_org_data,
     )
     return result
 
