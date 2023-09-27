@@ -77,10 +77,10 @@ async def build_image(
 
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
-
+    
     # Check app access
     if organization_id is None:
-        app_db = await new_db_manager.fetch_app_by_id(app_id, **kwargs)
+        app_db = await new_db_manager.fetch_app_by_id(app_id)
         organization_id = str(app_db.organization_id.id)
         app_access = await check_access_to_app(
             kwargs, app_id=app_id, check_owner=True
