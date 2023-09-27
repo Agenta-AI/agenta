@@ -198,29 +198,25 @@ async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
     evaluation_type: EvaluationType,
     evaluation_scenario: EvaluationScenarioUpdate,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    stoken_session: SessionContainer = Depends(verify_session),
 ):
-    """Updates an evaluation row with a vote
-
-    Arguments:
-        evaluation_scenario_id -- _description_
-        evaluation_scenario -- _description_
+    """Updates an evaluation scenario's vote or score based on its type.
 
     Raises:
-        HTTPException: _description_
+        HTTPException: If update fails or unauthorized.
 
     Returns:
-        _description_
+        None: 204 No Content status code upon successful update.
     """
+    user_org_data = await get_user_and_org_id(stoken_session)
     try:
-        # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_scenario(
-            evaluation_scenario_id=evaluation_scenario_id,
-            evaluation_scenario_data=evaluation_scenario,
-            evaluation_type=evaluation_type,
+        await update_evaluation_scenario(
+            evaluation_scenario_id,
+            evaluation_scenario,
+            evaluation_type,
             **user_org_data,
         )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

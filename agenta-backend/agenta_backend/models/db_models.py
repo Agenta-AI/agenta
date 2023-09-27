@@ -153,7 +153,7 @@ class EvaluationScenarioInput(EmbeddedModel):
 
 
 class EvaluationScenarioOutput(EmbeddedModel):
-    variant_id: AppVariantDB = Reference(key_name="app_variants")
+    variant_id: str
     variant_output: str
 
 
@@ -178,7 +178,7 @@ class EvaluationScenarioDB(Model):
     organization: OrganizationDB = Reference(key_name="organization")
     evaluation: EvaluationDB = Reference(key_name="evaluations")
     inputs: List[EvaluationScenarioInput]
-    outputs: List[ObjectId]  # EvaluationScenarioOutput
+    outputs: List[EvaluationScenarioOutput]  # EvaluationScenarioOutput
     vote: Optional[str]
     score: Optional[str]
     correct_answer: Optional[str]

@@ -811,7 +811,9 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
     return evaluation
 
 
-async def fetch_evaluation_scenario_by_id(evaluation_scenario_id: str) -> Optional[EvaluationScenarioDB]:
+async def fetch_evaluation_scenario_by_id(
+    evaluation_scenario_id: str,
+) -> Optional[EvaluationScenarioDB]:
     """Fetches and evaluation scenario by its ID.
     Args:
         evaluation_scenario_id (str): The ID of the evaluation scenario to fetch.
@@ -820,7 +822,8 @@ async def fetch_evaluation_scenario_by_id(evaluation_scenario_id: str) -> Option
     """
     assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
     evaluation_scenario = await engine.find_one(
-        EvaluationScenarioDB, EvaluationScenarioDB.id == ObjectId(evaluation_scenario_id)
+        EvaluationScenarioDB,
+        EvaluationScenarioDB.id == ObjectId(evaluation_scenario_id),
     )
     return evaluation_scenario
 
