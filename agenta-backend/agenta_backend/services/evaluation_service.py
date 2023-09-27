@@ -16,7 +16,7 @@ from agenta_backend.models.api.evaluation_model import (
     CreateCustomEvaluation,
     EvaluationUpdate,
 )
-
+from agenta_backend.models import converters
 from agenta_backend.utills.common import engine
 from agenta_backend.services.db_manager import query, get_user_object
 from agenta_backend.services import new_db_manager
@@ -194,40 +194,43 @@ async def create_new_evaluation_scenario(
 
 async def update_evaluation(
     evaluation_id: str, update_payload: EvaluationUpdate, **user_org_data: dict
-) -> Evaluation:
+) -> None:
     """
     Update an existing evaluation based on the provided payload.
 
     Args:
-        evaluation (EvaluationDB): The existing evaluation record.
-        update_payload (UpdateEvaluationPayload): The update payload.
+        evaluation_id (str): The existing evaluation ID.
+        update_payload (EvaluationUpdate): The payload for the update.
 
-    Returns:
-        EvaluationDB: Updated evaluation record.
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
     """
-    # Construct query expression for evaluation
+    # Fetch the evaluation by ID
     evaluation = await new_db_manager.fetch_evaluation_by_id(
         evaluation_id=evaluation_id
     )
-    # Check access
+
+    # Check if the evaluation exists
     if evaluation is None:
         raise HTTPException(
             status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
         )
 
+    # Check for access rights
     access = await common.check_access_to_app(
-        kwargs=user_org_data, app_id=evaluation.app_id.id
+        kwargs=user_org_data, app_id=evaluation.app.id
     )
     if not access:
         raise HTTPException(
-            status_code=500,
-            detail=f"You do not have access to this app: {str(evaluation.app_id.id)}",
+            status_code=403,
+            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
         )
 
-    # Update status and save to database
+    # Prepare updates
     updates = {}
     if update_payload.status is not None:
         updates["status"] = update_payload.status
+
     if update_payload.evaluation_type_settings is not None:
         current_settings = evaluation.evaluation_type_settings
         new_settings = update_payload.evaluation_type_settings
@@ -243,21 +246,54 @@ async def update_evaluation(
 
         updates["evaluation_type_settings"] = current_settings
 
+    # Update the evaluation
     evaluation.update(updates)
     await engine.save(evaluation)
-    # Continue here
-    return Evaluation(
-        id=str(evaluation.id),
-        status=evaluation.status,
-        evaluation_type=evaluation.evaluation_type,
-        evaluation_type_settings=evaluation.evaluation_type_settings,
-        llm_app_prompt_template=evaluation.llm_app_prompt_template,
-        variants=evaluation.variants,
-        app_name=evaluation.app_name,
-        testset=evaluation.testset,
-        created_at=evaluation.created_at,
-        updated_at=evaluation.updated_at,
+
+
+async def fetch_evaluation_scenarios_for_evaluation(
+    evaluation_id: str, **user_org_data: dict
+) -> List[EvaluationScenario]:
+    """
+    Fetch evaluation scenarios for a given evaluation ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation.
+        user_org_data (dict): User and organization data.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+    """
+    evaluation = await new_db_manager.fetch_evaluation_by_id(
+        evaluation_id=evaluation_id
     )
+
+    # Check if the evaluation exists
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404, detail=f"Evaluation with id {evaluation_id} not found"
+        )
+
+    # Check for access rights
+    access = await common.check_access_to_app(
+        kwargs=user_org_data, app_id=evaluation.app.id
+    )
+    if not access:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
+        )
+    scenarios = await engine.find(
+        EvaluationScenarioDB, EvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
+    )
+    eval_scenarios = [
+        converters.evaluation_scenario_db_to_pydantic(scenario)
+        for scenario in scenarios
+    ]
+    return eval_scenarios
 
 
 async def update_evaluation_scenario(
