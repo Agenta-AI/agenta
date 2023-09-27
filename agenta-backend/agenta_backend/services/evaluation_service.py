@@ -565,6 +565,24 @@ async def fetch_evaluation(evaluation_id: str, **user_org_data: dict) -> Evaluat
     return converters.evaluation_db_to_pydantic(evaluation)
 
 
+async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -> None:
+    """
+    Delete evaluations by their IDs.
+
+    Args:
+        evaluation_ids (List[str]): A list of evaluation IDs.
+        user_org_data (dict): User and organization data.
+
+    Raises:
+        HTTPException: If evaluation not found or access denied.
+    """
+    for evaluation_id in evaluation_ids:
+        evaluation = await _fetch_evaluation_and_check_access(
+            evaluation_id=evaluation_id, **user_org_data
+        )
+        await engine.delete(evaluation)
+
+
 async def create_custom_code_evaluation(
     payload: CreateCustomEvaluation, **user_org_data: dict
 ) -> str:
