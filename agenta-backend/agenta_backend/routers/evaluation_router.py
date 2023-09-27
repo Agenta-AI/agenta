@@ -45,6 +45,7 @@ from agenta_backend.services.evaluation_service import (
     create_new_evaluation,
     create_new_evaluation_scenario,
     create_custom_code_evaluation,
+    update_custom_code_evaluation,
     execute_custom_code_evaluation,
 )
 from agenta_backend.services.db_manager import engine, query, get_user_object
@@ -491,6 +492,34 @@ async def create_custom_evaluation(
         status_code=200,
     )
 
+@router.put("/edit_custom_evaluation/{id}")
+async def update_custom_evaluation(
+    id: str,
+    updated_data: CreateCustomEvaluation,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Update a custom code evaluation.
+
+    Args:
+        id (str): the ID of the custom evaluation to update
+        updated_data (CreateCustomEvaluation): the payload with updated data
+        stoken_session (SessionContainer): session container for authentication
+    """
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    # Update the evaluation with the provided data
+    updated_evaluation_id = await update_custom_code_evaluation(id, updated_data, **kwargs)
+
+    return JSONResponse(
+        {
+            "status": "success",
+            "message": "Evaluation edited successfully.",
+            "evaluation_id": updated_evaluation_id,
+        },
+        status_code=200,
+    )
 
 @router.get(
     "/custom_evaluation/list/{app_name}",
