@@ -71,22 +71,25 @@ async def create_new_evaluation(
     current_time = datetime.utcnow()
 
     # Fetch app
-    app = new_db_manager.fetch_app_by_id(app_id=payload.app_id)
+    app = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
     if app is None:
         raise HTTPException(
             status_code=404, detail=f"App with id {payload.app_id} does not exist"
         )
 
+    variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
+
+    testset = await new_db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
     # Initialize and save evaluation instance to database
     eval_instance = EvaluationDB(
-        app_id=app,
-        organization_id=app.organization_id,  # Assuming user has an organization_id attribute
+        app=app,
+        organization=app.organization_id,  # Assuming user has an organization_id attribute
         user=user,
         status=payload.status,
         evaluation_type=payload.evaluation_type,
         evaluation_type_settings=evaluation_type_settings,
-        variant_ids=payload.variant_ids,
-        testset=payload.testset,
+        variants=variants,
+        testset=testset,
         created_at=current_time,
         updated_at=current_time,
     )
@@ -97,12 +100,9 @@ async def create_new_evaluation(
             status_code=500, detail="Failed to create evaluation_scenario"
         )
 
-    # Get testset using the provided _id
-    testsetId = eval_instance.testset["_id"]
-    testset = await engine.find_one(TestSetDB, TestSetDB.id == ObjectId(testsetId))
-
     csvdata = testset.csvdata
     for datum in csvdata:
+        # Check whether the inputs in the test set match the inputs in the variant
         try:
             inputs = [
                 {"input_name": name, "input_value": datum[name]}
@@ -119,7 +119,7 @@ async def create_new_evaluation(
                 status_code=400,
                 detail=msg,
             )
-
+        # Create evaluation scenarios
         list_of_scenario_input = []
         for scenario_input in inputs:
             eval_scenario_input_instance = EvaluationScenarioInput(
@@ -140,7 +140,8 @@ async def create_new_evaluation(
         eval_scenario_instance = EvaluationScenarioDB(
             **evaluation_scenario_payload,
             user=user,
-            evaluation_id=str(newEvaluation.id),
+            organization=app.organization_id,
+            evaluation=newEvaluation,
             inputs=list_of_scenario_input,
             outputs=[],
         )

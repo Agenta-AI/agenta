@@ -96,7 +96,7 @@ class NewEvaluation(BaseModel):
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
     inputs: List[str]
-    testset: Dict[str, str]
+    testset_id: str
     status: str
 
 
