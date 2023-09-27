@@ -297,7 +297,9 @@ async def start_variant(
 
 
 @router.get("/list_images/", response_model=List[Image])
-async def list_images(stoken_session: SessionContainer = Depends(verify_session())):
+async def list_images(
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Lists the images from our repository
 
     Raises:
@@ -549,6 +551,8 @@ async def add_app_variant_from_template(
 
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] == "demo":
+        # Create testset for apps created
+        # await db_manager.add_testset_to_app_variant(db_app_variant, image, **kwargs) #TODO: To reimplement
         if not os.environ["OPENAI_API_KEY"]:
             raise HTTPException(
                 status_code=400,

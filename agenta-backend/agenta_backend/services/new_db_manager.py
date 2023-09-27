@@ -35,9 +35,13 @@ from agenta_backend.models.db_models import (
 from agenta_backend.services import helpers
 from agenta_backend.utills.common import engine, check_user_org_access, get_organization
 from agenta_backend.services.selectors import get_user_own_org
+from agenta_backend.services.json_importer_helper import get_json
+from agenta_backend.models.db_engine import DBEngine
 
 from odmantic import query
 import logging
+
+engine = DBEngine().engine()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

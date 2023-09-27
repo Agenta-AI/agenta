@@ -9,6 +9,7 @@ from agenta_backend.routers import (
     container_router,
     environment_router,
     evaluation_router,
+    observability_router,
     testset_router,
 )
 from agenta_backend.services.cache_manager import (
@@ -87,6 +88,7 @@ app.include_router(evaluation_router.router, prefix="/evaluations")
 app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")
+app.include_router(observability_router.router, prefix="/observability")
 
 allow_headers = ["Content-Type"]
 
