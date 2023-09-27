@@ -344,8 +344,7 @@ async def update_evaluation_scenario(
     new_evaluation_set = {"outputs": evaluation_scenario_dict["outputs"]}
     
 
-    # COnstruct query expression builder for evaluation and evaluation scenario
-    query_expression_eval = query.eq(EvaluationDB.user, user.id)
+    # Construct query expression builder for evaluation scenario
     query_expression_eval_scen = query.eq(
         EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
     ) & query.eq(EvaluationScenarioDB.user, user.id)
@@ -364,32 +363,7 @@ async def update_evaluation_scenario(
             "correct_answer"
         ]
     elif evaluation_type == EvaluationType.auto_ai_critique:
-        current_evaluation_scenario = await engine.find_one(
-            EvaluationScenarioDB, query_expression_eval_scen
-        )
-        current_evaluation = await engine.find_one(
-            EvaluationDB,
-            query_expression_eval
-            & query.eq(
-                EvaluationDB.id,
-                ObjectId(current_evaluation_scenario.evaluation_id),
-            ),
-        )
-
-        evaluation = evaluate_with_ai_critique(
-            llm_app_prompt_template=current_evaluation.llm_app_prompt_template,
-            llm_app_inputs=[
-                scenario_input.dict()
-                for scenario_input in current_evaluation_scenario.inputs
-            ],
-            correct_answer=current_evaluation_scenario.correct_answer,
-            app_variant_output=new_evaluation_set["outputs"][0]["variant_output"],
-            evaluation_prompt_template=evaluation_scenario_dict[
-                "evaluation_prompt_template"
-            ],
-            open_ai_key=evaluation_scenario_dict["open_ai_key"],
-        )
-        new_evaluation_set["evaluation"] = evaluation
+        new_evaluation_set["evaluation"] = evaluation_scenario_dict["score"]
 
     # Get an evaluation scenario with the provided id
     result = await engine.find_one(EvaluationScenarioDB, query_expression_eval_scen)
@@ -430,7 +404,9 @@ async def update_evaluation_scenario(
 
             # Update evaluation response if type of evaluation is auto ai critique
             if evaluation_type == EvaluationType.auto_ai_critique:
-                evaluation_scenario_response.evaluation = evaluation
+                evaluation_scenario_response.evaluation = new_evaluation_set[
+                    "evaluation"
+                ]
             return evaluation_scenario_response
 
     raise UpdateEvaluationScenarioError("Failed to create evaluation_scenario")
@@ -492,7 +468,7 @@ async def get_evaluation_scenario_score(
 
 def evaluate_with_ai_critique(
     llm_app_prompt_template: str,
-    llm_app_inputs: dict,
+    llm_app_inputs: list,
     correct_answer: str,
     app_variant_output: str,
     evaluation_prompt_template: str,
@@ -507,7 +483,7 @@ def evaluate_with_ai_critique(
 
     Args:
         llm_app_prompt_template (str): the prompt template of the llm app variant
-        llm_app_inputs (dict): parameters
+        llm_app_inputs (list): parameters
         correct_answer (str): correct answer
         app_variant_output (str): the output of an ll app variant with given parameters
         evaluation_prompt_template (str): evaluation prompt set by an agenta user in the ai evaluation view
