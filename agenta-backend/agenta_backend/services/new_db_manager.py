@@ -577,7 +577,7 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
     await engine.save(environment_db)
 
 
-async def fetch_app_by_id(app_id: str) -> AppDB:
+async def fetch_app_by_id(app_id: str) -> Optional[AppDB]:
     """_summary_
 
     Args:

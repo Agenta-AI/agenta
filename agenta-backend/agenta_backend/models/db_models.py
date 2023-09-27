@@ -130,6 +130,8 @@ class EvaluationTypeSettings(EmbeddedModel):
     regex_pattern: Optional[str]
     regex_should_match: Optional[bool]
     webhook_url: Optional[str]
+    llm_app_prompt_template: Optional[str]
+    custom_code_evaluation_id: Optional[str]
 
 
 class EvaluationScenarioInput(EmbeddedModel):
@@ -143,16 +145,14 @@ class EvaluationScenarioOutput(EmbeddedModel):
 
 
 class EvaluationDB(Model):
+    app_id: AppDB = Reference(key_name="app")
+    organization_id: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
     status: str
     evaluation_type: str
-    custom_code_evaluation_id: Optional[str]
     evaluation_type_settings: EvaluationTypeSettings
-    llm_app_prompt_template: str
     variant_ids: List[ObjectId]
-    app_id: AppDB = Reference(key_name="app")
     testset: Dict[str, str]
-    user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 

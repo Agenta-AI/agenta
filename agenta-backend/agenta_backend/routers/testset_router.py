@@ -11,7 +11,7 @@ from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Depends
 from fastapi.responses import JSONResponse
 
 from agenta_backend.models.api.testset_model import (
-    UploadResponse,
+    TestSetSimpleResponse,
     DeleteTestsets,
     NewTestset,
     TestSetOutputResponse,
@@ -44,7 +44,7 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
-@router.post("/upload", response_model=UploadResponse)
+@router.post("/upload", response_model=TestSetSimpleResponse)
 async def upload_file(
     upload_type: str = Form(None),
     file: UploadFile = File(...),
@@ -113,14 +113,14 @@ async def upload_file(
     result = await engine.save(testset_instance)
 
     if isinstance(result.id, ObjectId):
-        return UploadResponse(
+        return TestSetSimpleResponse(
             id=str(result.id),
             name=document["name"],
             created_at=document["created_at"],
         )
 
 
-@router.post("/endpoint", response_model=UploadResponse)
+@router.post("/endpoint", response_model=TestSetSimpleResponse)
 async def import_testset(
     endpoint: str = Form(None),
     testset_name: str = Form(None),
@@ -176,7 +176,7 @@ async def import_testset(
         result = await engine.save(testset_instance)
 
         if isinstance(result.id, ObjectId):
-            return UploadResponse(
+            return TestSetSimpleResponse(
                 id=str(result.id),
                 name=document["name"],
                 created_at=document["created_at"],
@@ -237,12 +237,15 @@ async def create_testset(
     }
 
     try:
-        testset_instance = TestSetDB(**testset, user=user)
+        testset_instance = TestSetDB(**testset)
         await engine.save(testset_instance)
 
         if testset_instance is not None:
-            testset["_id"] = str(testset_instance.id)
-            return testset
+            return TestSetSimpleResponse(
+                id=str(testset_instance.id),
+                name=testset_instance.name,
+                created_at=str(testset_instance.created_at),
+            )
     except Exception as e:
         print(str(e))
         raise HTTPException(status_code=500, detail=str(e))
