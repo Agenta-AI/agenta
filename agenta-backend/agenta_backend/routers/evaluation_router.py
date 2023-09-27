@@ -52,18 +52,22 @@ from agenta_backend.services.db_manager import query, get_user_object
 from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
 from agenta_backend.config import settings
 from agenta_backend.services import new_db_manager
+
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (
+    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
         SessionContainer,
         verify_session,
     )
-    from agenta_backend.ee.services.selectors import get_user_and_org_id
-else:
-    from agenta_backend.services.auth_helper import (
+    from agenta_backend.ee.services.selectors import (
+        get_user_and_org_id,
+    )  # noqa pylint: disable-all
+    from agenta_backend.services.auth_helper import (  # noqa pylint: disable-all
         SessionContainer,
         verify_session,
     )
-    from agenta_backend.services.selectors import get_user_and_org_id
+    from agenta_backend.services.selectors import (
+        get_user_and_org_id,
+    )  # noqa pylint: disable-all
 
 
 router = APIRouter()
