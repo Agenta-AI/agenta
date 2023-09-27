@@ -4,14 +4,14 @@ import {formatDate} from "./helpers/dateTimeHelper"
 import {snakeToCamel} from "./helpers/utils"
 
 export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
-    const variants: Variant[] = item.variants.map((variantName: string) => {
-        const variant: Variant = {
-            variantName: variantName,
+    const variants: Variant[] = item.variants.map((variantId: string) => {
+        const variant = {
+            variantId,
             templateVariantName: null,
             persistent: true,
             parameters: null,
         }
-        return variant
+        return variant as Variant
     })
 
     const evaluationTypeSettings: GenericObject = {}
@@ -23,13 +23,13 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
     return {
         id: item.id,
         createdAt: formatDate(item.created_at),
-        variants: variants,
+        variants,
         testset: item.testset,
         appName: item.app_name,
         status: item.status,
         evaluationType: item.evaluation_type,
         evaluationTypeSettings,
-        llmAppPromptTemplate: item.llm_app_prompt_template,
+        llmAppPromptTemplate: item.evaluation_type_settings.llm_app_prompt_template,
     } as Evaluation
 }
 
