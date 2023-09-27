@@ -7,6 +7,11 @@ export interface testset {
     created_at: string
 }
 
+export interface ListAppsItem {
+    app_id: string
+    app_name: string
+}
+
 export interface AppVariant {
     id: number
     name: string
@@ -19,26 +24,11 @@ export interface Variant {
     persistent: boolean // whether the variant is persistent in the backend or not
     parameters: Record<string, string> | null // parameters of the variant. Only set in the case of forked variants
     previousVariantName?: null | string // name of the variant that was forked from. Only set in the case of forked variants
-}
-
-export interface RestartVariantDocker {
-    app_name: string
-    variant_name: string
-}
-
-export interface RestartVariantDockerResponse {
-    status: number
-    data: {
-        message: string
-    }
-}
-
-export interface RestartVariantDockerErrResponse {
-    response?: {
-        data?: {
-            detail: string
-        }
-    }
+    variantId: string
+    baseId: string
+    baseName: string
+    configId: string
+    configName: string
 }
 
 // Define the interface for the tabs item in playground page
@@ -66,7 +56,7 @@ export interface Evaluation {
 export interface CreateCustomEvaluation {
     evaluation_name: string
     python_code: string
-    app_name: string
+    app_id: string
 }
 
 export interface CreateCustomEvaluationSuccessResponse {
@@ -79,8 +69,7 @@ export interface ExecuteCustomEvalCode {
     evaluation_id: string
     inputs: Array<Object>
     outputs: Array<Object>
-    app_name: string
-    variant_name: string
+    variant_id: string
     correct_answer: string
 }
 
@@ -128,9 +117,9 @@ export interface EvaluationResponseType {
         regex_pattern: string
         regex_should_match: boolean
         webhook_url: string
+        custom_code_evaluation_id?: string
+        llm_app_prompt_template?: string
     }
-    custom_code_evaluation_id?: string
-    llm_app_prompt_template?: string
     testset: {
         _id: string
         name: string
@@ -186,6 +175,7 @@ export interface AppTemplate {
     env_vars?: {
         OPENAI_API_KEY: string | null
     }
+    organization_id?: string
 }
 
 export interface ISession {
@@ -208,7 +198,8 @@ export type KeyValuePair = Record<string, string>
 
 export interface Environment {
     name: string
-    deployed_app_variant: string
+    app_id: string
+    deployed_app_variant_id: string | null
 }
 
 export interface CustomEvaluation {

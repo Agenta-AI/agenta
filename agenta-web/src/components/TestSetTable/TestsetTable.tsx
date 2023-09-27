@@ -145,7 +145,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
 
     const classes = useStylesTestset()
     const router = useRouter()
-    const appName = router.query.app_name?.toString() || ""
+    const appId = router.query.app_id as string
     const {testset_id} = router.query
     const [unSavedChanges, setUnSavedChanges] = useStateCallback(false)
     const [loading, setLoading] = useState(false)
@@ -217,14 +217,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     })),
                 )
             })
-        } else if (mode === "create" && appName) {
+        } else if (mode === "create" && appId) {
             setLoading(true)
             ;(async () => {
-                const backendVariants = await fetchVariants(appName)
+                const backendVariants = await fetchVariants(appId)
                 const variant =
                     backendVariants.find((v) => v.previousVariantName === null) ||
                     backendVariants[0]
-                const inputParams = await getVariantInputParameters(appName, variant)
+                const inputParams = await getVariantInputParameters(appId, variant)
                 const colData = inputParams.map((param) => ({field: param.name}))
                 colData.push({field: "correct_answer"})
 
@@ -233,7 +233,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 applyColData([])
             })
         }
-    }, [mode, testset_id, appName])
+    }, [mode, testset_id, appId])
 
     const updateTable = (inputValues: string[]) => {
         const dataColumns = columnDefs.filter((colDef) => colDef.field !== "")
@@ -434,7 +434,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                 if (!testsetName) {
                     setIsModalOpen(true)
                 } else {
-                    const response = await createNewTestset(appName, testsetName, rowData)
+                    const response = await createNewTestset(appId, testsetName, rowData)
                     afterSave(response)
                 }
             } else if (mode === "edit") {

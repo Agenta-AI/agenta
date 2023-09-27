@@ -41,17 +41,17 @@ export const updateInputParams = (
  * Returns all the parameters, inputs and URIPath for a given variant
  * Uses the OpenAPI schema to get the parameters and inputs
  * Updates the inputs using the parameters specified by the user in the variant
- * @param appName
+ * @param appId
  * @param variant
  * @returns parameters, inputs, URIPath
  */
-export const getAllVariantParameters = async (appName: string, variant: Variant) => {
+export const getAllVariantParameters = async (appId: string, variant: Variant) => {
     let parameters: Parameter[] = []
     let inputs: Parameter[] = []
     try {
         const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(
-            appName,
-            variant,
+            appId,
+            variant.variantId,
             true,
         )
         if (variant.parameters) {
@@ -65,9 +65,7 @@ export const getAllVariantParameters = async (appName: string, variant: Variant)
             parameters = [...initOptParams]
         }
         inputs = updateInputParams(parameters, inputParams)
-        const URIPath = `${appName}/${
-            variant.templateVariantName ? variant.templateVariantName : variant.variantName
-        }`
+        const URIPath = `${appId}/${variant.variantId}`
         return {parameters, inputs, URIPath}
     } catch (err: any) {
         const errorResponse: any = err.response.request
@@ -81,7 +79,7 @@ export const getAllVariantParameters = async (appName: string, variant: Variant)
     }
 }
 
-export const getVariantInputParameters = async (appName: string, variant: Variant) => {
-    const {parameters, inputs} = await getAllVariantParameters(appName, variant)
+export const getVariantInputParameters = async (appId: string, variant: Variant) => {
+    const {parameters, inputs} = await getAllVariantParameters(appId, variant)
     return updateInputParams(parameters, inputs || []) || inputs
 }
