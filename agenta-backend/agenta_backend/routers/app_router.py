@@ -32,6 +32,7 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     Variant,
     UpdateVariantParameterPayload,
+    AddVariantFromBasePayload,
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -230,6 +231,49 @@ async def add_variant_from_previous(
             status_code=500,
             detail="Parameters are required",
         )
+
+    try:
+        app_variant_db = await new_db_manager.fetch_app_variant_by_id(
+            payload.previous_variant_id
+        )
+        if app_variant_db is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Previous app variant not found",
+            )
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        access = await check_user_org_access(kwargs, app_variant_db.organization_id.id)
+        if not access:
+            raise HTTPException(
+                status_code=500,
+                detail="You do not have permission to access this app variant",
+            )
+        db_app_variant = await new_db_manager.add_variant_based_on_previous(
+            previous_app_variant=app_variant_db,
+            new_variant_name=payload.new_variant_name,
+            parameters=payload.parameters,
+            **kwargs,
+        )
+        return app_variant_db_to_output(db_app_variant)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/add/from_base/")
+async def add_variant_from_base(
+    payload: AddVariantFromBasePayload,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> AppVariantOutput:
+    """Add a variant to the server based on a previous variant.
+
+    Arguments:
+        app_variant -- AppVariant to add
+        previous_app_variant -- Previous AppVariant to use as a base
+        parameters -- parameters for the variant
+
+    Raises:
+        HTTPException: If there is a problem adding the app variant
+    """
 
     try:
         app_variant_db = await new_db_manager.fetch_app_variant_by_id(
