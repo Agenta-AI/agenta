@@ -190,11 +190,11 @@ class EvaluationScenarioDB(Model):
 
 
 class CustomEvaluationDB(Model):
-    evaluation_id: EvaluationDB = Reference(key_name="evaluations")
+    evaluation_name: str
     python_code: str
-    app_id: AppDB = Reference(key_name="app")
+    app: AppDB = Reference(key_name="app")
     user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 

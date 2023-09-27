@@ -435,11 +435,11 @@ async def create_custom_evaluation(
 
 
 @router.get(
-    "/custom_evaluation/list/{app_name}",
+    "/custom_evaluation/list/{app_id}",
     response_model=List[CustomEvaluationOutput],
 )
 async def list_custom_evaluations(
-    app_name: str,
+    app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """List the custom code evaluations for a given app.
@@ -455,7 +455,7 @@ async def list_custom_evaluations(
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Fetch custom evaluations from database
-    evaluations = await fetch_custom_evaluations(app_name, **user_org_data)
+    evaluations = await fetch_custom_evaluations(app_id, **user_org_data)
     return evaluations
 
 
