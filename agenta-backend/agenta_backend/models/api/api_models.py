@@ -33,6 +33,7 @@ class AppVariant(BaseModel):
 
 class AppVariantOutput(BaseModel):
     app_id: str
+    app_name: str
     variant_id: str
     variant_name: str
     parameters: Optional[Dict[str, Any]]
