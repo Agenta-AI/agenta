@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, APIRouter, Body, Depends
+from fastapi import HTTPException, APIRouter, Body, Depends, status, Response
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (
@@ -122,16 +122,20 @@ async def update_evaluation_router(
     update_data: EvaluationUpdate = Body(...),
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Updates an evaluation status
+    """Updates an evaluation's status.
+
     Raises:
-        HTTPException: _description_
+        HTTPException: If the columns in the test set do not match with the inputs in the variant.
+
     Returns:
-        _description_
+        None: A 204 No Content status code, indicating that the update was successful.
     """
     try:
         # Get user and organization id
         user_org_data: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation(evaluation_id, update_data, **user_org_data)
+        await update_evaluation(evaluation_id, update_data, **user_org_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -144,43 +148,25 @@ async def update_evaluation_router(
     response_model=List[EvaluationScenario],
 )
 async def fetch_evaluation_scenarios(
-    evaluation_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    evaluation_id: str, stoken_session: SessionContainer = Depends(verify_session)
 ):
-    """Creates an empty evaluation row
+    """Fetches evaluation scenarios for a given evaluation ID.
 
     Arguments:
-        evaluation_scenario -- _description_
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
 
     Raises:
-        HTTPException: _description_
+        HTTPException: If the evaluation is not found or access is denied.
 
     Returns:
-        _description_
+        List[EvaluationScenario]: A list of evaluation scenarios.
     """
 
-    # Get user and organization id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(user_org_data["uid"])
+    eval_scenarios = await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
+        evaluation_id, **user_org_data
+    )
 
-    # Create query expression builder
-    query_expression = query.eq(
-        EvaluationScenarioDB.evaluation_id, evaluation_id
-    ) & query.eq(EvaluationScenarioDB.user, user.id)
-
-    scenarios = await engine.find(EvaluationScenarioDB, query_expression)
-    eval_scenarios = [
-        EvaluationScenario(
-            evaluation_id=scenario.evaluation_id,
-            inputs=scenario.inputs,
-            outputs=scenario.outputs,
-            vote=scenario.vote,
-            score=scenario.score,
-            correct_answer=scenario.correct_answer,
-            id=str(scenario.id),
-        )
-        for scenario in scenarios
-    ]
     return eval_scenarios
 
 

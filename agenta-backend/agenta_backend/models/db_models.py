@@ -174,14 +174,13 @@ class EvaluationDB(Model):
 
 
 class EvaluationScenarioDB(Model):
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    evaluation: EvaluationDB = Reference(key_name="evaluations")
     inputs: List[EvaluationScenarioInput]
     outputs: List[ObjectId]  # EvaluationScenarioOutput
     vote: Optional[str]
     score: Optional[str]
-    evaluation: ObjectId  # EvaluationDB
-    evaluation: EvaluationDB = Reference(key_name="evaluations")
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())

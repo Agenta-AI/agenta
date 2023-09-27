@@ -12,6 +12,7 @@ from agenta_backend.models.db_models import (
     TraceDB,
     Feedback as FeedbackDB,
     EvaluationDB,
+    EvaluationScenarioDB,
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
@@ -30,6 +31,7 @@ from agenta_backend.models.api.observability_models import (
 )
 from agenta_backend.models.api.evaluation_model import (
     SimpleEvaluationOutput,
+    EvaluationScenario,
 )
 
 import logging
@@ -47,6 +49,20 @@ def evaluation_db_to_simple_evaluation_output(
         status=evaluation_db.status,
         evaluation_type=evaluation_db.evaluation_type,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
+    )
+
+
+def evaluation_scenario_db_to_pydantic(
+    evaluation_scenario_db: EvaluationScenarioDB,
+) -> EvaluationScenario:
+    return EvaluationScenario(
+        id=str(evaluation_scenario_db.id),
+        evaluation_id=str(evaluation_scenario_db.evaluation.id),
+        inputs=evaluation_scenario_db.inputs,
+        outputs=evaluation_scenario_db.outputs,
+        vote=evaluation_scenario_db.vote,
+        score=evaluation_scenario_db.score,
+        correct_answer=evaluation_scenario_db.correct_answer,
     )
 
 
