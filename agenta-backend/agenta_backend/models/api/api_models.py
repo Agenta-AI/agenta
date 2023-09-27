@@ -8,6 +8,11 @@ class Variant(BaseModel):
     variant_id: str
 
 
+class UpdateVariantParameterPayload(BaseModel):
+    variant_id: str
+    parameters: Dict[str, Any]
+
+
 class AppVariant(BaseModel):
     app_id: str
     app_name: str
@@ -31,9 +36,22 @@ class AppVariantOutput(BaseModel):
     config_id: str
 
 
+class EnvironmentOutput(BaseModel):
+    name: str
+    app_id: str
+    deployed_app_variant_id: Optional[str]
+
+
 class AddVariantFromPreviousPayload(BaseModel):
     previous_variant_id: str
     new_variant_name: str
+    parameters: Dict[str, Any]
+
+
+class AddVariantFromBasePayload(BaseModel):
+    base_id: str
+    new_variant_name: str
+    new_config_name: str
     parameters: Dict[str, Any]
 
 
@@ -47,7 +65,6 @@ class AppVariantFromImage(BaseModel):
 
 class RestartAppContainer(BaseModel):
     variant_id: str
-    organization_id: Optional[str] = None
 
 
 class Image(BaseModel):
@@ -84,7 +101,6 @@ class URI(BaseModel):
 
 
 class App(BaseModel):
-    app_name: str
     app_id: str
 
 
@@ -112,3 +128,16 @@ class Environment(BaseModel):
     name: str
     deployed_app_variant: Optional[str]
     organization_id: Optional[str] = None
+
+
+class DeployToEnvironmentPayload(BaseModel):
+    environment_name: str
+    variant_id: str
+
+
+class TestSetOutput(BaseModel):
+    id: str
+    name: str
+    csvdata: List[Dict[str, Any]]
+    created_at: str
+    updated_at: str

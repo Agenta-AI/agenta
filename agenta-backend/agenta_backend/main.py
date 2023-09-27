@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 
 from agenta_backend.config import settings
 from agenta_backend.routers import (
-    app_variant,
+    app_router,
     user_profile,
     container_router,
     environment_router,
     evaluation_router,
+    observability_router,
     testset_router,
 )
 from agenta_backend.services.cache_manager import (
@@ -82,11 +83,12 @@ async def lifespan(application: FastAPI, cache=True):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(user_profile.router, prefix="/profile")
-app.include_router(app_variant.router, prefix="/app_variant")
+app.include_router(app_router.router, prefix="/app_variant")
 app.include_router(evaluation_router.router, prefix="/evaluations")
 app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")
+app.include_router(observability_router.router, prefix="/observability")
 
 allow_headers = ["Content-Type"]
 

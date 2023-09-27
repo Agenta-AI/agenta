@@ -9,6 +9,10 @@ class AppVariant(BaseModel):
     previous_variant_name: Optional[str]
 
 
+class Variant(BaseModel):
+    variant_id: str
+
+
 class Image(BaseModel):
     docker_id: str
     tags: str

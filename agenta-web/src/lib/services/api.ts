@@ -13,6 +13,7 @@ import {
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
     ListAppsItem,
+    AICritiqueCreate,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
@@ -419,6 +420,18 @@ export const postEvaluationScenario = async (evaluationTableId: string, data: Ge
         data,
     )
     return response.data
+}
+
+export const evaluateAICritiqueForEvalScenario = async (
+    data: AICritiqueCreate,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/ai_critique`,
+        data,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
 }
 
 export const fetchEvaluationResults = async (evaluationId: string) => {

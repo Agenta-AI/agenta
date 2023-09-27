@@ -276,12 +276,21 @@ export default function Evaluations() {
         }
 
     const getVariantsDropdownMenu = (index: number): MenuProps => {
-        const items: MenuProps["items"] = variants.map((variant) => {
-            return {
-                label: variant.variantName,
-                key: variant.variantName,
+        const selectedVariantsNames = selectedVariants.map((variant) => variant.variantName)
+
+        const items = variants.reduce((filteredVariants, variant) => {
+            const label = variant.variantName
+
+            if (!selectedVariantsNames.includes(label)) {
+                filteredVariants.push({
+                    label,
+                    key: label,
+                })
             }
-        })
+
+            return filteredVariants
+        }, [])
+
         const menuProps: MenuProps = {
             items,
             onClick: handleAppVariantsMenuClick(index),
@@ -435,6 +444,11 @@ export default function Evaluations() {
                                 className={classes.radioBtn}
                             >
                                 <div className={classes.evaluationType}>
+                                    <Image
+                                        src={abTesting}
+                                        alt="Picture of the author"
+                                        className={classes.evaluationImg}
+                                    />
                                     <span>
                                         {EvaluationTypeLabels[EvaluationType.human_a_b_testing]}
                                     </span>
@@ -450,7 +464,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={exactMatch}
-                                        alt="Picture of the author"
+                                        alt="Exact match"
                                         className={classes.evaluationImg}
                                     />
 
@@ -466,7 +480,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={similarity}
-                                        alt="Picture of the author"
+                                        alt="Similarity"
                                         className={classes.evaluationImg}
                                     />
 
@@ -482,7 +496,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={regexIcon}
-                                        alt="Picture of the author"
+                                        alt="Regex"
                                         className={classes.evaluationImg}
                                     />
 
@@ -498,7 +512,7 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType}>
                                     <Image
                                         src={webhookIcon}
-                                        alt="Picture of the author"
+                                        alt="Webhook"
                                         className={classes.evaluationImg}
                                     />
 
@@ -512,11 +526,7 @@ export default function Evaluations() {
                                 className={classes.radioBtn}
                             >
                                 <div className={classes.evaluationType}>
-                                    <Image
-                                        src={ai}
-                                        alt="Picture of the author"
-                                        className={classes.evaluationImg}
-                                    />
+                                    <Image src={ai} alt="AI" className={classes.evaluationImg} />
 
                                     <span>
                                         {EvaluationTypeLabels[EvaluationType.auto_ai_critique]}
