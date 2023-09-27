@@ -11,7 +11,7 @@ from agenta_backend.models.db_models import (
 )
 import logging
 
-engine = DBEngine(mode="default").engine()
+engine = DBEngine().engine()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
