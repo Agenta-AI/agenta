@@ -2,7 +2,7 @@ import os
 import random
 from bson import ObjectId
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, APIRouter, Body, Depends, status, Response
@@ -224,11 +224,26 @@ async def update_evaluation_scenario_router(
 @router.post("/evaluation_scenario/ai_critique", response_model=str)
 async def evaluate_ai_critique(
     payload: AICritiqueCreate,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
+    stoken_session: SessionContainer = Depends(verify_session),
+) -> str:
+    """
+    Evaluate AI critique based on the given payload.
+
+    Args:
+        payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
+        stoken_session (SessionContainer): The session container verified by `verify_session`.
+
+    Returns:
+        str: The output of the AI critique evaluation.
+
+    Raises:
+        HTTPException: If any exception occurs during the evaluation.
+    """
     try:
-        # Run ai critique evaluation
+        # Extract data from the payload
         payload_dict = payload.dict()
+
+        # Run AI critique evaluation
         output = evaluate_with_ai_critique(
             llm_app_prompt_template=payload_dict["llm_app_prompt_template"],
             llm_app_inputs=payload_dict["inputs"],
@@ -238,36 +253,28 @@ async def evaluate_ai_critique(
             open_ai_key=payload_dict["open_ai_key"],
         )
         return output
+
     except Exception as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, f"Failed to evaluate AI critique: {str(e)}")
 
 
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score")
 async def get_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    """Get the s
+    stoken_session: SessionContainer = Depends(verify_session())
+) -> Dict[str, str]:
+    """
+    Fetch the score of a specific evaluation scenario.
 
     Args:
-        evaluation_scenario_id (str): _description_
-        stoken_session (SessionContainer, optional): _description_. Defaults to Depends(verify_session()).
-
-    Raises:
-        HTTPException: _description_
-        HTTPException: _description_
-        HTTPException: _description_
+        evaluation_scenario_id: The ID of the evaluation scenario to fetch.
+        stoken_session: Session data, verified by `verify_session`.
 
     Returns:
-        _type_: _description_
+        Dictionary containing the scenario ID and its score.
     """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
-    scenario_score = await get_evaluation_scenario_score(
-        evaluation_scenario_id, **user_org_data
-    )
-    return scenario_score
+    user_org_data = await get_user_and_org_id(stoken_session)
+    return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
 
 
 @router.put("/evaluation_scenario/{evaluation_scenario_id}/score")
@@ -276,22 +283,20 @@ async def update_evaluation_scenario_score_router(
     payload: EvaluationScenarioScoreUpdate,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Updates evaluation scenario score
-
-    Args:
-        evaluation_scenario_id (str): the evaluation scenario to update
-        score (float): the value to update
+    """Updates the score of an evaluation scenario.
 
     Raises:
-        HTTPException: server error if evaluation update went wrong
-    """
+        HTTPException: Server error if the evaluation update fails.
 
+    Returns:
+        None: 204 No Content status code upon successful update.
+    """
+    user_org_data = await get_user_and_org_id(stoken_session)
     try:
-        # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_scenario_score(
+        await update_evaluation_scenario_score(
             evaluation_scenario_id, payload.score, **user_org_data
         )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

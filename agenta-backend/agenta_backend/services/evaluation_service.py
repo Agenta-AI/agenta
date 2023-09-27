@@ -381,51 +381,42 @@ async def update_evaluation_scenario(
 async def update_evaluation_scenario_score(
     evaluation_scenario_id: str, score: float, **user_org_data: dict
 ) -> None:
-    """Update the score of the provided evaluation scenario.
+    """
+    Updates the score of an evaluation scenario.
 
     Args:
-        evaluation_scenario_id (str): the evaluation scenario to update
-        score (float): the value to update
+        evaluation_scenario_id (str): The ID of the evaluation scenario.
+        score (float): The new score to set.
+        user_org_data (dict): User and organization data.
+
+    Raises:
+        HTTPException: If evaluation scenario not found or access denied.
     """
+    eval_scenario = await _fetch_evaluation_scenario_and_check_access(
+        evaluation_scenario_id, **user_org_data
+    )
+    eval_scenario.score = score
 
-    # Get user object
-    user = await get_user_object(user_org_data["uid"])
-
-    # Build query expression
-    query_expression = query.eq(
-        EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
-    ) & query.eq(EvaluationScenarioDB.user, user.id)
-
-    # Find evaluation scenario if it meets with the query expression
-    evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
-    evaluation_scenario.score = score
-
-    # Save the evaluation scenario
-    await engine.save(evaluation_scenario)
+    # Save the updated evaluation scenario
+    await engine.save(eval_scenario)
 
 
 async def get_evaluation_scenario_score(
     evaluation_scenario_id: str, **user_org_data: dict
 ) -> Dict[str, str]:
-    """Get the evaluation scenario score
+    """
+    Retrieve the score of a given evaluation scenario.
 
     Args:
-        scenario_id (str): the evaluation scenario score
+        evaluation_scenario_id: The ID of the evaluation scenario.
+        user_org_data: Additional user and organization data.
 
     Returns:
-        Dict[str, str]: scenario id and score
+        Dictionary with 'scenario_id' and 'score' keys.
     """
-
-    # Get user object
-    user = await get_user_object(user_org_data["uid"])
-
-    # Build query expression
-    query_expression = query.eq(
-        EvaluationScenarioDB.id, ObjectId(evaluation_scenario_id)
-    ) & query.eq(EvaluationScenarioDB.user, user.id)
-
-    # Find evaluation scenario if it meets with the query expression
-    evaluation_scenario = await engine.find_one(EvaluationScenarioDB, query_expression)
+    evaluation_scenario = await _fetch_evaluation_scenario_and_check_access(
+        evaluation_scenario_id, **user_org_data
+    )
     return {
         "scenario_id": str(evaluation_scenario.id),
         "score": evaluation_scenario.score,
