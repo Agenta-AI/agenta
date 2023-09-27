@@ -595,11 +595,25 @@ async def create_custom_code_evaluation(
         str: the custom evaluation id
     """
 
-    # Get user object
-    user = await get_user_object(user_org_data["uid"])
-
     # Initialize custom evaluation instance
-    custom_eval = CustomEvaluationDB(**payload.dict(), user=user)
+    access = await common.check_access_to_app(
+        kwargs=user_org_data, app_id=payload.app_id
+    )
+    if not access:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to this app: {payload.app_id}",
+        )
+    app = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
+    custom_eval = CustomEvaluationDB(
+        evaluation_name=payload.evaluation_name,
+        user=app.user_id,
+        organization=app.organization_id,
+        app=app,
+        python_code=payload.python_code,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
 
     await engine.save(custom_eval)
     return str(custom_eval.id)
@@ -674,7 +688,7 @@ async def execute_custom_code_evaluation(
 
 
 async def fetch_custom_evaluations(
-    app_name: str, **user_org_data: dict
+    app_id: str, **user_org_data: dict
 ) -> List[CustomEvaluationOutput]:
     """Fetch a list of custom evaluations from the database.
 
@@ -684,17 +698,18 @@ async def fetch_custom_evaluations(
     Returns:
         List[CustomEvaluationOutput]: ls=ist of custom evaluations
     """
-
     # Get user object
-    user = await get_user_object(user_org_data["uid"])
-
-    # Build query expression
-    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
-        CustomEvaluationDB.app_name, app_name
-    )
+    access = await common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
+    if not access:
+        raise HTTPException(
+            status_code=403, detail=f"You do not have access to this app: {app_id}"
+        )
+    app = await new_db_manager.fetch_app_by_id(app_id=app_id)
 
     # Get custom evaluations
-    custom_evals = await engine.find(CustomEvaluationDB, query_expression)
+    custom_evals = await engine.find(
+        CustomEvaluationDB, CustomEvaluationDB.app == ObjectId(app.id)
+    )
     if not custom_evals:
         return []
 
@@ -704,7 +719,7 @@ async def fetch_custom_evaluations(
         evaluations.append(
             CustomEvaluationOutput(
                 id=str(custom_eval.id),
-                app_name=custom_eval.app_name,
+                app_id=str(custom_eval.app.id),
                 evaluation_name=custom_eval.evaluation_name,
                 created_at=custom_eval.created_at,
             )
