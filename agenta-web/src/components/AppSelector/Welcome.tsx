@@ -91,6 +91,7 @@ const useStyles = createUseStyles({
     },
     tag: {
         padding: "2px 6px",
+        fontWeight: "bold"
     },
     btnContainer: ({themeMode}: StyleProps) => ({
         textAlign: "right",
@@ -141,7 +142,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
     const textArray = [
         "Agenta is the developer-first open source LLM-Ops platform.",
         "Agenta is an open-source LLMOps platform designed to streamline the development of robust LLM applications.",
-        "Agenta provides with the tools for quick experimentation, prompt-engineering, and evaluation, making it easier to iterate on your LLM apps.",
+        "Agenta provides tools for quick experimentation, prompt-engineering, and evaluation, making it easier to iterate on your LLM apps.",
     ]
     return (
         <>
