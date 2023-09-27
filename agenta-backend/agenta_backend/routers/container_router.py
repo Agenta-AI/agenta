@@ -86,7 +86,6 @@ async def build_image(
             kwargs, app_id=app_id, check_owner=True
         )
     else:
-        organization_id = organization_id
         app_access = await check_access_to_app(kwargs, app_id=app_id)
 
     if not app_access:
