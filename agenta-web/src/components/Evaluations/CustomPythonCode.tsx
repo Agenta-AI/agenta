@@ -97,6 +97,10 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({
         )
     }
 
+    const isEditButtonDisabled = () => {
+        return evalNameExist
+    }
+
     const pythonDefaultEvalCode = () => {
         return `from typing import Dict
 
@@ -120,7 +124,9 @@ def evaluate(
 
     const checkForEvaluationName = async () => {
         const evalName = form.getFieldValue("evaluationName")
-        if (evalNames.map((e) => e.evaluation_name).includes(evalName)) {
+        if (evalName === editName) {
+            return
+        } else if (evalNames.map((e) => e.evaluation_name).includes(evalName)) {
             showNotification({
                 type: "error",
                 message: "Custom Evaluation",
@@ -196,7 +202,11 @@ def evaluate(
                                     type="primary"
                                     loading={submitting}
                                     className={classes.submitBtn}
-                                    disabled={isSaveButtonDisabled() || submitting}
+                                    disabled={
+                                        (editMode
+                                            ? isEditButtonDisabled()
+                                            : isSaveButtonDisabled()) || submitting
+                                    }
                                 >
                                     {editMode ? "Save Changes" : "Save"}
                                 </Button>
