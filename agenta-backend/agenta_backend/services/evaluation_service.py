@@ -548,13 +548,19 @@ async def fetch_list_evaluations(
     ]
 
 
-async def fetch_evaluation(
-    evaluation_id: str,
-    **user_org_data: dict,
-) -> Evaluation:
+async def fetch_evaluation(evaluation_id: str, **user_org_data: dict) -> Evaluation:
+    """
+    Fetches a single evaluation based on its ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation.
+        user_org_data (dict): User and organization data.
+
+    Returns:
+        Evaluation: The fetched evaluation.
+    """
     evaluation = await _fetch_evaluation_and_check_access(
-        evaluation_id=evaluation_id,
-        **user_org_data,
+        evaluation_id=evaluation_id, **user_org_data
     )
     return converters.evaluation_db_to_pydantic(evaluation)
 

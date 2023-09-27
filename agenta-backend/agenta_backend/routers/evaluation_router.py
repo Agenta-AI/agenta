@@ -322,17 +322,17 @@ async def fetch_list_evaluations(
 
 @router.get("/{evaluation_id}", response_model=Evaluation)
 async def fetch_evaluation(
-    evaluation_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    evaluation_id: str, stoken_session: SessionContainer = Depends(verify_session())
 ):
-    """Fetch one comparison table
+    """Fetches a single evaluation based on its ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation to fetch.
 
     Returns:
-        _description_
+        Evaluation: The fetched evaluation.
     """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data = await get_user_and_org_id(stoken_session)
     return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
 
 
@@ -353,8 +353,6 @@ async def delete_evaluations(
 
     # Get user and organization id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(user_org_data["uid"])
-
     deleted_ids = []
     for evaluations_id in delete_evaluations.evaluations_ids:
         # Construct query expression builder
