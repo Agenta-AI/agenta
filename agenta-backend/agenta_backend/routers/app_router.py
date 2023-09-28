@@ -69,7 +69,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.get("/list_variants/", response_model=List[AppVariantOutput], tags=["depracated"])
+@router.get(
+    "/list_variants/", response_model=List[AppVariantOutput], tags=["depracated"]
+)
 @router.get("/variants/", response_model=List[AppVariant])
 async def list_app_variants(
     app_id: Optional[str] = None,
