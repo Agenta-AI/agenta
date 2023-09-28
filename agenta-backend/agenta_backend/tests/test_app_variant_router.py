@@ -10,10 +10,22 @@ from agenta_backend.models.db_models import (
 from agenta_backend.routers.app_variant import (
     add_app_variant_from_template,
     list_app_variants,
+    remove_app,
+    remove_variant,
 )
 
 from agenta_backend.models.api.api_models import (
+    App,
+    Variant,
     AppVariantOutput,
+)
+
+from agenta_backend.services import (
+    new_app_manager,
+)
+
+from agenta_backend.services.auth_helper import (
+    SessionContainer,
 )
 
 # Initialize database engine
@@ -151,3 +163,96 @@ async def test_raises_http_exception_on_no_access(mocker):
     with pytest.raises(HTTPException) as e:
         await list_app_variants(app_id='12345')
     assert e.value.status_code == 400
+    
+    
+@pytest.mark.asyncio
+async def test_app_id_provided_and_permission(self, mocker):
+
+    """
+    Test Delete App when App id is provided and user has permission to delete it
+    """
+
+    # Arrange
+    app_id = "12345"
+    app = App(app_id=app_id)
+    stoken_session = SessionContainer()
+    kwargs = {"user_id": "user123", "org_id": "org123"}
+    mocker.patch("agenta_backend.routers.app_variant.get_user_and_org_id", return_value=kwargs)
+    mocker.patch("agenta_backend.routers.app_variant.check_access_to_app", return_value=True)
+    mocker.patch("agenta_backend.routers.app_variant.new_app_manager.remove_app")
+
+    # Act
+    await remove_app(app, stoken_session)
+
+    # Assert
+    new_app_manager.remove_app.assert_called_once_with(app_id=app_id, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_successfully_remove_variant(self, mocker):
+    
+    """
+    Successfully remove a variant
+    """
+    
+    # Mock dependencies
+    variant = Variant(variant_id="12345")
+    stoken_session = SessionContainer()
+    verify_session_mock = mocker.patch("verify_session")
+    verify_session_mock.return_value = stoken_session
+    get_user_and_org_id_mock = mocker.patch("get_user_and_org_id")
+    get_user_and_org_id_mock.return_value = {"user_id": "123", "org_id": "456"}
+    check_access_to_variant_mock = mocker.patch("check_access_to_variant")
+    check_access_to_variant_mock.return_value = True
+    remove_app_variant_mock = mocker.patch("remove_app_variant")
+
+    # Invoke function
+    await remove_variant(variant, stoken_session)
+
+    # Assert
+    remove_app_variant_mock.assert_called_once_with(app_variant_id="12345", user_id="123", org_id="456")    
+
+
+@pytest.mark.asyncio
+async def test_successfully_remove_variant(self, mocker):
+    
+    """
+    Successfully remove a variant and its associated image
+    """
+    
+    # Mock dependencies
+    variant = Variant(variant_id="12345")
+    stoken_session = SessionContainer()
+    verify_session_mock = mocker.patch("verify_session")
+    verify_session_mock.return_value = stoken_session
+    get_user_and_org_id_mock = mocker.patch("get_user_and_org_id")
+    get_user_and_org_id_mock.return_value = {"user_id": "123", "org_id": "456"}
+    check_access_to_variant_mock = mocker.patch("check_access_to_variant")
+    check_access_to_variant_mock.return_value = True
+    remove_app_variant_mock = mocker.patch("remove_app_variant")
+
+    # Invoke function
+    await remove_variant(variant, stoken_session)
+
+    # Assert
+    remove_app_variant_mock.assert_called_once_with(app_variant_id="12345", user_id="123", org_id="456")
+    
+    
+@pytest.mark.asyncio
+async def test_no_permission_to_delete_app(self, mocker):
+    
+    """
+    Test Delete App when User does not have permission to delete app
+    """
+    
+    # Arrange
+    app_id = "12345"
+    app = App(app_id=app_id)
+    stoken_session = SessionContainer()
+    kwargs = {"user_id": "user123", "org_id": "org123"}
+    mocker.patch("agenta_backend.routers.app_variant.get_user_and_org_id", return_value=kwargs)
+    mocker.patch("agenta_backend.routers.app_variant.check_access_to_app", return_value=False)
+
+    # Act & Assert
+    response = await remove_app(app, stoken_session)
+    assert response.status_code == 400
