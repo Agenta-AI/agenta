@@ -661,14 +661,14 @@ async def execute_custom_code_evaluation(
     custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
     if not custom_eval:
         raise HTTPException(status_code=404, detail="Evaluation not found")
-    
+
     # Check if user has app access
     access = await common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
         )
-        
+
     # Retrieve app from database
     app = await new_db_manager.fetch_app_by_id(app_id=app_id)
 
@@ -710,14 +710,14 @@ async def fetch_custom_evaluations(
     Returns:
         List[CustomEvaluationOutput]: ls=ist of custom evaluations
     """
-    
+
     # Check if user has app access
     access = await common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
         )
-        
+
     # Retrieve app from database
     app = await new_db_manager.fetch_app_by_id(app_id=app_id)
 
@@ -791,14 +791,14 @@ async def fetch_custom_evaluation_names(
 
     # Get user object
     user = await get_user_object(user_org_data["uid"])
-    
+
     # Check if user has app access
     access = await common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
         )
-        
+
     # Retrieve app from database
     app = await new_db_manager.fetch_app_by_id(app_id=app_id)
 
