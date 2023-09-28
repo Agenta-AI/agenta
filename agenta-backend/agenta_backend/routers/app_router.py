@@ -38,7 +38,7 @@ from agenta_backend.models.api.api_models import (
     UpdateVariantParameterPayload,
     AddVariantFromImagePayload,
     AddVariantFromBasePayload,
-    EnvironmentOutput
+    EnvironmentOutput,
 )
 from agenta_backend.models import converters
 
@@ -95,7 +95,10 @@ async def list_app_variants(
         app_variants = await db_manager.list_app_variants(
             app_id=app_id, **user_org_data
         )
-        return [converters.app_variant_db_to_output(app_variant) for app_variant in app_variants]
+        return [
+            converters.app_variant_db_to_output(app_variant)
+            for app_variant in app_variants
+        ]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -158,7 +161,7 @@ async def get_app_by_name(
                     detail="You do not have permission to access this app",
                 )
         app_db = await db_manager.fetch_app_by_name(
-            app_name, organization_id**user_org_data
+            app_name, organization_id, **user_org_data
         )
         return AppOutput(app_id=str(app_db.id), app_name=app_db.app_name)
     except Exception as e:
@@ -336,7 +339,7 @@ async def add_variant_from_previous(
             )
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access = await check_user_org_access(
-            user_org_data, app_variant_db.organization_id.id
+            user_org_data, app_variant_db.organization.id
         )
         if not access:
             raise HTTPException(
@@ -392,7 +395,7 @@ async def add_variant_from_base(
 
         # Check user access permissions
         access = await check_user_org_access(
-            user_org_data, app_variant_db.organization_id.id
+            user_org_data, app_variant_db.organization.id
         )
         if not access:
             logger.error(

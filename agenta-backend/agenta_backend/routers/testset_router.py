@@ -79,8 +79,8 @@ async def upload_file(
     document = {
         "created_at": datetime.now().isoformat(),
         "name": testset_name if testset_name else file.filename,
-        "app_id": app_ref,
-        "organization_id": app_ref.organization_id,
+        "app": app_ref,
+        "organization": app_ref.organization,
         "csvdata": [],
     }
 
@@ -161,8 +161,8 @@ async def import_testset(
         document = {
             "created_at": datetime.now().isoformat(),
             "name": testset_name,
-            "app_id": app_ref,
-            "organization_id": app_ref.organization_id,
+            "app": app_ref,
+            "organization": app_ref.organization,
             "csvdata": [],
         }
 
@@ -230,8 +230,8 @@ async def create_testset(
     testset = {
         "created_at": datetime.now().isoformat(),
         "name": csvdata.name,
-        "app_id": app_ref,
-        "organization_id": app_ref.organization_id,
+        "app": app_ref,
+        "organization": app_ref.organization,
         "csvdata": csvdata.csvdata,
         "user": user,
     }

@@ -96,7 +96,7 @@ async def build_image(
             status_code=400,
         )
     app_name = app_db.app_name
-    organization_id = str(app_db.organization_id.id)
+    organization_id = str(app_db.organization.id)
     # Get event loop
     loop = asyncio.get_event_loop()
 
@@ -165,7 +165,7 @@ async def restart_docker_container(
             status_code=400,
         )
     try:
-        user_backend_container_name = f"{app_variant_db.app_id.app_name}-{app_variant_db.variant_name}-{str(app_variant_db.organization_id.id)}"
+        user_backend_container_name = f"{app_variant_db.app.app_name}-{app_variant_db.variant_name}-{str(app_variant_db.organization.id)}"
         logger.debug(f"Restarting container with id: {user_backend_container_name}")
         restart_container(user_backend_container_name)
         return {"message": "Please wait a moment. The container is now restarting."}
@@ -224,7 +224,7 @@ async def pull_image(
 
 @router.get("/container_url/")
 async def construct_app_container_url(
-    variant_id: str,
+    base_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     """Construct and return the app container url path.
@@ -240,7 +240,10 @@ async def construct_app_container_url(
 
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = await check_access_to_variant(user_org_data=user_org_data, variant_id=variant_id)
+    access = await check_access_to_base(user_org_data=user_org_data, base_id=base_id)
+    access = await check_access_to_variant(
+        user_org_data=user_org_data, variant_id=variant_id
+    )
     if access is False:
         error_msg = f"You do not have access to this variant: {variant_id}"
         return JSONResponse(
@@ -254,8 +257,8 @@ async def construct_app_container_url(
             {"detail": error_msg},
             status_code=400,
         )
-    organization_id = str(app_variant_db.organization_id.id)
-    app_name = app_variant_db.app_id.app_name
+    organization_id = str(app_variant_db.organization.id)
+    app_name = app_variant_db.app.app_name
     variant_name = app_variant_db.variant_name
     # Set organization backend url path and container name
     org_backend_url_path = f"{organization_id}/{app_name}/{variant_name}"

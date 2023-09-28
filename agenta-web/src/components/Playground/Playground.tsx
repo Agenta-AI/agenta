@@ -49,6 +49,7 @@ function addTab(
         baseId: templateVariant.baseId,
         baseName: templateVariant.baseName || newTemplateVariantName,
         configName: newVariantName,
+        configId: templateVariant.configId,
     }
 
     setVariants((prevState: any) => [...prevState, newVariant])
