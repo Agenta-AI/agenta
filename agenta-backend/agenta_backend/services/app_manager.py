@@ -21,7 +21,7 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     EnvironmentDB,
 )
-from agenta_backend.services import new_db_manager, docker_utils
+from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ async def start_variant(
             f"Started Docker container for app variant {db_app_variant.app_id.app_name}/{db_app_variant.variant_name} at URI {uri}"
         )
         # TODO: Save information to base
-        # new_db_manager.register_base_container(db_app_variant, uri, f"{app_name}-{variant_name}-{organization_id}")
+        # db_manager.register_base_container(db_app_variant, uri, f"{app_name}-{variant_name}-{organization_id}")
     except Exception as e:
         logger.error(
             f"Error starting Docker container for app variant {db_app_variant.app_id.app_name}/{db_app_variant.variant_name}: {str(e)}"
@@ -115,7 +115,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
             f"Image {image.docker_id} with tags {image.tags} not found"
         )
 
-    variant_exist = await new_db_manager.fetch_app_variant_by_name_and_appid(
+    variant_exist = await db_manager.fetch_app_variant_by_name_and_appid(
         app_variant.variant_name, app_variant.app_id
     )
     if variant_exist is None:
@@ -124,8 +124,8 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         raise ValueError(msg)
 
     old_variant = app_variant_db_to_pydantic(variant_exist)
-    old_image = await new_db_manager.get_image(old_variant, **kwargs)
-    app_db = await new_db_manager.get_app_instance_by_id(old_variant.app_id)
+    old_image = await db_manager.get_image(old_variant, **kwargs)
+    app_db = await db_manager.get_app_instance_by_id(old_variant.app_id)
     try:
         container_ids = docker_utils.stop_containers_based_on_image(old_image)
         logger.info(f"Containers {container_ids} stopped")
@@ -140,7 +140,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
             f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}"
         )
         logger.error("Previous variant removed but new variant not added. Rolling back")
-        await new_db_manager.add_variant_based_on_image(
+        await db_manager.add_variant_based_on_image(
             app_db,
             old_variant.variant_name,
             old_image.docker_id,
@@ -154,10 +154,10 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         logger.info(
             f"Updating variant {app_variant.app_name}/{app_variant.variant_name}"
         )
-        new_app_db = await new_db_manager.create_app(
+        new_app_db = await db_manager.create_app(
             app_variant.app_name, app_variant.organization_id, **kwargs
         )
-        app_variant_output = await new_db_manager.add_variant_based_on_image(
+        app_variant_output = await db_manager.add_variant_based_on_image(
             app_id=new_app_db,
             variant_name=app_variant.variant_name,
             docker_id=image.docker_id,
@@ -168,7 +168,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
         logger.info(
             f"Starting variant {app_variant.app_name}/{app_variant.variant_name}"
         )
-        variant_db = await new_db_manager.fetch_app_variant_by_name_and_appid(
+        variant_db = await db_manager.fetch_app_variant_by_name_and_appid(
             app_variant_output.variant_name, app_variant_output.app_id
         )
         await start_variant(variant_db, **kwargs)
@@ -202,7 +202,7 @@ async def remove_app_variant(
 
     logger.debug(f"Removing app variant {app_variant_id}")
     if app_variant_id:
-        app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
+        app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
 
     logger.debug(f"Fetched app variant {app_variant_db}")
     app_id = app_variant_db.app_id.id
@@ -213,8 +213,8 @@ async def remove_app_variant(
 
     try:
         logger.debug(f"check_is_last_variant_for_image {app_variant_db}")
-        is_last_variant_for_image = (
-            await new_db_manager.check_is_last_variant_for_image(app_variant_db)
+        is_last_variant_for_image = await db_manager.check_is_last_variant_for_image(
+            app_variant_db
         )
         logger.debug(f"Result {is_last_variant_for_image}")
         if is_last_variant_for_image:
@@ -225,9 +225,9 @@ async def remove_app_variant(
                 logger.debug("_stop_and_delete_app_container")
                 await _stop_and_delete_app_container(app_variant_db, **kwargs)
                 logger.debug("remove_app_variant")
-                await new_db_manager.remove_app_variant(app_variant_db, **kwargs)
+                await db_manager.remove_app_variant(app_variant_db, **kwargs)
                 logger.debug("remove_image")
-                await new_db_manager.remove_image(image, **kwargs)
+                await db_manager.remove_image(image, **kwargs)
 
                 # Only delete the docker image for users that are running the oss version
                 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
@@ -238,9 +238,9 @@ async def remove_app_variant(
                 )
         else:
             logger.debug(f"remove_app_variant")
-            await new_db_manager.remove_app_variant(app_variant_db, **kwargs)
+            await db_manager.remove_app_variant(app_variant_db, **kwargs)
         logger.debug(f"list_app_variants")
-        app_variants = await new_db_manager.list_app_variants(
+        app_variants = await db_manager.list_app_variants(
             app_id=app_id, show_soft_deleted=True, **kwargs
         )
         logger.debug(f"{app_variants}")
@@ -287,17 +287,17 @@ async def remove_app_related_resources(app_id: str, **kwargs: dict):
     """
     try:
         # Delete associated environments
-        environments: List[EnvironmentDB] = await new_db_manager.list_environments(
+        environments: List[EnvironmentDB] = await db_manager.list_environments(
             app_id, **kwargs
         )
         for environment_db in environments:
-            await new_db_manager.remove_environment(environment_db, **kwargs)
+            await db_manager.remove_environment(environment_db, **kwargs)
             logger.info(f"Successfully deleted environment {environment_db.name}.")
         # Delete associated testsets
-        await new_db_manager.remove_app_testsets(app_id, **kwargs)
+        await db_manager.remove_app_testsets(app_id, **kwargs)
         logger.info(f"Successfully deleted test sets associated with app {app_id}.")
 
-        await new_db_manager.remove_app_by_id(app_id, **kwargs)
+        await db_manager.remove_app_by_id(app_id, **kwargs)
         logger.info(f"Successfully remove app object {app_id}.")
     except Exception as e:
         logger.error(
@@ -334,13 +334,13 @@ async def remove_app(app_id: str, **kwargs: dict):
         app_name -- the app name to remove
     """
     # checks if it is the last app variant using its image
-    app = await new_db_manager.fetch_app_by_id(app_id)
+    app = await db_manager.fetch_app_by_id(app_id)
     if app is None:
         error_msg = f"Failed to delete app {app_id}: Not found in DB."
         logger.error(error_msg)
         raise ValueError(error_msg)
     try:
-        app_variants = await new_db_manager.list_app_variants(app_id=app_id, **kwargs)
+        app_variants = await db_manager.list_app_variants(app_id=app_id, **kwargs)
         if len(app_variants) == 0:
             raise ValueError(f"Failed to delete app {app_id}: No variants found in DB.")
         for app_variant_db in app_variants:
@@ -366,13 +366,13 @@ async def update_variant_parameters(
     """
     assert app_variant_id is not None, "app_variant_id must be provided"
     assert parameters is not None, "parameters must be provided"
-    app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
+    app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
     if app_variant_db is None:
         error_msg = f"Failed to update app variant {app_variant_id}: Not found in DB."
         logger.error(error_msg)
         raise ValueError(error_msg)
     try:
-        await new_db_manager.update_variant_parameters(
+        await db_manager.update_variant_parameters(
             app_variant_db=app_variant_db, parameters=parameters, **kwargs
         )
     except Exception as e:

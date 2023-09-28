@@ -20,7 +20,7 @@ from agenta_backend.config import settings
 from agenta_backend.utils.common import engine, check_access_to_app
 from agenta_backend.models.db_models import TestSetDB
 from agenta_backend.services.db_manager import query, get_user_object
-from agenta_backend.services import new_db_manager
+from agenta_backend.services import db_manager
 from agenta_backend.models.converters import testset_db_to_pydantic
 
 upload_folder = "./path/to/upload/folder"
@@ -74,7 +74,7 @@ async def upload_file(
             {"detail": error_msg},
             status_code=400,
         )
-    app_ref = await new_db_manager.fetch_app_by_id(app_id=app_id)
+    app_ref = await db_manager.fetch_app_by_id(app_id=app_id)
     # Create a document
     document = {
         "created_at": datetime.now().isoformat(),
@@ -147,7 +147,7 @@ async def import_testset(
             {"detail": error_msg},
             status_code=400,
         )
-    app_ref = await new_db_manager.fetch_app_by_id(app_id=app_id)
+    app_ref = await db_manager.fetch_app_by_id(app_id=app_id)
 
     try:
         response = requests.get(endpoint, timeout=10)
@@ -226,7 +226,7 @@ async def create_testset(
             {"detail": error_msg},
             status_code=400,
         )
-    app_ref = await new_db_manager.fetch_app_by_id(app_id=app_id)
+    app_ref = await db_manager.fetch_app_by_id(app_id=app_id)
     testset = {
         "created_at": datetime.now().isoformat(),
         "name": csvdata.name,
@@ -274,7 +274,7 @@ async def update_testset(
     }
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-    test_set = await new_db_manager.fetch_testset_by_id(testset_id=testset_id)
+    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
     access_app = await check_access_to_app(
@@ -327,14 +327,12 @@ async def get_testsets(
             {"detail": error_msg},
             status_code=400,
         )
-    app_ref = await new_db_manager.fetch_app_by_id(app_id=app_id)
+    app_ref = await db_manager.fetch_app_by_id(app_id=app_id)
 
     if app_ref is None:
         raise HTTPException(status_code=404, detail="App not found")
 
-    testsets: List[TestSetDB] = await new_db_manager.fetch_testsets_by_app_id(
-        app_id=app_id
-    )
+    testsets: List[TestSetDB] = await db_manager.fetch_testsets_by_app_id(app_id=app_id)
     return [
         TestSetOutputResponse(
             id=str(testset.id),
@@ -360,7 +358,7 @@ async def get_testset(
         The requested testset if found, else an HTTPException.
     """
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    test_set = await new_db_manager.fetch_testset_by_id(testset_id=testset_id)
+    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
     access_app = await check_access_to_app(
@@ -394,7 +392,7 @@ async def delete_testsets(
     deleted_ids = []
 
     for testset_id in delete_testsets.testset_ids:
-        test_set = await new_db_manager.fetch_testset_by_id(testset_id=testset_id)
+        test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
         if test_set is None:
             raise HTTPException(status_code=404, detail="testset not found")
         access_app = await check_access_to_app(
