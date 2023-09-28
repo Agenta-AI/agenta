@@ -345,7 +345,7 @@ export default function Evaluations() {
         }
 
         const evaluationTableId = await createNewEvaluation({
-            variants: selectedVariants.map((variant) => variant.variantName),
+            variant_ids: selectedVariants.map((variant) => variant.variantId),
             appId,
             inputs: variantsInputs[selectedVariants[0].variantName],
             evaluationType: EvaluationType[selectedEvaluationType as keyof typeof EvaluationType],

@@ -351,7 +351,7 @@ export const loadEvaluationsScenarios = async (
 
 export const createNewEvaluation = async (
     {
-        variants,
+        variant_ids,
         appId,
         evaluationType,
         evaluationTypeSettings,
@@ -360,7 +360,7 @@ export const createNewEvaluation = async (
         selectedCustomEvaluationID,
         testsetId,
     }: {
-        variants: string[]
+        variant_ids: string[]
         appId: string
         evaluationType: string
         evaluationTypeSettings: Partial<EvaluationResponseType["evaluation_type_settings"]>
@@ -372,7 +372,7 @@ export const createNewEvaluation = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const data = {
-        variants, // TODO: Change to variant id
+        variant_ids,
         app_id: appId,
         inputs: inputs,
         evaluation_type: evaluationType,
