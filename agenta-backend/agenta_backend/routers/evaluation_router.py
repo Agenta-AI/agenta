@@ -2,7 +2,7 @@ import os
 import random
 from bson import ObjectId
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, APIRouter, Body, Depends, status, Response
@@ -26,15 +26,6 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationWebhook,
     SimpleEvaluationOutput,
 )
-from agenta_backend.services.results_service import (
-    fetch_average_score_for_custom_code_run,
-    fetch_results_for_human_a_b_testing_evaluation,
-    fetch_results_for_auto_exact_match_evaluation,
-    fetch_results_for_auto_similarity_match_evaluation,
-    fetch_results_for_auto_regex_test,
-    fetch_results_for_auto_webhook_test,
-    fetch_results_for_auto_ai_critique,
-)
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
     evaluate_with_ai_critique,
@@ -55,6 +46,7 @@ from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
 from agenta_backend.config import settings
 from agenta_backend.services import new_db_manager
 from agenta_backend.models import converters
+from agenta_backend.services import results_service
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
@@ -198,29 +190,25 @@ async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
     evaluation_type: EvaluationType,
     evaluation_scenario: EvaluationScenarioUpdate,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    stoken_session: SessionContainer = Depends(verify_session),
 ):
-    """Updates an evaluation row with a vote
-
-    Arguments:
-        evaluation_scenario_id -- _description_
-        evaluation_scenario -- _description_
+    """Updates an evaluation scenario's vote or score based on its type.
 
     Raises:
-        HTTPException: _description_
+        HTTPException: If update fails or unauthorized.
 
     Returns:
-        _description_
+        None: 204 No Content status code upon successful update.
     """
+    user_org_data = await get_user_and_org_id(stoken_session)
     try:
-        # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_scenario(
-            evaluation_scenario_id=evaluation_scenario_id,
-            evaluation_scenario_data=evaluation_scenario,
-            evaluation_type=evaluation_type,
+        await update_evaluation_scenario(
+            evaluation_scenario_id,
+            evaluation_scenario,
+            evaluation_type,
             **user_org_data,
         )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except UpdateEvaluationScenarioError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -228,11 +216,26 @@ async def update_evaluation_scenario_router(
 @router.post("/evaluation_scenario/ai_critique", response_model=str)
 async def evaluate_ai_critique(
     payload: AICritiqueCreate,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
+    stoken_session: SessionContainer = Depends(verify_session),
+) -> str:
+    """
+    Evaluate AI critique based on the given payload.
+
+    Args:
+        payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
+        stoken_session (SessionContainer): The session container verified by `verify_session`.
+
+    Returns:
+        str: The output of the AI critique evaluation.
+
+    Raises:
+        HTTPException: If any exception occurs during the evaluation.
+    """
     try:
-        # Run ai critique evaluation
+        # Extract data from the payload
         payload_dict = payload.dict()
+
+        # Run AI critique evaluation
         output = evaluate_with_ai_critique(
             llm_app_prompt_template=payload_dict["llm_app_prompt_template"],
             llm_app_inputs=payload_dict["inputs"],
@@ -242,36 +245,28 @@ async def evaluate_ai_critique(
             open_ai_key=payload_dict["open_ai_key"],
         )
         return output
+
     except Exception as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, f"Failed to evaluate AI critique: {str(e)}")
 
 
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score")
 async def get_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
-):
-    """Get the s
+) -> Dict[str, str]:
+    """
+    Fetch the score of a specific evaluation scenario.
 
     Args:
-        evaluation_scenario_id (str): _description_
-        stoken_session (SessionContainer, optional): _description_. Defaults to Depends(verify_session()).
-
-    Raises:
-        HTTPException: _description_
-        HTTPException: _description_
-        HTTPException: _description_
+        evaluation_scenario_id: The ID of the evaluation scenario to fetch.
+        stoken_session: Session data, verified by `verify_session`.
 
     Returns:
-        _type_: _description_
+        Dictionary containing the scenario ID and its score.
     """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
-    scenario_score = await get_evaluation_scenario_score(
-        evaluation_scenario_id, **user_org_data
-    )
-    return scenario_score
+    user_org_data = await get_user_and_org_id(stoken_session)
+    return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
 
 
 @router.put("/evaluation_scenario/{evaluation_scenario_id}/score")
@@ -280,103 +275,57 @@ async def update_evaluation_scenario_score_router(
     payload: EvaluationScenarioScoreUpdate,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Updates evaluation scenario score
-
-    Args:
-        evaluation_scenario_id (str): the evaluation scenario to update
-        score (float): the value to update
+    """Updates the score of an evaluation scenario.
 
     Raises:
-        HTTPException: server error if evaluation update went wrong
-    """
+        HTTPException: Server error if the evaluation update fails.
 
+    Returns:
+        None: 204 No Content status code upon successful update.
+    """
+    user_org_data = await get_user_and_org_id(stoken_session)
     try:
-        # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        return await update_evaluation_scenario_score(
+        await update_evaluation_scenario_score(
             evaluation_scenario_id, payload.score, **user_org_data
         )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/", response_model=List[Evaluation])
 async def fetch_list_evaluations(
-    app_name: Optional[str] = None,
+    app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """lists of all comparison tables
+    """Fetches a list of evaluations, optionally filtered by an app ID.
+
+    Args:
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
 
     Returns:
-        _description_
+        List[Evaluation]: A list of evaluations.
     """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(user_org_data["uid"])
-
-    # Construct query expression builder
-    query_expression = query.eq(EvaluationDB.app_name, app_name) & query.eq(
-        EvaluationDB.user, user.id
+    user_org_data = await get_user_and_org_id(stoken_session)
+    return await evaluation_service.fetch_list_evaluations(
+        app_id=app_id, **user_org_data
     )
-    evaluations = await engine.find(EvaluationDB, query_expression)
-    return [
-        Evaluation(
-            id=str(evaluation.id),
-            status=evaluation.status,
-            evaluation_type=evaluation.evaluation_type,
-            custom_code_evaluation_id=evaluation.custom_code_evaluation_id,
-            evaluation_type_settings=evaluation.evaluation_type_settings,
-            llm_app_prompt_template=evaluation.llm_app_prompt_template,
-            variants=evaluation.variants,
-            app_name=evaluation.app_name,
-            testset=evaluation.testset,
-            created_at=evaluation.created_at,
-            updated_at=evaluation.updated_at,
-        )
-        for evaluation in evaluations
-    ]
 
 
 @router.get("/{evaluation_id}", response_model=Evaluation)
 async def fetch_evaluation(
-    evaluation_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    evaluation_id: str, stoken_session: SessionContainer = Depends(verify_session())
 ):
-    """Fetch one comparison table
+    """Fetches a single evaluation based on its ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation to fetch.
 
     Returns:
-        _description_
+        Evaluation: The fetched evaluation.
     """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(user_org_data["uid"])
-
-    # Construct query expression builder
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
-    )
-    evaluation = await engine.find_one(EvaluationDB, query_expression)
-    if evaluation is not None:
-        return Evaluation(
-            id=str(evaluation.id),
-            status=evaluation.status,
-            evaluation_type=evaluation.evaluation_type,
-            custom_code_evaluation_id=evaluation.custom_code_evaluation_id,
-            evaluation_type_settings=evaluation.evaluation_type_settings,
-            llm_app_prompt_template=evaluation.llm_app_prompt_template,
-            variants=evaluation.variants,
-            app_name=evaluation.app_name,
-            testset=evaluation.testset,
-            created_at=evaluation.created_at,
-            updated_at=evaluation.updated_at,
-        )
-    else:
-        raise HTTPException(
-            status_code=404,
-            detail=f"dataset with id {evaluation_id} not found",
-        )
+    user_org_data = await get_user_and_org_id(stoken_session)
+    return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
 
 
 @router.delete("/", response_model=List[str])
@@ -396,26 +345,10 @@ async def delete_evaluations(
 
     # Get user and organization id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(user_org_data["uid"])
-
-    deleted_ids = []
-    for evaluations_id in delete_evaluations.evaluations_ids:
-        # Construct query expression builder
-        query_expression = query.eq(
-            EvaluationDB.id, ObjectId(evaluations_id)
-        ) & query.eq(EvaluationDB.user, user.id)
-        evaluation = await engine.find_one(EvaluationDB, query_expression)
-
-        if evaluation is not None:
-            await engine.delete(evaluation)
-            deleted_ids.append(evaluations_id)
-        else:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Comparison table {evaluations_id} not found",
-            )
-
-    return deleted_ids
+    await evaluation_service.delete_evaluations(
+        delete_evaluations.evaluations_ids, **user_org_data
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{evaluation_id}/results")
@@ -434,49 +367,41 @@ async def fetch_results(
 
     # Get user and organization id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(user_org_data["uid"])
-
-    # Construct query expression builder and retrieve evaluation from database
-    query_expression = query.eq(EvaluationDB.id, ObjectId(evaluation_id)) & query.eq(
-        EvaluationDB.user, user.id
+    evaluation = await evaluation_service._fetch_evaluation_and_check_access(
+        evaluation_id, **user_org_data
     )
-    evaluation = await engine.find_one(EvaluationDB, query_expression)
-
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
-        results = await fetch_results_for_human_a_b_testing_evaluation(
-            evaluation_id, evaluation.variants
-        )
-        # TODO: replace votes_data by results_data
+        results = await results_service.fetch_results_for_evaluation(evaluation)
         return {"votes_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_exact_match:
-        results = await fetch_results_for_auto_exact_match_evaluation(
-            evaluation_id, evaluation.variants
-        )
+        results = await results_service.fetch_results_for_evaluation(evaluation)
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
-        results = await fetch_results_for_auto_similarity_match_evaluation(
-            evaluation_id, evaluation.variants
-        )
+        results = await results_service.fetch_results_for_evaluation(evaluation)
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
-        results = await fetch_results_for_auto_regex_test(
-            evaluation_id, evaluation.variants
-        )
+        results = await results_service.fetch_results_for_evaluation(evaluation)
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
-        results = await fetch_results_for_auto_webhook_test(evaluation_id)
+        results = await results_service.fetch_results_for_auto_webhook_test(
+            evaluation_id
+        )
         return {"results_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
-        results = await fetch_results_for_auto_ai_critique(evaluation_id)
+        results = await results_service.fetch_results_for_auto_ai_critique(
+            evaluation_id
+        )
         return {"results_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.custom_code_run:
-        results = await fetch_average_score_for_custom_code_run(evaluation_id)
+        results = await results_service.fetch_average_score_for_custom_code_run(
+            evaluation_id
+        )
         return {"avg_score": results}
 
 
@@ -510,11 +435,11 @@ async def create_custom_evaluation(
 
 
 @router.get(
-    "/custom_evaluation/list/{app_name}",
+    "/custom_evaluation/list/{app_id}",
     response_model=List[CustomEvaluationOutput],
 )
 async def list_custom_evaluations(
-    app_name: str,
+    app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """List the custom code evaluations for a given app.
@@ -530,7 +455,7 @@ async def list_custom_evaluations(
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Fetch custom evaluations from database
-    evaluations = await fetch_custom_evaluations(app_name, **user_org_data)
+    evaluations = await fetch_custom_evaluations(app_id, **user_org_data)
     return evaluations
 
 

@@ -42,11 +42,15 @@ function addTab(
         return
     }
 
-    const newVariant: Variant = {
+    const newVariant: Partial<Variant> = {
         variantName: updateNewVariantName,
         templateVariantName: newTemplateVariantName,
+        previousVariantName: templateVariant.variantName,
         persistent: false,
         parameters: templateVariant.parameters,
+        baseId: templateVariant.baseId,
+        baseName: templateVariant.baseName || newTemplateVariantName,
+        configName: newVariantName,
     }
 
     setVariants((prevState: any) => [...prevState, newVariant])
@@ -54,7 +58,6 @@ function addTab(
 }
 
 function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], activeKey: string) {
-    console.log(activeKey)
     const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
     if (newVariants.length < 1) {
         router.push(`/apps`)
@@ -63,14 +66,13 @@ function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], act
     if (newVariants.length > 0) {
         newActiveKey = newVariants[newVariants.length - 1].variantName
     }
-    console.log(newActiveKey, newVariants)
     setVariants(newVariants)
     setActiveKey(newActiveKey)
 }
 
 const VersionTabs: React.FC = () => {
     const router = useRouter()
-    const appName = router.query.app_name as unknown as string
+    const appId = router.query.app_id as string
     const [templateVariantName, setTemplateVariantName] = useState("") // We use this to save the template variant name when the user creates a new variant
     const [activeKey, setActiveKey] = useState("1")
     const [tabList, setTabList] = useState([])
@@ -87,7 +89,7 @@ const VersionTabs: React.FC = () => {
 
     const fetchData = async () => {
         try {
-            const backendVariants = await fetchVariants(appName)
+            const backendVariants = await fetchVariants(appId)
             if (backendVariants.length > 0) {
                 setVariants(backendVariants)
                 setActiveKey(backendVariants[0].variantName)
@@ -102,25 +104,20 @@ const VersionTabs: React.FC = () => {
 
     useEffect(() => {
         fetchData()
-    }, [appName])
+    }, [appId])
 
     // Load environments
     const [environments, setEnvironments] = useState<Environment[]>([])
     const loadEnvironments = async () => {
-        const response: Environment[] = await fetchEnvironments(appName)
+        const response: Environment[] = await fetchEnvironments(appId)
         if (response.length === 0) return
 
-        setEnvironments(
-            response.map((env) => ({
-                name: env.name,
-                deployed_app_variant: env.deployed_app_variant,
-            })),
-        )
+        setEnvironments(response)
     }
     useEffect(() => {
-        if (!appName) return
+        if (!appId) return
         loadEnvironments()
-    }, [appName, activeKey])
+    }, [appId, activeKey])
 
     if (isError) return <div>failed to load variants</div>
     if (isLoading) return <div>loading variants...</div>
@@ -135,8 +132,8 @@ const VersionTabs: React.FC = () => {
         if (removalVariantName) {
             setIsDeleteLoading(true)
             // only call the backend if the variant is persistent
-            if (variants.find((variant) => variant.variantName === removalVariantName)?.persistent)
-                await removeVariant(appName, removalVariantName)
+            const toRemove = variants.find((variant) => variant.variantName === removalVariantName)
+            if (toRemove?.persistent) await removeVariant(toRemove.variantId)
 
             removeTab(setActiveKey, setVariants, variants, removalVariantName)
             setIsDeleteLoading(false)
