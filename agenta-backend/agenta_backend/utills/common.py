@@ -25,20 +25,17 @@ async def get_organization(org_id: str) -> OrganizationDB:
 
 
 async def get_app_instance(
-    app_name: str, variant_name: str = None, show_deleted: bool = False
+    app_id: str, variant_name: str = None, show_deleted: bool = False
 ) -> AppVariantDB:
-    print("app_name: " + str(app_name))
-    print("variant_name: " + str(variant_name))
-
     if variant_name is not None:
         query_expression = (
             query.eq(AppVariantDB.is_deleted, show_deleted)
-            & query.eq(AppVariantDB.app_name, app_name)
+            & query.eq(AppVariantDB.app_id, ObjectId(app_id))
             & query.eq(AppVariantDB.variant_name, variant_name)
         )
     else:
         query_expression = query.eq(AppVariantDB.is_deleted, show_deleted) & query.eq(
-            AppVariantDB.app_name, app_name
+            AppVariantDB.app_name, ObjectId(app_id)
         )
 
     print("query_expression: " + str(query_expression))
@@ -52,17 +49,17 @@ async def get_app_instance(
 async def check_user_org_access(
     kwargs: dict, organization_id: str, owner=False
 ) -> bool:
-    if not owner:
-        user_organizations: List = kwargs["organization_ids"]
-        object_organization_id = ObjectId(organization_id)
-        return object_organization_id in user_organizations
-    elif owner:
+    if owner:  # Check that the user is the owner of the organization
         user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
         organization = await get_organization(organization_id)
         if not organization:
             logger.error("Organization not found")
             raise Exception("Organization not found")
         return organization.owner == str(user.id)
+    else:
+        user_organizations: List = kwargs["organization_ids"]
+        object_organization_id = ObjectId(organization_id)
+        return object_organization_id in user_organizations
 
 
 async def check_access_to_app(
