@@ -89,9 +89,7 @@ async def list_app_variants(
         kwargs: dict = await get_user_and_org_id(stoken_session)
 
         if app_id is not None:
-            access_app = await check_access_to_app(
-                kwargs, app_id=app_id
-            )
+            access_app = await check_access_to_app(kwargs, app_id=app_id)
             if not access_app:
                 error_msg = f"You cannot access app: {app_id}"
                 logger.error(error_msg)
@@ -165,7 +163,9 @@ async def get_app_by_name(
                     status_code=403,
                     detail="You do not have permission to access this app",
                 )
-        app_db = await new_db_manager.fetch_app_by_name(app_name, organization_id ** kwargs)
+        app_db = await new_db_manager.fetch_app_by_name(
+            app_name, organization_id**kwargs
+        )
         return AppOutput(app_id=str(app_db.id), app_name=app_db.app_name)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -201,7 +201,9 @@ async def create_app(
             # Retrieve or create user organization
             organization = await get_user_own_org(kwargs["uid"])
             if organization is None:
-                organization = await new_db_manager.create_user_organization(kwargs["uid"])
+                organization = await new_db_manager.create_user_organization(
+                    kwargs["uid"]
+                )
             organization_id = str(organization.id)
 
         # Create new app and return the output
@@ -237,7 +239,7 @@ async def list_apps(
 
 @router.post("/add/from_image/")
 async def add_variant_from_image(
-    app_variant: AppVariant,
+    app_variant: AppVariantFromImagePayload,
     image: Image,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):

@@ -66,9 +66,7 @@ def add_variant_to_server(
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(
-        app_id=app_id, variant_name=variant_name
-    )
+    app_variant: AppVariant = AppVariant(app_id=app_id, variant_name=variant_name)
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/add/from_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
@@ -187,9 +185,7 @@ def update_variant_image(
         )
 
 
-def send_docker_tar(
-    app_id: str, variant_name: str, tar_path: Path, host: str
-) -> Image:
+def send_docker_tar(app_id: str, variant_name: str, tar_path: Path, host: str) -> Image:
     with tar_path.open("rb") as tar_file:
         response = requests.post(
             f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_id={app_id}&&variant_name={variant_name}",
