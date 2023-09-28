@@ -56,14 +56,13 @@ logger.setLevel(logging.DEBUG)
 
 
 async def add_variant_based_on_image(
-    app_id: AppDB,
+    app: AppDB,
     variant_name: str,
     docker_id: str,
     tags: str,
-    organization_id: str,
     base_name: str = None,
     config_name: str = "default",
-    **kwargs: dict,
+    **user_org_data: dict,
 ) -> AppVariantOutput:
     """
     Adds an app variant based on an image.
@@ -74,7 +73,6 @@ async def add_variant_based_on_image(
         variant_name {str} -- [description]
         docker_id {str} -- [description]
         tags {str} -- [description]
-        organization_id {str} -- [description]
     Raises:
         ValueError: if variant exists or missing inputs
     """
@@ -83,17 +81,15 @@ async def add_variant_based_on_image(
         await clean_soft_deleted_variants()
 
         if (
-            app_id in [None, ""]
+            app in [None, ""]
             or variant_name in [None, ""]
-            or organization_id in [None, ""]
             or docker_id in [None, ""]
             or tags in [None, ""]
-            or organization_id in [None, ""]
         ):
             raise ValueError("App variant or image is None")
 
         soft_deleted_variants = await list_app_variants_for_app_id(
-            app_id=str(app_id.id), show_soft_deleted=True, **kwargs
+            app_id=str(app.id), show_soft_deleted=True, **user_org_data
         )
         already_exists = any(
             [av for av in soft_deleted_variants if av.variant_name == variant_name]
@@ -101,18 +97,17 @@ async def add_variant_based_on_image(
         if already_exists:
             raise ValueError("App variant with the same name already exists")
 
-        user_instance = await get_user_object(kwargs["uid"])
+        user_instance = await get_user_object(user_org_data["uid"])
         db_image = await get_orga_image_instance(
-            organization_id=organization_id, docker_id=docker_id
+            organization_id=str(app.organization_id.id), docker_id=docker_id
         )
-        organization_db = await get_organization_object(organization_id)
         if db_image is None:
             logger.debug("Creating new image")
             db_image = ImageDB(
                 docker_id=docker_id,
                 tags=tags,
                 user_id=user_instance,
-                organization_id=organization_db,
+                organization_id=app.organization_id,
             )
             await engine.save(db_image)
 
@@ -133,11 +128,11 @@ async def add_variant_based_on_image(
         await engine.save(db_base)
 
         db_app_variant = AppVariantDB(
-            app_id=app_id,
+            app_id=app,
             variant_name=variant_name,
             image_id=db_image,
             user_id=user_instance,
-            organization_id=organization_db,
+            organization_id=app.organization_id,
             parameters={},
             base_name=base_name,
             config_name=config_name,
@@ -145,8 +140,6 @@ async def add_variant_based_on_image(
             config_id=db_config,
         )
         await engine.save(db_app_variant)
-        print("/////////")
-        print("AppDB: ", app_id)
         logger.debug("Created db_app_variant: %s", db_app_variant)
         return app_variant_db_to_output(db_app_variant)
     except Exception as e:

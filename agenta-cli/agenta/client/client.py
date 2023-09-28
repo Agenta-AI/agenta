@@ -4,7 +4,7 @@ from typing import List
 
 import agenta.config
 import requests
-from agenta.client.api_models import AppVariant, Image
+from agenta.client.api_models import AppVariant, Image, AddVariantFromImagePayload
 from docker.models.images import Image as DockerImage
 
 BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
@@ -55,9 +55,7 @@ def create_new_app(app_name: str, host: str) -> str:
     return response.json()["app_id"]
 
 
-def add_variant_to_server(
-    app_id: str, app_name: str, variant_name: str, image: Image, host: str
-):
+def add_variant_to_server(app_id: str, variant_name: str, image: Image, host: str):
     """Adds a variant to the server.
 
     Arguments:
@@ -66,10 +64,16 @@ def add_variant_to_server(
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(app_id=app_id, variant_name=variant_name)
+    payload = {
+        "variant_name": variant_name,
+        "docker_id": image.docker_id,
+        "tags": image.tags,
+        "base_name": None,
+        "config_name": None,
+    }
     response = requests.post(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps/add/from_image/",
-        json={"app_variant": app_variant.dict(), "image": image.dict()},
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variant/from_image/",
+        json=payload,
         timeout=600,
     )
     if response.status_code != 200:
