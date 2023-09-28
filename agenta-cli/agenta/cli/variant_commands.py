@@ -39,7 +39,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     app_path = Path(app_folder)
     config_file = app_path / "config.toml"
     config = toml.load(config_file)
-    app_name = config["app-name"]
+    app_name = config["app_name"]
     app_id = config["app_id"]
     variant_name = file_name.removesuffix(".py")
     # check files in folder
@@ -175,7 +175,7 @@ def start_variant(variant_name: str, app_folder: str, host: str):
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     config = toml.load(config_file)
-    app_name = config["app-name"]
+    app_name = config["app_name"]
     app_id = config["app_id"]
 
     if len(config["variants"]) == 0:
@@ -233,7 +233,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     """
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
-    app_name = config["app-name"]
+    app_name = config["app_name"]
 
     if variant_name:
         if variant_name not in config["variants"]:
@@ -277,7 +277,7 @@ def list_variants(app_folder: str, host: str):
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
     app_id = config["app_id"]
-    app_name = config["app-name"]
+    app_name = config["app_name"]
     variants: List[AppVariant] = client.list_variants(app_id, host)
     if variants:
         for variant in variants:
