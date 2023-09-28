@@ -667,7 +667,7 @@ export const createAndStartTemplate = async ({
 
 export const fetchEnvironments = async (appId: string): Promise<Environment[]> => {
     const response = await fetch(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/environments/?app_id=${appId}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/${appId}/environments/`,
     )
 
     if (response.status !== 200) {
