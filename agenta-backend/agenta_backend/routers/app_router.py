@@ -41,6 +41,7 @@ from agenta_backend.models.api.api_models import (
     UpdateVariantParameterPayload,
     AppVariantFromImagePayload,
     AddVariantFromBasePayload,
+    AddVariantFromImagePayload,
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -192,10 +193,8 @@ async def create_app(
     """
 
     try:
-        # Get user and org id
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         if payload.organization_id:
-            # check if user has access to the organization
             access = await check_user_org_access(user_org_data, payload.organization_id)
             if not access:
                 raise HTTPException(
@@ -206,13 +205,13 @@ async def create_app(
         else:
             # Retrieve or create user organization
             organization = await get_user_own_org(user_org_data["uid"])
-            if organization is None:
+            if organization is None:  # TODO: Check whether we need this
+                logger.error("Organization for user not found.")
                 organization = await new_db_manager.create_user_organization(
                     user_org_data["uid"]
                 )
             organization_id = str(organization.id)
 
-        # Create new app and return the output
         app_db = await new_db_manager.create_app(
             payload.app_name, organization_id, **user_org_data
         )
@@ -243,16 +242,16 @@ async def list_apps(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/add/from_image/")
+@router.post("/{app_id}/variant/from_image/")
 async def add_variant_from_image(
-    app_variant: AppVariantFromImagePayload,
-    image: Image,
+    app_id: str,
+    payload: AddVariantFromImagePayload,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Add a variant to the server based on an image.
+    """Create a variant in an app from an image
 
     Arguments:
-        app_variant -- AppVariant to add
+        variant -- AppVariant to add
         image -- The image tags should start with the registry name (agenta-server) and end with :latest
 
     Raises:
@@ -265,33 +264,43 @@ async def add_variant_from_image(
             status_code=500,
             detail="This feature is not available in the demo version",
         )
-    if not image.tags.startswith(settings.registry):
+    if not payload.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500,
             detail="Image should have a tag starting with the registry name (agenta-server)",
         )
-    elif image not in docker_utils.list_images():
-        raise HTTPException(status_code=500, detail="Image not found")
+    elif docker_utils.find_image_by_docker_id(payload.docker_id) is None:
+        raise HTTPException(status_code=404, detail="Image not found")
 
     try:
-        # Get user and org id
         user_org_data: dict = await get_user_and_org_id(stoken_session)
+        access_app = await check_access_to_app(user_org_data, app_id=app_id)
+        if not access_app:
+            error_msg = f"You cannot access app: {app_id}"
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+        app = await new_db_manager.fetch_app_by_id(app_id)
+        base_name = (
+            payload.base_name
+            if payload.base_name
+            else payload.variant_name.split(".")[0]
+        )
+        config_name = (
+            payload.config_name
+            if payload.config_name
+            else payload.variant_name.split(".")[1]
+        )
 
-        # Get user organization
-        organization = await get_user_own_org(user_org_data["uid"])
-        if app_variant.organization_id is None:
-            app_variant.organization_id = str(organization.id)
-
-        if image.organization_id is None:
-            image.organization_id = str(organization.id)
-
-        app_db = await new_db_manager.fetch_app_by_id(app_variant.app_id)
         await new_db_manager.add_variant_based_on_image(
-            app_db,
-            app_variant.variant_name,
-            image.docker_id,
-            image.tags,
-            app_variant.organization_id,
+            app=app,
+            variant_name=payload.variant_name,
+            docker_id=payload.docker_id,
+            tags=payload.tags,
+            base_name=base_name,
+            config_name=config_name,
             **user_org_data,
         )
     except Exception as e:
@@ -425,47 +434,35 @@ async def add_variant_from_base(
 
 @router.post("/start/")
 async def start_variant(
-    app_variant: AppVariant,
+    variant: AppVariant,
     env_vars: Optional[DockerEnvVars] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
-    print(f"Starting variant {app_variant}")
-    logger.info("Starting variant %s", app_variant)
-    try:
-        # Get user and org iD
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+    logger.debug("Starting variant %s", variant)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-        # Inject env vars to docker container
-        if os.environ["FEATURE_FLAG"] == "demo":
-            if not os.environ["OPENAI_API_KEY"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
-                )
-            envvars = {
-                "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
-            }
-        else:
-            envvars = {} if env_vars is None else env_vars.env_vars
+    # Inject env vars to docker container
+    if os.environ["FEATURE_FLAG"] == "demo":
+        if not os.environ["OPENAI_API_KEY"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Unable to start app container. Please file an issue by clicking on the button below.",
+            )
+        envvars = {
+            "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+        }
+    else:
+        envvars = {} if env_vars is None else env_vars.env_vars
 
-        if app_variant.organization_id is None:
-            organization = await get_user_own_org(user_org_data["uid"])
-            app_variant.organization_id = str(organization.id)
+    if variant.organization_id is None:
+        organization = await get_user_own_org(user_org_data["uid"])
+        variant.organization_id = str(organization.id)
 
-        app_variant_db = await new_db_manager.fetch_app_variant_by_name_and_appid(
-            app_variant.variant_name, app_variant.app_id
-        )
-        url = await new_app_manager.start_variant(
-            app_variant_db, envvars, **user_org_data
-        )
-        return url
-    except Exception as e:
-        variant_from_db = await db_manager.get_variant_from_db(
-            app_variant, **user_org_data
-        )
-        if variant_from_db is not None:
-            await app_manager.remove_app_variant(app_variant, **user_org_data)
-        raise HTTPException(status_code=500, detail=str(e))
+    app_variant_db = await new_db_manager.fetch_app_variant_by_name_and_appid(
+        variant.variant_name, variant.app_id
+    )
+    url = await new_app_manager.start_variant(app_variant_db, envvars, **user_org_data)
+    return url
 
 
 @router.get("/list_images/", response_model=List[Image])
@@ -714,7 +711,6 @@ async def add_app_variant_from_template(
         variant_name="app",
         docker_id=payload.image_id,
         tags=f"{image_name}",
-        organization_id=organization_id,
         base_name="app",
         config_name="default",
         **user_org_data,

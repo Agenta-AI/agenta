@@ -29,6 +29,22 @@ def port_generator(start_port=9000):
 ports = port_generator()
 
 
+def find_image_by_docker_id(docker_id: str) -> Image:
+    """Finds an image based on its docker id
+
+    Arguments:
+        docker_id -- _description_
+
+    Returns:
+        Image -- _description_
+    """
+    all_images = client.images.list()
+    for image in all_images:
+        if image.id == docker_id:
+            return Image(docker_id=image.id, tags=image.tags[0])
+    return None
+
+
 def list_images() -> List[Image]:
     """Lists all the images from our repository
     These are tagged with the registry name (config in both agenta_backend and agenta-cli)
