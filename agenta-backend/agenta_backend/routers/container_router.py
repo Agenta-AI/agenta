@@ -240,7 +240,7 @@ async def construct_app_container_url(
 
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = check_access_to_variant(user_org_data=user_org_data, variant_id=variant_id)
+    access = check_access_to_variant(kwargs=user_org_data, variant_id=variant_id)
     if access is False:
         error_msg = f"You do not have access to this variant: {variant_id}"
         return JSONResponse(
