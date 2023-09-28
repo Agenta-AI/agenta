@@ -55,6 +55,7 @@ new_object_id = ObjectId()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+
 @pytest.mark.asyncio
 async def test_list_empty_apps():
     response = await app_router.list_apps()
@@ -149,7 +150,7 @@ async def test_create_app_variant(get_first_user_object):
 async def test_add_app_variant_from_template(get_first_user_object):
     user = await get_first_user_object
     organization = await new_db_manager.get_user_own_org(user.uid)
-    
+
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         tags="agentaai/templates:local_test_prompt",
@@ -157,23 +158,20 @@ async def test_add_app_variant_from_template(get_first_user_object):
         organization_id=organization,
     )
     await engine.save(db_image)
-    
+
     app_name = "My Test App"
-    
+
     # Define Payload
     payload = {
         "app_name": app_name,
         "image_id": db_image.docker_id,
         "image_tag": db_image.tags,
         "organization_id": str(organization.id),
-        "env_vars": {
-            "ENV_VAR1": "value1",
-            "ENV_VAR2": "value2"
-        },
+        "env_vars": {"ENV_VAR1": "value1", "ENV_VAR2": "value2"},
     }
-    
+
     request_payload = CreateAppVariant(**payload)
-    
+
     response = await app_router.add_app_variant_from_template(request_payload)
     assert response == AppVariantOutput(
         app_id=response.app_id,
@@ -188,4 +186,3 @@ async def test_add_app_variant_from_template(get_first_user_object):
         config_name=response.config_name,
         config_id=response.config_id,
     )
-    
