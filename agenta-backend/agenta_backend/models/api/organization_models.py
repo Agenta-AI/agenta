@@ -22,3 +22,8 @@ class Organization(BaseModel):
 class OrganizationUpdate(BaseModel):
     name: Optional[str]
     description: Optional[str]
+
+
+class OrganizationOutput(BaseModel):
+    id: str
+    name: str
