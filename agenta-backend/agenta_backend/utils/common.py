@@ -103,7 +103,7 @@ async def check_access_to_app(
 
 
 async def check_access_to_variant(
-    kwargs: Dict[str, Union[str, list]],
+    user_org_data: Dict[str, Union[str, list]],
     variant_id: str,
     check_owner: bool = False,
 ) -> bool:
@@ -116,4 +116,4 @@ async def check_access_to_variant(
         logger.error("Variant not found")
         return False
     organization_id = variant.organization_id.id
-    return await check_user_org_access(kwargs, str(organization_id), check_owner)
+    return await check_user_org_access(user_org_data, str(organization_id), check_owner)

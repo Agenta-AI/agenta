@@ -8,8 +8,8 @@ from docker.errors import DockerException
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import JSONResponse
 from agenta_backend.config import settings
-from typing import Any, Dict, List, Optional, Union
-from fastapi import APIRouter, Body, HTTPException, Depends
+from typing import Any, List, Optional, Union
+from fastapi import APIRouter, HTTPException, Depends
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
@@ -22,7 +22,6 @@ from agenta_backend.utils.common import (
     check_user_org_access,
     check_access_to_variant,
 )
-from agenta_backend.models.converters import app_variant_db_to_output
 from agenta_backend.models.api.api_models import (
     URI,
     App,
@@ -37,21 +36,11 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     Variant,
     UpdateVariantParameterPayload,
-    AppVariantFromImagePayload,
+    AddVariantFromImagePayload,
     AddVariantFromBasePayload,
-    AppVariantFromImagePayload,
+    EnvironmentOutput
 )
-from agenta_backend.models.db_models import (
-    AppDB,
-    AppVariantDB,
-    EnvironmentDB,
-    ImageDB,
-    TemplateDB,
-    UserDB,
-    OrganizationDB,
-    BaseDB,
-    ConfigDB,
-)
+from agenta_backend.models import converters
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
@@ -106,7 +95,7 @@ async def list_app_variants(
         app_variants = await db_manager.list_app_variants(
             app_id=app_id, **user_org_data
         )
-        return [app_variant_db_to_output(app_variant) for app_variant in app_variants]
+        return [converters.app_variant_db_to_output(app_variant) for app_variant in app_variants]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -131,7 +120,7 @@ async def get_variant_by_env(
         # Check if the fetched app variant is None and raise 404 if it is
         if app_variant_db is None:
             raise HTTPException(status_code=500, detail="App Variant not found")
-        return app_variant_db_to_output(app_variant_db)
+        return converters.app_variant_db_to_output(app_variant_db)
     except ValueError as e:
         # Handle ValueErrors and return 400 status code
         raise HTTPException(status_code=400, detail=str(e))
@@ -360,7 +349,7 @@ async def add_variant_from_previous(
             parameters=payload.parameters,
             **user_org_data,
         )
-        return app_variant_db_to_output(db_app_variant)
+        return converters.app_variant_db_to_output(db_app_variant)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -424,7 +413,7 @@ async def add_variant_from_base(
         )
         logger.debug(f"Successfully added new variant: {db_app_variant}")
 
-        return app_variant_db_to_output(db_app_variant)
+        return converters.app_variant_db_to_output(db_app_variant)
     except Exception as e:
         logger.error(f"An exception occurred while adding the new variant: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -639,7 +628,7 @@ async def update_variant_image(
             user_org_data, app_id=app_variant.app_id, check_owner=True
         )
         if not access_app:
-            error_msg = f"You do not have permission to make an update"
+            error_msg = "You do not have permission to make an update"
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
@@ -705,7 +694,7 @@ async def create_app_and_variant_from_template(
     image_name = f"agentaai/templates:{payload.image_tag}"
     # Save variant based on the image to database
     app_variant = await db_manager.add_variant_based_on_image(
-        app_id=app,
+        app=app,
         variant_name="app",
         docker_id=payload.image_id,
         tags=f"{image_name}",
@@ -733,4 +722,39 @@ async def create_app_and_variant_from_template(
         app_variant.variant_id
     )
     await app_manager.start_variant(db_app_variant, envvars, **user_org_data)
-    return app_variant_db_to_output(db_app_variant)
+    return converters.app_variant_db_to_output(db_app_variant)
+
+
+@router.get("/{app_id}/environments", response_model=List[EnvironmentOutput])
+async def list_environments(
+    app_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """
+    Lists the environments for the given app.
+    """
+    logger.debug(f"Listing environments for app: {app_id}")
+    try:
+        logger.debug("get user and org data")
+        user_and_org_data: dict = await get_user_and_org_id(stoken_session)
+
+        # Check if has app access
+        logger.debug("check_access_to_app")
+        access_app = await check_access_to_app(
+            user_org_data=user_and_org_data, app_id=app_id
+        )
+        logger.debug(f"access_app: {access_app}")
+        if not access_app:
+            error_msg = f"You do not have access to this app: {app_id}"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        else:
+            environments_db = await db_manager.list_environments(
+                app_id=app_id, **user_and_org_data
+            )
+            logger.debug(f"environments_db: {environments_db}")
+            return [converters.environment_db_to_output(env) for env in environments_db]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
