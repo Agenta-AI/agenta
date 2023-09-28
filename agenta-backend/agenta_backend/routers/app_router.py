@@ -41,7 +41,7 @@ from agenta_backend.models.api.api_models import (
     UpdateVariantParameterPayload,
     AppVariantFromImagePayload,
     AddVariantFromBasePayload,
-    AppVariantFromImagePayload
+    AppVariantFromImagePayload,
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -94,7 +94,9 @@ async def list_app_variants(
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-        access_app = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
+        access_app = await check_access_to_app(
+            user_org_data=user_org_data, app_id=app_id
+        )
         if not access_app:
             error_msg = f"You cannot access app: {app_id}"
             logger.error(error_msg)
@@ -736,7 +738,9 @@ async def add_app_variant_from_template(
     else:
         envvars = {} if payload.env_vars is None else payload.env_vars
 
-    db_app_variant = await new_db_manager.get_app_variant_instance_by_id(app_variant.variant_id)
+    db_app_variant = await new_db_manager.get_app_variant_instance_by_id(
+        app_variant.variant_id
+    )
     await new_app_manager.start_variant(db_app_variant, envvars, **user_org_data)
 
     return app_variant_db_to_output(db_app_variant)

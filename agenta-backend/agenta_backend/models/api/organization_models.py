@@ -27,4 +27,3 @@ class OrganizationUpdate(BaseModel):
 class OrganizationOutput(BaseModel):
     id: str
     name: str
-    

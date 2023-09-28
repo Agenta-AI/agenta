@@ -142,9 +142,7 @@ async def create_new_evaluation(
 
     variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
 
-    testset = await new_db_manager.fetch_testset_by_id(
-        testset_id=payload.testset_id
-    )
+    testset = await new_db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
     # Initialize and save evaluation instance to database
     eval_instance = EvaluationDB(
         app=app,
@@ -187,16 +185,16 @@ async def prepare_csvdata_and_create_evaluation_scenario(
     """
     Prepares CSV data and creates evaluation scenarios based on the inputs, evaluation
     type, and other parameters provided.
-    
+
     Args:
-        csvdata: A list of dictionaries representing the CSV data. 
-        inputs: A list of strings representing the names of the inputs in the variant. 
+        csvdata: A list of dictionaries representing the CSV data.
+        inputs: A list of strings representing the names of the inputs in the variant.
         evaluation_type: The type of evaluation
         new_evaluation: The instance of EvaluationDB
         user: The owner of the evaluation scenario
         app: The app the evaluation is going to belong to
     """
-    
+
     for datum in csvdata:
         # Check whether the inputs in the test set match the inputs in the variant
         try:
@@ -584,9 +582,7 @@ async def fetch_list_evaluations(
     ]
 
 
-async def fetch_evaluation(
-    evaluation_id: str, **user_org_data: dict
-) -> Evaluation:
+async def fetch_evaluation(evaluation_id: str, **user_org_data: dict) -> Evaluation:
     """
     Fetches a single evaluation based on its ID.
 
@@ -603,9 +599,7 @@ async def fetch_evaluation(
     return converters.evaluation_db_to_pydantic(evaluation)
 
 
-async def delete_evaluations(
-    evaluation_ids: List[str], **user_org_data: dict
-) -> None:
+async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -> None:
     """
     Delete evaluations by their IDs.
 
@@ -702,9 +696,7 @@ async def execute_custom_code_evaluation(
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
     # Check if user has app access
-    access = await check_access_to_app(
-        user_org_data=user_org_data, app_id=app_id
-    )
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403,
@@ -753,9 +745,7 @@ async def fetch_custom_evaluations(
         List[CustomEvaluationOutput]: ls=ist of custom evaluations
     """
     # Get user object
-    access = await check_access_to_app(
-        user_org_data=user_org_data, app_id=app_id
-    )
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403,
@@ -809,9 +799,7 @@ async def fetch_custom_evaluation_detail(
     # Get custom evaluation
     custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
     if not custom_eval:
-        raise HTTPException(
-            status_code=404, detail="Custom evaluation not found"
-        )
+        raise HTTPException(status_code=404, detail="Custom evaluation not found")
 
     return CustomEvaluationDetail(
         id=str(custom_eval.id),
@@ -839,9 +827,7 @@ async def fetch_custom_evaluation_names(
     user = await get_user_object(user_org_data["uid"])
 
     # Check if user has app access
-    access = await check_access_to_app(
-        user_org_data=user_org_data, app_id=app_id
-    )
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403,
