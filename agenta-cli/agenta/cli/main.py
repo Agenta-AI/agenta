@@ -109,7 +109,7 @@ def init(app_name: str):
     app_id = client.create_new_app(app_name, backend_host)
 
     # Set app toml configuration
-    config = {"app-name": app_name, "app_id": app_id, "backend_host": backend_host}
+    config = {"app_name": app_name, "app_id": app_id, "backend_host": backend_host}
     with open("config.toml", "w") as config_file:
         toml.dump(config, config_file)
 
