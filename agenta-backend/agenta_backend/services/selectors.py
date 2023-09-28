@@ -48,7 +48,7 @@ async def get_user_objectid(user_uid: str) -> Tuple[str, List]:
     return None, []
 
 
-async def get_user_own_org(user_uid: str) -> Organization:
+async def get_user_own_org(user_uid: str) -> OrganizationDB:
     """Get's the default users' organization from the database.
 
     Arguments:

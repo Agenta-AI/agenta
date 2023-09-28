@@ -24,6 +24,9 @@ from agenta_backend.utills.common import check_user_org_access, check_access_to_
 from agenta_backend.models.api.api_models import (
     URI,
     App,
+    AppOutput,
+    CreateApp,
+    CreateAppOutput,
     AppVariant,
     Image,
     DockerEnvVars,
@@ -66,7 +69,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.get("/list_variants/", response_model=List[AppVariantOutput])
+@router.get("/list_variants/", response_model=List[AppVariantOutput], tags=["depracated"])
+@router.get("/variants/", response_model=List[AppVariant])
 async def list_app_variants(
     app_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -87,7 +91,6 @@ async def list_app_variants(
 
         if app_id is not None:
             access_app = await check_access_to_app(kwargs, app_id=app_id)
-
             if not access_app:
                 error_msg = f"You cannot access app: {app_id}"
                 logger.error(error_msg)
@@ -135,6 +138,84 @@ async def get_variant_by_env(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/apps/{app_name}/", response_model=AppOutput)
+async def get_app_by_name(
+    app_name: str,
+    organization_id: Optional[str] = None,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Get an app by its name.
+
+    Arguments:
+        app_name (str): Name of app
+
+    Returns:
+        CreateAppOutput: the app id and name
+    """
+
+    try:
+        # Get user and org id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        if organization_id:
+            # check if user has access to the organization
+            access = await check_user_org_access(kwargs, organization_id)
+            if not access:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You do not have permission to access this app",
+                )
+        app_db = await new_db_manager.fetch_app_by_name(
+            app_name, organization_id**kwargs
+        )
+        return AppOutput(app_id=str(app_db.id), app_name=app_db.app_name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/apps/", response_model=CreateAppOutput)
+async def create_app(
+    payload: CreateApp,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> CreateAppOutput:
+    """Create a new app.
+
+    Arguments:
+        app_name (str): Name of app
+
+    Returns:
+        CreateAppOutput: the app id and name
+    """
+
+    try:
+        # Get user and org id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        if payload.organization_id:
+            # check if user has access to the organization
+            access = await check_user_org_access(kwargs, payload.organization_id)
+            if not access:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You do not have permission to access this app",
+                )
+            organization_id = payload.organization_id
+        else:
+            # Retrieve or create user organization
+            organization = await get_user_own_org(kwargs["uid"])
+            if organization is None:
+                organization = await new_db_manager.create_user_organization(
+                    kwargs["uid"]
+                )
+            organization_id = str(organization.id)
+
+        # Create new app and return the output
+        app_db = await new_db_manager.create_app(
+            payload.app_name, organization_id, **kwargs
+        )
+        return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/list_apps/", response_model=List[App])
 async def list_apps(
     org_id: Optional[str] = None,
@@ -159,7 +240,7 @@ async def list_apps(
 
 @router.post("/add/from_image/")
 async def add_variant_from_image(
-    app_variant: AppVariant,
+    app_variant: AppVariantFromImagePayload,
     image: Image,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
@@ -191,14 +272,23 @@ async def add_variant_from_image(
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
 
+        # Get user organization
+        organization = await get_user_own_org(kwargs["uid"])
         if app_variant.organization_id is None:
-            organization = await get_user_own_org(kwargs["uid"])
             app_variant.organization_id = str(organization.id)
 
         if image.organization_id is None:
             image.organization_id = str(organization.id)
 
-        await db_manager.add_variant_based_on_image(app_variant, image, **kwargs)
+        app_db = await new_db_manager.fetch_app_by_id(app_variant.app_id)
+        await new_db_manager.add_variant_based_on_image(
+            app_db,
+            app_variant.variant_name,
+            image.docker_id,
+            image.tags,
+            app_variant.organization_id,
+            **kwargs,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -355,7 +445,10 @@ async def start_variant(
             organization = await get_user_own_org(kwargs["uid"])
             app_variant.organization_id = str(organization.id)
 
-        url = await app_manager.start_variant(app_variant, envvars, **kwargs)
+        app_variant_db = await new_db_manager.fetch_app_variant_by_name_and_appid(
+            app_variant.variant_name, app_variant.app_id
+        )
+        url = await new_app_manager.start_variant(app_variant_db, envvars, **kwargs)
         return url
     except Exception as e:
         variant_from_db = await db_manager.get_variant_from_db(app_variant, **kwargs)
@@ -532,15 +625,13 @@ async def update_variant_image(
         kwargs: dict = await get_user_and_org_id(stoken_session)
         if app_variant.organization_id is None:
             app_instance = await get_app_instance(
-                app_variant.app_name, app_variant.variant_name
+                app_variant.app_id, app_variant.variant_name
             )
-            app_variant.organization_id = str(app_instance.organization_id)
+            app_variant.organization_id = str(app_instance.organization_id.id)
 
-        if image.organization_id is None:
-            image.organization_id = str(app_instance.organization_id.id)
-
-        access_app = await check_access_to_app(kwargs, app_variant=app_variant)
-
+        access_app = await check_access_to_app(
+            kwargs, app_id=app_variant.app_id, check_owner=True
+        )
         if not access_app:
             error_msg = f"You do not have permission to make an update"
             logger.error(error_msg)
@@ -549,12 +640,9 @@ async def update_variant_image(
                 status_code=400,
             )
         else:
-            await app_manager.update_variant_image(app_variant, image, **kwargs)
+            await new_app_manager.update_variant_image(app_variant, image, **kwargs)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-    except SQLAlchemyError as e:
-        detail = f"Database error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except DockerException as e:
         detail = f"Docker error while trying to update the app variant: {str(e)}"

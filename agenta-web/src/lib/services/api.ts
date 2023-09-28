@@ -1,6 +1,6 @@
 import useSWR from "swr"
 import axios from "@/lib//helpers/axiosConfig"
-import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
+import { parseOpenApiSchema } from "@/lib/helpers/openapi_parser"
 import {
     Variant,
     Parameter,
@@ -19,10 +19,10 @@ import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
-import {EvaluationFlow, EvaluationType} from "../enums"
-import {delay} from "../helpers/utils"
-import {useAppContext} from "@/contexts/app.context"
-import {useEffect} from "react"
+import { EvaluationFlow, EvaluationType } from "../enums"
+import { delay } from "../helpers/utils"
+import { useAppContext } from "@/contexts/app.context"
+import { useEffect } from "react"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -34,8 +34,8 @@ export async function fetchVariants(
     ignoreAxiosError: boolean = false,
 ): Promise<Variant[]> {
     const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_variants/?app_id=${appId}`,
-        {_ignoreError: ignoreAxiosError} as any,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/variants/?app_id=${appId}`,
+        { _ignoreError: ignoreAxiosError } as any,
     )
 
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -62,7 +62,7 @@ export async function fetchVariants(
 export function restartAppVariantContainer(variantId: string) {
     return axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/restart_container/`,
-        {variant_id: variantId},
+        { variant_id: variantId },
     )
 }
 
@@ -136,7 +136,7 @@ export const getVariantParametersFromOpenAPI = async (
 ) => {
     const appContainerURIPath = await getAppContainerURL(appId, variantId)
     const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/openapi.json`
-    const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
+    const response = await axios.get(url, { _ignoreError: ignoreAxiosError } as any)
     let APIParams = parseOpenApiSchema(response.data)
     // we create a new param for DictInput that will contain the name of the inputs
     APIParams = APIParams.map((param) => {
@@ -144,7 +144,7 @@ export const getVariantParametersFromOpenAPI = async (
             // if param.default is defined
             if (param?.default) {
                 param.default = param.default.map((item: string) => {
-                    return {name: item}
+                    return { name: item }
                 })
             } else {
                 param.default = []
@@ -154,7 +154,7 @@ export const getVariantParametersFromOpenAPI = async (
     })
     const initOptParams = APIParams.filter((param) => !param.input) // contains the default values too!
     const inputParams = APIParams.filter((param) => param.input) // don't have input values
-    return {initOptParams, inputParams}
+    return { initOptParams, inputParams }
 }
 
 // Define a type for our cache
@@ -217,7 +217,7 @@ export async function saveNewVariant(
         new_variant_name: newVariantName,
         new_config_name: newConfigName,
         parameters: parameters.reduce((acc, param) => {
-            return {...acc, [param.name]: param.default}
+            return { ...acc, [param.name]: param.default }
         }, {}),
     })
 }
@@ -228,7 +228,7 @@ export async function updateVariantParams(variantId: string, parameters: Paramet
         {
             variant_id: variantId,
             parameters: parameters.reduce((acc, param) => {
-                return {...acc, [param.name]: param.default}
+                return { ...acc, [param.name]: param.default }
             }, {}),
         },
     )
@@ -236,14 +236,14 @@ export async function updateVariantParams(variantId: string, parameters: Paramet
 
 export async function removeApp(appId: string) {
     await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/remove_app/`, {
-        data: {app_id: appId},
+        data: { app_id: appId },
     })
 }
 
 export async function removeVariant(variantId: string) {
     await axios.delete(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/remove_variant/`,
-        {data: {variant_id: variantId}},
+        { data: { variant_id: variantId } },
     )
 }
 
@@ -252,10 +252,10 @@ export async function removeVariant(variantId: string) {
  * @returns
  */
 export const useLoadTestsetsList = (appId: string) => {
-    const {data, error, mutate} = useSWR(
+    const { data, error, mutate } = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_id=${appId}`,
         fetcher,
-        {revalidateOnFocus: false},
+        { revalidateOnFocus: false },
     )
     return {
         testsets: data,
@@ -298,7 +298,7 @@ export const deleteTestsets = async (ids: string[]) => {
     const response = await axios({
         method: "delete",
         url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/`,
-        data: {testset_ids: ids},
+        data: { testset_ids: ids },
     })
     return response.data
 }
@@ -327,7 +327,7 @@ export const deleteEvaluations = async (ids: string[]) => {
     const response = await axios({
         method: "delete",
         url: `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`,
-        data: {evaluations_ids: ids},
+        data: { evaluations_ids: ids },
     })
     return response.data
 }
@@ -388,7 +388,7 @@ export const createNewEvaluation = async (
     const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/`,
         data,
-        {_ignoreError: ignoreAxiosError} as any,
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response.data.id
 }
@@ -429,7 +429,7 @@ export const evaluateAICritiqueForEvalScenario = async (
     const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/ai_critique`,
         data,
-        {_ignoreError: ignoreAxiosError} as any,
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response
 }
@@ -455,7 +455,7 @@ export const saveCustomCodeEvaluation = async (
     const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/`,
         payload,
-        {_ignoreError: ignoreAxiosError} as any,
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response
 }
@@ -463,7 +463,7 @@ export const saveCustomCodeEvaluation = async (
 export const fetchCustomEvaluations = async (app_id: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_id}`,
-        {_ignoreError: ignoreAxiosError} as any,
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response
 }
@@ -474,7 +474,7 @@ export const fetchCustomEvaluationDetail = async (
 ) => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${id}`,
-        {_ignoreError: ignoreAxiosError} as any,
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response.data
 }
@@ -485,7 +485,7 @@ export const fetchCustomEvaluationNames = async (
 ) => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${app_id}/names/`,
-        {_ignoreError: ignoreAxiosError} as any,
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response
 }
@@ -497,7 +497,7 @@ export const executeCustomEvaluationCode = async (
     const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/execute/${payload.evaluation_id}/`,
         payload,
-        {_ignoreError: ignoreAxiosError} as any,
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response
 }
@@ -509,19 +509,19 @@ export const updateEvaluationScenarioScore = async (
 ) => {
     const response = await axios.put(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
-        {score: score},
-        {_ignoreError: ignoreAxiosError} as any,
+        { score: score },
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response
 }
 
 export const useApps = () => {
-    const {data, error, isLoading} = useSWR(
+    const { data, error, isLoading } = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
         fetcher,
     )
 
-    const {setApps} = useAppContext()
+    const { setApps } = useAppContext()
 
     useEffect(() => {
         setApps(data)
@@ -544,7 +544,7 @@ export const getTemplates = async () => {
 export const pullTemplateImage = async (image_name: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`,
-        {_ignoreError: ignoreAxiosError} as any,
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response.data
 }
@@ -556,7 +556,7 @@ export const createAppFromTemplate = async (
     const response = await axios.post(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_template/`,
         templateObj,
-        {_ignoreError: ignoreAxiosError} as any,
+        { _ignoreError: ignoreAxiosError } as any,
     )
     return response
 }
@@ -579,7 +579,7 @@ export const waitForAppToStart = async (
                 try {
                     await getVariantParametersFromOpenAPI(appId, variant[0].variantId, true)
                     started = true
-                } catch {}
+                } catch { }
                 await delay(interval)
             }
         }
