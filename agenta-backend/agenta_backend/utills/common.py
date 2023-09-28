@@ -66,7 +66,7 @@ async def check_access_to_app(
     user_org_data: Dict[str, Union[str, list]],
     app: Optional[AppDB] = None,
     app_id: Optional[ObjectId] = None,
-    check_owner: bool = False
+    check_owner: bool = False,
 ) -> bool:
     """
     Check if a user has access to a specific application.

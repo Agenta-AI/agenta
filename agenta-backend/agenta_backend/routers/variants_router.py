@@ -98,7 +98,9 @@ async def list_variants(
                     status_code=400,
                 )
 
-        app_variants = await new_db_manager.list_app_variants(app_id=app_id, **user_org_data)
+        app_variants = await new_db_manager.list_app_variants(
+            app_id=app_id, **user_org_data
+        )
         return [app_variant_db_to_output(app_variant) for app_variant in app_variants]
 
     except Exception as e:

@@ -45,7 +45,9 @@ async def list_environments(
 
         # Check if has app access
         logger.debug(f"check_access_to_app")
-        access_app = await check_access_to_app(user_org_data=user_and_org_data, app_id=app_id)
+        access_app = await check_access_to_app(
+            user_org_data=user_and_org_data, app_id=app_id
+        )
         logger.debug(f"access_app: {access_app}")
         if not access_app:
             error_msg = f"You do not have access to this app: {app_id}"

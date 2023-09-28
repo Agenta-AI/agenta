@@ -69,7 +69,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.get("/list_variants/", response_model=List[AppVariantOutput], tags=["depracated"])
+@router.get(
+    "/list_variants/", response_model=List[AppVariantOutput], tags=["depracated"]
+)
 @router.get("/variants/", response_model=List[AppVariant])
 async def list_app_variants(
     app_id: Optional[str] = None,
@@ -99,7 +101,9 @@ async def list_app_variants(
                     status_code=400,
                 )
 
-        app_variants = await new_db_manager.list_app_variants(app_id=app_id, **user_org_data)
+        app_variants = await new_db_manager.list_app_variants(
+            app_id=app_id, **user_org_data
+        )
         return [app_variant_db_to_output(app_variant) for app_variant in app_variants]
 
     except Exception as e:
@@ -334,7 +338,9 @@ async def add_variant_from_previous(
                 detail="Previous app variant not found",
             )
         user_org_data: dict = await get_user_and_org_id(stoken_session)
-        access = await check_user_org_access(user_org_data, app_variant_db.organization_id.id)
+        access = await check_user_org_access(
+            user_org_data, app_variant_db.organization_id.id
+        )
         if not access:
             raise HTTPException(
                 status_code=500,
@@ -448,10 +454,14 @@ async def start_variant(
         app_variant_db = await new_db_manager.fetch_app_variant_by_name_and_appid(
             app_variant.variant_name, app_variant.app_id
         )
-        url = await new_app_manager.start_variant(app_variant_db, envvars, **user_org_data)
+        url = await new_app_manager.start_variant(
+            app_variant_db, envvars, **user_org_data
+        )
         return url
     except Exception as e:
-        variant_from_db = await db_manager.get_variant_from_db(app_variant, **user_org_data)
+        variant_from_db = await db_manager.get_variant_from_db(
+            app_variant, **user_org_data
+        )
         if variant_from_db is not None:
             await app_manager.remove_app_variant(app_variant, **user_org_data)
         raise HTTPException(status_code=500, detail=str(e))
@@ -640,7 +650,9 @@ async def update_variant_image(
                 status_code=400,
             )
         else:
-            await new_app_manager.update_variant_image(app_variant, image, **user_org_data)
+            await new_app_manager.update_variant_image(
+                app_variant, image, **user_org_data
+            )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -689,7 +701,9 @@ async def add_app_variant_from_template(
         app_name, organization_id, **user_org_data
     )
     if app is None:
-        app = await new_db_manager.create_app(app_name, organization_id, **user_org_data)
+        app = await new_db_manager.create_app(
+            app_name, organization_id, **user_org_data
+        )
         await new_db_manager.initialize_environments(app_ref=app, **user_org_data)
     # Create an Image instance with the extracted image id, and defined image name
     image_name = f"agentaai/templates:{payload.image_tag}"
