@@ -3,6 +3,7 @@ from typing import List, Optional, Dict, Any
 
 
 class AppVariant(BaseModel):
+    app_id: str
     app_name: str
     variant_name: str
     parameters: Optional[Dict[str, Any]]

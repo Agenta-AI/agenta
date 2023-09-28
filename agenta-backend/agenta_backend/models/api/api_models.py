@@ -4,6 +4,20 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 
+class CreateApp(BaseModel):
+    app_name: str
+    organization_id: Optional[str] = None
+
+
+class CreateAppOutput(BaseModel):
+    app_id: str
+    app_name: str
+
+
+class AppOutput(CreateAppOutput):
+    pass
+
+
 class Variant(BaseModel):
     variant_id: str
 
@@ -22,8 +36,14 @@ class AppVariant(BaseModel):
     organization_id: Optional[str] = None
 
 
+class AppVariantFromImagePayload(BaseModel):
+    app_id: str
+    variant_name: str
+
+
 class AppVariantOutput(BaseModel):
     app_id: str
+    app_name: str
     variant_id: str
     variant_name: str
     parameters: Optional[Dict[str, Any]]

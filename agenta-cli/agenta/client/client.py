@@ -14,15 +14,61 @@ class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
-def add_variant_to_server(app_name: str, variant_name: str, image: Image, host: str):
+def get_app_by_name(app_name: str, host: str) -> str:
+    """Get app by its name on the server.
+
+    Args:
+        app_name (str): Name of the app
+        host (str): Hostname of the server
+    """
+
+    response = requests.get(
+        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/apps/{app_name}/",
+        timeout=600,
+    )
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to get app failed with status code {response.status_code} and error message: {error_message}."
+        )
+    return response.json()["app_id"]
+
+
+def create_new_app(app_name: str, host: str) -> str:
+    """Creates new app on the server.
+
+    Args:
+        app_name (str): Name of the app
+        host (str): Hostname of the server
+    """
+
+    response = requests.post(
+        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/apps/",
+        json={"app_name": app_name},
+        timeout=600,
+    )
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to create new app failed with status code {response.status_code} and error message: {error_message}."
+        )
+    return response.json()["app_id"]
+
+
+def add_variant_to_server(
+    app_id: str, app_name: str, variant_name: str, image: Image, host: str
+):
     """Adds a variant to the server.
 
     Arguments:
+        app_id: The ID of the app
         app_name -- Name of the app
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(app_name=app_name, variant_name=variant_name)
+    app_variant: AppVariant = AppVariant(
+        app_id=app_id, variant_name=variant_name
+    )
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/add/from_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
@@ -33,21 +79,29 @@ def add_variant_to_server(app_name: str, variant_name: str, image: Image, host: 
         raise APIRequestError(
             f"Request to app_variant endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
+    return response.json()
 
 
-def start_variant(app_name: str, variant_name: str, host: str) -> str:
+def start_variant(app_id: str, app_name: str, variant_name: str, host: str) -> str:
     """Starts a container with the variant an expose its endpoint
 
     Arguments:
-        app_name --
-        variant_name -- _description_
+        app_id (str): The id of the app
+        app_name (str): The name of the app
+        variant_name -- The name of the app variant
 
     Returns:
         The endpoint of the container
     """
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/start/",
-        json={"app_variant": {"app_name": app_name, "variant_name": variant_name}},
+        json={
+            "app_variant": {
+                "app_id": app_id,
+                "app_name": app_name,
+                "variant_name": variant_name,
+            }
+        },
         timeout=600,
     )
 
@@ -59,17 +113,17 @@ def start_variant(app_name: str, variant_name: str, host: str) -> str:
     return response.json()["uri"]
 
 
-def list_variants(app_name: str, host: str) -> List[AppVariant]:
+def list_variants(app_id: str, host: str) -> List[AppVariant]:
     """Lists all the variants registered in the backend for an app
 
     Arguments:
-        app_name -- the app name to which to return all the variants
+        app_id -- the app id to which to return all the variants
 
     Returns:
         a list of the variants using the pydantic model
     """
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/list_variants/?app_name={app_name}",
+        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/list_variants/?app_id={app_id}",
         timeout=600,
     )
 
@@ -107,15 +161,20 @@ def remove_variant(app_name: str, variant_name: str, host: str):
         )
 
 
-def update_variant_image(app_name: str, variant_name: str, image: Image, host: str):
+def update_variant_image(
+    app_id: str, app_name: str, variant_name: str, image: Image, host: str
+):
     """Adds a variant to the server.
 
     Arguments:
+        app_id: The ID of the app
         app_name -- Name of the app
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(app_name=app_name, variant_name=variant_name)
+    app_variant: AppVariant = AppVariant(
+        app_id=app_id, app_name=app_name, variant_name=variant_name
+    )
     response = requests.put(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/update_variant_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
@@ -129,11 +188,11 @@ def update_variant_image(app_name: str, variant_name: str, image: Image, host: s
 
 
 def send_docker_tar(
-    app_name: str, variant_name: str, tar_path: Path, host: str
+    app_id: str, variant_name: str, tar_path: Path, host: str
 ) -> Image:
     with tar_path.open("rb") as tar_file:
         response = requests.post(
-            f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_name={app_name}&variant_name={variant_name}",
+            f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_id={app_id}&&variant_name={variant_name}",
             files={
                 "tar_file": tar_file,
             },

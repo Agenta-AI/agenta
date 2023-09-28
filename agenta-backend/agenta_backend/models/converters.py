@@ -89,17 +89,19 @@ def app_variant_db_to_pydantic(
     app_variant_db: AppVariantDB, previous_variant_name: str = None
 ) -> AppVariant:
     return AppVariant(
-        app_id=str(app_variant_db.id),
+        app_id=str(app_variant_db.app_id.id),
+        app_name=app_variant_db.app_id.app_name,
         variant_name=app_variant_db.variant_name,
         parameters=app_variant_db.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
-        organization_id=app_variant_db.organization_id,
+        organization_id=str(app_variant_db.organization_id.id),
     )
 
 
 def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
     return AppVariantOutput(
         app_id=str(app_variant_db.app_id.id),
+        app_name=str(app_variant_db.app_id.app_name),
         variant_name=app_variant_db.variant_name,
         variant_id=str(app_variant_db.id),
         user_id=str(app_variant_db.user_id.id),
@@ -132,7 +134,7 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
 
 def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
     return ImageExtended(
-        organization_id=image_db.organization_id,
+        organization_id=str(image_db.organization_id.id),
         docker_id=image_db.docker_id,
         tags=image_db.tags,
         id=str(image_db.id),

@@ -15,7 +15,12 @@ from agenta_backend.models.api.api_models import (
     Image,
     ImageExtended,
 )
-from agenta_backend.models.db_models import AppVariantDB, TestSetDB, EnvironmentDB
+from agenta_backend.models.converters import app_variant_db_to_pydantic
+from agenta_backend.models.db_models import (
+    AppVariantDB,
+    TestSetDB,
+    EnvironmentDB,
+)
 from agenta_backend.services import new_db_manager, docker_utils
 from docker.errors import DockerException
 
@@ -24,7 +29,9 @@ logger.setLevel(logging.DEBUG)
 
 
 async def start_variant(
-    db_app_variant: AppVariantDB, env_vars: DockerEnvVars = None, **kwargs: dict
+    db_app_variant: AppVariantDB,
+    env_vars: DockerEnvVars = None,
+    **kwargs: dict,
 ) -> URI:
     """
     Starts a Docker container for a given app variant.
@@ -76,6 +83,100 @@ async def start_variant(
     return uri
 
 
+async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: dict):
+    """Updates the image for app variant in the database.
+
+    Arguments:
+        app_variant -- the app variant to update
+        image -- the image to update
+    """
+    if (
+        app_variant.app_id in ["", None]
+        or app_variant.variant_name
+        in [
+            "",
+            None,
+        ]
+        or app_variant.organization_id in ["", None]
+    ):
+        msg = "App id and variant name, or organization_id cannot be empty"
+        logger.error(msg)
+        raise ValueError(msg)
+    if image.tags in ["", None]:
+        msg = "Image tags cannot be empty"
+        logger.error(msg)
+        raise ValueError(msg)
+    if not image.tags.startswith(settings.registry):
+        raise ValueError(
+            "Image should have a tag starting with the registry name (agenta-server)"
+        )
+    if image not in docker_utils.list_images():
+        raise DockerException(
+            f"Image {image.docker_id} with tags {image.tags} not found"
+        )
+
+    variant_exist = await new_db_manager.fetch_app_variant_by_name_and_appid(
+        app_variant.variant_name, app_variant.app_id
+    )
+    if variant_exist is None:
+        msg = f"App variant {app_variant.app_name}/{app_variant.variant_name} not found in DB"
+        logger.error(msg)
+        raise ValueError(msg)
+
+    old_variant = app_variant_db_to_pydantic(variant_exist)
+    old_image = await new_db_manager.get_image(old_variant, **kwargs)
+    app_db = await new_db_manager.get_app_instance_by_id(old_variant.app_id)
+    try:
+        container_ids = docker_utils.stop_containers_based_on_image(old_image)
+        logger.info(f"Containers {container_ids} stopped")
+        for container_id in container_ids:
+            docker_utils.delete_container(container_id)
+            logger.info(f"Container {container_id} deleted")
+
+        await remove_app_variant(app_variant_id=str(variant_exist.id), **kwargs)
+    except Exception as e:
+        logger.error(f"Error removing old variant: {str(e)}")
+        logger.error(
+            f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}"
+        )
+        logger.error("Previous variant removed but new variant not added. Rolling back")
+        await new_db_manager.add_variant_based_on_image(
+            app_db,
+            old_variant.variant_name,
+            old_image.docker_id,
+            old_image.tags,
+            old_variant.organization_id,
+            **kwargs,
+        )
+        raise
+
+    try:
+        logger.info(
+            f"Updating variant {app_variant.app_name}/{app_variant.variant_name}"
+        )
+        new_app_db = await new_db_manager.create_app(
+            app_variant.app_name, app_variant.organization_id, **kwargs
+        )
+        app_variant_output = await new_db_manager.add_variant_based_on_image(
+            app_id=new_app_db,
+            variant_name=app_variant.variant_name,
+            docker_id=image.docker_id,
+            tags=image.tags,
+            organization_id=str(new_app_db.organization_id.id),
+            **kwargs,
+        )
+        logger.info(
+            f"Starting variant {app_variant.app_name}/{app_variant.variant_name}"
+        )
+        variant_db = await new_db_manager.fetch_app_variant_by_name_and_appid(
+            app_variant_output.variant_name, app_variant_output.app_id
+        )
+        await start_variant(variant_db, **kwargs)
+    except Exception as e:
+        logger.error("Error updating variant")
+        raise
+
+
 async def remove_app_variant(
     app_variant_id: str = None, app_variant_db=None, **kwargs: dict
 ) -> None:
@@ -98,9 +199,11 @@ async def remove_app_variant(
     assert not (
         app_variant_id and app_variant_db
     ), "Only one of app_variant_id or app_variant_db must be provided"
+
     logger.debug(f"Removing app variant {app_variant_id}")
     if app_variant_id:
         app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
+
     logger.debug(f"Fetched app variant {app_variant_db}")
     app_id = app_variant_db.app_id.id
     if app_variant_db is None:
@@ -131,7 +234,7 @@ async def remove_app_variant(
                     _delete_docker_image(image)  # TODO: To implement in ee version
             else:
                 logger.debug(
-                    f"Image associated wit`h app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
+                    f"Image associated with app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
                 )
         else:
             logger.debug(f"remove_app_variant")
