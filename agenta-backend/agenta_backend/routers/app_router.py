@@ -446,7 +446,7 @@ async def remove_app(
         )
 
         if not access_app:
-            error_msg = f"You do not have permission to delete app: {app.app_name}"
+            error_msg = f"You do not have permission to delete this app"
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},

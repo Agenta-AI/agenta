@@ -5,7 +5,11 @@ from bson import ObjectId
 from odmantic import query
 from fastapi import HTTPException
 from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.tests.app_variant_router_fixture import get_first_user_object
+from agenta_backend.tests.app_variant_router_fixture import (
+    get_first_user_app,
+    get_first_user_object,
+    get_second_user_object,
+    )
 
 from agenta_backend.models.db_models import (
     AppDB,
@@ -186,3 +190,35 @@ async def test_add_app_variant_from_template(get_first_user_object):
         config_name=response.config_name,
         config_id=response.config_id,
     )
+
+
+@pytest.mark.asyncio
+async def test_delete_app(get_first_user_app):
+
+    app = await get_first_user_app
+    
+    payload = App(app_id=str(app.id))
+    
+    await app_router.remove_app(payload)
+    
+    find_app = await engine.find_one(AppDB, AppDB.id == app.id)
+    assert find_app == None
+
+@pytest.mark.asyncio
+async def test_delete_app_without_permission(get_second_user_object):
+
+    user2 = await get_second_user_object
+    user2_organization = await new_db_manager.get_user_own_org(user2.uid)
+    
+    user2_app = AppDB(
+        app_name="test_app_by_user2",
+        organization_id=user2_organization,
+        user_id=user2,
+    )
+    await engine.save(user2_app)
+    
+    payload = App(app_id=str(user2_app.id))
+    
+    response = await app_router.remove_app(payload)
+    assert response.status_code == 400
+    
