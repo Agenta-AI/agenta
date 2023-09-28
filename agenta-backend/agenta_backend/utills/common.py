@@ -49,17 +49,17 @@ async def get_app_instance(
 async def check_user_org_access(
     kwargs: dict, organization_id: str, owner=False
 ) -> bool:
-    if not owner:
-        user_organizations: List = kwargs["organization_ids"]
-        object_organization_id = ObjectId(organization_id)
-        return object_organization_id in user_organizations
-    elif owner:
+    if owner:  # Check that the user is the owner of the organization
         user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
         organization = await get_organization(organization_id)
         if not organization:
             logger.error("Organization not found")
             raise Exception("Organization not found")
         return organization.owner == str(user.id)
+    else:
+        user_organizations: List = kwargs["organization_ids"]
+        object_organization_id = ObjectId(organization_id)
+        return object_organization_id in user_organizations
 
 
 async def check_access_to_app(
