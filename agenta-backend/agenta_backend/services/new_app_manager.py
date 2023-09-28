@@ -83,9 +83,7 @@ async def start_variant(
     return uri
 
 
-async def update_variant_image(
-    app_variant: AppVariant, image: Image, **kwargs: dict
-):
+async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: dict):
     """Updates the image for app variant in the database.
 
     Arguments:
@@ -135,17 +133,13 @@ async def update_variant_image(
             docker_utils.delete_container(container_id)
             logger.info(f"Container {container_id} deleted")
 
-        await remove_app_variant(
-            app_variant_id=str(variant_exist.id), **kwargs
-        )
+        await remove_app_variant(app_variant_id=str(variant_exist.id), **kwargs)
     except Exception as e:
         logger.error(f"Error removing old variant: {str(e)}")
         logger.error(
             f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}"
         )
-        logger.error(
-            "Previous variant removed but new variant not added. Rolling back"
-        )
+        logger.error("Previous variant removed but new variant not added. Rolling back")
         await new_db_manager.add_variant_based_on_image(
             app_db,
             old_variant.variant_name,
@@ -208,25 +202,19 @@ async def remove_app_variant(
 
     logger.debug(f"Removing app variant {app_variant_id}")
     if app_variant_id:
-        app_variant_db = await new_db_manager.fetch_app_variant_by_id(
-            app_variant_id
-        )
+        app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
 
     logger.debug(f"Fetched app variant {app_variant_db}")
     app_id = app_variant_db.app_id.id
     if app_variant_db is None:
-        error_msg = (
-            f"Failed to delete app variant {app_variant_id}: Not found in DB."
-        )
+        error_msg = f"Failed to delete app variant {app_variant_id}: Not found in DB."
         logger.error(error_msg)
         raise ValueError(error_msg)
 
     try:
         logger.debug(f"check_is_last_variant_for_image {app_variant_db}")
         is_last_variant_for_image = (
-            await new_db_manager.check_is_last_variant_for_image(
-                app_variant_db
-            )
+            await new_db_manager.check_is_last_variant_for_image(app_variant_db)
         )
         logger.debug(f"Result {is_last_variant_for_image}")
         if is_last_variant_for_image:
@@ -237,17 +225,13 @@ async def remove_app_variant(
                 logger.debug("_stop_and_delete_app_container")
                 await _stop_and_delete_app_container(app_variant_db, **kwargs)
                 logger.debug("remove_app_variant")
-                await new_db_manager.remove_app_variant(
-                    app_variant_db, **kwargs
-                )
+                await new_db_manager.remove_app_variant(app_variant_db, **kwargs)
                 logger.debug("remove_image")
                 await new_db_manager.remove_image(image, **kwargs)
 
                 # Only delete the docker image for users that are running the oss version
                 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
-                    _delete_docker_image(
-                        image
-                    )  # TODO: To implement in ee version
+                    _delete_docker_image(image)  # TODO: To implement in ee version
             else:
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
@@ -303,19 +287,15 @@ async def remove_app_related_resources(app_id: str, **kwargs: dict):
     """
     try:
         # Delete associated environments
-        environments: List[
-            EnvironmentDB
-        ] = await new_db_manager.list_environments(app_id, **kwargs)
+        environments: List[EnvironmentDB] = await new_db_manager.list_environments(
+            app_id, **kwargs
+        )
         for environment_db in environments:
             await new_db_manager.remove_environment(environment_db, **kwargs)
-            logger.info(
-                f"Successfully deleted environment {environment_db.name}."
-            )
+            logger.info(f"Successfully deleted environment {environment_db.name}.")
         # Delete associated testsets
         await new_db_manager.remove_app_testsets(app_id, **kwargs)
-        logger.info(
-            f"Successfully deleted test sets associated with app {app_id}."
-        )
+        logger.info(f"Successfully deleted test sets associated with app {app_id}.")
 
         await new_db_manager.remove_app_by_id(app_id, **kwargs)
         logger.info(f"Successfully remove app object {app_id}.")
@@ -360,13 +340,9 @@ async def remove_app(app_id: str, **kwargs: dict):
         logger.error(error_msg)
         raise ValueError(error_msg)
     try:
-        app_variants = await new_db_manager.list_app_variants(
-            app_id=app_id, **kwargs
-        )
+        app_variants = await new_db_manager.list_app_variants(app_id=app_id, **kwargs)
         if len(app_variants) == 0:
-            raise ValueError(
-                f"Failed to delete app {app_id}: No variants found in DB."
-            )
+            raise ValueError(f"Failed to delete app {app_id}: No variants found in DB.")
         for app_variant_db in app_variants:
             await remove_app_variant(app_variant_db=app_variant_db, **kwargs)
             logger.info(
@@ -390,13 +366,9 @@ async def update_variant_parameters(
     """
     assert app_variant_id is not None, "app_variant_id must be provided"
     assert parameters is not None, "parameters must be provided"
-    app_variant_db = await new_db_manager.fetch_app_variant_by_id(
-        app_variant_id
-    )
+    app_variant_db = await new_db_manager.fetch_app_variant_by_id(app_variant_id)
     if app_variant_db is None:
-        error_msg = (
-            f"Failed to update app variant {app_variant_id}: Not found in DB."
-        )
+        error_msg = f"Failed to update app variant {app_variant_id}: Not found in DB."
         logger.error(error_msg)
         raise ValueError(error_msg)
     try:
