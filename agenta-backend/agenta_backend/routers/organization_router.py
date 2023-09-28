@@ -42,4 +42,3 @@ async def get_user_organization(
         return OrganizationOutput(id=str(org_db.id), name=org_db.name)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    

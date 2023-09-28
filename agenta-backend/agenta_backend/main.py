@@ -11,7 +11,7 @@ from agenta_backend.routers import (
     evaluation_router,
     observability_router,
     testset_router,
-    organization_router
+    organization_router,
 )
 from agenta_backend.services.cache_manager import (
     retrieve_templates_from_dockerhub_cached,
