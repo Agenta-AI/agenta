@@ -75,7 +75,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.get("/{app_id}/variants/", response_model=List[AppVariant])
+@router.get("/{app_id}/variants/", response_model=List[AppVariantOutput])
 async def list_app_variants(
     app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -94,7 +94,7 @@ async def list_app_variants(
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-        access_app = await check_access_to_app(user_org_data, app_id=app_id)
+        access_app = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
         if not access_app:
             error_msg = f"You cannot access app: {app_id}"
             logger.error(error_msg)
