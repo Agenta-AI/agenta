@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 class CreateApp(BaseModel):
     app_name: str
+    organization_id: Optional[str] = None
 
 
 class CreateAppOutput(BaseModel):

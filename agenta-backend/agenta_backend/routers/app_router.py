@@ -142,6 +142,7 @@ async def get_variant_by_env(
 @router.get("/apps/{app_name}/", response_model=AppOutput)
 async def get_app_by_name(
     app_name: str,
+    organization_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Get an app by its name.
@@ -156,7 +157,15 @@ async def get_app_by_name(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-        app_db = await new_db_manager.fetch_app_by_name(app_name, **kwargs)
+        if organization_id:
+            # check if user has access to the organization
+            access = await check_user_org_access(kwargs, organization_id)
+            if not access:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You do not have permission to access this app",
+                )
+        app_db = await new_db_manager.fetch_app_by_name(app_name, organization_id ** kwargs)
         return AppOutput(app_id=str(app_db.id), app_name=app_db.app_name)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -179,15 +188,25 @@ async def create_app(
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
-
-        # Retrieve or create user organization
-        organization = await get_user_own_org(kwargs["uid"])
-        if organization is None:
-            organization = await new_db_manager.create_user_organization(kwargs["uid"])
+        if payload.organization_id:
+            # check if user has access to the organization
+            access = await check_user_org_access(kwargs, payload.organization_id)
+            if not access:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You do not have permission to access this app",
+                )
+            organization_id = payload.organization_id
+        else:
+            # Retrieve or create user organization
+            organization = await get_user_own_org(kwargs["uid"])
+            if organization is None:
+                organization = await new_db_manager.create_user_organization(kwargs["uid"])
+            organization_id = str(organization.id)
 
         # Create new app and return the output
         app_db = await new_db_manager.create_app(
-            payload.app_name, str(organization.id), **kwargs
+            payload.app_name, organization_id, **kwargs
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:

@@ -216,7 +216,7 @@ async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
     return app
 
 
-async def fetch_app_by_name(app_name: str, **kwargs: dict) -> AppDB:
+async def fetch_app_by_name(app_name: str, organization_id: Optional[str] = None, **kwargs: dict) -> AppDB:
     """Fetches an app by its name.
 
     Args:
@@ -225,10 +225,15 @@ async def fetch_app_by_name(app_name: str, **kwargs: dict) -> AppDB:
     Returns:
         AppDB: the instance of the app
     """
-
-    user = await get_user_object(kwargs["uid"])
-    query_expression = (AppDB.app_name == app_name) & (AppDB.user_id == user.id)
-    app = await engine.find_one(AppDB, query_expression)
+    if not organization_id:
+        user = await get_user_object(kwargs["uid"])
+        query_expression = (AppDB.app_name == app_name) & (AppDB.user_id == user.id)
+        app = await engine.find_one(AppDB, query_expression)
+    else:
+        query_expression = (AppDB.app_name == app_name) & (
+            AppDB.organization_id == ObjectId(organization_id)
+        )
+        app = await engine.find_one(AppDB, query_expression)
     return app
 
 
