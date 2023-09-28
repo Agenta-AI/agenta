@@ -63,22 +63,40 @@ async def check_user_org_access(
 
 
 async def check_access_to_app(
-    kwargs: Dict[str, Union[str, list]],
+    user_org_data: Dict[str, Union[str, list]],
     app: Optional[AppDB] = None,
-    app_id: Optional[str] = None,
-    check_owner: bool = False,
+    app_id: Optional[ObjectId] = None,
+    check_owner: bool = False
 ) -> bool:
-    if app_id is None and app is None:
-        raise Exception("No app or app_id provided")
-    if app_id is not None and app is not None:
-        raise Exception("Provide either app or app_id, not both")
-    if app is None and app_id is not None:
-        app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
+    """
+    Check if a user has access to a specific application.
+
+    Args:
+        user_org_data (Dict[str, Union[str, list]]): User-specific information.
+        app (Optional[AppDB]): An instance of the AppDB model representing the application.
+        app_id (Optional[ObjectId]): The ID of the application.
+        check_owner (bool): Whether to check if the user is the owner of the application.
+
+    Returns:
+        bool: True if the user has access, False otherwise.
+
+    Raises:
+        Exception: If neither or both `app` and `app_id` are provided.
+
+    """
+    if (app is None) == (app_id is None):
+        raise Exception("Provide either app or app_id, not both or neither")
+
+    # Fetch the app if only app_id is provided.
+    if app is None:
+        app = await engine.find_one(AppDB, AppDB.id == app_id)
         if app is None:
             logger.error("App not found")
             return False
+
+    # Check user's access to the organization linked to the app.
     organization_id = app.organization_id.id
-    return await check_user_org_access(kwargs, str(organization_id), check_owner)
+    return await check_user_org_access(user_org_data, str(organization_id), check_owner)
 
 
 async def check_access_to_variant(

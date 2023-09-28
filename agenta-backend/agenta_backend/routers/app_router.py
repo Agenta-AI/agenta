@@ -87,10 +87,10 @@ async def list_app_variants(
     """
 
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
 
         if app_id is not None:
-            access_app = await check_access_to_app(kwargs, app_id=app_id)
+            access_app = await check_access_to_app(user_org_data, app_id=app_id)
             if not access_app:
                 error_msg = f"You cannot access app: {app_id}"
                 logger.error(error_msg)
@@ -99,7 +99,7 @@ async def list_app_variants(
                     status_code=400,
                 )
 
-        app_variants = await new_db_manager.list_app_variants(app_id=app_id, **kwargs)
+        app_variants = await new_db_manager.list_app_variants(app_id=app_id, **user_org_data)
         return [app_variant_db_to_output(app_variant) for app_variant in app_variants]
 
     except Exception as e:
@@ -116,12 +116,12 @@ async def get_variant_by_env(
 
     try:
         # Retrieve the user and organization ID based on the session token
-        kwargs = await get_user_and_org_id(stoken_session)
-        await check_access_to_app(kwargs, app_id=app_id)
+        user_org_data = await get_user_and_org_id(stoken_session)
+        await check_access_to_app(user_org_data, app_id=app_id)
         # Fetch the app variant using the provided app_name and variant_name
         app_variant_db = (
             await new_db_manager.get_app_variant_by_app_name_and_environment(
-                app_id=app_id, environment=environment, **kwargs
+                app_id=app_id, environment=environment, **user_org_data
             )
         )
         # Check if the fetched app variant is None and raise 404 if it is
@@ -155,17 +155,17 @@ async def get_app_by_name(
 
     try:
         # Get user and org id
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
         if organization_id:
             # check if user has access to the organization
-            access = await check_user_org_access(kwargs, organization_id)
+            access = await check_user_org_access(user_org_data, organization_id)
             if not access:
                 raise HTTPException(
                     status_code=403,
                     detail="You do not have permission to access this app",
                 )
         app_db = await new_db_manager.fetch_app_by_name(
-            app_name, organization_id**kwargs
+            app_name, organization_id**user_org_data
         )
         return AppOutput(app_id=str(app_db.id), app_name=app_db.app_name)
     except Exception as e:
@@ -188,10 +188,10 @@ async def create_app(
 
     try:
         # Get user and org id
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
         if payload.organization_id:
             # check if user has access to the organization
-            access = await check_user_org_access(kwargs, payload.organization_id)
+            access = await check_user_org_access(user_org_data, payload.organization_id)
             if not access:
                 raise HTTPException(
                     status_code=403,
@@ -200,16 +200,16 @@ async def create_app(
             organization_id = payload.organization_id
         else:
             # Retrieve or create user organization
-            organization = await get_user_own_org(kwargs["uid"])
+            organization = await get_user_own_org(user_org_data["uid"])
             if organization is None:
                 organization = await new_db_manager.create_user_organization(
-                    kwargs["uid"]
+                    user_org_data["uid"]
                 )
             organization_id = str(organization.id)
 
         # Create new app and return the output
         app_db = await new_db_manager.create_app(
-            payload.app_name, organization_id, **kwargs
+            payload.app_name, organization_id, **user_org_data
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
@@ -230,8 +230,8 @@ async def list_apps(
         List[App]
     """
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
-        apps = await new_db_manager.list_apps(org_id, **kwargs)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        apps = await new_db_manager.list_apps(org_id, **user_org_data)
         return apps
     except Exception as e:
         logger.error(f"list_apps exception ===> {e}")
@@ -270,10 +270,10 @@ async def add_variant_from_image(
 
     try:
         # Get user and org id
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
 
         # Get user organization
-        organization = await get_user_own_org(kwargs["uid"])
+        organization = await get_user_own_org(user_org_data["uid"])
         if app_variant.organization_id is None:
             app_variant.organization_id = str(organization.id)
 
@@ -287,7 +287,7 @@ async def add_variant_from_image(
             image.docker_id,
             image.tags,
             app_variant.organization_id,
-            **kwargs,
+            **user_org_data,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -333,8 +333,8 @@ async def add_variant_from_previous(
                 status_code=500,
                 detail="Previous app variant not found",
             )
-        kwargs: dict = await get_user_and_org_id(stoken_session)
-        access = await check_user_org_access(kwargs, app_variant_db.organization_id.id)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        access = await check_user_org_access(user_org_data, app_variant_db.organization_id.id)
         if not access:
             raise HTTPException(
                 status_code=500,
@@ -344,7 +344,7 @@ async def add_variant_from_previous(
             previous_app_variant=app_variant_db,
             new_variant_name=payload.new_variant_name,
             parameters=payload.parameters,
-            **kwargs,
+            **user_org_data,
         )
         return app_variant_db_to_output(db_app_variant)
     except Exception as e:
@@ -426,7 +426,7 @@ async def start_variant(
     logger.info("Starting variant %s", app_variant)
     try:
         # Get user and org iD
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
 
         # Inject env vars to docker container
         if os.environ["FEATURE_FLAG"] == "demo":
@@ -442,18 +442,18 @@ async def start_variant(
             envvars = {} if env_vars is None else env_vars.env_vars
 
         if app_variant.organization_id is None:
-            organization = await get_user_own_org(kwargs["uid"])
+            organization = await get_user_own_org(user_org_data["uid"])
             app_variant.organization_id = str(organization.id)
 
         app_variant_db = await new_db_manager.fetch_app_variant_by_name_and_appid(
             app_variant.variant_name, app_variant.app_id
         )
-        url = await new_app_manager.start_variant(app_variant_db, envvars, **kwargs)
+        url = await new_app_manager.start_variant(app_variant_db, envvars, **user_org_data)
         return url
     except Exception as e:
-        variant_from_db = await db_manager.get_variant_from_db(app_variant, **kwargs)
+        variant_from_db = await db_manager.get_variant_from_db(app_variant, **user_org_data)
         if variant_from_db is not None:
-            await app_manager.remove_app_variant(app_variant, **kwargs)
+            await app_manager.remove_app_variant(app_variant, **user_org_data)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -491,12 +491,12 @@ async def remove_variant(
         HTTPException: If there is a problem removing the app variant
     """
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
 
         # Check app access
 
         access_app = await check_access_to_variant(
-            kwargs, variant_id=variant.variant_id, check_owner=True
+            user_org_data, variant_id=variant.variant_id, check_owner=True
         )
 
         if not access_app:
@@ -508,7 +508,7 @@ async def remove_variant(
             )
         else:
             await new_app_manager.remove_app_variant(
-                app_variant_id=variant.variant_id, **kwargs
+                app_variant_id=variant.variant_id, **user_org_data
             )
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
@@ -533,9 +533,9 @@ async def remove_app(
             detail="App id is required",
         )
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
-            kwargs, app_id=app.app_id, check_owner=True
+            user_org_data, app_id=app.app_id, check_owner=True
         )
 
         if not access_app:
@@ -546,7 +546,7 @@ async def remove_app(
                 status_code=400,
             )
         else:
-            await new_app_manager.remove_app(app_id=app.app_id, **kwargs)
+            await new_app_manager.remove_app(app_id=app.app_id, **user_org_data)
     except SQLAlchemyError as e:
         detail = f"Database error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -579,9 +579,9 @@ async def update_variant_parameters(
             detail="Parameters are required",
         )
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_variant = await check_access_to_variant(
-            kwargs=kwargs, variant_id=payload.variant_id
+            user_org_data=user_org_data, variant_id=payload.variant_id
         )
 
         if not access_variant:
@@ -595,7 +595,7 @@ async def update_variant_parameters(
             await new_app_manager.update_variant_parameters(
                 app_variant_id=payload.variant_id,
                 parameters=payload.parameters,
-                **kwargs,
+                **user_org_data,
             )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
@@ -622,7 +622,7 @@ async def update_variant_image(
     """
 
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
         if app_variant.organization_id is None:
             app_instance = await get_app_instance(
                 app_variant.app_id, app_variant.variant_name
@@ -630,7 +630,7 @@ async def update_variant_image(
             app_variant.organization_id = str(app_instance.organization_id.id)
 
         access_app = await check_access_to_app(
-            kwargs, app_id=app_variant.app_id, check_owner=True
+            user_org_data, app_id=app_variant.app_id, check_owner=True
         )
         if not access_app:
             error_msg = f"You do not have permission to make an update"
@@ -640,7 +640,7 @@ async def update_variant_image(
                 status_code=400,
             )
         else:
-            await new_app_manager.update_variant_image(app_variant, image, **kwargs)
+            await new_app_manager.update_variant_image(app_variant, image, **user_org_data)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -667,18 +667,18 @@ async def add_app_variant_from_template(
     """
 
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Check if the user has reached app limit
     if os.environ["FEATURE_FLAG"] == "demo":
-        if await db_manager.count_apps(**kwargs) > 2:
+        if await db_manager.count_apps(**user_org_data) > 2:
             raise HTTPException(
                 status_code=500,
                 detail="Sorry, you can only create two Apps at this time.",
             )
 
     if payload.organization_id is None:
-        organization = await get_user_own_org(kwargs["uid"])
+        organization = await get_user_own_org(user_org_data["uid"])
         organization_id = organization.id
     else:
         organization_id = payload.organization_id
@@ -686,11 +686,11 @@ async def add_app_variant_from_template(
     # Check if the app exists, if not create it
     app_name = payload.app_name.lower()
     app = await new_db_manager.fetch_app_by_name_and_organization(
-        app_name, organization_id, **kwargs
+        app_name, organization_id, **user_org_data
     )
     if app is None:
-        app = await new_db_manager.create_app(app_name, organization_id, **kwargs)
-        await new_db_manager.initialize_environments(app_ref=app, **kwargs)
+        app = await new_db_manager.create_app(app_name, organization_id, **user_org_data)
+        await new_db_manager.initialize_environments(app_ref=app, **user_org_data)
     # Create an Image instance with the extracted image id, and defined image name
     image_name = f"agentaai/templates:{payload.image_tag}"
     # Save variant based on the image to database
@@ -702,13 +702,13 @@ async def add_app_variant_from_template(
         organization_id=organization_id,
         base_name="app",
         config_name="default",
-        **kwargs,
+        **user_org_data,
     )
 
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] == "demo":
         # Create testset for apps created
-        # await db_manager.add_testset_to_app_variant(db_app_variant, image, **kwargs) #TODO: To reimplement
+        # await db_manager.add_testset_to_app_variant(db_app_variant, image, **user_org_data) #TODO: To reimplement
         if not os.environ["OPENAI_API_KEY"]:
             raise HTTPException(
                 status_code=400,
@@ -720,6 +720,6 @@ async def add_app_variant_from_template(
     else:
         envvars = {} if payload.env_vars is None else payload.env_vars
 
-    await new_app_manager.start_variant(db_app_variant, envvars, **kwargs)
+    await new_app_manager.start_variant(db_app_variant, envvars, **user_org_data)
 
     return app_variant_db_to_output(db_app_variant)
