@@ -23,7 +23,7 @@ def get_app_by_name(app_name: str, host: str) -> str:
     """
 
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/apps/{app_name}/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/apps/{app_name}/",
         timeout=600,
     )
     if response.status_code != 200:
@@ -43,7 +43,7 @@ def create_new_app(app_name: str, host: str) -> str:
     """
 
     response = requests.post(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/apps/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/apps/",
         json={"app_name": app_name},
         timeout=600,
     )
@@ -68,7 +68,7 @@ def add_variant_to_server(
     """
     app_variant: AppVariant = AppVariant(app_id=app_id, variant_name=variant_name)
     response = requests.post(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/add/from_image/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/add/from_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
         timeout=600,
     )
@@ -92,7 +92,7 @@ def start_variant(app_id: str, app_name: str, variant_name: str, host: str) -> s
         The endpoint of the container
     """
     response = requests.post(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/start/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/start/",
         json={
             "app_variant": {
                 "app_id": app_id,
@@ -121,7 +121,7 @@ def list_variants(app_id: str, host: str) -> List[AppVariant]:
         a list of the variants using the pydantic model
     """
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/{app_id}/variants/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variants/",
         timeout=600,
     )
 
@@ -145,7 +145,7 @@ def remove_variant(app_name: str, variant_name: str, host: str):
     app_variant = AppVariant(app_name=app_name, variant_name=variant_name)
     app_variant_json = app_variant.json()
     response = requests.delete(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/remove_variant/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/remove_variant/",
         data=app_variant_json,
         headers={"Content-Type": "application/json"},
         timeout=600,
@@ -174,7 +174,7 @@ def update_variant_image(
         app_id=app_id, app_name=app_name, variant_name=variant_name
     )
     response = requests.put(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/update_variant_image/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/update_variant_image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
         timeout=600,
     )
