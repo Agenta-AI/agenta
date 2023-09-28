@@ -6,7 +6,7 @@ from agenta_backend.models.db_models import (
 )
 
 from odmantic import query
-from agenta_backend.utills.common import engine
+from agenta_backend.utils.common import engine
 from agenta_backend.models.api.organization_models import Organization
 
 

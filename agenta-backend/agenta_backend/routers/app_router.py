@@ -18,9 +18,13 @@ from agenta_backend.services import (
     new_db_manager,
     new_app_manager,
 )
-from agenta_backend.utills.common import check_access_to_app, get_app_instance
+from agenta_backend.utils.common import (
+    check_access_to_app,
+    get_app_instance,
+    check_user_org_access,
+    check_access_to_variant,
+)
 from agenta_backend.models.converters import app_variant_db_to_output
-from agenta_backend.utills.common import check_user_org_access, check_access_to_variant
 from agenta_backend.models.api.api_models import (
     URI,
     App,
@@ -35,6 +39,7 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     Variant,
     UpdateVariantParameterPayload,
+    AppVariantFromImagePayload,
     AddVariantFromBasePayload,
     AppVariantFromImagePayload
 )
@@ -70,12 +75,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.get(
-    "/list_variants/", response_model=List[AppVariantOutput], tags=["deprecated"]
-)
-@router.get("/variants/", response_model=List[AppVariant])
+@router.get("/{app_id}/variants/", response_model=List[AppVariant])
 async def list_app_variants(
-    app_id: Optional[str] = None,
+    app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Lists the app variants from our repository.
@@ -92,15 +94,14 @@ async def list_app_variants(
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-        if app_id is not None:
-            access_app = await check_access_to_app(user_org_data, app_id=app_id)
-            if not access_app:
-                error_msg = f"You cannot access app: {app_id}"
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=400,
-                )
+        access_app = await check_access_to_app(user_org_data, app_id=app_id)
+        if not access_app:
+            error_msg = f"You cannot access app: {app_id}"
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
         app_variants = await new_db_manager.list_app_variants(
             app_id=app_id, **user_org_data
@@ -221,7 +222,7 @@ async def create_app(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/list_apps/", response_model=List[App])
+@router.get("/", response_model=List[App])
 async def list_apps(
     org_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -546,7 +547,7 @@ async def remove_app(
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
-            user_org_data, app_id=app.app_id, check_owner=True
+            user_org_data, app_id=str(app.app_id.id), check_owner=True
         )
 
         if not access_app:

@@ -37,7 +37,7 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioDB,
 )
 from agenta_backend.services import helpers
-from agenta_backend.utills.common import (
+from agenta_backend.utils.common import (
     engine,
     check_user_org_access,
     get_organization,
