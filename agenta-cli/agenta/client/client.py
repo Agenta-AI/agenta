@@ -121,7 +121,7 @@ def list_variants(app_id: str, host: str) -> List[AppVariant]:
         a list of the variants using the pydantic model
     """
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/list_variants/?app_id={app_id}",
+        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/variants/?app_id={app_id}",
         timeout=600,
     )
 
