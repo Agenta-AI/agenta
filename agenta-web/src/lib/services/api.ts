@@ -561,7 +561,7 @@ export const createAppFromTemplate = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/add/from_template/`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/app_and_variant_from_template/`,
         templateObj,
         {_ignoreError: ignoreAxiosError} as any,
     )

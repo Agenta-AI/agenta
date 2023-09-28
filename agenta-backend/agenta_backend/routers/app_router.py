@@ -658,12 +658,12 @@ async def update_variant_image(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.post("/add/from_template/")
-async def add_app_variant_from_template(
+@router.post("/app_and_variant_from_template/")
+async def create_app_and_variant_from_template(
     payload: CreateAppVariant,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> AppVariantOutput:
-    """Creates or updates an app variant based on the provided image and starts the variant
+    """Creates an app and a variant based on the provided image and starts the variant
 
     Arguments:
         payload -- a data model that contains the necessary information to create an app variant from an image
@@ -689,11 +689,15 @@ async def add_app_variant_from_template(
     else:
         organization_id = payload.organization_id
 
-    # Check if the app exists, if not create it
     app_name = payload.app_name.lower()
     app = await db_manager.fetch_app_by_name_and_organization(
         app_name, organization_id, **user_org_data
     )
+    if app is not None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"App with name {app_name} already exists",
+        )
     if app is None:
         app = await db_manager.create_app(app_name, organization_id, **user_org_data)
         await db_manager.initialize_environments(app_ref=app, **user_org_data)
