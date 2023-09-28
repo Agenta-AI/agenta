@@ -8,3 +8,8 @@ router = APIRouter()
 def get_all_contexts():
     contexts = get_contexts()
     return {"contexts": contexts}
+
+
+@router.get("/health")
+def health():
+    return {"status": "ok"}
