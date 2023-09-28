@@ -124,6 +124,7 @@ class URI(BaseModel):
 
 class App(BaseModel):
     app_id: str
+    app_name: str
 
 
 class DockerEnvVars(BaseModel):
