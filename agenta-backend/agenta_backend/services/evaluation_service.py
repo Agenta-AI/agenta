@@ -144,7 +144,7 @@ async def create_new_evaluation(
     # Initialize and save evaluation instance to database
     eval_instance = EvaluationDB(
         app=app,
-        organization=app.organization_id,  # Assuming user has an organization_id attribute
+        organization=app.organization,  # Assuming user has an organization_id attribute
         user=user,
         status=payload.status,
         evaluation_type=payload.evaluation_type,
@@ -232,7 +232,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         eval_scenario_instance = EvaluationScenarioDB(
             **evaluation_scenario_payload,
             user=user,
-            organization=app.organization_id,
+            organization=app.organization,
             evaluation=new_evaluation,
             inputs=list_of_scenario_input,
             outputs=[],
@@ -275,7 +275,7 @@ async def create_evaluation_scenario(
         **_extend_with_evaluation(evaluation.evaluation_type),
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
-        evaluation_id=evaluation_id,
+        evaluation=evaluation,
     )
 
     await engine.save(new_eval_scenario)
@@ -640,7 +640,7 @@ async def create_custom_code_evaluation(
     custom_eval = CustomEvaluationDB(
         evaluation_name=payload.evaluation_name,
         user=app.user_id,
-        organization=app.organization_id,
+        organization=app.organization,
         app=app,
         python_code=payload.python_code,
         created_at=datetime.utcnow(),
@@ -705,7 +705,7 @@ async def execute_custom_code_evaluation(
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     # Build query expression for app variant
-    appvar_query_expression = query.eq(AppVariantDB.app_id, app.id) & query.eq(
+    appvar_query_expression = query.eq(AppVariantDB.app, app.id) & query.eq(
         AppVariantDB.id, ObjectId(variant_id)
     )
 

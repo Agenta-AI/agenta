@@ -18,7 +18,6 @@ from agenta_backend.models.api.api_models import (
 from agenta_backend.models.converters import app_variant_db_to_pydantic
 from agenta_backend.models.db_models import (
     AppVariantDB,
-    TestSetDB,
     EnvironmentDB,
 )
 from agenta_backend.services import db_manager, docker_utils
@@ -54,30 +53,30 @@ async def start_variant(
         logger.debug(
             "Starting variant %s with image name %s and tags %s and app_name %s and organization %s",
             db_app_variant.variant_name,
-            db_app_variant.image_id.docker_id,
-            db_app_variant.image_id.tags,
-            db_app_variant.app_id.app_name,
-            db_app_variant.organization_id,
+            db_app_variant.image.docker_id,
+            db_app_variant.image.tags,
+            db_app_variant.app.app_name,
+            db_app_variant.organization,
         )
-        logger.debug("App name is %s", db_app_variant.app_id.app_name)
+        logger.debug("App name is %s", db_app_variant.app.app_name)
         uri: URI = docker_utils.start_container(
-            image_name=db_app_variant.image_id.tags,
-            app_name=db_app_variant.app_id.app_name,
+            image_name=db_app_variant.image.tags,
+            app_name=db_app_variant.app.app_name,
             variant_name=db_app_variant.variant_name,
             env_vars=env_vars,
-            organization_id=db_app_variant.organization_id.id,
+            organization_id=db_app_variant.organization.id,
         )
         logger.info(
-            f"Started Docker container for app variant {db_app_variant.app_id.app_name}/{db_app_variant.variant_name} at URI {uri}"
+            f"Started Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name} at URI {uri}"
         )
         # TODO: Save information to base
         # db_manager.register_base_container(db_app_variant, uri, f"{app_name}-{variant_name}-{organization_id}")
     except Exception as e:
         logger.error(
-            f"Error starting Docker container for app variant {db_app_variant.app_id.app_name}/{db_app_variant.variant_name}: {str(e)}"
+            f"Error starting Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name}: {str(e)}"
         )
         raise Exception(
-            f"Failed to start Docker container for app variant {db_app_variant.app_id.app_name}/{db_app_variant.variant_name} \n {str(e)}"
+            f"Failed to start Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name} \n {str(e)}"
         )
 
     return uri
@@ -97,7 +96,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
             "",
             None,
         ]
-        or app_variant.organization_id in ["", None]
+        or app_variant.organization in ["", None]
     ):
         msg = "App id and variant name, or organization_id cannot be empty"
         logger.error(msg)
@@ -162,7 +161,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
             variant_name=app_variant.variant_name,
             docker_id=image.docker_id,
             tags=image.tags,
-            organization_id=str(new_app_db.organization_id.id),
+            organization_id=str(new_app_db.organization.id),
             **kwargs,
         )
         logger.info(
@@ -205,7 +204,7 @@ async def remove_app_variant(
         app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
 
     logger.debug(f"Fetched app variant {app_variant_db}")
-    app_id = app_variant_db.app_id.id
+    app_id = app_variant_db.app.id
     if app_variant_db is None:
         error_msg = f"Failed to delete app variant {app_variant_id}: Not found in DB."
         logger.error(error_msg)
@@ -218,7 +217,7 @@ async def remove_app_variant(
         )
         logger.debug(f"Result {is_last_variant_for_image}")
         if is_last_variant_for_image:
-            image = app_variant_db.base_id.image_id
+            image = app_variant_db.base.image
 
             if image:
                 # TODO: This needs to change to use a db schema to save the container name
@@ -234,7 +233,7 @@ async def remove_app_variant(
                     _delete_docker_image(image)  # TODO: To implement in ee version
             else:
                 logger.debug(
-                    f"Image associated with app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
+                    f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
                 )
         else:
             logger.debug(f"remove_app_variant")
@@ -249,25 +248,25 @@ async def remove_app_variant(
             await remove_app_related_resources(app_id=app_id, **kwargs)
     except Exception as e:
         logger.error(
-            f"An error occurred while deleting app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name}: {str(e)}"
+            f"An error occurred while deleting app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}: {str(e)}"
         )
         raise e from None
 
 
 async def _stop_and_delete_app_container(
-    app_variant: AppVariantDB, **kwargs: dict
+    app_variant_db: AppVariantDB, **kwargs: dict
 ) -> None:
     """
     Stops and deletes Docker container associated with a given app.
 
     Args:
-        app_variant (AppVariant): The app variant whose associated container is to be stopped and deleted.
+        app_variant_db (AppVariant): The app variant whose associated container is to be stopped and deleted.
 
     Raises:
         Exception: Any exception raised during Docker operations.
     """
     try:
-        container_id = f"{app_variant.app_id.app_name}-{app_variant.variant_name}-{str(app_variant.organization_id.id)}"
+        container_id = f"{app_variant_db.app.app_name}-{app_variant_db.variant_name}-{str(app_variant_db.organization.id)}"
         docker_utils.stop_container(container_id)
         logger.info(f"Container {container_id} stopped")
         docker_utils.delete_container(container_id)
@@ -346,7 +345,7 @@ async def remove_app(app_id: str, **kwargs: dict):
         for app_variant_db in app_variants:
             await remove_app_variant(app_variant_db=app_variant_db, **kwargs)
             logger.info(
-                f"Successfully deleted app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name}."
+                f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
 
     except Exception as e:
@@ -377,6 +376,6 @@ async def update_variant_parameters(
         )
     except Exception as e:
         logger.error(
-            f"Error updating app variant {app_variant_db.app_id.app_name}/{app_variant_db.variant_name}"
+            f"Error updating app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}"
         )
         raise e from None
