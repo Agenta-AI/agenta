@@ -37,7 +37,7 @@ from agenta_backend.models.db_models import (
     ConfigDB,
 )
 from agenta_backend.services import helpers
-from agenta_backend.utills.common import engine, check_user_org_access, get_organization
+from agenta_backend.utils.common import engine, check_user_org_access, get_organization
 from agenta_backend.services.selectors import get_user_own_org
 
 from odmantic import query

@@ -13,7 +13,7 @@ import logging
 
 engine = DBEngine().engine()
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 async def get_organization(org_id: str) -> OrganizationDB:
@@ -59,6 +59,9 @@ async def check_user_org_access(
     else:
         user_organizations: List = kwargs["organization_ids"]
         object_organization_id = ObjectId(organization_id)
+        logger.debug(
+            f"object_organization_id: {object_organization_id}, user_organizations: {user_organizations}"
+        )
         return object_organization_id in user_organizations
 
 

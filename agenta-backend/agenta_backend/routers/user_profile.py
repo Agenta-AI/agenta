@@ -1,5 +1,5 @@
 import os
-from agenta_backend.utills.common import engine
+from agenta_backend.utils.common import engine
 from agenta_backend.services.db_manager import UserDB
 from fastapi import APIRouter, HTTPException, Depends
 from agenta_backend.models.api.user_models import User

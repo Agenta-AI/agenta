@@ -34,7 +34,7 @@ export async function fetchVariants(
     ignoreAxiosError: boolean = false,
 ): Promise<Variant[]> {
     const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/variants/?app_id=${appId}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/${appId}/variants/`,
         { _ignoreError: ignoreAxiosError } as any,
     )
 
