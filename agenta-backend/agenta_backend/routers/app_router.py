@@ -24,6 +24,7 @@ from agenta_backend.utills.common import check_user_org_access, check_access_to_
 from agenta_backend.models.api.api_models import (
     URI,
     App,
+    AppOutput,
     CreateApp,
     CreateAppOutput,
     AppVariant,
@@ -135,6 +136,26 @@ async def get_variant_by_env(
         raise e
     except Exception as e:
         # Handle all other exceptions and return 500 status code
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/apps/{app_name}/", response_model=AppOutput)
+async def get_app_by_name(app_name: str, stoken_session: SessionContainer = Depends(verify_session()),):
+    """Get an app by its name.
+
+    Arguments:
+        app_name (str): Name of app
+
+    Returns:
+        CreateAppOutput: the app id and name
+    """
+    
+    try:
+        # Get user and org id
+        kwargs: dict = await get_user_and_org_id(stoken_session)
+        app_db = await new_db_manager.fetch_app_by_name(app_name, **kwargs)
+        return AppOutput(app_id=str(app_db.id), app_name=app_db.app_name)
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
