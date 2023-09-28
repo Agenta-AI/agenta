@@ -140,7 +140,10 @@ async def get_variant_by_env(
 
 
 @router.get("/apps/{app_name}/", response_model=AppOutput)
-async def get_app_by_name(app_name: str, stoken_session: SessionContainer = Depends(verify_session()),):
+async def get_app_by_name(
+    app_name: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
     """Get an app by its name.
 
     Arguments:
@@ -149,7 +152,7 @@ async def get_app_by_name(app_name: str, stoken_session: SessionContainer = Depe
     Returns:
         CreateAppOutput: the app id and name
     """
-    
+
     try:
         # Get user and org id
         kwargs: dict = await get_user_and_org_id(stoken_session)
@@ -624,6 +627,7 @@ async def update_variant_image(
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)

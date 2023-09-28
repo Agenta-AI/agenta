@@ -16,12 +16,12 @@ class APIRequestError(Exception):
 
 def get_app_by_name(app_name: str, host: str) -> str:
     """Get app by its name on the server.
-    
+
     Args:
         app_name (str): Name of the app
-        host (str): Hostname of the server  
+        host (str): Hostname of the server
     """
-    
+
     response = requests.get(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/apps/{app_name}/",
         timeout=600,

@@ -81,7 +81,7 @@ async def add_variant_based_on_image(
     try:
         logger.debug("Creating app variant based on image")
         await clean_soft_deleted_variants()
-        
+
         if (
             app_id in [None, ""]
             or variant_name in [None, ""]
@@ -91,7 +91,6 @@ async def add_variant_based_on_image(
             or organization_id in [None, ""]
         ):
             raise ValueError("App variant or image is None")
-
 
         soft_deleted_variants = await list_app_variants_for_app_id(
             app_id=str(app_id.id), show_soft_deleted=True, **kwargs

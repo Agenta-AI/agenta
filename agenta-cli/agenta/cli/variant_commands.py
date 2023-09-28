@@ -137,11 +137,11 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
             click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
         return None
     if overwrite:
-        # After updating the variant, get the new app id 
+        # After updating the variant, get the new app id
         # and update the config accordingly
         app_new_id = client.get_app_by_name(app_name, host)
         config["app_id"] = app_new_id
-        
+
         click.echo(
             click.style(
                 f"Variant {variant_name} for App {app_name} updated successfully to Agenta!",

@@ -11,8 +11,8 @@ class CreateApp(BaseModel):
 class CreateAppOutput(BaseModel):
     app_id: str
     app_name: str
-    
-    
+
+
 class AppOutput(CreateAppOutput):
     pass
 
