@@ -64,7 +64,10 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
         get_user_and_org_id,
     )
 else:
-    from agenta_backend.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
@@ -84,7 +87,9 @@ async def create_evaluation(
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
-            user_org_data=user_org_data, app_id=payload.app_id, check_owner=False
+            user_org_data=user_org_data,
+            app_id=payload.app_id,
+            check_owner=False,
         )
         if not access_app:
             error_msg = f"You do not have access to this app: {payload.app_id}"
@@ -100,7 +105,9 @@ async def create_evaluation(
         new_evaluation_db = await evaluation_service.create_new_evaluation(
             payload, **user_org_data
         )
-        return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
+        return converters.evaluation_db_to_simple_evaluation_output(
+            new_evaluation_db
+        )
     except KeyError:
         raise HTTPException(
             status_code=400,
@@ -140,7 +147,8 @@ async def update_evaluation_router(
     response_model=List[EvaluationScenario],
 )
 async def fetch_evaluation_scenarios(
-    evaluation_id: str, stoken_session: SessionContainer = Depends(verify_session)
+    evaluation_id: str,
+    stoken_session: SessionContainer = Depends(verify_session),
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -155,8 +163,10 @@ async def fetch_evaluation_scenarios(
     """
 
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    eval_scenarios = await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
-        evaluation_id, **user_org_data
+    eval_scenarios = (
+        await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
+            evaluation_id, **user_org_data
+        )
     )
 
     return eval_scenarios
@@ -241,7 +251,9 @@ async def evaluate_ai_critique(
             llm_app_inputs=payload_dict["inputs"],
             correct_answer=payload_dict["correct_answer"],
             app_variant_output=payload_dict["outputs"][0]["variant_output"],
-            evaluation_prompt_template=payload_dict["evaluation_prompt_template"],
+            evaluation_prompt_template=payload_dict[
+                "evaluation_prompt_template"
+            ],
             open_ai_key=payload_dict["open_ai_key"],
         )
         return output
@@ -266,7 +278,9 @@ async def get_evaluation_scenario_score_router(
         Dictionary containing the scenario ID and its score.
     """
     user_org_data = await get_user_and_org_id(stoken_session)
-    return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
+    return await get_evaluation_scenario_score(
+        evaluation_scenario_id, **user_org_data
+    )
 
 
 @router.put("/evaluation_scenario/{evaluation_scenario_id}/score")
@@ -314,7 +328,8 @@ async def fetch_list_evaluations(
 
 @router.get("/{evaluation_id}", response_model=Evaluation)
 async def fetch_evaluation(
-    evaluation_id: str, stoken_session: SessionContainer = Depends(verify_session())
+    evaluation_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Fetches a single evaluation based on its ID.
 
@@ -325,7 +340,9 @@ async def fetch_evaluation(
         Evaluation: The fetched evaluation.
     """
     user_org_data = await get_user_and_org_id(stoken_session)
-    return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
+    return await evaluation_service.fetch_evaluation(
+        evaluation_id, **user_org_data
+    )
 
 
 @router.delete("/", response_model=List[str])
@@ -371,19 +388,27 @@ async def fetch_results(
         evaluation_id, **user_org_data
     )
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
+        results = await results_service.fetch_results_for_evaluation(
+            evaluation
+        )
         return {"votes_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_exact_match:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
+        results = await results_service.fetch_results_for_evaluation(
+            evaluation
+        )
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
+        results = await results_service.fetch_results_for_evaluation(
+            evaluation
+        )
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
+        results = await results_service.fetch_results_for_evaluation(
+            evaluation
+        )
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
@@ -399,8 +424,10 @@ async def fetch_results(
         return {"results_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.custom_code_run:
-        results = await results_service.fetch_average_score_for_custom_code_run(
-            evaluation_id
+        results = (
+            await results_service.fetch_average_score_for_custom_code_run(
+                evaluation_id
+            )
         )
         return {"avg_score": results}
 
@@ -502,7 +529,9 @@ async def get_custom_evaluation_names(
     # Get user and organization id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-    custom_eval_names = await fetch_custom_evaluation_names(app_name, **user_org_data)
+    custom_eval_names = await fetch_custom_evaluation_names(
+        app_name, **user_org_data
+    )
     return custom_eval_names
 
 
@@ -532,10 +561,10 @@ async def execute_custom_evaluation(
     formatted_outputs = format_outputs(payload.outputs)
     result = await execute_custom_code_evaluation(
         evaluation_id,
-        payload.app_name,
-        formatted_outputs[payload.variant_name],  # gets the output of the app variant
+        payload.app_id,
+        formatted_outputs,  # gets the output of the app variant
         payload.correct_answer,
-        payload.variant_name,
+        payload.variant_id,
         formatted_inputs,
         **user_org_data,
     )
