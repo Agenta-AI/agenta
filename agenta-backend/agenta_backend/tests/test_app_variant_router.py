@@ -1,12 +1,20 @@
 import httpx
-from odmantic import query
 import pytest
+from odmantic import query
+from fastapi import HTTPException
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     UserDB,
     OrganizationDB,
 )
-from agenta_backend.routers.app_variant import add_app_variant_from_template
+from agenta_backend.routers.app_variant import (
+    add_app_variant_from_template,
+    list_app_variants,
+)
+
+from agenta_backend.models.api.api_models import (
+    AppVariantOutput,
+)
 
 # Initialize database engine
 engine = DBEngine().engine()
@@ -55,3 +63,91 @@ async def test_successfully_creates_new_app_variant(get_first_user_object):
         "config_id": None
     }
     
+
+@pytest.mark.asyncio
+async def test_returns_list_with_valid_app_id(mocker):
+    
+    """
+    Returns a list of AppVariantOutput objects when called with a valid app_id
+    """
+    
+    # Mock dependencies
+    mock_list_app_variants = mocker.patch('agenta_backend.routers.app_variant.list_app_variants')
+    mock_list_app_variants.return_value = [AppVariantOutput()]
+
+    # Invoke function
+    response = await list_app_variants(app_id='12345')
+
+    # Assert
+    assert isinstance(response, list)
+    assert isinstance(response[0], AppVariantOutput)
+
+
+@pytest.mark.asyncio
+async def test_returns_empty_list_with_no_variants(mocker):
+    
+    """
+    Returns an empty list when called with an app_id that has no variants
+    """
+    
+    # Mock dependencies
+    mock_list_app_variants = mocker.patch('agenta_backend.routers.app_variant.list_app_variants')
+    mock_list_app_variants.return_value = []
+
+    # Invoke function
+    response = await list_app_variants(app_id='12345')
+
+    # Assert
+    assert isinstance(response, list)
+    assert len(response) == 0
+    
+    
+@pytest.mark.asyncio
+async def test_returns_list_with_no_arguments(mocker):
+    
+    """
+    Returns a list of AppVariantOutput objects when called with no arguments
+    """
+    
+    # Mock dependencies
+    mock_list_app_variants = mocker.patch('agenta_backend.routers.app_variant.list_app_variants')
+    mock_list_app_variants.return_value = [AppVariantOutput()]
+
+    # Invoke function
+    response = await list_app_variants()
+
+    # Assert
+    assert isinstance(response, list)
+    assert isinstance(response[0], AppVariantOutput)
+
+    
+@pytest.mark.asyncio
+async def test_raises_http_exception_on_exception(mocker):
+    
+    """
+    Raises HTTPException with status_code 500 when an exception is raised
+    """
+    
+    # Mock dependencies
+    mocker.patch('agenta_backend.routers.app_variant.list_app_variants', side_effect=Exception())
+
+    # Invoke and assert
+    with pytest.raises(HTTPException) as e:
+        await list_app_variants()
+    assert e.value.status_code == 500
+    
+    
+@pytest.mark.asyncio
+async def test_raises_http_exception_on_no_access(mocker):
+    
+    """
+    Raises HTTPException with status_code 400 when user does not have access to specified app_id
+    """
+    
+    # Mock dependencies
+    mocker.patch('agenta_backend.routers.app_variant.check_access_to_app', return_value=False)
+
+    # Invoke and assert
+    with pytest.raises(HTTPException) as e:
+        await list_app_variants(app_id='12345')
+    assert e.value.status_code == 400
