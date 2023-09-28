@@ -36,6 +36,7 @@ from agenta_backend.models.api.api_models import (
     Variant,
     UpdateVariantParameterPayload,
     AddVariantFromBasePayload,
+    AppVariantFromImagePayload
 )
 from agenta_backend.models.db_models import (
     AppDB,
@@ -70,7 +71,7 @@ logger.setLevel(logging.DEBUG)
 
 
 @router.get(
-    "/list_variants/", response_model=List[AppVariantOutput], tags=["depracated"]
+    "/list_variants/", response_model=List[AppVariantOutput], tags=["deprecated"]
 )
 @router.get("/variants/", response_model=List[AppVariant])
 async def list_app_variants(
@@ -708,7 +709,7 @@ async def add_app_variant_from_template(
     # Create an Image instance with the extracted image id, and defined image name
     image_name = f"agentaai/templates:{payload.image_tag}"
     # Save variant based on the image to database
-    db_app_variant = await new_db_manager.add_variant_based_on_image(
+    app_variant = await new_db_manager.add_variant_based_on_image(
         app_id=app,
         variant_name="app",
         docker_id=payload.image_id,
@@ -734,6 +735,7 @@ async def add_app_variant_from_template(
     else:
         envvars = {} if payload.env_vars is None else payload.env_vars
 
+    db_app_variant = await new_db_manager.get_app_variant_instance_by_id(app_variant.variant_id)
     await new_app_manager.start_variant(db_app_variant, envvars, **user_org_data)
 
     return app_variant_db_to_output(db_app_variant)
