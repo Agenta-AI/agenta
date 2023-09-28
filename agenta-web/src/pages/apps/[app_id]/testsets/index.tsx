@@ -51,7 +51,7 @@ const fetchData = async (url: string): Promise<any> => {
 export default function Testsets() {
     const classes = useStyles()
     const router = useRouter()
-    const {app_name} = router.query
+    const appId = router.query.app_id as string
     const [testsetsList, setTestsetsList] = useState<testsetTableDatatype[]>([])
     const [loading, setLoading] = useState<boolean>(true)
     const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
@@ -59,11 +59,11 @@ export default function Testsets() {
     const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
     useEffect(() => {
-        if (!app_name) {
+        if (!appId) {
             return
         }
         // TODO: move to api.ts
-        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_name=${app_name}`)
+        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_id=${appId}`)
             .then((data) => {
                 let newTestsetsList = data.map((obj: testset) => {
                     let newObj: testsetTableDatatype = {
@@ -79,7 +79,7 @@ export default function Testsets() {
             .catch((error) => {
                 console.log(error)
             })
-    }, [app_name])
+    }, [appId])
 
     const columns: ColumnsType<testsetTableDatatype> = [
         {
@@ -129,13 +129,13 @@ export default function Testsets() {
                     <div className={classes.linksContainer}>
                         <Link
                             data-cy="testset-new-upload-link"
-                            href={`/apps/${app_name}/testsets/new/upload`}
+                            href={`/apps/${appId}/testsets/new/upload`}
                         >
                             <Button>Upload a test set</Button>
                         </Link>
                         <Link
                             data-cy="testset-new-manual-link"
-                            href={`/apps/${app_name}/testsets/new/manual`}
+                            href={`/apps/${appId}/testsets/new/manual`}
                         >
                             <Button>Create a test set with UI</Button>
                         </Link>
@@ -146,17 +146,17 @@ export default function Testsets() {
                         ) : (
                             <Link
                                 data-cy="testset-new-api-link"
-                                href={`/apps/${app_name}/testsets/new/api`}
+                                href={`/apps/${appId}/testsets/new/api`}
                             >
                                 <Button>Create a test set with API</Button>
                             </Link>
                         )}
-                        <Link href={`/apps/${app_name}/testsets/new/endpoint`}>
+                        <Link href={`/apps/${appId}/testsets/new/endpoint`}>
                             <Button>Import from Endpoint</Button>
                         </Link>
                     </div>
 
-                    <Link href={`/apps/${app_name}/evaluations`} className={classes.startLink}>
+                    <Link href={`/apps/${appId}/evaluations`} className={classes.startLink}>
                         {testsetsList.length > 0 && <Button>Start an evaluation</Button>}
                     </Link>
                 </div>
@@ -188,8 +188,7 @@ export default function Testsets() {
                         loading={loading}
                         onRow={(record, rowIndex) => {
                             return {
-                                onClick: () =>
-                                    router.push(`/apps/${app_name}/testsets/${record.key}`),
+                                onClick: () => router.push(`/apps/${appId}/testsets/${record.key}`),
                             }
                         }}
                     />

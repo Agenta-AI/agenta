@@ -1,4 +1,4 @@
-import {Environment} from "@/lib/Types"
+import {Environment, Variant} from "@/lib/Types"
 import {fetchEnvironments, publishVariant} from "@/lib/services/api"
 import {Button, Checkbox, Modal, Space, Typography, message} from "antd"
 import type {CheckboxChangeEvent} from "antd/es/checkbox"
@@ -17,14 +17,14 @@ const useStyles = createUseStyles({
 })
 
 interface Props {
-    variantName: string
+    variant: Variant
     isModalOpen: boolean
     setIsModalOpen: (value: boolean) => void
     environments: Environment[]
 }
 
 const PublishVariantModal: React.FC<Props> = ({
-    variantName,
+    variant,
     isModalOpen,
     setIsModalOpen,
     environments,
@@ -35,7 +35,7 @@ const PublishVariantModal: React.FC<Props> = ({
         setSelectedEnvs([])
     }
     const router = useRouter()
-    const appName = router.query.app_name?.toString() || ""
+    const appId = router.query.app_id as string
 
     const [selectedEnvs, setSelectedEnvs] = useState<string[]>([])
 
@@ -51,31 +51,26 @@ const PublishVariantModal: React.FC<Props> = ({
 
     const publishVariants = async () => {
         selectedEnvs.forEach(async (envName) => {
-            await publishVariant(appName, variantName, envName)
+            await publishVariant(variant.variantId, envName)
             closeModal()
             await loadEnvironments()
-            message.success(`Published ${variantName} to ${envName}`)
+            message.success(`Published ${variant.variantName} to ${envName}`)
         })
     }
 
     const [envOptions, setEnvOptions] = useState<Environment[]>([])
     const loadEnvironments = async () => {
-        const response: Environment[] = await fetchEnvironments(appName)
+        const response: Environment[] = await fetchEnvironments(appId)
         if (response.length === 0) return
 
-        setEnvOptions(
-            response.map((env) => ({
-                name: env.name,
-                deployed_app_variant: env.deployed_app_variant,
-            })),
-        )
+        setEnvOptions(response)
     }
     useEffect(() => {
         setEnvOptions(environments)
     }, [environments])
 
     const checkboxElement = (env: Environment): JSX.Element => {
-        if (!env.deployed_app_variant) {
+        if (!env.deployed_app_variant_id) {
             return (
                 <Checkbox
                     key={env.name}
@@ -87,12 +82,12 @@ const PublishVariantModal: React.FC<Props> = ({
                 </Checkbox>
             )
         }
-        if (env.deployed_app_variant === variantName) {
+        if (env.deployed_app_variant_id === variant.variantId) {
             return (
                 <Checkbox key={env.name} indeterminate disabled>
                     {env.name} (already published in{" "}
                     <Text strong disabled>
-                        {env.deployed_app_variant}
+                        {variant.variantName}
                     </Text>{" "}
                     environment)
                 </Checkbox>
@@ -105,7 +100,7 @@ const PublishVariantModal: React.FC<Props> = ({
                 checked={selectedEnvs.includes(env.name)}
                 onChange={handleChange}
             >
-                {env.name} (already published in <Text strong>{env.deployed_app_variant}</Text>{" "}
+                {env.name} (already published in <Text strong>{env.deployed_app_variant_id}</Text>{" "}
                 environment)
             </Checkbox>
         )

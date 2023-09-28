@@ -9,7 +9,7 @@ import {fetchVariants} from "@/lib/services/api"
 import {useRouter} from "next/router"
 
 interface Props {
-    variantName: string // The name of the variant
+    variant: Variant
     optParams: Parameter[] | null // The optional parameters
     isParamSaveLoading: boolean // Whether the parameters are currently being saved
     onOptParamsChange: (newOptParams: Parameter[], persist: boolean, updateVariant: boolean) => void
@@ -46,7 +46,7 @@ const useStyles = createUseStyles({
 })
 
 const ParametersView: React.FC<Props> = ({
-    variantName,
+    variant,
     optParams,
     isParamSaveLoading,
     onOptParamsChange,
@@ -67,17 +67,16 @@ const ParametersView: React.FC<Props> = ({
 
     // Check if the variant exists and display the publish button if it does
     const router = useRouter()
-    const appName = router.query.app_name?.toString() || ""
+    const appId = router.query.app_id as string
     const [isVariantExisting, setIsVariantExisting] = useState(false)
     const fetchVariant = async () => {
-        const variants: Variant[] = await fetchVariants(appName)
-        const isExisting = variants.some((variant) => variant.variantName === variantName)
-
+        const variants: Variant[] = await fetchVariants(appId)
+        const isExisting = variants.some((v) => v.variantId === variant.variantId)
         setIsVariantExisting(isExisting)
     }
     useEffect(() => {
         fetchVariant()
-    }, [appName, variantName])
+    }, [appId, variant.variantId])
 
     const onChange = (param: Parameter, newValue: number | string) => {
         setInputValue(+newValue)
@@ -94,7 +93,7 @@ const ParametersView: React.FC<Props> = ({
         messageApi.open({
             type: "success",
             content: "Changes saved successfully!",
-            onClose: () => handlePersistVariant(variantName),
+            onClose: () => handlePersistVariant(variant.variantName),
         })
     }
     const onChangeCollapse = (key: string | string[]) => {
@@ -124,8 +123,8 @@ const ParametersView: React.FC<Props> = ({
                                 )}
                                 <Button
                                     type="primary"
-                                    onClick={async () => {
-                                        await onOptParamsChange(optParams!, true, isPersistent)
+                                    onClick={() => {
+                                        onOptParamsChange(optParams!, true, isPersistent)
                                         success()
                                     }}
                                     loading={isParamSaveLoading}
@@ -141,7 +140,7 @@ const ParametersView: React.FC<Props> = ({
                                     type="primary"
                                     danger
                                     onClick={() => {
-                                        setRemovalVariantName(variantName)
+                                        setRemovalVariantName(variant.variantName)
                                         setRemovalWarningModalOpen(true)
                                     }}
                                     loading={isDeleteLoading}
@@ -189,7 +188,7 @@ const ParametersView: React.FC<Props> = ({
                 collapsible="icon"
             />
             <PublishVariantModal
-                variantName={variantName}
+                variant={variant}
                 isModalOpen={isPublishModalOpen}
                 setIsModalOpen={setPublishModalOpen}
                 environments={environments}

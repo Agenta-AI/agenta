@@ -20,7 +20,7 @@ class TestsetModel(BaseModel):
         }
 
 
-class UploadResponse(BaseModel):
+class TestSetSimpleResponse(BaseModel):
     id: str
     name: str
     created_at: str

@@ -1,15 +1,13 @@
-import React, {useState, useEffect} from "react"
-import {useRouter} from "next/router"
-import {Input, Form, Button, Row, Col, Typography, notification} from "antd"
-import {CreateCustomEvaluationSuccessResponse} from "@/lib/Types"
-import {saveCustomCodeEvaluation, fetchCustomEvaluationNames} from "@/lib/services/api"
-import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
-import CopyButton from "../CopyButton/CopyButton"
+import React, { useState, useEffect } from "react"
+import { useRouter } from "next/router"
+import { Input, Form, Button, Row, Col, Typography, notification } from "antd"
+import { CreateCustomEvaluationSuccessResponse } from "@/lib/Types"
+import { saveCustomCodeEvaluation, fetchCustomEvaluationNames } from "@/lib/services/api"
 import Editor from "@monaco-editor/react"
 
 interface ICustomPythonProps {
     classes: any
-    appName: string
+    appId: string
     appTheme: string
 }
 
@@ -18,8 +16,8 @@ interface ICustomEvalNames {
     evaluation_name: string
 }
 
-const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTheme}) => {
-    const {Title} = Typography
+const CustomPythonCode: React.FC<ICustomPythonProps> = ({ classes, appId, appTheme }) => {
+    const { Title } = Typography
     const [form] = Form.useForm()
     const router = useRouter()
 
@@ -36,21 +34,21 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTh
 
     useEffect(() => {
         const evaluationNames = async () => {
-            const response: any = await fetchCustomEvaluationNames(appName)
+            const response: any = await fetchCustomEvaluationNames(appId)
             if (response.status === 200) {
                 setEvalNames(response.data)
             }
         }
 
         evaluationNames()
-    }, [appName])
+    }, [appId])
 
     const handlerToSubmitFormData = async (values: any) => {
         setSubmittingData(true)
         const data = {
-            evaluation_name: values.evaluationName,
+            evaluation_name: values.evaluationName, // TODO: Change to evaluation id!
             python_code: values.pythonCode,
-            app_name: appName,
+            app_id: appId,
         }
         const response = await saveCustomCodeEvaluation(data)
         if (response.status === 200) {
@@ -67,7 +65,7 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTh
 
             // Reset form fields and redirect user to evaluations page
             form.resetFields()
-            router.push(`/apps/${appName}/evaluations/`)
+            router.push(`/apps/${appId}/evaluations/`)
         }
     }
 
@@ -75,7 +73,7 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appName, appTh
         return (
             evalNameExist ||
             !form.isFieldsTouched(true) ||
-            form.getFieldsError().filter(({errors}) => errors.length).length > 0
+            form.getFieldsError().filter(({ errors }) => errors.length).length > 0
         )
     }
 
@@ -126,7 +124,7 @@ def evaluate(
                         <Form.Item
                             label="Evaluation Name"
                             name="evaluationName"
-                            rules={[{required: true, message: "Please enter evaluation name!"}]}
+                            rules={[{ required: true, message: "Please enter evaluation name!" }]}
                         >
                             <Input
                                 disabled={submitting}
@@ -156,7 +154,7 @@ def evaluate(
                     <Col span={16}>
                         <Form.Item
                             name="pythonCode"
-                            rules={[{required: true, message: "Please input python code!"}]}
+                            rules={[{ required: true, message: "Please input python code!" }]}
                         >
                             <Editor
                                 height="600px"
@@ -164,7 +162,7 @@ def evaluate(
                                 language="python"
                                 theme={switchEditorThemeBasedOnTheme()}
                                 value={form.getFieldValue("pythonCode")}
-                                onChange={(code) => form.setFieldsValue({pythonCode: code})}
+                                onChange={(code) => form.setFieldsValue({ pythonCode: code })}
                                 defaultValue={pythonDefaultEvalCode()}
                             />
                         </Form.Item>

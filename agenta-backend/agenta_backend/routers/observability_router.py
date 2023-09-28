@@ -27,11 +27,13 @@ from agenta_backend.models.api.observability_models import (
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (
+    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
         SessionContainer,
         verify_session,
     )
-    from agenta_backend.ee.services.selectors import get_user_and_org_id
+    from agenta_backend.ee.services.selectors import (
+        get_user_and_org_id,
+    )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.auth_helper import (
         SessionContainer,
@@ -54,15 +56,15 @@ async def create_trace(
     return trace
 
 
-@router.get("/traces/{app_name}/{variant_name}/", response_model=List[Trace])
+@router.get("/traces/{app_id}/{variant_id}/", response_model=List[Trace])
 async def get_traces(
-    app_name: str,
-    variant_name: str,
+    app_id: str,
+    variant_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(stoken_session)
-    traces = await get_variant_traces(app_name, variant_name, **kwargs)
+    traces = await get_variant_traces(app_id, variant_id, **kwargs)
     return traces
 
 

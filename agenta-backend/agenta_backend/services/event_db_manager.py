@@ -39,12 +39,12 @@ logger.setLevel(logging.INFO)
 
 
 async def get_variant_traces(
-    app_name: str, variant_name: str, **kwargs: dict
+    app_id: str, variant_name: str, **kwargs: dict
 ) -> List[Trace]:
     """Get the traces for a given app variant.
 
     Args:
-        app_name (str): the app name of the variant
+        app_id (str): the app name of the variant
         variant_name (str): the name of the variant
 
     Returns:
@@ -54,7 +54,7 @@ async def get_variant_traces(
     user = await db_manager.get_user_object(kwargs["uid"])
     query_expressions = (
         query.eq(TraceDB.user, user.id)
-        & query.eq(TraceDB.app_name, app_name)
+        & query.eq(TraceDB.app_id, app_id)
         & query.eq(TraceDB.variant_name, variant_name)
     )
 

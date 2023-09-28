@@ -84,7 +84,7 @@ const Sidebar: React.FC = () => {
         token: {colorBgContainer},
     } = theme.useToken()
     const router = useRouter()
-    const {app_name} = router.query
+    const appId = router.query.app_id as string
     const classes = useStyles({themeMode: appTheme, colorBgContainer} as StyleProps)
     const pathSegments = router.asPath.split("/")
     const page_name = pathSegments[3]
@@ -146,7 +146,7 @@ const Sidebar: React.FC = () => {
         } else if (path === "keys") {
             return "/apikeys"
         } else {
-            return `/apps/${app_name}/${path}`
+            return `/apps/${appId}/${path}`
         }
     }
 

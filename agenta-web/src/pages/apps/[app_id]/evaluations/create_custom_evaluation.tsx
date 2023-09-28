@@ -41,10 +41,10 @@ const useStyles = createUseStyles({
 
 export default function CreateCustomEvaluation() {
     const router = useRouter()
-    const appName = router.query.app_name?.toString() || ""
+    const appId = router.query.app_id?.toString() || ""
 
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
 
-    return <CustomPythonCode classes={classes} appName={appName} appTheme={appTheme} />
+    return <CustomPythonCode classes={classes} appId={appId} appTheme={appTheme} />
 }

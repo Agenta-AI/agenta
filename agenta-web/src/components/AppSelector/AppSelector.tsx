@@ -3,7 +3,7 @@ import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject} from "@/lib/Types"
+import {Template, GenericObject, ListAppsItem} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
@@ -279,7 +279,8 @@ const AppSelector: React.FC = () => {
         })
     }
 
-    const {data, error, isLoading} = useApps()
+    const {data, error, isLoading}: {data: ListAppsItem[]; error: any; isLoading: boolean} =
+        useApps()
     useEffect(() => {
         setTimeout(() => {
             if (data) {
@@ -312,13 +313,9 @@ const AppSelector: React.FC = () => {
                         <div className={classes.cardsList}>
                             {Array.isArray(data) && (
                                 <>
-                                    {data.map((app: any, index: number) => (
+                                    {data.map((app, index: number) => (
                                         <div key={index}>
-                                            <AppCard
-                                                appName={app.app_name}
-                                                key={index}
-                                                index={index}
-                                            />
+                                            <AppCard app={app} />
                                         </div>
                                     ))}
                                     <Card
