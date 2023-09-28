@@ -221,7 +221,7 @@ async def create_app(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/list_apps/", response_model=List[App])
+@router.get("/", response_model=List[App])
 async def list_apps(
     org_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),

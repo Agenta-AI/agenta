@@ -516,7 +516,7 @@ export const updateEvaluationScenarioScore = async (
 
 export const useApps = () => {
     const {data, error, isLoading} = useSWR(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/list_apps/`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/`,
         fetcher,
     )
 
