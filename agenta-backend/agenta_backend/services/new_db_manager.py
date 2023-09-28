@@ -217,11 +217,10 @@ async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
     return app
 
 
-async def fetch_app_by_id(app_id: str, app_name: str, **kwargs: dict) -> AppDB:
-    """Fetches an app by its ID.
+async def fetch_app_by_name(app_name: str, **kwargs: dict) -> AppDB:
+    """Fetches an app by its name.
 
     Args:
-        app_id (str): The ID of the app to fetch.
         app_name (str): The name of the app to fetch.
 
     Returns:
@@ -229,7 +228,7 @@ async def fetch_app_by_id(app_id: str, app_name: str, **kwargs: dict) -> AppDB:
     """
 
     user = await get_user_object(kwargs["uid"])
-    query_expression = (AppDB.id == ObjectId(app_id)) & (AppDB.app_name) & (AppDB.user_id == user.id)
+    query_expression = (AppDB.app_name == app_name) & (AppDB.user_id == user.id)
     app = await engine.find_one(AppDB, query_expression)
     return app
 
