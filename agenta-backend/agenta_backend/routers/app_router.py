@@ -546,7 +546,7 @@ async def remove_app(
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
-            user_org_data, app_id=app.app_id, check_owner=True
+            user_org_data, app_id=str(app.app_id.id), check_owner=True
         )
 
         if not access_app:

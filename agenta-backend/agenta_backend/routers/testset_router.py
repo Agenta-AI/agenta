@@ -66,7 +66,7 @@ async def upload_file(
 
     user_org_data: dict = await get_user_and_org_id(stoken_session)
     access_app = await check_access_to_app(
-        kwargs=user_org_data, app_id=app_id, check_owner=False
+        user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
     if not access_app:
         error_msg = f"You do not have access to this app: {app_id}"
@@ -139,7 +139,7 @@ async def import_testset(
     """
     user_org_data: dict = await get_user_and_org_id(stoken_session)
     access_app = await check_access_to_app(
-        kwargs=user_org_data, app_id=app_id, check_owner=False
+        user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
     if not access_app:
         error_msg = f"You do not have access to this app: {app_id}"
@@ -218,7 +218,7 @@ async def create_testset(
     user_org_data: dict = await get_user_and_org_id(stoken_session)
     user = await get_user_object(user_org_data["uid"])
     access_app = await check_access_to_app(
-        kwargs=user_org_data, app_id=app_id, check_owner=False
+        user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
     if not access_app:
         error_msg = f"You do not have access to this app: {app_id}"
@@ -278,7 +278,7 @@ async def update_testset(
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
     access_app = await check_access_to_app(
-        kwargs=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
+        user_org_data=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
     )
     if not access_app:
         error_msg = f"You do not have access to this app: {test_set.app_id.id}"
@@ -319,7 +319,7 @@ async def get_testsets(
     """
     user_org_data: dict = await get_user_and_org_id(stoken_session)
     access_app = await check_access_to_app(
-        kwargs=user_org_data, app_id=app_id, check_owner=False
+        user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
     if not access_app:
         error_msg = f"You do not have access to this app: {app_id}"
@@ -364,7 +364,7 @@ async def get_testset(
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
     access_app = await check_access_to_app(
-        kwargs=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
+        user_org_data=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
     )
     if not access_app:
         error_msg = f"You do not have access to this test set"
@@ -398,7 +398,9 @@ async def delete_testsets(
         if test_set is None:
             raise HTTPException(status_code=404, detail="testset not found")
         access_app = await check_access_to_app(
-            kwargs=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
+            user_org_data=user_org_data,
+            app_id=str(test_set.app_id.id),
+            check_owner=False,
         )
         if not access_app:
             error_msg = f"You do not have access to this test set"
