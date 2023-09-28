@@ -64,7 +64,10 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
         get_user_and_org_id,
     )
 else:
-    from agenta_backend.services.auth_helper import SessionContainer, verify_session
+    from agenta_backend.services.auth_helper import (
+        SessionContainer,
+        verify_session,
+    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
@@ -84,7 +87,9 @@ async def create_evaluation(
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
-            user_org_data=user_org_data, app_id=payload.app_id, check_owner=False
+            user_org_data=user_org_data,
+            app_id=payload.app_id,
+            check_owner=False,
         )
         if not access_app:
             error_msg = f"You do not have access to this app: {payload.app_id}"
@@ -140,7 +145,8 @@ async def update_evaluation_router(
     response_model=List[EvaluationScenario],
 )
 async def fetch_evaluation_scenarios(
-    evaluation_id: str, stoken_session: SessionContainer = Depends(verify_session)
+    evaluation_id: str,
+    stoken_session: SessionContainer = Depends(verify_session),
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -314,7 +320,8 @@ async def fetch_list_evaluations(
 
 @router.get("/{evaluation_id}", response_model=Evaluation)
 async def fetch_evaluation(
-    evaluation_id: str, stoken_session: SessionContainer = Depends(verify_session())
+    evaluation_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Fetches a single evaluation based on its ID.
 
@@ -532,10 +539,10 @@ async def execute_custom_evaluation(
     formatted_outputs = format_outputs(payload.outputs)
     result = await execute_custom_code_evaluation(
         evaluation_id,
-        payload.app_name,
-        formatted_outputs[payload.variant_name],  # gets the output of the app variant
+        payload.app_id,
+        formatted_outputs,  # gets the output of the app variant
         payload.correct_answer,
-        payload.variant_name,
+        payload.variant_id,
         formatted_inputs,
         **user_org_data,
     )
