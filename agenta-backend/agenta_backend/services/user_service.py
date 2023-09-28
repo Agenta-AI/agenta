@@ -1,4 +1,4 @@
-from agenta_backend.utills.common import engine
+from agenta_backend.utils.common import engine
 from agenta_backend.models.db_models import UserDB
 from agenta_backend.models.api.user_models import User, UserUpdate
 

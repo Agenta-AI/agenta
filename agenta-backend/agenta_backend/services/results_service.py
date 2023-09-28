@@ -1,4 +1,4 @@
-from agenta_backend.utills.common import engine
+from agenta_backend.utils.common import engine
 from agenta_backend.services.db_manager import query
 from agenta_backend.models.db_models import EvaluationScenarioDB, EvaluationDB
 from agenta_backend.services import evaluation_service

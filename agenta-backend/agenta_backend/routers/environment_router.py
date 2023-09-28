@@ -2,9 +2,9 @@ import os
 from typing import List
 
 from fastapi.responses import JSONResponse
-from agenta_backend.services import db_manager, new_db_manager
+from agenta_backend.services import db_manager
 from fastapi import APIRouter, Depends, HTTPException
-from agenta_backend.utills.common import check_access_to_app, check_access_to_variant
+from agenta_backend.utils.common import check_access_to_app, check_access_to_variant
 from agenta_backend.models.api.api_models import (
     EnvironmentOutput,
     DeployToEnvironmentPayload,
@@ -45,7 +45,9 @@ async def list_environments(
 
         # Check if has app access
         logger.debug(f"check_access_to_app")
-        access_app = await check_access_to_app(kwargs=user_and_org_data, app_id=app_id)
+        access_app = await check_access_to_app(
+            user_org_data=user_and_org_data, app_id=app_id
+        )
         logger.debug(f"access_app: {access_app}")
         if not access_app:
             error_msg = f"You do not have access to this app: {app_id}"
@@ -54,7 +56,7 @@ async def list_environments(
                 status_code=400,
             )
         else:
-            environments_db = await new_db_manager.list_environments(
+            environments_db = await db_manager.list_environments(
                 app_id=app_id, **user_and_org_data
             )
             logger.debug(f"environments_db: {environments_db}")
@@ -93,7 +95,7 @@ async def deploy_to_environment(
                 status_code=400,
             )
         else:
-            await new_db_manager.deploy_to_environment(
+            await db_manager.deploy_to_environment(
                 environment_name=payload.environment_name,
                 variant_id=payload.variant_id,
                 **user_org_data,

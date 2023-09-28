@@ -13,7 +13,7 @@ import logging
 
 engine = DBEngine().engine()
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 async def get_organization(org_id: str) -> OrganizationDB:
@@ -25,20 +25,17 @@ async def get_organization(org_id: str) -> OrganizationDB:
 
 
 async def get_app_instance(
-    app_name: str, variant_name: str = None, show_deleted: bool = False
+    app_id: str, variant_name: str = None, show_deleted: bool = False
 ) -> AppVariantDB:
-    print("app_name: " + str(app_name))
-    print("variant_name: " + str(variant_name))
-
     if variant_name is not None:
         query_expression = (
             query.eq(AppVariantDB.is_deleted, show_deleted)
-            & query.eq(AppVariantDB.app_name, app_name)
+            & query.eq(AppVariantDB.app_id, ObjectId(app_id))
             & query.eq(AppVariantDB.variant_name, variant_name)
         )
     else:
         query_expression = query.eq(AppVariantDB.is_deleted, show_deleted) & query.eq(
-            AppVariantDB.app_name, app_name
+            AppVariantDB.app_name, ObjectId(app_id)
         )
 
     print("query_expression: " + str(query_expression))
@@ -52,36 +49,57 @@ async def get_app_instance(
 async def check_user_org_access(
     kwargs: dict, organization_id: str, owner=False
 ) -> bool:
-    if not owner:
-        user_organizations: List = kwargs["organization_ids"]
-        object_organization_id = ObjectId(organization_id)
-        return object_organization_id in user_organizations
-    elif owner:
+    if owner:  # Check that the user is the owner of the organization
         user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
         organization = await get_organization(organization_id)
         if not organization:
             logger.error("Organization not found")
             raise Exception("Organization not found")
         return organization.owner == str(user.id)
+    else:
+        user_organizations: List = kwargs["organization_ids"]
+        object_organization_id = ObjectId(organization_id)
+        logger.debug(
+            f"object_organization_id: {object_organization_id}, user_organizations: {user_organizations}"
+        )
+        return object_organization_id in user_organizations
 
 
 async def check_access_to_app(
-    kwargs: Dict[str, Union[str, list]],
+    user_org_data: Dict[str, Union[str, list]],
     app: Optional[AppDB] = None,
     app_id: Optional[str] = None,
     check_owner: bool = False,
 ) -> bool:
-    if app_id is None and app is None:
-        raise Exception("No app or app_id provided")
-    if app_id is not None and app is not None:
-        raise Exception("Provide either app or app_id, not both")
-    if app is None and app_id is not None:
+    """
+    Check if a user has access to a specific application.
+
+    Args:
+        user_org_data (Dict[str, Union[str, list]]): User-specific information.
+        app (Optional[AppDB]): An instance of the AppDB model representing the application.
+        app_id (Optional[str]): The ID of the application.
+        check_owner (bool): Whether to check if the user is the owner of the application.
+
+    Returns:
+        bool: True if the user has access, False otherwise.
+
+    Raises:
+        Exception: If neither or both `app` and `app_id` are provided.
+
+    """
+    if (app is None) == (app_id is None):
+        raise Exception("Provide either app or app_id, not both or neither")
+
+    # Fetch the app if only app_id is provided.
+    if app is None:
         app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
         if app is None:
             logger.error("App not found")
             return False
+
+    # Check user's access to the organization linked to the app.
     organization_id = app.organization_id.id
-    return await check_user_org_access(kwargs, str(organization_id), check_owner)
+    return await check_user_org_access(user_org_data, str(organization_id), check_owner)
 
 
 async def check_access_to_variant(
