@@ -11,7 +11,7 @@ from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
 from agenta_backend.services.docker_utils import restart_container
-from agenta_backend.utills.common import (
+from agenta_backend.utils.common import (
     get_app_instance,
     check_access_to_app,
     check_access_to_variant,

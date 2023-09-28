@@ -4,7 +4,7 @@ from typing import List
 from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager, new_db_manager
 from fastapi import APIRouter, Depends, HTTPException
-from agenta_backend.utills.common import check_access_to_app, check_access_to_variant
+from agenta_backend.utils.common import check_access_to_app, check_access_to_variant
 from agenta_backend.models.api.api_models import (
     EnvironmentOutput,
     DeployToEnvironmentPayload,
