@@ -216,7 +216,9 @@ async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
     return app
 
 
-async def fetch_app_by_name(app_name: str, organization_id: Optional[str] = None, **kwargs: dict) -> AppDB:
+async def fetch_app_by_name(
+    app_name: str, organization_id: Optional[str] = None, **kwargs: dict
+) -> AppDB:
     """Fetches an app by its name.
 
     Args:
