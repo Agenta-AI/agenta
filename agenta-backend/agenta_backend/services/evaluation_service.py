@@ -533,7 +533,7 @@ async def fetch_list_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    access = common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
+    access = common.check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
@@ -699,7 +699,7 @@ async def fetch_custom_evaluations(
         List[CustomEvaluationOutput]: ls=ist of custom evaluations
     """
     # Get user object
-    access = await common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
+    access = await common.check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
