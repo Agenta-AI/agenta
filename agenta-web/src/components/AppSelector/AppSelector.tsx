@@ -210,7 +210,7 @@ const AppSelector: React.FC = () => {
             imageName: image_name,
             orgId: userOrgId,
             openAIKey: isDemo ? "" : (openAIKey as string),
-            onStatusChange: (status, details) => {
+            onStatusChange: (status, details, appId) => {
                 const title = "Template Selection"
                 switch (status) {
                     case "fetching_image":
@@ -246,7 +246,7 @@ const AppSelector: React.FC = () => {
                             key: status,
                         })
                         onFinish()
-                        router.push(`/apps/${newApp}/playground`)
+                        router.push(`/apps/${appId}/playground`)
                         break
                     case "bad_request":
                         showNotification({

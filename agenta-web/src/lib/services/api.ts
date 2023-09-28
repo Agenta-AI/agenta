@@ -618,6 +618,7 @@ export const createAndStartTemplate = async ({
             | "timeout"
             | "error",
         details?: any,
+        appId?: string,
     ) => void
 }) => {
     try {
@@ -653,7 +654,7 @@ export const createAndStartTemplate = async ({
             await waitForAppToStart(app.data.app_id)
         } catch (error: any) {
             if (error.message === "timeout") {
-                onStatusChange?.("timeout")
+                onStatusChange?.("timeout", "", app.data.app_id)
                 return
             }
             throw error
