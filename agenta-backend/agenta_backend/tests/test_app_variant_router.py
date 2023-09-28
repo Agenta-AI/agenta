@@ -166,7 +166,7 @@ async def test_raises_http_exception_on_no_access(mocker):
     
     
 @pytest.mark.asyncio
-async def test_app_id_provided_and_permission(self, mocker):
+async def test_app_id_provided_and_permission(mocker):
 
     """
     Test Delete App when App id is provided and user has permission to delete it
@@ -189,7 +189,7 @@ async def test_app_id_provided_and_permission(self, mocker):
 
 
 @pytest.mark.asyncio
-async def test_successfully_remove_variant(self, mocker):
+async def test_successfully_remove_variant(mocker):
     
     """
     Successfully remove a variant
@@ -214,7 +214,7 @@ async def test_successfully_remove_variant(self, mocker):
 
 
 @pytest.mark.asyncio
-async def test_successfully_remove_variant(self, mocker):
+async def test_successfully_remove_variant(mocker):
     
     """
     Successfully remove a variant and its associated image
@@ -239,7 +239,7 @@ async def test_successfully_remove_variant(self, mocker):
     
     
 @pytest.mark.asyncio
-async def test_no_permission_to_delete_app(self, mocker):
+async def test_no_permission_to_delete_app(mocker):
     
     """
     Test Delete App when User does not have permission to delete app
