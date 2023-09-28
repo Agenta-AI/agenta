@@ -1,3 +1,4 @@
+from agenta_backend.services.security.sandbox import execute_code_safely
 from bson import ObjectId
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -621,10 +622,10 @@ async def create_custom_code_evaluation(
 
 async def execute_custom_code_evaluation(
     evaluation_id: str,
-    app_name: str,
+    app_id: str,
     output: str,
     correct_answer: str,
-    variant_name: str,
+    variant_id: str,
     inputs: Dict[str, Any],
     **user_org_data: dict,
 ):
@@ -632,14 +633,15 @@ async def execute_custom_code_evaluation(
 
     Args:
         evaluation_id (str): the custom evaluation id
-        app_name (str): the name of the app
+        app_id (str): the ID of the app
         output (str): required by the custom code
         correct_answer (str): required by the custom code
-        variant_name (str): required by the custom code
+        variant_id (str): required by the custom code
         inputs (Dict[str, Any]): required by the custom code
 
     Raises:
         HTTPException: Evaluation not found
+        HTTPException: You do not have access to this app: {app_id}
         HTTPException: App variant not found
         HTTPException: Failed to execute custom code evaluation
 
@@ -659,10 +661,20 @@ async def execute_custom_code_evaluation(
     custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
     if not custom_eval:
         raise HTTPException(status_code=404, detail="Evaluation not found")
+    
+    # Check if user has app access
+    access = await common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
+    if not access:
+        raise HTTPException(
+            status_code=403, detail=f"You do not have access to this app: {app_id}"
+        )
+        
+    # Retrieve app from database
+    app = await new_db_manager.fetch_app_by_id(app_id=app_id)
 
     # Build query expression for app variant
-    appvar_query_expression = query.eq(AppVariantDB.app_name, app_name) & query.eq(
-        AppVariantDB.variant_name, variant_name
+    appvar_query_expression = query.eq(AppVariantDB.app_id, app.id) & query.eq(
+        AppVariantDB.id, ObjectId(variant_id)
     )
 
     # Get app variant object
@@ -698,12 +710,15 @@ async def fetch_custom_evaluations(
     Returns:
         List[CustomEvaluationOutput]: ls=ist of custom evaluations
     """
-    # Get user object
+    
+    # Check if user has app access
     access = await common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
         )
+        
+    # Retrieve app from database
     app = await new_db_manager.fetch_app_by_id(app_id=app_id)
 
     # Get custom evaluations
@@ -754,7 +769,7 @@ async def fetch_custom_evaluation_detail(
 
     return CustomEvaluationDetail(
         id=str(custom_eval.id),
-        app_name=custom_eval.app_name,
+        app_id=str(custom_eval.app.id),
         python_code=custom_eval.python_code,
         evaluation_name=custom_eval.evaluation_name,
         created_at=custom_eval.created_at,
@@ -763,7 +778,7 @@ async def fetch_custom_evaluation_detail(
 
 
 async def fetch_custom_evaluation_names(
-    app_name: str, **user_org_data: dict
+    app_id: str, **user_org_data: dict
 ) -> List[CustomEvaluationNames]:
     """Fetch the names of custom evaluation from the database.
 
@@ -776,10 +791,20 @@ async def fetch_custom_evaluation_names(
 
     # Get user object
     user = await get_user_object(user_org_data["uid"])
+    
+    # Check if user has app access
+    access = await common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
+    if not access:
+        raise HTTPException(
+            status_code=403, detail=f"You do not have access to this app: {app_id}"
+        )
+        
+    # Retrieve app from database
+    app = await new_db_manager.fetch_app_by_id(app_id=app_id)
 
     # Build query expression
     query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
-        CustomEvaluationDB.app_name, app_name
+        CustomEvaluationDB.app, app.id
     )
 
     # Get custom evaluation
