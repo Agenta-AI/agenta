@@ -20,7 +20,7 @@ from agenta_backend.models.api.evaluation_model import (
 from agenta_backend.models import converters
 from agenta_backend.utils.common import engine, check_access_to_app
 from agenta_backend.services.db_manager import query, get_user_object
-from agenta_backend.services import new_db_manager
+from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
     AppVariantDB,
     EvaluationDB,
@@ -48,9 +48,7 @@ async def _fetch_evaluation_and_check_access(
     evaluation_id: str, **user_org_data: dict
 ) -> EvaluationDB:
     # Fetch the evaluation by ID
-    evaluation = await new_db_manager.fetch_evaluation_by_id(
-        evaluation_id=evaluation_id
-    )
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id=evaluation_id)
 
     # Check if the evaluation exists
     if evaluation is None:
@@ -75,7 +73,7 @@ async def _fetch_evaluation_scenario_and_check_access(
     evaluation_scenario_id: str, **user_org_data: dict
 ) -> EvaluationDB:
     # Fetch the evaluation by ID
-    evaluation_scenario = await new_db_manager.fetch_evaluation_scenario_by_id(
+    evaluation_scenario = await db_manager.fetch_evaluation_scenario_by_id(
         evaluation_scenario_id=evaluation_scenario_id
     )
     if evaluation_scenario is None:
@@ -133,7 +131,7 @@ async def create_new_evaluation(
     current_time = datetime.utcnow()
 
     # Fetch app
-    app = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
+    app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
     if app is None:
         raise HTTPException(
             status_code=404,
@@ -142,7 +140,7 @@ async def create_new_evaluation(
 
     variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
 
-    testset = await new_db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
+    testset = await db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
     # Initialize and save evaluation instance to database
     eval_instance = EvaluationDB(
         app=app,
@@ -638,7 +636,7 @@ async def create_custom_code_evaluation(
             status_code=403,
             detail=f"You do not have access to this app: {payload.app_id}",
         )
-    app = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
+    app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
     custom_eval = CustomEvaluationDB(
         evaluation_name=payload.evaluation_name,
         user=app.user_id,
@@ -704,7 +702,7 @@ async def execute_custom_code_evaluation(
         )
 
     # Retrieve app from database
-    app = await new_db_manager.fetch_app_by_id(app_id=app_id)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     # Build query expression for app variant
     appvar_query_expression = query.eq(AppVariantDB.app_id, app.id) & query.eq(
@@ -753,7 +751,7 @@ async def fetch_custom_evaluations(
         )
 
     # Retrieve app from database
-    app = await new_db_manager.fetch_app_by_id(app_id=app_id)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     # Get custom evaluations
     custom_evals = await engine.find(
@@ -835,7 +833,7 @@ async def fetch_custom_evaluation_names(
         )
 
     # Retrieve app from database
-    app = await new_db_manager.fetch_app_by_id(app_id=app_id)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     # Build query expression
     query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(

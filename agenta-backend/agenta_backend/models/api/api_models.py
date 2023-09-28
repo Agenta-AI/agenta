@@ -39,7 +39,6 @@ class AppVariant(BaseModel):
 
 
 class AppVariantFromImagePayload(BaseModel):
-    app_id: str
     variant_name: str
 
 
@@ -93,6 +92,14 @@ class Image(BaseModel):
     docker_id: str
     tags: str
     organization_id: Optional[str] = None
+
+
+class AddVariantFromImagePayload(BaseModel):
+    variant_name: str
+    docker_id: str
+    tags: str
+    base_name: Optional[str]
+    config_name: Optional[str]
 
 
 class ImageExtended(Image):
