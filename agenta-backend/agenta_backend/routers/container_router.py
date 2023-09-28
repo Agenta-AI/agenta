@@ -11,7 +11,7 @@ from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
 from agenta_backend.services.docker_utils import restart_container
-from agenta_backend.utills.common import (
+from agenta_backend.utils.common import (
     get_app_instance,
     check_access_to_app,
     check_access_to_variant,
@@ -23,7 +23,7 @@ from agenta_backend.models.api.api_models import (
     URI,
 )
 from agenta_backend.services.db_manager import get_templates, get_user_object
-from agenta_backend.services import new_db_manager
+from agenta_backend.services import db_manager
 from agenta_backend.services.container_manager import (
     build_image_job,
     get_image_details_from_docker_hub,
@@ -55,15 +55,15 @@ router = APIRouter()
 
 @router.post("/build_image/")
 async def build_image(
-    app_name: str,
+    app_id: str,
     variant_name: str,
     tar_file: UploadFile,
-    organization_id: str = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Image:
     """Takes a tar file and builds a docker image from it
 
     Arguments:
+        app_id -- The ID of the app
         app_name -- The `app_name` parameter is a string that represents the name of \
             the application for which the docker image is being built
         variant_name -- The `variant_name` parameter is a string that represents the \
@@ -76,24 +76,27 @@ async def build_image(
     """
 
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Check app access
-    if organization_id is None:
-        app_variant = await get_app_instance(app_name, variant_name)
-        organization_id = str(app_variant.organization_id)
-        app_access = await check_access_to_app(kwargs, app_variant=app_variant)
-    else:
-        organization_id = organization_id
-        app_access = await check_access_to_app(kwargs, app_name=app_name)
-
-    if not app_access:
-        error_msg = f"You do not have access to this app: {app_name}"
+    app_db = await db_manager.fetch_app_by_id(app_id)
+    if not app_db:
+        error_msg = f"App with id {app_id} does not exist"
         return JSONResponse(
             {"detail": error_msg},
             status_code=400,
         )
 
+    app_access = await check_access_to_app(user_org_data, app_id=app_id)
+
+    if not app_access:
+        error_msg = f"You do not have access to this app: {app_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app_name = app_db.app_name
+    organization_id = str(app_db.organization_id.id)
     # Get event loop
     loop = asyncio.get_event_loop()
 
@@ -144,7 +147,7 @@ async def restart_docker_container(
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
     access = check_access_to_variant(
-        kwargs=user_org_data, variant_id=payload.variant_id
+        user_org_data=user_org_data, variant_id=payload.variant_id
     )
     if not access:
         error_msg = f"You do not have access to this variant: {payload.variant_id}"
@@ -152,7 +155,7 @@ async def restart_docker_container(
             {"detail": error_msg},
             status_code=400,
         )
-    app_variant_db = await new_db_manager.fetch_app_variant_by_id(
+    app_variant_db = await db_manager.fetch_app_variant_by_id(
         app_variant_id=payload.variant_id
     )
     if app_variant_db is None:
@@ -237,16 +240,14 @@ async def construct_app_container_url(
 
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = check_access_to_variant(kwargs=user_org_data, variant_id=variant_id)
+    access = check_access_to_variant(user_org_data=user_org_data, variant_id=variant_id)
     if access is False:
         error_msg = f"You do not have access to this variant: {variant_id}"
         return JSONResponse(
             {"detail": error_msg},
             status_code=400,
         )
-    app_variant_db = await new_db_manager.fetch_app_variant_by_id(
-        app_variant_id=variant_id
-    )
+    app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
     if app_variant_db is None:
         error_msg = f"Variant with id {variant_id} does not exist"
         return JSONResponse(

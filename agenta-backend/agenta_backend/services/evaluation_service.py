@@ -1,3 +1,4 @@
+from agenta_backend.services.security.sandbox import execute_code_safely
 from bson import ObjectId
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -17,9 +18,9 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationUpdate,
 )
 from agenta_backend.models import converters
-from agenta_backend.utills.common import engine
+from agenta_backend.utils.common import engine, check_access_to_app
 from agenta_backend.services.db_manager import query, get_user_object
-from agenta_backend.services import new_db_manager
+from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
     AppVariantDB,
     EvaluationDB,
@@ -30,8 +31,6 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioOutput,
     CustomEvaluationDB,
 )
-
-from agenta_backend.utills import common
 
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
@@ -48,9 +47,7 @@ async def _fetch_evaluation_and_check_access(
     evaluation_id: str, **user_org_data: dict
 ) -> EvaluationDB:
     # Fetch the evaluation by ID
-    evaluation = await new_db_manager.fetch_evaluation_by_id(
-        evaluation_id=evaluation_id
-    )
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id=evaluation_id)
 
     # Check if the evaluation exists
     if evaluation is None:
@@ -59,8 +56,8 @@ async def _fetch_evaluation_and_check_access(
         )
 
     # Check for access rights
-    access = await common.check_access_to_app(
-        kwargs=user_org_data, app_id=evaluation.app.id
+    access = await check_access_to_app(
+        user_org_data=user_org_data, app_id=evaluation.app.id
     )
     if not access:
         raise HTTPException(
@@ -74,7 +71,7 @@ async def _fetch_evaluation_scenario_and_check_access(
     evaluation_scenario_id: str, **user_org_data: dict
 ) -> EvaluationDB:
     # Fetch the evaluation by ID
-    evaluation_scenario = await new_db_manager.fetch_evaluation_scenario_by_id(
+    evaluation_scenario = await db_manager.fetch_evaluation_scenario_by_id(
         evaluation_scenario_id=evaluation_scenario_id
     )
     if evaluation_scenario is None:
@@ -92,8 +89,8 @@ async def _fetch_evaluation_scenario_and_check_access(
         )
 
     # Check for access rights
-    access = await common.check_access_to_app(
-        kwargs=user_org_data, app_id=evaluation.app.id
+    access = await check_access_to_app(
+        user_org_data=user_org_data, app_id=evaluation.app.id
     )
     if not access:
         raise HTTPException(
@@ -132,7 +129,7 @@ async def _fetch_evaluation_scenario_and_check_access(
 #     current_time = datetime.utcnow()
 
 #     # Fetch app
-#     app = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
+#     app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
 #     if app is None:
 #         raise HTTPException(
 #             status_code=404, detail=f"App with id {payload.app_id} does not exist"
@@ -140,7 +137,7 @@ async def _fetch_evaluation_scenario_and_check_access(
 
 #     variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
 
-#     testset = await new_db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
+#     testset = await db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
 #     # Initialize and save evaluation instance to database
 #     eval_instance = EvaluationDB(
 #         app=app,
@@ -533,7 +530,7 @@ async def fetch_list_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    access = common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
+    access = check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
@@ -596,15 +593,15 @@ async def create_custom_code_evaluation(
     """
 
     # Initialize custom evaluation instance
-    access = await common.check_access_to_app(
-        kwargs=user_org_data, app_id=payload.app_id
+    access = await check_access_to_app(
+        user_org_data=user_org_data, app_id=payload.app_id
     )
     if not access:
         raise HTTPException(
             status_code=403,
             detail=f"You do not have access to this app: {payload.app_id}",
         )
-    app = await new_db_manager.fetch_app_by_id(app_id=payload.app_id)
+    app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
     custom_eval = CustomEvaluationDB(
         evaluation_name=payload.evaluation_name,
         user=app.user_id,
@@ -621,10 +618,10 @@ async def create_custom_code_evaluation(
 
 async def execute_custom_code_evaluation(
     evaluation_id: str,
-    app_name: str,
+    app_id: str,
     output: str,
     correct_answer: str,
-    variant_name: str,
+    variant_id: str,
     inputs: Dict[str, Any],
     **user_org_data: dict,
 ):
@@ -632,14 +629,15 @@ async def execute_custom_code_evaluation(
 
     Args:
         evaluation_id (str): the custom evaluation id
-        app_name (str): the name of the app
+        app_id (str): the ID of the app
         output (str): required by the custom code
         correct_answer (str): required by the custom code
-        variant_name (str): required by the custom code
+        variant_id (str): required by the custom code
         inputs (Dict[str, Any]): required by the custom code
 
     Raises:
         HTTPException: Evaluation not found
+        HTTPException: You do not have access to this app: {app_id}
         HTTPException: App variant not found
         HTTPException: Failed to execute custom code evaluation
 
@@ -660,9 +658,19 @@ async def execute_custom_code_evaluation(
     if not custom_eval:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
+    # Check if user has app access
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
+    if not access:
+        raise HTTPException(
+            status_code=403, detail=f"You do not have access to this app: {app_id}"
+        )
+
+    # Retrieve app from database
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+
     # Build query expression for app variant
-    appvar_query_expression = query.eq(AppVariantDB.app_name, app_name) & query.eq(
-        AppVariantDB.variant_name, variant_name
+    appvar_query_expression = query.eq(AppVariantDB.app_id, app.id) & query.eq(
+        AppVariantDB.id, ObjectId(variant_id)
     )
 
     # Get app variant object
@@ -699,12 +707,14 @@ async def fetch_custom_evaluations(
         List[CustomEvaluationOutput]: ls=ist of custom evaluations
     """
     # Get user object
-    access = await common.check_access_to_app(kwargs=user_org_data, app_id=app_id)
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
         )
-    app = await new_db_manager.fetch_app_by_id(app_id=app_id)
+
+    # Retrieve app from database
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     # Get custom evaluations
     custom_evals = await engine.find(
@@ -754,7 +764,7 @@ async def fetch_custom_evaluation_detail(
 
     return CustomEvaluationDetail(
         id=str(custom_eval.id),
-        app_name=custom_eval.app_name,
+        app_id=str(custom_eval.app.id),
         python_code=custom_eval.python_code,
         evaluation_name=custom_eval.evaluation_name,
         created_at=custom_eval.created_at,
@@ -763,7 +773,7 @@ async def fetch_custom_evaluation_detail(
 
 
 async def fetch_custom_evaluation_names(
-    app_name: str, **user_org_data: dict
+    app_id: str, **user_org_data: dict
 ) -> List[CustomEvaluationNames]:
     """Fetch the names of custom evaluation from the database.
 
@@ -777,9 +787,19 @@ async def fetch_custom_evaluation_names(
     # Get user object
     user = await get_user_object(user_org_data["uid"])
 
+    # Check if user has app access
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
+    if not access:
+        raise HTTPException(
+            status_code=403, detail=f"You do not have access to this app: {app_id}"
+        )
+
+    # Retrieve app from database
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+
     # Build query expression
     query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
-        CustomEvaluationDB.app_name, app_name
+        CustomEvaluationDB.app, app.id
     )
 
     # Get custom evaluation

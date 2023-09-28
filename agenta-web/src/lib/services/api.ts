@@ -34,7 +34,7 @@ export async function fetchVariants(
     ignoreAxiosError: boolean = false,
 ): Promise<Variant[]> {
     const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_variants/?app_id=${appId}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/${appId}/variants/`,
         {_ignoreError: ignoreAxiosError} as any,
     )
 
@@ -212,7 +212,7 @@ export async function saveNewVariant(
     newConfigName: string,
     parameters: Parameter[],
 ) {
-    await axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_base/`, {
+    await axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/add/from_base/`, {
         base_id: baseId,
         new_variant_name: newVariantName,
         new_config_name: newConfigName,
@@ -224,7 +224,7 @@ export async function saveNewVariant(
 
 export async function updateVariantParams(variantId: string, parameters: Parameter[]) {
     await axios.put(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/update_variant_parameters/`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/update_variant_parameters/`,
         {
             variant_id: variantId,
             parameters: parameters.reduce((acc, param) => {
@@ -235,16 +235,15 @@ export async function updateVariantParams(variantId: string, parameters: Paramet
 }
 
 export async function removeApp(appId: string) {
-    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/remove_app/`, {
+    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/remove_app/`, {
         data: {app_id: appId},
     })
 }
 
 export async function removeVariant(variantId: string) {
-    await axios.delete(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/remove_variant/`,
-        {data: {variant_id: variantId}},
-    )
+    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/remove_variant/`, {
+        data: {variant_id: variantId},
+    })
 }
 
 /**
@@ -517,7 +516,7 @@ export const updateEvaluationScenarioScore = async (
 
 export const useApps = () => {
     const {data, error, isLoading} = useSWR(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/`,
         fetcher,
     )
 
@@ -554,7 +553,7 @@ export const createAppFromTemplate = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/add/from_template/`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/add/from_template/`,
         templateObj,
         {_ignoreError: ignoreAxiosError} as any,
     )
