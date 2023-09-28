@@ -188,11 +188,11 @@ def update_variant_image(
 
 
 def send_docker_tar(
-    app_id: str, app_name: str, variant_name: str, tar_path: Path, host: str
+    app_id: str, variant_name: str, tar_path: Path, host: str
 ) -> Image:
     with tar_path.open("rb") as tar_file:
         response = requests.post(
-            f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_id={app_id}&app_name={app_name}&variant_name={variant_name}",
+            f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_id={app_id}&&variant_name={variant_name}",
             files={
                 "tar_file": tar_file,
             },
