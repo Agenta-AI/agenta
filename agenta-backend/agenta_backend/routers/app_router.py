@@ -16,7 +16,6 @@ from agenta_backend.services import (
     db_manager,
     docker_utils,
     new_db_manager,
-    new_app_manager,
 )
 from agenta_backend.utils.common import (
     check_access_to_app,
@@ -461,7 +460,7 @@ async def start_variant(
     app_variant_db = await new_db_manager.fetch_app_variant_by_name_and_appid(
         variant.variant_name, variant.app_id
     )
-    url = await new_app_manager.start_variant(app_variant_db, envvars, **user_org_data)
+    url = await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
     return url
 
 
@@ -515,7 +514,7 @@ async def remove_variant(
                 status_code=400,
             )
         else:
-            await new_app_manager.remove_app_variant(
+            await app_manager.remove_app_variant(
                 app_variant_id=variant.variant_id, **user_org_data
             )
     except DockerException as e:
@@ -554,7 +553,7 @@ async def remove_app(
                 status_code=400,
             )
         else:
-            await new_app_manager.remove_app(app_id=app.app_id, **user_org_data)
+            await app_manager.remove_app(app_id=app.app_id, **user_org_data)
     except SQLAlchemyError as e:
         detail = f"Database error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -600,7 +599,7 @@ async def update_variant_parameters(
                 status_code=400,
             )
         else:
-            await new_app_manager.update_variant_parameters(
+            await app_manager.update_variant_parameters(
                 app_variant_id=payload.variant_id,
                 parameters=payload.parameters,
                 **user_org_data,
@@ -648,9 +647,7 @@ async def update_variant_image(
                 status_code=400,
             )
         else:
-            await new_app_manager.update_variant_image(
-                app_variant, image, **user_org_data
-            )
+            await app_manager.update_variant_image(app_variant, image, **user_org_data)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -731,6 +728,6 @@ async def add_app_variant_from_template(
     else:
         envvars = {} if payload.env_vars is None else payload.env_vars
 
-    await new_app_manager.start_variant(db_app_variant, envvars, **user_org_data)
+    await app_manager.start_variant(db_app_variant, envvars, **user_org_data)
 
     return app_variant_db_to_output(db_app_variant)
