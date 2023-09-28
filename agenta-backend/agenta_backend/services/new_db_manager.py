@@ -81,6 +81,7 @@ async def add_variant_based_on_image(
     try:
         logger.debug("Creating app variant based on image")
         await clean_soft_deleted_variants()
+        
         if (
             app_id in [None, ""]
             or variant_name in [None, ""]
@@ -90,6 +91,7 @@ async def add_variant_based_on_image(
             or organization_id in [None, ""]
         ):
             raise ValueError("App variant or image is None")
+
 
         soft_deleted_variants = await list_app_variants_for_app_id(
             app_id=str(app_id.id), show_soft_deleted=True, **kwargs
@@ -144,6 +146,8 @@ async def add_variant_based_on_image(
             config_id=db_config,
         )
         await engine.save(db_app_variant)
+        print("/////////")
+        print("AppDB: ", app_id)
         logger.debug("Created db_app_variant: %s", db_app_variant)
         return app_variant_db_to_output(db_app_variant)
     except Exception as e:
@@ -209,6 +213,23 @@ async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
 
     user = await get_user_object(kwargs["uid"])
     query_expression = (AppDB.id == ObjectId(app_id)) & (AppDB.user_id == user.id)
+    app = await engine.find_one(AppDB, query_expression)
+    return app
+
+
+async def fetch_app_by_id(app_id: str, app_name: str, **kwargs: dict) -> AppDB:
+    """Fetches an app by its ID.
+
+    Args:
+        app_id (str): The ID of the app to fetch.
+        app_name (str): The name of the app to fetch.
+
+    Returns:
+        AppDB: the instance of the app
+    """
+
+    user = await get_user_object(kwargs["uid"])
+    query_expression = (AppDB.id == ObjectId(app_id)) & (AppDB.app_name) & (AppDB.user_id == user.id)
     app = await engine.find_one(AppDB, query_expression)
     return app
 
