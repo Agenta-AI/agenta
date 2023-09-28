@@ -31,6 +31,8 @@ from agenta_backend.models.db_models import (
     BaseDB,
     ConfigDB,
     TestSetDB,
+    EvaluationDB,
+    EvaluationScenarioDB,
 )
 from agenta_backend.services import helpers
 from agenta_backend.utills.common import engine, check_user_org_access, get_organization
@@ -577,7 +579,7 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
     await engine.save(environment_db)
 
 
-async def fetch_app_by_id(app_id: str) -> AppDB:
+async def fetch_app_by_id(app_id: str) -> Optional[AppDB]:
     """_summary_
 
     Args:
@@ -793,3 +795,58 @@ async def fetch_testsets_by_app_id(app_id: str) -> List[TestSetDB]:
     assert app_id is not None, "app_id cannot be None"
     testsets = await engine.find(TestSetDB, TestSetDB.app_id == ObjectId(app_id))
     return testsets
+
+
+async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
+    """Fetches a evaluation by its ID.
+    Args:
+        evaluation_id (str): The ID of the evaluation to fetch.
+    Returns:
+        EvaluationDB: The fetched evaluation, or None if no evaluation was found.
+    """
+    assert evaluation_id is not None, "evaluation_id cannot be None"
+    evaluation = await engine.find_one(
+        EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
+    )
+    return evaluation
+
+
+async def fetch_evaluation_scenario_by_id(
+    evaluation_scenario_id: str,
+) -> Optional[EvaluationScenarioDB]:
+    """Fetches and evaluation scenario by its ID.
+    Args:
+        evaluation_scenario_id (str): The ID of the evaluation scenario to fetch.
+    Returns:
+        EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
+    """
+    assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
+    evaluation_scenario = await engine.find_one(
+        EvaluationScenarioDB,
+        EvaluationScenarioDB.id == ObjectId(evaluation_scenario_id),
+    )
+    return evaluation_scenario
+
+
+async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVariantDB]:
+    """Find the previous variant from a base id.
+
+    Args:
+        base_id (str): The base id to search for.
+
+    Returns:
+        Optional[AppVariantDB]: The previous variant, or None if no previous variant was found.
+    """
+    assert base_id is not None, "base_id cannot be None"
+    previous_variants = await engine.find(
+        AppVariantDB, AppVariantDB.base_id == ObjectId(base_id)
+    )
+    logger.debug("previous_variants: %s", previous_variants)
+    if len(list(previous_variants)) == 0:
+        return None
+    # select the variant for which previous_variant_name is None
+    for previous_variant in previous_variants:
+        if previous_variant.previous_variant_name is None:
+            logger.debug("previous_variant: %s", previous_variant)
+            return previous_variant
+    assert False, "None of the previous variants has previous_variant_name=None"

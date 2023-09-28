@@ -21,6 +21,7 @@ import {
     callVariant,
     fetchEvaluationResults,
     updateEvaluation,
+    evaluateAICritiqueForEvalScenario,
 } from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
@@ -148,13 +149,11 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const router = useRouter()
-    const appName = Array.isArray(router.query.app_name)
-        ? router.query.app_name[0]
-        : router.query.app_name || ""
+    const appId = router.query.app_id as string
 
     const variants = evaluation.variants
 
-    const variantData = useVariants(appName, variants)
+    const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<AICritiqueEvaluationTableRow[]>([])
     const [evaluationPromptTemplate, setEvaluationPromptTemplate] =
@@ -263,16 +262,22 @@ Answer ONLY with one of the given grading or evaluation options.
         if (evaluation_scenario_id) {
             const data = {
                 outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+            }
+
+            const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario({
+                correct_answer: rows[rowNumber].correctAnswer,
+                llm_app_prompt_template: evaluation.llmAppPromptTemplate,
                 inputs: rows[rowNumber].inputs,
+                outputs: data.outputs,
                 evaluation_prompt_template: evaluationPromptTemplate,
                 open_ai_key: getOpenAIKey(),
-            }
+            })
 
             try {
                 const responseData = await updateEvaluationScenario(
                     evaluation.id,
                     evaluation_scenario_id,
-                    data,
+                    {...data, score: aiCritiqueScoreResponse.data},
                     evaluation.evaluationType as EvaluationType,
                 )
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)

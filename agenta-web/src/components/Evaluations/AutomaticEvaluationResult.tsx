@@ -77,20 +77,20 @@ export default function AutomaticEvaluationResult() {
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectionType] = useState<"checkbox" | "radio">("checkbox")
-    const [deletingLoading, setDeletingLoading] = useState<boolean>(true)
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
 
-    const app_name = router.query.app_name?.toString() || ""
+    const app_id = router.query.app_id?.toString() || ""
 
     useEffect(() => {
-        if (!app_name) {
+        if (!app_id) {
             return
         }
+
         const fetchEvaluations = async () => {
             try {
                 fetchData(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_name=${app_name}`,
+                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_id=${app_id}`,
                 )
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
@@ -116,7 +116,9 @@ export default function AutomaticEvaluationResult() {
                                             evaluationType: item.evaluation_type,
                                             status: item.status,
                                             testset: item.testset,
-                                            custom_code_eval_id: item.custom_code_evaluation_id,
+                                            custom_code_eval_id:
+                                                item.evaluation_type_settings
+                                                    .custom_code_evaluation_id,
                                             resultsData: results.results_data,
                                             avgScore: results.avg_score,
                                         }
@@ -135,7 +137,6 @@ export default function AutomaticEvaluationResult() {
                                             item.avgScore !== undefined,
                                     )
                                 setEvaluationsList(validEvaluations)
-                                setDeletingLoading(false)
                             })
                             .catch((err) => console.error(err))
                     })
@@ -146,7 +147,7 @@ export default function AutomaticEvaluationResult() {
         }
 
         fetchEvaluations()
-    }, [app_name])
+    }, [app_id])
 
     const onCompleteEvaluation = (evaluation: any) => {
         // TODO: improve type
@@ -154,18 +155,18 @@ export default function AutomaticEvaluationResult() {
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.auto_exact_match) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_exact_match`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_exact_match`)
         } else if (evaluationType === EvaluationType.auto_similarity_match) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_similarity_match`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_similarity_match`)
         } else if (evaluationType === EvaluationType.auto_regex_test) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_regex_test`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_regex_test`)
         } else if (evaluationType === EvaluationType.auto_webhook_test) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_webhook_test`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_webhook_test`)
         } else if (evaluationType === EvaluationType.auto_ai_critique) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_ai_critique`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_ai_critique`)
         } else if (evaluationType === EvaluationType.custom_code_run) {
             router.push(
-                `/apps/${app_name}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_eval_id}`,
+                `/apps/${app_id}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_eval_id}`,
             )
         }
     }
@@ -274,7 +275,6 @@ export default function AutomaticEvaluationResult() {
 
     const onDelete = async () => {
         const evaluationsIds = selectedRowKeys.map((key) => key.toString())
-        setDeletingLoading(true)
         try {
             const deletedIds = await deleteEvaluations(evaluationsIds)
             setEvaluationsList((prevEvaluationsList) =>
@@ -282,10 +282,8 @@ export default function AutomaticEvaluationResult() {
             )
 
             setSelectedRowKeys([])
-        } catch (e) {
-            console.log(e)
+        } catch {
         } finally {
-            setDeletingLoading(false)
         }
     }
 

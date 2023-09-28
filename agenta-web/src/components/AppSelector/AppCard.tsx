@@ -7,6 +7,7 @@ import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {getGradientFromStr} from "@/lib/helpers/colors"
+import {ListAppsItem} from "@/lib/Types"
 
 const useStyles = createUseStyles({
     card: {
@@ -54,10 +55,8 @@ const DeleteModal: React.FC<{
 }
 
 const AppCard: React.FC<{
-    appName: string
-    key: number
-    index: number
-}> = ({appName, index}) => {
+    app: ListAppsItem
+}> = ({app}) => {
     const [visibleDelete, setVisibleDelete] = useState(false)
     const [confirmLoading, setConfirmLoading] = useState(false) // add this line
     const showDeleteModal = () => {
@@ -67,7 +66,7 @@ const AppCard: React.FC<{
     const handleDeleteOk = async () => {
         setConfirmLoading(true)
         try {
-            await removeApp(appName)
+            await removeApp(app.app_id)
             // Refresh the data (if you're using SWR or a similar library)
             mutate(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`)
         } finally {
@@ -87,15 +86,15 @@ const AppCard: React.FC<{
                 className={classes.card}
                 actions={[<DeleteOutlined key="delete" onClick={showDeleteModal} />]}
             >
-                <Link data-cy="app-card-link" href={`/apps/${appName}/playground`}>
+                <Link data-cy="app-card-link" href={`/apps/${app.app_id}/playground`}>
                     <Card.Meta
-                        title={<div>{renameVariablesCapitalizeAll(appName)}</div>}
+                        title={<div>{renameVariablesCapitalizeAll(app.app_name)}</div>}
                         avatar={
                             <Avatar
                                 size="large"
-                                style={{backgroundImage: getGradientFromStr(appName)}}
+                                style={{backgroundImage: getGradientFromStr(app.app_id)}}
                             >
-                                {appName.charAt(0).toUpperCase()}
+                                {app.app_name.charAt(0).toUpperCase()}
                             </Avatar>
                         }
                     />
@@ -106,7 +105,7 @@ const AppCard: React.FC<{
                 open={visibleDelete}
                 handleOk={handleDeleteOk}
                 handleCancel={handleDeleteCancel}
-                appName={appName}
+                appName={app.app_name}
                 confirmLoading={confirmLoading}
             />
         </>

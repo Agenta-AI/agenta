@@ -125,71 +125,6 @@ class TemplateDB(Model):
         collection = "templates"
 
 
-class EvaluationTypeSettings(EmbeddedModel):
-    similarity_threshold: Optional[float]
-    regex_pattern: Optional[str]
-    regex_should_match: Optional[bool]
-    webhook_url: Optional[str]
-
-
-class EvaluationScenarioInput(EmbeddedModel):
-    input_name: str
-    input_value: str
-
-
-class EvaluationScenarioOutput(EmbeddedModel):
-    variant_id: AppVariantDB = Reference(key_name="app_variants")
-    variant_output: str
-
-
-class EvaluationDB(Model):
-    status: str
-    evaluation_type: str
-    custom_code_evaluation_id: Optional[str]
-    evaluation_type_settings: EvaluationTypeSettings
-    llm_app_prompt_template: str
-    variant_ids: List[ObjectId]
-    app_id: AppDB = Reference(key_name="app")
-    testset: Dict[str, str]
-    user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Config:
-        collection = "evaluations"
-
-
-class EvaluationScenarioDB(Model):
-    inputs: List[EvaluationScenarioInput]
-    outputs: List[ObjectId]  # EvaluationScenarioOutput
-    vote: Optional[str]
-    score: Optional[str]
-    evaluation: Optional[str]
-    evaluation_id: EvaluationDB = Reference(key_name="evaluations")
-    user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
-    correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Config:
-        collection = "evaluation_scenarios"
-
-
-class CustomEvaluationDB(Model):
-    evaluation_id: EvaluationDB = Reference(key_name="evaluations")
-    python_code: str
-    app_id: AppDB = Reference(key_name="app")
-    user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Config:
-        collection = "custom_evaluations"
-
-
 class TestSetDB(Model):
     name: str
     app_id: AppDB = Reference(key_name="app")
@@ -201,6 +136,70 @@ class TestSetDB(Model):
 
     class Config:
         collection = "testsets"
+
+
+class EvaluationTypeSettings(EmbeddedModel):
+    similarity_threshold: Optional[float]
+    regex_pattern: Optional[str]
+    regex_should_match: Optional[bool]
+    webhook_url: Optional[str]
+    llm_app_prompt_template: Optional[str]
+    custom_code_evaluation_id: Optional[str]
+
+
+class EvaluationScenarioInput(EmbeddedModel):
+    input_name: str
+    input_value: str
+
+
+class EvaluationScenarioOutput(EmbeddedModel):
+    variant_id: str
+    variant_output: str
+
+
+class EvaluationDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    status: str
+    evaluation_type: str
+    evaluation_type_settings: EvaluationTypeSettings
+    variants: List[ObjectId]
+    testset: TestSetDB = Reference(key_name="testsets")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "evaluations"
+
+
+class EvaluationScenarioDB(Model):
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    evaluation: EvaluationDB = Reference(key_name="evaluations")
+    inputs: List[EvaluationScenarioInput]
+    outputs: List[EvaluationScenarioOutput]  # EvaluationScenarioOutput
+    vote: Optional[str]
+    score: Optional[str]
+    correct_answer: Optional[str]
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "evaluation_scenarios"
+
+
+class CustomEvaluationDB(Model):
+    evaluation_name: str
+    python_code: str
+    app: AppDB = Reference(key_name="app")
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "custom_evaluations"
 
 
 class SpanDB(Model):
@@ -239,8 +238,7 @@ class TraceDB(Model):
     spans: List[ObjectId]
     start_time: datetime
     end_time: datetime = Field(default=datetime.utcnow())
-    app_name: Optional[str]
-    variant_name: Optional[str]
+    variant_id: Optional[str]
     cost: Optional[float]
     latency: float
     status: str  # initiated, completed, stopped, cancelled, failed
