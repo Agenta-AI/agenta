@@ -23,7 +23,7 @@ from agenta_backend.models.api.api_models import (
     URI,
 )
 from agenta_backend.services.db_manager import get_templates, get_user_object
-from agenta_backend.services import new_db_manager
+from agenta_backend.services import db_manager
 from agenta_backend.services.container_manager import (
     build_image_job,
     get_image_details_from_docker_hub,
@@ -79,7 +79,7 @@ async def build_image(
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Check app access
-    app_db = await new_db_manager.fetch_app_by_id(app_id)
+    app_db = await db_manager.fetch_app_by_id(app_id)
     if not app_db:
         error_msg = f"App with id {app_id} does not exist"
         return JSONResponse(
@@ -155,7 +155,7 @@ async def restart_docker_container(
             {"detail": error_msg},
             status_code=400,
         )
-    app_variant_db = await new_db_manager.fetch_app_variant_by_id(
+    app_variant_db = await db_manager.fetch_app_variant_by_id(
         app_variant_id=payload.variant_id
     )
     if app_variant_db is None:
@@ -247,9 +247,7 @@ async def construct_app_container_url(
             {"detail": error_msg},
             status_code=400,
         )
-    app_variant_db = await new_db_manager.fetch_app_variant_by_id(
-        app_variant_id=variant_id
-    )
+    app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
     if app_variant_db is None:
         error_msg = f"Variant with id {variant_id} does not exist"
         return JSONResponse(
