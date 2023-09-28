@@ -11,6 +11,7 @@ from agenta_backend.routers import (
     evaluation_router,
     observability_router,
     testset_router,
+    organization_router,
 )
 from agenta_backend.services.cache_manager import (
     retrieve_templates_from_dockerhub_cached,
@@ -89,6 +90,7 @@ app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")
 app.include_router(observability_router.router, prefix="/observability")
+app.include_router(organization_router.router, prefix="/organizations")
 
 allow_headers = ["Content-Type"]
 
