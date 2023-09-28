@@ -36,6 +36,11 @@ class AppVariant(BaseModel):
     organization_id: Optional[str] = None
 
 
+class AppVariantFromImagePayload(BaseModel):
+    app_id: str
+    variant_name: str
+
+
 class AppVariantOutput(BaseModel):
     app_id: str
     app_name: str
