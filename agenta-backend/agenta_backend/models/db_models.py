@@ -153,7 +153,7 @@ class EvaluationScenarioInput(EmbeddedModel):
 
 
 class EvaluationScenarioOutput(EmbeddedModel):
-    variant_id: AppVariantDB = Reference(key_name="app_variants")
+    variant_id: str
     variant_output: str
 
 
@@ -178,7 +178,7 @@ class EvaluationScenarioDB(Model):
     organization: OrganizationDB = Reference(key_name="organization")
     evaluation: EvaluationDB = Reference(key_name="evaluations")
     inputs: List[EvaluationScenarioInput]
-    outputs: List[ObjectId]  # EvaluationScenarioOutput
+    outputs: List[EvaluationScenarioOutput]  # EvaluationScenarioOutput
     vote: Optional[str]
     score: Optional[str]
     correct_answer: Optional[str]
@@ -190,11 +190,11 @@ class EvaluationScenarioDB(Model):
 
 
 class CustomEvaluationDB(Model):
-    evaluation_id: EvaluationDB = Reference(key_name="evaluations")
+    evaluation_name: str
     python_code: str
-    app_id: AppDB = Reference(key_name="app")
+    app: AppDB = Reference(key_name="app")
     user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 

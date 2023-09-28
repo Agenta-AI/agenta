@@ -20,10 +20,10 @@ const useStyles = createUseStyles({
 export default function NewTestsetWithAPI() {
     const classes = useStyles()
     const router = useRouter()
-    const appName = router.query.app_name?.toString() || ""
+    const appId = router.query.app_id as string
 
     const uploadURI = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/upload`
-    const jsonURI = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${appName}`
+    const jsonURI = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${appId}`
 
     const params = `{
     "name": "testset_name",}`
@@ -35,9 +35,9 @@ export default function NewTestsetWithAPI() {
     }
 
     const codeSnippetsUpload: Record<string, string> = {
-        Python: pythonCodeUpload(uploadURI, appName),
-        cURL: cURLCodeUpload(uploadURI, appName),
-        TypeScript: tsCodeUpload(uploadURI, appName),
+        Python: pythonCodeUpload(uploadURI, appId),
+        cURL: cURLCodeUpload(uploadURI, appId),
+        TypeScript: tsCodeUpload(uploadURI, appId),
     }
     return (
         <div>

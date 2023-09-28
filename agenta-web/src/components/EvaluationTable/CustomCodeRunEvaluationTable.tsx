@@ -154,13 +154,11 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const appName = Array.isArray(router.query.app_name)
-        ? router.query.app_name[0]
-        : router.query.app_name || ""
+    const appId = router.query.app_id as string
 
     const variants = evaluation.variants
 
-    const variantData = useVariants(appName, variants)
+    const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<CustomCodeEvaluationTableRow[]>([])
 
@@ -308,9 +306,8 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                 if (responseData) {
                     // Call custom code evaluation
                     const result = await callCustomCodeHandler(
+                        variants[0].variantId,
                         data.inputs,
-                        appName,
-                        appVariantNameX,
                         responseData.outputs,
                     )
                     if (result) {
@@ -329,20 +326,17 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
     }
 
     const callCustomCodeHandler = async (
-        variantInput: Array<IVariantInputs>,
-        appName: string,
-        variantName: string,
+        variantId: string,
+        inputs: Array<IVariantInputs>,
         outputs: Array<Object>,
     ) => {
-        const expectedTarget = correctAnswer(variantInput)
-        console.log("customEvaluationId: ", customEvaluationId)
+        const expectedTarget = correctAnswer(inputs)
         const data = {
             evaluation_id: customEvaluationId,
-            inputs: variantInput,
-            outputs: outputs,
-            app_name: appName,
+            inputs,
+            outputs,
             correct_answer: expectedTarget,
-            variant_name: variantName,
+            variant_id: variantId,
         }
         const response = await executeCustomEvaluationCode(data)
         if (response.status === 200) {

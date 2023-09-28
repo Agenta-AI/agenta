@@ -25,7 +25,7 @@ const useStyles = createUseStyles({
 export default function AddANewTestset() {
     const classes = useStyles()
     const router = useRouter()
-    const {app_name} = router.query
+    const appId = router.query.app_id as string
     const [form] = Form.useForm()
     const [uploadLoading, setUploadLoading] = useState(false)
     const [uploadType, setUploadType] = useState<"JSON" | "CSV" | undefined>("CSV")
@@ -45,7 +45,7 @@ export default function AddANewTestset() {
             if (values.testsetName && values.testsetName.trim() !== "") {
                 formData.append("testset_name", values.testsetName)
             }
-            formData.append("app_name", app_name?.toString() || "")
+            formData.append("app_id", appId)
 
             try {
                 setUploadLoading(true)
@@ -60,7 +60,7 @@ export default function AddANewTestset() {
                     },
                 )
                 form.resetFields()
-                router.push(`/apps/${app_name}/testsets`)
+                router.push(`/apps/${appId}/testsets`)
             } finally {
                 setUploadLoading(false)
             }
