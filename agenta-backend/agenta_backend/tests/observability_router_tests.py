@@ -16,7 +16,7 @@ import httpx
 
 
 # Initialize database engine
-engine = DBEngine(mode="test").engine()
+engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()

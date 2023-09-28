@@ -6,7 +6,7 @@ from datetime import datetime
 from agenta_backend.models.db_engine import DBEngine
 
 
-engine = DBEngine(mode="test").engine()
+engine = DBEngine().engine()
 
 
 @pytest.fixture(scope="session", autouse=True)
