@@ -67,7 +67,7 @@ def add_variant_to_server(
         image_name -- Name of the image
     """
     app_variant: AppVariant = AppVariant(
-        app_id=app_id, app_name=app_name, variant_name=variant_name
+        app_id=app_id, variant_name=variant_name
     )
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/app_variant/add/from_image/",
