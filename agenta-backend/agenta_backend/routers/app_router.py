@@ -581,7 +581,7 @@ async def update_variant_image(
             app_instance = await get_app_instance(
                 app_variant.app_id, app_variant.variant_name
             )
-            app_variant.organization_id = str(app_instance.organization_id)
+            app_variant.organization_id = str(app_instance.organization_id.id)
 
         access_app = await check_access_to_app(
             kwargs, app_id=app_variant.app_id, check_owner=True
@@ -602,6 +602,8 @@ async def update_variant_image(
         detail = f"Docker error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
