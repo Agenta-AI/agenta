@@ -34,6 +34,8 @@ class AppVariant(BaseModel):
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
     organization_id: Optional[str] = None
+    base_name: Optional[str]
+    config_name: Optional[str]
 
 
 class AppVariantFromImagePayload(BaseModel):
@@ -147,6 +149,8 @@ class InviteToken(BaseModel):
 class Environment(BaseModel):
     name: str
     deployed_app_variant: Optional[str]
+    deployed_base_name: Optional[str]
+    deployed_config_name: Optional[str]
     organization_id: Optional[str] = None
 
 
@@ -161,3 +165,11 @@ class TestSetOutput(BaseModel):
     csvdata: List[Dict[str, Any]]
     created_at: str
     updated_at: str
+
+
+class PostVariantConfigPayload(BaseModel):
+    app_name: str
+    base_name: str
+    config_name: str
+    parameters: Dict[str, Any]
+    overwrite: bool
