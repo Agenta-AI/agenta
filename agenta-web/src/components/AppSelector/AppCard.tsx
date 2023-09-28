@@ -68,7 +68,7 @@ const AppCard: React.FC<{
         try {
             await removeApp(app.app_id)
             // Refresh the data (if you're using SWR or a similar library)
-            mutate(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/app_variant/list_apps/`)
+            mutate(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/`)
         } finally {
             setVisibleDelete(false)
             setConfirmLoading(false)

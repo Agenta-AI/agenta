@@ -11,7 +11,7 @@ from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
 from agenta_backend.services.docker_utils import restart_container
-from agenta_backend.utills.common import (
+from agenta_backend.utils.common import (
     get_app_instance,
     check_access_to_app,
     check_access_to_variant,
@@ -76,7 +76,7 @@ async def build_image(
     """
 
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Check app access
     app_db = await new_db_manager.fetch_app_by_id(app_id)
@@ -87,7 +87,7 @@ async def build_image(
             status_code=400,
         )
 
-    app_access = await check_access_to_app(kwargs, app_id=app_id)
+    app_access = await check_access_to_app(user_org_data, app_id=app_id)
 
     if not app_access:
         error_msg = f"You do not have access to this app: {app_id}"
@@ -147,7 +147,7 @@ async def restart_docker_container(
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
     access = check_access_to_variant(
-        kwargs=user_org_data, variant_id=payload.variant_id
+        user_org_data=user_org_data, variant_id=payload.variant_id
     )
     if not access:
         error_msg = f"You do not have access to this variant: {payload.variant_id}"
@@ -240,7 +240,7 @@ async def construct_app_container_url(
 
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = check_access_to_variant(kwargs=user_org_data, variant_id=variant_id)
+    access = check_access_to_variant(user_org_data=user_org_data, variant_id=variant_id)
     if access is False:
         error_msg = f"You do not have access to this variant: {variant_id}"
         return JSONResponse(

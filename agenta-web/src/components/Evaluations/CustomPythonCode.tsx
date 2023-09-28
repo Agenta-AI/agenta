@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react"
-import { useRouter } from "next/router"
-import { Input, Form, Button, Row, Col, Typography, notification } from "antd"
-import { CreateCustomEvaluationSuccessResponse } from "@/lib/Types"
-import { saveCustomCodeEvaluation, fetchCustomEvaluationNames } from "@/lib/services/api"
+import React, {useState, useEffect} from "react"
+import {useRouter} from "next/router"
+import {Input, Form, Button, Row, Col, Typography, notification} from "antd"
+import {CreateCustomEvaluationSuccessResponse} from "@/lib/Types"
+import {saveCustomCodeEvaluation, fetchCustomEvaluationNames} from "@/lib/services/api"
 import Editor from "@monaco-editor/react"
 
 interface ICustomPythonProps {
@@ -16,8 +16,8 @@ interface ICustomEvalNames {
     evaluation_name: string
 }
 
-const CustomPythonCode: React.FC<ICustomPythonProps> = ({ classes, appId, appTheme }) => {
-    const { Title } = Typography
+const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appId, appTheme}) => {
+    const {Title} = Typography
     const [form] = Form.useForm()
     const router = useRouter()
 
@@ -73,7 +73,7 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({ classes, appId, appThe
         return (
             evalNameExist ||
             !form.isFieldsTouched(true) ||
-            form.getFieldsError().filter(({ errors }) => errors.length).length > 0
+            form.getFieldsError().filter(({errors}) => errors.length).length > 0
         )
     }
 
@@ -124,7 +124,7 @@ def evaluate(
                         <Form.Item
                             label="Evaluation Name"
                             name="evaluationName"
-                            rules={[{ required: true, message: "Please enter evaluation name!" }]}
+                            rules={[{required: true, message: "Please enter evaluation name!"}]}
                         >
                             <Input
                                 disabled={submitting}
@@ -154,7 +154,7 @@ def evaluate(
                     <Col span={16}>
                         <Form.Item
                             name="pythonCode"
-                            rules={[{ required: true, message: "Please input python code!" }]}
+                            rules={[{required: true, message: "Please input python code!"}]}
                         >
                             <Editor
                                 height="600px"
@@ -162,7 +162,7 @@ def evaluate(
                                 language="python"
                                 theme={switchEditorThemeBasedOnTheme()}
                                 value={form.getFieldValue("pythonCode")}
-                                onChange={(code) => form.setFieldsValue({ pythonCode: code })}
+                                onChange={(code) => form.setFieldsValue({pythonCode: code})}
                                 defaultValue={pythonDefaultEvalCode()}
                             />
                         </Form.Item>

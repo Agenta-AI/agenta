@@ -18,7 +18,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationUpdate,
 )
 from agenta_backend.models import converters
-from agenta_backend.utills.common import engine
+from agenta_backend.utils.common import engine, check_access_to_app
 from agenta_backend.services.db_manager import query, get_user_object
 from agenta_backend.services import new_db_manager
 from agenta_backend.models.db_models import (
@@ -31,8 +31,6 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioOutput,
     CustomEvaluationDB,
 )
-
-from agenta_backend.utills import common
 
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
@@ -60,7 +58,7 @@ async def _fetch_evaluation_and_check_access(
         )
 
     # Check for access rights
-    access = await common.check_access_to_app(
+    access = await check_access_to_app(
         user_org_data=user_org_data, app_id=evaluation.app.id
     )
     if not access:
@@ -93,7 +91,7 @@ async def _fetch_evaluation_scenario_and_check_access(
         )
 
     # Check for access rights
-    access = await common.check_access_to_app(
+    access = await check_access_to_app(
         user_org_data=user_org_data, app_id=evaluation.app.id
     )
     if not access:
@@ -534,7 +532,7 @@ async def fetch_list_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    access = common.check_access_to_app(user_org_data=user_org_data, app_id=app_id)
+    access = check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
@@ -597,7 +595,7 @@ async def create_custom_code_evaluation(
     """
 
     # Initialize custom evaluation instance
-    access = await common.check_access_to_app(
+    access = await check_access_to_app(
         user_org_data=user_org_data, app_id=payload.app_id
     )
     if not access:
@@ -663,7 +661,7 @@ async def execute_custom_code_evaluation(
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
     # Check if user has app access
-    access = await common.check_access_to_app(user_org_data=user_org_data, app_id=app_id)
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
@@ -711,9 +709,7 @@ async def fetch_custom_evaluations(
         List[CustomEvaluationOutput]: ls=ist of custom evaluations
     """
     # Get user object
-    access = await common.check_access_to_app(
-        user_org_data=user_org_data, app_id=app_id
-    )
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"
@@ -794,7 +790,7 @@ async def fetch_custom_evaluation_names(
     user = await get_user_object(user_org_data["uid"])
 
     # Check if user has app access
-    access = await common.check_access_to_app(user_org_data=user_org_data, app_id=app_id)
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403, detail=f"You do not have access to this app: {app_id}"

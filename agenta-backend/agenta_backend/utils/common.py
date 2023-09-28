@@ -13,7 +13,7 @@ import logging
 
 engine = DBEngine().engine()
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 async def get_organization(org_id: str) -> OrganizationDB:
@@ -59,13 +59,16 @@ async def check_user_org_access(
     else:
         user_organizations: List = kwargs["organization_ids"]
         object_organization_id = ObjectId(organization_id)
+        logger.debug(
+            f"object_organization_id: {object_organization_id}, user_organizations: {user_organizations}"
+        )
         return object_organization_id in user_organizations
 
 
 async def check_access_to_app(
     user_org_data: Dict[str, Union[str, list]],
     app: Optional[AppDB] = None,
-    app_id: Optional[ObjectId] = None,
+    app_id: Optional[str] = None,
     check_owner: bool = False,
 ) -> bool:
     """
@@ -74,7 +77,7 @@ async def check_access_to_app(
     Args:
         user_org_data (Dict[str, Union[str, list]]): User-specific information.
         app (Optional[AppDB]): An instance of the AppDB model representing the application.
-        app_id (Optional[ObjectId]): The ID of the application.
+        app_id (Optional[str]): The ID of the application.
         check_owner (bool): Whether to check if the user is the owner of the application.
 
     Returns:
@@ -89,7 +92,7 @@ async def check_access_to_app(
 
     # Fetch the app if only app_id is provided.
     if app is None:
-        app = await engine.find_one(AppDB, AppDB.id == app_id)
+        app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
         if app is None:
             logger.error("App not found")
             return False
