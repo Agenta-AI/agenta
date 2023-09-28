@@ -14,6 +14,26 @@ class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
+def get_app_by_name(app_name: str, host: str) -> str:
+    """Get app by its name on the server.
+    
+    Args:
+        app_name (str): Name of the app
+        host (str): Hostname of the server  
+    """
+    
+    response = requests.get(
+        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/apps/{app_name}/",
+        timeout=600,
+    )
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to get app failed with status code {response.status_code} and error message: {error_message}."
+        )
+    return response.json()["app_id"]
+
+
 def create_new_app(app_name: str, host: str) -> str:
     """Creates new app on the server.
 
