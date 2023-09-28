@@ -56,10 +56,8 @@ router = APIRouter()
 @router.post("/build_image/")
 async def build_image(
     app_id: str,
-    app_name: str,
     variant_name: str,
     tar_file: UploadFile,
-    organization_id: str = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Image:
     """Takes a tar file and builds a docker image from it
@@ -81,20 +79,24 @@ async def build_image(
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
     # Check app access
-    if organization_id is None:
-        app_db = await new_db_manager.fetch_app_by_id(app_id)
-        organization_id = str(app_db.organization_id.id)
-        app_access = await check_access_to_app(kwargs, app_id=app_id, check_owner=True)
-    else:
-        app_access = await check_access_to_app(kwargs, app_id=app_id)
-
-    if not app_access:
-        error_msg = f"You do not have access to this app: {app_name}"
+    app_db = await new_db_manager.fetch_app_by_id(app_id)
+    if not app_db:
+        error_msg = f"App with id {app_id} does not exist"
         return JSONResponse(
             {"detail": error_msg},
             status_code=400,
         )
 
+    app_access = await check_access_to_app(kwargs, app_id=app_id)
+
+    if not app_access:
+        error_msg = f"You do not have access to this app: {app_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app_name = app_db.app_name
+    organization_id = str(app_db.organization_id.id)
     # Get event loop
     loop = asyncio.get_event_loop()
 

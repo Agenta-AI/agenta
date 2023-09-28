@@ -90,7 +90,7 @@ async def list_app_variants(
 
         if app_id is not None:
             access_app = await check_access_to_app(
-                kwargs, app_id=app_id, check_owner=True
+                kwargs, app_id=app_id
             )
             if not access_app:
                 error_msg = f"You cannot access app: {app_id}"
