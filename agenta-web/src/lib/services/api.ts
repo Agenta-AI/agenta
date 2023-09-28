@@ -14,6 +14,7 @@ import {
     ExecuteCustomEvalCode,
     ListAppsItem,
     AICritiqueCreate,
+    UserOwnOrg,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
@@ -534,6 +535,13 @@ export const useApps = () => {
     }
 }
 
+export const getUserOrg = async () => {
+    const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/organizations/own/`,
+    )
+    return response.data as UserOwnOrg
+}
+
 export const getTemplates = async () => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/`,
@@ -594,11 +602,13 @@ export const createAndStartTemplate = async ({
     appName,
     openAIKey,
     imageName,
+    orgId,
     onStatusChange,
 }: {
     appName: string
     openAIKey: string
     imageName: string
+    orgId: string
     onStatusChange?: (
         status:
             | "fetching_image"
@@ -627,6 +637,7 @@ export const createAndStartTemplate = async ({
                     env_vars: {
                         OPENAI_API_KEY: openAIKey,
                     },
+                    organization_id: orgId,
                 },
                 true,
             )
