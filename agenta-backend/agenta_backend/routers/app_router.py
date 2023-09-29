@@ -526,11 +526,6 @@ async def remove_app(
     Arguments:
         app -- App to remove
     """
-    if app.app_id is None:
-        raise HTTPException(
-            status_code=500,
-            detail="App id is required",
-        )
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
@@ -546,9 +541,6 @@ async def remove_app(
             )
         else:
             await app_manager.remove_app(app_id=app.app_id, **user_org_data)
-    except SQLAlchemyError as e:
-        detail = f"Database error while trying to remove the app: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
