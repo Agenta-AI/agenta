@@ -226,6 +226,31 @@ async def fetch_app_variant_by_id(
     return app_variant
 
 
+async def fetch_base_by_id(
+    base_id: str,
+    user_org_data: dict,
+) -> Optional[BaseDB]:
+    """
+    Fetches a base by its ID.
+    Args:
+        base_id (str): The ID of the base to fetch.
+    Returns:
+        BaseDB: The fetched base, or None if no base was found.
+    """
+    if base_id is None:
+        raise Exception("No base_id provided")
+    base = await engine.find_one(BaseDB, BaseDB.id == ObjectId(base_id))
+    if base is None:
+        logger.error("Base not found")
+        return False
+    organization_id = base.image.organization.id
+    access = await check_user_org_access(user_org_data, str(organization_id), check_owner=False)
+    if not access:
+        logger.error("User does not have access to this base")
+        return False
+    return base
+
+
 async def fetch_app_variant_by_name_and_appid(
     variant_name: str, app_id: str
 ) -> AppVariantDB:
