@@ -51,6 +51,7 @@ class AppVariantOutput(BaseModel):
     base_id: str
     config_name: str
     config_id: str
+    uri: str
 
 
 class EnvironmentOutput(BaseModel):
