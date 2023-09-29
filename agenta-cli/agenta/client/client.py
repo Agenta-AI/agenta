@@ -4,8 +4,9 @@ from typing import List
 
 import agenta.config
 import requests
-from agenta.client.api_models import AppVariant
+from agenta.client.api_models import AppVariant, Image
 from docker.models.images import Image as DockerImage
+
 
 BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
 
@@ -178,7 +179,7 @@ def update_variant_image(
         app_id=app_id, app_name=app_name, variant_name=variant_name
     )
     response = requests.put(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps/update_variant_image/",
+        f"{host}/{BACKEND_URL_SUFFIX}/variants/image/",
         json={"app_variant": app_variant.dict(), "image": image.dict()},
         timeout=600,
     )
