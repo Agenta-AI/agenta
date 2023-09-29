@@ -167,21 +167,22 @@ def restart_container(container_id: str):
         raise RuntimeError(f"Error starting container with id: {container.id}") from ex
 
 
-def stop_containers_based_on_image(image: Image) -> List[str]:
-    """Stops all the containers that use a certain image
+def stop_containers_based_on_image_id(docker_id: str) -> List[str]:
+    """Stops all the containers that use a certain Docker image.
 
     Arguments:
-        image -- Image containing the docker id
-
-    Raises:
-        RuntimeError: _description_
+        docker_id: The ID of the Docker image.
 
     Returns:
-        The container ids of the stopped containers
+        A list of the IDs of the stopped containers.
+
+    Raises:
+        RuntimeError: If there is an error stopping a container.
+
     """
     stopped_container_ids = []
     for container in client.containers.list(all=True):
-        if container.image.id == image.docker_id:
+        if container.image.id == docker_id:
             try:
                 container.stop()
                 stopped_container_ids.append(container.id)
@@ -235,7 +236,7 @@ def delete_container(container_id: str):
         raise RuntimeError(f"Error deleting container with id: {container.id}") from ex
 
 
-def delete_image(image: Image):
+def delete_image(docker_id: str):
     """Delete an image based on its id
 
     Arguments:
@@ -245,13 +246,11 @@ def delete_image(image: Image):
         RuntimeError: _description_
     """
     try:
-        client.images.remove(image.docker_id)
-        logger.info(f"Deleted image with id: {image.docker_id}")
+        client.images.remove(docker_id)
+        logger.info(f"Deleted image with id: {docker_id}")
     except docker.errors.APIError as ex:
-        logger.error(
-            f"Error deleting image with id: {image.docker_id}. Error: {str(ex)}"
-        )
-        raise RuntimeError(f"Error deleting image with id: {image.docker_id}") from ex
+        logger.error(f"Error deleting image with id: {docker_id}. Error: {str(ex)}")
+        raise RuntimeError(f"Error deleting image with id: {docker_id}") from ex
 
 
 def experimental_pull_image(image_name: str):

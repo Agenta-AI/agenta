@@ -102,18 +102,6 @@ async def update_variant_image(
         app_variant -- the app variant to update
         image -- the image to update
     """
-    if (
-        app_variant.app_id in ["", None]
-        or app_variant.variant_name
-        in [
-            "",
-            None,
-        ]
-        or app_variant.organization in ["", None]
-    ):
-        msg = "App id and variant name, or organization_id cannot be empty"
-        logger.error(msg)
-        raise ValueError(msg)
     if image.tags in ["", None]:
         msg = "Image tags cannot be empty"
         logger.error(msg)
@@ -127,58 +115,34 @@ async def update_variant_image(
             f"Image {image.docker_id} with tags {image.tags} not found"
         )
 
-    old_variant = app_variant_db_to_pydantic(app_variant_db)
-    old_image = await db_manager.get_image(old_variant, **kwargs)
-    app_db = app_variant_db.app
-    try:
-        container_ids = docker_utils.stop_containers_based_on_image(old_image)
-        logger.info(f"Containers {container_ids} stopped")
-        for container_id in container_ids:
-            docker_utils.delete_container(container_id)
-            logger.info(f"Container {container_id} deleted")
+    ###
+    # Stop and delete the container
+    container_ids = docker_utils.stop_containers_based_on_image_id(
+        app_variant_db.base.image.docker_id
+    )
+    logger.info(f"Containers {container_ids} stopped")
+    for container_id in container_ids:
+        docker_utils.delete_container(container_id)
+        logger.info(f"Container {container_id} deleted")
+    # Delete the image
+    image_docker_id = app_variant_db.base.image.docker_id
+    await db_manager.remove_image(image)
+    if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+        docker_utils.delete_image(image_docker_id)
 
-        await remove_app_variant(app_variant_id=str(app_variant_db.id), **kwargs)
-    except Exception as e:
-        logger.error(f"Error removing old variant: {str(e)}")
-        logger.error(
-            f"Error removing and shutting down containers for old app variant {app_variant.app_name}/{app_variant.variant_name}"
-        )
-        logger.error("Previous variant removed but new variant not added. Rolling back")
-        await db_manager.add_variant_based_on_image(
-            app_db,
-            old_variant.variant_name,
-            old_image.docker_id,
-            old_image.tags,
-            old_variant.organization_id,
-            **kwargs,
-        )
-        raise
-
-    try:
-        logger.info(
-            f"Updating variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}"
-        )
-        new_app_db = await db_manager.create_app(
-            app_variant.app_name, app_variant.organization_id, **kwargs
-        )
-        app_variant_output = await db_manager.add_variant_based_on_image(
-            app_id=new_app_db,
-            variant_name=app_variant.variant_name,
-            docker_id=image.docker_id,
-            tags=image.tags,
-            organization_id=str(new_app_db.organization.id),
-            **kwargs,
-        )
-        logger.info(
-            f"Starting variant {app_variant.app_name}/{app_variant.variant_name}"
-        )
-        variant_db = await db_manager.fetch_app_variant_by_name_and_appid(
-            app_variant_output.variant_name, app_variant_output.app_id
-        )
-        await start_variant(variant_db, **kwargs)
-    except Exception as e:
-        logger.error("Error updating variant")
-        raise
+    # Create a new image instance TODO: move to db_manager
+    db_image = await db_manager.create_image(
+        docker_id=image.docker_id,
+        tags=image.tags,
+        user=app_variant_db.user,
+        organization=app_variant_db.organization,
+    )
+    # Update base with new image
+    await db_manager.update_base(app_variant_db.base, image=db_image)
+    # Update variant with new image
+    app_variant_db = await db_manager.update_app_variant(app_variant_db, image=db_image)
+    # Start variant
+    await start_variant(app_variant_db, **kwargs)
 
 
 async def remove_app_variant(
@@ -235,7 +199,7 @@ async def remove_app_variant(
 
                 # Only delete the docker image for users that are running the oss version
                 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
-                    _delete_docker_image(image)  # TODO: To implement in ee version
+                    docker_utils.delete_image(image.docker_id)
             else:
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
@@ -308,25 +272,6 @@ async def remove_app_related_resources(app_id: str, **kwargs: dict):
             f"An error occurred while cleaning up resources for app {app_id}: {str(e)}"
         )
         raise e from None
-
-
-def _delete_docker_image(image: Image) -> None:
-    """
-    Deletes a Docker image.
-
-    Args:
-        image (Image): The Docker image to be deleted.
-
-    Raises:
-        Exception: Any exception raised during Docker operations.
-    """
-    try:
-        docker_utils.delete_image(image)
-        logger.info(f"Image {image.tags} deleted")
-    except Exception as e:
-        logger.warning(
-            f"Warning: Error deleting image {image.tags}. Probably multiple variants using it.\n {str(e)}"
-        )
 
 
 async def remove_app(app_id: str, **kwargs: dict):

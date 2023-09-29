@@ -106,8 +106,8 @@ async def add_variant_based_on_image(
             db_image = ImageDB(
                 docker_id=docker_id,
                 tags=tags,
-                user_id=user_instance,
-                organization_id=app.organization,
+                user=user_instance,
+                organization=app.organization,
             )
             await engine.save(db_image)
 
@@ -124,6 +124,11 @@ async def add_variant_based_on_image(
         db_base = BaseDB(
             base_name=base_name,  # the first variant always has default base
             image=db_image,
+            status="inactive",
+            uri=None,
+            uri_path=None,
+            container_name=None,
+            container_id=None,
         )
         await engine.save(db_base)
 
@@ -197,7 +202,7 @@ async def fetch_app_by_name(
     """
     if not organization_id:
         user = await get_user_object(user_org_data["uid"])
-        query_expression = (AppDB.app_name == app_name) & (AppDB.user_id == user.id)
+        query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id)
         app = await engine.find_one(AppDB, query_expression)
     else:
         query_expression = (AppDB.app_name == app_name) & (
@@ -297,8 +302,8 @@ async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
     organization_db = await get_organization_object(organization_id)
     app = AppDB(
         app_name=app_name,
-        organization_id=organization_db,
-        user_id=user_instance,
+        organization=organization_db,
+        user=user_instance,
     )
     await engine.save(app)
     return app
@@ -688,28 +693,24 @@ async def list_environments(app_id: str, **kwargs: dict) -> List[EnvironmentDB]:
     return environments_db
 
 
-async def initialize_environments(
-    app_ref: AppDB, **kwargs: dict
-) -> List[EnvironmentDB]:
+async def initialize_environments(app_db: AppDB, **kwargs: dict) -> List[EnvironmentDB]:
     environments = []
     for env_name in ["development", "staging", "production"]:
-        env = await create_environment(name=env_name, app_ref=app_ref, **kwargs)
+        env = await create_environment(name=env_name, app_db=app_db, **kwargs)
         environments.append(env)
     return environments
 
 
-async def create_environment(
-    name: str, app_ref: AppDB, **kwargs: dict
-) -> EnvironmentDB:
+async def create_environment(name: str, app_db: AppDB, **kwargs: dict) -> EnvironmentDB:
     """
     Creates a new environment for the given app with the given name.
     """
 
     environment_db = EnvironmentDB(
-        app_id=app_ref,
+        app=app_db,
         name=name,
-        user_id=app_ref.user_id,
-        organization=app_ref.organization,
+        user=app_db.user,
+        organization=app_db.organization,
     )
     await engine.save(environment_db)
     return environment_db
@@ -982,7 +983,7 @@ async def count_apps(**user_org_data: dict) -> int:
 async def update_base(
     base: BaseDB,
     **kwargs: dict,
-):
+) -> BaseDB:
     """Update the base object in the database with the provided id.
 
     Arguments:
@@ -992,3 +993,42 @@ async def update_base(
         if key in base.__fields__:
             setattr(base, key, value)
     await engine.save(base)
+    return base
+
+
+async def update_app_variant(
+    app_variant: AppVariantDB,
+    **kwargs: dict,
+) -> AppVariantDB:
+    """Update the app variant object in the database with the provided id.
+
+    Arguments:
+        app_variant (AppVariantDB): The app variant object to update.
+    """
+    for key, value in kwargs.items():
+        if key in app_variant.__fields__:
+            setattr(app_variant, key, value)
+    await engine.save(app_variant)
+    return app_variant
+
+
+async def create_image(
+    docker_id: str,
+    tags: List[str],
+    user: UserDB,
+    organization: OrganizationDB,
+):
+    """Create a new image with the given docker_id and tags.
+
+    Args:
+        docker_id (str): The docker id of the image to create.
+        tags (List[str]): The tags of the image to create.
+    """
+    image = ImageDB(
+        docker_id=docker_id,
+        tags=tags,
+        user=user,
+        organization=organization,
+    )
+    await engine.save(image)
+    return image
