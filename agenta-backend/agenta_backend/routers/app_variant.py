@@ -33,6 +33,9 @@ else:
     )
     from agenta_backend.services.selectors import get_user_and_org_id
 
+if os.environ["FEATURE_FLAG"] == "cloud":
+    from agenta_backend.ee.services.cloud.aws import cloud_manager
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -446,7 +449,10 @@ async def add_app_variant_from_template(
         await app_manager.update_variant_image(app_variant, image, **kwargs)
 
     # Start variant
-    await app_manager.start_variant(app_variant, envvars, **kwargs)
+    if os.environ["FEATURE_FLAG"] == "cloud":
+        await cloud_manager.start_cloud_variant(app_variant, envvars, **kwargs)
+    else:
+        await app_manager.start_variant(app_variant, envvars, **kwargs)
 
     return {
         "message": "Variant created and running!",
