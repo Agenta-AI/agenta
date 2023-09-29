@@ -17,6 +17,7 @@ from agenta_backend.utils.common import (
     get_app_instance,
     check_user_org_access,
     check_access_to_variant,
+    check_access_to_base,
 )
 from agenta_backend.models.api.api_models import (
     URI,
@@ -61,11 +62,12 @@ logger.setLevel(logging.DEBUG)
 
 
 @router.post("/from-base/")
-async def add_variant_from_base(
+async def add_variant_from_base_and_config(
     payload: AddVariantFromBasePayload,
     stoken_session: SessionContainer = Depends(verify_session),
 ) -> Union[AppVariantOutput, Any]:
     """Add a new variant based on an existing one.
+    Same as POST /config
 
     Args:
         payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
@@ -80,46 +82,31 @@ async def add_variant_from_base(
     try:
         logger.debug("Initiating process to add a variant based on a previous one.")
         logger.debug(f"Received payload: {payload}")
-
-        # Find the previous variant in the database
-        app_variant_db = await db_manager.find_previous_variant_from_base_id(
-            payload.base_id
-        )
-        if app_variant_db is None:
-            logger.error("Failed to find the previous app variant in the database.")
-            raise HTTPException(
-                status_code=500, detail="Previous app variant not found"
-            )
-        logger.debug(f"Located previous variant: {app_variant_db}")
-
-        # Get user and organization data
         user_org_data: dict = await get_user_and_org_id(stoken_session)
-        logger.debug(f"Retrieved user and organization data: {user_org_data}")
-
-        # Check user access permissions
-        access = await check_user_org_access(
-            user_org_data, app_variant_db.organization_id.id
+        access = await check_access_to_base(
+            user_org_data=user_org_data, base_id=payload.base_id
         )
         if not access:
             logger.error(
                 "User does not have the required permissions to access this app variant."
             )
             raise HTTPException(
-                status_code=500,
+                status_code=403,
                 detail="You do not have permission to access this app variant",
             )
-        logger.debug("User has required permissions to access this app variant.")
+        base_db = await db_manager.fetch_base_by_id(base_id=payload.base_id)
 
-        # Add new variant based on the previous one
-        db_app_variant = await db_manager.add_variant_based_on_previous(
-            previous_app_variant=app_variant_db,
-            new_variant_name=payload.new_variant_name,
+        # Find the previous variant in the database
+
+        db_app_variant = await db_manager.add_variant_from_base_and_config(
+            base_db=base_db,
+            new_config_name=payload.new_config_name,
             parameters=payload.parameters,
             **user_org_data,
         )
         logger.debug(f"Successfully added new variant: {db_app_variant}")
-
         return converters.app_variant_db_to_output(db_app_variant)
+
     except Exception as e:
         logger.error(f"An exception occurred while adding the new variant: {e}")
         raise HTTPException(status_code=500, detail=str(e))

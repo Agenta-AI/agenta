@@ -1,55 +1,39 @@
-import os
 import logging
-from bson import ObjectId
-from fastapi.responses import JSONResponse
-from typing import Dict, List, Any, Union, Optional
-
-from fastapi import HTTPException
+import os
+from typing import Any, Dict, List, Optional
 
 from agenta_backend.models.api.api_models import (
     App,
-    AppVariantOutput,
     AppVariant,
-    Environment,
-    Image,
+    AppVariantOutput,
     ImageExtended,
     Template,
 )
 from agenta_backend.models.converters import (
-    app_variant_db_to_pydantic,
-    image_db_to_pydantic,
-    templates_db_to_pydantic,
     app_db_to_pydantic,
     app_variant_db_to_output,
+    image_db_to_pydantic,
+    templates_db_to_pydantic,
 )
 from agenta_backend.models.db_models import (
     AppDB,
     AppVariantDB,
-    EnvironmentDB,
-    ImageDB,
-    TemplateDB,
-    UserDB,
-    OrganizationDB,
     BaseDB,
     ConfigDB,
-    TestSetDB,
+    EnvironmentDB,
     EvaluationDB,
     EvaluationScenarioDB,
+    ImageDB,
+    OrganizationDB,
+    TemplateDB,
+    TestSetDB,
+    UserDB,
 )
-from agenta_backend.services import helpers
-from agenta_backend.utils.common import (
-    engine,
-    check_user_org_access,
-    get_organization,
-)
-from agenta_backend.services.selectors import get_user_own_org
-from agenta_backend.services.json_importer_helper import get_json
-from agenta_backend.models.db_engine import DBEngine
-
+from agenta_backend.utils.common import check_user_org_access, engine
+from bson import ObjectId
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 from odmantic import query
-import logging
-
-engine = DBEngine().engine()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -398,7 +382,7 @@ async def get_user_object(user_uid: str) -> UserDB:
         return user
 
 
-async def clean_soft_deleted_variants():
+async def clean_soft_deleted_variants():  # TODO change to clean_soft_deleted_app_variants
     """Remove soft-deleted app variants if their image is not used by any existing variant."""
 
     # Get all soft-deleted app variants
@@ -452,12 +436,11 @@ async def get_app_instance_by_id(app_id: str) -> AppDB:
     return app
 
 
-async def add_variant_based_on_previous(
-    previous_app_variant: AppVariantDB,
-    new_variant_name: str,
+async def add_variant_from_base_and_config(
+    base_db: BaseDB,
+    new_config_name: str,
     parameters: Dict[str, Any],
-    new_config_name: str = None,
-    **kwargs: dict,
+    **user_org_data: dict,
 ):
     """Adds a new variant from a previous/template one by changing the parameters.
 
@@ -470,53 +453,39 @@ async def add_variant_based_on_previous(
     Raises:
         ValueError: _description_
     """
-
+    new_variant_name = f"{base_db.base_name}.{new_config_name}"
     await clean_soft_deleted_variants()
-    if (
-        previous_app_variant is None
-        or previous_app_variant.app_id in [None, ""]
-        or previous_app_variant.variant_name in [None, ""]
-    ):
-        raise ValueError("App variant is None")
-    elif previous_app_variant.organization in [None, ""]:
-        raise ValueError("App organization_id is None")
-    if parameters is None:
-        raise ValueError("Parameters is None")
-
-    elif previous_app_variant.previous_variant_name is not None:
-        raise ValueError(
-            "Template app variant is not a template, it is a forked variant itself"
-        )
-
+    previous_app_variant_db = await find_previous_variant_from_base_id(str(base_db.id))
+    if previous_app_variant_db is None:
+        logger.error("Failed to find the previous app variant in the database.")
+        raise HTTPException(status_code=500, detail="Previous app variant not found")
+    logger.debug(f"Located previous variant: {previous_app_variant_db}")
     soft_deleted_app_variants = await list_app_variants_for_app_id(
-        app_id=str(previous_app_variant.app_id.id),
+        app_id=str(previous_app_variant_db.app_id.id),
         show_soft_deleted=True,
-        **kwargs,
+        **user_org_data,
     )
 
     logger.debug("soft_deleted_app_variants: %s", soft_deleted_app_variants)
     already_exists = any(
-        [av for av in soft_deleted_app_variants if av.variant_name == new_variant_name]
+        [av for av in soft_deleted_app_variants if av.config_name == new_config_name]
     )
     if already_exists:
         raise ValueError("App variant with the same name already exists")
-
-    user_instance = await get_user_object(kwargs["uid"])
-    if new_config_name is None:
-        new_config_name = new_variant_name.split(".")[1]
-    config_instance = ConfigDB(config_name=new_config_name, parameters=parameters)
+    user_db = await get_user_object(user_org_data["uid"])
+    config_db = ConfigDB(config_name=new_config_name, parameters=parameters)
     db_app_variant = AppVariantDB(
-        app=previous_app_variant.app,
+        app=previous_app_variant_db.app,
         variant_name=new_variant_name,
-        image=previous_app_variant.image,
-        user=user_instance,
-        organization=previous_app_variant.organization,
+        image=base_db.image,
+        user=user_db,
+        organization=previous_app_variant_db.organization,
         parameters=parameters,
-        previous_variant_name=previous_app_variant.variant_name,
-        base_name=previous_app_variant.base_name,
-        base=previous_app_variant.base,
+        previous_variant_name=previous_app_variant_db.variant_name,  # TODO: Remove in future
+        base_name=base_db.base_name,
+        base=base_db,
         config_name=new_config_name,
-        config=config_instance,
+        config=config_db,
         is_deleted=False,
     )
     await engine.save(db_app_variant)
