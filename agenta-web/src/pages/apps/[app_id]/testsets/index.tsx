@@ -1,15 +1,14 @@
 import {Button, Tooltip, Spin, Table} from "antd"
 
-import {testset} from "@/lib/Types"
 import Link from "next/link"
 import {useRouter} from "next/router"
 import {ColumnsType} from "antd/es/table"
-import {useState, useEffect} from "react"
+import {useState} from "react"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {DeleteOutlined} from "@ant-design/icons"
-import {deleteTestsets} from "@/lib/services/api"
-import axios from "@/lib/helpers/axiosConfig"
+import {deleteTestsets, useLoadTestsetsList} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
+import {useUpdateEffect} from "usehooks-ts"
 
 type testsetTableDatatype = {
     key: string
@@ -43,43 +42,18 @@ const useStyles = createUseStyles({
     },
 })
 
-const fetchData = async (url: string): Promise<any> => {
-    const response = await axios.get(url)
-    return response.data
-}
-
 export default function Testsets() {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
-    const [testsetsList, setTestsetsList] = useState<testsetTableDatatype[]>([])
     const [loading, setLoading] = useState<boolean>(true)
-    const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
+    const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
 
-    useEffect(() => {
-        if (!appId) {
-            return
-        }
-        // TODO: move to api.ts
-        fetchData(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_id=${appId}`)
-            .then((data) => {
-                let newTestsetsList = data.map((obj: testset) => {
-                    let newObj: testsetTableDatatype = {
-                        key: obj._id,
-                        created_at: obj.created_at,
-                        name: obj.name,
-                    }
-                    return newObj
-                })
-                setLoading(false)
-                setTestsetsList(newTestsetsList)
-            })
-            .catch((error) => {
-                console.log(error)
-            })
-    }, [appId])
+    useUpdateEffect(() => {
+        setLoading(isTestsetsLoading)
+    }, [isTestsetsLoading])
 
     const columns: ColumnsType<testsetTableDatatype> = [
         {
@@ -100,7 +74,7 @@ export default function Testsets() {
     ]
 
     const rowSelection = {
-        onChange: (selectedRowKeys: React.Key[], selectedRows: testsetTableDatatype[]) => {
+        onChange: (selectedRowKeys: React.Key[]) => {
             setSelectedRowKeys(selectedRowKeys)
         },
     }
@@ -109,14 +83,10 @@ export default function Testsets() {
         const testsetsIds = selectedRowKeys.map((key) => key.toString())
         setLoading(true)
         try {
-            const deletedIds = await deleteTestsets(testsetsIds)
-            setTestsetsList((prevTestsetsList) =>
-                prevTestsetsList.filter((testset) => !deletedIds.includes(testset.key)),
-            )
-
+            await deleteTestsets(testsetsIds)
+            mutate()
             setSelectedRowKeys([])
-        } catch (e) {
-            console.log(e)
+        } catch {
         } finally {
             setLoading(false)
         }
@@ -157,7 +127,7 @@ export default function Testsets() {
                     </div>
 
                     <Link href={`/apps/${appId}/evaluations`} className={classes.startLink}>
-                        {testsetsList.length > 0 && <Button>Start an evaluation</Button>}
+                        {testsets.length > 0 && <Button>Start an evaluation</Button>}
                     </Link>
                 </div>
 
@@ -180,13 +150,14 @@ export default function Testsets() {
                     <Table
                         data-cy="app-testset-list"
                         rowSelection={{
-                            type: selectionType,
+                            type: "checkbox",
                             ...rowSelection,
                         }}
                         columns={columns}
-                        dataSource={testsetsList}
+                        dataSource={testsets}
+                        rowKey="_id"
                         loading={loading}
-                        onRow={(record, rowIndex) => {
+                        onRow={(record) => {
                             return {
                                 onClick: () => router.push(`/apps/${appId}/testsets/${record.key}`),
                             }
