@@ -81,7 +81,6 @@ async def start_variant(
             container_id=container_id,
             container_name=container_name,
         )
-        # db_manager.register_base_container(db_app_variant, uri, f"{app_name}-{variant_name}-{organization_id}")
     except Exception as e:
         logger.error(
             f"Error starting Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name}: {str(e)}"
