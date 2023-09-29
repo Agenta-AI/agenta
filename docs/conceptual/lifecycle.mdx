@@ -71,19 +71,19 @@ You have two options for creating an app:
 
 1. **From the UI**: Fork a variant to create a new one.
 
-    - Endpoint: `POST /variants/from-config`
+    - Endpoint: `POST /variants/from-base`
     - Payload: base-id, config_name, parameters, overwrite
     - Returns a new variant ID
 
 2. **From the Code**: Push a new configuration to an existing variant.
 
-    - Endpoint: `POST /variants/from-config`
+    - Endpoint: `POST /variants/from-base`
     - Payload: base-id, config_name, parameters, overwrite
     - Returns a new variant ID
 
 3. **From the CLI**: Use `agenta config push` to add a new configuration.
 
-    - Endpoint: `POST /variants/from-config`
+    - Endpoint: `POST /variants/from-base`
     - Payload: base-id, config_name, parameters, overwrite
     - Returns a new variant ID
 
