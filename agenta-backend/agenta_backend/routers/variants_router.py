@@ -31,7 +31,6 @@ from agenta_backend.models.api.api_models import (
     CreateAppVariant,
     AddVariantFromPreviousPayload,
     AppVariantOutput,
-    Variant,
     UpdateVariantParameterPayload,
     AddVariantFromImagePayload,
     AddVariantFromBasePayload,
@@ -77,9 +76,7 @@ async def add_variant_from_previous(
     """
 
     try:
-        app_variant_db = await db_manager.fetch_app_variant_by_id(
-            variant_id
-        )
+        app_variant_db = await db_manager.fetch_app_variant_by_id(variant_id)
         if app_variant_db is None:
             raise HTTPException(
                 status_code=500,
@@ -194,7 +191,9 @@ async def remove_variant(
         )
 
         if not access_app:
-            error_msg = f"You do not have permission to delete app variant: {variant_id}"
+            error_msg = (
+                f"You do not have permission to delete app variant: {variant_id}"
+            )
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
@@ -230,7 +229,9 @@ async def update_variant_parameters(
         )
 
         if not access_variant:
-            error_msg = f"You do not have permission to update app variant: {variant_id}"
+            error_msg = (
+                f"You do not have permission to update app variant: {variant_id}"
+            )
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
@@ -250,9 +251,11 @@ async def update_variant_parameters(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put("/image/")  # TODO: Refactor to use the variant_id instead of the name
+@router.put(
+    "/{variant_id}/image/"
+)  # TODO: Refactor to use the variant_id instead of the name
 async def update_variant_image(
-    app_variant: AppVariant,
+    variant_id: str,
     image: Image,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
@@ -265,24 +268,23 @@ async def update_variant_image(
 
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
-        if app_variant.organization_id is None:
-            app_instance = await get_app_instance(
-                app_variant.app_id, app_variant.variant_name
-            )
-            app_variant.organization_id = str(app_instance.organization_id.id)
-
-        access_app = await check_access_to_app(
-            user_org_data, app_id=app_variant.app_id, check_owner=True
+        access_variant = await check_access_to_variant(
+            user_org_data=user_org_data, variant_id=variant_id
         )
-        if not access_app:
-            error_msg = "You do not have permission to make an update"
+        if not access_variant:
+            error_msg = (
+                f"You do not have permission to update app variant: {variant_id}"
+            )
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=400,
             )
-        else:
-            await app_manager.update_variant_image(app_variant, image, **user_org_data)
+        db_app_variant = await db_manager.fetch_app_variant_by_id(
+            app_variant_id=variant_id
+        )
+
+        await app_manager.update_variant_image(db_app_variant, image, **user_org_data)
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)

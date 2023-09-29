@@ -31,7 +31,6 @@ from agenta_backend.models.api.api_models import (
     CreateAppVariant,
     AddVariantFromPreviousPayload,
     AppVariantOutput,
-    Variant,
     UpdateVariantParameterPayload,
     AddVariantFromImagePayload,
     AddVariantFromBasePayload,
@@ -297,8 +296,9 @@ async def start_variant(
 
 
 @router.delete("/{app_id}")
-async def remove_app(app_id: str, stoken_session: SessionContainer = Depends(verify_session())
-                     ):
+async def remove_app(
+    app_id: str, stoken_session: SessionContainer = Depends(verify_session())
+):
     """Remove app, all its variant, containers and images
 
     Arguments:
