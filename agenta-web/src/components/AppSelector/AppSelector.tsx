@@ -385,7 +385,7 @@ const AppSelector: React.FC = () => {
                 />
                 {appNameExist && <div className={classes.modalError}>App name already exist</div>}
                 {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                    <div className={classes.modalError}>
+                    <div className={classes.modalError} data-cy="enter-app-name-modal-text-warning">
                         App name must contain only letters, numbers, underscore, or dash
                     </div>
                 )}

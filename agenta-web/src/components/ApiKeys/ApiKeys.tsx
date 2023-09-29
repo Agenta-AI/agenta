@@ -48,6 +48,7 @@ export default function ApiKeys() {
                 <div className={classes.apiContainer}>
                     <Space direction="horizontal">
                         <Input.Password
+                            data-cy="apikeys-input"
                             value={openAiKey}
                             onChange={(e) => setOpenAiKey(e.target.value)}
                             addonBefore="OpenAI"
@@ -55,6 +56,7 @@ export default function ApiKeys() {
                             className={classes.input}
                         />
                         <Button
+                            data-cy="apikeys-save-button"
                             disabled={saveDisabled}
                             onClick={() => {
                                 saveOpenAIKey(openAiKey)
