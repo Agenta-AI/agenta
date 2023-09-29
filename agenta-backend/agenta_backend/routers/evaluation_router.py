@@ -492,7 +492,7 @@ async def create_custom_evaluation(
         status_code=200,
     )
 
-@router.put("/edit_custom_evaluation/{id}")
+@router.put("/custom_evaluation/{id}")
 async def update_custom_evaluation(
     id: str,
     updated_data: CreateCustomEvaluation,
@@ -520,6 +520,7 @@ async def update_custom_evaluation(
         },
         status_code=200,
     )
+
 
 @router.get(
     "/custom_evaluation/list/{app_name}",

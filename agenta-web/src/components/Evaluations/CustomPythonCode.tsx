@@ -15,10 +15,10 @@ interface ICustomPythonProps {
     classes: any
     appName: string
     appTheme: string
-    editMode: boolean // Add an editMode prop
-    editCode?: string // Optional for edit mode
-    editName?: string // Optional for edit mode
-    editId?: string // Optional for edit mode
+    editMode: boolean
+    editCode?: string
+    editName?: string
+    editId?: string
 }
 
 interface ICustomEvalNames {
@@ -31,7 +31,7 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({
     appName,
     appTheme,
     editMode,
-    editCode = "", // Default to empty strings if not provided
+    editCode = "",
     editName = "",
     editId = "",
 }) => {
