@@ -94,7 +94,6 @@ const Playground: React.FC = () => {
                 setVariants(backendVariants)
                 setActiveKey(backendVariants[0].variantName)
             }
-            console.log("Backend varoants", backendVariants)
             setIsLoading(false)
         } catch (error) {
             setIsError(true)

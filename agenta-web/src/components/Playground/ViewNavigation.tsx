@@ -75,8 +75,6 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const variantContainerPath = async () => {
-            console.log("Getting container path")
-            console.log("Variant", variant)
             const urlPath = await getAppContainerURL(appId, variant.variantId!)
             setContainerURIPath(urlPath)
         }
