@@ -131,7 +131,7 @@ def environment_db_to_output(environment_db: EnvironmentDB) -> EnvironmentOutput
 
 
 def app_db_to_pydantic(app_db: AppDB) -> App:
-    return App(app_name=app_db.app_name, app=str(app_db.id))
+    return App(app_name=app_db.app_name, app_id=str(app_db.id))
 
 
 def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:

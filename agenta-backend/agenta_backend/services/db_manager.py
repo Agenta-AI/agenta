@@ -244,7 +244,9 @@ async def fetch_base_by_id(
         logger.error("Base not found")
         return False
     organization_id = base.image.organization.id
-    access = await check_user_org_access(user_org_data, str(organization_id), check_owner=False)
+    access = await check_user_org_access(
+        user_org_data, str(organization_id), check_owner=False
+    )
     if not access:
         logger.error("User does not have access to this base")
         return False
