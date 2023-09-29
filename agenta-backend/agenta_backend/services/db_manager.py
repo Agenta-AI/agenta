@@ -47,7 +47,7 @@ async def add_variant_based_on_image(
     base_name: str = None,
     config_name: str = "default",
     **user_org_data: dict,
-) -> AppVariantOutput:
+) -> AppVariantDB:
     """
     Adds an app variant based on an image.
     Used both when create an app variant from template and from CLI
@@ -130,7 +130,7 @@ async def add_variant_based_on_image(
         )
         await engine.save(db_app_variant)
         logger.debug("Created db_app_variant: %s", db_app_variant)
-        return app_variant_db_to_output(db_app_variant)
+        return db_app_variant
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1060,3 +1060,23 @@ async def fetch_app_variant_and_check_access(
         error_msg = f"You do not have access to this app variant: {app_variant_id}"
         raise HTTPException(status_code=403, detail=error_msg)
     return app_variant
+
+
+async def fetch_app_by_name_and_organization(
+    app_name: str, organization_id: str, **user_org_data: dict
+):
+    """Fetch an app by it's name and organization id.
+
+    Args:
+        app_name (str): The name of the app
+        organization_id (str): The ID of the app organization
+
+    Returns:
+        AppDB: the instance of the app
+    """
+
+    query_expression = (AppDB.app_name == app_name) & (
+        AppDB.organization == ObjectId(organization_id)
+    )
+    app_db = await engine.find_one(AppDB, query_expression)
+    return app_db

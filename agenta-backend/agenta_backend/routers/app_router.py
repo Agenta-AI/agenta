@@ -249,7 +249,7 @@ async def add_variant_from_image(
             else payload.variant_name.split(".")[1]
         )
 
-        await db_manager.add_variant_based_on_image(
+        app_variant_db = await db_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
             docker_id=payload.docker_id,
@@ -258,6 +258,7 @@ async def add_variant_from_image(
             config_name=config_name,
             **user_org_data,
         )
+        return converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -336,13 +337,13 @@ async def create_app_and_variant_from_template(
         )
     if app is None:
         app = await db_manager.create_app(app_name, organization_id, **user_org_data)
-        await db_manager.initialize_environments(app_ref=app, **user_org_data)
+        await db_manager.initialize_environments(app, **user_org_data)
     # Create an Image instance with the extracted image id, and defined image name
     image_name = f"agentaai/templates:{payload.image_tag}"
     # Save variant based on the image to database
-    app_variant = await db_manager.add_variant_based_on_image(
+    app_variant_db = await db_manager.add_variant_based_on_image(
         app=app,
-        variant_name="app",
+        variant_name="app.default",
         docker_id=payload.image_id,
         tags=f"{image_name}",
         base_name="app",
@@ -364,12 +365,8 @@ async def create_app_and_variant_from_template(
         }
     else:
         envvars = {} if payload.env_vars is None else payload.env_vars
-
-    db_app_variant = await db_manager.get_app_variant_instance_by_id(
-        app_variant.variant_id
-    )
-    await app_manager.start_variant(db_app_variant, envvars, **user_org_data)
-    return converters.app_variant_db_to_output(db_app_variant)
+    await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
+    return converters.app_variant_db_to_output(app_variant_db)
 
 
 @router.get("/{app_id}/environments", response_model=List[EnvironmentOutput])
