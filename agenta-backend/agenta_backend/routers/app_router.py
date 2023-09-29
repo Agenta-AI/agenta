@@ -25,6 +25,7 @@ from agenta_backend.utils.common import (
 from agenta_backend.models.api.api_models import (
     URI,
     App,
+    RemoveApp,
     AppOutput,
     CreateApp,
     CreateAppOutput,
@@ -38,7 +39,7 @@ from agenta_backend.models.api.api_models import (
     UpdateVariantParameterPayload,
     AddVariantFromImagePayload,
     AddVariantFromBasePayload,
-    EnvironmentOutput
+    EnvironmentOutput,
 )
 from agenta_backend.models import converters
 
@@ -95,7 +96,10 @@ async def list_app_variants(
         app_variants = await db_manager.list_app_variants(
             app_id=app_id, **user_org_data
         )
-        return [converters.app_variant_db_to_output(app_variant) for app_variant in app_variants]
+        return [
+            converters.app_variant_db_to_output(app_variant)
+            for app_variant in app_variants
+        ]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -515,7 +519,7 @@ async def remove_variant(
 
 @router.delete("/remove_app/")
 async def remove_app(
-    app: App, stoken_session: SessionContainer = Depends(verify_session())
+    app: RemoveApp, stoken_session: SessionContainer = Depends(verify_session())
 ):
     """Remove app, all its variant, containers and images
 
@@ -534,7 +538,7 @@ async def remove_app(
         )
 
         if not access_app:
-            error_msg = f"You do not have permission to delete app: {app.app_name}"
+            error_msg = f"You do not have permission to delete app: {app.app_id}"
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},

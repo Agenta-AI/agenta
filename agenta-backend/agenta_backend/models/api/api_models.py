@@ -134,6 +134,10 @@ class App(BaseModel):
     app_name: str
 
 
+class RemoveApp(BaseModel):
+    app_id: str
+
+
 class DockerEnvVars(BaseModel):
     env_vars: Dict[str, str]
 
