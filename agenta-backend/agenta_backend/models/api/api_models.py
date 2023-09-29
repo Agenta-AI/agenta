@@ -1,7 +1,17 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from enum import Enum
 
 from pydantic import BaseModel
+
+
+class VariantActionEnum(str, Enum):
+    START = "START"
+    STOP = "STOP"
+
+
+class VariantAction(BaseModel):
+    action: VariantActionEnum
 
 
 class CreateApp(BaseModel):

@@ -1,12 +1,12 @@
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Dict
 
 import agenta.config
 import requests
 from agenta.client.api_models import AppVariant, Image
 from docker.models.images import Image as DockerImage
-
+from requests.exceptions import RequestException
 
 BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
 
@@ -85,35 +85,43 @@ def add_variant_to_server(app_id: str, variant_name: str, image: Image, host: st
     return response.json()
 
 
-def start_variant(app_id: str, app_name: str, variant_name: str, host: str) -> str:
-    """Starts a container with the variant an expose its endpoint
+def start_variant(
+    variant_id: str, host: str, env_vars: Optional[Dict[str, str]] = None
+) -> str:
+    """
+    Starts or stops a container with the given variant and exposes its endpoint.
 
-    Arguments:
-        app_id (str): The id of the app
-        app_name (str): The name of the app
-        variant_name -- The name of the app variant
+    Args:
+        variant_id (str): The ID of the variant.
+        host (str): The host URL.
+        env_vars (Optional[Dict[str, str]]): Optional environment variables to inject into the container.
 
     Returns:
-        The endpoint of the container
-    """
-    response = requests.post(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps/start/",
-        json={
-            "app_variant": {
-                "app_id": app_id,
-                "app_name": app_name,
-                "variant_name": variant_name,
-            }
-        },
-        timeout=600,
-    )
+        str: The endpoint of the container.
 
-    if response.status_code != 200:
-        error_message = response.json()
-        raise APIRequestError(
-            f"Request to start variant endpoint failed with status code {response.status_code} and error message: {error_message}."
+    Raises:
+        APIRequestError: If the API request fails.
+    """
+    payload = {"action": "START"}
+    if env_vars:
+        payload["env_vars"] = {"env_vars": env_vars}
+
+    try:
+        response = requests.put(
+            f"{host}/variants/{variant_id}/",
+            json=payload,
+            timeout=600,
         )
-    return response.json()["uri"]
+
+        if response.status_code != 200:
+            error_message = response.json().get("detail", "Unknown error")
+            raise APIRequestError(
+                f"Request to start variant endpoint failed with status code {response.status_code} and error message: {error_message}."
+            )
+        return response.json().get("uri", "")
+
+    except RequestException as e:
+        raise APIRequestError(f"An error occurred while making the request: {e}")
 
 
 def list_variants(app_id: str, host: str) -> List[AppVariant]:

@@ -10,6 +10,7 @@ from agenta_backend.models.api.api_models import (
     AppVariant,
     Image,
     DockerEnvVars,
+    Dict,
 )
 
 client = docker.from_env()
@@ -63,7 +64,7 @@ def list_images() -> List[Image]:
 
 def start_container(
     image_name, app_name, variant_name, env_vars: DockerEnvVars, organization_id: str
-) -> URI:
+) -> Dict:
     try:
         image = client.images.get(f"{image_name}")
 
@@ -121,9 +122,12 @@ def start_container(
         if container.status == "exited":
             logs = container.logs().decode("utf-8")
             raise Exception(f"Container exited immediately. Docker Logs: {logs}")
-        return URI(
-            uri=f"http://{os.environ['BARE_DOMAIN_NAME']}/{user_backend_url_path}"
-        )
+        return {
+            "uri": f"http://{os.environ['BARE_DOMAIN_NAME']}/{user_backend_url_path}",
+            "uri_path": f"/{user_backend_url_path}",
+            "container_id": container.id,
+            "container_name": user_backend_container_name,
+        }
     except docker.errors.APIError as error:
         # Container failed to run, get the logs
         try:
@@ -131,7 +135,10 @@ def start_container(
             logs = failed_container.logs().decode("utf-8")
             raise Exception(f"Docker Logs: {logs}") from error
         except Exception as e:
-            return f"Failed to fetch logs: {str(e)} \n Exception Error: {str(error)}"
+            logger.error(
+                f"Failed to fetch logs: {str(e)} \n Exception Error: {str(error)}"
+            )
+            return None
 
 
 def restart_container(container_id: str):
