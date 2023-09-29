@@ -327,6 +327,7 @@ const AppSelector: React.FC = () => {
                                         }}
                                     >
                                         <Card.Meta
+                                            data-cy="create-new-app-button"
                                             className={classes.createCardMeta}
                                             title={<div>Create New App</div>}
                                             avatar={<PlusOutlined size={24} />}
@@ -367,6 +368,7 @@ const AppSelector: React.FC = () => {
                 }}
             />
             <Modal
+                data-cy="enter-app-name-modal"
                 title="Enter the app name"
                 open={isInputTemplateModalOpen}
                 onCancel={handleInputTemplateModalCancel}
@@ -388,6 +390,7 @@ const AppSelector: React.FC = () => {
                     </div>
                 )}
                 <Button
+                    data-cy="enter-app-name-modal-button"
                     className={classes.modalBtn}
                     type="primary"
                     loading={fetchingTemplate}
