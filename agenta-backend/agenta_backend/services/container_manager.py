@@ -22,7 +22,7 @@ logger.setLevel(logging.INFO)
 
 def build_image_job(
     app_name: str,
-    variant_name: str,
+    base_name: str,
     organization_id: str,
     tar_path: Path,
     image_name: str,
@@ -34,7 +34,7 @@ def build_image_job(
 
     Arguments:
         app_name --  The `app_name` parameter is a string that represents the name of the application
-        variant_name --  The `variant_name` parameter is a string that represents the variant of the \
+        base_name --  The `base_name` parameter is a string that represents the variant of the \
             application. It could be a specific version, configuration, or any other distinguishing \
                 factor for the application
         organization_id -- The id of the organization the app belongs to
@@ -60,7 +60,7 @@ def build_image_job(
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
-            buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{variant_name}"},
+            buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"},
             rm=True,
         )
         for line in build_log:

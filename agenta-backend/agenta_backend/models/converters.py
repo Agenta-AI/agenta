@@ -89,12 +89,12 @@ def app_variant_db_to_pydantic(
     app_variant_db: AppVariantDB, previous_variant_name: str = None
 ) -> AppVariant:
     return AppVariant(
-        app_id=str(app_variant_db.app_id.id),
-        app_name=app_variant_db.app_id.app_name,
+        app_id=str(app_variant_db.app.id),
+        app_name=app_variant_db.app.app_name,
         variant_name=app_variant_db.variant_name,
         parameters=app_variant_db.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
-        organization_id=str(app_variant_db.organization_id.id),
+        organization_id=str(app_variant_db.organization.id),
         base_name=app_variant_db.base_name,
         config_name=app_variant_db.config_name,
     )
@@ -102,18 +102,19 @@ def app_variant_db_to_pydantic(
 
 def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
     return AppVariantOutput(
-        app_id=str(app_variant_db.app_id.id),
-        app_name=str(app_variant_db.app_id.app_name),
+        app_id=str(app_variant_db.app.id),
+        app_name=str(app_variant_db.app.app_name),
         variant_name=app_variant_db.variant_name,
         variant_id=str(app_variant_db.id),
-        user_id=str(app_variant_db.user_id.id),
-        organization_id=str(app_variant_db.organization_id.id),
+        user_id=str(app_variant_db.user.id),
+        organization_id=str(app_variant_db.organization.id),
         parameters=app_variant_db.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         base_name=app_variant_db.base_name,
-        base_id=str(app_variant_db.base_id.id),
+        base_id=str(app_variant_db.base.id),
         config_name=app_variant_db.config_name,
-        config_id=str(app_variant_db.config_id.id),
+        config_id=str(app_variant_db.config.id),
+        uri=app_variant_db.base.uri_path,
     )
 
 
@@ -125,7 +126,7 @@ def environment_db_to_output(environment_db: EnvironmentDB) -> EnvironmentOutput
     )
     return EnvironmentOutput(
         name=environment_db.name,
-        app_id=str(environment_db.app_id.id),
+        app_id=str(environment_db.app.id),
         deployed_app_variant_id=deployed_app_variant_id,
     )
 
@@ -136,7 +137,7 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
 
 def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
     return ImageExtended(
-        organization_id=str(image_db.organization_id.id),
+        organization_id=str(image_db.organization.id),
         docker_id=image_db.docker_id,
         tags=image_db.tags,
         id=str(image_db.id),

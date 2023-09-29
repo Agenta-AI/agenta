@@ -180,7 +180,7 @@ export const getAppContainerURL = async (appId: string, variantId: string): Prom
             throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
         }
 
-        const queryParam = `?app_id=${appId}&variant_id=${variantId}`
+        const queryParam = `?variant_id=${variantId}`
         const cacheKey = `${appId}_${variantId}`
 
         // Check if the URL is already cached
