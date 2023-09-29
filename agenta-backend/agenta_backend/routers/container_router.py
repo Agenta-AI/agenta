@@ -57,7 +57,7 @@ router = APIRouter()
 @router.post("/build_image/")
 async def build_image(
     app_id: str,
-    variant_name: str,
+    base_name: str,
     tar_file: UploadFile,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Image:
@@ -67,7 +67,7 @@ async def build_image(
         app_id -- The ID of the app
         app_name -- The `app_name` parameter is a string that represents the name of \
             the application for which the docker image is being built
-        variant_name -- The `variant_name` parameter is a string that represents the \
+        base_name -- The `base_name` parameter is a string that represents the \
             name or type of the variant for which the docker image is being built.
         tar_file -- The `tar_file` parameter is of type `UploadFile`. It represents the \
             uploaded tar file that will be used to build the Docker image
@@ -98,7 +98,7 @@ async def build_image(
     with tar_path.open("wb") as buffer:
         buffer.write(await tar_file.read())
 
-    image_name = f"agentaai/{app_name.lower()}_{variant_name.lower()}:latest"
+    image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
 
     # Use the thread pool to run the build_image_job function in a separate thread
     future = loop.run_in_executor(
@@ -106,7 +106,7 @@ async def build_image(
         build_image_job,
         *(
             app_name,
-            variant_name,
+            base_name,
             organization_id,
             tar_path,
             image_name,
@@ -136,9 +136,10 @@ async def restart_docker_container(
         app_variant_id=payload.variant_id, user_org_data=user_org_data
     )
     try:
-        user_backend_container_name = f"{app_variant_db.app.app_name}-{app_variant_db.variant_name}-{str(app_variant_db.organization.id)}"
-        logger.debug(f"Restarting container with id: {user_backend_container_name}")
-        restart_container(user_backend_container_name)
+        logger.debug(
+            f"Restarting container with id: {app_variant_db.base.container_id}"
+        )
+        restart_container(app_variant_db.base.container_id)
         return {"message": "Please wait a moment. The container is now restarting."}
     except Exception as ex:
         return JSONResponse({"message": str(ex)}, status_code=500)
@@ -195,8 +196,8 @@ async def pull_image(
 
 @router.get("/container_url/")
 async def construct_app_container_url(
-    base_id: Optional[str],
-    variant_id: Optional[str],
+    base_id: Optional[str] = None,
+    variant_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     """Construct and return the app container url path.

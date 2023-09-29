@@ -54,7 +54,7 @@ class AppDB(Model):
     user: UserDB = Reference(key_name="user")
 
 
-class BaseDB(Model):  # not used
+class BaseDB(Model):
     base_name: str
     image: ImageDB = Reference(key_name="image")
     status: Optional[str]
@@ -67,7 +67,7 @@ class BaseDB(Model):  # not used
         collection = "bases"
 
 
-class ConfigDB(Model):  # not used
+class ConfigDB(Model):
     config_name: str
     parameters: Dict[str, Any] = Field(default=dict)
 
