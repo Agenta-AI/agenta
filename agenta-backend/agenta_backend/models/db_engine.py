@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Load the settings from the .toml file
-toml_config = toml.load("../config.toml")
+toml_config = toml.load("agenta_backend/config.toml")
 
 
 class DBEngine(object):

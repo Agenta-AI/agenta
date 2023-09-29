@@ -83,25 +83,15 @@ async def start_variant(
     return uri
 
 
-async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: dict):
+async def update_variant_image(
+    app_variant_db: AppVariantDB, image: Image, **kwargs: dict
+):
     """Updates the image for app variant in the database.
 
     Arguments:
         app_variant -- the app variant to update
         image -- the image to update
     """
-    if (
-        app_variant.app_id in ["", None]
-        or app_variant.variant_name
-        in [
-            "",
-            None,
-        ]
-        or app_variant.organization_id in ["", None]
-    ):
-        msg = "App id and variant name, or organization_id cannot be empty"
-        logger.error(msg)
-        raise ValueError(msg)
     if image.tags in ["", None]:
         msg = "Image tags cannot be empty"
         logger.error(msg)
@@ -115,17 +105,9 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
             f"Image {image.docker_id} with tags {image.tags} not found"
         )
 
-    variant_exist = await db_manager.fetch_app_variant_by_name_and_appid(
-        app_variant.variant_name, app_variant.app_id
-    )
-    if variant_exist is None:
-        msg = f"App variant {app_variant.app_name}/{app_variant.variant_name} not found in DB"
-        logger.error(msg)
-        raise ValueError(msg)
-
-    old_variant = app_variant_db_to_pydantic(variant_exist)
+    old_variant = app_variant_db_to_pydantic(app_variant_db)
     old_image = await db_manager.get_image(old_variant, **kwargs)
-    app_db = await db_manager.get_app_instance_by_id(old_variant.app_id)
+    app_db = app_variant_db.app
     try:
         container_ids = docker_utils.stop_containers_based_on_image(old_image)
         logger.info(f"Containers {container_ids} stopped")
@@ -133,7 +115,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
             docker_utils.delete_container(container_id)
             logger.info(f"Container {container_id} deleted")
 
-        await remove_app_variant(app_variant_id=str(variant_exist.id), **kwargs)
+        await remove_app_variant(app_variant_id=str(app_variant_db.id), **kwargs)
     except Exception as e:
         logger.error(f"Error removing old variant: {str(e)}")
         logger.error(
@@ -152,7 +134,7 @@ async def update_variant_image(app_variant: AppVariant, image: Image, **kwargs: 
 
     try:
         logger.info(
-            f"Updating variant {app_variant.app_name}/{app_variant.variant_name}"
+            f"Updating variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}"
         )
         new_app_db = await db_manager.create_app(
             app_variant.app_name, app_variant.organization_id, **kwargs
