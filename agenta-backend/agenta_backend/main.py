@@ -12,6 +12,7 @@ from agenta_backend.routers import (
     observability_router,
     testset_router,
     organization_router,
+    variants_router,
 )
 from agenta_backend.services.cache_manager import (
     retrieve_templates_from_dockerhub_cached,
@@ -85,6 +86,7 @@ async def lifespan(application: FastAPI, cache=True):
 app = FastAPI(lifespan=lifespan)
 app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps")
+app.include_router(variants_router.router, prefix="/variants")
 app.include_router(evaluation_router.router, prefix="/evaluations")
 app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
