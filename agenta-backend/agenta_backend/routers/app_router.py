@@ -113,11 +113,13 @@ async def get_variant_by_env(
         # Retrieve the user and organization ID based on the session token
         user_org_data = await get_user_and_org_id(stoken_session)
         await check_access_to_app(user_org_data, app_id=app_id)
-        # Fetch the app variant using the provided app_name and variant_name
+
+        # Fetch the app variant using the provided app_id and environment
         app_variant_db = await db_manager.get_app_variant_by_app_name_and_environment(
             app_id=app_id, environment=environment, **user_org_data
         )
-        # Check if the fetched app variant is None and raise 404 if it is
+
+        # Check if the fetched app variant is None and raise exception if it is
         if app_variant_db is None:
             raise HTTPException(status_code=500, detail="App Variant not found")
         return converters.app_variant_db_to_output(app_variant_db)
