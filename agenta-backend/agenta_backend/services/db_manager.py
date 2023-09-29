@@ -496,7 +496,9 @@ async def add_variant_based_on_previous(
     return db_app_variant
 
 
-async def list_apps(app_name: str = None, org_id: str = None, **user_org_data: dict) -> List[App]:
+async def list_apps(
+    app_name: str = None, org_id: str = None, **user_org_data: dict
+) -> List[App]:
     """
     Lists all the unique app names and their IDs from the database
 

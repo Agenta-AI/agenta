@@ -24,7 +24,7 @@ def get_app_by_name(app_name: str, host: str) -> str:
     """
 
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps/apps/{app_name}/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps?app_name={app_name}/",
         timeout=600,
     )
     if response.status_code != 200:
@@ -44,7 +44,7 @@ def create_new_app(app_name: str, host: str) -> str:
     """
 
     response = requests.post(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps/apps/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/",
         json={"app_name": app_name},
         timeout=600,
     )
@@ -73,7 +73,7 @@ def add_variant_to_server(app_id: str, variant_name: str, image: Image, host: st
         "config_name": None,
     }
     response = requests.post(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variant/from_image/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variant/from-image/",
         json=payload,
         timeout=600,
     )
@@ -140,18 +140,15 @@ def list_variants(app_id: str, host: str) -> List[AppVariant]:
     return [AppVariant(**variant) for variant in app_variants]
 
 
-def remove_variant(app_name: str, variant_name: str, host: str):
+def remove_variant(variant_id: str, host: str):
     """Removes a variant from the backend
 
     Arguments:
         app_name -- the app name
         variant_name -- the variant name
     """
-    app_variant = AppVariant(app_name=app_name, variant_name=variant_name)
-    app_variant_json = app_variant.json()
     response = requests.delete(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps/remove_variant/",
-        data=app_variant_json,
+        f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}",
         headers={"Content-Type": "application/json"},
         timeout=600,
     )
@@ -164,9 +161,7 @@ def remove_variant(app_name: str, variant_name: str, host: str):
         )
 
 
-def update_variant_image(
-    app_id: str, app_name: str, variant_name: str, image: Image, host: str
-):
+def update_variant_image(variant_id: str, image: Image, host: str):
     """Adds a variant to the server.
 
     Arguments:
@@ -175,12 +170,9 @@ def update_variant_image(
         variant_name -- Name of the variant
         image_name -- Name of the image
     """
-    app_variant: AppVariant = AppVariant(
-        app_id=app_id, app_name=app_name, variant_name=variant_name
-    )
     response = requests.put(
-        f"{host}/{BACKEND_URL_SUFFIX}/variants/image/",
-        json={"app_variant": app_variant.dict(), "image": image.dict()},
+        f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/image/",
+        json={"image": image.dict()},
         timeout=600,
     )
     if response.status_code != 200:
