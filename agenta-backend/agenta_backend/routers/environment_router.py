@@ -30,41 +30,6 @@ logger.setLevel(logging.DEBUG)
 router = APIRouter()
 
 
-@router.get("/", response_model=List[EnvironmentOutput])
-async def list_environments(
-    app_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    """
-    Lists the environments for the given app.
-    """
-    logger.debug(f"Listing environments for app: {app_id}")
-    try:
-        logger.debug(f"get user and org data")
-        user_and_org_data: dict = await get_user_and_org_id(stoken_session)
-
-        # Check if has app access
-        logger.debug(f"check_access_to_app")
-        access_app = await check_access_to_app(
-            user_org_data=user_and_org_data, app_id=app_id
-        )
-        logger.debug(f"access_app: {access_app}")
-        if not access_app:
-            error_msg = f"You do not have access to this app: {app_id}"
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
-        else:
-            environments_db = await db_manager.list_environments(
-                app_id=app_id, **user_and_org_data
-            )
-            logger.debug(f"environments_db: {environments_db}")
-            return [environment_db_to_output(env) for env in environments_db]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.post("/deploy/")
 async def deploy_to_environment(
     payload: DeployToEnvironmentPayload,

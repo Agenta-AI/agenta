@@ -131,6 +131,11 @@ class URI(BaseModel):
 
 class App(BaseModel):
     app_id: str
+    app_name: str
+
+
+class RemoveApp(BaseModel):
+    app_id: str
 
 
 class DockerEnvVars(BaseModel):

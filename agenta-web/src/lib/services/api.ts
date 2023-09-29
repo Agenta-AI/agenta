@@ -14,6 +14,7 @@ import {
     ExecuteCustomEvalCode,
     ListAppsItem,
     AICritiqueCreate,
+    UserOwnOrg,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
@@ -350,7 +351,7 @@ export const loadEvaluationsScenarios = async (
 
 export const createNewEvaluation = async (
     {
-        variants,
+        variant_ids,
         appId,
         evaluationType,
         evaluationTypeSettings,
@@ -359,7 +360,7 @@ export const createNewEvaluation = async (
         selectedCustomEvaluationID,
         testsetId,
     }: {
-        variants: string[]
+        variant_ids: string[]
         appId: string
         evaluationType: string
         evaluationTypeSettings: Partial<EvaluationResponseType["evaluation_type_settings"]>
@@ -371,7 +372,7 @@ export const createNewEvaluation = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const data = {
-        variants, // TODO: Change to variant id
+        variant_ids,
         app_id: appId,
         inputs: inputs,
         evaluation_type: evaluationType,
@@ -533,6 +534,13 @@ export const useApps = () => {
     }
 }
 
+export const getUserOrg = async () => {
+    const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/organizations/own/`,
+    )
+    return response.data as UserOwnOrg
+}
+
 export const getTemplates = async () => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/`,
@@ -553,7 +561,7 @@ export const createAppFromTemplate = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/add/from_template/`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/app_and_variant_from_template/`,
         templateObj,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -593,11 +601,13 @@ export const createAndStartTemplate = async ({
     appName,
     openAIKey,
     imageName,
+    orgId,
     onStatusChange,
 }: {
     appName: string
     openAIKey: string
     imageName: string
+    orgId: string
     onStatusChange?: (
         status:
             | "fetching_image"
@@ -608,6 +618,7 @@ export const createAndStartTemplate = async ({
             | "timeout"
             | "error",
         details?: any,
+        appId?: string,
     ) => void
 }) => {
     try {
@@ -626,6 +637,7 @@ export const createAndStartTemplate = async ({
                     env_vars: {
                         OPENAI_API_KEY: openAIKey,
                     },
+                    organization_id: orgId,
                 },
                 true,
             )
@@ -642,7 +654,7 @@ export const createAndStartTemplate = async ({
             await waitForAppToStart(app.data.app_id)
         } catch (error: any) {
             if (error.message === "timeout") {
-                onStatusChange?.("timeout")
+                onStatusChange?.("timeout", "", app.data.app_id)
                 return
             }
             throw error
@@ -656,7 +668,7 @@ export const createAndStartTemplate = async ({
 
 export const fetchEnvironments = async (appId: string): Promise<Environment[]> => {
     const response = await fetch(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/environments/?app_id=${appId}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/${appId}/environments/`,
     )
 
     if (response.status !== 200) {
