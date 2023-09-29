@@ -275,7 +275,6 @@ async def create_evaluation_scenario(
         **_extend_with_evaluation(evaluation.evaluation_type),
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
-        evaluation=evaluation,
     )
 
     await engine.save(new_eval_scenario)
