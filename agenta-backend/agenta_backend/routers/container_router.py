@@ -146,7 +146,7 @@ async def restart_docker_container(
     logger.debug(f"Restarting container for variant {payload.variant_id}")
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = check_access_to_variant(
+    access = await check_access_to_variant(
         user_org_data=user_org_data, variant_id=payload.variant_id
     )
     if not access:
@@ -240,7 +240,9 @@ async def construct_app_container_url(
 
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = check_access_to_variant(user_org_data=user_org_data, variant_id=variant_id)
+    access = await check_access_to_variant(
+        user_org_data=user_org_data, variant_id=variant_id
+    )
     if access is False:
         error_msg = f"You do not have access to this variant: {variant_id}"
         return JSONResponse(

@@ -4,7 +4,7 @@ from typing import List
 
 import agenta.config
 import requests
-from agenta.client.api_models import AppVariant, Image, AddVariantFromImagePayload
+from agenta.client.api_models import AppVariant
 from docker.models.images import Image as DockerImage
 
 BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]

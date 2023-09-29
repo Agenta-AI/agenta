@@ -7,6 +7,11 @@ export interface testset {
     created_at: string
 }
 
+export interface UserOwnOrg {
+    id: string
+    name: string
+}
+
 export interface ListAppsItem {
     app_id: string
     app_name: string

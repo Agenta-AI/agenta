@@ -3,13 +3,13 @@ import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject, ListAppsItem} from "@/lib/Types"
+import {Template, GenericObject, ListAppsItem, UserOwnOrg} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {createAndStartTemplate, getTemplates} from "@/lib/services/api"
+import {createAndStartTemplate, getTemplates, getUserOrg} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
@@ -99,6 +99,7 @@ const AppSelector: React.FC = () => {
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
+    const [userOrgId, setUserOrgId] = useState<string>("")
 
     const [templateMessage, setTemplateMessage] = useState("")
     const [templateName, setTemplateName] = useState<string | undefined>(undefined)
@@ -161,6 +162,17 @@ const AppSelector: React.FC = () => {
         fetchTemplates()
     }, [])
 
+    useEffect(() => {
+        const fetchUserOrg = async () => {
+            const response: UserOwnOrg = await getUserOrg()
+            if (response && response.id) {
+                setUserOrgId(response.id)
+            }
+        }
+
+        fetchUserOrg()
+    }, [])
+
     const handleTemplateCardClick = async (image_name: string) => {
         setFetchingTemplate(true)
 
@@ -196,8 +208,9 @@ const AppSelector: React.FC = () => {
         await createAndStartTemplate({
             appName: newApp,
             imageName: image_name,
+            orgId: userOrgId,
             openAIKey: isDemo ? "" : (openAIKey as string),
-            onStatusChange: (status, details) => {
+            onStatusChange: (status, details, appId) => {
                 const title = "Template Selection"
                 switch (status) {
                     case "fetching_image":
@@ -233,7 +246,7 @@ const AppSelector: React.FC = () => {
                             key: status,
                         })
                         onFinish()
-                        router.push(`/apps/${newApp}/playground`)
+                        router.push(`/apps/${appId}/playground`)
                         break
                     case "bad_request":
                         showNotification({
