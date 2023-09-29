@@ -209,9 +209,7 @@ async def update_variant_parameters(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put(
-    "/{variant_id}/image/"
-)  # TODO: Refactor to use the variant_id instead of the name
+@router.put("/{variant_id}/image/")
 async def update_variant_image(
     variant_id: str,
     image: Image,

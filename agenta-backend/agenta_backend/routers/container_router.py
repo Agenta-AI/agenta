@@ -243,7 +243,9 @@ async def construct_app_container_url(
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
     if base_id:
-        access = await check_access_to_base(user_org_data=user_org_data, base_id=base_id)
+        access = await check_access_to_base(
+            user_org_data=user_org_data, base_id=base_id
+        )
         if access is False:
             error_msg = f"You do not have access to this base: {base_id}"
             return JSONResponse(
