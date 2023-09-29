@@ -339,7 +339,7 @@ async def list_app_variants_for_app_id(
     assert app_id is not None, "app_id cannot be None"
     if not show_soft_deleted:
         query_expression = (AppVariantDB.app == ObjectId(app_id)) & (
-            AppVariantDB.is_deleted == False
+            AppVariantDB.is_deleted is False
         )
     else:
         query_expression = AppVariantDB.app == ObjectId(app_id)
@@ -1001,3 +1001,62 @@ async def create_image(
     )
     await engine.save(image)
     return image
+
+
+async def fetch_base_and_check_access(
+    base_id: str, user_org_data: dict, check_owner=False
+):
+    if base_id is None:
+        raise Exception("No base_id provided")
+    base = await engine.find_one(BaseDB, BaseDB.id == ObjectId(base_id))
+    if base is None:
+        logger.error("Base not found")
+        raise HTTPException(status_code=404, detail="Base not found")
+    organization_id = base.image.organization.id
+    access = await check_user_org_access(
+        user_org_data, str(organization_id), check_owner
+    )
+    if not access:
+        error_msg = f"You do not have access to this base: {base_id}"
+        raise HTTPException(status_code=403, detail=error_msg)
+    return base
+
+
+async def fetch_app_and_check_access(
+    app_id: str, user_org_data: dict, check_owner=False
+):
+    app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
+    if app is None:
+        logger.error("App not found")
+        raise HTTPException
+
+    # Check user's access to the organization linked to the app.
+    organization_id = app.organization.id
+    access = await check_user_org_access(
+        user_org_data, str(organization_id), check_owner
+    )
+    if not access:
+        error_msg = f"You do not have access to this app: {app_id}"
+        raise HTTPException(status_code=403, detail=error_msg)
+    return app
+
+
+async def fetch_app_variant_and_check_access(
+    app_variant_id: str, user_org_data: dict, check_owner=False
+):
+    app_variant = await engine.find_one(
+        AppVariantDB, AppVariantDB.id == ObjectId(app_variant_id)
+    )
+    if app_variant is None:
+        logger.error("App variant not found")
+        raise HTTPException
+
+    # Check user's access to the organization linked to the app.
+    organization_id = app_variant.organization.id
+    access = await check_user_org_access(
+        user_org_data, str(organization_id), check_owner
+    )
+    if not access:
+        error_msg = f"You do not have access to this app variant: {app_variant_id}"
+        raise HTTPException(status_code=403, detail=error_msg)
+    return app_variant

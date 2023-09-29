@@ -80,22 +80,7 @@ async def build_image(
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Check app access
-    app_db = await db_manager.fetch_app_by_id(app_id)
-    if not app_db:
-        error_msg = f"App with id {app_id} does not exist"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
-
-    app_access = await check_access_to_app(user_org_data, app_id=app_id)
-
-    if not app_access:
-        error_msg = f"You do not have access to this app: {app_id}"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
+    app_db = await db_manager.fetch_app_and_check_access(app_id=app_id, **user_org_data)
     app_name = app_db.app_name
     organization_id = str(app_db.organization.id)
     # Get event loop
@@ -147,24 +132,9 @@ async def restart_docker_container(
     logger.debug(f"Restarting container for variant {payload.variant_id}")
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = await check_access_to_variant(
-        user_org_data=user_org_data, variant_id=payload.variant_id
+    app_variant_db = await db_manager.fetch_app_variant_and_check_access(
+        app_variant_id=payload.variant_id, user_org_data=user_org_data
     )
-    if not access:
-        error_msg = f"You do not have access to this variant: {payload.variant_id}"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
-    app_variant_db = await db_manager.fetch_app_variant_by_id(
-        app_variant_id=payload.variant_id
-    )
-    if app_variant_db is None:
-        error_msg = f"Variant with id {payload.variant_id} does not exist"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
     try:
         user_backend_container_name = f"{app_variant_db.app.app_name}-{app_variant_db.variant_name}-{str(app_variant_db.organization.id)}"
         logger.debug(f"Restarting container with id: {user_backend_container_name}")
@@ -243,44 +213,15 @@ async def construct_app_container_url(
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
     if base_id:
-        access = await check_access_to_base(
-            user_org_data=user_org_data, base_id=base_id
-        )
-        if access is False:
-            error_msg = f"You do not have access to this base: {base_id}"
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
-        base_db = await db_manager.fetch_base_by_id(
+        base_db = await db_manager.fetch_base_and_check_access(
             base_id=base_id, user_org_data=user_org_data
         )
-        if base_db is None:
-            error_msg = f"Failure fetching base with id {base_db}"
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
+        # TODO: Add status check if base_db.status == "running"
         return URI(uri=base_db.uri_path)
     elif variant_id:
-        access = await check_access_to_variant(
-            user_org_data=user_org_data, variant_id=variant_id
-        )
-        if access is False:
-            error_msg = f"You do not have access to this variant: {variant_id}"
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
-        variant_db = await db_manager.fetch_app_variant_by_id(
+        variant_db = await db_manager.fetch_app_variant_and_check_access(
             app_variant_id=variant_id, user_org_data=user_org_data
         )
-        if variant_db is None:
-            error_msg = f"Failure fetching variant with id {variant_id}"
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
         return URI(uri=variant_db.base.uri_path)
     else:
         return JSONResponse(
