@@ -2,7 +2,7 @@ import os
 import uuid
 import asyncio
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Optional
 
 from fastapi.responses import JSONResponse
 from fastapi import UploadFile, APIRouter, Depends
@@ -225,7 +225,8 @@ async def pull_image(
 
 @router.get("/container_url/")
 async def construct_app_container_url(
-    base_id: str,
+    base_id: Optional[str],
+    variant_id: Optional[str],
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     """Construct and return the app container url path.
@@ -241,25 +242,46 @@ async def construct_app_container_url(
 
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = await check_access_to_base(user_org_data=user_org_data, base_id=base_id)
-    if access is False:
-        error_msg = f"You do not have access to this base: {base_id}"
+    if base_id:
+        access = await check_access_to_base(user_org_data=user_org_data, base_id=base_id)
+        if access is False:
+            error_msg = f"You do not have access to this base: {base_id}"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        base_db = await db_manager.fetch_base_by_id(
+            base_id=base_id, user_org_data=user_org_data
+        )
+        if base_db is None:
+            error_msg = f"Failure fetching base with id {base_db}"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        return URI(uri=base_db.uri_path)
+    elif variant_id:
+        access = await check_access_to_variant(
+            user_org_data=user_org_data, variant_id=variant_id
+        )
+        if access is False:
+            error_msg = f"You do not have access to this variant: {variant_id}"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        variant_db = await db_manager.fetch_app_variant_by_id(
+            app_variant_id=variant_id, user_org_data=user_org_data
+        )
+        if variant_db is None:
+            error_msg = f"Failure fetching variant with id {variant_id}"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        return URI(uri=variant_db.base.uri_path)
+    else:
         return JSONResponse(
-            {"detail": error_msg},
+            {"detail": "Please provide either base_id or variant_id"},
             status_code=400,
         )
-    base_db = await db_manager.fetch_base_by_id(
-        base_id=base_id, user_org_data=user_org_data
-    )
-    if base_db is None:
-        error_msg = f"Failure fetching base with id {base_db}"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
-    # organization_id = str(base_db.image.organization.id)
-    # app_name = app_variant_db.app.app_name
-    # variant_name = app_variant_db.variant_name
-    # # Set organization backend url path and container name
-    # org_backend_url_path = f"{organization_id}/{app_name}/{variant_name}"
-    return URI(uri=base_db.uri_path)
