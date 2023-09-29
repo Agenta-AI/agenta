@@ -12,7 +12,7 @@ export default function Evaluation() {
         : ""
     const [evaluationScenarios, setEvaluationScenarios] = useState([])
     const [evaluation, setEvaluation] = useState<Evaluation | undefined>()
-    const app_id = router.query.app_id as string
+    const appId = router.query.app_id as string
     const columnsCount = 1
 
     useEffect(() => {
@@ -32,7 +32,7 @@ export default function Evaluation() {
         }
         const init = async () => {
             const evaluation: Evaluation = await loadEvaluation(evaluationTableId)
-            const backendVariants = await fetchVariants(app_id)
+            const backendVariants = await fetchVariants(appId)
             // Create a map for faster access to first array elements
             let backendVariantsMap = new Map()
             backendVariants.forEach((obj) => backendVariantsMap.set(obj.variantId, obj))

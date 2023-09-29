@@ -305,7 +305,7 @@ export const deleteTestsets = async (ids: string[]) => {
 
 export const loadEvaluations = async (appId: string) => {
     return await axios
-        .get(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations?app_id=${appId}`)
+        .get(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_id=${appId}`)
         .then((responseData) => {
             const evaluations = responseData.data.map((item: EvaluationResponseType) => {
                 return fromEvaluationResponseToEvaluation(item)
@@ -509,7 +509,7 @@ export const updateEvaluationScenarioScore = async (
 ) => {
     const response = await axios.put(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
-        {score: score},
+        {score},
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
@@ -660,7 +660,7 @@ export const createAndStartTemplate = async ({
             throw error
         }
 
-        onStatusChange?.("success")
+        onStatusChange?.("success", "", app.data.app_id)
     } catch (error) {
         onStatusChange?.("error", error)
     }

@@ -1,9 +1,14 @@
-import {deleteEvaluations, fetchData} from "@/lib/services/api"
+import {
+    deleteEvaluations,
+    fetchData,
+    fetchEvaluationResults,
+    loadEvaluations,
+} from "@/lib/services/api"
 import {Button, Collapse, Result, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
-import {EvaluationResponseType} from "@/lib/Types"
+import {Evaluation, EvaluationResponseType} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
@@ -89,60 +94,47 @@ export default function AutomaticEvaluationResult() {
 
         const fetchEvaluations = async () => {
             try {
-                fetchData(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_id=${app_id}`,
+                const evals: Evaluation[] = await loadEvaluations(app_id)
+                const results = await Promise.all(evals.map((e) => fetchEvaluationResults(e.id)))
+                const newEvals = results.map((result, ix) => {
+                    const item = evals[ix]
+                    if (
+                        [
+                            EvaluationType.auto_exact_match,
+                            EvaluationType.auto_similarity_match,
+                            EvaluationType.auto_regex_test,
+                            EvaluationType.auto_ai_critique,
+                            EvaluationType.custom_code_run,
+                            EvaluationType.auto_webhook_test,
+                        ].includes(item.evaluationType)
+                    ) {
+                        return {
+                            key: item.id,
+                            createdAt: formatDate(item.createdAt),
+                            variants: item.variants,
+                            scoresData: result.scores_data,
+                            evaluationType: item.evaluationType,
+                            status: item.status,
+                            testset: item.testset,
+                            custom_code_eval_id: item.evaluationTypeSettings.customCodeEvaluationId,
+                            resultsData: result.results_data,
+                            avgScore: result.avg_score,
+                        }
+                    }
+                })
+
+                setEvaluationsList(
+                    newEvals
+                        .filter((evaluation) => evaluation !== undefined)
+                        .filter(
+                            (item: any) =>
+                                item.resultsData !== undefined ||
+                                !(Object.keys(item.scoresData || {}).length === 0) ||
+                                item.avgScore !== undefined,
+                        ) as any,
                 )
-                    .then((response) => {
-                        const fetchPromises = response.map((item: EvaluationResponseType) => {
-                            return fetchData(
-                                `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${item.id}/results`,
-                            )
-                                .then((results) => {
-                                    if (
-                                        [
-                                            EvaluationType.auto_exact_match,
-                                            EvaluationType.auto_similarity_match,
-                                            EvaluationType.auto_regex_test,
-                                            EvaluationType.auto_ai_critique,
-                                            EvaluationType.custom_code_run,
-                                            EvaluationType.auto_webhook_test,
-                                        ].includes(item.evaluation_type as EvaluationType)
-                                    ) {
-                                        return {
-                                            key: item.id,
-                                            createdAt: formatDate(item.created_at),
-                                            variants: item.variants,
-                                            scoresData: results.scores_data,
-                                            evaluationType: item.evaluation_type,
-                                            status: item.status,
-                                            testset: item.testset,
-                                            custom_code_eval_id:
-                                                item.evaluation_type_settings
-                                                    .custom_code_evaluation_id,
-                                            resultsData: results.results_data,
-                                            avgScore: results.avg_score,
-                                        }
-                                    }
-                                })
-                                .catch((err) => console.error(err))
-                        })
-                        Promise.all(fetchPromises)
-                            .then((evaluations) => {
-                                const validEvaluations = evaluations
-                                    .filter((evaluation) => evaluation !== undefined)
-                                    .filter(
-                                        (item) =>
-                                            item.resultsData !== undefined ||
-                                            !(Object.keys(item.scoresData || {}).length === 0) ||
-                                            item.avgScore !== undefined,
-                                    )
-                                setEvaluationsList(validEvaluations)
-                            })
-                            .catch((err) => console.error(err))
-                    })
-                    .catch((err) => console.error(err))
             } catch (error) {
-                console.log(error)
+                console.error(error)
             }
         }
 
