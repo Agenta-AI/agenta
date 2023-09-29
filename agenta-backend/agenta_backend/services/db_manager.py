@@ -977,3 +977,18 @@ async def count_apps(**user_org_data: dict) -> int:
 
     no_of_apps = await engine.count(AppVariantDB, AppVariantDB.user == user.id)
     return no_of_apps
+
+
+async def update_base(
+    base: BaseDB,
+    **kwargs: dict,
+):
+    """Update the base object in the database with the provided id.
+
+    Arguments:
+        base (BaseDB): The base object to update.
+    """
+    for key, value in kwargs.items():
+        if key in base.__fields__:
+            setattr(base, key, value)
+    await engine.save(base)

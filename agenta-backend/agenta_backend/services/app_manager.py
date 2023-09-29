@@ -59,17 +59,28 @@ async def start_variant(
             db_app_variant.organization,
         )
         logger.debug("App name is %s", db_app_variant.app.app_name)
-        uri: URI = docker_utils.start_container(
+        results = docker_utils.start_container(
             image_name=db_app_variant.image.tags,
             app_name=db_app_variant.app.app_name,
             variant_name=db_app_variant.variant_name,
             env_vars=env_vars,
             organization_id=db_app_variant.organization.id,
         )
+        uri = results["uri"]
+        uri_path = results["uri_path"]
+        container_id = results["container_id"]
+        container_name = results["container_name"]
+
         logger.info(
             f"Started Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name} at URI {uri}"
         )
-        # TODO: Save information to base
+        await db_manager.update_base(
+            db_app_variant.base,
+            status="running",
+            uri_path=uri_path,
+            container_id=container_id,
+            container_name=container_name,
+        )
         # db_manager.register_base_container(db_app_variant, uri, f"{app_name}-{variant_name}-{organization_id}")
     except Exception as e:
         logger.error(

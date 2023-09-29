@@ -35,6 +35,8 @@ from agenta_backend.models.api.api_models import (
     AddVariantFromImagePayload,
     AddVariantFromBasePayload,
     EnvironmentOutput,
+    VariantAction,
+    VariantActionEnum,
 )
 from agenta_backend.models import converters
 
@@ -250,3 +252,42 @@ async def update_variant_image(
     except Exception as e:
         detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
+
+
+@router.put("/{variant_id}/")
+async def start_variant(
+    variant_id: str,
+    action: VariantAction,
+    env_vars: Optional[DockerEnvVars] = None,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> URI:
+    logger.debug("Starting variant %s", variant_id)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+
+    # Inject env vars to docker container
+    if os.environ["FEATURE_FLAG"] == "demo":
+        if not os.environ["OPENAI_API_KEY"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Unable to start app container. Please file an issue by clicking on the button below.",
+            )
+        envvars = {
+            "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+        }
+    else:
+        envvars = {} if env_vars is None else env_vars.env_vars
+
+    access = await check_access_to_variant(
+        user_org_data=user_org_data, variant_id=variant_id
+    )
+    if not access:
+        error_msg = f"You do not have access to this variant: {variant_id}"
+        logger.error(error_msg)
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
+    if action.action == VariantActionEnum.START:
+        url = await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
+    return url

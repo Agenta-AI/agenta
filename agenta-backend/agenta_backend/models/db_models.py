@@ -59,8 +59,9 @@ class BaseDB(Model):  # not used
     image: ImageDB = Reference(key_name="image")
     status: Optional[str]
     container_name: Optional[str]
-    container: Optional[str]
+    container_id: Optional[str]
     uri: Optional[str]
+    uri_path: Optional[str]
 
     class Config:
         collection = "bases"

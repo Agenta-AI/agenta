@@ -262,39 +262,6 @@ async def add_variant_from_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/start/")
-async def start_variant(
-    variant: AppVariant,
-    env_vars: Optional[DockerEnvVars] = None,
-    stoken_session: SessionContainer = Depends(verify_session()),
-) -> URI:
-    logger.debug("Starting variant %s", variant)
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
-
-    # Inject env vars to docker container
-    if os.environ["FEATURE_FLAG"] == "demo":
-        if not os.environ["OPENAI_API_KEY"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Unable to start app container. Please file an issue by clicking on the button below.",
-            )
-        envvars = {
-            "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
-        }
-    else:
-        envvars = {} if env_vars is None else env_vars.env_vars
-
-    if variant.organization_id is None:
-        organization = await get_user_own_org(user_org_data["uid"])
-        variant.organization_id = str(organization.id)
-
-    app_variant_db = await db_manager.fetch_app_variant_by_name_and_appid(
-        variant.variant_name, variant.app_id
-    )
-    url = await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
-    return url
-
-
 @router.delete("/{app_id}")
 async def remove_app(
     app_id: str, stoken_session: SessionContainer = Depends(verify_session())

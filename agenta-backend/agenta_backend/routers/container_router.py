@@ -248,7 +248,9 @@ async def construct_app_container_url(
             {"detail": error_msg},
             status_code=400,
         )
-    base_db = await db_manager.fetch_base_by_id(base_id=base_id, user_org_data=user_org_data)
+    base_db = await db_manager.fetch_base_by_id(
+        base_id=base_id, user_org_data=user_org_data
+    )
     if base_db is None:
         error_msg = f"Failure fetching base with id {base_db}"
         return JSONResponse(
@@ -260,4 +262,4 @@ async def construct_app_container_url(
     # variant_name = app_variant_db.variant_name
     # # Set organization backend url path and container name
     # org_backend_url_path = f"{organization_id}/{app_name}/{variant_name}"
-    return URI(uri=base_db.uri)
+    return URI(uri=base_db.uri_path)
