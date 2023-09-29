@@ -221,3 +221,43 @@ async def pull_image(
         repo_owner, repo_name, image_tag_name
     )
     return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
+
+
+@router.get("/container_url/")
+async def construct_app_container_url(
+    base_id: str,
+    stoken_session: SessionContainer = Depends(verify_session()),
+) -> URI:
+    """Construct and return the app container url path.
+
+    Arguments:
+        app_name -- The name of app to construct the container url path
+        variant_name -- The  variant name of the app to construct the container url path
+        stoken_session (SessionContainer) -- the user session.
+
+    Returns:
+        URI -- the url path of the container
+    """
+
+    # Get user and org id
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    access = await check_access_to_base(user_org_data=user_org_data, base_id=base_id)
+    if access is False:
+        error_msg = f"You do not have access to this base: {base_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    base_db = await db_manager.fetch_base_by_id(base_id=base_id, user_org_data=user_org_data)
+    if base_db is None:
+        error_msg = f"Failure fetching base with id {base_db}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    # organization_id = str(base_db.image.organization.id)
+    # app_name = app_variant_db.app.app_name
+    # variant_name = app_variant_db.variant_name
+    # # Set organization backend url path and container name
+    # org_backend_url_path = f"{organization_id}/{app_name}/{variant_name}"
+    return URI(uri=base_db.uri)
