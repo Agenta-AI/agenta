@@ -173,28 +173,8 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
         raise Exception("App variant not found")
 
 
-async def fetch_app_by_name_and_organization(
-    app_name: str, organization_id: str, **kwargs
-) -> Optional[AppDB]:
-    """
-    Fetches an app by its name and organization ID.
-
-    Args:
-        app_name (str): The name of the app to fetch.
-        organization_id (str): The ID of the organization that the app belongs to.
-
-    Returns:
-        AppDB: AppDB, or None if no app was found.
-    """
-    query_expression = (AppDB.app_name == app_name) & (
-        AppDB.organization == ObjectId(organization_id)
-    )
-    app = await engine.find_one(AppDB, query_expression)
-    return app
-
-
-async def fetch_app_by_id(app_id: str) -> Optional[AppDB]:
-    """_summary_
+async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
+    """Fetches an app by its ID.
 
     Args:
         app_id: _description_
@@ -205,8 +185,8 @@ async def fetch_app_by_id(app_id: str) -> Optional[AppDB]:
 
 
 async def fetch_app_by_name(
-    app_name: str, organization_id: Optional[str] = None, **kwargs: dict
-) -> AppDB:
+    app_name: str, organization_id: Optional[str] = None, **user_org_data: dict
+) -> Optional[AppDB]:
     """Fetches an app by its name.
 
     Args:
@@ -216,8 +196,8 @@ async def fetch_app_by_name(
         AppDB: the instance of the app
     """
     if not organization_id:
-        user = await get_user_object(kwargs["uid"])
-        query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id)
+        user = await get_user_object(user_org_data["uid"])
+        query_expression = (AppDB.app_name == app_name) & (AppDB.user_id == user.id)
         app = await engine.find_one(AppDB, query_expression)
     else:
         query_expression = (AppDB.app_name == app_name) & (
@@ -283,7 +263,7 @@ async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
     """
 
     user_instance = await get_user_object(kwargs["uid"])
-    app = await fetch_app_by_name_and_organization(app_name, organization_id, **kwargs)
+    app = await fetch_app_by_name(app_name, organization_id, **kwargs)
     if app is not None:
         raise ValueError("App with the same name already exists")
 
@@ -511,7 +491,9 @@ async def add_variant_based_on_previous(
     return db_app_variant
 
 
-async def list_apps(org_id: str = None, **kwargs: dict) -> List[App]:
+async def list_apps(
+    app_name: str = None, org_id: str = None, **user_org_data: dict
+) -> List[App]:
     """
     Lists all the unique app names and their IDs from the database
 
@@ -523,12 +505,14 @@ async def list_apps(org_id: str = None, **kwargs: dict) -> List[App]:
     """
     await clean_soft_deleted_variants()
 
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
+    user = await get_user_object(user_org_data["uid"])
     assert user is not None, "User is None"
 
-    if org_id is not None:
-        organization_access = await check_user_org_access(kwargs, org_id)
+    if app_name is not None:
+        app_db = await fetch_app_by_name(app_name, org_id, **user_org_data)
+        return [app_db_to_pydantic(app_db)]
+    elif org_id is not None:
+        organization_access = await check_user_org_access(user_org_data, org_id)
         if organization_access:
             apps: List[AppDB] = await engine.find(
                 AppDB, AppDB.organization == ObjectId(org_id)

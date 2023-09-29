@@ -18,10 +18,6 @@ class AppOutput(CreateAppOutput):
     pass
 
 
-class Variant(BaseModel):
-    variant_id: str
-
-
 class UpdateVariantParameterPayload(BaseModel):
     variant_id: str
     parameters: Dict[str, Any]
@@ -64,7 +60,6 @@ class EnvironmentOutput(BaseModel):
 
 
 class AddVariantFromPreviousPayload(BaseModel):
-    previous_variant_id: str
     new_variant_name: str
     parameters: Dict[str, Any]
 
@@ -132,6 +127,10 @@ class URI(BaseModel):
 class App(BaseModel):
     app_id: str
     app_name: str
+
+
+class RemoveApp(BaseModel):
+    app_id: str
 
 
 class DockerEnvVars(BaseModel):

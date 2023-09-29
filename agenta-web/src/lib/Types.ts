@@ -48,7 +48,7 @@ export interface Evaluation {
     id: string
     createdAt: string
     variants: Variant[]
-    evaluationType: string
+    evaluationType: EvaluationType
     status: EvaluationFlow
     testset: {
         _id: string
@@ -56,6 +56,14 @@ export interface Evaluation {
     }
     appName: string
     llmAppPromptTemplate?: string
+    evaluationTypeSettings: {
+        similarityThreshold: number
+        regexPattern: string
+        regexShouldMatch: boolean
+        webhookUrl: string
+        customCodeEvaluationId?: string
+        llmAppPromptTemplate?: string
+    }
 }
 
 export interface CreateCustomEvaluation {
@@ -76,6 +84,7 @@ export interface ExecuteCustomEvalCode {
     outputs: Array<Object>
     variant_id: string
     correct_answer: string
+    app_id: string
 }
 
 export interface SingleCustomEvaluation {
