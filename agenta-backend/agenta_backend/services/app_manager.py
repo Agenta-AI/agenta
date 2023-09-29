@@ -62,7 +62,7 @@ async def start_variant(
         results = docker_utils.start_container(
             image_name=db_app_variant.image.tags,
             app_name=db_app_variant.app.app_name,
-            variant_name=db_app_variant.variant_name,
+            base_name=db_app_variant.base_name,
             env_vars=env_vars,
             organization_id=db_app_variant.organization.id,
         )

@@ -63,7 +63,7 @@ def list_images() -> List[Image]:
 
 
 def start_container(
-    image_name, app_name, variant_name, env_vars: DockerEnvVars, organization_id: str
+    image_name, app_name, base_name, env_vars: DockerEnvVars, organization_id: str
 ) -> Dict:
     try:
         image = client.images.get(f"{image_name}")
@@ -71,8 +71,8 @@ def start_container(
         image = client.images.get(f"{image_name}")
 
         # Set user backend url path and container name
-        user_backend_url_path = f"{organization_id}/{app_name}/{variant_name}"
-        user_backend_container_name = f"{app_name}-{variant_name}-{organization_id}"
+        user_backend_url_path = f"{organization_id}/{app_name}/{base_name}"
+        user_backend_container_name = f"{app_name}-{base_name}-{organization_id}"
 
         # Default labels
         labels = {
