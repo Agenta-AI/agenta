@@ -58,50 +58,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.post("/{variant_id}/from-previous/")
-async def add_variant_from_previous(
-    variant_id: str,
-    payload: AddVariantFromPreviousPayload,
-    stoken_session: SessionContainer = Depends(verify_session()),
-) -> AppVariantOutput:
-    """Add a variant to the server based on a previous variant.
-
-    Arguments:
-        app_variant -- AppVariant to add
-        previous_app_variant -- Previous AppVariant to use as a base
-        parameters -- parameters for the variant
-
-    Raises:
-        HTTPException: If there is a problem adding the app variant
-    """
-
-    try:
-        app_variant_db = await db_manager.fetch_app_variant_by_id(variant_id)
-        if app_variant_db is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Previous app variant not found",
-            )
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        access = await check_user_org_access(
-            user_org_data, app_variant_db.organization_id.id
-        )
-        if not access:
-            raise HTTPException(
-                status_code=500,
-                detail="You do not have permission to access this app variant",
-            )
-        db_app_variant = await db_manager.add_variant_based_on_previous(
-            previous_app_variant=app_variant_db,
-            new_variant_name=payload.new_variant_name,
-            parameters=payload.parameters,
-            **user_org_data,
-        )
-        return converters.app_variant_db_to_output(db_app_variant)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.post("/from-base/")
 async def add_variant_from_base(
     payload: AddVariantFromBasePayload,
