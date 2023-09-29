@@ -1,7 +1,3 @@
-"""Routes for image-related operations (push, remove).
-Does not deal with the instanciation of the images
-"""
-
 import os
 import logging
 from docker.errors import DockerException
@@ -25,6 +21,7 @@ from agenta_backend.utils.common import (
 from agenta_backend.models.api.api_models import (
     URI,
     App,
+    RemoveApp,
     AppOutput,
     CreateApp,
     CreateAppOutput,
@@ -34,7 +31,6 @@ from agenta_backend.models.api.api_models import (
     CreateAppVariant,
     AddVariantFromPreviousPayload,
     AppVariantOutput,
-    Variant,
     UpdateVariantParameterPayload,
     AddVariantFromImagePayload,
     AddVariantFromBasePayload,
@@ -116,11 +112,13 @@ async def get_variant_by_env(
         # Retrieve the user and organization ID based on the session token
         user_org_data = await get_user_and_org_id(stoken_session)
         await check_access_to_app(user_org_data, app_id=app_id)
-        # Fetch the app variant using the provided app_name and variant_name
+
+        # Fetch the app variant using the provided app_id and environment
         app_variant_db = await db_manager.get_app_variant_by_app_name_and_environment(
             app_id=app_id, environment=environment, **user_org_data
         )
-        # Check if the fetched app variant is None and raise 404 if it is
+
+        # Check if the fetched app variant is None and raise exception if it is
         if app_variant_db is None:
             raise HTTPException(status_code=500, detail="App Variant not found")
         return converters.app_variant_db_to_output(app_variant_db)
@@ -134,41 +132,7 @@ async def get_variant_by_env(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/apps/{app_name}/", response_model=AppOutput)
-async def get_app_by_name(
-    app_name: str,
-    organization_id: Optional[str] = None,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    """Get an app by its name.
-
-    Arguments:
-        app_name (str): Name of app
-
-    Returns:
-        CreateAppOutput: the app id and name
-    """
-
-    try:
-        # Get user and org id
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        if organization_id:
-            # check if user has access to the organization
-            access = await check_user_org_access(user_org_data, organization_id)
-            if not access:
-                raise HTTPException(
-                    status_code=403,
-                    detail="You do not have permission to access this app",
-                )
-        app_db = await db_manager.fetch_app_by_name(
-            app_name, organization_id, **user_org_data
-        )
-        return AppOutput(app_id=str(app_db.id), app_name=app_db.app_name)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/apps/", response_model=CreateAppOutput)
+@router.post("/", response_model=CreateAppOutput)
 async def create_app(
     payload: CreateApp,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -212,6 +176,7 @@ async def create_app(
 
 @router.get("/", response_model=List[App])
 async def list_apps(
+    app_name: Optional[str] = None,
     org_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> List[App]:
@@ -225,14 +190,14 @@ async def list_apps(
     """
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
-        apps = await db_manager.list_apps(org_id, **user_org_data)
+        apps = await db_manager.list_apps(app_name, org_id, **user_org_data)
         return apps
     except Exception as e:
         logger.error(f"list_apps exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{app_id}/variant/from_image/")
+@router.post("/{app_id}/variant/from-image/")
 async def add_variant_from_image(
     app_id: str,
     payload: AddVariantFromImagePayload,
@@ -297,131 +262,6 @@ async def add_variant_from_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/add/from_previous/")
-async def add_variant_from_previous(
-    payload: AddVariantFromPreviousPayload,
-    stoken_session: SessionContainer = Depends(verify_session()),
-) -> AppVariantOutput:
-    """Add a variant to the server based on a previous variant.
-
-    Arguments:
-        app_variant -- AppVariant to add
-        previous_app_variant -- Previous AppVariant to use as a base
-        parameters -- parameters for the variant
-
-    Raises:
-        HTTPException: If there is a problem adding the app variant
-    """
-    if payload.previous_variant_id is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Previous app variant id is required",
-        )
-    if payload.new_variant_name is None:
-        raise HTTPException(
-            status_code=500,
-            detail="New variant name is required",
-        )
-    if payload.parameters is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Parameters are required",
-        )
-
-    try:
-        app_variant_db = await db_manager.fetch_app_variant_by_id(
-            payload.previous_variant_id
-        )
-        if app_variant_db is None:
-            raise HTTPException(
-                status_code=500,
-                detail="Previous app variant not found",
-            )
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        access = await check_user_org_access(
-            user_org_data, app_variant_db.organization.id
-        )
-        if not access:
-            raise HTTPException(
-                status_code=500,
-                detail="You do not have permission to access this app variant",
-            )
-        db_app_variant = await db_manager.add_variant_based_on_previous(
-            previous_app_variant=app_variant_db,
-            new_variant_name=payload.new_variant_name,
-            parameters=payload.parameters,
-            **user_org_data,
-        )
-        return converters.app_variant_db_to_output(db_app_variant)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/add/from_base/")
-async def add_variant_from_base(
-    payload: AddVariantFromBasePayload,
-    stoken_session: SessionContainer = Depends(verify_session),
-) -> Union[AppVariantOutput, Any]:
-    """Add a new variant based on an existing one.
-
-    Args:
-        payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
-        stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
-
-    Raises:
-        HTTPException: Raised if the variant could not be added or accessed.
-
-    Returns:
-        Union[AppVariantOutput, Any]: New variant details or exception.
-    """
-    try:
-        logger.debug("Initiating process to add a variant based on a previous one.")
-        logger.debug(f"Received payload: {payload}")
-
-        # Find the previous variant in the database
-        app_variant_db = await db_manager.find_previous_variant_from_base_id(
-            payload.base_id
-        )
-        if app_variant_db is None:
-            logger.error("Failed to find the previous app variant in the database.")
-            raise HTTPException(
-                status_code=500, detail="Previous app variant not found"
-            )
-        logger.debug(f"Located previous variant: {app_variant_db}")
-
-        # Get user and organization data
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        logger.debug(f"Retrieved user and organization data: {user_org_data}")
-
-        # Check user access permissions
-        access = await check_user_org_access(
-            user_org_data, app_variant_db.organization.id
-        )
-        if not access:
-            logger.error(
-                "User does not have the required permissions to access this app variant."
-            )
-            raise HTTPException(
-                status_code=500,
-                detail="You do not have permission to access this app variant",
-            )
-        logger.debug("User has required permissions to access this app variant.")
-
-        # Add new variant based on the previous one
-        db_app_variant = await db_manager.add_variant_based_on_previous(
-            previous_app_variant=app_variant_db,
-            new_variant_name=payload.new_variant_name,
-            parameters=payload.parameters,
-            **user_org_data,
-        )
-        logger.debug(f"Successfully added new variant: {db_app_variant}")
-
-        return converters.app_variant_db_to_output(db_app_variant)
-    except Exception as e:
-        logger.error(f"An exception occurred while adding the new variant: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.post("/start/")
 async def start_variant(
     variant: AppVariant,
@@ -455,198 +295,35 @@ async def start_variant(
     return url
 
 
-@router.get("/list_images/", response_model=List[Image])
-async def list_images(
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    """Lists the images from our repository
-
-    Raises:
-        HTTPException: _description_
-
-    Returns:
-        List[AppVariant]
-    """
-    try:
-        list_images = docker_utils.list_images()
-        return list_images
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/remove_variant/")
-async def remove_variant(
-    variant: Variant,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    """Remove a variant from the server.
-    In the case it's the last variant using the image, stop the container and remove the image.
-
-    Arguments:
-        app_variant -- AppVariant to remove
-
-    Raises:
-        HTTPException: If there is a problem removing the app variant
-    """
-    try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-
-        # Check app access
-
-        access_app = await check_access_to_variant(
-            user_org_data, variant_id=variant.variant_id, check_owner=True
-        )
-
-        if not access_app:
-            error_msg = f"You do not have permission to delete app variant: {variant.variant_id}"
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
-        else:
-            await app_manager.remove_app_variant(
-                app_variant_id=variant.variant_id, **user_org_data
-            )
-    except DockerException as e:
-        detail = f"Docker error while trying to remove the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-    except Exception as e:
-        detail = f"Unexpected error while trying to remove the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-
-
-@router.delete("/remove_app/")
+@router.delete("/{app_id}")
 async def remove_app(
-    app: App, stoken_session: SessionContainer = Depends(verify_session())
+    app_id: str, stoken_session: SessionContainer = Depends(verify_session())
 ):
     """Remove app, all its variant, containers and images
 
     Arguments:
         app -- App to remove
     """
-    if app.app_id is None:
-        raise HTTPException(
-            status_code=500,
-            detail="App id is required",
-        )
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_app = await check_access_to_app(
-            user_org_data, app_id=str(app.app_id.id), check_owner=True
+            user_org_data, app_id=app_id, check_owner=True
         )
 
         if not access_app:
-            error_msg = f"You do not have permission to delete app: {app.app_name}"
+            error_msg = f"You do not have permission to delete app: {app_id}"
             logger.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=400,
             )
         else:
-            await app_manager.remove_app(app_id=app.app_id, **user_org_data)
-    except SQLAlchemyError as e:
-        detail = f"Database error while trying to remove the app: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
+            await app_manager.remove_app(app_id=app_id, **user_org_data)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         detail = f"Unexpected error while trying to remove the app: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-
-
-@router.put("/update_variant_parameters/")
-async def update_variant_parameters(
-    payload: UpdateVariantParameterPayload,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    """Updates the parameters for an app variant
-
-    Arguments:
-        app_variant -- Appvariant to update
-    """
-    if payload.variant_id is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Variant id is required",
-        )
-    if payload.parameters is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Parameters are required",
-        )
-    try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        access_variant = await check_access_to_variant(
-            user_org_data=user_org_data, variant_id=payload.variant_id
-        )
-
-        if not access_variant:
-            error_msg = f"You do not have permission to update app variant: {payload.variant_id}"
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
-        else:
-            await app_manager.update_variant_parameters(
-                app_variant_id=payload.variant_id,
-                parameters=payload.parameters,
-                **user_org_data,
-            )
-    except ValueError as e:
-        detail = f"Error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-    except SQLAlchemyError as e:
-        detail = f"Database error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-    except Exception as e:
-        detail = f"Unexpected error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-
-
-@router.put("/update_variant_image/")
-async def update_variant_image(
-    app_variant: AppVariant,
-    image: Image,
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    """Updates the image used in an app variant
-
-    Arguments:
-        app_variant -- the app variant to update
-        image -- the image information
-    """
-
-    try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
-        if app_variant.organization_id is None:
-            app_instance = await get_app_instance(
-                app_variant.app_id, app_variant.variant_name
-            )
-            app_variant.organization_id = str(app_instance.organization_id.id)
-
-        access_app = await check_access_to_app(
-            user_org_data, app_id=app_variant.app_id, check_owner=True
-        )
-        if not access_app:
-            error_msg = "You do not have permission to make an update"
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
-        else:
-            await app_manager.update_variant_image(app_variant, image, **user_org_data)
-    except ValueError as e:
-        detail = f"Error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-    except DockerException as e:
-        detail = f"Docker error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-    except Exception as e:
-        detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
 

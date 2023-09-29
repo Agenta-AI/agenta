@@ -213,7 +213,7 @@ export async function saveNewVariant(
     newConfigName: string,
     parameters: Parameter[],
 ) {
-    await axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/add/from_base/`, {
+    await axios.post(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/variants/from-base/`, {
         base_id: baseId,
         new_variant_name: newVariantName,
         new_config_name: newConfigName,
@@ -225,9 +225,8 @@ export async function saveNewVariant(
 
 export async function updateVariantParams(variantId: string, parameters: Parameter[]) {
     await axios.put(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/update_variant_parameters/`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/variants/${variantId}/parameters`,
         {
-            variant_id: variantId,
             parameters: parameters.reduce((acc, param) => {
                 return {...acc, [param.name]: param.default}
             }, {}),
@@ -236,15 +235,11 @@ export async function updateVariantParams(variantId: string, parameters: Paramet
 }
 
 export async function removeApp(appId: string) {
-    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/remove_app/`, {
-        data: {app_id: appId},
-    })
+    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/${appId}`)
 }
 
 export async function removeVariant(variantId: string) {
-    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/remove_variant/`, {
-        data: {variant_id: variantId},
-    })
+    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/variants/${variantId}`)
 }
 
 /**
@@ -305,7 +300,7 @@ export const deleteTestsets = async (ids: string[]) => {
 
 export const loadEvaluations = async (appId: string) => {
     return await axios
-        .get(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations?app_id=${appId}`)
+        .get(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_id=${appId}`)
         .then((responseData) => {
             const evaluations = responseData.data.map((item: EvaluationResponseType) => {
                 return fromEvaluationResponseToEvaluation(item)
@@ -509,7 +504,7 @@ export const updateEvaluationScenarioScore = async (
 ) => {
     const response = await axios.put(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
-        {score: score},
+        {score},
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
@@ -660,7 +655,7 @@ export const createAndStartTemplate = async ({
             throw error
         }
 
-        onStatusChange?.("success")
+        onStatusChange?.("success", "", app.data.app_id)
     } catch (error) {
         onStatusChange?.("error", error)
     }

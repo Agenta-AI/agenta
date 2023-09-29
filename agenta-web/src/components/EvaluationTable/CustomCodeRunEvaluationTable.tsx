@@ -337,6 +337,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             outputs,
             correct_answer: expectedTarget,
             variant_id: variantId,
+            app_id: appId,
         }
         const response = await executeCustomEvaluationCode(data)
         if (response.status === 200) {

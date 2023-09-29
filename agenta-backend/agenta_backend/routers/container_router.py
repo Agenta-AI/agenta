@@ -15,6 +15,7 @@ from agenta_backend.utils.common import (
     get_app_instance,
     check_access_to_app,
     check_access_to_variant,
+    check_access_to_base,
 )
 from agenta_backend.models.api.api_models import (
     Image,
@@ -220,46 +221,3 @@ async def pull_image(
         repo_owner, repo_name, image_tag_name
     )
     return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
-
-
-@router.get("/container_url/")
-async def construct_app_container_url(
-    base_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
-) -> URI:
-    """Construct and return the app container url path.
-
-    Arguments:
-        app_name -- The name of app to construct the container url path
-        variant_name -- The  variant name of the app to construct the container url path
-        stoken_session (SessionContainer) -- the user session.
-
-    Returns:
-        URI -- the url path of the container
-    """
-
-    # Get user and org id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = await check_access_to_base(user_org_data=user_org_data, base_id=base_id)
-    access = await check_access_to_variant(
-        user_org_data=user_org_data, variant_id=variant_id
-    )
-    if access is False:
-        error_msg = f"You do not have access to this variant: {variant_id}"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
-    app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
-    if app_variant_db is None:
-        error_msg = f"Variant with id {variant_id} does not exist"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
-    organization_id = str(app_variant_db.organization.id)
-    app_name = app_variant_db.app.app_name
-    variant_name = app_variant_db.variant_name
-    # Set organization backend url path and container name
-    org_backend_url_path = f"{organization_id}/{app_name}/{variant_name}"
-    return URI(uri=f"{org_backend_url_path}")
