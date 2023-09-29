@@ -6,8 +6,8 @@ describe("App Navigation without errors", () => {
 
     const variant = "capitals"
 
-    it.only("should route to /playground", () => {
-        cy.clickLinkAndWait('[data-cy="app-playground-link"]').as("sign")
+    it("should route to /playground", () => {
+        cy.clickLinkAndWait('[data-cy="app-playground-link"]')
         cy.request({
             url: `/apps/${variant}/playground`,
             method: "GET",
@@ -15,8 +15,9 @@ describe("App Navigation without errors", () => {
             expect(response.status).to.eq(200)
         })
         cy.location("pathname").should("include", "/playground")
-        cy.get('[data-cy="playground-title"]').within(() => {
+        cy.get('[data-cy="playground-header"]').within(() => {
             cy.get("h2").should("contain.text", "1. Modify Parameters")
+            cy.get("button").should("have.length", 3)
         })
     })
 
