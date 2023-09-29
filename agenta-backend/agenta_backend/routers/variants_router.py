@@ -67,18 +67,9 @@ async def add_variant_from_base_and_config(
         logger.debug("Initiating process to add a variant based on a previous one.")
         logger.debug(f"Received payload: {payload}")
         user_org_data: dict = await get_user_and_org_id(stoken_session)
-        access = await check_access_to_base(
-            user_org_data=user_org_data, base_id=payload.base_id
+        base_db = db_manager.fetch_base_and_check_access(
+            base_id=payload.base_id, **user_org_data
         )
-        if not access:
-            logger.error(
-                "User does not have the required permissions to access this app variant."
-            )
-            raise HTTPException(
-                status_code=403,
-                detail="You do not have permission to access this app variant",
-            )
-        base_db = await db_manager.fetch_base_by_id(base_id=payload.base_id)
 
         # Find the previous variant in the database
 
