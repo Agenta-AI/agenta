@@ -1,7 +1,3 @@
-"""Routes for image-related operations (push, remove).
-Does not deal with the instanciation of the images
-"""
-
 import os
 import logging
 from docker.errors import DockerException
@@ -456,25 +452,6 @@ async def start_variant(
     return url
 
 
-@router.get("/list_images/", response_model=List[Image])
-async def list_images(
-    stoken_session: SessionContainer = Depends(verify_session()),
-):
-    """Lists the images from our repository
-
-    Raises:
-        HTTPException: _description_
-
-    Returns:
-        List[AppVariant]
-    """
-    try:
-        list_images = docker_utils.list_images()
-        return list_images
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.delete("/remove_variant/")
 async def remove_variant(
     variant: Variant,
@@ -517,7 +494,7 @@ async def remove_variant(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.delete("/remove_app/")
+@router.delete("/")
 async def remove_app(
     app: RemoveApp, stoken_session: SessionContainer = Depends(verify_session())
 ):
