@@ -227,6 +227,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "vicradon",
+      "name": "Osinachi Chukwujama ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/40396070?v=4",
+      "profile": "https://osinachi.me",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "morsoli",
+      "name": "莫尔索",
+      "avatar_url": "https://avatars.githubusercontent.com/u/47264881?v=4",
+      "profile": "https://liduos.com/",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
