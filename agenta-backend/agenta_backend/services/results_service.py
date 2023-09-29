@@ -107,7 +107,7 @@ async def fetch_results_for_auto_ai_critique(evaluation_id: str):
 
 
 async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
-    query_exp = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id)
+    query_exp = EvaluationScenarioDB.evaluation == ObjectId(evaluation_id)
     eval_scenarios = await engine.find(EvaluationScenarioDB, query_exp)
 
     list_of_scores = []

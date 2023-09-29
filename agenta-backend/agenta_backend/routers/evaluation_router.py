@@ -42,7 +42,6 @@ from agenta_backend.services.evaluation_service import (
 from agenta_backend.services import evaluation_service
 from agenta_backend.utils.common import engine, check_access_to_app
 from agenta_backend.services.db_manager import query, get_user_object
-from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
 from agenta_backend.config import settings
 from agenta_backend.services import db_manager
 from agenta_backend.models import converters

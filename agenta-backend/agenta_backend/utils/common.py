@@ -8,6 +8,7 @@ from agenta_backend.models.db_models import (
     AppVariantDB,
     OrganizationDB,
     AppDB,
+    BaseDB,
 )
 import logging
 
@@ -30,7 +31,7 @@ async def get_app_instance(
     if variant_name is not None:
         query_expression = (
             query.eq(AppVariantDB.is_deleted, show_deleted)
-            & query.eq(AppVariantDB.app_id, ObjectId(app_id))
+            & query.eq(AppVariantDB.app, ObjectId(app_id))
             & query.eq(AppVariantDB.variant_name, variant_name)
         )
     else:
@@ -98,7 +99,7 @@ async def check_access_to_app(
             return False
 
     # Check user's access to the organization linked to the app.
-    organization_id = app.organization_id.id
+    organization_id = app.organization.id
     return await check_user_org_access(user_org_data, str(organization_id), check_owner)
 
 
@@ -115,5 +116,20 @@ async def check_access_to_variant(
     if variant is None:
         logger.error("Variant not found")
         return False
-    organization_id = variant.organization_id.id
+    organization_id = variant.organization.id
+    return await check_user_org_access(user_org_data, str(organization_id), check_owner)
+
+
+async def check_access_to_base(
+    user_org_data: Dict[str, Union[str, list]],
+    base_id: str,
+    check_owner: bool = False,
+) -> bool:
+    if base_id is None:
+        raise Exception("No base_id provided")
+    base = await engine.find_one(BaseDB, BaseDB.id == ObjectId(base_id))
+    if base is None:
+        logger.error("Base not found")
+        return False
+    organization_id = base.image.organization.id
     return await check_user_org_access(user_org_data, str(organization_id), check_owner)

@@ -2,7 +2,7 @@ import os
 import uuid
 import asyncio
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Optional
 
 from fastapi.responses import JSONResponse
 from fastapi import UploadFile, APIRouter, Depends
@@ -15,6 +15,7 @@ from agenta_backend.utils.common import (
     get_app_instance,
     check_access_to_app,
     check_access_to_variant,
+    check_access_to_base,
 )
 from agenta_backend.models.api.api_models import (
     Image,
@@ -56,7 +57,7 @@ router = APIRouter()
 @router.post("/build_image/")
 async def build_image(
     app_id: str,
-    variant_name: str,
+    base_name: str,
     tar_file: UploadFile,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Image:
@@ -66,7 +67,7 @@ async def build_image(
         app_id -- The ID of the app
         app_name -- The `app_name` parameter is a string that represents the name of \
             the application for which the docker image is being built
-        variant_name -- The `variant_name` parameter is a string that represents the \
+        base_name -- The `base_name` parameter is a string that represents the \
             name or type of the variant for which the docker image is being built.
         tar_file -- The `tar_file` parameter is of type `UploadFile`. It represents the \
             uploaded tar file that will be used to build the Docker image
@@ -79,24 +80,9 @@ async def build_image(
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Check app access
-    app_db = await db_manager.fetch_app_by_id(app_id)
-    if not app_db:
-        error_msg = f"App with id {app_id} does not exist"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
-
-    app_access = await check_access_to_app(user_org_data, app_id=app_id)
-
-    if not app_access:
-        error_msg = f"You do not have access to this app: {app_id}"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
+    app_db = await db_manager.fetch_app_and_check_access(app_id=app_id, **user_org_data)
     app_name = app_db.app_name
-    organization_id = str(app_db.organization_id.id)
+    organization_id = str(app_db.organization.id)
     # Get event loop
     loop = asyncio.get_event_loop()
 
@@ -112,7 +98,7 @@ async def build_image(
     with tar_path.open("wb") as buffer:
         buffer.write(await tar_file.read())
 
-    image_name = f"agentaai/{app_name.lower()}_{variant_name.lower()}:latest"
+    image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
 
     # Use the thread pool to run the build_image_job function in a separate thread
     future = loop.run_in_executor(
@@ -120,7 +106,7 @@ async def build_image(
         build_image_job,
         *(
             app_name,
-            variant_name,
+            base_name,
             organization_id,
             tar_path,
             image_name,
@@ -146,28 +132,14 @@ async def restart_docker_container(
     logger.debug(f"Restarting container for variant {payload.variant_id}")
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = await check_access_to_variant(
-        user_org_data=user_org_data, variant_id=payload.variant_id
+    app_variant_db = await db_manager.fetch_app_variant_and_check_access(
+        app_variant_id=payload.variant_id, user_org_data=user_org_data
     )
-    if not access:
-        error_msg = f"You do not have access to this variant: {payload.variant_id}"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
-    app_variant_db = await db_manager.fetch_app_variant_by_id(
-        app_variant_id=payload.variant_id
-    )
-    if app_variant_db is None:
-        error_msg = f"Variant with id {payload.variant_id} does not exist"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
     try:
-        user_backend_container_name = f"{app_variant_db.app_id.app_name}-{app_variant_db.variant_name}-{str(app_variant_db.organization_id.id)}"
-        logger.debug(f"Restarting container with id: {user_backend_container_name}")
-        restart_container(user_backend_container_name)
+        logger.debug(
+            f"Restarting container with id: {app_variant_db.base.container_id}"
+        )
+        restart_container(app_variant_db.base.container_id)
         return {"message": "Please wait a moment. The container is now restarting."}
     except Exception as ex:
         return JSONResponse({"message": str(ex)}, status_code=500)
@@ -224,7 +196,8 @@ async def pull_image(
 
 @router.get("/container_url/")
 async def construct_app_container_url(
-    variant_id: str,
+    base_id: Optional[str] = None,
+    variant_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     """Construct and return the app container url path.
@@ -240,25 +213,19 @@ async def construct_app_container_url(
 
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
-    access = await check_access_to_variant(
-        user_org_data=user_org_data, variant_id=variant_id
-    )
-    if access is False:
-        error_msg = f"You do not have access to this variant: {variant_id}"
+    if base_id:
+        base_db = await db_manager.fetch_base_and_check_access(
+            base_id=base_id, user_org_data=user_org_data
+        )
+        # TODO: Add status check if base_db.status == "running"
+        return URI(uri=base_db.uri_path)
+    elif variant_id:
+        variant_db = await db_manager.fetch_app_variant_and_check_access(
+            app_variant_id=variant_id, user_org_data=user_org_data
+        )
+        return URI(uri=variant_db.base.uri_path)
+    else:
         return JSONResponse(
-            {"detail": error_msg},
+            {"detail": "Please provide either base_id or variant_id"},
             status_code=400,
         )
-    app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
-    if app_variant_db is None:
-        error_msg = f"Variant with id {variant_id} does not exist"
-        return JSONResponse(
-            {"detail": error_msg},
-            status_code=400,
-        )
-    organization_id = str(app_variant_db.organization_id.id)
-    app_name = app_variant_db.app_id.app_name
-    variant_name = app_variant_db.variant_name
-    # Set organization backend url path and container name
-    org_backend_url_path = f"{organization_id}/{app_name}/{variant_name}"
-    return URI(uri=f"{org_backend_url_path}")

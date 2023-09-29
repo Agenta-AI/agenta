@@ -39,8 +39,8 @@ class ImageDB(Model):
 
     docker_id: str = Field(index=True)
     tags: str
-    user_id: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -50,23 +50,24 @@ class ImageDB(Model):
 
 class AppDB(Model):
     app_name: str
-    organization_id: OrganizationDB = Reference(key_name="organization")
-    user_id: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
 
 
-class BaseDB(Model):  # not used
+class BaseDB(Model):
     base_name: str
-    image_id: ImageDB = Reference(key_name="image")
+    image: ImageDB = Reference(key_name="image")
     status: Optional[str]
     container_name: Optional[str]
     container_id: Optional[str]
     uri: Optional[str]
+    uri_path: Optional[str]
 
     class Config:
         collection = "bases"
 
 
-class ConfigDB(Model):  # not used
+class ConfigDB(Model):
     config_name: str
     parameters: Dict[str, Any] = Field(default=dict)
 
@@ -75,17 +76,17 @@ class ConfigDB(Model):  # not used
 
 
 class AppVariantDB(Model):
-    app_id: AppDB = Reference(key_name="app")
+    app: AppDB = Reference(key_name="app")
     variant_name: str
-    image_id: ImageDB = Reference(key_name="image")
-    user_id: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    image: ImageDB = Reference(key_name="image")
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
     parameters: Dict[str, Any] = Field(default=dict)
     previous_variant_name: Optional[str]
     base_name: Optional[str]
-    base_id: BaseDB = Reference(key_name="bases")
+    base: BaseDB = Reference(key_name="bases")
     config_name: Optional[str]
-    config_id: ConfigDB = Reference(key_name="configs")
+    config: ConfigDB = Reference(key_name="configs")
 
     is_deleted: bool = Field(
         default=False
@@ -96,10 +97,10 @@ class AppVariantDB(Model):
 
 
 class EnvironmentDB(Model):
-    app_id: AppDB = Reference(key_name="app")
+    app: AppDB = Reference(key_name="app")
     name: str
-    user_id: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
     deployed_app_variant_ref: Optional[ObjectId]
     deployed_base_ref: Optional[ObjectId]
     deployed_config_ref: Optional[ObjectId]
@@ -127,10 +128,10 @@ class TemplateDB(Model):
 
 class TestSetDB(Model):
     name: str
-    app_id: AppDB = Reference(key_name="app")
+    app: AppDB = Reference(key_name="app")
     csvdata: List[Dict[str, str]]
     user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 

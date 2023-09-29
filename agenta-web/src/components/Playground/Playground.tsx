@@ -49,6 +49,7 @@ function addTab(
         baseId: templateVariant.baseId,
         baseName: templateVariant.baseName || newTemplateVariantName,
         configName: newVariantName,
+        configId: templateVariant.configId,
     }
 
     setVariants((prevState: any) => [...prevState, newVariant])
@@ -68,7 +69,10 @@ function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], act
     setActiveKey(newActiveKey)
 }
 const Playground: React.FC = () => {
-    const appId = router.query.app_id?.toString() || ""
+    const appId = router.query.app_id as string
+    if (!appId) {
+        return <div>Loading...</div>
+    }
     const [templateVariantName, setTemplateVariantName] = useState("") // We use this to save the template variant name when the user creates a new variant
     const [activeKey, setActiveKey] = useState("1")
     const [tabList, setTabList] = useState([])
@@ -90,7 +94,6 @@ const Playground: React.FC = () => {
                 setVariants(backendVariants)
                 setActiveKey(backendVariants[0].variantName)
             }
-
             setIsLoading(false)
         } catch (error) {
             setIsError(true)
