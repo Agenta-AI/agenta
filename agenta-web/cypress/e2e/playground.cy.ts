@@ -28,7 +28,7 @@ describe("run a simple prompt", () => {
         cy.get('[data-cy="enter-app-name-modal-text-warning"]').should("exist")
     })
 
-    it.only("should create a new app variant and run playground prompt", () => {
+    it("should create a new app variant and run playground prompt", () => {
         const appName = randString(5)
 
         cy.get('[data-cy="enter-app-name-modal"]')
