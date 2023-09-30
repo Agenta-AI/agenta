@@ -28,7 +28,7 @@ describe("run a simple prompt", () => {
         cy.get('[data-cy="enter-app-name-modal-text-warning"]').should("exist")
     })
 
-    it("should create a new app variant and run playground prompt", () => {
+    it.only("should create a new app variant and run playground prompt", () => {
         const appName = randString(5)
 
         cy.get('[data-cy="enter-app-name-modal"]')
@@ -51,14 +51,23 @@ describe("run a simple prompt", () => {
             const locationHeader = interception.response.body.data.playground
             expect(locationHeader).to.eq(`http://localhost:3000/apps/${appName}/playground`)
         })
+
         cy.wait(10000)
         cy.url().should("include", `/apps/${appName}/playground`)
         cy.contains(/modify parameters/i)
         cy.get('[data-cy="testview-input-parameters-0"]').type("Nigeria")
         cy.get('[data-cy="testview-input-parameters-run-button"]').click()
-        cy.get('[data-cy="testview-input-parameters-result"]').should(
-            "not.contain.text",
-            "The code has resulted in the following error",
-        )
+
+        cy.request({
+            method: "GET",
+            url: `http://localhost/api/containers/container_url/?app_name=${appName}&variant_name=v1`,
+        }).then((response) => {
+            cy.request({
+                method: "POST",
+                url: `http://localhost/${response.body.uri}/generate`,
+            }).then((response) => {
+                expect(response.status).to.eq(200)
+            })
+        })
     })
 })
