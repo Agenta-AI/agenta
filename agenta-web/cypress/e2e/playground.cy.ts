@@ -1,11 +1,7 @@
 import {randString} from "../../src/lib/helpers/utils"
 
 describe("run a simple prompt", () => {
-    beforeEach(() => {
-        cy.visit("/apikeys")
-        // Update your cypress.json file to include your OPENAI API KEY
-        cy.get('[data-cy="apikeys-input"]').type(Cypress.env("OPENAI_API_KEY"))
-        cy.get('[data-cy="apikeys-save-button"]').click()
+    it("displays a warning when entering an invalid case format in the app name", () => {
         cy.visit("/apps")
         cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
         cy.get('[data-cy="choose-template-modal"]').should("not.exist")
@@ -15,9 +11,6 @@ describe("run a simple prompt", () => {
         cy.get('[data-cy="create-from-template"]').click()
         cy.get('[data-cy="choose-template-modal"]').should("exist")
         cy.get('[data-cy="create-app-button"]').click()
-    })
-
-    it("displays a warning when entering an invalid case format in the app name", () => {
         const appName = randString(3)
         cy.get('[data-cy="enter-app-name-modal-text-warning"]').should("not.exist")
         cy.get('[data-cy="enter-app-name-modal"]')
@@ -29,6 +22,19 @@ describe("run a simple prompt", () => {
     })
 
     it("should create a new app variant and run playground prompt", () => {
+        cy.visit("/apikeys")
+        // Update your cypress.json file to include your OPENAI API KEY
+        cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
+        cy.get('[data-cy="apikeys-save-button"]').click()
+        cy.visit("/apps")
+        cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
+        cy.get('[data-cy="choose-template-modal"]').should("not.exist")
+        cy.get('[data-cy="enter-app-name-modal"]').should("not.exist")
+        cy.get('[data-cy="create-new-app-button"]').click()
+        cy.get('[data-cy="add-new-app-modal"]').should("exist")
+        cy.get('[data-cy="create-from-template"]').click()
+        cy.get('[data-cy="choose-template-modal"]').should("exist")
+        cy.get('[data-cy="create-app-button"]').click()
         const appName = randString(5)
 
         cy.get('[data-cy="enter-app-name-modal"]')
