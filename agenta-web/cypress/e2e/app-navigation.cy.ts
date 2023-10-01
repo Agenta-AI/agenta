@@ -6,7 +6,7 @@ describe("App Navigation without errors", () => {
 
     const variant = "capitals"
 
-    it("should route to /playground", () => {
+    it("Should navigate to all pages without errors", () => {
         cy.clickLinkAndWait('[data-cy="app-playground-link"]')
         cy.request({
             url: `/apps/${variant}/playground`,
@@ -19,9 +19,7 @@ describe("App Navigation without errors", () => {
             cy.get("h2").should("contain.text", "1. Modify Parameters")
             cy.get("button").should("have.length", 3)
         })
-    })
 
-    it("should route to /testsets", () => {
         cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
         cy.request({
             url: `/apps/${variant}/testsets`,
@@ -31,9 +29,7 @@ describe("App Navigation without errors", () => {
         })
         cy.location("pathname").should("include", "/testsets")
         cy.get('[data-cy="app-testset-list"]').should("exist")
-    })
 
-    it("should route to /evaluations", () => {
         cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
         cy.request({
             url: `/apps/${variant}/evaluations`,
@@ -47,9 +43,7 @@ describe("App Navigation without errors", () => {
             cy.contains("2. Which variants would you like to evaluate")
             cy.contains("3. Which testset you want to use?")
         })
-    })
 
-    it("should route to /endpoints", () => {
         cy.clickLinkAndWait('[data-cy="app-endpoints-link"]')
         cy.request({
             url: `/apps/${variant}/endpoints`,
@@ -61,9 +55,7 @@ describe("App Navigation without errors", () => {
         cy.get('[data-cy="endpoints"]').within(() => {
             cy.contains("API endpoint")
         })
-    })
 
-    it("should route to /apikeys", () => {
         cy.clickLinkAndWait('[data-cy="apikeys-link"]')
         cy.request({
             url: `/apikeys`,
