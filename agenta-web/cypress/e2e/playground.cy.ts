@@ -1,7 +1,7 @@
 import {randString} from "../../src/lib/helpers/utils"
 
 describe("run a simple prompt", () => {
-    it("displays a warning when entering an invalid case format in the app name", () => {
+    it("when entering an invalid case format in the app name", () => {
         cy.visit("/apps")
         cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
         cy.get('[data-cy="choose-template-modal"]').should("not.exist")
@@ -21,33 +21,7 @@ describe("run a simple prompt", () => {
         cy.get('[data-cy="enter-app-name-modal-text-warning"]').should("exist")
     })
 
-    it("no open ai key is entered", () => {
-        cy.visit("/apps")
-        cy.get(".ant-notification").should("not.exist")
-        cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
-        cy.get('[data-cy="choose-template-modal"]').should("not.exist")
-        cy.get('[data-cy="enter-app-name-modal"]').should("not.exist")
-        cy.get('[data-cy="create-new-app-button"]').click()
-        cy.get('[data-cy="add-new-app-modal"]').should("exist")
-        cy.get('[data-cy="create-from-template"]').click()
-        cy.get('[data-cy="choose-template-modal"]').should("exist")
-        cy.get('[data-cy="create-app-button"]').click()
-        const appName = randString(5)
-
-        cy.get('[data-cy="enter-app-name-modal"]')
-            .should("exist")
-            .within(() => {
-                cy.get("input").type(appName)
-            })
-
-        cy.get('[data-cy="enter-app-name-modal-button"]').click()
-        cy.get(".ant-notification").should("exist")
-        cy.url().should("include", "apikeys")
-        cy.wait(5000)
-        cy.get(".ant-notification").should("not.exist")
-    })
-
-    it("should create a new app variant and run playground prompt", () => {
+    it("when an open ai key is not provided", () => {
         cy.visit("/apikeys")
         // Update your cypress.json file to include your OPENAI API KEY
         cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
@@ -101,5 +75,33 @@ describe("run a simple prompt", () => {
                 expect(response.status).to.eq(200)
             })
         })
+    })
+})
+
+describe("run a simple prompt", () => {
+    it("should perform the test steps", () => {
+        cy.visit("/apps")
+        cy.get(".ant-notification").should("not.exist")
+        cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
+        cy.get('[data-cy="choose-template-modal"]').should("not.exist")
+        cy.get('[data-cy="enter-app-name-modal"]').should("not.exist")
+        cy.get('[data-cy="create-new-app-button"]').click()
+        cy.get('[data-cy="add-new-app-modal"]').should("exist")
+        cy.get('[data-cy="create-from-template"]').click()
+        cy.get('[data-cy="choose-template-modal"]').should("exist")
+        cy.get('[data-cy="create-app-button"]').click()
+        const appName = randString(5)
+
+        cy.get('[data-cy="enter-app-name-modal"]')
+            .should("exist")
+            .within(() => {
+                cy.get("input").type(appName)
+            })
+
+        cy.get('[data-cy="enter-app-name-modal-button"]').click()
+        cy.get(".ant-notification").should("exist")
+        cy.url().should("include", "apikeys")
+        cy.wait(5000)
+        cy.get(".ant-notification").should("not.exist")
     })
 })
