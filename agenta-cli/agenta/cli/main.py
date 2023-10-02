@@ -31,7 +31,7 @@ def check_latest_version() -> Union[str, None]:
     import requests
 
     try:
-        response = requests.get("https://pypi.org/pypi/agenta/json")
+        response = requests.get("https://pypi.org/pypi/agenta/json", timeout=360)
         response.raise_for_status()
         latest_version = response.json()["info"]["version"]
         return latest_version
