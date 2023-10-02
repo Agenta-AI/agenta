@@ -583,7 +583,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     return bool(count_variants == 1)
 
 
-async def remove_app_variant(app_variant_db: AppVariantDB, **kwargs: dict):
+async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dict):
     """Remove an app variant from the db
     the logic for removing the image is in app_manager.py
 
@@ -1006,6 +1006,21 @@ async def create_image(
 async def fetch_base_and_check_access(
     base_id: str, user_org_data: dict, check_owner=False
 ):
+    """
+    Fetches a base from the database and checks if the user has access to it.
+
+    Args:
+        base_id (str): The ID of the base to fetch.
+        user_org_data (dict): The user's organization data.
+        check_owner (bool, optional): Whether to check if the user is the owner of the base. Defaults to False.
+
+    Raises:
+        Exception: If no base_id is provided.
+        HTTPException: If the base is not found or the user does not have access to it.
+
+    Returns:
+        BaseDB: The fetched base.
+    """
     if base_id is None:
         raise Exception("No base_id provided")
     base = await engine.find_one(BaseDB, BaseDB.id == ObjectId(base_id))
@@ -1025,6 +1040,20 @@ async def fetch_base_and_check_access(
 async def fetch_app_and_check_access(
     app_id: str, user_org_data: dict, check_owner=False
 ):
+    """
+    Fetches an app from the database and checks if the user has access to it.
+
+    Args:
+        app_id (str): The ID of the app to fetch.
+        user_org_data (dict): The user's organization data.
+        check_owner (bool, optional): Whether to check if the user is the owner of the app. Defaults to False.
+
+    Returns:
+        dict: The fetched app.
+
+    Raises:
+        HTTPException: If the app is not found or the user does not have access to it.
+    """
     app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
     if app is None:
         logger.error("App not found")
@@ -1044,6 +1073,20 @@ async def fetch_app_and_check_access(
 async def fetch_app_variant_and_check_access(
     app_variant_id: str, user_org_data: dict, check_owner=False
 ):
+    """
+    Fetches an app variant from the database and checks if the user has access to it.
+
+    Args:
+        app_variant_id (str): The ID of the app variant to fetch.
+        user_org_data (dict): The user's organization data.
+        check_owner (bool, optional): Whether to check if the user is the owner of the app variant. Defaults to False.
+
+    Returns:
+        AppVariantDB: The fetched app variant.
+
+    Raises:
+        HTTPException: If the app variant is not found or the user does not have access to it.
+    """
     app_variant = await engine.find_one(
         AppVariantDB, AppVariantDB.id == ObjectId(app_variant_id)
     )
