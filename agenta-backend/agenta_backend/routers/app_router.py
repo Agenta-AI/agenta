@@ -169,7 +169,7 @@ async def create_app(
                 )
             organization_id = str(organization.id)
 
-        app_db = await db_manager.create_app(
+        app_db = await db_manager.create_app_and_envs(
             payload.app_name, organization_id, **user_org_data
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
@@ -250,24 +250,14 @@ async def add_variant_from_image(
                 status_code=403,
             )
         app = await db_manager.fetch_app_by_id(app_id)
-        base_name = (
-            payload.base_name
-            if payload.base_name
-            else payload.variant_name.split(".")[0]
-        )
-        config_name = (
-            payload.config_name
-            if payload.config_name
-            else payload.variant_name.split(".")[1]
-        )
 
         app_variant_db = await db_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
             docker_id=payload.docker_id,
             tags=payload.tags,
-            base_name=base_name,
-            config_name=config_name,
+            base_name=payload.base_name,
+            config_name=payload.config_name,
             **user_org_data,
         )
         return converters.app_variant_db_to_output(app_variant_db)
@@ -325,64 +315,81 @@ async def create_app_and_variant_from_template(
     Returns:
         AppVariantOutput: The output of the created app variant.
     """
-    # Get user and org id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    try:
+        logger.debug("Start: Creating app and variant from template")
 
-    # Check if the user has reached app limit
-    if os.environ["FEATURE_FLAG"] == "demo":
-        if await db_manager.count_apps(**user_org_data) > 2:
-            raise HTTPException(
-                status_code=500,
-                detail="Sorry, you can only create two Apps at this time.",
-            )
+        # Get user and org id
+        logger.debug("Step 1: Getting user and organization ID")
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-    if payload.organization_id is None:
-        organization = await get_user_own_org(user_org_data["uid"])
-        organization_id = organization.id
-    else:
-        organization_id = payload.organization_id
+        # Check if the user has reached app limit
+        logger.debug("Step 2: Checking user app limit")
+        if os.environ["FEATURE_FLAG"] == "demo":
+            if await db_manager.count_apps(**user_org_data) > 2:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Sorry, you can only create two Apps at this time.",
+                )
 
-    app_name = payload.app_name.lower()
-    app = await db_manager.fetch_app_by_name_and_organization(
-        app_name, organization_id, **user_org_data
-    )
-    if app is not None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"App with name {app_name} already exists",
+        logger.debug("Step 3: Setting organization ID")
+        if payload.organization_id is None:
+            organization = await get_user_own_org(user_org_data["uid"])
+            organization_id = organization.id
+        else:
+            organization_id = payload.organization_id
+
+        logger.debug(f"Step 4: Checking if app {payload.app_name} already exists")
+        app_name = payload.app_name.lower()
+        app = await db_manager.fetch_app_by_name_and_organization(
+            app_name, organization_id, **user_org_data
         )
-    if app is None:
-        app = await db_manager.create_app(app_name, organization_id, **user_org_data)
-        await db_manager.initialize_environments(app, **user_org_data)
-    # Create an Image instance with the extracted image id, and defined image name
-    image_name = f"agentaai/templates:{payload.image_tag}"
-    # Save variant based on the image to database
-    app_variant_db = await db_manager.add_variant_based_on_image(
-        app=app,
-        variant_name="app.default",
-        docker_id=payload.image_id,
-        tags=f"{image_name}",
-        base_name="app",
-        config_name="default",
-        **user_org_data,
-    )
-
-    # Inject env vars to docker container
-    if os.environ["FEATURE_FLAG"] == "demo":
-        # Create testset for apps created
-        # await db_manager.add_testset_to_app_variant(db_app_variant, image, **user_org_data) #TODO: To reimplement
-        if not os.environ["OPENAI_API_KEY"]:
+        if app is not None:
             raise HTTPException(
                 status_code=400,
-                detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                detail=f"App with name {app_name} already exists",
             )
-        envvars = {
-            "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
-        }
-    else:
-        envvars = {} if payload.env_vars is None else payload.env_vars
-    await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
-    return converters.app_variant_db_to_output(app_variant_db)
+
+        logger.debug("Step 5: Creating new app and initializing environments")
+        if app is None:
+            app = await db_manager.create_app_and_envs(
+                app_name, organization_id, **user_org_data
+            )
+
+        logger.debug(
+            "Step 6: Creating image instance and adding variant based on image"
+        )
+        image_name = f"agentaai/templates:{payload.image_tag}"
+        app_variant_db = await db_manager.add_variant_based_on_image(
+            app=app,
+            variant_name="app.default",
+            docker_id=payload.image_id,
+            tags=f"{image_name}",
+            base_name="app",
+            config_name="default",
+            **user_org_data,
+        )
+
+        logger.debug("Step 7: Starting variant and injecting environment variables")
+        if os.environ["FEATURE_FLAG"] == "demo":
+            if not os.environ["OPENAI_API_KEY"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                )
+            envvars = {
+                "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+            }
+        else:
+            envvars = {} if payload.env_vars is None else payload.env_vars
+
+        await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
+
+        logger.debug("End: Successfully created app and variant")
+        return converters.app_variant_db_to_output(app_variant_db)
+
+    except Exception as e:
+        logger.debug(f"Error: Exception caught - {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{app_id}/environments", response_model=List[EnvironmentOutput])

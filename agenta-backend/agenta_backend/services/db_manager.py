@@ -67,76 +67,86 @@ async def add_variant_based_on_image(
         ValueError: If the app variant or image is None, or if an app variant with the same name already exists.
         HTTPException: If an error occurs while creating the app variant.
     """
-    try:
-        logger.debug("Creating app variant based on image")
+    logger.debug("Start: Creating app variant based on image")
 
-        if (
-            app in [None, ""]
-            or variant_name in [None, ""]
-            or docker_id in [None, ""]
-            or tags in [None, ""]
-        ):
-            raise ValueError("App variant or image is None")
+    # Validate input parameters
+    logger.debug("Step 1: Validating input parameters")
+    if (
+        app in [None, ""]
+        or variant_name in [None, ""]
+        or docker_id in [None, ""]
+        or tags in [None, ""]
+    ):
+        raise ValueError("App variant or image is None")
 
-        variants = await list_app_variants_for_app_id(
-            app_id=str(app.id), **user_org_data
-        )
-        already_exists = any([av for av in variants if av.variant_name == variant_name])
-        if already_exists:
-            raise ValueError("App variant with the same name already exists")
+    # Check if app variant already exists
+    logger.debug("Step 2: Checking if app variant already exists")
+    variants = await list_app_variants_for_app_id(app_id=str(app.id), **user_org_data)
+    already_exists = any([av for av in variants if av.variant_name == variant_name])
+    if already_exists:
+        logger.error("App variant with the same name already exists")
+        raise ValueError("App variant with the same name already exists")
 
-        user_instance = await get_user_object(user_org_data["uid"])
-        db_image = await get_orga_image_instance(
-            organization_id=str(app.organization.id), docker_id=docker_id
-        )
-        if db_image is None:
-            logger.debug("Creating new image")
-            db_image = ImageDB(
-                docker_id=docker_id,
-                tags=tags,
-                user=user_instance,
-                organization=app.organization,
-            )
-            await engine.save(db_image)
+    # Retrieve user and image objects
+    logger.debug("Step 3: Retrieving user and image objects")
+    user_instance = await get_user_object(user_org_data["uid"])
+    db_image = await get_orga_image_instance(
+        organization_id=str(app.organization.id), docker_id=docker_id
+    )
 
-        db_config = ConfigDB(
-            config_name=config_name,  # the first variant always has default config
-            parameters={},
-        )
-        await engine.save(db_config)
-
-        if not base_name:
-            base_name = variant_name.split(".")[
-                0
-            ]  # TODO: Change this in SDK2 to directly use base_name
-        db_base = BaseDB(
-            base_name=base_name,  # the first variant always has default base
-            image=db_image,
-            status="inactive",
-            uri=None,
-            uri_path=None,
-            container_name=None,
-            container_id=None,
-        )
-        await engine.save(db_base)
-
-        db_app_variant = AppVariantDB(
-            app=app,
-            variant_name=variant_name,
-            image=db_image,
+    # Create new image if not exists
+    if db_image is None:
+        logger.debug("Step 4: Creating new image")
+        db_image = ImageDB(
+            docker_id=docker_id,
+            tags=tags,
             user=user_instance,
             organization=app.organization,
-            parameters={},
-            base_name=base_name,
-            config_name=config_name,
-            base=db_base,
-            config=db_config,
         )
-        await engine.save(db_app_variant)
-        logger.debug("Created db_app_variant: %s", db_app_variant)
-        return db_app_variant
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        await engine.save(db_image)
+
+    # Create config
+    logger.debug("Step 5: Creating config")
+    db_config = ConfigDB(
+        config_name=config_name,  # the first variant always has default config
+        parameters={},
+    )
+    await engine.save(db_config)
+
+    # Create base
+    logger.debug("Step 6: Creating base")
+    if not base_name:
+        base_name = variant_name.split(".")[
+            0
+        ]  # TODO: Change this in SDK2 to directly use base_name
+    db_base = BaseDB(
+        base_name=base_name,  # the first variant always has default base
+        image=db_image,
+        status="inactive",
+        uri=None,
+        uri_path=None,
+        container_name=None,
+        container_id=None,
+    )
+    await engine.save(db_base)
+
+    # Create app variant
+    logger.debug("Step 7: Creating app variant")
+    db_app_variant = AppVariantDB(
+        app=app,
+        variant_name=variant_name,
+        image=db_image,
+        user=user_instance,
+        organization=app.organization,
+        parameters={},
+        base_name=base_name,
+        config_name=config_name,
+        base=db_base,
+        config=db_config,
+    )
+    await engine.save(db_app_variant)
+    logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
+    return db_app_variant
 
 
 async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
@@ -266,14 +276,16 @@ async def fetch_app_variant_by_name_and_appid(
     return app_variant_db
 
 
-async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
+async def create_app_and_envs(
+    app_name: str, organization_id: str, **user_org_data
+) -> AppDB:
     """
     Create a new app with the given name and organization ID.
 
     Args:
         app_name (str): The name of the app to create.
         organization_id (str): The ID of the organization that the app belongs to.
-        **kwargs: Additional keyword arguments.
+        **user_org_data: Additional keyword arguments.
 
     Returns:
         AppDB: The created app.
@@ -282,8 +294,8 @@ async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
         ValueError: If an app with the same name already exists.
     """
 
-    user_instance = await get_user_object(kwargs["uid"])
-    app = await fetch_app_by_name(app_name, organization_id, **kwargs)
+    user_instance = await get_user_object(user_org_data["uid"])
+    app = await fetch_app_by_name(app_name, organization_id, **user_org_data)
     if app is not None:
         raise ValueError("App with the same name already exists")
 
@@ -294,6 +306,7 @@ async def create_app(app_name: str, organization_id: str, **kwargs) -> AppDB:
         user=user_instance,
     )
     await engine.save(app)
+    await initialize_environments(app, **user_org_data)
     return app
 
 

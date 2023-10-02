@@ -71,7 +71,9 @@ async def build_image(
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
     # Check app access
-    app_db = await db_manager.fetch_app_and_check_access(app_id=app_id, **user_org_data)
+    app_db = await db_manager.fetch_app_and_check_access(
+        app_id=app_id, user_org_data=user_org_data
+    )
     app_name = app_db.app_name
     organization_id = str(app_db.organization.id)
     # Get event loop

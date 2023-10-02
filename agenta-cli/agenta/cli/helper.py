@@ -20,6 +20,7 @@ def update_variants_from_backend(
     """
     variants: List[AppVariant] = client.list_variants(app_id, host)
     config["variants"] = [variant.variant_name for variant in variants]
+    config["variant_ids"] = [variant.variant_id for variant in variants]
     return config
 
 
@@ -34,6 +35,8 @@ def update_config_from_backend(config_file: Path, host: str):
     app_id = config["app_id"]
     if "variants" not in config:
         config["variants"] = []
+    if "variant_ids" not in config:
+        config["variant_ids"] = []
     config = update_variants_from_backend(app_id, config, host)
     toml.dump(config, config_file.open("w"))
 
