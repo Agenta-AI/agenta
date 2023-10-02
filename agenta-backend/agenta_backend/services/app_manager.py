@@ -83,7 +83,7 @@ async def start_variant(
             f"Failed to start Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name} \n {str(e)}"
         )
 
-    return uri
+    return URI(uri=uri)
 
 
 async def update_variant_image(
@@ -119,7 +119,7 @@ async def update_variant_image(
         logger.info(f"Container {container_id} deleted")
     # Delete the image
     image_docker_id = app_variant_db.base.image.docker_id
-    await db_manager.remove_image(image)
+    await db_manager.remove_image(app_variant_db.base.image)
     if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
         docker_utils.delete_image(image_docker_id)
 
