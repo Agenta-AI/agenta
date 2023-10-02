@@ -208,9 +208,7 @@ async def terminate_and_remove_app_variant(
             logger.debug("remove_app_variant_from_db")
             await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
         logger.debug("list_app_variants")
-        app_variants = await db_manager.list_app_variants(
-            app_id=app_id, show_soft_deleted=True, **kwargs
-        )
+        app_variants = await db_manager.list_app_variants(app_id=app_id, **kwargs)
         logger.debug(f"{app_variants}")
         if len(app_variants) == 0:  # this was the last variant for an app
             logger.debug("remove_app_related_resources")
