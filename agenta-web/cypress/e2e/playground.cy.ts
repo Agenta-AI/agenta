@@ -56,12 +56,15 @@ describe("Playgroynd | Simple prompt", function () {
 
             cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
                 expect(interception.response.statusCode).to.eq(200)
-
-                const locationHeader = interception.response.body.data.playground
-                expect(locationHeader).to.eq(`http://localhost:3000/apps/${appName}/playground`)
+            })
+            cy.intercept(
+                "GET",
+                ` http://localhost/api/app_variant/list_variants/?app_name=${appName}`,
+            ).as("getRequest")
+            cy.wait("@getRequest", {requestTimeout: 15000}).then((interception) => {
+                expect(interception.response.statusCode).to.eq(200)
             })
 
-            cy.wait(10000)
             cy.url().should("include", `/apps/${appName}/playground`)
             cy.contains(/modify parameters/i)
             cy.get('[data-cy="testview-input-parameters-0"]').type("Nigeria")
