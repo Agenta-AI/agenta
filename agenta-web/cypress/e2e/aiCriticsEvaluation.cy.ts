@@ -40,7 +40,7 @@ describe("AI Critics Evaluation workflow", () => {
         })
     })
 
-    context("when apikey provided", () => {
+    context.only("when apikey provided", () => {
         it("should ok button", () => {
             cy.visit("/apikeys")
             cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
@@ -56,6 +56,7 @@ describe("AI Critics Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.url().should("include", "/auto_ai_critique")
+            cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
         })
     })
 })
