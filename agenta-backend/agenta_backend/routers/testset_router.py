@@ -2,7 +2,6 @@ import os
 import csv
 import json
 import requests
-from copy import deepcopy
 from bson import ObjectId
 from datetime import datetime
 from typing import Optional, List
@@ -16,10 +15,9 @@ from agenta_backend.models.api.testset_model import (
     NewTestset,
     TestSetOutputResponse,
 )
-from agenta_backend.config import settings
 from agenta_backend.utils.common import engine, check_access_to_app
 from agenta_backend.models.db_models import TestSetDB
-from agenta_backend.services.db_manager import query, get_user_object
+from agenta_backend.services.db_manager import get_user_object
 from agenta_backend.services import db_manager
 from agenta_backend.models.converters import testset_db_to_pydantic
 
@@ -365,7 +363,7 @@ async def get_testset(
         user_org_data=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
     )
     if not access_app:
-        error_msg = f"You do not have access to this test set"
+        error_msg = "You do not have access to this test set"
         return JSONResponse(
             {"detail": error_msg},
             status_code=400,
@@ -401,7 +399,7 @@ async def delete_testsets(
             check_owner=False,
         )
         if not access_app:
-            error_msg = f"You do not have access to this test set"
+            error_msg = "You do not have access to this test set"
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=400,
