@@ -755,6 +755,8 @@ async def create_environment(name: str, app_name: str, **kwargs: dict):
         user_id=user,
     )
     await engine.save(environment_db)
+    
+    return environment_db
 
 
 async def list_environments(app_name: str, **kwargs: dict) -> List[Environment]:
