@@ -12,7 +12,6 @@ import {
     RestartVariantDocker,
     RestartVariantDockerResponse,
     Environment,
-    EditCustomEvaluation,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
 } from "@/lib/Types"
