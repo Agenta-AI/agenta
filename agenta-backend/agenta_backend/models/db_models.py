@@ -204,10 +204,12 @@ class TraceDB(Model):
 
 
 class DeploymentDB(Model):
-    deploy_id: str = Field(unique=True, index=True)  # 6 characters from the SHA256 sum of the app_variant_id_str
+    deploy_id: str = Field(
+        unique=True, index=True
+    )  # 6 characters from the SHA256 sum of the app_variant_id_str
     domain: str
     environment_id: EnvironmentDB = Reference(key_name="environment")
-    variant_id: AppVariantDB = Reference(key_name="variant")  
+    variant_id: AppVariantDB = Reference(key_name="variant")
     organization_id: OrganizationDB = Reference(key_name="org")
     user_id: UserDB = Reference(key_name="user")
 
