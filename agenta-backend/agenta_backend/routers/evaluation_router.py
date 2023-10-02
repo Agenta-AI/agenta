@@ -1,8 +1,6 @@
 import os
 import random
-from bson import ObjectId
-from datetime import datetime
-from typing import List, Optional, Dict
+from typing import List, Dict
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, APIRouter, Body, Depends, status, Response
@@ -40,9 +38,7 @@ from agenta_backend.services.evaluation_service import (
     execute_custom_code_evaluation,
 )
 from agenta_backend.services import evaluation_service
-from agenta_backend.utils.common import engine, check_access_to_app
-from agenta_backend.services.db_manager import query, get_user_object
-from agenta_backend.config import settings
+from agenta_backend.utils.common import check_access_to_app
 from agenta_backend.services import db_manager
 from agenta_backend.models import converters
 from agenta_backend.services import results_service
@@ -96,9 +92,9 @@ async def create_evaluation(
                 {"detail": error_msg},
                 status_code=400,
             )
-        app_ref = await db_manager.fetch_app_by_id(app_id=payload.app_id)
+        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
 
-        if app_ref is None:
+        if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
         new_evaluation_db = await evaluation_service.create_new_evaluation(

@@ -715,7 +715,7 @@ async def execute_custom_code_evaluation(
     # Execute the Python code with the provided inputs
     try:
         result = execute_code_safely(
-            app_variant.parameters,
+            app_variant.config.parameters,
             inputs,
             output,
             correct_answer,

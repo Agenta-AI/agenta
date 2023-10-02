@@ -119,7 +119,7 @@ async def remove_variant(
                 status_code=400,
             )
         else:
-            await app_manager.remove_app_variant(
+            await app_manager.terminate_and_remove_app_variant(
                 app_variant_id=variant_id, **user_org_data
             )
     except DockerException as e:
@@ -136,10 +136,19 @@ async def update_variant_parameters(
     payload: UpdateVariantParameterPayload = Body(...),
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Updates the parameters for an app variant
+    """
+    Updates the parameters for an app variant.
 
-    Arguments:
-        app_variant -- Appvariant to update
+    Args:
+        variant_id (str): The ID of the app variant to update.
+        payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+
+    Raises:
+        HTTPException: If there is an error while trying to update the app variant.
+
+    Returns:
+        JSONResponse: A JSON response containing the updated app variant parameters.
     """
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
@@ -176,13 +185,19 @@ async def update_variant_image(
     image: Image,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Updates the image used in an app variant
-
-    Arguments:
-        app_variant -- the app variant to update
-        image -- the image information
     """
+    Updates the image used in an app variant.
 
+    Args:
+        variant_id (str): The ID of the app variant to update.
+        image (Image): The image information to update.
+
+    Raises:
+        HTTPException: If an error occurs while trying to update the app variant.
+
+    Returns:
+        JSONResponse: A JSON response indicating whether the update was successful or not.
+    """
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         access_variant = await check_access_to_variant(
@@ -220,6 +235,22 @@ async def start_variant(
     env_vars: Optional[DockerEnvVars] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
+    """
+    Start a variant of an app.
+
+    Args:
+        variant_id (str): The ID of the variant to start.
+        action (VariantAction): The action to perform on the variant (start).
+        env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+
+    Returns:
+        URI: The URL of the started variant.
+
+    Raises:
+        HTTPException: If the app container cannot be started.
+    """
+
     logger.debug("Starting variant %s", variant_id)
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 

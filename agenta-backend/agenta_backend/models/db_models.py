@@ -1,8 +1,9 @@
-from bson import ObjectId
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
-from odmantic import Field, Model, Reference, EmbeddedModel
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
+
+from bson import ObjectId
+from odmantic import EmbeddedModel, Field, Model, Reference
 
 
 class InvitationDB(EmbeddedModel):
@@ -67,9 +68,17 @@ class BaseDB(Model):
         collection = "bases"
 
 
+class ConfigVersionDB(EmbeddedModel):
+    version: int
+    parameters: Dict[str, Any]
+    created_at: datetime
+
+
 class ConfigDB(Model):
     config_name: str
+    current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
+    version_history: List[ConfigVersionDB] = Field(default=[])
 
     class Config:
         collection = "configs"
@@ -81,14 +90,14 @@ class AppVariantDB(Model):
     image: ImageDB = Reference(key_name="image")
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
-    parameters: Dict[str, Any] = Field(default=dict)
-    previous_variant_name: Optional[str]
+    parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
+    previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
     base: BaseDB = Reference(key_name="bases")
     config_name: Optional[str]
     config: ConfigDB = Reference(key_name="configs")
 
-    is_deleted: bool = Field(
+    is_deleted: bool = Field(  # TODO: deprecated. remove
         default=False
     )  # soft deletion for using the template variants
 
@@ -101,9 +110,9 @@ class EnvironmentDB(Model):
     name: str
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
-    deployed_app_variant_ref: Optional[ObjectId]
-    deployed_base_ref: Optional[ObjectId]
-    deployed_config_ref: Optional[ObjectId]
+    deployed_app_variant: Optional[ObjectId]
+    deployed_base: Optional[ObjectId]
+    deployed_config: Optional[ObjectId]
 
     class Config:
         collection = "environments"

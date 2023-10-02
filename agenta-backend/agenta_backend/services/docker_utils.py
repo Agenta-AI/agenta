@@ -246,7 +246,7 @@ def delete_image(docker_id: str):
         RuntimeError: _description_
     """
     try:
-        client.images.remove(image=docker_id, force=True)
+        client.images.remove(image=docker_id)
         logger.info(f"Deleted image with id: {docker_id}")
     except docker.errors.APIError as ex:
         logger.error(f"Error deleting image with id: {docker_id}. Error: {str(ex)}")
