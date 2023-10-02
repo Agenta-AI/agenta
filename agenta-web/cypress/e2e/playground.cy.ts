@@ -69,7 +69,9 @@ describe("Playgroynd | Simple prompt", function () {
 
             cy.request({
                 method: "GET",
-                url: `${Cypress.env().baseApiURL}/containers/container_url/?app_name=${appName}&variant_name=v1`,
+                url: `${
+                    Cypress.env().baseApiURL
+                }/containers/container_url/?app_name=${appName}&variant_name=v1`,
             }).then((response) => {
                 cy.request({
                     method: "POST",
