@@ -136,7 +136,7 @@ export const getVariantParametersFromOpenAPI = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const appContainerURIPath = await getAppContainerURL(appId, variantId)
-    const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/openapi.json`
+    const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}${appContainerURIPath}/openapi.json`
     const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
     let APIParams = parseOpenApiSchema(response.data)
     // we create a new param for DictInput that will contain the name of the inputs
@@ -235,7 +235,9 @@ export async function updateVariantParams(variantId: string, parameters: Paramet
 }
 
 export async function removeApp(appId: string) {
-    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/${appId}`)
+    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/${appId}`, {
+        data: {app_id: appId},
+    })
 }
 
 export async function removeVariant(variantId: string) {
@@ -247,14 +249,15 @@ export async function removeVariant(variantId: string) {
  * @returns
  */
 export const useLoadTestsetsList = (appId: string) => {
-    const {data, error, mutate} = useSWR(
+    const {data, error, mutate, isLoading} = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/?app_id=${appId}`,
         fetcher,
         {revalidateOnFocus: false},
     )
+
     return {
-        testsets: data,
-        isTestsetsLoading: !error && !data,
+        testsets: data || [],
+        isTestsetsLoading: isLoading,
         isTestsetsLoadingError: error,
         mutate,
     }

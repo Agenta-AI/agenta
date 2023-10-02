@@ -1,8 +1,7 @@
-import React, {useEffect, useState} from "react"
+import React, {useEffect, useMemo, useState} from "react"
 import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
-import {useRouter} from "next/router"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {useAppTheme} from "./ThemeContextProvider"
@@ -13,6 +12,7 @@ import {ErrorBoundary} from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
 import {fetchData} from "@/lib/services/api"
 import {useAppContext} from "@/contexts/app.context"
+import {useRouter} from "next/router"
 
 const {Content, Footer} = Layout
 
@@ -90,14 +90,19 @@ type LayoutProps = {
 }
 
 const App: React.FC<LayoutProps> = ({children}) => {
-    const router = useRouter()
-    const appId = router.query?.app_id as string
     const {appTheme} = useAppTheme()
     const {currentApp} = useAppContext()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const [starCount, setStarCount] = useState(0)
+    const router = useRouter()
+    const appId = router.query.app_id as string
+
+    const isAppRoute = useMemo(
+        () => router.pathname.startsWith("/apps/[app_id]"),
+        [router.pathname],
+    )
 
     useEffect(() => {
         const githubRepo = async () => {
@@ -121,6 +126,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
             body.classList.add("light-mode")
         }
     }, [appTheme])
+
+    // wait unitl we have the app id, if its an app route
+    if (isAppRoute && !appId) return null
 
     return (
         <NoSSRWrapper>

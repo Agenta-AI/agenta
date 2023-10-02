@@ -291,6 +291,7 @@ async def remove_app(
         detail = f"Docker error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
+        print("Error", e)
         detail = f"Unexpected error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
