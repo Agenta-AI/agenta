@@ -75,7 +75,7 @@ describe("Playgroynd | Simple prompt", function () {
             }).then((response) => {
                 cy.request({
                     method: "POST",
-                    url: `http://localhost/${response.body.uri}/generate`,
+                    url: `${Cypress.env().localBaseUrl}/${response.body.uri}/generate`,
                 }).then((response) => {
                     expect(response.status).to.eq(200)
                 })
