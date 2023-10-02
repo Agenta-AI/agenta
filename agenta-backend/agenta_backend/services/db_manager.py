@@ -1,17 +1,16 @@
 import logging
 import os
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from agenta_backend.models.api.api_models import (
     App,
     AppVariant,
-    AppVariantOutput,
     ImageExtended,
     Template,
 )
 from agenta_backend.models.converters import (
     app_db_to_pydantic,
-    app_variant_db_to_output,
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
@@ -20,6 +19,7 @@ from agenta_backend.models.db_models import (
     AppVariantDB,
     BaseDB,
     ConfigDB,
+    ConfigVersionDB,
     EnvironmentDB,
     EvaluationDB,
     EvaluationScenarioDB,
@@ -49,16 +49,23 @@ async def add_variant_based_on_image(
     **user_org_data: dict,
 ) -> AppVariantDB:
     """
-    Adds an app variant based on an image.
-    Used both when create an app variant from template and from CLI
+    Adds a new variant to the app based on the specified Docker image.
 
-    Arguments:
-        app_id {str} -- [description]
-        variant_name {str} -- [description]
-        docker_id {str} -- [description]
-        tags {str} -- [description]
+    Args:
+        app (AppDB): The app to add the variant to.
+        variant_name (str): The name of the new variant.
+        docker_id (str): The ID of the Docker image to use for the new variant.
+        tags (str): The tags associated with the Docker image.
+        base_name (str, optional): The name of the base to use for the new variant. Defaults to None.
+        config_name (str, optional): The name of the configuration to use for the new variant. Defaults to "default".
+        **user_org_data (dict): Additional user and organization data.
+
+    Returns:
+        AppVariantDB: The newly created app variant.
+
     Raises:
-        ValueError: if variant exists or missing inputs
+        ValueError: If the app variant or image is None, or if an app variant with the same name already exists.
+        HTTPException: If an error occurs while creating the app variant.
     """
     try:
         logger.debug("Creating app variant based on image")
@@ -456,7 +463,17 @@ async def add_variant_from_base_and_config(
     if already_exists:
         raise ValueError("App variant with the same name already exists")
     user_db = await get_user_object(user_org_data["uid"])
-    config_db = ConfigDB(config_name=new_config_name, parameters=parameters)
+    config_db = ConfigDB(
+        config_name=new_config_name,
+        parameters=parameters,
+        current_version=1,
+        version_history=[
+            ConfigVersionDB(
+                version=1, parameters=parameters, created_at=datetime.utcnow()
+            )
+        ],
+    )
+    await engine.save(config_db)
     db_app_variant = AppVariantDB(
         app=previous_app_variant_db.app,
         variant_name=new_variant_name,
@@ -594,7 +611,8 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
         **kwargs (dict): Additional keyword arguments.
 
     Raises:
-        ValueError: If the app variant is not found or if the environment is not found or if the app variant is already deployed to the environment.
+        ValueError: If the app variant is not found or if the environment is not found or if the app variant is already
+                    deployed to the environment.
 
     Returns:
         None
@@ -813,7 +831,7 @@ async def remove_app_by_id(app_id: str, **kwargs):
 
 async def update_variant_parameters(
     app_variant_db: AppVariantDB, parameters: Dict[str, Any], **kwargs: dict
-):
+) -> None:
     """
     Update the parameters of an app variant in the database.
 
@@ -827,12 +845,31 @@ async def update_variant_parameters(
     """
     assert app_variant_db is not None, "app_variant is missing"
     assert parameters is not None, "parameters is missing"
+
     try:
         logging.debug("Updating variant parameters")
+
+        # Update AppVariantDB parameters
         app_variant_db.parameters = parameters
-        app_variant_db.config.parameters = parameters
+
+        # Update associated ConfigDB parameters and versioning
+        config_db = app_variant_db.config
+        new_version = config_db.current_version + 1
+        config_db.version_history.append(
+            ConfigVersionDB(
+                version=new_version,
+                parameters=config_db.parameters,
+                created_at=datetime.utcnow(),
+            )
+        )
+        config_db.current_version = new_version
+        config_db.parameters = parameters
+        # Save updated ConfigDB and AppVariantDB
+        await engine.save(config_db)
         await engine.save(app_variant_db)
+
     except Exception as e:
+        logging.error(f"Issue updating variant parameters: {e}")
         raise ValueError("Issue updating variant parameters")
 
 
