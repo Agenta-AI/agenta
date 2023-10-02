@@ -492,6 +492,7 @@ async def create_custom_evaluation(
         status_code=200,
     )
 
+
 @router.put("/custom_evaluation/{id}")
 async def update_custom_evaluation(
     id: str,
@@ -510,7 +511,9 @@ async def update_custom_evaluation(
     kwargs: dict = await get_user_and_org_id(stoken_session)
 
     # Update the evaluation with the provided data
-    updated_evaluation_id = await update_custom_code_evaluation(id, updated_data, **kwargs)
+    updated_evaluation_id = await update_custom_code_evaluation(
+        id, updated_data, **kwargs
+    )
 
     return JSONResponse(
         {

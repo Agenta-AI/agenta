@@ -505,7 +505,9 @@ async def create_custom_code_evaluation(
     return str(custom_eval.id)
 
 
-async def update_custom_code_evaluation(id: str, payload: CreateCustomEvaluation, **kwargs: dict) -> str:
+async def update_custom_code_evaluation(
+    id: str, payload: CreateCustomEvaluation, **kwargs: dict
+) -> str:
     """Update a custom code evaluation in the database.
 
     Args:
