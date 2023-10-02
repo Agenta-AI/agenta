@@ -1,8 +1,8 @@
 import {randString} from "../../src/lib/helpers/utils"
 
 describe("Playgroynd | Simple prompt", function () {
-    context("when an api key is provided", function () {
-        it("when entering an invalid case format in the app name", () => {
+    context("when entering an invalid case format in the app name", () => {
+        it("should fail", () => {
             cy.visit("/apps")
             cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
             cy.get('[data-cy="choose-template-modal"]').should("not.exist")
@@ -21,7 +21,9 @@ describe("Playgroynd | Simple prompt", function () {
                 })
             cy.get('[data-cy="enter-app-name-modal-text-warning"]').should("exist")
         })
+    })
 
+    context("when an api key is provided", function () {
         it("should run the prompt and get a response from an LLM", () => {
             cy.visit("/apikeys")
             // Update your cypress.json file to include your OPENAI API KEY
