@@ -2,10 +2,8 @@ import os
 from pathlib import Path
 from typing import List, Optional, Dict
 
-import agenta.config
 import requests
 from agenta.client.api_models import AppVariant, Image
-from docker.models.images import Image as DockerImage
 from requests.exceptions import RequestException
 
 BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
@@ -57,13 +55,19 @@ def create_new_app(app_name: str, host: str) -> str:
 
 
 def add_variant_to_server(app_id: str, variant_name: str, image: Image, host: str):
-    """Adds a variant to the server.
+    """
+    Adds a variant to the server.
 
-    Arguments:
-        app_id: The ID of the app
-        app_name -- Name of the app
-        variant_name -- Name of the variant
-        image_name -- Name of the image
+    Args:
+        app_id (str): The ID of the app to add the variant to.
+        variant_name (str): The name of the variant to add.
+        image (Image): The image to use for the variant.
+        host (str): The host URL of the server.
+
+    Returns:
+        dict: The JSON response from the server.
+    Raises:
+        APIRequestError: If the request to the server fails.
     """
     payload = {
         "variant_name": variant_name,
@@ -125,13 +129,15 @@ def start_variant(
 
 
 def list_variants(app_id: str, host: str) -> List[AppVariant]:
-    """Lists all the variants registered in the backend for an app
+    """
+    Returns a list of AppVariant objects for a given app_id and host.
 
-    Arguments:
-        app_id -- the app id to which to return all the variants
+    Args:
+        app_id (str): The ID of the app to retrieve variants for.
+        host (str): The URL of the host to make the request to.
 
     Returns:
-        a list of the variants using the pydantic model
+        List[AppVariant]: A list of AppVariant objects for the given app_id and host.
     """
     response = requests.get(
         f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variants/",
@@ -149,11 +155,18 @@ def list_variants(app_id: str, host: str) -> List[AppVariant]:
 
 
 def remove_variant(variant_id: str, host: str):
-    """Removes a variant from the backend
+    """
+    Sends a DELETE request to the Agenta backend to remove a variant with the given ID.
 
-    Arguments:
-        app_name -- the app name
-        variant_name -- the variant name
+    Args:
+        variant_id (str): The ID of the variant to be removed.
+        host (str): The URL of the Agenta backend.
+
+    Raises:
+        APIRequestError: If the request to the remove_variant endpoint fails.
+
+    Returns:
+        None
     """
     response = requests.delete(
         f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}",
@@ -170,13 +183,19 @@ def remove_variant(variant_id: str, host: str):
 
 
 def update_variant_image(variant_id: str, image: Image, host: str):
-    """Adds a variant to the server.
+    """
+    Update the image of a variant with the given ID.
 
-    Arguments:
-        app_id: The ID of the app
-        app_name -- Name of the app
-        variant_name -- Name of the variant
-        image_name -- Name of the image
+    Args:
+        variant_id (str): The ID of the variant to update.
+        image (Image): The new image to set for the variant.
+        host (str): The URL of the host to send the request to.
+
+    Raises:
+        APIRequestError: If the request to update the variant fails.
+
+    Returns:
+        None
     """
     response = requests.put(
         f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/image/",
@@ -191,6 +210,21 @@ def update_variant_image(variant_id: str, image: Image, host: str):
 
 
 def send_docker_tar(app_id: str, variant_name: str, tar_path: Path, host: str) -> Image:
+    """
+    Sends a Docker tar file to the specified host to build an image for the given app ID and variant name.
+
+    Args:
+        app_id (str): The ID of the app.
+        variant_name (str): The name of the variant.
+        tar_path (Path): The path to the Docker tar file.
+        host (str): The URL of the host to send the request to.
+
+    Returns:
+        Image: The built Docker image.
+
+    Raises:
+        Exception: If the response status code is 500, indicating that serving the variant failed.
+    """
     with tar_path.open("rb") as tar_file:
         response = requests.post(
             f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_id={app_id}&&variant_name={variant_name}",

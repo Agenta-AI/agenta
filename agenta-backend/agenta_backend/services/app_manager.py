@@ -2,20 +2,14 @@
 """
 import logging
 import os
-from typing import List, Optional, Dict, Any
-from bson import ObjectId
+from typing import List, Optional, Any, Dict
 
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
     URI,
-    App,
-    AppVariant,
     DockerEnvVars,
-    Environment,
     Image,
-    ImageExtended,
 )
-from agenta_backend.models.converters import app_variant_db_to_pydantic
 from agenta_backend.models.db_models import (
     AppVariantDB,
     EnvironmentDB,
@@ -129,7 +123,7 @@ async def update_variant_image(
     if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
         docker_utils.delete_image(image_docker_id)
 
-    # Create a new image instance TODO: move to db_manager
+    # Create a new image instance
     db_image = await db_manager.create_image(
         docker_id=image.docker_id,
         tags=image.tags,
@@ -144,7 +138,7 @@ async def update_variant_image(
     await start_variant(app_variant_db, **kwargs)
 
 
-async def remove_app_variant(
+async def terminate_and_remove_app_variant(
     app_variant_id: str = None, app_variant_db=None, **kwargs: dict
 ) -> None:
     """
@@ -179,45 +173,45 @@ async def remove_app_variant(
         raise ValueError(error_msg)
 
     try:
-        logger.debug(f"check_is_last_variant_for_image {app_variant_db}")
         is_last_variant_for_image = await db_manager.check_is_last_variant_for_image(
             app_variant_db
         )
-        logger.debug(f"Result {is_last_variant_for_image}")
         if is_last_variant_for_image:
+            # remove variant + terminate and rm containers + remove base
             image = app_variant_db.base.image
-
+            docker_id = str(image.docker_id)
             if image:
-                # TODO: This needs to change to use a db schema to save the container name
                 logger.debug("_stop_and_delete_app_container")
                 await _stop_and_delete_app_container(app_variant_db, **kwargs)
-                logger.debug("remove_app_variant")
-                await db_manager.remove_app_variant(app_variant_db, **kwargs)
-                logger.debug("remove_image")
+                logger.debug("remove base")
+                await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
+                logger.debug("Remove image object from db")
                 await db_manager.remove_image(image, **kwargs)
+                await db_manager.remove_base_from_db(app_variant_db.base, **kwargs)
+                logger.debug("remove_app_variant_from_db")
 
                 # Only delete the docker image for users that are running the oss version
                 try:
                     if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
-                        docker_utils.delete_image(image.docker_id)
-                except Exception as e:
+                        logger.debug("Remove image from docker registry")
+                        docker_utils.delete_image(docker_id)
+                except RuntimeError as e:
                     logger.error(
-                        f"Ignoring error while deleting Docker image: {str(e)}"
+                        f"Ignoring error while deleting Docker image {docker_id}: {str(e)}"
                     )
             else:
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
                 )
         else:
-            logger.debug(f"remove_app_variant")
-            await db_manager.remove_app_variant(app_variant_db, **kwargs)
-        logger.debug(f"list_app_variants")
-        app_variants = await db_manager.list_app_variants(
-            app_id=app_id, show_soft_deleted=True, **kwargs
-        )
+            # remove variant + config
+            logger.debug("remove_app_variant_from_db")
+            await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
+        logger.debug("list_app_variants")
+        app_variants = await db_manager.list_app_variants(app_id=app_id, **kwargs)
         logger.debug(f"{app_variants}")
         if len(app_variants) == 0:  # this was the last variant for an app
-            logger.debug(f"remove_app_related_resources")
+            logger.debug("remove_app_related_resources")
             await remove_app_related_resources(app_id=app_id, **kwargs)
     except Exception as e:
         logger.error(
@@ -239,7 +233,7 @@ async def _stop_and_delete_app_container(
         Exception: Any exception raised during Docker operations.
     """
     try:
-        container_id = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{str(app_variant_db.organization.id)}"
+        container_id = app_variant_db.base.container_id
         docker_utils.stop_container(container_id)
         logger.info(f"Container {container_id} stopped")
         docker_utils.delete_container(container_id)
@@ -295,13 +289,15 @@ async def remove_app(app_id: str, **kwargs: dict):
     try:
         app_variants = await db_manager.list_app_variants(app_id=app_id, **kwargs)
         for app_variant_db in app_variants:
-            await remove_app_variant(app_variant_db=app_variant_db, **kwargs)
+            await terminate_and_remove_app_variant(
+                app_variant_db=app_variant_db, **kwargs
+            )
             logger.info(
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
 
-        if len(app_variants) == 0:
-            logger.debug(f"remove_app_related_resources")
+        if len(app_variants) == 0:  # Failsafe in case something went wrong before
+            logger.debug("remove_app_related_resources")
             await remove_app_related_resources(app_id=app_id, **kwargs)
 
     except Exception as e:

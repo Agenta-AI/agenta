@@ -1,7 +1,6 @@
 import os
 import logging
 from docker.errors import DockerException
-from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import JSONResponse
 from agenta_backend.config import settings
 from typing import List, Optional
@@ -52,17 +51,16 @@ async def list_app_variants(
     app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Lists the app variants from our repository.
+    """
+    Retrieve a list of app variants for a given app ID.
 
-    Arguments:
-        app_id -- If specified, only returns the app variants for the specified app
-    Raises:
-        HTTPException: _description_
+    Args:
+        app_id (str): The ID of the app to retrieve variants for.
+        stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
 
     Returns:
-        List[AppVariant]
+        List[AppVariantOutput]: A list of app variants for the given app ID.
     """
-
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
 
@@ -95,8 +93,20 @@ async def get_variant_by_env(
     environment: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Fetches a specific app variant based on the given app_name and environment."""
+    """
+    Retrieve the app variant based on the provided app_id and environment.
 
+    Args:
+        app_id (str): The ID of the app to retrieve the variant for.
+        environment (str): The environment of the app variant to retrieve.
+        stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
+
+    Raises:
+        HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
+
+    Returns:
+        AppVariantOutput: The retrieved app variant.
+    """
     try:
         # Retrieve the user and organization ID based on the session token
         user_org_data = await get_user_and_org_id(stoken_session)
@@ -126,15 +136,19 @@ async def create_app(
     payload: CreateApp,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> CreateAppOutput:
-    """Create a new app.
+    """
+    Create a new app for a user or organization.
 
-    Arguments:
-        app_name (str): Name of app
+    Args:
+        payload (CreateApp): The payload containing the app name and organization ID (optional).
+        stoken_session (SessionContainer): The session container containing the user's session token.
 
     Returns:
-        CreateAppOutput: the app id and name
-    """
+        CreateAppOutput: The output containing the newly created app's ID and name.
 
+    Raises:
+        HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+    """
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
         if payload.organization_id:
@@ -169,13 +183,19 @@ async def list_apps(
     org_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> List[App]:
-    """Lists the apps from our repository.
+    """
+    Retrieve a list of apps filtered by app_name and org_id.
 
-    Raises:
-        HTTPException: _description_
+    Args:
+        app_name (Optional[str]): The name of the app to filter by.
+        org_id (Optional[str]): The ID of the organization to filter by.
+        stoken_session (SessionContainer): The session container.
 
     Returns:
-        List[App]
+        List[App]: A list of apps filtered by app_name and org_id.
+
+    Raises:
+        HTTPException: If there was an error retrieving the list of apps.
     """
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
@@ -192,16 +212,19 @@ async def add_variant_from_image(
     payload: AddVariantFromImagePayload,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Create a variant in an app from an image
+    """
+    Add a new variant to an app based on a Docker image.
 
-    Arguments:
-        variant -- AppVariant to add
-        image -- The image tags should start with the registry name (agenta-server) and end with :latest
+    Args:
+        app_id (str): The ID of the app to add the variant to.
+        payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
     Raises:
-        HTTPException: If image tag doesn't start with registry name
-        HTTPException: If image not found in docker utils list
-        HTTPException: If there is a problem adding the app variant
+        HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
+
+    Returns:
+        dict: The newly added variant.
     """
     if os.environ["FEATURE_FLAG"] == "demo":
         raise HTTPException(
@@ -289,15 +312,19 @@ async def create_app_and_variant_from_template(
     payload: CreateAppVariant,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> AppVariantOutput:
-    """Creates an app and a variant based on the provided image and starts the variant
+    """
+    Create an app and variant from a template.
 
-    Arguments:
-        payload -- a data model that contains the necessary information to create an app variant from an image
+    Args:
+        payload (CreateAppVariant): The payload containing the app and variant information.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+
+    Raises:
+        HTTPException: If the user has reached the app limit or if an app with the same name already exists.
 
     Returns:
-        a JSON response with a message and data
+        AppVariantOutput: The output of the created app variant.
     """
-
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
@@ -364,7 +391,14 @@ async def list_environments(
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """
-    Lists the environments for the given app.
+    Retrieve a list of environments for a given app ID.
+
+    Args:
+        app_id (str): The ID of the app to retrieve environments for.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+
+    Returns:
+        List[EnvironmentOutput]: A list of environment objects.
     """
     logger.debug(f"Listing environments for app: {app_id}")
     try:
