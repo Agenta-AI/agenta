@@ -22,7 +22,7 @@ def get_app_by_name(app_name: str, host: str) -> str:
     """
 
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps?app_name={app_name}/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/?app_name={app_name}/",
         timeout=600,
     )
     if response.status_code != 200:
@@ -54,7 +54,7 @@ def create_new_app(app_name: str, host: str) -> str:
     return response.json()["app_id"]
 
 
-def add_variant_to_server(app_id: str, variant_name: str, image: Image, host: str):
+def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str) -> Dict:
     """
     Adds a variant to the server.
 
@@ -69,12 +69,13 @@ def add_variant_to_server(app_id: str, variant_name: str, image: Image, host: st
     Raises:
         APIRequestError: If the request to the server fails.
     """
+    variant_name = f"{base_name.lower()}.default"
     payload = {
         "variant_name": variant_name,
+        "base_name": base_name.lower(),
+        "config_name": "default",
         "docker_id": image.docker_id,
         "tags": image.tags,
-        "base_name": None,
-        "config_name": None,
     }
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variant/from-image/",
@@ -106,19 +107,23 @@ def start_variant(
     Raises:
         APIRequestError: If the API request fails.
     """
-    payload = {"action": "START"}
+    payload = {}
+    payload["action"] = {"action": "START"}
     if env_vars:
         payload["env_vars"] = {"env_vars": env_vars}
 
     try:
         response = requests.put(
-            f"{host}/variants/{variant_id}/",
+            f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/",
             json=payload,
             timeout=600,
         )
-
-        if response.status_code != 200:
-            error_message = response.json().get("detail", "Unknown error")
+        if response.status_code == 404:
+            raise APIRequestError(
+                f"404: Variant with ID {variant_id} does not exist on the server."
+            )
+        elif response.status_code != 200:
+            error_message = response.text
             raise APIRequestError(
                 f"Request to start variant endpoint failed with status code {response.status_code} and error message: {error_message}."
             )
@@ -148,7 +153,7 @@ def list_variants(app_id: str, host: str) -> List[AppVariant]:
     if response.status_code != 200:
         error_message = response.json()
         raise APIRequestError(
-            f"Request to list_variants endpoint failed with status code {response.status_code} and error message: {error_message}."
+            f"Request to apps endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
     app_variants = response.json()
     return [AppVariant(**variant) for variant in app_variants]
@@ -199,7 +204,7 @@ def update_variant_image(variant_id: str, image: Image, host: str):
     """
     response = requests.put(
         f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/image/",
-        json={"image": image.dict()},
+        json=image.dict(),
         timeout=600,
     )
     if response.status_code != 200:
@@ -209,13 +214,13 @@ def update_variant_image(variant_id: str, image: Image, host: str):
         )
 
 
-def send_docker_tar(app_id: str, variant_name: str, tar_path: Path, host: str) -> Image:
+def send_docker_tar(app_id: str, base_name: str, tar_path: Path, host: str) -> Image:
     """
     Sends a Docker tar file to the specified host to build an image for the given app ID and variant name.
 
     Args:
         app_id (str): The ID of the app.
-        variant_name (str): The name of the variant.
+        base_name (str): The name of the codebase.
         tar_path (Path): The path to the Docker tar file.
         host (str): The URL of the host to send the request to.
 
@@ -227,7 +232,7 @@ def send_docker_tar(app_id: str, variant_name: str, tar_path: Path, host: str) -
     """
     with tar_path.open("rb") as tar_file:
         response = requests.post(
-            f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_id={app_id}&&variant_name={variant_name}",
+            f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_id={app_id}&base_name={base_name}",
             files={
                 "tar_file": tar_file,
             },
