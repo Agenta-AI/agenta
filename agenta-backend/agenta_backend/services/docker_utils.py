@@ -211,9 +211,9 @@ def stop_container(container_id: str):
         logger.info(f"Stopped container with id: {container.id}")
     except docker.errors.APIError as ex:
         logger.error(
-            f"Error stopping container with id: {container.id}. Error: {str(ex)}"
+            f"Error stopping container with id: {container_id}. Error: {str(ex)}"
         )
-        raise RuntimeError(f"Error stopping container with id: {container.id}") from ex
+        raise RuntimeError(f"Error stopping container with id: {container_id}") from ex
 
 
 def delete_container(container_id: str):
@@ -231,9 +231,9 @@ def delete_container(container_id: str):
         logger.info(f"Deleted container with id: {container.id}")
     except docker.errors.APIError as ex:
         logger.error(
-            f"Error deleting container with id: {container.id}. Error: {str(ex)}"
+            f"Error deleting container with id: {container_id}. Error: {str(ex)}"
         )
-        raise RuntimeError(f"Error deleting container with id: {container.id}") from ex
+        raise RuntimeError(f"Error deleting container with id: {container_id}") from ex
 
 
 def delete_image(docker_id: str):
@@ -246,7 +246,7 @@ def delete_image(docker_id: str):
         RuntimeError: _description_
     """
     try:
-        client.images.remove(docker_id)
+        client.images.remove(image=docker_id, force=True)
         logger.info(f"Deleted image with id: {docker_id}")
     except docker.errors.APIError as ex:
         logger.error(f"Error deleting image with id: {docker_id}. Error: {str(ex)}")
