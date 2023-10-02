@@ -4,7 +4,7 @@ import {formatDate} from "./helpers/dateTimeHelper"
 import {snakeToCamel} from "./helpers/utils"
 
 export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
-    const variants: Variant[] = item.variants.map((variantId: string) => {
+    const variants: Variant[] = item.variant_ids.map((variantId: string) => {
         const variant = {
             variantId,
             templateVariantName: null,
@@ -24,7 +24,10 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
         id: item.id,
         createdAt: formatDate(item.created_at),
         variants,
-        testset: item.testset,
+        testset: {
+            _id: item.testset_id,
+            name: item.testset_name,
+        },
         appName: item.app_name,
         status: item.status,
         evaluationType: item.evaluation_type,
@@ -50,11 +53,10 @@ export const fromEvaluationScenarioResponseToEvaluationScenario = (
         evaluation.evaluationType === EvaluationType.auto_exact_match ||
         evaluation.evaluationType === EvaluationType.auto_similarity_match ||
         evaluation.evaluationType === EvaluationType.auto_regex_test ||
-        evaluation.evaluationType === EvaluationType.auto_webhook_test
+        evaluation.evaluationType === EvaluationType.auto_webhook_test ||
+        evaluation.evaluationType === EvaluationType.auto_ai_critique
     ) {
         evaluationScenario = {...evaluationScenario, score: item.score}
-    } else if (evaluation.evaluationType === EvaluationType.auto_ai_critique) {
-        evaluationScenario = {...evaluationScenario, evaluation: item.evaluation}
     }
     return evaluationScenario
 }

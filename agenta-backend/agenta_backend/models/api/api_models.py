@@ -29,7 +29,6 @@ class AppOutput(CreateAppOutput):
 
 
 class UpdateVariantParameterPayload(BaseModel):
-    variant_id: str
     parameters: Dict[str, Any]
 
 

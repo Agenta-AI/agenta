@@ -70,12 +70,8 @@ function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], act
 }
 const Playground: React.FC = () => {
     const appId = router.query.app_id as string
-    if (!appId) {
-        return <div>Loading...</div>
-    }
     const [templateVariantName, setTemplateVariantName] = useState("") // We use this to save the template variant name when the user creates a new variant
     const [activeKey, setActiveKey] = useState("1")
-    const [tabList, setTabList] = useState([])
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [variants, setVariants] = useState<Variant[]>([]) // These are the variants that exist in the backend
     const [isLoading, setIsLoading] = useState(true)

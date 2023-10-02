@@ -1,14 +1,9 @@
-import {
-    deleteEvaluations,
-    fetchData,
-    fetchEvaluationResults,
-    loadEvaluations,
-} from "@/lib/services/api"
-import {Button, Collapse, Result, Statistic, Table, Typography} from "antd"
+import {deleteEvaluations, fetchEvaluationResults, loadEvaluations} from "@/lib/services/api"
+import {Button, Collapse, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
-import {Evaluation, EvaluationResponseType} from "@/lib/Types"
+import {Evaluation, GenericObject} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
@@ -28,13 +23,11 @@ interface EvaluationListTableDataType {
     status: EvaluationFlow
     scoresData: {
         nb_of_rows: number
-        scores: {
-            wrong: number
-            correct: number
-            true: number
-            false: number
-        }
-        variant: any[]
+        wrong?: GenericObject[]
+        correct?: GenericObject[]
+        true?: GenericObject[]
+        false?: GenericObject[]
+        variant: string[]
     }
     avgScore: number
     custom_code_eval_id: string
@@ -168,10 +161,10 @@ export default function AutomaticEvaluationResult() {
             title: "Variant",
             dataIndex: "variants",
             key: "variants",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            render: (value) => {
                 return (
                     <div>
-                        <span>{value[0]}</span>
+                        <span>{value[0].variantId}</span>
                     </div>
                 )
             },
@@ -202,23 +195,19 @@ export default function AutomaticEvaluationResult() {
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 let score = 0
                 if (record.scoresData) {
-                    let correctScore = 0
-
-                    if (record.scoresData.scores?.correct !== undefined) {
-                        correctScore = record.scoresData.scores.correct
-                    }
-                    if (record.scoresData.scores?.true !== undefined) {
-                        correctScore = record.scoresData.scores.true
-                    }
-
-                    score = (correctScore / record.scoresData.nb_of_rows) * 100
+                    score =
+                        ((record.scoresData.correct?.length ||
+                            record.scoresData.true?.length ||
+                            0) /
+                            record.scoresData.nb_of_rows) *
+                        100
                 } else if (record.resultsData) {
                     score =
                         calculateResultsDataAvg(record.resultsData) *
                         (record.evaluationType === EvaluationType.auto_webhook_test ? 100 : 10)
                     score = isNaN(score) ? 0 : score
                 } else if (record.avgScore) {
-                    score = record.avgScore
+                    score = record.avgScore * 100
                 }
 
                 return (
@@ -268,9 +257,11 @@ export default function AutomaticEvaluationResult() {
     const onDelete = async () => {
         const evaluationsIds = selectedRowKeys.map((key) => key.toString())
         try {
-            const deletedIds = await deleteEvaluations(evaluationsIds)
+            await deleteEvaluations(evaluationsIds)
             setEvaluationsList((prevEvaluationsList) =>
-                prevEvaluationsList.filter((evaluation) => !deletedIds.includes(evaluation.key)),
+                prevEvaluationsList.filter(
+                    (evaluation) => !evaluationsIds.includes(evaluation.key),
+                ),
             )
 
             setSelectedRowKeys([])

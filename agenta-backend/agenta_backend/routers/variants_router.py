@@ -3,7 +3,7 @@ import logging
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
 from typing import Any, Optional, Union
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 from agenta_backend.services import (
     app_manager,
     db_manager,
@@ -66,8 +66,8 @@ async def add_variant_from_base_and_config(
         logger.debug("Initiating process to add a variant based on a previous one.")
         logger.debug(f"Received payload: {payload}")
         user_org_data: dict = await get_user_and_org_id(stoken_session)
-        base_db = db_manager.fetch_base_and_check_access(
-            base_id=payload.base_id, **user_org_data
+        base_db = await db_manager.fetch_base_and_check_access(
+            payload.base_id, user_org_data
         )
 
         # Find the previous variant in the database
@@ -133,7 +133,7 @@ async def remove_variant(
 @router.put("/{variant_id}/parameters/")
 async def update_variant_parameters(
     variant_id: str,
-    payload: UpdateVariantParameterPayload,
+    payload: UpdateVariantParameterPayload = Body(...),
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """

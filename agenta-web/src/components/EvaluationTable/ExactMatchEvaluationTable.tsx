@@ -44,7 +44,7 @@ interface ExactMatchEvaluationTableRow {
         input_value: string
     }[]
     outputs: {
-        variant_name: string
+        variant_id: string
         variant_output: string
     }[]
     columnData0: string
@@ -203,7 +203,8 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 if (rowIndex === rows.length - 1) {
                     message.success("Evaluation Results Saved")
                 }
-            } catch {
+            } catch (err) {
+                console.log("Error running evaluation:", err)
                 setRowValue(rowIndex, columnName, "")
             }
         })
@@ -226,13 +227,12 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
         const evaluation_scenario_id = rows[rowNumber].id
         // TODO: we need to improve this and make it dynamic
-        const appVariantNameX = variants[0].variantName
         const outputVariantX = rows[rowNumber].columnData0
 
         if (evaluation_scenario_id) {
             const data = {
                 score: isCorrect ? "correct" : "wrong",
-                outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+                outputs: [{variant_id: variants[0].variantId, variant_output: outputVariantX}],
             }
 
             updateEvaluationScenario(
@@ -241,7 +241,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 data,
                 evaluation.evaluationType,
             )
-                .then((data) => {
+                .then(() => {
                     setRowValue(rowNumber, "score", data.score)
                     if (isCorrect) {
                         setCorrectAnswers((prevCorrect) => prevCorrect + 1)
@@ -285,7 +285,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 render: (text: any, record: ExactMatchEvaluationTableRow, rowIndex: number) => {
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
-                            (output: any) => output.variant_name === variants[i].variantName,
+                            (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }
@@ -425,6 +425,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                     columns={columns}
                     pagination={false}
                     rowClassName={() => "editable-row"}
+                    rowKey="id"
                 />
             </div>
         </div>
