@@ -200,24 +200,24 @@ async def remove_app_variant(
                 try:
                     if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
                         docker_utils.delete_image(image.docker_id)
-                except Exception as e:
+                except RuntimeError as e:
                     logger.error(
-                        f"Ignoring error while deleting Docker image: {str(e)}"
+                        f"Ignoring error while deleting Docker image {image.docker_id}: {str(e)}"
                     )
             else:
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
                 )
         else:
-            logger.debug(f"remove_app_variant")
+            logger.debug("remove_app_variant")
             await db_manager.remove_app_variant(app_variant_db, **kwargs)
-        logger.debug(f"list_app_variants")
+        logger.debug("list_app_variants")
         app_variants = await db_manager.list_app_variants(
             app_id=app_id, show_soft_deleted=True, **kwargs
         )
         logger.debug(f"{app_variants}")
         if len(app_variants) == 0:  # this was the last variant for an app
-            logger.debug(f"remove_app_related_resources")
+            logger.debug("remove_app_related_resources")
             await remove_app_related_resources(app_id=app_id, **kwargs)
     except Exception as e:
         logger.error(
