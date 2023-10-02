@@ -34,11 +34,24 @@ const EvaluationErrorModal: React.FC<Props> = ({
     }
 
     return (
-        <Modal title="Error" open={isModalOpen} onCancel={handleCloseModal} footer={null} centered data-cy="evaluation-error-modal">
+        <Modal
+            title="Error"
+            open={isModalOpen}
+            onCancel={handleCloseModal}
+            footer={null}
+            centered
+            data-cy="evaluation-error-modal"
+        >
             <p>{message}</p>
             <div className={classes.container}>
-                <Button onClick={handleCloseModal} data-cy="evaluation-error-modal-ok-button">Ok</Button>
-                <Button type="primary" onClick={handleCTAClick} data-cy="evaluation-error-modal-nav-button">
+                <Button onClick={handleCloseModal} data-cy="evaluation-error-modal-ok-button">
+                    Ok
+                </Button>
+                <Button
+                    type="primary"
+                    onClick={handleCTAClick}
+                    data-cy="evaluation-error-modal-nav-button"
+                >
                     {btnText}
                 </Button>
             </div>

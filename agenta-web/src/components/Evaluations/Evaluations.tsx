@@ -583,7 +583,10 @@ export default function Evaluations() {
                                         marginTop: index === 0 ? 40 : 10,
                                     }}
                                 >
-                                    <div className={classes.dropdownStyles} data-cy="variants-dropdown">
+                                    <div
+                                        className={classes.dropdownStyles}
+                                        data-cy="variants-dropdown"
+                                    >
                                         {selectedVariants[index]?.variantName || "Select a variant"}
                                         <DownOutlined />
                                     </div>
@@ -612,7 +615,11 @@ export default function Evaluations() {
 
                 <Row justify="end">
                     <Col span={8} className={classes.evaluationBtn}>
-                        <Button onClick={onStartEvaluation} type="primary" data-cy="start-new-evaluation-button">
+                        <Button
+                            onClick={onStartEvaluation}
+                            type="primary"
+                            data-cy="start-new-evaluation-button"
+                        >
                             Start a new evaluation
                         </Button>
                     </Col>
