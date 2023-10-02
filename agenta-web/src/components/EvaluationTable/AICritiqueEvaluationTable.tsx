@@ -430,6 +430,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     <Col span={12}>
                         <Space>
                             <Button
+                            data-cy="ai-critic-run-evaluation"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}
