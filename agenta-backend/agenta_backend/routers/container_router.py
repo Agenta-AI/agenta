@@ -11,19 +11,13 @@ from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
 from concurrent.futures import ThreadPoolExecutor
 from agenta_backend.services.docker_utils import restart_container
-from agenta_backend.utils.common import (
-    get_app_instance,
-    check_access_to_app,
-    check_access_to_variant,
-    check_access_to_base,
-)
 from agenta_backend.models.api.api_models import (
     Image,
     RestartAppContainer,
     Template,
     URI,
 )
-from agenta_backend.services.db_manager import get_templates, get_user_object
+from agenta_backend.services.db_manager import get_templates
 from agenta_backend.services import db_manager
 from agenta_backend.services.container_manager import (
     build_image_job,
