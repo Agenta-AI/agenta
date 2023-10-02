@@ -300,8 +300,8 @@ async def remove_app(app_id: str, **kwargs: dict):
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
 
-        if len(app_variants) == 0:
-            logger.debug(f"remove_app_related_resources")
+        if len(app_variants) == 0:  # Failsafe in case something went wrong before
+            logger.debug("remove_app_related_resources")
             await remove_app_related_resources(app_id=app_id, **kwargs)
 
     except Exception as e:
