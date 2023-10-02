@@ -52,7 +52,7 @@ interface CustomCodeEvaluationTableRow {
         input_value: string
     }[]
     outputs: {
-        variant_name: string
+        variant_id: string
         variant_output: string
     }[]
     columnData0: string
@@ -283,12 +283,11 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
 
     const evaluate = async (rowNumber: number) => {
         const evaluation_scenario_id = rows[rowNumber].id
-        const appVariantNameX = variants[0].variantName
         const outputVariantX = rows[rowNumber].columnData0
 
         if (evaluation_scenario_id) {
             const data = {
-                outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+                outputs: [{variant_id: variants[0].variantId, variant_output: outputVariantX}],
                 inputs: rows[rowNumber].inputs,
                 correct_answer: correctAnswer(rows[rowNumber].inputs),
                 open_ai_key: getOpenAIKey(),
@@ -303,19 +302,17 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                     evaluation.evaluationType as EvaluationType,
                 )
 
-                if (responseData) {
-                    // Call custom code evaluation
-                    const result = await callCustomCodeHandler(
-                        variants[0].variantId,
-                        data.inputs,
-                        responseData.outputs,
-                    )
-                    if (result) {
-                        // Update the evaluation scenario with the score
-                        await updateEvaluationScenarioScore(evaluation_scenario_id, result)
-                    }
-                    setRowValue(rowNumber, "codeResult", result)
+                // Call custom code evaluation
+                const result = await callCustomCodeHandler(
+                    variants[0].variantId,
+                    data.inputs,
+                    data.outputs,
+                )
+                if (result) {
+                    // Update the evaluation scenario with the score
+                    await updateEvaluationScenarioScore(evaluation_scenario_id, result)
                 }
+                setRowValue(rowNumber, "codeResult", result)
 
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
                 setRowValue(rowNumber, "evaluation", responseData.evaluation)
@@ -382,7 +379,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                     }
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
-                            (output: any) => output.variant_name === variants[i].variantName,
+                            (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }

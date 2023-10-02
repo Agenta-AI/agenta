@@ -461,7 +461,7 @@ async def add_variant_from_base_and_config(
         raise HTTPException(status_code=500, detail="Previous app variant not found")
     logger.debug(f"Located previous variant: {previous_app_variant_db}")
     soft_deleted_app_variants = await list_app_variants_for_app_id(
-        app_id=str(previous_app_variant_db.app_id.id),
+        app_id=str(previous_app_variant_db.app.id),
         show_soft_deleted=True,
         **user_org_data,
     )

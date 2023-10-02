@@ -52,6 +52,7 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
         const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(
             appId,
             variant.variantId,
+            variant.baseId,
             true,
         )
         if (variant.parameters) {
@@ -65,7 +66,7 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
             parameters = [...initOptParams]
         }
         inputs = updateInputParams(parameters, inputParams)
-        const URIPath = `${appId}/${variant.variantId}`
+        const URIPath = `${appId}/${variant.baseId}`
         return {parameters, inputs, URIPath}
     } catch (err: any) {
         const errorResponse: any = err.response.request

@@ -50,7 +50,7 @@ def format_outputs(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
 
     formatted_dictionary = {}
     for dictionary in list_of_dictionaries:
-        formatted_dictionary[dictionary["variant_name"]] = dictionary["variant_output"]
+        formatted_dictionary[dictionary["variant_id"]] = dictionary["variant_output"]
     return formatted_dictionary
 
 
