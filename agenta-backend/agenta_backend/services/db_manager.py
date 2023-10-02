@@ -62,7 +62,6 @@ async def add_variant_based_on_image(
     """
     try:
         logger.debug("Creating app variant based on image")
-        await clean_soft_deleted_variants()
 
         if (
             app in [None, ""]
@@ -72,12 +71,10 @@ async def add_variant_based_on_image(
         ):
             raise ValueError("App variant or image is None")
 
-        soft_deleted_variants = await list_app_variants_for_app_id(
-            app_id=str(app.id), show_soft_deleted=True, **user_org_data
+        variants = await list_app_variants_for_app_id(
+            app_id=str(app.id), **user_org_data
         )
-        already_exists = any(
-            [av for av in soft_deleted_variants if av.variant_name == variant_name]
-        )
+        already_exists = any([av for av in variants if av.variant_name == variant_name])
         if already_exists:
             raise ValueError("App variant with the same name already exists")
 
@@ -326,23 +323,17 @@ async def get_organization_object(organization_id: str) -> OrganizationDB:
 
 
 async def list_app_variants_for_app_id(
-    app_id: str, show_soft_deleted=False, **kwargs: dict
+    app_id: str, **kwargs: dict
 ) -> List[AppVariantDB]:
     """
     Lists all the app variants from the db
     Args:
         app_name: if specified, only returns the variants for the app name
-        show_soft_deleted: if true, returns soft deleted variants as well
     Returns:
         List[AppVariant]: List of AppVariant objects
     """
     assert app_id is not None, "app_id cannot be None"
-    if not show_soft_deleted:
-        query_expression = (AppVariantDB.app == ObjectId(app_id)) & (
-            AppVariantDB.is_deleted is False
-        )
-    else:
-        query_expression = AppVariantDB.app == ObjectId(app_id)
+    query_expression = AppVariantDB.app == ObjectId(app_id)
     app_variants_db: List[AppVariantDB] = await engine.find(
         AppVariantDB,
         query_expression,
@@ -401,28 +392,6 @@ async def get_user_object(user_uid: str) -> UserDB:
         return user
 
 
-async def clean_soft_deleted_variants():  # TODO change to clean_soft_deleted_app_variants
-    """Remove soft-deleted app variants if their image is not used by any existing variant."""
-
-    # Get all soft-deleted app variants
-    soft_deleted_variants: List[AppVariantDB] = await engine.find(
-        AppVariantDB, AppVariantDB.is_deleted == True
-    )
-
-    for variant in soft_deleted_variants:
-        # Build the query expression for the two conditions
-        query_expression = query.eq(AppVariantDB.image, variant.image.id) & query.eq(
-            AppVariantDB.is_deleted, False
-        )
-
-        # Get non-deleted variants that use the same image
-        image_used = await engine.find_one(AppVariantDB, query_expression)
-
-        # If the image is not used by any non-deleted variant, delete the variant
-        if image_used is None:
-            await engine.delete(variant)
-
-
 async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
     """Get the image object from the database with the provided id.
 
@@ -474,7 +443,6 @@ async def add_variant_from_base_and_config(
         AppVariantDB: The newly created app variant.
     """
     new_variant_name = f"{base_db.base_name}.{new_config_name}"
-    await clean_soft_deleted_variants()
     previous_app_variant_db = await find_previous_variant_from_base_id(str(base_db.id))
     if previous_app_variant_db is None:
         logger.error("Failed to find the previous app variant in the database.")
@@ -482,7 +450,6 @@ async def add_variant_from_base_and_config(
     logger.debug(f"Located previous variant: {previous_app_variant_db}")
     app_variant_for_base = await list_app_variant_for_base(base_db)
 
-    logger.debug("soft_deleted_app_variants: %s", app_variant_for_base)
     already_exists = any(
         [av for av in app_variant_for_base if av.config_name == new_config_name]
     )
@@ -520,7 +487,6 @@ async def list_apps(
     Returns:
         List[App]
     """
-    await clean_soft_deleted_variants()
 
     user = await get_user_object(user_org_data["uid"])
     assert user is not None, "User is None"
@@ -547,14 +513,11 @@ async def list_apps(
         return [app_db_to_pydantic(app) for app in apps]
 
 
-async def list_app_variants(
-    app_id: str = None, show_soft_deleted=False, **kwargs: dict
-) -> List[AppVariantDB]:
+async def list_app_variants(app_id: str = None, **kwargs: dict) -> List[AppVariantDB]:
     """
     Lists all the app variants from the db
     Args:
         app_name: if specified, only returns the variants for the app name
-        show_soft_deleted: if true, returns soft deleted variants as well
     Returns:
         List[AppVariant]: List of AppVariant objects
     """
@@ -564,8 +527,6 @@ async def list_app_variants(
     query_filters = query.QueryExpression()
     if app_id is not None:
         query_filters = query_filters & (AppVariantDB.app == ObjectId(app_id))
-    if not show_soft_deleted:
-        query_filters = query_filters & query.eq(AppVariantDB.is_deleted, False)
     logger.debug("query_filters: %s", query_filters)
     app_variants_db: List[AppVariantDB] = await engine.find(AppVariantDB, query_filters)
 
@@ -1051,7 +1012,6 @@ async def count_apps(**user_org_data: dict) -> int:
     """
     Counts all the unique app names from the database
     """
-    await clean_soft_deleted_variants()
 
     # Get user object
     user = await get_user_object(user_org_data["uid"])
