@@ -257,12 +257,17 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             </li>
                         </ul>
                         <div className={classes.btnContainer}>
-                <Button type="primary" onClick={onWriteOwnApp} data-cy="create-new-app-button" size="large">
-                    Start
-                </Button>
-            </div>
-        </div>
-        </section>
+                            <Button
+                                type="primary"
+                                onClick={onWriteOwnApp}
+                                data-cy="create-new-app-button"
+                                size="large"
+                            >
+                                Start
+                            </Button>
+                        </div>
+                    </div>
+                </section>
             </section>
         </>
     )
