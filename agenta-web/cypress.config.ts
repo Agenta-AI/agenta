@@ -7,5 +7,6 @@ export default defineConfig({
     },
     env: {
         baseApiURL: "http://localhost/api",
+        OPENAI_API_KEY: "your_api_key_here",
     },
 })
