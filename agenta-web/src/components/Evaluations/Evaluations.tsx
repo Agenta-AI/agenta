@@ -556,7 +556,11 @@ export default function Evaluations() {
                                     </Option>
                                     {...(customCodeEvaluationList || []).map(
                                         (item: SingleCustomEvaluation) => (
-                                            <Option value={item.id} label={item.evaluation_name}>
+                                            <Option
+                                                key={item.id}
+                                                value={item.id}
+                                                label={item.evaluation_name}
+                                            >
                                                 <div className={classes.newCodeEvalList}>
                                                     <p>{item.evaluation_name}</p>
                                                     <Tooltip placement="right" title="Edit">
