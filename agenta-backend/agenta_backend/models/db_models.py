@@ -1,8 +1,9 @@
-from bson import ObjectId
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
-from odmantic import Field, Model, Reference, EmbeddedModel
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
+
+from bson import ObjectId
+from odmantic import EmbeddedModel, Field, Model, Reference
 
 
 class InvitationDB(EmbeddedModel):
@@ -89,14 +90,14 @@ class AppVariantDB(Model):
     image: ImageDB = Reference(key_name="image")
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
-    parameters: Dict[str, Any] = Field(default=dict)
-    previous_variant_name: Optional[str]
+    parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
+    previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
     base: BaseDB = Reference(key_name="bases")
     config_name: Optional[str]
     config: ConfigDB = Reference(key_name="configs")
 
-    is_deleted: bool = Field(
+    is_deleted: bool = Field(  # TODO: deprecated. remove
         default=False
     )  # soft deletion for using the template variants
 

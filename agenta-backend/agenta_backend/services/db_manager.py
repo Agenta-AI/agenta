@@ -831,7 +831,7 @@ async def remove_app_by_id(app_id: str, **kwargs):
 
 async def update_variant_parameters(
     app_variant_db: AppVariantDB, parameters: Dict[str, Any], **kwargs: dict
-):
+) -> None:
     """
     Update the parameters of an app variant in the database.
 
@@ -845,12 +845,31 @@ async def update_variant_parameters(
     """
     assert app_variant_db is not None, "app_variant is missing"
     assert parameters is not None, "parameters is missing"
+
     try:
         logging.debug("Updating variant parameters")
+
+        # Update AppVariantDB parameters
         app_variant_db.parameters = parameters
-        app_variant_db.config.parameters = parameters
+
+        # Update associated ConfigDB parameters and versioning
+        config_db = app_variant_db.config
+        new_version = config_db.current_version + 1
+        config_db.version_history.append(
+            ConfigVersionDB(
+                version=new_version,
+                parameters=config_db.parameters,
+                created_at=datetime.utcnow(),
+            )
+        )
+        config_db.current_version = new_version
+        config_db.parameters = parameters
+        # Save updated ConfigDB and AppVariantDB
+        await engine.save(config_db)
         await engine.save(app_variant_db)
+
     except Exception as e:
+        logging.error(f"Issue updating variant parameters: {e}")
         raise ValueError("Issue updating variant parameters")
 
 
