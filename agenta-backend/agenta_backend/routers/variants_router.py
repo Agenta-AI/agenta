@@ -120,7 +120,7 @@ async def remove_variant(
                 status_code=400,
             )
         else:
-            await app_manager.remove_app_variant(
+            await app_manager.terminate_and_remove_app_variant(
                 app_variant_id=variant_id, **user_org_data
             )
     except DockerException as e:
