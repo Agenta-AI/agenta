@@ -999,9 +999,9 @@ async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVarian
         return None
     # select the variant for which previous_variant_name is None
     for previous_variant in previous_variants:
-        if previous_variant.previous_variant_name is None:
-            logger.debug("previous_variant: %s", previous_variant)
-            return previous_variant
+        # if previous_variant.previous_variant_name is None:
+        #     logger.debug("previous_variant: %s", previous_variant)
+        return previous_variant  # we don't care which variant do we return
     assert False, "None of the previous variants has previous_variant_name=None"
 
 
