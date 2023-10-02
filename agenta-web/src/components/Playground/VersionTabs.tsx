@@ -90,7 +90,11 @@ const VersionTabs: React.FC = () => {
             const backendVariants = await fetchVariants(appName)
             if (backendVariants.length > 0) {
                 setVariants(backendVariants)
-                setActiveKey(backendVariants[0].variantName)
+                if (!variantName) {
+                    router.push([router.asPath, backendVariants[0].variantName].join("/"))
+                } else {
+                    setActiveKey(variantName)
+                }
             }
 
             setIsLoading(false)
@@ -105,10 +109,10 @@ const VersionTabs: React.FC = () => {
     }, [appName])
 
     useEffect(() => {
-        if (variantName) {
+        if (variantName && activeKey) {
             router.push(router.asPath?.replace(encodeURI(variantName), activeKey))
         }
-    }, [variantName, activeKey])
+    }, [activeKey])
 
     // Load environments
     const [environments, setEnvironments] = useState<Environment[]>([])
