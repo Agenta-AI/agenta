@@ -239,7 +239,7 @@ async def _stop_and_delete_app_container(
         Exception: Any exception raised during Docker operations.
     """
     try:
-        container_id = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{str(app_variant_db.organization.id)}"
+        container_id = app_variant_db.base.container_id
         docker_utils.stop_container(container_id)
         logger.info(f"Container {container_id} stopped")
         docker_utils.delete_container(container_id)
