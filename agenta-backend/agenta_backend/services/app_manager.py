@@ -2,20 +2,14 @@
 """
 import logging
 import os
-from typing import List, Optional, Dict, Any
-from bson import ObjectId
+from typing import List, Optional, Any, Dict
 
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
     URI,
-    App,
-    AppVariant,
     DockerEnvVars,
-    Environment,
     Image,
-    ImageExtended,
 )
-from agenta_backend.models.converters import app_variant_db_to_pydantic
 from agenta_backend.models.db_models import (
     AppVariantDB,
     EnvironmentDB,
