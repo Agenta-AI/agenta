@@ -1,7 +1,7 @@
 import {randString} from "../../src/lib/helpers/utils"
 
-describe("Playground - Run a simple prompt", function () {
-    context("when user tries to run prompt with apikey", function () {
+describe("Playgroynd | Simple prompt", function () {
+    context("when an api key is provided", function () {
         it("when entering an invalid case format in the app name", () => {
             cy.visit("/apps")
             cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
@@ -22,7 +22,7 @@ describe("Playground - Run a simple prompt", function () {
             cy.get('[data-cy="enter-app-name-modal-text-warning"]').should("exist")
         })
 
-        it("when an open ai key is not provided", () => {
+        it("should run the prompt and get a response from an LLM", () => {
             cy.visit("/apikeys")
             // Update your cypress.json file to include your OPENAI API KEY
             cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
@@ -79,8 +79,8 @@ describe("Playground - Run a simple prompt", function () {
         })
     })
 
-    context("when user tries to run prompt without apikey", function () {
-        it("should perform the test steps", () => {
+    context("when an api key is not provided", function () {
+        it("should raise (or return) an error", () => {
             cy.visit("/apps")
             cy.get(".ant-notification").should("not.exist")
             cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
