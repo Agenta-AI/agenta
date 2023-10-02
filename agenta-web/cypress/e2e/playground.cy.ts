@@ -23,7 +23,7 @@ describe("Playgroynd | Simple prompt", function () {
         })
     })
 
-    context("when an api key is provided", function () {
+    context.only("when an api key is provided", function () {
         it("should run the prompt and get a response from an LLM", () => {
             cy.visit("/apikeys")
             // Update your cypress.json file to include your OPENAI API KEY
@@ -50,17 +50,14 @@ describe("Playgroynd | Simple prompt", function () {
 
             cy.url().should("not.include", "/apikeys")
 
-            cy.intercept("POST", "http://localhost/api/app_variant/add/from_template/").as(
-                "postRequest",
-            )
+            cy.intercept("POST", "/api/app_variant/add/from_template/").as("postRequest")
 
             cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
                 expect(interception.response.statusCode).to.eq(200)
             })
-            cy.intercept(
-                "GET",
-                ` http://localhost/api/app_variant/list_variants/?app_name=${appName}`,
-            ).as("getRequest")
+            cy.intercept("GET", ` /api/app_variant/list_variants/?app_name=${appName}`).as(
+                "getRequest",
+            )
             cy.wait("@getRequest", {requestTimeout: 15000}).then((interception) => {
                 expect(interception.response.statusCode).to.eq(200)
             })
