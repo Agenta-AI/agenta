@@ -6,6 +6,7 @@ class AppVariant(BaseModel):
     app_id: str
     app_name: str
     variant_name: str
+    variant_id: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
 
