@@ -56,7 +56,12 @@ describe("AI Critics Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.url().should("include", "/auto_ai_critique")
+            cy.wait(1000)
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
+            cy.intercept("POST", "http://localhost/65144f7b461438d1bef09f50/0QYa9/v1/generate").as("postRequest")
+            cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
+                expect(interception.response.statusCode).to.eq(200)
+            })
         })
     })
 })
