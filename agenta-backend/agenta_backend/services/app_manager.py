@@ -176,37 +176,35 @@ async def terminate_and_remove_app_variant(
         is_last_variant_for_image = await db_manager.check_is_last_variant_for_image(
             app_variant_db
         )
-        logger.debug(f"Result {is_last_variant_for_image}")
         if is_last_variant_for_image:
+            # remove variant + terminate and rm containers + remove base
             image = app_variant_db.base.image
-
+            docker_id = str(image.docker_id)
             if image:
-                # TODO: This needs to change to use a db schema to save the container name
                 logger.debug("_stop_and_delete_app_container")
                 await _stop_and_delete_app_container(app_variant_db, **kwargs)
-                await db_manager.update_base(
-                    app_variant_db.base,
-                    status="inactive",
-                )
-                logger.debug("remove_app_variant_from_db")
+                logger.debug("remove base")
                 await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
                 logger.debug("Remove image object from db")
                 await db_manager.remove_image(image, **kwargs)
+                await db_manager.remove_base_from_db(app_variant_db.base, **kwargs)
+                logger.debug("remove_app_variant_from_db")
 
                 # Only delete the docker image for users that are running the oss version
                 try:
                     if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
                         logger.debug("Remove image from docker registry")
-                        docker_utils.delete_image(image.docker_id)
+                        docker_utils.delete_image(docker_id)
                 except RuntimeError as e:
                     logger.error(
-                        f"Ignoring error while deleting Docker image {image.docker_id}: {str(e)}"
+                        f"Ignoring error while deleting Docker image {docker_id}: {str(e)}"
                     )
             else:
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
                 )
         else:
+            # remove variant + config
             logger.debug("remove_app_variant_from_db")
             await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
         logger.debug("list_app_variants")

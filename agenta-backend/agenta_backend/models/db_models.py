@@ -101,9 +101,9 @@ class EnvironmentDB(Model):
     name: str
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
-    deployed_app_variant_ref: Optional[ObjectId]
-    deployed_base_ref: Optional[ObjectId]
-    deployed_config_ref: Optional[ObjectId]
+    deployed_app_variant: Optional[ObjectId]
+    deployed_base: Optional[ObjectId]
+    deployed_config: Optional[ObjectId]
 
     class Config:
         collection = "environments"
