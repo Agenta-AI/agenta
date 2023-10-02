@@ -112,11 +112,15 @@ export async function callVariant(
     }
 
     let splittedURIPath = URIPath.split("/")
-    const appContainerURIPath = await getAppContainerURL(splittedURIPath[0], splittedURIPath[1])
+    const appContainerURIPath = await getAppContainerURL(
+        splittedURIPath[0],
+        undefined,
+        splittedURIPath[1],
+    )
 
     return axios
         .post(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${appContainerURIPath}/generate`,
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}${appContainerURIPath}/generate`,
             requestBody,
         )
         .then((res) => {
@@ -132,10 +136,11 @@ export async function callVariant(
  */
 export const getVariantParametersFromOpenAPI = async (
     appId: string,
-    variantId: string,
+    variantId?: string,
+    baseId?: string,
     ignoreAxiosError: boolean = false,
 ) => {
-    const appContainerURIPath = await getAppContainerURL(appId, variantId)
+    const appContainerURIPath = await getAppContainerURL(appId, variantId, baseId)
     const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}${appContainerURIPath}/openapi.json`
     const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
     let APIParams = parseOpenApiSchema(response.data)
@@ -173,15 +178,20 @@ const urlCache: Cache = {}
  * @returns {Promise<string>} - Returns the URL path or an empty string
  * @throws {Error} - Throws an error if the request fails
  */
-export const getAppContainerURL = async (appId: string, variantId: string): Promise<string> => {
+export const getAppContainerURL = async (
+    appId: string,
+    variantId?: string,
+    baseId?: string,
+): Promise<string> => {
     try {
         // Null-check for the environment variable
         if (!process.env.NEXT_PUBLIC_AGENTA_API_URL) {
             throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
         }
 
-        const queryParam = `?variant_id=${variantId}`
-        const cacheKey = `${appId}_${variantId}`
+        let cacheKey = appId
+        if (variantId) cacheKey += `_${variantId}`
+        if (baseId) cacheKey += `_${baseId}`
 
         // Check if the URL is already cached
         if (urlCache[cacheKey]) {
@@ -189,8 +199,8 @@ export const getAppContainerURL = async (appId: string, variantId: string): Prom
         }
 
         // Retrieve container URL from backend
-        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/container_url/${queryParam}`
-        const response = await axios.get(url)
+        const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/container_url/`
+        const response = await axios.get(url, {params: {variant_id: variantId, base_id: baseId}})
         if (response.status === 200 && response.data && response.data.uri) {
             // Cache the URL before returning
             urlCache[cacheKey] = response.data.uri
@@ -582,7 +592,12 @@ export const waitForAppToStart = async (
             let started = false
             while (!started) {
                 try {
-                    await getVariantParametersFromOpenAPI(appId, variant[0].variantId, true)
+                    await getVariantParametersFromOpenAPI(
+                        appId,
+                        variant[0].variantId,
+                        variant[0].baseId,
+                        true,
+                    )
                     started = true
                 } catch {}
                 await delay(interval)

@@ -388,6 +388,7 @@ async def update_evaluation_scenario(
         EvaluationType.auto_similarity_match,
         EvaluationType.auto_regex_test,
         EvaluationType.auto_webhook_test,
+        EvaluationType.auto_ai_critique,
     ]:
         new_eval_set["score"] = updated_data["score"]
     elif evaluation_type == EvaluationType.human_a_b_testing:
@@ -524,14 +525,12 @@ def _extend_with_evaluation(evaluation_type: EvaluationType):
         or evaluation_type == EvaluationType.auto_similarity_match
         or evaluation_type == EvaluationType.auto_regex_test
         or evaluation_type == EvaluationType.auto_webhook_test
+        or EvaluationType.auto_ai_critique
     ):
         evaluation["score"] = ""
 
     if evaluation_type == EvaluationType.human_a_b_testing:
         evaluation["vote"] = ""
-
-    if evaluation_type == EvaluationType.auto_ai_critique:
-        evaluation["evaluation"] = ""
     return evaluation
 
 
@@ -638,7 +637,7 @@ async def create_custom_code_evaluation(
     app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
     custom_eval = CustomEvaluationDB(
         evaluation_name=payload.evaluation_name,
-        user=app.user_id,
+        user=app.user,
         organization=app.organization,
         app=app,
         python_code=payload.python_code,

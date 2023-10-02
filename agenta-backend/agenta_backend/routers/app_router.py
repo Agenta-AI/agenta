@@ -4,7 +4,7 @@ from docker.errors import DockerException
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi.responses import JSONResponse
 from agenta_backend.config import settings
-from typing import Any, List, Optional, Union
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
@@ -14,26 +14,15 @@ from agenta_backend.services import (
 )
 from agenta_backend.utils.common import (
     check_access_to_app,
-    get_app_instance,
     check_user_org_access,
-    check_access_to_variant,
 )
 from agenta_backend.models.api.api_models import (
-    URI,
     App,
-    RemoveApp,
-    AppOutput,
     CreateApp,
     CreateAppOutput,
-    AppVariant,
-    Image,
-    DockerEnvVars,
     CreateAppVariant,
-    AddVariantFromPreviousPayload,
     AppVariantOutput,
-    UpdateVariantParameterPayload,
     AddVariantFromImagePayload,
-    AddVariantFromBasePayload,
     EnvironmentOutput,
 )
 from agenta_backend.models import converters

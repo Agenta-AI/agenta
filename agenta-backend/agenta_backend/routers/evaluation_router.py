@@ -393,7 +393,7 @@ async def fetch_results(
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
-        results = await results_service.fetch_results_for_auto_webhook_test(
+        results = await results_service.fetch_results_for_auto_ai_critique(
             evaluation_id
         )
         return {"results_data": results}

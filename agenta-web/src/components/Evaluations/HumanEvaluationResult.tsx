@@ -112,11 +112,14 @@ export default function HumanEvaluationResult() {
                                             return {
                                                 key: item.id,
                                                 createdAt: formatDate(item.created_at),
-                                                variants: item.variants,
+                                                variants: item.variant_ids,
                                                 votesData: results.votes_data,
                                                 evaluationType: item.evaluation_type,
                                                 status: item.status,
-                                                testset: item.testset,
+                                                testset: {
+                                                    _id: item.testset_id,
+                                                    name: item.testset_name,
+                                                },
                                             }
                                         }
                                     }
@@ -191,7 +194,7 @@ export default function HumanEvaluationResult() {
             key: "v1Better",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 let variant = record.votesData.variants[0]
-                let percentage = record.votesData.variants_votes_data[variant].percentage
+                let percentage = record.votesData.variants_votes_data[variant]?.percentage
 
                 return (
                     <span>
@@ -211,7 +214,7 @@ export default function HumanEvaluationResult() {
             key: "v2Better",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 let variant = record.votesData.variants[1]
-                let percentage = record.votesData.variants_votes_data[variant].percentage
+                let percentage = record.votesData.variants_votes_data[variant]?.percentage
 
                 return (
                     <span>
@@ -279,9 +282,11 @@ export default function HumanEvaluationResult() {
         const evaluationsIds = selectedRowKeys.map((key) => key.toString())
         setDeletingLoading(true)
         try {
-            const deletedIds = await deleteEvaluations(evaluationsIds)
+            await deleteEvaluations(evaluationsIds)
             setEvaluationsList((prevEvaluationsList) =>
-                prevEvaluationsList.filter((evaluation) => !deletedIds.includes(evaluation.key)),
+                prevEvaluationsList.filter(
+                    (evaluation) => !evaluationsIds.includes(evaluation.key),
+                ),
             )
 
             setSelectedRowKeys([])

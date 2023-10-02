@@ -278,10 +278,10 @@ async def update_testset(
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
     access_app = await check_access_to_app(
-        user_org_data=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
+        user_org_data=user_org_data, app_id=str(test_set.app.id), check_owner=False
     )
     if not access_app:
-        error_msg = f"You do not have access to this app: {test_set.app_id.id}"
+        error_msg = f"You do not have access to this app: {test_set.app.id}"
         return JSONResponse(
             {"detail": error_msg},
             status_code=400,
@@ -362,7 +362,7 @@ async def get_testset(
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
     access_app = await check_access_to_app(
-        user_org_data=user_org_data, app_id=str(test_set.app_id.id), check_owner=False
+        user_org_data=user_org_data, app_id=str(test_set.app.id), check_owner=False
     )
     if not access_app:
         error_msg = f"You do not have access to this test set"
@@ -397,7 +397,7 @@ async def delete_testsets(
             raise HTTPException(status_code=404, detail="testset not found")
         access_app = await check_access_to_app(
             user_org_data=user_org_data,
-            app_id=str(test_set.app_id.id),
+            app_id=str(test_set.app.id),
             check_owner=False,
         )
         if not access_app:

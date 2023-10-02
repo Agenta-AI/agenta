@@ -8,13 +8,7 @@ import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {DeleteOutlined} from "@ant-design/icons"
 import {deleteTestsets, useLoadTestsetsList} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
-import {useUpdateEffect} from "usehooks-ts"
-
-type testsetTableDatatype = {
-    key: string
-    created_at: string
-    name: string
-}
+import {testset} from "@/lib/Types"
 
 const useStyles = createUseStyles({
     container: {
@@ -46,16 +40,11 @@ export default function Testsets() {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
-    const [loading, setLoading] = useState<boolean>(true)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
 
-    useUpdateEffect(() => {
-        setLoading(isTestsetsLoading)
-    }, [isTestsetsLoading])
-
-    const columns: ColumnsType<testsetTableDatatype> = [
+    const columns: ColumnsType<testset> = [
         {
             title: "Name",
             dataIndex: "name",
@@ -81,15 +70,11 @@ export default function Testsets() {
 
     const onDelete = async () => {
         const testsetsIds = selectedRowKeys.map((key) => key.toString())
-        setLoading(true)
         try {
             await deleteTestsets(testsetsIds)
             mutate()
             setSelectedRowKeys([])
-        } catch {
-        } finally {
-            setLoading(false)
-        }
+        } catch {}
     }
 
     return (
@@ -144,26 +129,22 @@ export default function Testsets() {
             </div>
 
             <div>
-                {loading ? (
-                    <Spin />
-                ) : (
-                    <Table
-                        data-cy="app-testset-list"
-                        rowSelection={{
-                            type: "checkbox",
-                            ...rowSelection,
-                        }}
-                        columns={columns}
-                        dataSource={testsets}
-                        rowKey="_id"
-                        loading={loading}
-                        onRow={(record) => {
-                            return {
-                                onClick: () => router.push(`/apps/${appId}/testsets/${record.key}`),
-                            }
-                        }}
-                    />
-                )}
+                <Table
+                    data-cy="app-testset-list"
+                    rowSelection={{
+                        type: "checkbox",
+                        ...rowSelection,
+                    }}
+                    columns={columns}
+                    dataSource={testsets}
+                    rowKey="_id"
+                    loading={isTestsetsLoading}
+                    onRow={(record) => {
+                        return {
+                            onClick: () => router.push(`/apps/${appId}/testsets/${record._id}`),
+                        }
+                    }}
+                />
             </div>
         </div>
     )
