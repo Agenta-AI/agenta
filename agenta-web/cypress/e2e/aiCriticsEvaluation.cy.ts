@@ -12,7 +12,7 @@ describe("AI Critics Evaluation workflow", () => {
     })
 
     context("when selecting evaluation without apikey", () => {
-        it("select", () => {
+        it("should ok button", () => {
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.get('[data-cy="ai-critic-button"]').click()
             cy.get('[data-cy="variants-dropdown"]').eq(0).click()
@@ -21,6 +21,21 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get("li.ant-dropdown-menu-item").eq(0).click()
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get('[data-cy="evaluation-error-modal"]').should("exist")
+            
+            cy.get('[data-cy="evaluation-error-modal-ok-button"]').click()
+        })
+
+        it("should nav button", () => {
+            cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
+            cy.get('[data-cy="ai-critic-button"]').click()
+            cy.get('[data-cy="variants-dropdown"]').eq(0).click()
+            cy.get("li.ant-dropdown-menu-item").eq(0).click()
+            cy.get('[data-cy="selected-testset"]').click()
+            cy.get("li.ant-dropdown-menu-item").eq(0).click()
+            cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
+            cy.get('[data-cy="evaluation-error-modal"]').should("exist")
+            cy.get('[data-cy="evaluation-error-modal-nav-button"]').click()
+            cy.url().should("include", "/apikeys")
         })
     })
     
