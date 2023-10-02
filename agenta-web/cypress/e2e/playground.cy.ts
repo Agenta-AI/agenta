@@ -82,7 +82,7 @@ describe("Playgroynd | Simple prompt", function () {
     })
 
     context("when an api key is not provided", function () {
-        it("should raise (or return) an error", () => {
+        it("should display error notification", () => {
             cy.visit("/apps")
             cy.get(".ant-notification").should("not.exist")
             cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
