@@ -528,7 +528,7 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_ai_critique}
                                 className={classes.radioBtn}
                             >
-                                <div className={classes.evaluationType}>
+                                <div className={classes.evaluationType} data-cy="ai-critic-button">
                                     <Image src={ai} alt="AI" className={classes.evaluationImg} />
 
                                     <span>
@@ -583,7 +583,7 @@ export default function Evaluations() {
                                         marginTop: index === 0 ? 40 : 10,
                                     }}
                                 >
-                                    <div className={classes.dropdownStyles}>
+                                    <div className={classes.dropdownStyles} data-cy="variants-dropdown">
                                         {selectedVariants[index]?.variantName || "Select a variant"}
                                         <DownOutlined />
                                     </div>
@@ -599,7 +599,7 @@ export default function Evaluations() {
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
                             <Button className={classes.dropdownBtn}>
-                                <div className={classes.dropdownStyles}>
+                                <div className={classes.dropdownStyles} data-cy="selected-testset">
                                     {selectedTestset.name}
 
                                     <DownOutlined />
@@ -612,7 +612,7 @@ export default function Evaluations() {
 
                 <Row justify="end">
                     <Col span={8} className={classes.evaluationBtn}>
-                        <Button onClick={onStartEvaluation} type="primary">
+                        <Button onClick={onStartEvaluation} type="primary" data-cy="start-new-evaluation-button">
                             Start a new evaluation
                         </Button>
                     </Col>
