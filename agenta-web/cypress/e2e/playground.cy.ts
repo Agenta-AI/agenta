@@ -23,7 +23,7 @@ describe("Playgroynd | Simple prompt", function () {
         })
     })
 
-    context.only("when an api key is provided", function () {
+    context("when an api key is provided", function () {
         it("should run the prompt and get a response from an LLM", () => {
             cy.visit("/apikeys")
             // Update your cypress.json file to include your OPENAI API KEY
@@ -69,7 +69,7 @@ describe("Playgroynd | Simple prompt", function () {
 
             cy.request({
                 method: "GET",
-                url: `http://localhost/api/containers/container_url/?app_name=${appName}&variant_name=v1`,
+                url: `${Cypress.env().baseApiURL}/containers/container_url/?app_name=${appName}&variant_name=v1`,
             }).then((response) => {
                 cy.request({
                     method: "POST",
