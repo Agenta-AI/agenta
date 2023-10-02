@@ -41,7 +41,7 @@ interface SimilarityMatchEvaluationTableRow {
         input_value: string
     }[]
     outputs: {
-        variant_name: string
+        variant_id: string
         variant_output: string
     }[]
     columnData0: string
@@ -230,9 +230,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         evaluationScenarioId,
                         {
                             score: isSimilar,
-                            outputs: [
-                                {variant_name: variants[0].variantName, variant_output: result},
-                            ],
+                            outputs: [{variant_id: variants[0].variantId, variant_output: result}],
                         },
                         evaluation.evaluationType,
                     )
@@ -286,7 +284,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
-                            (output: any) => output.variant_name === variants[i].variantName,
+                            (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }

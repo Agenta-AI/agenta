@@ -115,7 +115,7 @@ export interface Parameter {
 
 export interface EvaluationResponseType {
     id: string
-    variants: string[]
+    variant_ids: string[]
     votes_data: {
         variants_votes_data: {
             number_of_votes: number
@@ -134,10 +134,8 @@ export interface EvaluationResponseType {
         custom_code_evaluation_id?: string
         llm_app_prompt_template?: string
     }
-    testset: {
-        _id: string
-        name: string
-    }
+    testset_name: string
+    testset_id: string
     created_at: string
 }
 

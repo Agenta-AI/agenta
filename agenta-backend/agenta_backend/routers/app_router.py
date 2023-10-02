@@ -11,7 +11,10 @@ from agenta_backend.services import (
     docker_utils,
     db_manager,
 )
-from agenta_backend.utils.common import check_user_org_access, check_access_to_app
+from agenta_backend.utils.common import (
+    check_access_to_app,
+    check_user_org_access,
+)
 from agenta_backend.models.api.api_models import (
     App,
     CreateApp,
