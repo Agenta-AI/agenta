@@ -72,13 +72,13 @@ async def upload_file(
             {"detail": error_msg},
             status_code=400,
         )
-    app_ref = await db_manager.fetch_app_by_id(app_id=app_id)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
     # Create a document
     document = {
         "created_at": datetime.now().isoformat(),
         "name": testset_name if testset_name else file.filename,
-        "app": app_ref,
-        "organization": app_ref.organization,
+        "app": app,
+        "organization": app.organization,
         "csvdata": [],
     }
 
@@ -145,7 +145,7 @@ async def import_testset(
             {"detail": error_msg},
             status_code=400,
         )
-    app_ref = await db_manager.fetch_app_by_id(app_id=app_id)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     try:
         response = requests.get(endpoint, timeout=10)
@@ -159,8 +159,8 @@ async def import_testset(
         document = {
             "created_at": datetime.now().isoformat(),
             "name": testset_name,
-            "app": app_ref,
-            "organization": app_ref.organization,
+            "app": app,
+            "organization": app.organization,
             "csvdata": [],
         }
 
@@ -224,12 +224,12 @@ async def create_testset(
             {"detail": error_msg},
             status_code=400,
         )
-    app_ref = await db_manager.fetch_app_by_id(app_id=app_id)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
     testset = {
         "created_at": datetime.now().isoformat(),
         "name": csvdata.name,
-        "app": app_ref,
-        "organization": app_ref.organization,
+        "app": app,
+        "organization": app.organization,
         "csvdata": csvdata.csvdata,
         "user": user,
     }
@@ -325,9 +325,9 @@ async def get_testsets(
             {"detail": error_msg},
             status_code=400,
         )
-    app_ref = await db_manager.fetch_app_by_id(app_id=app_id)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
-    if app_ref is None:
+    if app is None:
         raise HTTPException(status_code=404, detail="App not found")
 
     testsets: List[TestSetDB] = await db_manager.fetch_testsets_by_app_id(app_id=app_id)
