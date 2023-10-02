@@ -256,14 +256,13 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                                 <CheckCircleFilled /> Deploy in one click
                             </li>
                         </ul>
-
                         <div className={classes.btnContainer}>
-                            <Button size="large" type="primary" onClick={onWriteOwnApp}>
-                                Start
-                            </Button>
-                        </div>
-                    </div>
-                </section>
+                <Button type="primary" onClick={onWriteOwnApp} data-cy="create-new-app-button" size="large">
+                    Start
+                </Button>
+            </div>
+        </div>
+        </section>
             </section>
         </>
     )
