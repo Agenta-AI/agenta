@@ -10,7 +10,6 @@ from agenta_backend.services import (
 )
 from agenta_backend.utils.common import (
     check_access_to_variant,
-    check_access_to_base,
 )
 from agenta_backend.models import converters
 
