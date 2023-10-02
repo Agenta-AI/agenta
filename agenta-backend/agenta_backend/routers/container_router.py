@@ -61,21 +61,18 @@ async def build_image(
     tar_file: UploadFile,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Image:
-    """Takes a tar file and builds a docker image from it
+    """
+    Builds a Docker image from a tar file containing the application code.
 
-    Arguments:
-        app_id -- The ID of the app
-        app_name -- The `app_name` parameter is a string that represents the name of \
-            the application for which the docker image is being built
-        base_name -- The `base_name` parameter is a string that represents the \
-            name or type of the variant for which the docker image is being built.
-        tar_file -- The `tar_file` parameter is of type `UploadFile`. It represents the \
-            uploaded tar file that will be used to build the Docker image
+    Args:
+        app_id (str): The ID of the application to build the image for.
+        base_name (str): The base name of the image to build.
+        tar_file (UploadFile): The tar file containing the application code.
+        stoken_session (SessionContainer): The session container for the user making the request.
 
     Returns:
-        an object of type `Image`.
+        Image: The Docker image that was built.
     """
-
     # Get user and org id
     user_org_data: dict = await get_user_and_org_id(stoken_session)
 
@@ -149,10 +146,14 @@ async def restart_docker_container(
 async def container_templates(
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Union[List[Template], str]:
-    """Returns a list of container templates.
+    """
+    Returns a list of templates available for creating new containers.
+
+    Parameters:
+    stoken_session (SessionContainer): The session container for the user.
 
     Returns:
-        a list of `Template` objects.
+    Union[List[Template], str]: A list of templates or an error message.
     """
     templates = await get_templates()
     return templates
@@ -163,14 +164,15 @@ async def pull_image(
     image_name: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> dict:
-    """Pulls an image from Docker Hub using the provided configuration
+    """
+    Pulls a Docker image from Docker Hub with the provided configuration.
 
-    Arguments:
-        image_name -- The name of the image to be pulled
+    Args:
+        image_name (str): The name of the Docker image to pull.
+        stoken_session (SessionContainer, optional): The session container to use for authentication. Defaults to Depends(verify_session()).
 
     Returns:
-        -- a JSON response with the image tag name and image ID
-        -- a JSON response with the pull_image exception error
+        dict: A JSON response containing the image tag and ID.
     """
     # Get docker hub config
     repo_owner = settings.docker_hub_repo_owner
@@ -200,18 +202,20 @@ async def construct_app_container_url(
     variant_id: Optional[str] = None,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
-    """Construct and return the app container url path.
+    """
+    Constructs the URL for an app container based on the provided base_id or variant_id.
 
-    Arguments:
-        app_name -- The name of app to construct the container url path
-        variant_name -- The  variant name of the app to construct the container url path
-        stoken_session (SessionContainer) -- the user session.
+    Args:
+        base_id (Optional[str]): The ID of the base to use for the app container.
+        variant_id (Optional[str]): The ID of the variant to use for the app container.
+        stoken_session (SessionContainer): The session container for the user.
 
     Returns:
-        URI -- the url path of the container
-    """
+        URI: The URI for the app container.
 
-    # Get user and org id
+    Raises:
+        HTTPException: If the base or variant cannot be found or the user does not have access.
+    """
     user_org_data: dict = await get_user_and_org_id(stoken_session)
     if base_id:
         base_db = await db_manager.fetch_base_and_check_access(
