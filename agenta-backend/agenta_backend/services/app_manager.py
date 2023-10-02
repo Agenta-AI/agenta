@@ -197,8 +197,13 @@ async def remove_app_variant(
                 await db_manager.remove_image(image, **kwargs)
 
                 # Only delete the docker image for users that are running the oss version
-                if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
-                    docker_utils.delete_image(image.docker_id)
+                try:
+                    if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+                        docker_utils.delete_image(image.docker_id)
+                except Exception as e:
+                    logger.error(
+                        f"Ignoring error while deleting Docker image: {str(e)}"
+                    )
             else:
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
@@ -234,7 +239,7 @@ async def _stop_and_delete_app_container(
         Exception: Any exception raised during Docker operations.
     """
     try:
-        container_id = f"{app_variant_db.app.app_name}-{app_variant_db.variant_name}-{str(app_variant_db.organization.id)}"
+        container_id = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{str(app_variant_db.organization.id)}"
         docker_utils.stop_container(container_id)
         logger.info(f"Container {container_id} stopped")
         docker_utils.delete_container(container_id)
@@ -289,13 +294,15 @@ async def remove_app(app_id: str, **kwargs: dict):
         raise ValueError(error_msg)
     try:
         app_variants = await db_manager.list_app_variants(app_id=app_id, **kwargs)
-        if len(app_variants) == 0:
-            raise ValueError(f"Failed to delete app {app_id}: No variants found in DB.")
         for app_variant_db in app_variants:
             await remove_app_variant(app_variant_db=app_variant_db, **kwargs)
             logger.info(
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
+
+        if len(app_variants) == 0:
+            logger.debug(f"remove_app_related_resources")
+            await remove_app_related_resources(app_id=app_id, **kwargs)
 
     except Exception as e:
         logger.error(
