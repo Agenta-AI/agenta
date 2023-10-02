@@ -34,7 +34,7 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 if os.environ["FEATURE_FLAG"] == "cloud":
-    from agenta_backend.ee.services.cloud.aws import cloud_manager
+    from agenta_backend.ee.services.cloud import cloud_manager
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -420,6 +420,7 @@ async def add_app_variant_from_template(
 
     # Create an AppVariant with the provided app name
     app_variant: AppVariant = AppVariant(app_name=payload.app_name, variant_name="v1")
+    print("App Variant: " + str(app_variant))
 
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] == "demo":
@@ -450,7 +451,7 @@ async def add_app_variant_from_template(
 
     # Start variant
     if os.environ["FEATURE_FLAG"] == "cloud":
-        await cloud_manager.start_cloud_variant(app_variant, envvars, **kwargs)
+        await cloud_manager.start_variant(app_variant, envvars, **kwargs)
     else:
         await app_manager.start_variant(app_variant, envvars, **kwargs)
 
