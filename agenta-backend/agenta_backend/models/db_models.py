@@ -67,7 +67,7 @@ class BaseDB(Model):
         collection = "bases"
 
 
-class ConfigVersion(EmbeddedModel):
+class ConfigVersionDB(EmbeddedModel):
     version: int
     parameters: Dict[str, Any]
     created_at: datetime
@@ -77,7 +77,7 @@ class ConfigDB(Model):
     config_name: str
     current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
-    version_history: List[ConfigVersion] = Field(default=[])
+    version_history: List[ConfigVersionDB] = Field(default=[])
 
     class Config:
         collection = "configs"
