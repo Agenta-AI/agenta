@@ -59,7 +59,7 @@ async def lifespan(application: FastAPI, cache=True):
             if str(tag["name"]).startswith(temp_info_key):
                 await add_template(
                     **{
-                        "template_id": tag["id"],
+                        "dockerhub_tag_id": tag["id"],
                         "name": tag["name"],
                         "size": tag["images"][0]["size"],
                         "architecture": tag["images"][0]["architecture"],

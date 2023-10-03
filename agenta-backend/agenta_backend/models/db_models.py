@@ -119,7 +119,7 @@ class EnvironmentDB(Model):
 
 
 class TemplateDB(Model):
-    template_id: int
+    dockerhub_tag_id: int
     name: str
     repo_name: str
     architecture: str
