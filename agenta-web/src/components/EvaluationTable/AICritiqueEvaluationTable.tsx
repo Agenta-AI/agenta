@@ -430,7 +430,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     <Col span={12}>
                         <Space>
                             <Button
-                            data-cy="ai-critic-run-evaluation"
+                                data-cy="ai-critic-run-evaluation"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}
@@ -448,7 +448,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     </Col>
                 </Row>
             </div>
-            <div className={classes.evaluationResult}>
+            <div className={classes.evaluationResult} data-cy="ai-critic-evaluation-result">
                 <center>
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
                         <div>Run evaluation to see results!</div>
