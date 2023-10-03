@@ -14,7 +14,6 @@ import {
     ExecuteCustomEvalCode,
     ListAppsItem,
     AICritiqueCreate,
-    UserOwnOrg,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
@@ -524,7 +523,7 @@ export const updateEvaluationScenarioScore = async (
 
 export const useApps = () => {
     const {selectedOrg} = useProfileData()
-    const {data, error, isLoading} = useSWR(
+    const {data, error, isLoading, mutate} = useSWR(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/?org_id=${selectedOrg?.id}`,
         selectedOrg?.id ? fetcher : () => {}, //doon't fetch if org is not selected
     )
@@ -532,7 +531,8 @@ export const useApps = () => {
     return {
         data: (data || []) as ListAppsItem[],
         error,
-        isLoading,
+        isLoading: selectedOrg?.id ? isLoading : true,
+        mutate,
     }
 }
 

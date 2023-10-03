@@ -3,12 +3,12 @@ import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject, UserOwnOrg} from "@/lib/Types"
+import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {isAppNameInputValid} from "@/lib/helpers/utils"
+import {isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {createAndStartTemplate, getTemplates} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
@@ -16,10 +16,8 @@ import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
-import {useAppContext} from "@/contexts/app.context"
+import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
-
-const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -105,6 +103,7 @@ const AppSelector: React.FC = () => {
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
     const {selectedOrg} = useProfileData()
+    const {apps, error, isLoading, mutate} = useAppsData()
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
@@ -148,6 +147,7 @@ const AppSelector: React.FC = () => {
     }
 
     useEffect(() => {
+        if (!isLoading) mutate()
         const fetchTemplates = async () => {
             const data = await getTemplates()
             if (typeof data == "object") {
@@ -173,7 +173,7 @@ const AppSelector: React.FC = () => {
 
         // warn the user and redirect if openAI key is not present
         const openAIKey = localStorage.getItem("openAiToken")
-        if (!openAIKey && !isDemo) {
+        if (!openAIKey && !isDemo()) {
             notification.error({
                 message: "OpenAI API Key Missing",
                 description: "Please provide your OpenAI API key to access this feature.",
@@ -196,7 +196,7 @@ const AppSelector: React.FC = () => {
             appName: newApp,
             imageName: image_name,
             orgId: selectedOrg?.id!,
-            openAIKey: isDemo ? "" : (openAIKey as string),
+            openAIKey: isDemo() ? "" : (openAIKey as string),
             onStatusChange: (status, details, appId) => {
                 const title = "Template Selection"
                 switch (status) {
@@ -279,8 +279,6 @@ const AppSelector: React.FC = () => {
         })
     }
 
-    const {apps, error, isLoading} = useAppContext()
-
     useEffect(() => {
         setTimeout(() => {
             if (apps) {
@@ -321,7 +319,7 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo && apps.length > 1) {
+                                            if (isDemo() && apps.length > 1) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()

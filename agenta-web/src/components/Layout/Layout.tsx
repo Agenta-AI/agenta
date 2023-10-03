@@ -11,7 +11,7 @@ import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
 import {fetchData} from "@/lib/services/api"
-import {useAppContext} from "@/contexts/app.context"
+import {useAppsData} from "@/contexts/app.context"
 import {useRouter} from "next/router"
 import Image from "next/image"
 import moonIcon from "@/media/night.png"
@@ -103,7 +103,7 @@ type LayoutProps = {
 
 const App: React.FC<LayoutProps> = ({children}) => {
     const {appTheme, toggleAppTheme} = useAppTheme()
-    const {currentApp} = useAppContext()
+    const {currentApp} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
