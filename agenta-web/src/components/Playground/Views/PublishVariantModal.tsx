@@ -100,7 +100,7 @@ const PublishVariantModal: React.FC<Props> = ({
                 checked={selectedEnvs.includes(env.name)}
                 onChange={handleChange}
             >
-                {env.name} (already published in <Text strong>{env.deployed_app_variant_id}</Text>{" "}
+                {env.name} (already published in <Text strong>{env.deployed_variant_name}</Text>{" "}
                 environment)
             </Checkbox>
         )

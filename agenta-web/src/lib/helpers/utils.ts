@@ -1,3 +1,4 @@
+import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 
 const openAItoken = "openAiToken"
@@ -125,4 +126,18 @@ export const getInitials = (str: string, limit = 2) => {
     }
 
     return initialText
+}
+
+export const isDemo = () => {
+    if (process.env.NEXT_PUBLIC_FF) {
+        return process.env.NEXT_PUBLIC_FF === "demo"
+    }
+    return false
+}
+
+export const dynamicComponent = (path: string, fallback: any = () => null) => {
+    return dynamic(() => import(`@/components/${path}`), {
+        loading: fallback,
+        ssr: false,
+    })
 }
