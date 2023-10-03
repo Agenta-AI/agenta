@@ -3,7 +3,7 @@ import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject, ListAppsItem, UserOwnOrg} from "@/lib/Types"
+import {Template, GenericObject, UserOwnOrg} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
@@ -16,12 +16,9 @@ import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
+import {useAppContext} from "@/contexts/app.context"
 
 const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
-
-// conditionally import the useApps hook based on the demo flag
-let useApps: any = () => ({isLoading: true})
-import(`@/lib/services/api${isDemo ? "_ee" : ""}`).then((module) => (useApps = module.useApps))
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -292,15 +289,15 @@ const AppSelector: React.FC = () => {
         })
     }
 
-    const {data, error, isLoading}: {data: ListAppsItem[]; error: any; isLoading: boolean} =
-        useApps()
+    const {apps, error, isLoading} = useAppContext()
+
     useEffect(() => {
         setTimeout(() => {
-            if (data) {
-                setAppNameExist(data.some((app: GenericObject) => app.app_name === newApp))
+            if (apps) {
+                setAppNameExist(apps.some((app: GenericObject) => app.app_name === newApp))
             }
         }, 3000)
-    }, [data, newApp])
+    }, [apps, newApp])
 
     return (
         <ConfigProvider
@@ -319,14 +316,14 @@ const AppSelector: React.FC = () => {
                         <CloseCircleFilled className={classes.closeIcon} />
                         <h1>failed to load</h1>
                     </div>
-                ) : Array.isArray(data) && data.length ? (
+                ) : Array.isArray(apps) && apps.length ? (
                     <>
                         <h1 className={classes.h1}>LLM Applications</h1>
                         <Divider className={classes.divider} />
                         <div className={classes.cardsList}>
-                            {Array.isArray(data) && (
+                            {Array.isArray(apps) && (
                                 <>
-                                    {data.map((app, index: number) => (
+                                    {apps.map((app, index: number) => (
                                         <div key={index}>
                                             <AppCard app={app} />
                                         </div>
@@ -334,7 +331,7 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo && data.length > 1) {
+                                            if (isDemo && apps.length > 1) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()
