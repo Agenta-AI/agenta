@@ -129,10 +129,13 @@ async def restart_docker_container(
         app_variant_id=payload.variant_id, user_org_data=user_org_data
     )
     try:
-        logger.debug(
-            f"Restarting container with id: {app_variant_db.base.container_id}"
+        deployment = await db_manager.get_deployment_by_objectid(
+            app_variant_db.base.deployment
         )
-        restart_container(app_variant_db.base.container_id)
+        container_id = deployment.container_id
+
+        logger.debug(f"Restarting container with id: {container_id}")
+        restart_container(container_id)
         return {"message": "Please wait a moment. The container is now restarting."}
     except Exception as ex:
         return JSONResponse({"message": str(ex)}, status_code=500)
@@ -149,6 +152,7 @@ async def container_templates(
     stoken_session (SessionContainer): The session container for the user.
 
     Returns:
+
     Union[List[Template], str]: A list of templates or an error message.
     """
     templates = await get_templates()
@@ -218,12 +222,21 @@ async def construct_app_container_url(
             base_id=base_id, user_org_data=user_org_data
         )
         # TODO: Add status check if base_db.status == "running"
-        return URI(uri=base_db.uri_path)
+        if base_db.deployment:
+            deployment = await db_manager.get_deployment_by_objectid(base_db.deployment)
+            uri = deployment.uri_path
+        else:
+            uri = None
+
+        return URI(uri=uri)
     elif variant_id:
         variant_db = await db_manager.fetch_app_variant_and_check_access(
             app_variant_id=variant_id, user_org_data=user_org_data
         )
-        return URI(uri=variant_db.base.uri_path)
+        deployment = await db_manager.get_deployment_by_objectid(
+            variant_db.base.deployment
+        )
+        return URI(uri=deployment.uri_path)
     else:
         return JSONResponse(
             {"detail": "Please provide either base_id or variant_id"},

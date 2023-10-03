@@ -137,7 +137,7 @@ async def fetch_base_by_id(
     if base is None:
         logger.error("Base not found")
         return False
-    organization_id = base.image.organization.id
+    organization_id = base.organization.id
     access = await check_user_org_access(
         user_org_data, str(organization_id), check_owner=False
     )
@@ -181,6 +181,7 @@ async def create_new_variant_base(
     Returns:
         VariantBaseDB: The created base.
     """
+    logger.debug(f"Creating new base: {base_name} with image: {image} for app: {app}")
     base = VariantBaseDB(
         app=app,
         organization=organization,
@@ -364,6 +365,23 @@ async def create_user_organization(user_uid: str) -> OrganizationDB:
     org_db = OrganizationDB(owner=str(user.id), type="default")
     await engine.save(org_db)
     return org_db
+
+
+async def get_deployment_by_objectid(
+    deployment_id: ObjectId,
+) -> DeploymentDB:
+    """Get the deployment object from the database with the provided id.
+
+    Arguments:
+        deployment_id (ObjectId): The deployment id
+
+    Returns:
+        DeploymentDB: instance of deployment object
+    """
+
+    deployment = await engine.find_one(DeploymentDB, DeploymentDB.id == deployment_id)
+    logger.debug(f"deployment: {deployment}")
+    return deployment
 
 
 async def get_organization_object(organization_id: str) -> OrganizationDB:
@@ -722,8 +740,6 @@ async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs
 
     # Update the environment with the new variant name
     environment_db.deployed_app_variant = app_variant_db.id
-    environment_db.deployed_base = app_variant_db.base.id
-    environment_db.deployed_config = app_variant_db.config.id
     await engine.save(environment_db)
 
 
@@ -1184,28 +1200,6 @@ async def update_app_variant(
     return app_variant
 
 
-async def create_image(
-    docker_id: str,
-    tags: List[str],
-    user: UserDB,
-    organization: OrganizationDB,
-):
-    """Create a new image with the given docker_id and tags.
-
-    Args:
-        docker_id (str): The docker id of the image to create.
-        tags (List[str]): The tags of the image to create.
-    """
-    image = ImageDB(
-        docker_id=docker_id,
-        tags=tags,
-        user=user,
-        organization=organization,
-    )
-    await engine.save(image)
-    return image
-
-
 async def fetch_base_and_check_access(
     base_id: str, user_org_data: dict, check_owner=False
 ):
@@ -1230,7 +1224,7 @@ async def fetch_base_and_check_access(
     if base is None:
         logger.error("Base not found")
         raise HTTPException(status_code=404, detail="Base not found")
-    organization_id = base.image.organization.id
+    organization_id = base.organization.id
     access = await check_user_org_access(
         user_org_data, str(organization_id), check_owner
     )

@@ -79,7 +79,7 @@ async def list_app_variants(
             app_id=app_id, **user_org_data
         )
         return [
-            converters.app_variant_db_to_output(app_variant)
+            await converters.app_variant_db_to_output(app_variant)
             for app_variant in app_variants
         ]
 
@@ -120,7 +120,7 @@ async def get_variant_by_env(
         # Check if the fetched app variant is None and raise exception if it is
         if app_variant_db is None:
             raise HTTPException(status_code=500, detail="App Variant not found")
-        return converters.app_variant_db_to_output(app_variant_db)
+        return await converters.app_variant_db_to_output(app_variant_db)
     except ValueError as e:
         # Handle ValueErrors and return 400 status code
         raise HTTPException(status_code=400, detail=str(e))
@@ -260,7 +260,7 @@ async def add_variant_from_image(
             config_name=payload.config_name,
             **user_org_data,
         )
-        return converters.app_variant_db_to_output(app_variant_db)
+        return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -385,7 +385,7 @@ async def create_app_and_variant_from_template(
         await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
 
         logger.debug("End: Successfully created app and variant")
-        return converters.app_variant_db_to_output(app_variant_db)
+        return await converters.app_variant_db_to_output(app_variant_db)
 
     except Exception as e:
         logger.debug(f"Error: Exception caught - {str(e)}")
