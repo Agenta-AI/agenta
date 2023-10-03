@@ -1,17 +1,9 @@
+import ApiKeys from "@/components/ApiKeys/ApiKeys"
 import {useQueryParam} from "@/hooks/useQuery"
+import {dynamicComponent, isDemo} from "@/lib/helpers/utils"
 import {ApartmentOutlined, GlobalOutlined, LockOutlined} from "@ant-design/icons"
 import {Tabs, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
-
-const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
-
-let WorkspaceManage = () => null
-if (isDemo) {
-    import("@/components/pages/settings/WorkspaceManage/WorkspaceManage" as any).then(
-        (mod) => (WorkspaceManage = mod.default),
-    )
-}
 
 const useStyles = createUseStyles({
     root: {
@@ -31,8 +23,12 @@ const useStyles = createUseStyles({
 })
 
 const Settings: React.FC = () => {
-    const [tab, setTab] = useQueryParam("tab", isDemo ? "workspace" : "apikeys")
+    const [tab, setTab] = useQueryParam("tab", isDemo() ? "workspace" : "apikeys")
     const classes = useStyles()
+
+    const WorkspaceManage = isDemo()
+        ? dynamicComponent(`pages/settings/WorkspaceManage/WorkspaceManage`)
+        : () => null
 
     return (
         <div className={classes.root}>
@@ -45,7 +41,7 @@ const Settings: React.FC = () => {
                 tabPosition="left"
                 defaultActiveKey={tab}
                 items={[
-                    isDemo
+                    isDemo()
                         ? {
                               label: (
                                   <span>
@@ -64,7 +60,7 @@ const Settings: React.FC = () => {
                                   </span>
                               ),
                               key: "apikeys",
-                              children: <div>API Keys</div>,
+                              children: <ApiKeys />,
                           },
                     {
                         label: (
