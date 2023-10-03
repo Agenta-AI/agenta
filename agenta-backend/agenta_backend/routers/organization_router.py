@@ -6,8 +6,12 @@ import os
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 from agenta_backend.services.selectors import get_user_own_org
-from agenta_backend.models.api.organization_models import OrganizationOutput, Organization
+from agenta_backend.models.api.organization_models import (
+    OrganizationOutput,
+    Organization,
+)
 from agenta_backend.services import db_manager
+
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
         SessionContainer,

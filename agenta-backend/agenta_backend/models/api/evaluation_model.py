@@ -38,6 +38,7 @@ class Evaluation(BaseModel):
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
     variant_ids: List[str]
+    variant_names: List[str]
     testset_id: str
     testset_name: str
     status: str
