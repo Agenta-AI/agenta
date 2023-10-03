@@ -342,6 +342,24 @@ async def get_organization_object(organization_id: str) -> OrganizationDB:
     return organization
 
 
+async def get_organizations_by_list_ids(organization_ids: List) -> List:
+    """
+    Retrieve organizations from the database by their IDs.
+
+    Args:
+        organization_ids (List): A list of organization IDs to retrieve.
+
+    Returns:
+        List: A list of dictionaries representing the retrieved organizations.
+    """
+
+    organizations_db: List[OrganizationDB] = await engine.find(
+        OrganizationDB, OrganizationDB.id.in_(organization_ids)
+    )
+
+    return organizations_db
+
+
 async def list_app_variants_for_app_id(
     app_id: str, **kwargs: dict
 ) -> List[AppVariantDB]:
@@ -1029,24 +1047,24 @@ async def add_template(**kwargs: dict):
         None
     """
     existing_template = await engine.find_one(
-        TemplateDB, TemplateDB.template_id == kwargs["template_id"]
+        TemplateDB, TemplateDB.dockerhub_tag_id == kwargs["dockerhub_tag_id"]
     )
     if existing_template is None:
         db_template = TemplateDB(**kwargs)
         await engine.save(db_template)
 
 
-async def remove_old_template_from_db(template_ids: list) -> None:
+async def remove_old_template_from_db(dockerhub_tag_ids: list) -> None:
     """Deletes old templates that are no longer in docker hub.
 
     Arguments:
-        template_ids -- list of template IDs you want to keep
+        dockerhub_tag_ids -- list of template IDs you want to keep
     """
 
     templates_to_delete = []
     templates = await engine.find(TemplateDB)
     for temp in templates:
-        if temp.template_id not in template_ids:
+        if temp.dockerhub_tag_id not in dockerhub_tag_ids:
             templates_to_delete.append(temp)
 
     for template in templates_to_delete:
