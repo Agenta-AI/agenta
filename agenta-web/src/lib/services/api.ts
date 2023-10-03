@@ -22,8 +22,6 @@ import {
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
 import {delay} from "../helpers/utils"
-import {useAppContext} from "@/contexts/app.context"
-import {useEffect} from "react"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -529,14 +527,8 @@ export const useApps = () => {
         fetcher,
     )
 
-    const {setApps} = useAppContext()
-
-    useEffect(() => {
-        setApps(data)
-    }, [data])
-
     return {
-        data: data as ListAppsItem[],
+        data: (data || []) as ListAppsItem[],
         error,
         isLoading,
     }

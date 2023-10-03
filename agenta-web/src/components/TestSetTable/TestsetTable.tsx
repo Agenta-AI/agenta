@@ -221,9 +221,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             setLoading(true)
             ;(async () => {
                 const backendVariants = await fetchVariants(appId)
-                const variant =
-                    backendVariants.find((v) => v.previousVariantName === null) ||
-                    backendVariants[0]
+                const variant = backendVariants[0]
                 const inputParams = await getVariantInputParameters(appId, variant)
                 const colData = inputParams.map((param) => ({field: param.name}))
                 colData.push({field: "correct_answer"})

@@ -69,8 +69,8 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
         const URIPath = `${appId}/${variant.baseId}`
         return {parameters, inputs, URIPath}
     } catch (err: any) {
-        const errorResponse: any = err.response.request
-        const apiCallURL: string = err.response.request.responseURL
+        const errorResponse: any = err.response?.request
+        const apiCallURL: string = errorResponse?.responseURL
         if (apiCallURL && apiCallURL.includes("openapi.json") && errorResponse?.status == 404) {
             globalErrorHandler("Container is not running. Consider restarting it.")
         } else {

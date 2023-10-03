@@ -123,7 +123,7 @@ export interface EvaluationResponseType {
         }
         flag_votes: {number_of_votes: number; percentage: number}
     }
-    app_name: string
+    app_id: string
     status: string
     evaluation_type: string
     evaluation_type_settings: {

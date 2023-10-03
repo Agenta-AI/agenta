@@ -1,18 +1,21 @@
 import {Environment, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
-import React, {useEffect, useState} from "react"
+import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
-import {fetchVariants} from "@/lib/services/api"
-import {useRouter} from "next/router"
 
 interface Props {
     variant: Variant
     optParams: Parameter[] | null // The optional parameters
     isParamSaveLoading: boolean // Whether the parameters are currently being saved
-    onOptParamsChange: (newOptParams: Parameter[], persist: boolean, updateVariant: boolean) => void
+    onOptParamsChange: (
+        newOptParams: Parameter[],
+        persist: boolean,
+        updateVariant: boolean,
+        onSuccess?: (isNew: boolean) => void,
+    ) => void
     handlePersistVariant: (variantName: string) => void
     setRemovalVariantName: (variantName: string) => void
     setRemovalWarningModalOpen: (value: boolean) => void
@@ -21,6 +24,7 @@ interface Props {
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
     environments: Environment[]
+    onAdd: () => void
 }
 
 const useStyles = createUseStyles({
@@ -58,28 +62,14 @@ const ParametersView: React.FC<Props> = ({
     isParamsCollapsed,
     setIsParamsCollapsed,
     environments,
+    onAdd,
 }) => {
     const classes = useStyles()
-    const [inputValue, setInputValue] = useState(1)
     const [messageApi, contextHolder] = message.useMessage()
-
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
-
-    // Check if the variant exists and display the publish button if it does
-    const router = useRouter()
-    const appId = router.query.app_id as string
-    const [isVariantExisting, setIsVariantExisting] = useState(false)
-    const fetchVariant = async () => {
-        const variants: Variant[] = await fetchVariants(appId)
-        const isExisting = variants.some((v) => v.variantId === variant.variantId)
-        setIsVariantExisting(isExisting)
-    }
-    useEffect(() => {
-        fetchVariant()
-    }, [appId, variant.variantId])
+    const isVariantExisting = !!variant.variantId
 
     const onChange = (param: Parameter, newValue: number | string) => {
-        setInputValue(+newValue)
         handleParamChange(param.name, newValue)
     }
     const handleParamChange = (name: string, newVal: any) => {
@@ -88,14 +78,15 @@ const ParametersView: React.FC<Props> = ({
         )
         newOptParams && onOptParamsChange(newOptParams, false, false)
     }
-    const success = () => {
-        fetchVariant()
+    const onSuccess = (isNew: boolean) => {
+        if (isNew && onAdd) onAdd()
         messageApi.open({
             type: "success",
             content: "Changes saved successfully!",
             onClose: () => handlePersistVariant(variant.variantName),
         })
     }
+
     const onChangeCollapse = (key: string | string[]) => {
         const newValue = Array.isArray(key) && key.includes("1") ? "1" : ""
         setIsParamsCollapsed(newValue)
@@ -124,8 +115,7 @@ const ParametersView: React.FC<Props> = ({
                                 <Button
                                     type="primary"
                                     onClick={() => {
-                                        onOptParamsChange(optParams!, true, isPersistent)
-                                        success()
+                                        onOptParamsChange(optParams!, true, isPersistent, onSuccess)
                                     }}
                                     loading={isParamSaveLoading}
                                 >
