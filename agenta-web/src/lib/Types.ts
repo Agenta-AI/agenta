@@ -6,11 +6,6 @@ export interface testset {
     created_at: string
 }
 
-export interface UserOwnOrg {
-    id: string
-    name: string
-}
-
 export interface ListAppsItem {
     app_id: string
     app_name: string
@@ -190,21 +185,6 @@ export interface AppTemplate {
     organization_id?: string
 }
 
-export interface ISession {
-    loading: boolean
-    doesSessionExist: boolean
-    userId: string
-    invalidClaims: Array<any>
-    accessTokenPayload: {
-        exp: number
-        iat: number
-        iss: string
-        parentRefreshTokenHash1: string
-        refreshTokenHash1: string
-        sessionHandle: string
-        sub: string
-    }
-}
 export type GenericObject = Record<string, any>
 export type KeyValuePair = Record<string, string>
 

@@ -8,6 +8,7 @@ type AppContextType = {
     apps: ListAppsItem[]
     error: any
     isLoading: boolean
+    mutate: () => void
 }
 
 const initialValues: AppContextType = {
@@ -15,18 +16,19 @@ const initialValues: AppContextType = {
     apps: [],
     error: null,
     isLoading: false,
+    mutate: () => {},
 }
 
 export const AppContext = createContext<AppContextType>(initialValues)
 
-export const useAppContext = () => useContext(AppContext)
+export const useAppsData = () => useContext(AppContext)
 
 const appContextValues = {...initialValues}
 
 export const getAppValues = () => appContextValues
 
 const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
-    const {data: apps, error, isLoading} = useApps()
+    const {data: apps, error, isLoading, mutate} = useApps()
     const router = useRouter()
     const appId = router.query?.app_id as string
 
@@ -39,9 +41,10 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     appContextValues.apps = apps
     appContextValues.error = error
     appContextValues.isLoading = isLoading
+    appContextValues.mutate = mutate
 
     return (
-        <AppContext.Provider value={{currentApp, apps, error, isLoading}}>
+        <AppContext.Provider value={{currentApp, apps, error, isLoading, mutate}}>
             {children}
         </AppContext.Provider>
     )
