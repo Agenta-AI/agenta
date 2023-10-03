@@ -85,11 +85,9 @@ export default function HumanEvaluationResult() {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
-    const [deletingLoading, setDeletingLoading] = useState<boolean>(true)
+    const [selectionType] = useState<"checkbox" | "radio">("checkbox")
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-
     const app_id = router.query.app_id?.toString() || ""
 
     useEffect(() => {
@@ -113,6 +111,7 @@ export default function HumanEvaluationResult() {
                                                 key: item.id,
                                                 createdAt: formatDate(item.created_at),
                                                 variants: item.variant_ids,
+                                                variantNames: item.variant_names,
                                                 votesData: results.votes_data,
                                                 evaluationType: item.evaluation_type,
                                                 status: item.status,
@@ -132,7 +131,6 @@ export default function HumanEvaluationResult() {
                                     (evaluation) => evaluation !== undefined,
                                 )
                                 setEvaluationsList(validEvaluations)
-                                setDeletingLoading(false)
                             })
                             .catch((err) => console.error(err))
                     })
@@ -158,9 +156,9 @@ export default function HumanEvaluationResult() {
     const columns: ColumnsType<EvaluationListTableDataType> = [
         {
             title: "Variant 1",
-            dataIndex: "variants",
-            key: "variants",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            dataIndex: "variantNames",
+            key: "variant1",
+            render: (value: any) => {
                 return (
                     <div>
                         <span>{value[0]}</span>
@@ -170,9 +168,9 @@ export default function HumanEvaluationResult() {
         },
         {
             title: "Variant 2",
-            dataIndex: "variants",
-            key: "variants",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            dataIndex: "variantNames",
+            key: "variant2",
+            render: (value: any) => {
                 return (
                     <div>
                         <span>{value[1]}</span>
@@ -280,7 +278,6 @@ export default function HumanEvaluationResult() {
 
     const onDelete = async () => {
         const evaluationsIds = selectedRowKeys.map((key) => key.toString())
-        setDeletingLoading(true)
         try {
             await deleteEvaluations(evaluationsIds)
             setEvaluationsList((prevEvaluationsList) =>
@@ -290,11 +287,7 @@ export default function HumanEvaluationResult() {
             )
 
             setSelectedRowKeys([])
-        } catch (e) {
-            console.log(e)
-        } finally {
-            setDeletingLoading(false)
-        }
+        } catch {}
     }
 
     const items = [
@@ -321,7 +314,6 @@ export default function HumanEvaluationResult() {
                         }}
                         columns={columns}
                         dataSource={evaluationsList}
-                        // loading={loading}
                     />
                 </div>
             ),

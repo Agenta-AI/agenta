@@ -1,12 +1,7 @@
 import {ListAppsItem} from "@/lib/Types"
+import {useApps} from "@/lib/services/api"
 import {useRouter} from "next/router"
-import {PropsWithChildren, createContext, useContext, useMemo, useState} from "react"
-
-const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
-
-// conditionally import the useApps hook based on the demo flag
-let useApps: any = () => ({isLoading: true})
-import(`@/lib/services/api${isDemo ? "_ee" : ""}`).then((module) => (useApps = module.useApps))
+import {PropsWithChildren, createContext, useContext, useMemo} from "react"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
