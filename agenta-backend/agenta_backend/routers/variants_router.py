@@ -79,7 +79,7 @@ async def add_variant_from_base_and_config(
             **user_org_data,
         )
         logger.debug(f"Successfully added new variant: {db_app_variant}")
-        return converters.app_variant_db_to_output(db_app_variant)
+        return await converters.app_variant_db_to_output(db_app_variant)
 
     except Exception as e:
         logger.error(f"An exception occurred while adding the new variant: {e}")

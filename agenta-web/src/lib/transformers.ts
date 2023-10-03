@@ -5,9 +5,10 @@ import {formatDate} from "./helpers/dateTimeHelper"
 import {snakeToCamel} from "./helpers/utils"
 
 export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
-    const variants: Variant[] = item.variant_ids.map((variantId: string) => {
+    const variants: Variant[] = item.variant_ids.map((variantId: string, ix) => {
         const variant = {
             variantId,
+            variantName: item.variant_names[ix],
             templateVariantName: null,
             persistent: true,
             parameters: null,

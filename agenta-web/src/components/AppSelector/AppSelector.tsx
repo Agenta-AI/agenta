@@ -9,7 +9,7 @@ import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {createAndStartTemplate, getTemplates, getUserOrg} from "@/lib/services/api"
+import {createAndStartTemplate, getTemplates} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
@@ -17,6 +17,7 @@ import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {useAppContext} from "@/contexts/app.context"
+import {useProfileData} from "@/contexts/profile.context"
 
 const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
 
@@ -96,7 +97,6 @@ const AppSelector: React.FC = () => {
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
-    const [userOrgId, setUserOrgId] = useState<string>("")
 
     const [templateMessage, setTemplateMessage] = useState("")
     const [templateName, setTemplateName] = useState<string | undefined>(undefined)
@@ -104,6 +104,7 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
+    const {selectedOrg} = useProfileData()
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
@@ -159,17 +160,6 @@ const AppSelector: React.FC = () => {
         fetchTemplates()
     }, [])
 
-    useEffect(() => {
-        const fetchUserOrg = async () => {
-            const response: UserOwnOrg = await getUserOrg()
-            if (response && response.id) {
-                setUserOrgId(response.id)
-            }
-        }
-
-        fetchUserOrg()
-    }, [])
-
     const handleTemplateCardClick = async (image_name: string) => {
         setFetchingTemplate(true)
 
@@ -190,7 +180,7 @@ const AppSelector: React.FC = () => {
                 duration: 5,
             })
             onFinish()
-            router.push("/apikeys")
+            router.push("/settings?tab=apikeys")
             return
         }
 
@@ -205,7 +195,7 @@ const AppSelector: React.FC = () => {
         await createAndStartTemplate({
             appName: newApp,
             imageName: image_name,
-            orgId: userOrgId,
+            orgId: selectedOrg?.id!,
             openAIKey: isDemo ? "" : (openAIKey as string),
             onStatusChange: (status, details, appId) => {
                 const title = "Template Selection"

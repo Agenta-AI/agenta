@@ -22,6 +22,7 @@ import {
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
 import {delay} from "../helpers/utils"
+import {useProfileData} from "@/contexts/profile.context"
 /**
  * Raw interface for the parameters parsed from the openapi.json
  */
@@ -522,9 +523,10 @@ export const updateEvaluationScenarioScore = async (
 }
 
 export const useApps = () => {
+    const {selectedOrg} = useProfileData()
     const {data, error, isLoading} = useSWR(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/`,
-        fetcher,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/?org_id=${selectedOrg?.id}`,
+        selectedOrg?.id ? fetcher : () => {}, //doon't fetch if org is not selected
     )
 
     return {
@@ -534,11 +536,16 @@ export const useApps = () => {
     }
 }
 
-export const getUserOrg = async () => {
-    const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/organizations/own/`,
-    )
-    return response.data as UserOwnOrg
+export const getProfile = async (ignoreAxiosError: boolean = false) => {
+    return axios.get(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/profile/`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+}
+
+export const getOrgsList = async (ignoreAxiosError: boolean = false) => {
+    return axios.get(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/organizations/`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
 }
 
 export const getTemplates = async () => {
