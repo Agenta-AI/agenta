@@ -155,7 +155,7 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                     </p>
                 )}
 
-                <Button type="primary" onClick={onCreateAppClick}>
+                <Button type="primary" onClick={onCreateAppClick} data-cy="create-new-app-button">
                     Create New App
                 </Button>
             </div>
