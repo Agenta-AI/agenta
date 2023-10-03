@@ -6,6 +6,15 @@ from bson import ObjectId
 from odmantic import EmbeddedModel, Field, Model, Reference
 
 
+class TimeStampedModel(Model):
+    """
+    A base model that includes timestamp fields `created_at` and `updated_at`.
+    """
+
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+
 class InvitationDB(EmbeddedModel):
     token: str = Field(unique=True)
     email: str
@@ -13,7 +22,7 @@ class InvitationDB(EmbeddedModel):
     used: bool = False
 
 
-class OrganizationDB(Model):
+class OrganizationDB(TimeStampedModel):
     name: str = Field(default="agenta")
     description: str = Field(default="")
     type: Optional[str]
@@ -25,7 +34,7 @@ class OrganizationDB(Model):
         collection = "organizations"
 
 
-class UserDB(Model):
+class UserDB(TimeStampedModel):
     uid: str = Field(default="0", unique=True, index=True)
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
@@ -35,34 +44,45 @@ class UserDB(Model):
         collection = "users"
 
 
-class ImageDB(Model):
+class ImageDB(TimeStampedModel):
     """Defines the info needed to get an image and connect it to the app variant"""
 
     docker_id: str = Field(index=True)
     tags: str
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "docker_images"
 
 
-class AppDB(Model):
+class AppDB(TimeStampedModel):
     app_name: str
     organization: OrganizationDB = Reference(key_name="organization")
     user: UserDB = Reference(key_name="user")
 
 
-class BaseDB(Model):
-    base_name: str
-    image: ImageDB = Reference(key_name="image")
-    status: Optional[str]
+class DeploymentDB(TimeStampedModel):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
     container_name: Optional[str]
     container_id: Optional[str]
     uri: Optional[str]
     uri_path: Optional[str]
+    status: str
+
+    class Config:
+        collection = "deployments"
+
+
+class CodeBaseDB(TimeStampedModel):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    base_name: str
+    image: ImageDB = Reference(key_name="image")
+    deployment: Optional[ObjectId]
 
     class Config:
         collection = "bases"
@@ -71,10 +91,9 @@ class BaseDB(Model):
 class ConfigVersionDB(EmbeddedModel):
     version: int
     parameters: Dict[str, Any]
-    created_at: datetime
 
 
-class ConfigDB(Model):
+class ConfigDB(TimeStampedModel):
     config_name: str
     current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
@@ -84,7 +103,7 @@ class ConfigDB(Model):
         collection = "configs"
 
 
-class AppVariantDB(Model):
+class AppVariantDB(TimeStampedModel):
     app: AppDB = Reference(key_name="app")
     variant_name: str
     image: ImageDB = Reference(key_name="image")
@@ -93,7 +112,7 @@ class AppVariantDB(Model):
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
-    base: BaseDB = Reference(key_name="bases")
+    base: CodeBaseDB = Reference(key_name="bases")
     config_name: Optional[str]
     config: ConfigDB = Reference(key_name="configs")
 
@@ -105,14 +124,13 @@ class AppVariantDB(Model):
         collection = "app_variants"
 
 
-class EnvironmentDB(Model):
+class AppEnvironmentDB(TimeStampedModel):
     app: AppDB = Reference(key_name="app")
     name: str
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     deployed_app_variant: Optional[ObjectId]
-    deployed_base: Optional[ObjectId]
-    deployed_config: Optional[ObjectId]
+    deployment: Optional[ObjectId]  # reference to deployment
 
     class Config:
         collection = "environments"
@@ -135,14 +153,12 @@ class TemplateDB(Model):
         collection = "templates"
 
 
-class TestSetDB(Model):
+class TestSetDB(TimeStampedModel):
     name: str
     app: AppDB = Reference(key_name="app")
     csvdata: List[Dict[str, str]]
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "testsets"
@@ -167,7 +183,7 @@ class EvaluationScenarioOutput(EmbeddedModel):
     variant_output: str
 
 
-class EvaluationDB(Model):
+class EvaluationDB(TimeStampedModel):
     app: AppDB = Reference(key_name="app")
     organization: OrganizationDB = Reference(key_name="organization")
     user: UserDB = Reference(key_name="user")
@@ -176,14 +192,12 @@ class EvaluationDB(Model):
     evaluation_type_settings: EvaluationTypeSettings
     variants: List[ObjectId]
     testset: TestSetDB = Reference(key_name="testsets")
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "evaluations"
 
 
-class EvaluationScenarioDB(Model):
+class EvaluationScenarioDB(TimeStampedModel):
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     evaluation: EvaluationDB = Reference(key_name="evaluations")
@@ -192,21 +206,17 @@ class EvaluationScenarioDB(Model):
     vote: Optional[str]
     score: Optional[str]
     correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "evaluation_scenarios"
 
 
-class CustomEvaluationDB(Model):
+class CustomEvaluationDB(TimeStampedModel):
     evaluation_name: str
     python_code: str
     app: AppDB = Reference(key_name="app")
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "custom_evaluations"
