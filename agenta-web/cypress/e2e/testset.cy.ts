@@ -22,6 +22,7 @@ describe("create a new testset", () => {
         const testsetName = randString(8)
         cy.get('[data-cy="testset-name-input"]').type(testsetName)
         cy.get('[data-cy="testset-save-button"]').click()
+        cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
         cy.url().should("include", "/testsets")
 
         // validate that the new testset is in the list
