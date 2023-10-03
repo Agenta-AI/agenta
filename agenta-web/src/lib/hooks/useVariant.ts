@@ -54,6 +54,7 @@ export function useVariant(appId: string, variant: Variant) {
         updatedOptParams: Parameter[],
         persist: boolean,
         updateVariant: boolean,
+        onSuccess?: (isNew: boolean) => void,
     ) => {
         setIsParamSaveLoading(true)
         setIsError(false)
@@ -69,6 +70,7 @@ export function useVariant(appId: string, variant: Variant) {
                 } else if (updateVariant) {
                     await updateVariantParams(variant.variantId, updatedOptParams)
                 }
+                if (onSuccess) onSuccess(!updateVariant)
                 variant.parameters = updatedOptParams.reduce((acc, param) => {
                     return {...acc, [param.name]: param.default}
                 }, {})

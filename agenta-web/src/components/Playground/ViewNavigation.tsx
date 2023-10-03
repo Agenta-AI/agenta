@@ -18,6 +18,7 @@ interface Props {
     setRemovalWarningModalOpen: (value: boolean) => void
     isDeleteLoading: boolean
     environments: Environment[]
+    onAdd: () => void
 }
 
 const useStyles = createUseStyles({
@@ -36,6 +37,7 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalWarningModalOpen,
     isDeleteLoading,
     environments,
+    onAdd,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -192,6 +194,7 @@ const ViewNavigation: React.FC<Props> = ({
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         environments={environments}
+                        onAdd={onAdd}
                     />
                 </Col>
             </Row>

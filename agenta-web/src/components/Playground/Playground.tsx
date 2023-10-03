@@ -3,72 +3,13 @@ import {Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import VariantRemovalWarningModal from "./VariantRemovalWarningModal"
 import NewVariantModal from "./NewVariantModal"
-import router, {useRouter} from "next/router"
 import {fetchEnvironments, fetchVariants, removeVariant} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
-
 import {SyncOutlined} from "@ant-design/icons"
+import {useRouter} from "next/router"
 
-function addTab(
-    setActiveKey: any,
-    setVariants: any,
-    variants: Variant[],
-    templateVariantName: string,
-    newVariantName: string,
-) {
-    // Find the template variant
-    const templateVariant = variants.find((variant) => variant.variantName === templateVariantName)
-
-    // Check if the template variant exists
-    if (!templateVariant) {
-        message.error("Template variant not found. Please choose a valid variant.")
-        return
-    }
-
-    // Get TemplateVariant and Variant Name
-    const newTemplateVariantName = templateVariant.templateVariantName
-        ? templateVariant.templateVariantName
-        : templateVariantName
-    const updateNewVariantName = `${templateVariant.baseName}.${newVariantName}`
-
-    // Check if variant with the same name already exists
-    const existingVariant = variants.find((variant) => variant.variantName === updateNewVariantName)
-
-    // Check if the variant exists
-    if (existingVariant) {
-        message.error("A variant with this name already exists. Please choose a different name.")
-        return
-    }
-
-    const newVariant: Partial<Variant> = {
-        variantName: updateNewVariantName,
-        templateVariantName: newTemplateVariantName,
-        previousVariantName: templateVariant.variantName,
-        persistent: false,
-        parameters: templateVariant.parameters,
-        baseId: templateVariant.baseId,
-        baseName: templateVariant.baseName || newTemplateVariantName,
-        configName: newVariantName,
-        configId: templateVariant.configId,
-    }
-
-    setVariants((prevState: any) => [...prevState, newVariant])
-    setActiveKey(updateNewVariantName)
-}
-
-function removeTab(setActiveKey: any, setVariants: any, variants: Variant[], activeKey: string) {
-    const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
-    if (newVariants.length < 1) {
-        router.push(`/apps`)
-    }
-    let newActiveKey = ""
-    if (newVariants.length > 0) {
-        newActiveKey = newVariants[newVariants.length - 1].variantName
-    }
-    setVariants(newVariants)
-    setActiveKey(newActiveKey)
-}
 const Playground: React.FC = () => {
+    const router = useRouter()
     const appId = router.query.app_id as string
     const [templateVariantName, setTemplateVariantName] = useState("") // We use this to save the template variant name when the user creates a new variant
     const [activeKey, setActiveKey] = useState("1")
@@ -82,6 +23,66 @@ const Playground: React.FC = () => {
     const [removalVariantName, setRemovalVariantName] = useState<string | null>(null)
     const [isDeleteLoading, setIsDeleteLoading] = useState(false)
     const [messageApi, contextHolder] = message.useMessage()
+
+    const addTab = () => {
+        // Find the template variant
+        const templateVariant = variants.find(
+            (variant) => variant.variantName === templateVariantName,
+        )
+
+        // Check if the template variant exists
+        if (!templateVariant) {
+            message.error("Template variant not found. Please choose a valid variant.")
+            return
+        }
+
+        // Get TemplateVariant and Variant Name
+        const newTemplateVariantName = templateVariant.templateVariantName
+            ? templateVariant.templateVariantName
+            : templateVariantName
+        const updateNewVariantName = `${templateVariant.baseName}.${newVariantName}`
+
+        // Check if variant with the same name already exists
+        const existingVariant = variants.find(
+            (variant) => variant.variantName === updateNewVariantName,
+        )
+
+        // Check if the variant exists
+        if (existingVariant) {
+            message.error(
+                "A variant with this name already exists. Please choose a different name.",
+            )
+            return
+        }
+
+        const newVariant: Partial<Variant> = {
+            variantName: updateNewVariantName,
+            templateVariantName: newTemplateVariantName,
+            previousVariantName: templateVariant.variantName,
+            persistent: false,
+            parameters: templateVariant.parameters,
+            baseId: templateVariant.baseId,
+            baseName: templateVariant.baseName || newTemplateVariantName,
+            configName: newVariantName,
+            configId: templateVariant.configId,
+        }
+
+        setVariants((prevState: any) => [...prevState, newVariant])
+        setActiveKey(updateNewVariantName)
+    }
+
+    const removeTab = () => {
+        const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
+        if (newVariants.length < 1) {
+            router.push(`/apps`)
+        }
+        let newActiveKey = ""
+        if (newVariants.length > 0) {
+            newActiveKey = newVariants[newVariants.length - 1].variantName
+        }
+        setVariants(newVariants)
+        setActiveKey(newActiveKey)
+    }
 
     const fetchData = async () => {
         try {
@@ -119,7 +120,7 @@ const Playground: React.FC = () => {
 
     const handleRemove = () => {
         if (removalVariantName) {
-            removeTab(setActiveKey, setVariants, variants, removalVariantName)
+            removeTab()
         }
         setRemovalWarningModalOpen1(false)
     }
@@ -130,7 +131,7 @@ const Playground: React.FC = () => {
             const toRemove = variants.find((variant) => variant.variantName === removalVariantName)
             if (toRemove?.persistent) await removeVariant(toRemove.variantId)
 
-            removeTab(setActiveKey, setVariants, variants, removalVariantName)
+            removeTab()
             setIsDeleteLoading(false)
         }
         setRemovalWarningModalOpen1(false)
@@ -175,6 +176,7 @@ const Playground: React.FC = () => {
                 setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
                 isDeleteLoading={isDeleteLoading && removalVariantName === variant.variantName}
                 environments={environments}
+                onAdd={fetchData}
             />
         ),
         closable: !variant.persistent,
@@ -213,9 +215,7 @@ const Playground: React.FC = () => {
             <NewVariantModal
                 isModalOpen={isModalOpen}
                 setIsModalOpen={setIsModalOpen}
-                addTab={() =>
-                    addTab(setActiveKey, setVariants, variants, templateVariantName, newVariantName)
-                }
+                addTab={addTab}
                 variants={variants}
                 setNewVariantName={setNewVariantName}
                 newVariantName={newVariantName}

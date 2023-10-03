@@ -1,3 +1,4 @@
+import {getAppValues} from "@/contexts/app.context"
 import {Evaluation, EvaluationResponseType, GenericObject, Variant} from "./Types"
 import {EvaluationType} from "./enums"
 import {formatDate} from "./helpers/dateTimeHelper"
@@ -20,6 +21,8 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
             item.evaluation_type_settings[key as keyof typeof item.evaluation_type_settings]
     }
 
+    const {apps} = getAppValues()
+
     return {
         id: item.id,
         createdAt: formatDate(item.created_at),
@@ -28,7 +31,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
             _id: item.testset_id,
             name: item.testset_name,
         },
-        appName: item.app_name,
+        appName: apps.find((app) => app.app_id === item.app_id)?.app_name,
         status: item.status,
         evaluationType: item.evaluation_type,
         evaluationTypeSettings,
