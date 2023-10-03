@@ -28,6 +28,7 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     TestSetDB,
     UserDB,
+    DeploymentDB,
 )
 from agenta_backend.utils.common import check_user_org_access, engine
 from bson import ObjectId
@@ -37,116 +38,6 @@ from odmantic import query
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
-async def add_variant_based_on_image(
-    app: AppDB,
-    variant_name: str,
-    docker_id: str,
-    tags: str,
-    base_name: str = None,
-    config_name: str = "default",
-    **user_org_data: dict,
-) -> AppVariantDB:
-    """
-    Adds a new variant to the app based on the specified Docker image.
-
-    Args:
-        app (AppDB): The app to add the variant to.
-        variant_name (str): The name of the new variant.
-        docker_id (str): The ID of the Docker image to use for the new variant.
-        tags (str): The tags associated with the Docker image.
-        base_name (str, optional): The name of the base to use for the new variant. Defaults to None.
-        config_name (str, optional): The name of the configuration to use for the new variant. Defaults to "default".
-        **user_org_data (dict): Additional user and organization data.
-
-    Returns:
-        AppVariantDB: The newly created app variant.
-
-    Raises:
-        ValueError: If the app variant or image is None, or if an app variant with the same name already exists.
-        HTTPException: If an error occurs while creating the app variant.
-    """
-    logger.debug("Start: Creating app variant based on image")
-
-    # Validate input parameters
-    logger.debug("Step 1: Validating input parameters")
-    if (
-        app in [None, ""]
-        or variant_name in [None, ""]
-        or docker_id in [None, ""]
-        or tags in [None, ""]
-    ):
-        raise ValueError("App variant or image is None")
-
-    # Check if app variant already exists
-    logger.debug("Step 2: Checking if app variant already exists")
-    variants = await list_app_variants_for_app_id(app_id=str(app.id), **user_org_data)
-    already_exists = any([av for av in variants if av.variant_name == variant_name])
-    if already_exists:
-        logger.error("App variant with the same name already exists")
-        raise ValueError("App variant with the same name already exists")
-
-    # Retrieve user and image objects
-    logger.debug("Step 3: Retrieving user and image objects")
-    user_instance = await get_user_object(user_org_data["uid"])
-    db_image = await get_orga_image_instance(
-        organization_id=str(app.organization.id), docker_id=docker_id
-    )
-
-    # Create new image if not exists
-    if db_image is None:
-        logger.debug("Step 4: Creating new image")
-        db_image = ImageDB(
-            docker_id=docker_id,
-            tags=tags,
-            user=user_instance,
-            organization=app.organization,
-        )
-        await engine.save(db_image)
-
-    # Create config
-    logger.debug("Step 5: Creating config")
-    db_config = ConfigDB(
-        config_name=config_name,  # the first variant always has default config
-        parameters={},
-    )
-    await engine.save(db_config)
-
-    # Create base
-    logger.debug("Step 6: Creating base")
-    if not base_name:
-        base_name = variant_name.split(".")[
-            0
-        ]  # TODO: Change this in SDK2 to directly use base_name
-    db_base = VariantBaseDB(
-        base_name=base_name,  # the first variant always has default base
-        image=db_image,
-        status="inactive",
-        uri=None,
-        uri_path=None,
-        container_name=None,
-        container_id=None,
-    )
-    await engine.save(db_base)
-
-    # Create app variant
-    logger.debug("Step 7: Creating app variant")
-    db_app_variant = AppVariantDB(
-        app=app,
-        variant_name=variant_name,
-        image=db_image,
-        user=user_instance,
-        organization=app.organization,
-        parameters={},
-        base_name=base_name,
-        config_name=config_name,
-        base=db_base,
-        config=db_config,
-    )
-    await engine.save(db_app_variant)
-    logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
-    return db_app_variant
 
 
 async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
@@ -274,6 +165,155 @@ async def fetch_app_variant_by_name_and_appid(
     )
     app_variant_db = await engine.find_one(AppVariantDB, query_expression)
     return app_variant_db
+
+
+async def create_new_variant_base(
+    app: AppDB,
+    organization: OrganizationDB,
+    user: UserDB,
+    base_name: str,
+    image: ImageDB,
+) -> VariantBaseDB:
+    """Create a new base.
+    Args:
+        base_name (str): The name of the base.
+        image (ImageDB): The image of the base.
+    Returns:
+        VariantBaseDB: The created base.
+    """
+    base = VariantBaseDB(
+        app=app,
+        organization=organization,
+        user=user,
+        base_name=base_name,
+        image=image,
+    )
+    await engine.save(base)
+    return base
+
+
+async def create_new_config(
+    config_name: str,
+    parameters: Dict,
+) -> ConfigDB:
+    """Create a new config.
+    Args:
+        config_name (str): The name of the config.
+        parameters (Dict): The parameters of the config.
+    Returns:
+        ConfigDB: The created config.
+    """
+    config_db = ConfigDB(
+        config_name=config_name,
+        parameters=parameters,
+        current_version=1,
+        version_history=[
+            ConfigVersionDB(
+                version=1, parameters=parameters, created_at=datetime.utcnow()
+            )
+        ],
+    )
+    await engine.save(config_db)
+    return config_db
+
+
+async def create_new_app_variant(
+    app: AppDB,
+    organization: OrganizationDB,
+    user: UserDB,
+    variant_name: str,
+    image: ImageDB,
+    base: VariantBaseDB,
+    config: ConfigDB,
+    base_name: str,
+    config_name: str,
+    parameters: Dict,
+) -> AppVariantDB:
+    """Create a new variant.
+    Args:
+        variant_name (str): The name of the variant.
+        image (ImageDB): The image of the variant.
+        base (VariantBaseDB): The base of the variant.
+        config (ConfigDB): The config of the variant.
+    Returns:
+        AppVariantDB: The created variant.
+    """
+    variant = AppVariantDB(
+        app=app,
+        organization=organization,
+        user=user,
+        variant_name=variant_name,
+        image=image,
+        base=base,
+        config=config,
+        base_name=base_name,
+        config_name=config_name,
+        parameters=parameters,
+    )
+    await engine.save(variant)
+    return variant
+
+
+async def create_image(
+    docker_id: str,
+    tags: str,
+    user: UserDB,
+    organization: OrganizationDB,
+) -> ImageDB:
+    """Create a new image.
+    Args:
+        docker_id (str): The ID of the image.
+        tags (str): The tags of the image.
+        user (UserDB): The user that the image belongs to.
+        organization (OrganizationDB): The organization that the image belongs to.
+    Returns:
+        ImageDB: The created image.
+    """
+    image = ImageDB(
+        docker_id=docker_id,
+        tags=tags,
+        user=user,
+        organization=organization,
+    )
+    await engine.save(image)
+    return image
+
+
+async def create_deployment(
+    app: AppVariantDB,
+    organization: OrganizationDB,
+    user: UserDB,
+    container_name: str,
+    container_id: str,
+    uri: str,
+    uri_path: str,
+    status: str,
+) -> DeploymentDB:
+    """Create a new deployment.
+    Args:
+        app (AppVariantDB): The app variant to create the deployment for.
+        organization (OrganizationDB): The organization that the deployment belongs to.
+        user (UserDB): The user that the deployment belongs to.
+        container_name (str): The name of the container.
+        container_id (str): The ID of the container.
+        uri (str): The URI of the container.
+        uri_path (str): The URI path of the container.
+        status (str): The status of the container.
+    Returns:
+        DeploymentDB: The created deployment.
+    """
+    deployment = DeploymentDB(
+        app=app,
+        organization=organization,
+        user=user,
+        container_name=container_name,
+        container_id=container_id,
+        uri=uri,
+        uri_path=uri_path,
+        status=status,
+    )
+    await engine.save(deployment)
+    return deployment
 
 
 async def create_app_and_envs(
@@ -606,6 +646,18 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
 
     # If it's the only variant left that uses the image, delete the image
     return bool(count_variants == 1)
+
+
+async def remove_deployment(deployment_db: DeploymentDB, **kwargs: dict):
+    """Remove a deployment from the db
+
+    Arguments:
+        deployment -- Deployment to remove
+    """
+    logger.debug("Removing deployment")
+    assert deployment_db is not None, "deployment_db is missing"
+
+    await engine.delete(deployment_db)
 
 
 async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dict):
