@@ -342,6 +342,24 @@ async def get_organization_object(organization_id: str) -> OrganizationDB:
     return organization
 
 
+async def get_organizations_by_list_ids(organization_ids: List) -> List:
+    """
+    Retrieve organizations from the database by their IDs.
+
+    Args:
+        organization_ids (List): A list of organization IDs to retrieve.
+
+    Returns:
+        List: A list of dictionaries representing the retrieved organizations.
+    """
+
+    organizations_db: List[OrganizationDB] = await engine.find(
+        OrganizationDB, OrganizationDB.id.in_(organization_ids)
+    )
+
+    return organizations_db
+
+
 async def list_app_variants_for_app_id(
     app_id: str, **kwargs: dict
 ) -> List[AppVariantDB]:
