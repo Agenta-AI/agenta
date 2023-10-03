@@ -147,7 +147,7 @@ def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
 def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
     return [
         Template(
-            id=template.template_id,
+            id=template.dockerhub_tag_id,
             image=TemplateImageInfo(
                 name=template.name,
                 size=template.size,
