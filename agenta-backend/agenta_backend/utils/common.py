@@ -8,7 +8,7 @@ from agenta_backend.models.db_models import (
     AppVariantDB,
     OrganizationDB,
     AppDB,
-    BaseDB,
+    CodeBaseDB,
 )
 import logging
 
@@ -127,7 +127,7 @@ async def check_access_to_base(
 ) -> bool:
     if base_id is None:
         raise Exception("No base_id provided")
-    base = await engine.find_one(BaseDB, BaseDB.id == ObjectId(base_id))
+    base = await engine.find_one(CodeBaseDB, CodeBaseDB.id == ObjectId(base_id))
     if base is None:
         logger.error("Base not found")
         return False

@@ -7,7 +7,7 @@ from agenta_backend.models.db_models import (
     ImageDB,
     TemplateDB,
     AppDB,
-    EnvironmentDB,
+    AppEnvironmentDB,
     TestSetDB,
     SpanDB,
     TraceDB,
@@ -126,7 +126,9 @@ def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
     )
 
 
-async def environment_db_to_output(environment_db: EnvironmentDB) -> EnvironmentOutput:
+async def environment_db_to_output(
+    environment_db: AppEnvironmentDB,
+) -> EnvironmentOutput:
     deployed_app_variant_id = (
         str(environment_db.deployed_app_variant)
         if environment_db.deployed_app_variant
