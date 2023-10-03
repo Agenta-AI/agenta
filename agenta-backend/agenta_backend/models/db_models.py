@@ -204,7 +204,9 @@ class TraceDB(Model):
 
 
 class DeploymentDB(Model):
-    id: str = Field(primary_field=True)  # 6 characters from the SHA256 sum of the app_variant_id_str
+    id: str = Field(
+        primary_field=True
+    )  # 6 characters from the SHA256 sum of the app_variant_id_str
     domain: str
     environment_id: EnvironmentDB = Reference(key_name="environment")
     variant_id: AppVariantDB = Reference(key_name="variant")
