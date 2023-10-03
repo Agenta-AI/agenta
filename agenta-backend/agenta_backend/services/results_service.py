@@ -2,6 +2,7 @@ from agenta_backend.utils.common import engine
 from agenta_backend.services.db_manager import query
 from agenta_backend.models.db_models import EvaluationScenarioDB, EvaluationDB
 from agenta_backend.services import evaluation_service
+from agenta_backend.services import db_manager
 from agenta_backend.models.api.evaluation_model import EvaluationType
 from bson import ObjectId
 
@@ -16,6 +17,12 @@ async def fetch_results_for_evaluation(evaluation: EvaluationDB):
         return results
 
     results["variants"] = [str(variant) for variant in evaluation.variants]
+    variant_names = []
+    for variant_id in evaluation.variants:
+        variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
+        variant_name = variant.variant_name if variant else str(variant_id)
+        variant_names.append(str(variant_name))
+    results["variant_names"] = variant_names
     results["nb_of_rows"] = len(evaluation_scenarios)
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
         results.update(
