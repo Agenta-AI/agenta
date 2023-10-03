@@ -131,5 +131,5 @@ async def check_access_to_base(
     if base is None:
         logger.error("Base not found")
         return False
-    organization_id = base.image.organization.id
+    organization_id = base.organization.id
     return await check_user_org_access(user_org_data, str(organization_id), check_owner)

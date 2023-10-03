@@ -108,7 +108,15 @@ def app_variant_db_to_pydantic(
     )
 
 
-def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
+async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
+    if app_variant_db.base.deployment:
+        deployment = await db_manager.get_deployment_by_objectid(
+            app_variant_db.base.deployment
+        )
+        uri = deployment.uri_path
+    else:
+        uri = None
+    logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
     return AppVariantOutput(
         app_id=str(app_variant_db.app.id),
         app_name=str(app_variant_db.app.app_name),
@@ -122,7 +130,7 @@ def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
         base_id=str(app_variant_db.base.id),
         config_name=app_variant_db.config_name,
         config_id=str(app_variant_db.config.id),
-        uri=app_variant_db.base.uri_path,
+        uri=uri,
     )
 
 

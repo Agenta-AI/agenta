@@ -83,7 +83,7 @@ async def start_variant(
 
         await db_manager.update_base(
             db_app_variant.base,
-            deployment=deployment,
+            deployment=deployment.id,
         )
     except Exception as e:
         logger.error(
@@ -128,7 +128,10 @@ async def update_variant_image(
         docker_utils.delete_container(container_id)
         logger.info(f"Container {container_id} deleted")
     if app_variant_db.base.deployment is not None:
-        await db_manager.remove_deployment(app_variant_db.base.deployment)
+        deployment = await db_manager.get_deployment_by_objectid(
+            app_variant_db.base.deployment
+        )
+        await db_manager.remove_deployment(deployment)
 
     # Delete the image
     image_docker_id = app_variant_db.base.image.docker_id
@@ -200,7 +203,10 @@ async def terminate_and_remove_app_variant(
                 await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
                 logger.debug("Remove image object from db")
                 await db_manager.remove_image(image, **kwargs)
-                await db_manager.remove_deployment(app_variant_db.base.deployment)
+                deployment = await db_manager.get_deployment_by_objectid(
+                    app_variant_db.base.deployment
+                )
+                await db_manager.remove_deployment(deployment)
                 await db_manager.remove_base_from_db(app_variant_db.base, **kwargs)
                 logger.debug("remove_app_variant_from_db")
 
@@ -247,7 +253,11 @@ async def _stop_and_delete_app_container(
         Exception: Any exception raised during Docker operations.
     """
     try:
-        container_id = app_variant_db.base.container_id
+        deployment = await db_manager.get_deployment_by_objectid(
+            app_variant_db.base.deployment
+        )
+        logger.debug(f"deployment: {deployment}")
+        container_id = deployment.container_id
         docker_utils.stop_container(container_id)
         logger.info(f"Container {container_id} stopped")
         docker_utils.delete_container(container_id)
@@ -407,7 +417,7 @@ async def add_variant_based_on_image(
     # Create new image if not exists
     if db_image is None:
         logger.debug("Step 4: Creating new image")
-        await db_manager.create_image(
+        db_image = await db_manager.create_image(
             docker_id=docker_id,
             tags=tags,
             user=user_instance,
