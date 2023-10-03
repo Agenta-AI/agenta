@@ -77,7 +77,7 @@ class DeploymentDB(Model):
         collection = "deployments"
 
 
-class CodeBaseDB(Model):
+class VariantBaseDB(Model):
     app: AppDB = Reference(key_name="app")
     organization: OrganizationDB = Reference(key_name="organization")
     user: UserDB = Reference(key_name="user")
@@ -119,7 +119,7 @@ class AppVariantDB(Model):
     parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
     previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
-    base: CodeBaseDB = Reference(key_name="bases")
+    base: VariantBaseDB = Reference(key_name="bases")
     config_name: Optional[str]
     config: ConfigDB = Reference(key_name="configs")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())

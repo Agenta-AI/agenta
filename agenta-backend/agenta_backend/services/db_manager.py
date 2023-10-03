@@ -17,7 +17,7 @@ from agenta_backend.models.converters import (
 from agenta_backend.models.db_models import (
     AppDB,
     AppVariantDB,
-    CodeBaseDB,
+    VariantBaseDB,
     ConfigDB,
     ConfigVersionDB,
     AppEnvironmentDB,
@@ -119,7 +119,7 @@ async def add_variant_based_on_image(
         base_name = variant_name.split(".")[
             0
         ]  # TODO: Change this in SDK2 to directly use base_name
-    db_base = CodeBaseDB(
+    db_base = VariantBaseDB(
         base_name=base_name,  # the first variant always has default base
         image=db_image,
         status="inactive",
@@ -232,17 +232,17 @@ async def fetch_app_variant_by_id(
 async def fetch_base_by_id(
     base_id: str,
     user_org_data: dict,
-) -> Optional[CodeBaseDB]:
+) -> Optional[VariantBaseDB]:
     """
     Fetches a base by its ID.
     Args:
         base_id (str): The ID of the base to fetch.
     Returns:
-        CodeBaseDB: The fetched base, or None if no base was found.
+        VariantBaseDB: The fetched base, or None if no base was found.
     """
     if base_id is None:
         raise Exception("No base_id provided")
-    base = await engine.find_one(CodeBaseDB, CodeBaseDB.id == ObjectId(base_id))
+    base = await engine.find_one(VariantBaseDB, VariantBaseDB.id == ObjectId(base_id))
     if base is None:
         logger.error("Base not found")
         return False
@@ -382,7 +382,7 @@ async def list_app_variants_for_app_id(
 
 
 async def list_app_variant_for_base(
-    base: CodeBaseDB, **kwargs: dict
+    base: VariantBaseDB, **kwargs: dict
 ) -> List[AppVariantDB]:
     """
     Lists all the app variants from the db for a base
@@ -465,7 +465,7 @@ async def get_app_instance_by_id(app_id: str) -> AppDB:
 
 
 async def add_variant_from_base_and_config(
-    base_db: CodeBaseDB,
+    base_db: VariantBaseDB,
     new_config_name: str,
     parameters: Dict[str, Any],
     **user_org_data: dict,
@@ -474,7 +474,7 @@ async def add_variant_from_base_and_config(
     Add a new variant to the database based on an existing base and a new configuration.
 
     Args:
-        base_db (CodeBaseDB): The existing base to use as a template for the new variant.
+        base_db (VariantBaseDB): The existing base to use as a template for the new variant.
         new_config_name (str): The name of the new configuration to use for the new variant.
         parameters (Dict[str, Any]): The parameters to use for the new configuration.
         **user_org_data (dict): Additional user and organization data.
@@ -830,12 +830,12 @@ async def remove_app_testsets(app_id: str, **kwargs):
     return 0
 
 
-async def remove_base_from_db(base: CodeBaseDB, **kwargs):
+async def remove_base_from_db(base: VariantBaseDB, **kwargs):
     """
     Remove a base from the database.
 
     Args:
-        base (CodeBaseDB): The base to be removed from the database.
+        base (VariantBaseDB): The base to be removed from the database.
         **kwargs: Additional keyword arguments.
 
     Raises:
@@ -1101,13 +1101,13 @@ async def count_apps(**user_org_data: dict) -> int:
 
 
 async def update_base(
-    base: CodeBaseDB,
+    base: VariantBaseDB,
     **kwargs: dict,
-) -> CodeBaseDB:
+) -> VariantBaseDB:
     """Update the base object in the database with the provided id.
 
     Arguments:
-        base (CodeBaseDB): The base object to update.
+        base (VariantBaseDB): The base object to update.
     """
     for key, value in kwargs.items():
         if key in base.__fields__:
@@ -1170,11 +1170,11 @@ async def fetch_base_and_check_access(
         HTTPException: If the base is not found or the user does not have access to it.
 
     Returns:
-        CodeBaseDB: The fetched base.
+        VariantBaseDB: The fetched base.
     """
     if base_id is None:
         raise Exception("No base_id provided")
-    base = await engine.find_one(CodeBaseDB, CodeBaseDB.id == ObjectId(base_id))
+    base = await engine.find_one(VariantBaseDB, VariantBaseDB.id == ObjectId(base_id))
     if base is None:
         logger.error("Base not found")
         raise HTTPException(status_code=404, detail="Base not found")
