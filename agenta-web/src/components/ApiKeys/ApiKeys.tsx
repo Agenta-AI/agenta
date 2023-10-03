@@ -31,7 +31,7 @@ export default function ApiKeys() {
     const saveDisabled = openAiKey === savedOpenAiKey
 
     return (
-        <div>
+        <div data-cy="apikeys">
             {contextHolder}
             <Title level={3} className={classes.title}>
                 API Keys
