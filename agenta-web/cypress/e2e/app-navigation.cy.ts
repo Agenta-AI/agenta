@@ -1,5 +1,5 @@
 describe("App Navigation without errors", () => {
-    context("when the user has clicked on an app variant", () => {
+    context("When the user navigates outside of the App views", () => {
         beforeEach(() => {
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
@@ -39,7 +39,7 @@ describe("App Navigation without errors", () => {
         })
     })
 
-    context("when accessing the apikeys from apps page", () => {
+    context("When the user navigates from Apps view", () => {
         before(() => {
             cy.visit("/apps")
         })
