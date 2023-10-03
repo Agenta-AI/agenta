@@ -251,7 +251,7 @@ async def add_variant_from_image(
             )
         app = await db_manager.fetch_app_by_id(app_id)
 
-        app_variant_db = await db_manager.add_variant_based_on_image(
+        app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
             docker_id=payload.docker_id,
@@ -359,7 +359,7 @@ async def create_app_and_variant_from_template(
             "Step 6: Creating image instance and adding variant based on image"
         )
         image_name = f"agentaai/templates:{payload.image_tag}"
-        app_variant_db = await db_manager.add_variant_based_on_image(
+        app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
             docker_id=payload.image_id,
