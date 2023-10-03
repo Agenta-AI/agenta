@@ -115,9 +115,6 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     const [correctAnswers, setCorrectAnswers] = useState<number>(0)
     const [accuracy, setAccuracy] = useState<number>(0)
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
-    const [evaluationResults, setEvaluationResults] = useState<any>(null)
-
-    const {Title} = Typography
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -128,8 +125,6 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
     useEffect(() => {
         if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
             fetchEvaluationResults(evaluation.id)
-                .then((data) => setEvaluationResults(data))
-                .catch((err) => console.error("Failed to fetch results:", err))
                 .then(() => {
                     updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
                 })
