@@ -9,7 +9,7 @@ import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
 import {getAppContainerURL, restartAppVariantContainer, waitForAppToStart} from "@/lib/services/api"
-import {useAppContext} from "@/contexts/app.context"
+import {useAppsData} from "@/contexts/app.context"
 
 interface Props {
     variant: Variant
@@ -56,7 +56,7 @@ const ViewNavigation: React.FC<Props> = ({
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURIPath, setContainerURIPath] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
-    const {currentApp} = useAppContext()
+    const {currentApp} = useAppsData()
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {

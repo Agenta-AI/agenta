@@ -1,4 +1,5 @@
 import ApiKeys from "@/components/ApiKeys/ApiKeys"
+import ProtectedRoute from "@/components/ProtectedRoute/ProtectedRoute"
 import {useQueryParam} from "@/hooks/useQuery"
 import {dynamicComponent, isDemo} from "@/lib/helpers/utils"
 import {ApartmentOutlined, GlobalOutlined, LockOutlined} from "@ant-design/icons"
@@ -78,4 +79,8 @@ const Settings: React.FC = () => {
     )
 }
 
-export default Settings
+export default () => (
+    <ProtectedRoute>
+        <Settings />
+    </ProtectedRoute>
+)

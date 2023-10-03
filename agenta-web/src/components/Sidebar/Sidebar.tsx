@@ -10,7 +10,7 @@ import {
     PhoneOutlined,
     SettingOutlined,
 } from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme, Dropdown, Select, Avatar, Typography} from "antd"
+import {Layout, Menu, Space, Tooltip, theme, Dropdown, Select, Avatar} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
@@ -21,24 +21,15 @@ import {signOut} from "supertokens-auth-react/recipe/thirdpartypasswordless"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import {useProfileData} from "@/contexts/profile.context"
 import {getColorFromStr, getGradientFromStr} from "@/lib/helpers/colors"
-import {getInitials} from "@/lib/helpers/utils"
-
-const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
+import {getInitials, isDemo} from "@/lib/helpers/utils"
+import {useSession} from "@/hooks/useSession"
 
 type StyleProps = {
     themeMode: "system" | "dark" | "light"
     colorBgContainer: string
 }
 
-type MenuItem = {
-    key: string
-    label?: string
-    onClick: () => void
-}
-
 const {Sider} = Layout
-
-const MANAGE_WORKSPACE_VAL = "_manage_workspace_"
 
 const useStyles = createUseStyles({
     sidebar: ({themeMode, colorBgContainer}: StyleProps) => ({
@@ -130,6 +121,7 @@ const Sidebar: React.FC = () => {
         themeMode: appTheme,
         colorBgContainer,
     } as StyleProps)
+    const {doesSessionExist} = useSession()
 
     const pathSegments = router.asPath.split("/")
     const page_name = pathSegments[3]
@@ -143,36 +135,7 @@ const Sidebar: React.FC = () => {
         initialSelectedKeys = ["apps"]
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
-    const [themeKey, setTheme] = useState(0)
     const {user, orgs, selectedOrg, changeSelectedOrg, reset} = useProfileData()
-
-    const items: MenuItem[] = [
-        {
-            key: "0",
-            label: "System",
-            onClick: () => {
-                setTheme(0)
-                toggleAppTheme("system")
-            },
-        },
-        {
-            key: "1",
-            label: "Dark Mode",
-            onClick: () => {
-                setTheme(1)
-                toggleAppTheme("dark")
-            },
-        },
-
-        {
-            key: "2",
-            label: "Light Mode",
-            onClick: () => {
-                setTheme(2)
-                toggleAppTheme("light")
-            },
-        },
-    ] as any[]
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
@@ -330,9 +293,11 @@ const Sidebar: React.FC = () => {
                             className={classes.menuContainer2}
                             selectedKeys={selectedKeys}
                         >
-                            <Menu.Item key="settings" icon={<SettingOutlined />}>
-                                <Link href="/settings">Settings</Link>
-                            </Menu.Item>
+                            {doesSessionExist && (
+                                <Menu.Item key="settings" icon={<SettingOutlined />}>
+                                    <Link href="/settings">Settings</Link>
+                                </Menu.Item>
+                            )}
 
                             <Menu.Item key="help" icon={<QuestionOutlined />}>
                                 <Link href="https://docs.agenta.ai" target="_blank">
@@ -340,7 +305,7 @@ const Sidebar: React.FC = () => {
                                 </Link>
                             </Menu.Item>
 
-                            {isDemo && (
+                            {isDemo() && (
                                 <>
                                     {" "}
                                     <Menu.Item key="expert" icon={<PhoneOutlined />}>
@@ -356,44 +321,25 @@ const Sidebar: React.FC = () => {
                                             <Select
                                                 bordered={false}
                                                 value={selectedOrg.id}
-                                                options={[
-                                                    {
-                                                        label: (
-                                                            <Typography.Link
-                                                                className={classes.orgLabel}
-                                                            >
-                                                                <SettingOutlined />
-                                                                <span>Manage</span>
-                                                            </Typography.Link>
-                                                        ),
-                                                        value: MANAGE_WORKSPACE_VAL,
-                                                    },
-                                                    ...orgs.map((org) => ({
-                                                        label: (
-                                                            <Tooltip title={org.name}>
-                                                                <span className={classes.orgLabel}>
-                                                                    <div
-                                                                        style={{
-                                                                            backgroundImage:
-                                                                                getGradientFromStr(
-                                                                                    org.id,
-                                                                                ),
-                                                                        }}
-                                                                    />
-                                                                    <span>{org.name}</span>
-                                                                </span>
-                                                            </Tooltip>
-                                                        ),
-                                                        value: org.id,
-                                                    })),
-                                                ]}
-                                                onChange={(value) =>
-                                                    value === MANAGE_WORKSPACE_VAL
-                                                        ? router.push(
-                                                              `/workspaces/${selectedOrg.id}`,
-                                                          )
-                                                        : changeSelectedOrg(value)
-                                                }
+                                                options={orgs.map((org) => ({
+                                                    label: (
+                                                        <Tooltip title={org.name}>
+                                                            <span className={classes.orgLabel}>
+                                                                <div
+                                                                    style={{
+                                                                        backgroundImage:
+                                                                            getGradientFromStr(
+                                                                                org.id,
+                                                                            ),
+                                                                    }}
+                                                                />
+                                                                <span>{org.name}</span>
+                                                            </span>
+                                                        </Tooltip>
+                                                    ),
+                                                    value: org.id,
+                                                }))}
+                                                onChange={(value) => changeSelectedOrg(value)}
                                             />
                                         </Menu.Item>
                                     )}
