@@ -164,7 +164,7 @@ export default function AutomaticEvaluationResult() {
             render: (value) => {
                 return (
                     <div>
-                        <span>{value[0].variantId}</span>
+                        <span>{value[0].variantName}</span>
                     </div>
                 )
             },
