@@ -1,4 +1,3 @@
-import {AbsoluteString} from "next/dist/lib/metadata/types/metadata-types"
 import {EvaluationFlow, EvaluationType} from "./enums"
 
 export interface testset {
@@ -116,6 +115,7 @@ export interface Parameter {
 export interface EvaluationResponseType {
     id: string
     variant_ids: string[]
+    variant_names: string[]
     votes_data: {
         variants_votes_data: {
             number_of_votes: number
@@ -212,6 +212,7 @@ export interface Environment {
     name: string
     app_id: string
     deployed_app_variant_id: string | null
+    deployed_variant_name: string | null
 }
 
 export interface CustomEvaluation {
@@ -221,4 +222,18 @@ export interface CustomEvaluation {
     python_code: string
     created_at: string
     updated_at: string
+}
+
+export interface User {
+    id: string
+    uid: string
+    username: string
+    email: string
+}
+
+export interface Org {
+    id: string
+    name: string
+    description?: string
+    owner: string
 }
