@@ -1,6 +1,7 @@
 """Converts db models to pydantic models
 """
 from typing import List
+from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
     AppVariantDB,
     ImageDB,
@@ -53,9 +54,15 @@ def evaluation_db_to_simple_evaluation_output(
     )
 
 
-def evaluation_db_to_pydantic(
+async def evaluation_db_to_pydantic(
     evaluation_db: EvaluationDB,
 ) -> Evaluation:
+    variant_names = []
+    for variant_id in evaluation_db.variants:
+        variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
+        variant_name = variant.variant_name if variant else str(variant_id)
+        variant_names.append(str(variant_name))
+
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
@@ -64,6 +71,7 @@ def evaluation_db_to_pydantic(
         evaluation_type=evaluation_db.evaluation_type,
         evaluation_type_settings=evaluation_db.evaluation_type_settings,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
+        variant_names=variant_names,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
@@ -118,16 +126,23 @@ def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
     )
 
 
-def environment_db_to_output(environment_db: EnvironmentDB) -> EnvironmentOutput:
+async def environment_db_to_output(environment_db: EnvironmentDB) -> EnvironmentOutput:
     deployed_app_variant_id = (
         str(environment_db.deployed_app_variant)
         if environment_db.deployed_app_variant
         else None
     )
+    if deployed_app_variant_id:
+        deployed_variant_name = (
+            await db_manager.get_app_variant_instance_by_id(deployed_app_variant_id)
+        ).variant_name
+    else:
+        deployed_variant_name = None
     return EnvironmentOutput(
         name=environment_db.name,
         app_id=str(environment_db.app.id),
         deployed_app_variant_id=deployed_app_variant_id,
+        deployed_variant_name=deployed_variant_name,
     )
 
 
