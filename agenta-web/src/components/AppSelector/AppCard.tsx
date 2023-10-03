@@ -8,6 +8,7 @@ import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {getGradientFromStr} from "@/lib/helpers/colors"
 import {ListAppsItem} from "@/lib/Types"
+import {useProfileData, Role} from "@/contexts/profile.context"
 
 const useStyles = createUseStyles({
     card: {
@@ -58,7 +59,10 @@ const AppCard: React.FC<{
     app: ListAppsItem
 }> = ({app}) => {
     const [visibleDelete, setVisibleDelete] = useState(false)
-    const [confirmLoading, setConfirmLoading] = useState(false) // add this line
+    const [confirmLoading, setConfirmLoading] = useState(false)
+    const {role} = useProfileData()
+    const isOwner = role === Role.OWNER
+
     const showDeleteModal = () => {
         setVisibleDelete(true)
     }
@@ -84,7 +88,11 @@ const AppCard: React.FC<{
         <>
             <Card
                 className={classes.card}
-                actions={[<DeleteOutlined key="delete" onClick={showDeleteModal} />]}
+                actions={
+                    isOwner
+                        ? [<DeleteOutlined key="delete" onClick={showDeleteModal} />]
+                        : undefined
+                }
             >
                 <Link data-cy="app-card-link" href={`/apps/${app.app_id}/playground`}>
                     <Card.Meta
