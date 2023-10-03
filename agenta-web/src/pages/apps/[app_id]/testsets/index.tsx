@@ -9,6 +9,7 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {deleteTestsets, useLoadTestsetsList} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
 import {testset} from "@/lib/Types"
+import {isDemo} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles({
     container: {
@@ -41,7 +42,6 @@ export default function Testsets() {
     const router = useRouter()
     const appId = router.query.app_id as string
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
 
     const columns: ColumnsType<testset> = [
@@ -94,7 +94,7 @@ export default function Testsets() {
                         >
                             <Button>Create a test set with UI</Button>
                         </Link>
-                        {isDemo ? (
+                        {isDemo() ? (
                             <Tooltip title="API test set creation is unavailable in the demo version. Check out the self-hosted open-source version at https://github.com/agenta-ai/agenta">
                                 <Button disabled>Create a test set with API</Button>
                             </Tooltip>

@@ -1,14 +1,10 @@
 import AppSelector from "@/components/AppSelector/AppSelector"
 import ProtectedRoute from "@/components/ProtectedRoute/ProtectedRoute"
 
-const isDemo = process.env.NEXT_PUBLIC_DEMO === "true"
-
 export default function Apps() {
-    return isDemo ? (
+    return (
         <ProtectedRoute>
             <AppSelector />
         </ProtectedRoute>
-    ) : (
-        <AppSelector />
     )
 }
