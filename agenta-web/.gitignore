@@ -36,6 +36,7 @@ next-env.d.ts
 
 # cypress videos
 cypress/videos
+cypress/screenshots
 
 #Allow
 !.env
