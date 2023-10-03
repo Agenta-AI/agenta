@@ -27,8 +27,8 @@ async def user_profile(
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
-        user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
+        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user = await engine.find_one(UserDB, UserDB.uid == user_org_data["uid"])
         return User(
             id=str(user.id),
             uid=str(user.uid),
