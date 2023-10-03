@@ -429,6 +429,9 @@ async def list_environments(
                 app_id=app_id, **user_and_org_data
             )
             logger.debug(f"environments_db: {environments_db}")
-            return [converters.environment_db_to_output(env) for env in environments_db]
+            return [
+                await converters.environment_db_to_output(env)
+                for env in environments_db
+            ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -67,6 +67,7 @@ class EnvironmentOutput(BaseModel):
     name: str
     app_id: str
     deployed_app_variant_id: Optional[str]
+    deployed_variant_name: Optional[str]
 
 
 class AddVariantFromPreviousPayload(BaseModel):
