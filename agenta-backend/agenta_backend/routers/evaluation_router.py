@@ -141,7 +141,7 @@ async def update_evaluation_router(
 )
 async def fetch_evaluation_scenarios(
     evaluation_id: str,
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -167,7 +167,7 @@ async def fetch_evaluation_scenarios(
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Create a new evaluation scenario for a given evaluation ID.
 
@@ -191,7 +191,7 @@ async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
     evaluation_type: EvaluationType,
     evaluation_scenario: EvaluationScenarioUpdate,
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Updates an evaluation scenario's vote or score based on its type.
 
@@ -217,7 +217,7 @@ async def update_evaluation_scenario_router(
 @router.post("/evaluation_scenario/ai_critique", response_model=str)
 async def evaluate_ai_critique(
     payload: AICritiqueCreate,
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> str:
     """
     Evaluate AI critique based on the given payload.

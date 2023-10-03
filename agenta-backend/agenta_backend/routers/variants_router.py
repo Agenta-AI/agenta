@@ -47,7 +47,7 @@ logger.setLevel(logging.DEBUG)
 @router.post("/from-base/")
 async def add_variant_from_base_and_config(
     payload: AddVariantFromBasePayload,
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> Union[AppVariantOutput, Any]:
     """Add a new variant based on an existing one.
     Same as POST /config
