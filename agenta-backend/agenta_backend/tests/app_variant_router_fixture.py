@@ -8,7 +8,7 @@ from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppDB,
     UserDB,
-    BaseDB,
+    CodeBaseDB,
     ImageDB,
     ConfigDB,
     AppVariantDB,
@@ -108,7 +108,7 @@ async def get_first_user_app():
     )
     await engine.save(db_config)
 
-    db_base = BaseDB(
+    db_base = CodeBaseDB(
         base_name="app",
         image_id=db_image,
     )

@@ -12,7 +12,7 @@ from agenta_backend.models.api.api_models import (
 )
 from agenta_backend.models.db_models import (
     AppVariantDB,
-    EnvironmentDB,
+    AppEnvironmentDB,
 )
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
@@ -253,7 +253,7 @@ async def remove_app_related_resources(app_id: str, **kwargs: dict):
     """
     try:
         # Delete associated environments
-        environments: List[EnvironmentDB] = await db_manager.list_environments(
+        environments: List[AppEnvironmentDB] = await db_manager.list_environments(
             app_id, **kwargs
         )
         for environment_db in environments:
