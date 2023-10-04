@@ -1,4 +1,6 @@
 describe("AI Critics Evaluation workflow", () => {
+    const appVariant = "capitals"
+
     context("When navigating successfully to the evaluation path", () => {
         it("Should navigate to evaluation page", () => {
             cy.visit("/apps")
@@ -18,10 +20,36 @@ describe("AI Critics Evaluation workflow", () => {
         it("Should display modal", () => {
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.get('[data-cy="ai-critic-button"]').click()
-            cy.get('[data-cy="variants-dropdown"]').eq(0).click()
-            cy.get("li.ant-dropdown-menu-item").eq(0).click()
-            cy.get('[data-cy="selected-testset"]').click()
-            cy.get("li.ant-dropdown-menu-item").eq(0).click()
+
+            cy.request({
+                url: `http://localhost/api/app_variant/list_variants/?app_name=${appVariant}`,
+                method: "GET",
+            }).then((response) => {
+                expect(response.status).to.equal(200)
+                cy.get('[data-cy="variants-dropdown"]')
+                    .find(".ant-dropdown-trigger")
+                    .each((dropdown, index) => {
+                        cy.wrap(dropdown).click()
+                        cy.get(".ant-dropdown-menu-item")
+                            .contains(response.body[index].variant_name)
+                            .click()
+                    })
+            })
+            cy.request({
+                url: `http://localhost/api/testsets/?app_name=${appVariant}`,
+                method: "GET",
+            }).then((response) => {
+                expect(response.status).to.equal(200)
+                cy.get('[data-cy="selected-testset"]')
+                    .find(".ant-dropdown-trigger")
+                    .each((dropdown, index) => {
+                        cy.wrap(dropdown).click()
+                        cy.get(".ant-dropdown-menu-item")
+                            .contains(response.body[index].name)
+                            .click()
+                    })
+            })
+
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get('[data-cy="evaluation-error-modal"]').should("exist")
             cy.get('[data-cy="evaluation-error-modal-ok-button"]').click()
@@ -30,10 +58,36 @@ describe("AI Critics Evaluation workflow", () => {
         it("Should display modal and naviagte to apikeys", () => {
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.get('[data-cy="ai-critic-button"]').click()
-            cy.get('[data-cy="variants-dropdown"]').eq(0).click()
-            cy.get("li.ant-dropdown-menu-item").eq(0).click()
-            cy.get('[data-cy="selected-testset"]').click()
-            cy.get("li.ant-dropdown-menu-item").eq(0).click()
+
+            cy.request({
+                url: `http://localhost/api/app_variant/list_variants/?app_name=${appVariant}`,
+                method: "GET",
+            }).then((response) => {
+                expect(response.status).to.equal(200)
+                cy.get('[data-cy="variants-dropdown"]')
+                    .find(".ant-dropdown-trigger")
+                    .each((dropdown, index) => {
+                        cy.wrap(dropdown).click()
+                        cy.get(".ant-dropdown-menu-item")
+                            .contains(response.body[index].variant_name)
+                            .click()
+                    })
+            })
+            cy.request({
+                url: `http://localhost/api/testsets/?app_name=${appVariant}`,
+                method: "GET",
+            }).then((response) => {
+                expect(response.status).to.equal(200)
+                cy.get('[data-cy="selected-testset"]')
+                    .find(".ant-dropdown-trigger")
+                    .each((dropdown, index) => {
+                        cy.wrap(dropdown).click()
+                        cy.get(".ant-dropdown-menu-item")
+                            .contains(response.body[index].name)
+                            .click()
+                    })
+            })
+
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get('[data-cy="evaluation-error-modal"]').should("exist")
             cy.get('[data-cy="evaluation-error-modal-nav-button"]').click()
@@ -42,8 +96,6 @@ describe("AI Critics Evaluation workflow", () => {
     })
 
     context("When you select evaluation in the presence of an API key", () => {
-        const appVariant = "capitals"
-
         it("Should executes a complete evaluation workflow", () => {
             cy.visit("/apikeys")
             cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
@@ -52,10 +104,36 @@ describe("AI Critics Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
             cy.get('[data-cy="ai-critic-button"]').click()
-            cy.get('[data-cy="variants-dropdown"]').eq(0).click()
-            cy.get("li.ant-dropdown-menu-item").eq(0).click()
-            cy.get('[data-cy="selected-testset"]').click()
-            cy.get("li.ant-dropdown-menu-item").eq(0).click()
+
+            cy.request({
+                url: `http://localhost/api/app_variant/list_variants/?app_name=${appVariant}`,
+                method: "GET",
+            }).then((response) => {
+                expect(response.status).to.equal(200)
+                cy.get('[data-cy="variants-dropdown"]')
+                    .find(".ant-dropdown-trigger")
+                    .each((dropdown, index) => {
+                        cy.wrap(dropdown).click()
+                        cy.get(".ant-dropdown-menu-item")
+                            .contains(response.body[index].variant_name)
+                            .click()
+                    })
+            })
+            cy.request({
+                url: `http://localhost/api/testsets/?app_name=${appVariant}`,
+                method: "GET",
+            }).then((response) => {
+                expect(response.status).to.equal(200)
+                cy.get('[data-cy="selected-testset"]')
+                    .find(".ant-dropdown-trigger")
+                    .each((dropdown, index) => {
+                        cy.wrap(dropdown).click()
+                        cy.get(".ant-dropdown-menu-item")
+                            .contains(response.body[index].name)
+                            .click()
+                    })
+            })
+
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.url().should("include", "/auto_ai_critique")
