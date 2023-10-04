@@ -1,5 +1,5 @@
-import json
 import os
+import json
 from contextlib import asynccontextmanager
 
 from agenta_backend.config import settings
@@ -15,10 +15,11 @@ from agenta_backend.services.cache_manager import (
     retrieve_templates_from_dockerhub_cached,
     retrieve_templates_info_from_dockerhub_cached,
 )
-from agenta_backend.services.container_manager import pull_image_from_docker_hub
-from agenta_backend.services.db_manager import add_template, remove_old_template_from_db
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from agenta_backend.middlewares.api_key_manager import authenticate_middleware
+from agenta_backend.services.container_manager import pull_image_from_docker_hub
+from agenta_backend.services.db_manager import add_template, remove_old_template_from_db
 
 origins = [
     "http://localhost:3000",
@@ -81,12 +82,6 @@ async def lifespan(application: FastAPI, cache=True):
 
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(app_variant.router, prefix="/app_variant")
-app.include_router(evaluation_router.router, prefix="/evaluations")
-app.include_router(testset_router.router, prefix="/testsets")
-app.include_router(container_router.router, prefix="/containers")
-app.include_router(environment_router.router, prefix="/environments")
-app.include_router(observability_router.router, prefix="/observability")
 
 allow_headers = ["Content-Type"]
 
@@ -95,7 +90,9 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
 
     app, allow_headers = ee.extend_main(app)
 # this is the prefix in which we are reverse proxying the api
-#
+
+
+# Add the CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -103,3 +100,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=allow_headers,
 )
+
+# Add the API key authentication middleware
+app.middleware("http")(authenticate_middleware)
+
+app.include_router(app_variant.router, prefix="/app_variant")
+app.include_router(evaluation_router.router, prefix="/evaluations")
+app.include_router(testset_router.router, prefix="/testsets")
+app.include_router(container_router.router, prefix="/containers")
+app.include_router(environment_router.router, prefix="/environments")
+app.include_router(observability_router.router, prefix="/observability")
