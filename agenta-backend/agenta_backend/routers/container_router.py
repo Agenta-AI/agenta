@@ -37,6 +37,8 @@ else:
     )
     from agenta_backend.services.selectors import get_user_and_org_id
 
+if os.environ["FEATURE_FLAG"] == "cloud":
+    from agenta_backend.ee.services.cloud import cloud_manager
 
 router = APIRouter()
 
@@ -202,5 +204,9 @@ async def construct_app_container_url(
     user = await get_user_object(kwargs["uid"])
 
     # Set user backend url path and container name
-    user_backend_url_path = f"{str(user.id)}/{app_name}/{variant_name}"
+    if os.environ["FEATURE_FLAG"] == "cloud":
+        user_backend_url_path = await cloud_manager.get_cloud_url(app_name, variant_name, user)
+    else:
+        user_backend_url_path = f"{str(user.id)}/{app_name}/{variant_name}"
+    
     return URI(uri=f"{user_backend_url_path}")
