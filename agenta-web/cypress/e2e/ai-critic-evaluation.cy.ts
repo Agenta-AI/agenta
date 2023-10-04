@@ -216,12 +216,24 @@ describe("AI Critics Evaluation workflow", () => {
                     }).then((putResponse) => {
                         expect(putResponse.status).to.equal(200)
                     })
-                    cy.intercept(
-                        "POST",
-                        `${Cypress.env().baseApiURL}/evaluations/evaluation_scenario/ai_critique`,
-                    ).as("postRequest")
-                    cy.wait("@postRequest", {requestTimeout: 20000}).then((interception) => {
-                        expect(interception.response.statusCode).to.eq(200)
+                    cy.request({
+                        url: `${Cypress.env().baseApiURL}/evaluations/${
+                            response.body[response.body.length - 1].id
+                        }/evaluation_scenarios`,
+                        method: "GET",
+                    }).then((resp) => {
+                        expect(resp.status).to.equal(200)
+                        resp.body.forEach(() => {
+                            cy.intercept(
+                                "POST",
+                                `${
+                                    Cypress.env().baseApiURL
+                                }/evaluations/evaluation_scenario/ai_critique`,
+                            ).as("postRequest")
+                            cy.wait("@postRequest").then((interception) => {
+                                expect(interception.response.statusCode).to.eq(200)
+                            })
+                        })
                     })
                 })
             })
