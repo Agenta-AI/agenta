@@ -205,8 +205,10 @@ async def construct_app_container_url(
 
     # Set user backend url path and container name
     if os.environ["FEATURE_FLAG"] == "cloud":
-        user_backend_url_path = await cloud_manager.get_cloud_url(app_name, variant_name, user)
+        user_backend_url_path = await cloud_manager.get_cloud_url(
+            app_name, variant_name, user
+        )
     else:
         user_backend_url_path = f"{str(user.id)}/{app_name}/{variant_name}"
-    
+
     return URI(uri=f"{user_backend_url_path}")

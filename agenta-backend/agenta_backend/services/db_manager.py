@@ -487,7 +487,7 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
     for environment in environments:
         environment.deployed_app_variant = None
         await engine.save(environment)
-        
+
     # delete deployment for users running the cloud version
     if os.environ["FEATURE_FLAG"] == "cloud":
         await remove_deployment(app_variant, **kwargs)
@@ -535,17 +535,32 @@ async def remove_image(image: ImageExtended, **kwargs: dict):
 
 async def remove_deployment(app_variant, **kwargs):
     """
-    
+    Remove deployment from db associated with app variant
     """
-    
+    print("app_variant: " + str(app_variant))
+
     user = await get_user_object(kwargs["uid"])
-    
+
     query_expression = (
-        query.eq(DeploymentDB.variant_id, app_variant.id)
-        & query.eq(DeploymentDB.user_id, user.id)
+        query.eq(AppVariantDB.app_name, app_variant.app_name)
+        & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
+        & query.eq(AppVariantDB.user_id, user.id)
     )
-    
-    await engine.delete(DeploymentDB, query_expression)
+    print("query_expression: " + str(query_expression))
+
+    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
+    print("db_app_variant: " + str(db_app_variant))
+
+    query_expression = query.eq(DeploymentDB.variant_id, db_app_variant.id) & query.eq(
+        DeploymentDB.user_id, user.id
+    )
+    print("arrived here")
+
+    deployment_db = await engine.find_one(DeploymentDB, query_expression)
+    print("arrived here 2")
+
+    await engine.delete(deployment_db)
+    print("arrived here 3")
 
 
 async def check_is_last_variant_for_image(
@@ -775,7 +790,7 @@ async def create_environment(name: str, app_name: str, **kwargs: dict):
         user_id=user,
     )
     await engine.save(environment_db)
-    
+
     return environment_db
 
 
