@@ -28,6 +28,7 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     TestSetDB,
     UserDB,
+    DeploymentDB,
 )
 from agenta_backend.services import helpers
 from bson import ObjectId
@@ -486,6 +487,10 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
     for environment in environments:
         environment.deployed_app_variant = None
         await engine.save(environment)
+        
+    # delete deployment for users running the cloud version
+    if os.environ["FEATURE_FLAG"] == "cloud":
+        await remove_deployment(app_variant, **kwargs)
 
     if app_variant_db.previous_variant_name is not None:  # forked variant
         await engine.delete(app_variant_db)
@@ -526,6 +531,21 @@ async def remove_image(image: ImageExtended, **kwargs: dict):
         raise ValueError("Image not found")
 
     await engine.delete(image_db)
+
+
+async def remove_deployment(app_variant, **kwargs):
+    """
+    
+    """
+    
+    user = await get_user_object(kwargs["uid"])
+    
+    query_expression = (
+        query.eq(DeploymentDB.variant_id, app_variant.id)
+        & query.eq(DeploymentDB.user_id, user.id)
+    )
+    
+    await engine.delete(DeploymentDB, query_expression)
 
 
 async def check_is_last_variant_for_image(
@@ -755,7 +775,7 @@ async def create_environment(name: str, app_name: str, **kwargs: dict):
         user_id=user,
     )
     await engine.save(environment_db)
-
+    
     return environment_db
 
 

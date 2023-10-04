@@ -14,7 +14,7 @@ from agenta_backend.models.api.api_models import (
     Image,
     ImageExtended,
 )
-from agenta_backend.models.db_models import AppVariantDB, TestSetDB
+from agenta_backend.models.db_models import AppVariantDB, TestSetDB, DeploymentDB
 from agenta_backend.services import db_manager, docker_utils
 from docker.errors import DockerException
 
@@ -170,6 +170,10 @@ async def remove_app_variant(app_variant: AppVariant, **kwargs: dict) -> None:
                 # Only delete the docker image for users that are running the oss version
                 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
                     _delete_docker_image(image)
+                    
+                # delete deployment for users running the cloud version
+                if os.environ["FEATURE_FLAG"] == "cloud":
+                    await db_manager.remove_deployment(app_variant, **kwargs)
             else:
                 logger.debug(
                     f"Image associated with app variant {app_variant.app_name}/{app_variant.variant_name} not found. Skipping deletion."
