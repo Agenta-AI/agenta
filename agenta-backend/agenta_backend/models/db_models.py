@@ -5,6 +5,16 @@ from typing import Any, Dict, List, Optional
 
 from odmantic import EmbeddedModel, Field, Model, Reference
 
+class APIKeyDB(Model):
+    key: str = Field(default=str(uuid4()), unique=True, index=True)
+    rate_limit: int
+    expiration_date: Optional[datetime]
+    blacklist: bool = Field(
+        default=False
+    )
+    created_at: Optional[datetime] = datetime.utcnow()
+    updated_at: Optional[datetime] = datetime.utcnow()
+
 
 class OrganizationDB(Model):
     name: str = Field(default="agenta")
