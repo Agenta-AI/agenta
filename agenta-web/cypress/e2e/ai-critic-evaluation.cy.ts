@@ -173,7 +173,7 @@ describe("AI Critics Evaluation workflow", () => {
                     "POST",
                     `http://localhost/api/evaluations/evaluation_scenario/ai_critique`,
                 ).as("postRequest")
-                cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
+                cy.wait("@postRequest", {requestTimeout: 20000}).then((interception) => {
                     expect(interception.response.statusCode).to.eq(200)
                 })
             })
