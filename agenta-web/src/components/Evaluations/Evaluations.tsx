@@ -570,7 +570,7 @@ export default function Evaluations() {
                             </div>
                         </Radio.Group>
                     </Col>
-                    <Col span={8}>
+                    <Col span={8} data-cy="variants-dropdown">
                         <div className="evalaution-title">
                             <Title level={4}>2. Which variants would you like to evaluate</Title>
                         </div>
@@ -583,10 +583,7 @@ export default function Evaluations() {
                                         marginTop: index === 0 ? 40 : 10,
                                     }}
                                 >
-                                    <div
-                                        className={classes.dropdownStyles}
-                                        data-cy="variants-dropdown"
-                                    >
+                                    <div className={classes.dropdownStyles}>
                                         {selectedVariants[index]?.variantName || "Select a variant"}
                                         <DownOutlined />
                                     </div>
@@ -594,7 +591,7 @@ export default function Evaluations() {
                             </Dropdown>
                         ))}
                     </Col>
-                    <Col span={8}>
+                    <Col span={8} data-cy="selected-testset">
                         <div className="evalaution-title">
                             {" "}
                             <Title level={4}>3. Which testset you want to use?</Title>
@@ -602,7 +599,7 @@ export default function Evaluations() {
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
                             <Button className={classes.dropdownBtn}>
-                                <div className={classes.dropdownStyles} data-cy="selected-testset">
+                                <div className={classes.dropdownStyles}>
                                     {selectedTestset.name}
 
                                     <DownOutlined />
