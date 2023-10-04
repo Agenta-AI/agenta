@@ -1,6 +1,6 @@
 describe("AI Critics Evaluation workflow", () => {
-    context("When successfully navigating to the evaluation path", () => {
-        it("should navigate to evaluation page", () => {
+    context("When navigating successfully to the evaluation path", () => {
+        it("Should navigate to evaluation page", () => {
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
@@ -8,13 +8,14 @@ describe("AI Critics Evaluation workflow", () => {
         })
     })
 
-    context("when selecting evaluation without apikey", () => {
+    context("When you select evaluation in the absence of an API key", () => {
         beforeEach(() => {
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
         })
-        it("should ok button", () => {
+
+        it("Should display modal", () => {
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.get('[data-cy="ai-critic-button"]').click()
             cy.get('[data-cy="variants-dropdown"]').eq(0).click()
@@ -26,7 +27,7 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get('[data-cy="evaluation-error-modal-ok-button"]').click()
         })
 
-        it("should nav button", () => {
+        it("Should display modal and naviagte to apikeys", () => {
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.get('[data-cy="ai-critic-button"]').click()
             cy.get('[data-cy="variants-dropdown"]').eq(0).click()
@@ -40,8 +41,10 @@ describe("AI Critics Evaluation workflow", () => {
         })
     })
 
-    context.only("when apikey provided", () => {
-        it("should ok button", () => {
+    context("When you select evaluation in the presence of an API key", () => {
+        const appVariant = "capitals"
+
+        it("Should executes a complete evaluation workflow", () => {
             cy.visit("/apikeys")
             cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
             cy.get('[data-cy="apikeys-save-button"]').click()
@@ -65,7 +68,7 @@ describe("AI Critics Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
 
             cy.request({
-                url: "http://localhost/api/evaluations/?app_name=await",
+                url: `http://localhost/api/evaluations/?app_name=${appVariant}`,
                 method: "GET",
             }).then((response) => {
                 expect(response.status).to.equal(200)
@@ -89,12 +92,10 @@ describe("AI Critics Evaluation workflow", () => {
                     expect(putResponse.status).to.equal(200)
                 })
                 cy.intercept(
-                    "GET",
-                    `http://localhost/api/evaluations/${
-                        response.body[response.body.length - 1].id
-                    }/results`,
-                ).as("getReq")
-                cy.wait("@getReq", {requestTimeout: 15000}).then((interception) => {
+                    "POST",
+                    `http://localhost/api/evaluations/evaluation_scenario/ai_critique`,
+                ).as("postRequest")
+                cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
                     expect(interception.response.statusCode).to.eq(200)
                     cy.get('[data-cy="ai-critic-evaluation-result"]').should(
                         "contain.text",
