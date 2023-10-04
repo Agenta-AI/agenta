@@ -97,12 +97,13 @@ describe("AI Critics Evaluation workflow", () => {
                 ).as("postRequest")
                 cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
                     expect(interception.response.statusCode).to.eq(200)
-                    cy.get('[data-cy="ai-critic-evaluation-result"]').should(
-                        "contain.text",
-                        "Results Data:",
-                    )
                 })
             })
+
+            cy.get('[data-cy="ai-critic-evaluation-result"]').should(
+                "contain.text",
+                "Results Data:",
+            )
             cy.get(".ant-message-notice-content").should("exist")
             cy.wait(3000)
             cy.get(".ant-message-notice-content").should("not.exist")
