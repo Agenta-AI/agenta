@@ -1,6 +1,4 @@
 describe("AI Critics Evaluation workflow", () => {
-    const appVariant = "capitals"
-
     context("When navigating successfully to the evaluation path", () => {
         it("Should navigate to evaluation page", () => {
             cy.visit("/apps")
@@ -22,32 +20,46 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get('[data-cy="ai-critic-button"]').click()
 
             cy.request({
-                url: `http://localhost/api/app_variant/list_variants/?app_name=${appVariant}`,
+                url: `${Cypress.env().baseApiURL}/app_variant/list_apps/`,
                 method: "GET",
-            }).then((response) => {
-                expect(response.status).to.equal(200)
-                cy.get('[data-cy="variants-dropdown"]')
-                    .find(".ant-dropdown-trigger")
-                    .each((dropdown, index) => {
-                        cy.wrap(dropdown).click()
-                        cy.get(".ant-dropdown-menu-item")
-                            .contains(response.body[index].variant_name)
-                            .click()
-                    })
+            }).then((res) => {
+                expect(res.status).to.equal(200)
+                cy.request({
+                    url: `${Cypress.env().baseApiURL}/app_variant/list_variants/?app_name=${
+                        res.body[0].app_name
+                    }`,
+                    method: "GET",
+                }).then((response) => {
+                    expect(response.status).to.equal(200)
+                    cy.get('[data-cy="variants-dropdown"]')
+                        .find(".ant-dropdown-trigger")
+                        .each((dropdown, index) => {
+                            cy.wrap(dropdown).click()
+                            cy.get(".ant-dropdown-menu-item")
+                                .contains(response.body[index].variant_name)
+                                .click()
+                        })
+                })
             })
             cy.request({
-                url: `http://localhost/api/testsets/?app_name=${appVariant}`,
+                url: `${Cypress.env().baseApiURL}/app_variant/list_apps/`,
                 method: "GET",
-            }).then((response) => {
-                expect(response.status).to.equal(200)
-                cy.get('[data-cy="selected-testset"]')
-                    .find(".ant-dropdown-trigger")
-                    .each((dropdown, index) => {
-                        cy.wrap(dropdown).click()
-                        cy.get(".ant-dropdown-menu-item")
-                            .contains(response.body[index].name)
-                            .click()
-                    })
+            }).then((res) => {
+                expect(res.status).to.equal(200)
+                cy.request({
+                    url: `${Cypress.env().baseApiURL}/testsets/?app_name=${res.body[0].app_name}`,
+                    method: "GET",
+                }).then((response) => {
+                    expect(response.status).to.equal(200)
+                    cy.get('[data-cy="selected-testset"]')
+                        .find(".ant-dropdown-trigger")
+                        .each((dropdown, index) => {
+                            cy.wrap(dropdown).click()
+                            cy.get(".ant-dropdown-menu-item")
+                                .contains(response.body[index].name)
+                                .click()
+                        })
+                })
             })
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
@@ -60,32 +72,46 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get('[data-cy="ai-critic-button"]').click()
 
             cy.request({
-                url: `http://localhost/api/app_variant/list_variants/?app_name=${appVariant}`,
+                url: `${Cypress.env().baseApiURL}/app_variant/list_apps/`,
                 method: "GET",
-            }).then((response) => {
-                expect(response.status).to.equal(200)
-                cy.get('[data-cy="variants-dropdown"]')
-                    .find(".ant-dropdown-trigger")
-                    .each((dropdown, index) => {
-                        cy.wrap(dropdown).click()
-                        cy.get(".ant-dropdown-menu-item")
-                            .contains(response.body[index].variant_name)
-                            .click()
-                    })
+            }).then((res) => {
+                expect(res.status).to.equal(200)
+                cy.request({
+                    url: `${Cypress.env().baseApiURL}/app_variant/list_variants/?app_name=${
+                        res.body[0].app_name
+                    }`,
+                    method: "GET",
+                }).then((response) => {
+                    expect(response.status).to.equal(200)
+                    cy.get('[data-cy="variants-dropdown"]')
+                        .find(".ant-dropdown-trigger")
+                        .each((dropdown, index) => {
+                            cy.wrap(dropdown).click()
+                            cy.get(".ant-dropdown-menu-item")
+                                .contains(response.body[index].variant_name)
+                                .click()
+                        })
+                })
             })
             cy.request({
-                url: `http://localhost/api/testsets/?app_name=${appVariant}`,
+                url: `${Cypress.env().baseApiURL}/app_variant/list_apps/`,
                 method: "GET",
-            }).then((response) => {
-                expect(response.status).to.equal(200)
-                cy.get('[data-cy="selected-testset"]')
-                    .find(".ant-dropdown-trigger")
-                    .each((dropdown, index) => {
-                        cy.wrap(dropdown).click()
-                        cy.get(".ant-dropdown-menu-item")
-                            .contains(response.body[index].name)
-                            .click()
-                    })
+            }).then((res) => {
+                expect(res.status).to.equal(200)
+                cy.request({
+                    url: `${Cypress.env().baseApiURL}/testsets/?app_name=${res.body[0].app_name}`,
+                    method: "GET",
+                }).then((response) => {
+                    expect(response.status).to.equal(200)
+                    cy.get('[data-cy="selected-testset"]')
+                        .find(".ant-dropdown-trigger")
+                        .each((dropdown, index) => {
+                            cy.wrap(dropdown).click()
+                            cy.get(".ant-dropdown-menu-item")
+                                .contains(response.body[index].name)
+                                .click()
+                        })
+                })
             })
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
@@ -106,32 +132,46 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get('[data-cy="ai-critic-button"]').click()
 
             cy.request({
-                url: `http://localhost/api/app_variant/list_variants/?app_name=${appVariant}`,
+                url: `${Cypress.env().baseApiURL}/app_variant/list_apps/`,
                 method: "GET",
-            }).then((response) => {
-                expect(response.status).to.equal(200)
-                cy.get('[data-cy="variants-dropdown"]')
-                    .find(".ant-dropdown-trigger")
-                    .each((dropdown, index) => {
-                        cy.wrap(dropdown).click()
-                        cy.get(".ant-dropdown-menu-item")
-                            .contains(response.body[index].variant_name)
-                            .click()
-                    })
+            }).then((res) => {
+                expect(res.status).to.equal(200)
+                cy.request({
+                    url: `${Cypress.env().baseApiURL}/app_variant/list_variants/?app_name=${
+                        res.body[0].app_name
+                    }`,
+                    method: "GET",
+                }).then((response) => {
+                    expect(response.status).to.equal(200)
+                    cy.get('[data-cy="variants-dropdown"]')
+                        .find(".ant-dropdown-trigger")
+                        .each((dropdown, index) => {
+                            cy.wrap(dropdown).click()
+                            cy.get(".ant-dropdown-menu-item")
+                                .contains(response.body[index].variant_name)
+                                .click()
+                        })
+                })
             })
             cy.request({
-                url: `http://localhost/api/testsets/?app_name=${appVariant}`,
+                url: `${Cypress.env().baseApiURL}/app_variant/list_apps/`,
                 method: "GET",
-            }).then((response) => {
-                expect(response.status).to.equal(200)
-                cy.get('[data-cy="selected-testset"]')
-                    .find(".ant-dropdown-trigger")
-                    .each((dropdown, index) => {
-                        cy.wrap(dropdown).click()
-                        cy.get(".ant-dropdown-menu-item")
-                            .contains(response.body[index].name)
-                            .click()
-                    })
+            }).then((res) => {
+                expect(res.status).to.equal(200)
+                cy.request({
+                    url: `${Cypress.env().baseApiURL}/testsets/?app_name=${res.body[0].app_name}`,
+                    method: "GET",
+                }).then((response) => {
+                    expect(response.status).to.equal(200)
+                    cy.get('[data-cy="selected-testset"]')
+                        .find(".ant-dropdown-trigger")
+                        .each((dropdown, index) => {
+                            cy.wrap(dropdown).click()
+                            cy.get(".ant-dropdown-menu-item")
+                                .contains(response.body[index].name)
+                                .click()
+                        })
+                })
             })
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
@@ -146,35 +186,43 @@ describe("AI Critics Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
 
             cy.request({
-                url: `http://localhost/api/evaluations/?app_name=${appVariant}`,
+                url: `${Cypress.env().baseApiURL}/app_variant/list_apps/`,
                 method: "GET",
-            }).then((response) => {
-                expect(response.status).to.equal(200)
+            }).then((res) => {
+                expect(res.status).to.equal(200)
                 cy.request({
-                    url: `http://localhost/api/evaluations/${
-                        response.body[response.body.length - 1].id
-                    }/evaluation_scenarios`,
-                    method: "GET",
-                }).then((getResponse) => {
-                    expect(getResponse.status).to.equal(200)
-                })
-                cy.request({
-                    url: `http://localhost/api/evaluations/${
-                        response.body[response.body.length - 1].id
+                    url: `${Cypress.env().baseApiURL}/evaluations/?app_name=${
+                        res.body[0].app_name
                     }`,
-                    method: "PUT",
-                    body: {
-                        status: "EVALUATION_FINISHED",
-                    },
-                }).then((putResponse) => {
-                    expect(putResponse.status).to.equal(200)
-                })
-                cy.intercept(
-                    "POST",
-                    `http://localhost/api/evaluations/evaluation_scenario/ai_critique`,
-                ).as("postRequest")
-                cy.wait("@postRequest", {requestTimeout: 20000}).then((interception) => {
-                    expect(interception.response.statusCode).to.eq(200)
+                    method: "GET",
+                }).then((response) => {
+                    expect(response.status).to.equal(200)
+                    cy.request({
+                        url: `${Cypress.env().baseApiURL}/evaluations/${
+                            response.body[response.body.length - 1].id
+                        }/evaluation_scenarios`,
+                        method: "GET",
+                    }).then((getResponse) => {
+                        expect(getResponse.status).to.equal(200)
+                    })
+                    cy.request({
+                        url: `${Cypress.env().baseApiURL}/evaluations/${
+                            response.body[response.body.length - 1].id
+                        }`,
+                        method: "PUT",
+                        body: {
+                            status: "EVALUATION_FINISHED",
+                        },
+                    }).then((putResponse) => {
+                        expect(putResponse.status).to.equal(200)
+                    })
+                    cy.intercept(
+                        "POST",
+                        `${Cypress.env().baseApiURL}/evaluations/evaluation_scenario/ai_critique`,
+                    ).as("postRequest")
+                    cy.wait("@postRequest", {requestTimeout: 20000}).then((interception) => {
+                        expect(interception.response.statusCode).to.eq(200)
+                    })
                 })
             })
 
