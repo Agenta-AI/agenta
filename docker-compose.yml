@@ -13,6 +13,7 @@ services:
     backend:
         build: ./agenta-backend
         environment:
+            - ENCRYPTION_KEY=QVWEmTx_OMxP9RuFWFJWgMd-E_gaaDID-K9I_qpINBI=
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
             - BARE_DOMAIN_NAME=localhost

@@ -13,6 +13,7 @@ services:
   backend:
     build: ./agenta-backend
     environment:
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - MONGODB_URI=mongodb://username:password@mongo:27017
       - ALLOW_ORIGINS=${ALLOW_ORIGINS}
       - ENVIRONMENT=production
