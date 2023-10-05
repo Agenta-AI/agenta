@@ -3,12 +3,13 @@ import {Col, Row, Divider, Button, Tooltip, Spin, notification} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {Environment, RestartVariantDocker, Variant} from "@/lib/Types"
+import {Environment, Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
 import {getAppContainerURL, restartAppVariantContainer, waitForAppToStart} from "@/lib/services/api"
+import {useAppsData} from "@/contexts/app.context"
 
 interface Props {
     variant: Variant
@@ -17,6 +18,7 @@ interface Props {
     setRemovalWarningModalOpen: (value: boolean) => void
     isDeleteLoading: boolean
     environments: Environment[]
+    onAdd: () => void
 }
 
 const useStyles = createUseStyles({
@@ -35,10 +37,11 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalWarningModalOpen,
     isDeleteLoading,
     environments,
+    onAdd,
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const appName = router.query.app_name as unknown as string
+    const appId = router.query.app_id as unknown as string
     const {
         inputParams,
         optParams,
@@ -48,11 +51,12 @@ const ViewNavigation: React.FC<Props> = ({
         isParamSaveLoading,
         saveOptParams,
         isLoading,
-    } = useVariant(appName, variant)
+    } = useVariant(appId, variant)
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURIPath, setContainerURIPath] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
+    const {currentApp} = useAppsData()
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -63,7 +67,7 @@ const ViewNavigation: React.FC<Props> = ({
 
     if (isError) {
         let variantDesignator = variant.templateVariantName
-        let imageName = `agentaai/${appName.toLowerCase()}_`
+        let imageName = `agentaai/${(currentApp?.app_name || "").toLowerCase()}_`
 
         if (!variantDesignator || variantDesignator === "") {
             variantDesignator = variant.variantName
@@ -73,7 +77,7 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const variantContainerPath = async () => {
-            const urlPath = await getAppContainerURL(appName!, variantDesignator!)
+            const urlPath = await getAppContainerURL(appId, variant.variantId, variant.baseId)
             setContainerURIPath(urlPath)
         }
         if (!containerURIPath) {
@@ -83,14 +87,8 @@ const ViewNavigation: React.FC<Props> = ({
         const restartContainerHandler = async () => {
             // Set restarting to true
             setRestarting(true)
-
-            // Set payload to send to backend
-            const data: RestartVariantDocker = {
-                app_name: appName.toLowerCase(),
-                variant_name: variant.variantName,
-            }
             try {
-                const response = await restartAppVariantContainer(data)
+                const response = await restartAppVariantContainer(variant.variantId)
                 if (response.status === 200) {
                     showNotification({
                         type: "success",
@@ -101,11 +99,12 @@ const ViewNavigation: React.FC<Props> = ({
                     })
 
                     // Set restarting to false
-                    await waitForAppToStart(appName)
+                    await waitForAppToStart(appId)
                     router.reload()
                     setRestarting(false)
                 }
-            } catch (err: any) {
+            } catch {
+            } finally {
                 setRestarting(false)
             }
         }
@@ -183,7 +182,7 @@ const ViewNavigation: React.FC<Props> = ({
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
-                        variantName={variant.variantName}
+                        variant={variant}
                         optParams={optParams}
                         isParamSaveLoading={isParamSaveLoading}
                         onOptParamsChange={saveOptParams}
@@ -195,6 +194,7 @@ const ViewNavigation: React.FC<Props> = ({
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         environments={environments}
+                        onAdd={onAdd}
                     />
                 </Col>
             </Row>

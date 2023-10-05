@@ -2,6 +2,7 @@ import {Button, Divider} from "antd"
 import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
+import {isDemo} from "@/lib/helpers/utils"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -81,7 +82,6 @@ interface Props {
 const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
     return (
         <div>
             <div>
@@ -124,7 +124,7 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
             <div className={classes.blueBox}>
                 <h3>Get started creating your first LLM App</h3>
 
-                {!isDemo && (
+                {!isDemo() && (
                     <p>
                         This guide assumes you have completed the installation process. If not,
                         please follow our{" "}
@@ -134,7 +134,7 @@ const Welcome: React.FC<Props> = ({onCreateAppClick}) => {
                         .
                     </p>
                 )}
-                {isDemo && (
+                {isDemo() && (
                     <p>
                         Important Note: You are using the demo version of Agenta. Don't forget to
                         regularly back up your data!
