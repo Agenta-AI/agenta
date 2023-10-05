@@ -41,11 +41,10 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
     const [loading, setLoading] = useState(false)
     const dirty = useRef(false)
     const router = useRouter()
-    const appName = router.query.app_name?.toString() || ""
+    const appId = router.query.app_id as string
     const isNew = selectedTestset === "-1"
 
-    const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} =
-        useLoadTestsetsList(appName)
+    const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appId)
 
     // reset the form to load latest initialValues on drawer open
     useUpdateEffect(() => {
@@ -80,7 +79,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
             }
 
             const promise = isNew
-                ? createNewTestset(appName, name, [rowData])
+                ? createNewTestset(appId, name, [rowData])
                 : updateTestset(selectedTestset!, name, [...csvdata, newRow])
             promise
                 .then(() => {
