@@ -10,6 +10,7 @@ from agenta_backend.services import (
     app_manager,
     docker_utils,
     db_manager,
+    deployment_manager,
 )
 from agenta_backend.utils.common import (
     check_access_to_app,
@@ -23,6 +24,7 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     AddVariantFromImagePayload,
     EnvironmentOutput,
+    Image,
 )
 from agenta_backend.models import converters
 
@@ -231,13 +233,6 @@ async def add_variant_from_image(
             status_code=500,
             detail="This feature is not available in the demo version",
         )
-    if not payload.tags.startswith(settings.registry):
-        raise HTTPException(
-            status_code=500,
-            detail="Image should have a tag starting with the registry name (agenta-server)",
-        )
-    elif docker_utils.find_image_by_docker_id(payload.docker_id) is None:
-        raise HTTPException(status_code=404, detail="Image not found")
 
     try:
         user_org_data: dict = await get_user_and_org_id(stoken_session)
@@ -250,6 +245,13 @@ async def add_variant_from_image(
                 status_code=403,
             )
         app = await db_manager.fetch_app_by_id(app_id)
+        image = Image(
+            docker_id=payload.docker_id,
+            tags=payload.tags,
+        )
+        valid_image = await deployment_manager.validate_image(image)
+        if not valid_image:
+            raise HTTPException(status_code=404, detail="Image not found")
 
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,

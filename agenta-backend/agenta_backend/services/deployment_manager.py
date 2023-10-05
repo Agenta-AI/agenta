@@ -1,11 +1,12 @@
-import os
-from typing import List, Dict, Union
-from agenta_backend.services import db_manager, docker_utils
-from agenta_backend.models.db_models import AppVariantDB, DeploymentDB, ImageDB
-from agenta_backend.models.api.api_models import Image
-from agenta_backend.config import settings
-from docker.errors import DockerException
 import logging
+import os
+from typing import Dict
+
+from agenta_backend.config import settings
+from agenta_backend.models.api.api_models import Image
+from agenta_backend.models.db_models import AppVariantDB, DeploymentDB, ImageDB
+from agenta_backend.services import db_manager, docker_utils
+from docker.errors import DockerException
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -59,7 +60,16 @@ async def start_service(
     return deployment
 
 
-async def remove_image(image: ImageDB):
+async def remove_image(image: Image):
+    """
+    Remove a Docker image from the system.
+
+    Args:
+        image (Image): The Docker image to remove.
+
+    Returns:
+        None
+    """
     try:
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
             docker_utils.delete_image(image.docker_id)
@@ -69,11 +79,29 @@ async def remove_image(image: ImageDB):
 
 
 async def stop_service(deployment: DeploymentDB):
+    """
+    Stops the Docker container associated with the given deployment.
+
+    Args:
+        deployment (DeploymentDB): The deployment to stop.
+
+    Returns:
+        None
+    """
     docker_utils.delete_container(deployment.container_id)
     logger.info(f"Container {deployment.container_id} deleted")
 
 
 async def stop_and_delete_service(deployment: DeploymentDB):
+    """
+    Stop and delete a Docker container associated with a deployment.
+
+    Args:
+        deployment (DeploymentDB): The deployment object associated with the container.
+
+    Returns:
+        None
+    """
     container_id = deployment.container_id
     docker_utils.stop_container(container_id)
     logger.info(f"Container {container_id} stopped")
@@ -82,6 +110,16 @@ async def stop_and_delete_service(deployment: DeploymentDB):
 
 
 async def validate_image(image: Image):
+    """
+    Validates the given image by checking if it has tags, if the tags start with the registry name, and if the image exists in the list of Docker images.
+
+    Args:
+        image (Image): The image to be validated.
+
+    Raises:
+        ValueError: If the image tags are empty or do not start with the registry name.
+        DockerException: If the image does not exist in the list of Docker images.
+    """
     if image.tags in ["", None]:
         msg = "Image tags cannot be empty"
         logger.error(msg)
@@ -94,65 +132,3 @@ async def validate_image(image: Image):
         raise DockerException(
             f"Image {image.docker_id} with tags {image.tags} not found"
         )
-
-
-# def find_image(image: Image) -> Union[str, None]:
-#     """
-#     Find an image by its Docker ID.
-
-#     Args:
-#         docker_id: The Docker ID of the image.
-
-#     Returns:
-#         The image if found, otherwise None.
-#     """
-#     return docker_utils.find_image_by_docker_id(docker_id)
-
-
-def restart_deployment(self, container_id: str) -> bool:
-    """
-    Restart a deployment.
-
-    Args:
-        container_id: The ID of the container to restart.
-
-    Returns:
-        True if successful, False otherwise.
-    """
-    return docker_utils.restart_container(container_id)
-
-
-def stop_service(self, image: str, image_docker_id: str) -> bool:
-    """
-    Stop a service.
-
-    Args:
-        image: The image name.
-        image_docker_id: The Docker ID of the image.
-
-    Returns:
-        True if successful, False otherwise.
-    """
-    if image not in docker_utils.list_images():
-        raise Exception(f"Image {image} not found")
-
-    docker_utils.stop_containers_based_on_image_id(image_docker_id)
-    docker_utils.delete_image(image_docker_id)
-    return True
-
-
-def terminate_and_remove_service(self, docker_id: str, container_id: str) -> bool:
-    """
-    Terminate and remove a service.
-
-    Args:
-        docker_id: The Docker ID of the image.
-        container_id: The ID of the container.
-
-    Returns:
-        True if successful, False otherwise.
-    """
-    docker_utils.delete_image(docker_id)
-    docker_utils.stop_container(container_id)
-    docker_utils.delete_container(container_id)
-    return True

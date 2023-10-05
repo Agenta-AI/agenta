@@ -2,9 +2,8 @@
 """
 import logging
 import os
-from typing import List, Optional, Any, Dict
+from typing import List, Any, Dict
 
-from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
     URI,
     DockerEnvVars,
@@ -16,7 +15,6 @@ from agenta_backend.models.db_models import (
     AppDB,
 )
 from agenta_backend.services import db_manager, deployment_manager
-from docker.errors import DockerException
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -149,14 +147,13 @@ async def terminate_and_remove_app_variant(
         if is_last_variant_for_image:
             # remove variant + terminate and rm containers + remove base
             image = app_variant_db.base.image
-            docker_id = str(image.docker_id)
             if image:
                 logger.debug("_stop_and_delete_app_container")
                 deployment = await db_manager.get_deployment_by_objectid(
                     app_variant_db.base.deployment
                 )
                 await deployment_manager.stop_and_delete_service(deployment)
-                await deployment_manager.delete_image(image)
+                await deployment_manager.remove_image(image)
                 logger.debug("remove base")
                 await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
                 logger.debug("Remove image object from db")
