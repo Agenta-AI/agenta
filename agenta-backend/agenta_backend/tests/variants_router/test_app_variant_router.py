@@ -2,49 +2,22 @@ import httpx
 import pytest
 import logging
 from bson import ObjectId
-from odmantic import query
-from fastapi import HTTPException
-from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.tests.app_variant_router_fixture import (
-    get_first_user_app,
-    get_first_user_object,
-    get_second_user_object,
-)
 
+from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppDB,
-    UserDB,
     VariantBaseDB,
     ImageDB,
     ConfigDB,
     AppVariantDB,
-    OrganizationDB,
 )
+from agenta_backend.services import selectors
 from agenta_backend.routers import app_router, environment_router
-
-from agenta_backend.services import (
-    app_manager,
-    db_manager,
-    docker_utils,
-    new_db_manager,
-    new_app_manager,
-)
-
 from agenta_backend.models.api.api_models import (
     App,
-    Image,
-    Variant,
-    AppVariant,
     AppVariantOutput,
     CreateAppVariant,
-)
-
-from agenta_backend.services import (
-    new_app_manager,
-)
-
-from agenta_backend.services.auth_helper import (
-    SessionContainer,
+    RemoveApp,
 )
 
 # Initialize database engine
@@ -61,8 +34,10 @@ logger.setLevel(logging.DEBUG)
 
 
 @pytest.mark.asyncio
-async def test_list_empty_appvariants():
-    response = await app_router.list_app_variants()
+async def test_list_empty_appvariants(get_first_user_app):
+    _, _, _, app, _, _, _ = await get_first_user_app
+    response = await app_router.list_app_variants(str(app.id))
+    
     assert response == []
 
 
@@ -73,20 +48,14 @@ async def test_list_empty_apps():
 
 
 @pytest.mark.asyncio
-async def test_list_images():
-    response = await app_router.list_images()
-    assert response > []
-
-
-@pytest.mark.asyncio
 async def test_create_app(get_first_user_object):
     user = await get_first_user_object
-    organization = await new_db_manager.get_user_own_org(user.uid)
+    organization = await selectors.get_user_own_org(user.uid)
 
     app = AppDB(
         app_name="test_app",
-        organization_id=organization,
-        user_id=user,
+        organization=organization,
+        user=user,
     )
 
     await engine.save(app)
@@ -103,20 +72,20 @@ async def test_create_app(get_first_user_object):
 @pytest.mark.asyncio
 async def test_create_app_variant(get_first_user_object):
     user = await get_first_user_object
-    organization = await new_db_manager.get_user_own_org(user.uid)
+    organization = await selectors.get_user_own_org(user.uid)
 
     app = AppDB(
         app_name="test_app",
-        organization_id=organization,
-        user_id=user,
+        organization=organization,
+        user=user,
     )
     await engine.save(app)
 
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         tags="agentaai/templates:local_test_prompt",
-        user_id=user,
-        organization_id=organization,
+        user=user,
+        organization=organization,
     )
     await engine.save(db_image)
 
@@ -133,16 +102,16 @@ async def test_create_app_variant(get_first_user_object):
     await engine.save(db_base)
 
     appvariant = AppVariantDB(
-        app_id=app,
+        app=app,
         variant_name="app",
-        image_id=db_image,
-        user_id=user,
-        organization_id=organization,
+        image=db_image,
+        user=user,
+        organization=organization,
         parameters={},
         base_name="app",
         config_name="default",
-        base_id=db_base,
-        config_id=db_config,
+        base=db_base,
+        config=db_config,
     )
     await engine.save(appvariant)
 
@@ -159,7 +128,7 @@ async def test_create_app_variant(get_first_user_object):
 @pytest.mark.asyncio
 async def test_add_app_variant_from_template(get_first_user_object):
     user = await get_first_user_object
-    organization = await new_db_manager.get_user_own_org(user.uid)
+    organization = await selectors.get_user_own_org(user.uid)
 
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -177,7 +146,7 @@ async def test_add_app_variant_from_template(get_first_user_object):
         env_vars={"ENV_VAR1": "value1", "ENV_VAR2": "value2"},
     )
 
-    response = await app_router.add_app_variant_from_template(request_payload)
+    response = await app_router.create_app_and_variant_from_template(request_payload)
     logging.debug("Response: %s", response)
     assert response == AppVariantOutput(
         app_id=response.app_id,
@@ -204,7 +173,7 @@ async def test_add_app_variant_from_template(get_first_user_object):
 async def test_delete_app(get_first_user_app):
     _, _, _, app, _, _, _ = await get_first_user_app
 
-    payload = App(app_id=str(app.id))
+    payload = RemoveApp(app_id=str(app.id))
 
     await app_router.remove_app(payload)
 
@@ -215,12 +184,12 @@ async def test_delete_app(get_first_user_app):
 @pytest.mark.asyncio
 async def test_delete_app_without_permission(get_second_user_object):
     user2 = await get_second_user_object
-    user2_organization = await new_db_manager.get_user_own_org(user2.uid)
+    user2_organization = await selectors.get_user_own_org(user2.uid)
 
     user2_app = AppDB(
         app_name="test_app_by_user2",
-        organization_id=user2_organization,
-        user_id=user2,
+        organization=user2_organization,
+        user=user2,
     )
     await engine.save(user2_app)
 
@@ -242,7 +211,9 @@ async def test_get_variant_by_env(get_first_user_app):
         db_base,
     ) = await get_first_user_app
 
-    environments = await environment_router.list_environments(app_id=str(app.id))
+    environments = await environment_router.list_environments(
+        app_id=str(app.id)
+    )
 
     for environment in environments:
         response = await app_router.get_variant_by_env(
