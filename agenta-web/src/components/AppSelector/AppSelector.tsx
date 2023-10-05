@@ -327,6 +327,7 @@ const AppSelector: React.FC = () => {
                                         }}
                                     >
                                         <Card.Meta
+                                            data-cy="create-new-app-button"
                                             className={classes.createCardMeta}
                                             title={<div>Create New App</div>}
                                             avatar={<PlusOutlined size={24} />}
@@ -367,6 +368,7 @@ const AppSelector: React.FC = () => {
                 }}
             />
             <Modal
+                data-cy="enter-app-name-modal"
                 title="Enter the app name"
                 open={isInputTemplateModalOpen}
                 onCancel={handleInputTemplateModalCancel}
@@ -383,11 +385,12 @@ const AppSelector: React.FC = () => {
                 />
                 {appNameExist && <div className={classes.modalError}>App name already exist</div>}
                 {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                    <div className={classes.modalError}>
+                    <div className={classes.modalError} data-cy="enter-app-name-modal-text-warning">
                         App name must contain only letters, numbers, underscore, or dash
                     </div>
                 )}
                 <Button
+                    data-cy="enter-app-name-modal-button"
                     className={classes.modalBtn}
                     type="primary"
                     loading={fetchingTemplate}

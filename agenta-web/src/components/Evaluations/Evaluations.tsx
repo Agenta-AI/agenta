@@ -429,7 +429,7 @@ export default function Evaluations() {
                 {typeof isError === "string" && <div>{isError}</div>}
                 {areAppVariantsLoading && <div>loading variants...</div>}
             </div>
-            <div className={classes.evaluationContainer}>
+            <div className={classes.evaluationContainer} data-cy="evaluations-container">
                 <Row justify="start" gutter={24}>
                     <Col span={8}>
                         <Title level={4}>1. Select an evaluation type</Title>

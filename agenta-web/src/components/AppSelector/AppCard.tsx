@@ -1,14 +1,14 @@
-import {Modal, Card, Avatar} from "antd"
-import {DeleteOutlined} from "@ant-design/icons"
-import {removeApp} from "@/lib/services/api"
-import {useState} from "react"
+import { Modal, Card, Avatar } from "antd"
+import { DeleteOutlined } from "@ant-design/icons"
+import { removeApp } from "@/lib/services/api"
+import { useState } from "react"
 import Link from "next/link"
-import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
-import {createUseStyles} from "react-jss"
-import {getGradientFromStr} from "@/lib/helpers/colors"
-import {ListAppsItem} from "@/lib/Types"
-import {useProfileData, Role} from "@/contexts/profile.context"
-import {useAppsData} from "@/contexts/app.context"
+import { renameVariablesCapitalizeAll } from "@/lib/helpers/utils"
+import { createUseStyles } from "react-jss"
+import { getGradientFromStr } from "@/lib/helpers/colors"
+import { ListAppsItem } from "@/lib/Types"
+import { useProfileData, Role } from "@/contexts/profile.context"
+import { useAppsData } from "@/contexts/app.context"
 
 const useStyles = createUseStyles({
     card: {
@@ -31,6 +31,24 @@ const useStyles = createUseStyles({
             textAlign: "center",
         },
     },
+    cardCover: {
+        "z-index": 1,
+        position: "absolute",
+        top: 0,
+        right: 0,
+        left: 0,
+        background: "transparent",
+        margin: "auto",
+        width: "300px",
+        height: "70px",
+        display: "flex",
+        overflow: "hidden",
+        "flex-direction": "column",
+        "justify-content": "space-between",
+    },
+    cardLink: {
+        padding: "24px",
+    },
 })
 
 const DeleteModal: React.FC<{
@@ -39,7 +57,7 @@ const DeleteModal: React.FC<{
     handleCancel: () => void
     appName: string
     confirmLoading: boolean
-}> = ({open, handleOk, handleCancel, appName, confirmLoading}) => {
+}> = ({ open, handleOk, handleCancel, appName, confirmLoading }) => {
     return (
         <Modal
             title="Are you sure?"
@@ -57,12 +75,12 @@ const DeleteModal: React.FC<{
 
 const AppCard: React.FC<{
     app: ListAppsItem
-}> = ({app}) => {
+}> = ({ app }) => {
     const [visibleDelete, setVisibleDelete] = useState(false)
     const [confirmLoading, setConfirmLoading] = useState(false)
-    const {role} = useProfileData()
+    const { role } = useProfileData()
     const isOwner = role === Role.OWNER
-    const {mutate} = useAppsData()
+    const { mutate } = useAppsData()
 
     const showDeleteModal = () => {
         setVisibleDelete(true)
@@ -94,20 +112,25 @@ const AppCard: React.FC<{
                         : undefined
                 }
             >
-                <Link data-cy="app-card-link" href={`/apps/${app.app_id}/playground`}>
-                    <Card.Meta
-                        title={<div>{renameVariablesCapitalizeAll(app.app_name)}</div>}
-                        avatar={
-                            <Avatar
-                                size="large"
-                                style={{backgroundImage: getGradientFromStr(app.app_id)}}
-                            >
-                                {app.app_name.charAt(0).toUpperCase()}
-                            </Avatar>
-                        }
-                    />
-                </Link>
-            </Card>
+                <div className={classes.cardCover}>
+
+                    <Link data-cy="app-card-link" href={`/apps/${app.app_id}/playground`}>
+                        <Card.Meta
+                            title={<div>{renameVariablesCapitalizeAll(app.app_name)}</div>}
+                            avatar={
+                                <Avatar
+                                    size="large"
+                                    style={{ backgroundImage: getGradientFromStr(app.app_id) }}
+                                >
+                                    {app.app_name.charAt(0).toUpperCase()}
+                                </Avatar>
+                            }
+                        />
+                    </Link>
+                </div>
+
+
+            </Card >
 
             <DeleteModal
                 open={visibleDelete}
