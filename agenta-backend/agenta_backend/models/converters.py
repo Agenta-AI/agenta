@@ -259,8 +259,8 @@ def trace_db_to_pydantic(trace_db: TraceDB) -> Trace:
 
     return Trace(
         trace_id=str(trace_db.id),
-        app_name=trace_db.app_name,
-        variant_name=trace_db.variant_name,
+        app_id=trace_db.app_id,
+        variant_id=trace_db.variant_id,
         cost=trace_db.cost,
         latency=trace_db.latency,
         status=trace_db.status,
