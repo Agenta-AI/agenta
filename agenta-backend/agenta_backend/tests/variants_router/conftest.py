@@ -72,7 +72,7 @@ async def get_second_user_object():
         pytest.fail(f"Failed to get or create the second user: {e}")
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 async def get_first_user_app():
     user = await engine.find_one(UserDB, UserDB.uid == "0")
     if user is None:
