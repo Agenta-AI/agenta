@@ -42,7 +42,7 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
-@router.post("/upload", response_model=TestSetSimpleResponse)
+@router.post("/upload/", response_model=TestSetSimpleResponse)
 async def upload_file(
     upload_type: str = Form(None),
     file: UploadFile = File(...),
@@ -118,7 +118,7 @@ async def upload_file(
         )
 
 
-@router.post("/endpoint", response_model=TestSetSimpleResponse)
+@router.post("/endpoint/", response_model=TestSetSimpleResponse)
 async def import_testset(
     endpoint: str = Form(None),
     testset_name: str = Form(None),
@@ -195,7 +195,7 @@ async def import_testset(
         ) from error
 
 
-@router.post("/{app_id}")
+@router.post("/{app_id}/")
 async def create_testset(
     app_id: str,
     csvdata: NewTestset,
@@ -249,7 +249,7 @@ async def create_testset(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{testset_id}")
+@router.put("/{testset_id}/")
 async def update_testset(
     testset_id: str,
     csvdata: NewTestset,
@@ -341,7 +341,7 @@ async def get_testsets(
     ]
 
 
-@router.get("/{testset_id}", tags=["testsets"])
+@router.get("/{testset_id}/", tags=["testsets"])
 async def get_testset(
     testset_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),

@@ -265,7 +265,7 @@ async def add_variant_from_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{app_id}")
+@router.delete("/{app_id}/")
 async def remove_app(
     app_id: str, stoken_session: SessionContainer = Depends(verify_session())
 ):
@@ -392,7 +392,7 @@ async def create_app_and_variant_from_template(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{app_id}/environments", response_model=List[EnvironmentOutput])
+@router.get("/{app_id}/environments/", response_model=List[EnvironmentOutput])
 async def list_environments(
     app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),

@@ -108,7 +108,7 @@ async def create_evaluation(
         )
 
 
-@router.put("/{evaluation_id}")
+@router.put("/{evaluation_id}/")
 async def update_evaluation_router(
     evaluation_id: str,
     update_data: EvaluationUpdate = Body(...),
@@ -136,7 +136,7 @@ async def update_evaluation_router(
 
 
 @router.get(
-    "/{evaluation_id}/evaluation_scenarios",
+    "/{evaluation_id}/evaluation_scenarios/",
     response_model=List[EvaluationScenario],
 )
 async def fetch_evaluation_scenarios(
@@ -163,7 +163,7 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post("/{evaluation_id}/evaluation_scenario")
+@router.post("/{evaluation_id}/evaluation_scenario/")
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
@@ -185,7 +185,7 @@ async def create_evaluation_scenario(
 
 
 @router.put(
-    "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}"
+    "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/"
 )
 async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
@@ -214,7 +214,7 @@ async def update_evaluation_scenario_router(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.post("/evaluation_scenario/ai_critique", response_model=str)
+@router.post("/evaluation_scenario/ai_critique/", response_model=str)
 async def evaluate_ai_critique(
     payload: AICritiqueCreate,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -251,7 +251,7 @@ async def evaluate_ai_critique(
         raise HTTPException(400, f"Failed to evaluate AI critique: {str(e)}")
 
 
-@router.get("/evaluation_scenario/{evaluation_scenario_id}/score")
+@router.get("/evaluation_scenario/{evaluation_scenario_id}/score/")
 async def get_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -270,7 +270,7 @@ async def get_evaluation_scenario_score_router(
     return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
 
 
-@router.put("/evaluation_scenario/{evaluation_scenario_id}/score")
+@router.put("/evaluation_scenario/{evaluation_scenario_id}/score/")
 async def update_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     payload: EvaluationScenarioScoreUpdate,
@@ -313,7 +313,7 @@ async def fetch_list_evaluations(
     )
 
 
-@router.get("/{evaluation_id}", response_model=Evaluation)
+@router.get("/{evaluation_id}/", response_model=Evaluation)
 async def fetch_evaluation(
     evaluation_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -353,7 +353,7 @@ async def delete_evaluations(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/{evaluation_id}/results")
+@router.get("/{evaluation_id}/results/")
 async def fetch_results(
     evaluation_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -437,7 +437,7 @@ async def create_custom_evaluation(
 
 
 @router.get(
-    "/custom_evaluation/list/{app_id}",
+    "/custom_evaluation/list/{app_id}/",
     response_model=List[CustomEvaluationOutput],
 )
 async def list_custom_evaluations(
@@ -462,7 +462,7 @@ async def list_custom_evaluations(
 
 
 @router.get(
-    "/custom_evaluation/{id}",
+    "/custom_evaluation/{id}/",
     response_model=CustomEvaluationDetail,
 )
 async def get_custom_evaluation(
@@ -544,7 +544,7 @@ async def execute_custom_evaluation(
     return result
 
 
-@router.post("/webhook_example_fake", response_model=EvaluationWebhook)
+@router.post("/webhook_example_fake/", response_model=EvaluationWebhook)
 async def webhook_example_fake():
     """Returns a fake score response for example webhook evaluation
 
