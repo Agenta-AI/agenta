@@ -2,6 +2,7 @@ import {Button, Tag} from "antd"
 import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
+import {isDemo} from "@/lib/helpers/utils"
 import {CheckCircleFilled, ClockCircleOutlined} from "@ant-design/icons"
 import TypingAnimator from "react-typing-animator"
 
