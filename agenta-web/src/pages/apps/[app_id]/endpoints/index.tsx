@@ -148,7 +148,7 @@ export default function VariantEndpoint() {
         TypeScript: tsCode(uri!, params),
     }
     return (
-        <div className={classes.container}>
+        <div className={classes.container} data-cy="endpoints">
             <Title level={3}>
                 <ApiOutlined />
                 API endpoint

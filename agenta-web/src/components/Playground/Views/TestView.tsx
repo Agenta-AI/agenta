@@ -136,6 +136,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             <Row className={classes.row1}>
                 {inputParamsNames.map((key, index) => (
                     <TextArea
+                        data-cy={`testview-input-parameters-${index}`}
                         key={index}
                         value={testData[key]}
                         placeholder={renameVariables(key)}
@@ -161,6 +162,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         className={classes.copyBtn}
                     />
                     <Button
+                        data-cy="testview-input-parameters-run-button"
                         type="primary"
                         shape="round"
                         icon={<CaretRightOutlined />}
@@ -173,6 +175,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             </Row>
             <Row className={classes.row3}>
                 <TextArea
+                    data-cy="testview-input-parameters-result"
                     value={result}
                     rows={6}
                     placeholder="Results will be shown here"
