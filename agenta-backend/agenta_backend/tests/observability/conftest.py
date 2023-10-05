@@ -2,10 +2,8 @@ import pytest
 from datetime import datetime
 
 from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.models.db_models import (
-    UserDB,
-    OrganizationDB,
-)
+from agenta_backend.models.db_models import OrganizationDB
+
 
 # Initialize database engine
 engine = DBEngine().engine()
@@ -127,15 +125,3 @@ def feedbacks_create_data():
         {"feedback": "thumbs up", "score": 0, "meta": {}},
         {"feedback": "thumbs down", "score": 10, "meta": {}},
     ]
-
-
-@pytest.fixture()
-async def create_first_organization_data():
-    """Create an OrganizationDB instance for testing."""
-    organization = OrganizationDB(
-        name="Test Organization 1",
-        description="Description For Test Organization 1",
-        type="default",
-    )
-    await engine.save(organization)
-

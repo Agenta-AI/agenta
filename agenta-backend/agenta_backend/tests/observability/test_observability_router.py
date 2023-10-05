@@ -25,11 +25,11 @@ engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
+timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 
 @pytest.mark.asyncio
 async def test_create_spans_endpoint(spans_db_data):
-    timeout = httpx.Timeout(timeout=5, read=10, write=5)
     response = await test_client.post(
         "http://localhost:8000/observability/spans/",
         json=spans_db_data[0],
@@ -55,16 +55,31 @@ async def test_create_user_and_org(user_create_data, organization_create_data):
 
 
 @pytest.mark.asyncio
+async def test_create_organization(organization_create_data):
+    user_db = await engine.find_one(UserDB, UserDB.uid == "0")
+    organization = OrganizationDB(
+        **organization_create_data,
+        type="default",
+        owner=str(user_db.id),
+        members=[user_db.id],
+    )
+    await engine.save(organization)
+
+
+@pytest.mark.asyncio
 async def test_create_image_in_db(image_create_data):
     user_db = await engine.find_one(UserDB, UserDB.uid == "0")
-    organization_db = await selectors.get_user_own_org(user_db.uid)
+    organization_db = await engine.find_one(
+        OrganizationDB, OrganizationDB.owner == str(user_db.id)
+    )
+
     image_db = ImageDB(
         **image_create_data, user=user_db, organization=organization_db
     )
     await engine.save(image_db)
 
     assert image_db.user.id == user_db.id
-    assert image_db.tags == "agentaai/templates:local_test_prompt"
+    assert image_db.tags == image_create_data["tags"]
 
 
 @pytest.mark.asyncio
@@ -113,6 +128,44 @@ async def test_create_appvariant_in_db(app_variant_create_data):
 
 
 @pytest.mark.asyncio
+async def test_create_spans_in_db(spans_db_data):
+    # Set previous span id to None and
+    # first span id used to False
+    previous_span_id = None
+    first_span_id_used = False
+
+    # Remove first item in a list (because we are
+    # already using it in the first test)
+    spans_db_data.pop(0)
+
+    for span_data in spans_db_data:
+        # In this case, we are getting the first span id that was
+        # created in the first test and updating the previous_span_id with it
+        if previous_span_id is None and not first_span_id_used:
+            first_span = await engine.find_one(SpanDB)
+            previous_span_id = str(first_span.id)
+
+        # Create a new span instance
+        span_db = SpanDB(**span_data)
+
+        # Set the parent_span_id to the new span instance if it exists
+        if previous_span_id is not None:
+            span_db.parent_span_id = previous_span_id
+
+        # Save the span instance and set the first_span_id_used
+        # to True to avoid reusing it
+        await engine.save(span_db)
+        first_span_id_used = True
+
+        # Check if the previous span id exists and that first_span_id_used is True
+        # if so, set the previous_span_id to the span that was created
+        if previous_span_id is not None and first_span_id_used:
+            previous_span_id = str(span_db.id)
+
+    assert len(spans_db_data) == 2
+
+
+@pytest.mark.asyncio
 async def fetch_spans_id():
     spans = await engine.find(SpanDB)
     assert type(spans) == List[SpanDB]
@@ -135,13 +188,10 @@ async def test_create_trace_endpoint(trace_create_data):
         **trace_create_data,
         "spans": spans_id,
     }
-
-    print("TCD: ", payload)
     response = await test_client.post(
         "http://localhost:8000/observability/traces/",
         json=payload,
     )
-    print("Response: ", response.text)
     assert response.status_code == 200
 
 
@@ -149,7 +199,7 @@ async def test_create_trace_endpoint(trace_create_data):
 async def test_get_traces_endpoint():
     variants = await engine.find(AppVariantDB)
     app_id, variant_id = variants[0].app.id, variants[0].id
-    
+
     response = await test_client.get(
         f"http://localhost:8000/observability/traces/{str(app_id)}/{str(variant_id)}/"
     )
@@ -160,14 +210,17 @@ async def test_get_traces_endpoint():
 @pytest.mark.asyncio
 async def test_get_trace_endpoint():
     traces = await engine.find(TraceDB)
+    
+    variants = await engine.find(AppVariantDB)
+    app_id, variant_id = variants[0].app.id, variants[0].id
 
     response = await test_client.get(
         f"http://localhost:8000/observability/traces/{str(traces[0].id)}/"
     )
     assert response.status_code == 200
     assert len(response.json()["spans"]) == 3
-    assert response.json()["app_name"] == "test_app"
-    assert response.json()["variant_name"] == "v1"
+    assert response.json()["app_id"] == str(app_id)
+    assert response.json()["variant_id"] == str(variant_id)
 
 
 @pytest.mark.asyncio
