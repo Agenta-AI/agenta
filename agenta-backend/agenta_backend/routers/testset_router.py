@@ -2,23 +2,24 @@ import os
 import csv
 import json
 import requests
-from copy import deepcopy
 from bson import ObjectId
 from datetime import datetime
 from typing import Optional, List
 
 from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Depends
+from fastapi.responses import JSONResponse
 
 from agenta_backend.models.api.testset_model import (
-    UploadResponse,
+    TestSetSimpleResponse,
     DeleteTestsets,
     NewTestset,
     TestSetOutputResponse,
 )
-from agenta_backend.config import settings
+from agenta_backend.utils.common import engine, check_access_to_app
 from agenta_backend.models.db_models import TestSetDB
-from agenta_backend.services.db_manager import engine, query, get_user_object
-
+from agenta_backend.services.db_manager import get_user_object
+from agenta_backend.services import db_manager
+from agenta_backend.models.converters import testset_db_to_pydantic
 
 upload_folder = "./path/to/upload/folder"
 
@@ -26,11 +27,13 @@ router = APIRouter()
 
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (
-        SessionContainer,
-        verify_session,
+    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
+        SessionContainer,  # noqa pylint: disable-all
+        verify_session,  # noqa pylint: disable-all
     )
-    from agenta_backend.ee.services.selectors import get_user_and_org_id
+    from agenta_backend.ee.services.selectors import (
+        get_user_and_org_id,
+    )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.auth_helper import (
         SessionContainer,
@@ -39,12 +42,12 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
-@router.post("/upload", response_model=UploadResponse)
+@router.post("/upload/", response_model=TestSetSimpleResponse)
 async def upload_file(
     upload_type: str = Form(None),
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
-    app_name: str = Form(None),
+    app_id: str = Form(None),
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """
@@ -59,62 +62,67 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    access_app = await check_access_to_app(
+        user_org_data=user_org_data, app_id=app_id, check_owner=False
+    )
+    if not access_app:
+        error_msg = f"You do not have access to this app: {app_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+    # Create a document
+    document = {
+        "created_at": datetime.now().isoformat(),
+        "name": testset_name if testset_name else file.filename,
+        "app": app,
+        "organization": app.organization,
+        "csvdata": [],
+    }
 
-    try:
-        # Create a document
-        document = {
-            "created_at": datetime.now().isoformat(),
-            "name": testset_name if testset_name else file.filename,
-            "app_name": app_name,
-            "csvdata": [],
-        }
+    if upload_type == "JSON":
+        # Read and parse the JSON file
+        json_data = await file.read()
+        json_text = json_data.decode("utf-8")
+        json_object = json.loads(json_text)
 
-        if upload_type == "JSON":
-            # Read and parse the JSON file
-            json_data = await file.read()
-            json_text = json_data.decode("utf-8")
-            json_object = json.loads(json_text)
+        # Populate the document with column names and values
+        for row in json_object:
+            document["csvdata"].append(row)
 
-            # Populate the document with column names and values
-            for row in json_object:
-                document["csvdata"].append(row)
+    else:
+        # Read and parse the CSV file
+        csv_data = await file.read()
+        csv_text = csv_data.decode("utf-8")
+        csv_reader = csv.reader(csv_text.splitlines())
+        columns = next(csv_reader)  # Get the column names
 
-        else:
-            # Read and parse the CSV file
-            csv_data = await file.read()
-            csv_text = csv_data.decode("utf-8")
-            csv_reader = csv.reader(csv_text.splitlines())
-            columns = next(csv_reader)  # Get the column names
+        # Populate the document with column names and values
+        for row in csv_reader:
+            row_data = {}
+            for i, value in enumerate(row):
+                row_data[columns[i]] = value
+            document["csvdata"].append(row_data)
 
-            # Populate the document with column names and values
-            for row in csv_reader:
-                row_data = {}
-                for i, value in enumerate(row):
-                    row_data[columns[i]] = value
-                document["csvdata"].append(row_data)
+    user = await get_user_object(user_org_data["uid"])
+    testset_instance = TestSetDB(**document, user=user)
+    result = await engine.save(testset_instance)
 
-        user = await get_user_object(kwargs["uid"])
-        testset_instance = TestSetDB(**document, user=user)
-        result = await engine.save(testset_instance)
-
-        if isinstance(result.id, ObjectId):
-            return UploadResponse(
-                id=str(result.id),
-                name=document["name"],
-                created_at=document["created_at"],
-            )
-
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail="Failed to process file") from e
+    if isinstance(result.id, ObjectId):
+        return TestSetSimpleResponse(
+            id=str(result.id),
+            name=document["name"],
+            created_at=document["created_at"],
+        )
 
 
-@router.post("/endpoint", response_model=UploadResponse)
+@router.post("/endpoint/", response_model=TestSetSimpleResponse)
 async def import_testset(
     endpoint: str = Form(None),
     testset_name: str = Form(None),
-    app_name: str = Form(None),
+    app_id: str = Form(None),
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """
@@ -127,6 +135,17 @@ async def import_testset(
     Returns:
         dict: The result of the import process.
     """
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    access_app = await check_access_to_app(
+        user_org_data=user_org_data, app_id=app_id, check_owner=False
+    )
+    if not access_app:
+        error_msg = f"You do not have access to this app: {app_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     try:
         response = requests.get(endpoint, timeout=10)
@@ -140,7 +159,8 @@ async def import_testset(
         document = {
             "created_at": datetime.now().isoformat(),
             "name": testset_name,
-            "app_name": app_name,
+            "app": app,
+            "organization": app.organization,
             "csvdata": [],
         }
 
@@ -149,13 +169,12 @@ async def import_testset(
         for row in json_response:
             document["csvdata"].append(row)
 
-        kwargs: dict = await get_user_and_org_id(stoken_session)
-        user = await get_user_object(kwargs["uid"])
+        user = await get_user_object(user_org_data["uid"])
         testset_instance = TestSetDB(**document, user=user)
         result = await engine.save(testset_instance)
 
         if isinstance(result.id, ObjectId):
-            return UploadResponse(
+            return TestSetSimpleResponse(
                 id=str(result.id),
                 name=document["name"],
                 created_at=document["created_at"],
@@ -176,9 +195,9 @@ async def import_testset(
         ) from error
 
 
-@router.post("/{app_name}")
+@router.post("/{app_id}/")
 async def create_testset(
-    app_name: str,
+    app_id: str,
     csvdata: NewTestset,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
@@ -194,27 +213,43 @@ async def create_testset(
     str: The id of the test set created.
     """
 
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user = await get_user_object(user_org_data["uid"])
+    access_app = await check_access_to_app(
+        user_org_data=user_org_data, app_id=app_id, check_owner=False
+    )
+    if not access_app:
+        error_msg = f"You do not have access to this app: {app_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
     testset = {
-        "name": csvdata.name,
-        "app_name": app_name,
         "created_at": datetime.now().isoformat(),
+        "name": csvdata.name,
+        "app": app,
+        "organization": app.organization,
         "csvdata": csvdata.csvdata,
+        "user": user,
     }
+
     try:
-        user = await get_user_object(kwargs["uid"])
-        testset_instance = TestSetDB(**testset, user=user)
+        testset_instance = TestSetDB(**testset)
         await engine.save(testset_instance)
 
         if testset_instance is not None:
-            testset["_id"] = str(testset_instance.id)
-            return testset
+            return TestSetSimpleResponse(
+                id=str(testset_instance.id),
+                name=testset_instance.name,
+                created_at=str(testset_instance.created_at),
+            )
     except Exception as e:
         print(str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{testset_id}")
+@router.put("/{testset_id}/")
 async def update_testset(
     testset_id: str,
     csvdata: NewTestset,
@@ -230,26 +265,30 @@ async def update_testset(
     Returns:
     str: The id of the test set updated.
     """
-    testset = {
+    testset_update = {
         "name": csvdata.name,
         "csvdata": csvdata.csvdata,
         "updated_at": datetime.now().isoformat(),
     }
-    try:
-        kwargs: dict = await get_user_and_org_id(stoken_session)
-        user = await get_user_object(kwargs["uid"])
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
 
-        # Define query expression
-        query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
-            TestSetDB.id, ObjectId(testset_id)
+    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+    if test_set is None:
+        raise HTTPException(status_code=404, detail="testset not found")
+    access_app = await check_access_to_app(
+        user_org_data=user_org_data, app_id=str(test_set.app.id), check_owner=False
+    )
+    if not access_app:
+        error_msg = f"You do not have access to this app: {test_set.app.id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
         )
+    try:
+        test_set.update(testset_update)
+        await engine.save(test_set)
 
-        # Find and update testset
-        result = await engine.find_one(TestSetDB, query_expression)
-        result.update(testset)
-        await engine.save(result)
-
-        if isinstance(result.id, ObjectId):
+        if isinstance(test_set.id, ObjectId):
             return {
                 "status": "success",
                 "message": "testset updated successfully",
@@ -262,9 +301,9 @@ async def update_testset(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/")
+@router.get("/", tags=["testsets"])
 async def get_testsets(
-    app_name: Optional[str] = None,
+    app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
 ) -> List[TestSetOutputResponse]:
     """
@@ -276,27 +315,33 @@ async def get_testsets(
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
-
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
-
-    # Define query expression
-    query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
-        TestSetDB.app_name, app_name
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    access_app = await check_access_to_app(
+        user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
-    testsets: List[TestSetDB] = await engine.find(TestSetDB, query_expression)
+    if not access_app:
+        error_msg = f"You do not have access to this app: {app_id}"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
+        )
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+
+    if app is None:
+        raise HTTPException(status_code=404, detail="App not found")
+
+    testsets: List[TestSetDB] = await db_manager.fetch_testsets_by_app_id(app_id=app_id)
     return [
         TestSetOutputResponse(
             id=str(testset.id),
             name=testset.name,
-            app_name=testset.app_name,
             created_at=testset.created_at,
         )
         for testset in testsets
     ]
 
 
-@router.get("/{testset_id}", tags=["testsets"])
+@router.get("/{testset_id}/", tags=["testsets"])
 async def get_testset(
     testset_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
@@ -310,22 +355,20 @@ async def get_testset(
     Returns:
         The requested testset if found, else an HTTPException.
     """
-
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
-
-    # Define query expression
-    query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
-        TestSetDB.id, ObjectId(testset_id)
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+    if test_set is None:
+        raise HTTPException(status_code=404, detail="testset not found")
+    access_app = await check_access_to_app(
+        user_org_data=user_org_data, app_id=str(test_set.app.id), check_owner=False
     )
-
-    testset = await engine.find_one(TestSetDB, query_expression)
-    if testset is not None:
-        return testset
-    else:
-        raise HTTPException(
-            status_code=404, detail=f"testset with id {testset_id} not found"
+    if not access_app:
+        error_msg = "You do not have access to this test set"
+        return JSONResponse(
+            {"detail": error_msg},
+            status_code=400,
         )
+    return testset_db_to_pydantic(test_set)
 
 
 @router.delete("/", response_model=List[str])
@@ -342,24 +385,26 @@ async def delete_testsets(
     Returns:
     A list of the deleted testsets' IDs.
     """
+    user_org_data: dict = await get_user_and_org_id(stoken_session)
+
     deleted_ids = []
 
-    kwargs: dict = await get_user_and_org_id(stoken_session)
-    user = await get_user_object(kwargs["uid"])
-
     for testset_id in delete_testsets.testset_ids:
-        # Define query expression
-        query_expression = query.eq(TestSetDB.user, user.id) & query.eq(
-            TestSetDB.id, ObjectId(testset_id)
+        test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+        if test_set is None:
+            raise HTTPException(status_code=404, detail="testset not found")
+        access_app = await check_access_to_app(
+            user_org_data=user_org_data,
+            app_id=str(test_set.app.id),
+            check_owner=False,
         )
-        testset = await engine.find_one(TestSetDB, query_expression)
-
-        if testset is not None:
-            await engine.delete(testset)
-            deleted_ids.append(testset_id)
-        else:
-            raise HTTPException(
-                status_code=404, detail=f"testset {testset_id} not found"
+        if not access_app:
+            error_msg = "You do not have access to this test set"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
             )
+        await engine.delete(test_set)
+        deleted_ids.append(testset_id)
 
     return deleted_ids
