@@ -1,3 +1,4 @@
+import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
 import {Variant} from "../Types"
 import {convertToCsv, downloadCsv} from "./utils"
 
@@ -142,4 +143,9 @@ export const calculateResultsDataAvg = (resultsData: Record<string, number>) => 
         0,
     )
     return sum / count
+}
+
+export const getVotesPercentage = (record: HumanEvaluationListTableDataType, index: number) => {
+    const variant = record.votesData.variants[index]
+    return record.votesData.variants_votes_data[variant]?.percentage
 }
