@@ -1,9 +1,9 @@
-import {deleteEvaluations, fetchData} from "@/lib/services/api"
-import {Button, Collapse, Result, Statistic, Table, Typography} from "antd"
+import {deleteEvaluations, fetchEvaluationResults, loadEvaluations} from "@/lib/services/api"
+import {Button, Collapse, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {ColumnsType} from "antd/es/table"
-import {EvaluationResponseType} from "@/lib/Types"
+import {Evaluation, GenericObject} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
@@ -23,13 +23,11 @@ interface EvaluationListTableDataType {
     status: EvaluationFlow
     scoresData: {
         nb_of_rows: number
-        scores: {
-            wrong: number
-            correct: number
-            true: number
-            false: number
-        }
-        variant: any[]
+        wrong?: GenericObject[]
+        correct?: GenericObject[]
+        true?: GenericObject[]
+        false?: GenericObject[]
+        variant: string[]
     }
     avgScore: number
     custom_code_eval_id: string
@@ -77,76 +75,64 @@ export default function AutomaticEvaluationResult() {
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectionType] = useState<"checkbox" | "radio">("checkbox")
-    const [deletingLoading, setDeletingLoading] = useState<boolean>(true)
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
 
-    const app_name = router.query.app_name?.toString() || ""
+    const app_id = router.query.app_id?.toString() || ""
 
     useEffect(() => {
-        if (!app_name) {
+        if (!app_id) {
             return
         }
+
         const fetchEvaluations = async () => {
             try {
-                fetchData(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_name=${app_name}`,
+                const evals: Evaluation[] = await loadEvaluations(app_id)
+                const results = await Promise.all(evals.map((e) => fetchEvaluationResults(e.id)))
+                const newEvals = results.map((result, ix) => {
+                    const item = evals[ix]
+                    if (
+                        [
+                            EvaluationType.auto_exact_match,
+                            EvaluationType.auto_similarity_match,
+                            EvaluationType.auto_regex_test,
+                            EvaluationType.auto_ai_critique,
+                            EvaluationType.custom_code_run,
+                            EvaluationType.auto_webhook_test,
+                        ].includes(item.evaluationType)
+                    ) {
+                        return {
+                            key: item.id,
+                            createdAt: formatDate(item.createdAt),
+                            variants: item.variants,
+                            scoresData: result.scores_data,
+                            evaluationType: item.evaluationType,
+                            status: item.status,
+                            testset: item.testset,
+                            custom_code_eval_id: item.evaluationTypeSettings.customCodeEvaluationId,
+                            resultsData: result.results_data,
+                            avgScore: result.avg_score,
+                        }
+                    }
+                })
+
+                setEvaluationsList(
+                    newEvals
+                        .filter((evaluation) => evaluation !== undefined)
+                        .filter(
+                            (item: any) =>
+                                item.resultsData !== undefined ||
+                                !(Object.keys(item.scoresData || {}).length === 0) ||
+                                item.avgScore !== undefined,
+                        ) as any,
                 )
-                    .then((response) => {
-                        const fetchPromises = response.map((item: EvaluationResponseType) => {
-                            return fetchData(
-                                `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${item.id}/results`,
-                            )
-                                .then((results) => {
-                                    if (
-                                        [
-                                            EvaluationType.auto_exact_match,
-                                            EvaluationType.auto_similarity_match,
-                                            EvaluationType.auto_regex_test,
-                                            EvaluationType.auto_ai_critique,
-                                            EvaluationType.custom_code_run,
-                                            EvaluationType.auto_webhook_test,
-                                        ].includes(item.evaluation_type as EvaluationType)
-                                    ) {
-                                        return {
-                                            key: item.id,
-                                            createdAt: formatDate(item.created_at),
-                                            variants: item.variants,
-                                            scoresData: results.scores_data,
-                                            evaluationType: item.evaluation_type,
-                                            status: item.status,
-                                            testset: item.testset,
-                                            custom_code_eval_id: item.custom_code_evaluation_id,
-                                            resultsData: results.results_data,
-                                            avgScore: results.avg_score,
-                                        }
-                                    }
-                                })
-                                .catch((err) => console.error(err))
-                        })
-                        Promise.all(fetchPromises)
-                            .then((evaluations) => {
-                                const validEvaluations = evaluations
-                                    .filter((evaluation) => evaluation !== undefined)
-                                    .filter(
-                                        (item) =>
-                                            item.resultsData !== undefined ||
-                                            !(Object.keys(item.scoresData || {}).length === 0) ||
-                                            item.avgScore !== undefined,
-                                    )
-                                setEvaluationsList(validEvaluations)
-                                setDeletingLoading(false)
-                            })
-                            .catch((err) => console.error(err))
-                    })
-                    .catch((err) => console.error(err))
             } catch (error) {
-                console.log(error)
+                console.error(error)
             }
         }
 
         fetchEvaluations()
-    }, [app_name])
+    }, [app_id])
 
     const onCompleteEvaluation = (evaluation: any) => {
         // TODO: improve type
@@ -154,18 +140,18 @@ export default function AutomaticEvaluationResult() {
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.auto_exact_match) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_exact_match`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_exact_match`)
         } else if (evaluationType === EvaluationType.auto_similarity_match) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_similarity_match`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_similarity_match`)
         } else if (evaluationType === EvaluationType.auto_regex_test) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_regex_test`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_regex_test`)
         } else if (evaluationType === EvaluationType.auto_webhook_test) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_webhook_test`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_webhook_test`)
         } else if (evaluationType === EvaluationType.auto_ai_critique) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/auto_ai_critique`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_ai_critique`)
         } else if (evaluationType === EvaluationType.custom_code_run) {
             router.push(
-                `/apps/${app_name}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_eval_id}`,
+                `/apps/${app_id}/evaluations/${evaluation.key}/custom_code_run?custom_eval_id=${evaluation.custom_code_eval_id}`,
             )
         }
     }
@@ -175,10 +161,10 @@ export default function AutomaticEvaluationResult() {
             title: "Variant",
             dataIndex: "variants",
             key: "variants",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            render: (value) => {
                 return (
                     <div>
-                        <span>{value[0]}</span>
+                        <span>{value[0].variantName}</span>
                     </div>
                 )
             },
@@ -209,23 +195,19 @@ export default function AutomaticEvaluationResult() {
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 let score = 0
                 if (record.scoresData) {
-                    let correctScore = 0
-
-                    if (record.scoresData.scores?.correct !== undefined) {
-                        correctScore = record.scoresData.scores.correct
-                    }
-                    if (record.scoresData.scores?.true !== undefined) {
-                        correctScore = record.scoresData.scores.true
-                    }
-
-                    score = (correctScore / record.scoresData.nb_of_rows) * 100
+                    score =
+                        ((record.scoresData.correct?.length ||
+                            record.scoresData.true?.length ||
+                            0) /
+                            record.scoresData.nb_of_rows) *
+                        100
                 } else if (record.resultsData) {
                     score =
                         calculateResultsDataAvg(record.resultsData) *
                         (record.evaluationType === EvaluationType.auto_webhook_test ? 100 : 10)
                     score = isNaN(score) ? 0 : score
                 } else if (record.avgScore) {
-                    score = record.avgScore
+                    score = record.avgScore * 100
                 }
 
                 return (
@@ -274,18 +256,17 @@ export default function AutomaticEvaluationResult() {
 
     const onDelete = async () => {
         const evaluationsIds = selectedRowKeys.map((key) => key.toString())
-        setDeletingLoading(true)
         try {
-            const deletedIds = await deleteEvaluations(evaluationsIds)
+            await deleteEvaluations(evaluationsIds)
             setEvaluationsList((prevEvaluationsList) =>
-                prevEvaluationsList.filter((evaluation) => !deletedIds.includes(evaluation.key)),
+                prevEvaluationsList.filter(
+                    (evaluation) => !evaluationsIds.includes(evaluation.key),
+                ),
             )
 
             setSelectedRowKeys([])
-        } catch (e) {
-            console.log(e)
+        } catch {
         } finally {
-            setDeletingLoading(false)
         }
     }
 

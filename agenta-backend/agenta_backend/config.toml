@@ -8,4 +8,4 @@ docker_hub_repo_name="templates"
 
 # change to "test" when you want to run \
 # tests to avoid losing all your data
-database_mode="default" 
+database_mode="v2" 

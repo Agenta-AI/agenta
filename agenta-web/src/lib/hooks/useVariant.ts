@@ -5,12 +5,12 @@ import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantH
 
 /**
  * Hook for using the variant.
- * @param appName
+ * @param appId
  * @param variantName
  * @param sourceVariantName The original variant name, this is important for determining the URI path
  * @returns
  */
-export function useVariant(appName: string, variant: Variant) {
+export function useVariant(appId: string, variant: Variant) {
     const [optParams, setOptParams] = useState<Parameter[] | null>(null)
     const [inputParams, setInputParams] = useState<Parameter[] | null>(null)
     const [URIPath, setURIPath] = useState<string | null>(null)
@@ -24,10 +24,7 @@ export function useVariant(appName: string, variant: Variant) {
             setIsLoading(true)
             setIsError(false)
             try {
-                const {parameters, inputs, URIPath} = await getAllVariantParameters(
-                    appName,
-                    variant,
-                )
+                const {parameters, inputs, URIPath} = await getAllVariantParameters(appId, variant)
                 setOptParams(parameters)
                 setInputParams(inputs)
                 setURIPath(URIPath)
@@ -41,7 +38,7 @@ export function useVariant(appName: string, variant: Variant) {
         }
 
         fetchParameters()
-    }, [appName, variant])
+    }, [appId, variant])
 
     useEffect(() => {
         const updatedInputParams = updateInputParams(optParams, inputParams || [])
@@ -57,16 +54,23 @@ export function useVariant(appName: string, variant: Variant) {
         updatedOptParams: Parameter[],
         persist: boolean,
         updateVariant: boolean,
+        onSuccess?: (isNew: boolean) => void,
     ) => {
         setIsParamSaveLoading(true)
         setIsError(false)
         try {
             if (persist) {
                 if (!updateVariant) {
-                    await saveNewVariant(appName, variant, updatedOptParams)
+                    await saveNewVariant(
+                        variant.baseId,
+                        variant.variantName,
+                        variant.configName,
+                        updatedOptParams,
+                    )
                 } else if (updateVariant) {
-                    await updateVariantParams(appName, variant, updatedOptParams)
+                    await updateVariantParams(variant.variantId, updatedOptParams)
                 }
+                if (onSuccess) onSuccess(!updateVariant)
                 variant.parameters = updatedOptParams.reduce((acc, param) => {
                     return {...acc, [param.name]: param.default}
                 }, {})
@@ -92,7 +96,7 @@ export function useVariant(appName: string, variant: Variant) {
 }
 
 // array version of useVariant
-export function useVariants(appName: string, variants: Variant[]) {
+export function useVariants(appId: string, variants: Variant[]) {
     const [optParams, setOptParams] = useState<(Parameter[] | null)[]>(variants.map(() => null))
     const [inputParams, setInputParams] = useState<(Parameter[] | null)[]>(variants.map(() => null))
     const [URIPath, setURIPath] = useState<(string | null)[]>(variants.map(() => null))
@@ -110,7 +114,7 @@ export function useVariants(appName: string, variants: Variant[]) {
         Promise.all(
             variants.map(async (variant) => {
                 try {
-                    const data = await getAllVariantParameters(appName, variant)
+                    const data = await getAllVariantParameters(appId, variant)
                     return {data, error: null}
                 } catch (error) {
                     return {data: null, error}
@@ -139,7 +143,7 @@ export function useVariants(appName: string, variants: Variant[]) {
             setURIPath(uriPathArr)
             setIsLoading(res.map(() => false))
         })
-    }, [appName, variants])
+    }, [appId, variants])
 
     useEffect(() => {
         const updatedInputParams = optParams.map((params, ix) =>
@@ -157,9 +161,14 @@ export function useVariants(appName: string, variants: Variant[]) {
                 try {
                     if (persist) {
                         if (!updateVariant) {
-                            await saveNewVariant(appName, variant, updatedOptParams)
+                            await saveNewVariant(
+                                variant.baseId,
+                                variant.variantName,
+                                variant.configName,
+                                updatedOptParams,
+                            )
                         } else if (updateVariant) {
-                            await updateVariantParams(appName, variant, updatedOptParams)
+                            await updateVariantParams(variant.variantId, updatedOptParams)
                         }
                         variant.parameters = updatedOptParams.reduce((acc, param) => {
                             return {...acc, [param.name]: param.default}

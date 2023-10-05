@@ -1,3 +1,4 @@
+import {Variant} from "../Types"
 import {convertToCsv, downloadCsv} from "./utils"
 
 export const exportExactEvaluationData = (evaluation: any, rows: any[]) => {
@@ -65,7 +66,9 @@ export const exportABTestingEvaluationData = (evaluation: any, rows: any[]) => {
             [`App Variant ${evaluation.variants[1].variantName} Output 1`]: data?.columnData1
                 ? data?.columnData1
                 : data.outputs[1]?.variant_output,
-            ["Vote"]: data.vote,
+            ["Vote"]:
+                evaluation.variants.find((v: Variant) => v.variantId === data.vote)?.variantName ||
+                data.vote,
         }
     })
     const exportCol = Object.keys(exportRow[0])

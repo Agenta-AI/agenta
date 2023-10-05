@@ -85,21 +85,19 @@ export default function HumanEvaluationResult() {
     const router = useRouter()
     const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const [selectionType, setSelectionType] = useState<"checkbox" | "radio">("checkbox")
-    const [deletingLoading, setDeletingLoading] = useState<boolean>(true)
+    const [selectionType] = useState<"checkbox" | "radio">("checkbox")
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-
-    const app_name = router.query.app_name?.toString() || ""
+    const app_id = router.query.app_id?.toString() || ""
 
     useEffect(() => {
-        if (!app_name) {
+        if (!app_id) {
             return
         }
         const fetchEvaluations = async () => {
             try {
                 fetchData(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_name=${app_name}`,
+                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_id=${app_id}`,
                 )
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
@@ -112,11 +110,15 @@ export default function HumanEvaluationResult() {
                                             return {
                                                 key: item.id,
                                                 createdAt: formatDate(item.created_at),
-                                                variants: item.variants,
+                                                variants: item.variant_ids,
+                                                variantNames: item.variant_names,
                                                 votesData: results.votes_data,
                                                 evaluationType: item.evaluation_type,
                                                 status: item.status,
-                                                testset: item.testset,
+                                                testset: {
+                                                    _id: item.testset_id,
+                                                    name: item.testset_name,
+                                                },
                                             }
                                         }
                                     }
@@ -129,7 +131,6 @@ export default function HumanEvaluationResult() {
                                     (evaluation) => evaluation !== undefined,
                                 )
                                 setEvaluationsList(validEvaluations)
-                                setDeletingLoading(false)
                             })
                             .catch((err) => console.error(err))
                     })
@@ -140,7 +141,7 @@ export default function HumanEvaluationResult() {
         }
 
         fetchEvaluations()
-    }, [app_name])
+    }, [app_id])
 
     const onCompleteEvaluation = (evaluation: any) => {
         // TODO: improve type
@@ -148,16 +149,16 @@ export default function HumanEvaluationResult() {
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_name}/evaluations/${evaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/human_a_b_testing`)
         }
     }
 
     const columns: ColumnsType<EvaluationListTableDataType> = [
         {
             title: "Variant 1",
-            dataIndex: "variants",
-            key: "variants",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            dataIndex: "variantNames",
+            key: "variant1",
+            render: (value: any) => {
                 return (
                     <div>
                         <span>{value[0]}</span>
@@ -167,9 +168,9 @@ export default function HumanEvaluationResult() {
         },
         {
             title: "Variant 2",
-            dataIndex: "variants",
-            key: "variants",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            dataIndex: "variantNames",
+            key: "variant2",
+            render: (value: any) => {
                 return (
                     <div>
                         <span>{value[1]}</span>
@@ -191,7 +192,7 @@ export default function HumanEvaluationResult() {
             key: "v1Better",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 let variant = record.votesData.variants[0]
-                let percentage = record.votesData.variants_votes_data[variant].percentage
+                let percentage = record.votesData.variants_votes_data[variant]?.percentage
 
                 return (
                     <span>
@@ -211,7 +212,7 @@ export default function HumanEvaluationResult() {
             key: "v2Better",
             render: (value: any, record: EvaluationListTableDataType, index: number) => {
                 let variant = record.votesData.variants[1]
-                let percentage = record.votesData.variants_votes_data[variant].percentage
+                let percentage = record.votesData.variants_votes_data[variant]?.percentage
 
                 return (
                     <span>
@@ -277,19 +278,16 @@ export default function HumanEvaluationResult() {
 
     const onDelete = async () => {
         const evaluationsIds = selectedRowKeys.map((key) => key.toString())
-        setDeletingLoading(true)
         try {
-            const deletedIds = await deleteEvaluations(evaluationsIds)
+            await deleteEvaluations(evaluationsIds)
             setEvaluationsList((prevEvaluationsList) =>
-                prevEvaluationsList.filter((evaluation) => !deletedIds.includes(evaluation.key)),
+                prevEvaluationsList.filter(
+                    (evaluation) => !evaluationsIds.includes(evaluation.key),
+                ),
             )
 
             setSelectedRowKeys([])
-        } catch (e) {
-            console.log(e)
-        } finally {
-            setDeletingLoading(false)
-        }
+        } catch {}
     }
 
     const items = [
@@ -316,7 +314,6 @@ export default function HumanEvaluationResult() {
                         }}
                         columns={columns}
                         dataSource={evaluationsList}
-                        // loading={loading}
                     />
                 </div>
             ),
