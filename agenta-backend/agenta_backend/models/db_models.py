@@ -6,6 +6,16 @@ from bson import ObjectId
 from odmantic import EmbeddedModel, Field, Model, Reference
 
 
+class APIKeyDB(Model):
+    key: str = Field(default=str(uuid4()), unique=True, index=True)
+    user_id: str
+    rate_limit: int
+    expiration_date: Optional[datetime]
+    blacklist: bool = Field(default=False)
+    created_at: Optional[datetime] = datetime.utcnow()
+    updated_at: Optional[datetime] = datetime.utcnow()
+
+
 class InvitationDB(EmbeddedModel):
     token: str = Field(unique=True)
     email: str
