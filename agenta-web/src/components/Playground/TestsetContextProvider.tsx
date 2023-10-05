@@ -13,7 +13,14 @@ export const TestContext = createContext<{
 }>({testList: [{}], setTestList: () => {}})
 
 const TestsetContextProvider: React.FC<PropsWithChildren> = (props) => {
+    const [testList, setTestList] = useState<Record<string, string>[]>(() => {
+        const savedTestList = localStorage.getItem("testList")
+        return savedTestList ? JSON.parse(savedTestList) : [{}]
+    })
 
+    useEffect(() => {
+        localStorage.setItem("testList", JSON.stringify(testList))
+    }, [testList])
 
     return (
         <TestContext.Provider value={{testList, setTestList}}>
