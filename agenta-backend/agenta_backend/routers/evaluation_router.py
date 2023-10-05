@@ -51,11 +51,11 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
-    from agenta_backend.services.auth_helper import (  # noqa pylint: disable-all
+    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
         SessionContainer,
         verify_session,
     )
-    from agenta_backend.services.selectors import (  # noqa pylint: disable-all
+    from agenta_backend.ee.services.selectors import (  # noqa pylint: disable-all
         get_user_and_org_id,
     )
 else:
