@@ -3,25 +3,21 @@ import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject, ListAppsItem, UserOwnOrg} from "@/lib/Types"
+import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {isAppNameInputValid} from "@/lib/helpers/utils"
-import {createAndStartTemplate, getTemplates, getUserOrg} from "@/lib/services/api"
+import {isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
+import {createAndStartTemplate, getTemplates} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
-
-const isDemo = process.env.NEXT_PUBLIC_FF === "demo"
-
-// conditionally import the useApps hook based on the demo flag
-let useApps: any = () => ({isLoading: true})
-import(`@/lib/services/api${isDemo ? "_ee" : ""}`).then((module) => (useApps = module.useApps))
+import {useAppsData} from "@/contexts/app.context"
+import {useProfileData} from "@/contexts/profile.context"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -99,7 +95,6 @@ const AppSelector: React.FC = () => {
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
-    const [userOrgId, setUserOrgId] = useState<string>("")
 
     const [templateMessage, setTemplateMessage] = useState("")
     const [templateName, setTemplateName] = useState<string | undefined>(undefined)
@@ -107,6 +102,8 @@ const AppSelector: React.FC = () => {
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
+    const {selectedOrg} = useProfileData()
+    const {apps, error, isLoading, mutate} = useAppsData()
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
@@ -150,6 +147,7 @@ const AppSelector: React.FC = () => {
     }
 
     useEffect(() => {
+        if (!isLoading) mutate()
         const fetchTemplates = async () => {
             const data = await getTemplates()
             if (typeof data == "object") {
@@ -160,17 +158,6 @@ const AppSelector: React.FC = () => {
         }
 
         fetchTemplates()
-    }, [])
-
-    useEffect(() => {
-        const fetchUserOrg = async () => {
-            const response: UserOwnOrg = await getUserOrg()
-            if (response && response.id) {
-                setUserOrgId(response.id)
-            }
-        }
-
-        fetchUserOrg()
     }, [])
 
     const handleTemplateCardClick = async (image_name: string) => {
@@ -186,14 +173,14 @@ const AppSelector: React.FC = () => {
 
         // warn the user and redirect if openAI key is not present
         const openAIKey = localStorage.getItem("openAiToken")
-        if (!openAIKey && !isDemo) {
+        if (!openAIKey && !isDemo()) {
             notification.error({
                 message: "OpenAI API Key Missing",
                 description: "Please provide your OpenAI API key to access this feature.",
                 duration: 5,
             })
             onFinish()
-            router.push("/apikeys")
+            router.push("/settings?tab=apikeys")
             return
         }
 
@@ -208,8 +195,8 @@ const AppSelector: React.FC = () => {
         await createAndStartTemplate({
             appName: newApp,
             imageName: image_name,
-            orgId: userOrgId,
-            openAIKey: isDemo ? "" : (openAIKey as string),
+            orgId: selectedOrg?.id!,
+            openAIKey: isDemo() ? "" : (openAIKey as string),
             onStatusChange: (status, details, appId) => {
                 const title = "Template Selection"
                 switch (status) {
@@ -292,15 +279,13 @@ const AppSelector: React.FC = () => {
         })
     }
 
-    const {data, error, isLoading}: {data: ListAppsItem[]; error: any; isLoading: boolean} =
-        useApps()
     useEffect(() => {
         setTimeout(() => {
-            if (data) {
-                setAppNameExist(data.some((app: GenericObject) => app.app_name === newApp))
+            if (apps) {
+                setAppNameExist(apps.some((app: GenericObject) => app.app_name === newApp))
             }
         }, 3000)
-    }, [data, newApp])
+    }, [apps, newApp])
 
     return (
         <ConfigProvider
@@ -319,14 +304,14 @@ const AppSelector: React.FC = () => {
                         <CloseCircleFilled className={classes.closeIcon} />
                         <h1>failed to load</h1>
                     </div>
-                ) : Array.isArray(data) && data.length ? (
+                ) : Array.isArray(apps) && apps.length ? (
                     <>
                         <h1 className={classes.h1}>LLM Applications</h1>
                         <Divider className={classes.divider} />
                         <div className={classes.cardsList}>
-                            {Array.isArray(data) && (
+                            {Array.isArray(apps) && (
                                 <>
-                                    {data.map((app, index: number) => (
+                                    {apps.map((app, index: number) => (
                                         <div key={index}>
                                             <AppCard app={app} />
                                         </div>
@@ -334,7 +319,7 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo && data.length > 1) {
+                                            if (isDemo() && apps.length > 1) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()

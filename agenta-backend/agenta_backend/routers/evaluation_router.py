@@ -1,8 +1,6 @@
 import os
 import random
-from bson import ObjectId
-from datetime import datetime
-from typing import List, Optional, Dict
+from typing import List, Dict
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, APIRouter, Body, Depends, status, Response
@@ -40,10 +38,7 @@ from agenta_backend.services.evaluation_service import (
     execute_custom_code_evaluation,
 )
 from agenta_backend.services import evaluation_service
-from agenta_backend.utils.common import engine, check_access_to_app
-from agenta_backend.services.db_manager import query, get_user_object
-from agenta_backend.models.db_models import EvaluationDB, EvaluationScenarioDB
-from agenta_backend.config import settings
+from agenta_backend.utils.common import check_access_to_app
 from agenta_backend.services import db_manager
 from agenta_backend.models import converters
 from agenta_backend.services import results_service
@@ -97,9 +92,9 @@ async def create_evaluation(
                 {"detail": error_msg},
                 status_code=400,
             )
-        app_ref = await db_manager.fetch_app_by_id(app_id=payload.app_id)
+        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
 
-        if app_ref is None:
+        if app is None:
             raise HTTPException(status_code=404, detail="App not found")
 
         new_evaluation_db = await evaluation_service.create_new_evaluation(
@@ -146,7 +141,7 @@ async def update_evaluation_router(
 )
 async def fetch_evaluation_scenarios(
     evaluation_id: str,
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -172,7 +167,7 @@ async def fetch_evaluation_scenarios(
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Create a new evaluation scenario for a given evaluation ID.
 
@@ -196,7 +191,7 @@ async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
     evaluation_type: EvaluationType,
     evaluation_scenario: EvaluationScenarioUpdate,
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Updates an evaluation scenario's vote or score based on its type.
 
@@ -222,7 +217,7 @@ async def update_evaluation_scenario_router(
 @router.post("/evaluation_scenario/ai_critique", response_model=str)
 async def evaluate_ai_critique(
     payload: AICritiqueCreate,
-    stoken_session: SessionContainer = Depends(verify_session),
+    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> str:
     """
     Evaluate AI critique based on the given payload.
@@ -394,7 +389,7 @@ async def fetch_results(
         return {"scores_data": results}
 
     elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
-        results = await results_service.fetch_results_for_auto_webhook_test(
+        results = await results_service.fetch_results_for_auto_ai_critique(
             evaluation_id
         )
         return {"results_data": results}

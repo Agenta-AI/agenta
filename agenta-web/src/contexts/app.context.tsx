@@ -1,42 +1,53 @@
 import {ListAppsItem} from "@/lib/Types"
+import {useApps} from "@/lib/services/api"
 import {useRouter} from "next/router"
-import {
-    Dispatch,
-    PropsWithChildren,
-    SetStateAction,
-    createContext,
-    useContext,
-    useMemo,
-    useState,
-} from "react"
+import {PropsWithChildren, createContext, useContext, useMemo} from "react"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
     apps: ListAppsItem[]
-    setApps: Dispatch<SetStateAction<ListAppsItem[]>>
+    error: any
+    isLoading: boolean
+    mutate: () => void
 }
 
 const initialValues: AppContextType = {
     currentApp: null,
     apps: [],
-    setApps: () => {},
+    error: null,
+    isLoading: false,
+    mutate: () => {},
 }
 
 export const AppContext = createContext<AppContextType>(initialValues)
 
-export const useAppContext = () => useContext(AppContext)
+export const useAppsData = () => useContext(AppContext)
+
+const appContextValues = {...initialValues}
+
+export const getAppValues = () => appContextValues
 
 const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
-    const [apps, setApps] = useState(initialValues.apps)
+    const {data: apps, error, isLoading, mutate} = useApps()
     const router = useRouter()
     const appId = router.query?.app_id as string
 
     const currentApp = useMemo(
-        () => (!appId ? null : apps.find((item) => item.app_id === appId) || null),
+        () => (!appId ? null : apps.find((item: ListAppsItem) => item.app_id === appId) || null),
         [apps, appId],
     )
 
-    return <AppContext.Provider value={{currentApp, apps, setApps}}>{children}</AppContext.Provider>
+    appContextValues.currentApp = currentApp
+    appContextValues.apps = apps
+    appContextValues.error = error
+    appContextValues.isLoading = isLoading
+    appContextValues.mutate = mutate
+
+    return (
+        <AppContext.Provider value={{currentApp, apps, error, isLoading, mutate}}>
+            {children}
+        </AppContext.Provider>
+    )
 }
 
 export default AppContextProvider

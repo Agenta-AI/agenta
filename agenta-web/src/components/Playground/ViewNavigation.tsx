@@ -9,7 +9,7 @@ import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
 import {getAppContainerURL, restartAppVariantContainer, waitForAppToStart} from "@/lib/services/api"
-import {useAppContext} from "@/contexts/app.context"
+import {useAppsData} from "@/contexts/app.context"
 
 interface Props {
     variant: Variant
@@ -18,6 +18,7 @@ interface Props {
     setRemovalWarningModalOpen: (value: boolean) => void
     isDeleteLoading: boolean
     environments: Environment[]
+    onAdd: () => void
 }
 
 const useStyles = createUseStyles({
@@ -36,6 +37,7 @@ const ViewNavigation: React.FC<Props> = ({
     setRemovalWarningModalOpen,
     isDeleteLoading,
     environments,
+    onAdd,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -54,7 +56,7 @@ const ViewNavigation: React.FC<Props> = ({
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURIPath, setContainerURIPath] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
-    const {currentApp} = useAppContext()
+    const {currentApp} = useAppsData()
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -75,7 +77,7 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const variantContainerPath = async () => {
-            const urlPath = await getAppContainerURL(appId, variantDesignator!)
+            const urlPath = await getAppContainerURL(appId, variant.variantId, variant.baseId)
             setContainerURIPath(urlPath)
         }
         if (!containerURIPath) {
@@ -192,6 +194,7 @@ const ViewNavigation: React.FC<Props> = ({
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         environments={environments}
+                        onAdd={onAdd}
                     />
                 </Col>
             </Row>

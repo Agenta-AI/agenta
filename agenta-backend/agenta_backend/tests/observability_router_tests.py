@@ -16,7 +16,7 @@ import httpx
 
 
 # Initialize database engine
-engine = DBEngine(mode="test").engine()
+engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
@@ -36,22 +36,22 @@ async def test_create_user_and_org(user_create_data, organization_create_data):
     org_db = OrganizationDB(**organization_create_data)
     await engine.save(org_db)
 
-    user_db = UserDB(**user_create_data, organization_id=org_db)
+    user_db = UserDB(**user_create_data, organization=org_db)
     await engine.save(user_db)
 
     assert org_db.name == "Agenta"
     assert user_db.username == "agenta"
-    assert user_db.organization_id.id == org_db.id
+    assert user_db.organization.id == org_db.id
 
 
 @pytest.mark.asyncio
 async def test_create_image_in_db(image_create_data):
     user_db = await engine.find_one(UserDB, UserDB.uid == "0")
 
-    image_db = ImageDB(**image_create_data, user_id=user_db)
+    image_db = ImageDB(**image_create_data, user=user_db)
     await engine.save(image_db)
 
-    assert image_db.user_id.id == user_db.id
+    assert image_db.user.id == user_db.id
     assert image_db.tags == "agentaai/templates:local_test_prompt"
 
 
@@ -59,15 +59,15 @@ async def test_create_image_in_db(image_create_data):
 async def test_create_appvariant_in_db(app_variant_create_data):
     user_db = await engine.find_one(UserDB, UserDB.uid == "0")
 
-    image_db = await engine.find_one(ImageDB, ImageDB.user_id == user_db.id)
+    image_db = await engine.find_one(ImageDB, ImageDB.user == user_db.id)
 
     app_variant_db = AppVariantDB(
-        **app_variant_create_data, image_id=image_db, user_id=user_db
+        **app_variant_create_data, image=image_db, user=user_db
     )
     await engine.save(app_variant_db)
 
-    assert app_variant_db.image_id.id == image_db.id
-    assert app_variant_db.user_id.id == user_db.id
+    assert app_variant_db.image.id == image_db.id
+    assert app_variant_db.user.id == user_db.id
 
 
 @pytest.mark.asyncio
