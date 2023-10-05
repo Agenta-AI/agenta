@@ -10,6 +10,7 @@ import {
     Typography,
     Select,
     message,
+    ModalProps,
 } from "antd"
 import {DownOutlined, PlusOutlined} from "@ant-design/icons"
 import {
@@ -18,10 +19,10 @@ import {
     useLoadTestsetsList,
     fetchCustomEvaluations,
 } from "@/lib/services/api"
-import {getOpenAIKey} from "@/lib/helpers/utils"
+import {dynamicComponent, getOpenAIKey, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
-import {EvaluationFlow, EvaluationType} from "@/lib/enums"
+import {EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import EvaluationErrorModal from "./EvaluationErrorModal"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
@@ -57,10 +58,6 @@ const useStyles = createUseStyles({
         marginRight: "8px",
         filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
-    evaluationBtn: {
-        display: "flex",
-        justifyContent: "flex-end",
-    },
     createCustomEvalBtn: {
         color: "#fff  !important",
         backgroundColor: "#0fbf0f",
@@ -155,9 +152,9 @@ export default function Evaluations() {
     )
     const [selectedCustomEvaluationID, setSelectedCustomEvaluationID] = useState("")
 
-    const appName = router.query.app_name?.toString() || ""
+    const appId = router.query.app_id?.toString() || ""
 
-    const {testsets, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appName)
+    const {testsets, isTestsetsLoadingError} = useLoadTestsetsList(appId)
 
     const [variantsInputs, setVariantsInputs] = useState<Record<string, string[]>>({})
 
@@ -168,10 +165,16 @@ export default function Evaluations() {
     const [customCodeEvaluationList, setCustomCodeEvaluationList] =
         useState<SingleCustomEvaluation[]>()
 
+    const [shareModalOpen, setShareModalOpen] = useState(false)
+
+    const ShareEvaluationModal = dynamicComponent<ModalProps & GenericObject>(
+        "Evaluations/ShareEvaluationModal",
+    )
+
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const backendVariants = await fetchVariants(appName)
+                const backendVariants = await fetchVariants(appId)
 
                 if (backendVariants.length > 0) {
                     setVariants(backendVariants)
@@ -185,7 +188,7 @@ export default function Evaluations() {
         }
 
         fetchData()
-    }, [appName])
+    }, [appId])
 
     useEffect(() => {
         if (variants.length > 0) {
@@ -193,7 +196,7 @@ export default function Evaluations() {
                 try {
                     // Map the variants to an array of promises
                     const promises = variants.map((variant) =>
-                        getAllVariantParameters(appName, variant).then((data) => ({
+                        getAllVariantParameters(appId, variant).then((data) => ({
                             variantName: variant.variantName,
                             inputs:
                                 data?.inputs.map((inputParam: Parameter) => inputParam.name) || [],
@@ -220,7 +223,7 @@ export default function Evaluations() {
 
             fetchAndSetSchema()
         }
-    }, [appName, variants])
+    }, [appId, variants])
 
     useEffect(() => {
         if (!isTestsetsLoadingError && testsets) {
@@ -327,7 +330,7 @@ export default function Evaluations() {
                 message:
                     "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
                 btnText: "Go to API Keys",
-                endpoint: "apikeys",
+                endpoint: "/settings/?tab=apikeys",
             })
             return
         }
@@ -345,22 +348,19 @@ export default function Evaluations() {
         }
 
         const evaluationTableId = await createNewEvaluation({
-            variants: selectedVariants.map((variant) => variant.variantName),
-            appName,
+            variant_ids: selectedVariants.map((variant) => variant.variantId),
+            appId,
             inputs: variantsInputs[selectedVariants[0].variantName],
             evaluationType: EvaluationType[selectedEvaluationType as keyof typeof EvaluationType],
             evaluationTypeSettings,
             llmAppPromptTemplate,
             selectedCustomEvaluationID,
-            testset: {
-                _id: selectedTestset._id!,
-                name: selectedTestset.name,
-            },
+            testsetId: selectedTestset._id!,
         }).catch((err) => {
             setError({
                 message: getErrorMessage(err),
                 btnText: "Go to Test sets",
-                endpoint: "testsets",
+                endpoint: `/apps/${appId}/testsets`,
             })
         })
 
@@ -372,20 +372,20 @@ export default function Evaluations() {
         setVariants(selectedVariants)
 
         if (selectedEvaluationType === EvaluationType.auto_exact_match) {
-            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_exact_match`)
+            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/auto_exact_match`)
         } else if (selectedEvaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/human_a_b_testing`)
+            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/human_a_b_testing`)
         } else if (selectedEvaluationType === EvaluationType.auto_similarity_match) {
-            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/similarity_match`)
+            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/similarity_match`)
         } else if (selectedEvaluationType === EvaluationType.auto_regex_test) {
-            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_regex_test`)
+            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/auto_regex_test`)
         } else if (selectedEvaluationType === EvaluationType.auto_webhook_test) {
-            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_webhook_test`)
+            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/auto_webhook_test`)
         } else if (selectedEvaluationType === EvaluationType.auto_ai_critique) {
-            router.push(`/apps/${appName}/evaluations/${evaluationTableId}/auto_ai_critique`)
+            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/auto_ai_critique`)
         } else if (selectedEvaluationType === EvaluationType.custom_code_run) {
             router.push(
-                `/apps/${appName}/evaluations/${evaluationTableId}/custom_code_run?custom_eval_id=${selectedCustomEvaluationID}`,
+                `/apps/${appId}/evaluations/${evaluationTableId}/custom_code_run?custom_eval_id=${selectedCustomEvaluationID}`,
             )
         }
     }
@@ -410,17 +410,17 @@ export default function Evaluations() {
     }
 
     useEffect(() => {
-        if (appName)
-            fetchCustomEvaluations(appName).then((res) => {
+        if (appId)
+            fetchCustomEvaluations(appId).then((res) => {
                 if (res.status === 200) {
                     setCustomCodeEvaluationList(res.data)
                 }
             })
-    }, [appName])
+    }, [appId])
 
     const handleCustomEvaluationOptionChange = (id: string) => {
         if (id === "new") {
-            router.push(`/apps/${appName}/evaluations/create_custom_evaluation`)
+            router.push(`/apps/${appId}/evaluations/create_custom_evaluation`)
         }
         setSelectedCustomEvaluationID(id)
         setSelectedEvaluationType(EvaluationType.custom_code_run)
@@ -610,8 +610,24 @@ export default function Evaluations() {
                     <Col span={6}></Col>
                 </Row>
 
-                <Row justify="end">
-                    <Col span={8} className={classes.evaluationBtn}>
+                <Row justify="end" gutter={8}>
+                    {selectedEvaluationType === EvaluationType.human_a_b_testing && isDemo() && (
+                        <Col>
+                            <Button
+                                disabled={
+                                    !(
+                                        selectedVariants[0].variantId &&
+                                        selectedVariants[0].variantId &&
+                                        selectedTestset._id
+                                    )
+                                }
+                                onClick={() => setShareModalOpen(true)}
+                            >
+                                Invite Collaborators
+                            </Button>
+                        </Col>
+                    )}
+                    <Col>
                         <Button onClick={onStartEvaluation} type="primary">
                             Start a new evaluation
                         </Button>
@@ -621,7 +637,7 @@ export default function Evaluations() {
             <EvaluationErrorModal
                 isModalOpen={!!error.message}
                 onClose={() => setError({message: "", btnText: "", endpoint: ""})}
-                handleNavigate={() => router.push(`/apps/${appName}/${error.endpoint}`)}
+                handleNavigate={() => router.push(error.endpoint)}
                 message={error.message}
                 btnText={error.btnText}
             />
@@ -629,6 +645,15 @@ export default function Evaluations() {
                 <AutomaticEvaluationResult />
                 <HumanEvaluationResult />
             </div>
+
+            <ShareEvaluationModal
+                open={shareModalOpen}
+                onCancel={() => setShareModalOpen(false)}
+                destroyOnClose
+                variantIds={selectedVariants.map((v) => v.variantId)}
+                testsetId={selectedTestset._id}
+                evaluationType={EvaluationType.human_a_b_testing}
+            />
         </div>
     )
 }

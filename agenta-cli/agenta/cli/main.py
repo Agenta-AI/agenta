@@ -7,6 +7,8 @@ from pathlib import Path
 import click
 import questionary
 import toml
+
+from agenta.client import client
 from agenta.cli import variant_commands
 
 
@@ -29,7 +31,7 @@ def check_latest_version() -> Union[str, None]:
     import requests
 
     try:
-        response = requests.get("https://pypi.org/pypi/agenta/json")
+        response = requests.get("https://pypi.org/pypi/agenta/json", timeout=360)
         response.raise_for_status()
         latest_version = response.json()["info"]["version"]
         return latest_version
@@ -103,7 +105,11 @@ def init(app_name: str):
         else "http://" + backend_host
     )
 
-    config = {"app-name": app_name, "backend_host": backend_host}
+    # Get app_id after creating new app in the backend server
+    app_id = client.create_new_app(app_name, backend_host)
+
+    # Set app toml configuration
+    config = {"app_name": app_name, "app_id": app_id, "backend_host": backend_host}
     with open("config.toml", "w") as config_file:
         toml.dump(config, config_file)
 

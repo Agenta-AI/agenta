@@ -20,8 +20,9 @@ class DBEngine(object):
     Database engine to initialize client and return engine based on mode
     """
 
-    def __init__(self) -> None:
-        self.mode = toml_config["database_mode"]
+    def __init__(self, mode=None) -> None:
+        if not mode:
+            self.mode = toml_config["database_mode"]
         self.db_url = os.environ["MONGODB_URI"]
 
     @property
@@ -49,7 +50,10 @@ class DBEngine(object):
             aio_engine = AIOEngine(client=self.initialize_client, database="agenta")
             logger.info("Using default database...")
             return aio_engine
-
+        elif self.mode == "v2":
+            aio_engine = AIOEngine(client=self.initialize_client, database="agenta_v2")
+            logger.info("Using v2 database...")
+            return aio_engine
         raise ValueError(
             "Mode of database is unknown. Did you mean 'default' or 'test'?"
         )

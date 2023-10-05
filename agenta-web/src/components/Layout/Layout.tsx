@@ -1,8 +1,7 @@
-import React, {useEffect, useState} from "react"
+import React, {useEffect, useMemo, useState} from "react"
 import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
-import {useRouter} from "next/router"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {useAppTheme} from "./ThemeContextProvider"
@@ -12,6 +11,11 @@ import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
 import {fetchData} from "@/lib/services/api"
+import {useAppsData} from "@/contexts/app.context"
+import {useRouter} from "next/router"
+import Image from "next/image"
+import moonIcon from "@/media/night.png"
+import sunIcon from "@/media/sun.png"
 
 const {Content, Footer} = Layout
 
@@ -82,6 +86,15 @@ const useStyles = createUseStyles({
     footerLinkIcon: ({themeMode}: StyleProps) => ({
         color: themeMode === "dark" ? "#fff" : "#000",
     }),
+    topRightBar: {
+        display: "flex",
+        alignItems: "center",
+        gap: "1rem",
+        "& >span": {
+            cursor: "pointer",
+            marginTop: 3,
+        },
+    },
 })
 
 type LayoutProps = {
@@ -89,13 +102,20 @@ type LayoutProps = {
 }
 
 const App: React.FC<LayoutProps> = ({children}) => {
-    const router = useRouter()
-    const {app_name: appName} = router.query
-    const {appTheme} = useAppTheme()
-    const capitalizedAppName = renameVariablesCapitalizeAll(appName?.toString() || "")
+    const {appTheme, toggleAppTheme} = useAppTheme()
+    const {currentApp} = useAppsData()
+    const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const [starCount, setStarCount] = useState(0)
+    const router = useRouter()
+    const appId = router.query.app_id as string
+    const isDarkTheme = appTheme === "dark"
+
+    const isAppRoute = useMemo(
+        () => router.pathname.startsWith("/apps/[app_id]"),
+        [router.pathname],
+    )
 
     useEffect(() => {
         const githubRepo = async () => {
@@ -113,20 +133,22 @@ const App: React.FC<LayoutProps> = ({children}) => {
     useEffect(() => {
         const body = document.body
         body.classList.remove("dark-mode", "light-mode")
-        if (appTheme === "dark") {
+        if (isDarkTheme) {
             body.classList.add("dark-mode")
         } else {
             body.classList.add("light-mode")
         }
     }, [appTheme])
 
+    // wait unitl we have the app id, if its an app route
+    if (isAppRoute && !appId) return null
+
     return (
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
                 <ConfigProvider
                     theme={{
-                        algorithm:
-                            appTheme === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
+                        algorithm: isDarkTheme ? theme.darkAlgorithm : theme.defaultAlgorithm,
                     }}
                 >
                     <Layout hasSider className={classes.layout}>
@@ -140,16 +162,31 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                         {title: capitalizedAppName},
                                     ]}
                                 />
-                                <Button
-                                    className={classes.star}
-                                    href="https://github.com/Agenta-AI/agenta"
-                                >
-                                    <div>
-                                        <GithubFilled style={{fontSize: 18}} />
-                                        <p>Star</p>
-                                    </div>
-                                    <div>{starCount || 0}</div>
-                                </Button>
+                                <div className={classes.topRightBar}>
+                                    <span
+                                        style={{cursor: "pointer"}}
+                                        onClick={() =>
+                                            toggleAppTheme(isDarkTheme ? "light" : "dark")
+                                        }
+                                    >
+                                        <Image
+                                            alt={`Switch to ${isDarkTheme ? "light" : "dark"} mode`}
+                                            src={isDarkTheme ? sunIcon : moonIcon}
+                                            width={24}
+                                            height={24}
+                                        />
+                                    </span>
+                                    <Button
+                                        className={classes.star}
+                                        href="https://github.com/Agenta-AI/agenta"
+                                    >
+                                        <div>
+                                            <GithubFilled style={{fontSize: 18}} />
+                                            <p>Star</p>
+                                        </div>
+                                        <div>{starCount || 0}</div>
+                                    </Button>
+                                </div>
                             </Space>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                 {children}

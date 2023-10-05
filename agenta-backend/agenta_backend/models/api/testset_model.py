@@ -20,7 +20,7 @@ class TestsetModel(BaseModel):
         }
 
 
-class UploadResponse(BaseModel):
+class TestSetSimpleResponse(BaseModel):
     id: str
     name: str
     created_at: str
@@ -47,7 +47,6 @@ class NewTestset(BaseModel):
 class TestSetOutputResponse(BaseModel):
     id: str = Field(..., alias="_id")
     name: str
-    app_name: str
     created_at: datetime
 
     class Config:

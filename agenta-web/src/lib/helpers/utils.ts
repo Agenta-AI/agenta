@@ -1,3 +1,4 @@
+import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 
 const openAItoken = "openAiToken"
@@ -94,3 +95,49 @@ export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
 export const snakeToCamel = (str: string) =>
     str.replace(/([-_][a-z])/g, (group) => group.toUpperCase().replace("-", "").replace("_", ""))
+
+export const stringToNumberInRange = (text: string, min: number, max: number) => {
+    // Calculate a hash value from the input string
+    let hash = 0
+    for (let i = 0; i < text.length; i++) {
+        hash += text.charCodeAt(i)
+    }
+
+    // Map the hash value to the desired range
+    const range = max - min + 1
+    const mappedValue = ((hash % range) + range) % range
+
+    // Add the minimum value to get the final result within the range
+    const result = min + mappedValue
+
+    return result
+}
+
+export const getInitials = (str: string, limit = 2) => {
+    let initialText = "E"
+
+    try {
+        initialText = str
+            ?.split(" ")
+            .slice(0, limit)
+            ?.reduce((acc, curr) => acc + (curr[0] || "")?.toUpperCase(), "")
+    } catch (error) {
+        console.log("Error using getInitials", error)
+    }
+
+    return initialText
+}
+
+export const isDemo = () => {
+    if (process.env.NEXT_PUBLIC_FF) {
+        return process.env.NEXT_PUBLIC_FF === "demo"
+    }
+    return false
+}
+
+export function dynamicComponent<T>(path: string, fallback: any = () => null) {
+    return dynamic<T>(() => import(`@/components/${path}`), {
+        loading: fallback,
+        ssr: false,
+    })
+}
