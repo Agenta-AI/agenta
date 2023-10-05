@@ -1,7 +1,10 @@
-import {useRouter} from "next/router"
 import AppSelector from "@/components/AppSelector/AppSelector"
+import ProtectedRoute from "@/components/ProtectedRoute/ProtectedRoute"
 
 export default function Apps() {
-    const router = useRouter()
-    return <AppSelector />
+    return (
+        <ProtectedRoute>
+            <AppSelector />
+        </ProtectedRoute>
+    )
 }

@@ -81,6 +81,9 @@
 </h3>
 
 ---
+# ⚠ Breaking Changes Notice
+
+> **Important**: In version 0.4, we had to do a large refactoring that introduced breaking changes. This means that version 0.4 cannot be used with data from versions 0.3 and below. You should manually save your data before pulling version 0.4. Feel free to contact us on Slack if you need help with the migration.
 
 # ℹ️ About
 
