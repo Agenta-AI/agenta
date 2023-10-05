@@ -106,7 +106,7 @@ const ParametersView: React.FC<Props> = ({
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Row className={classes.row}>
+                    <Row className={classes.row} data-cy="playground-header">
                         <Col span={12}>
                             <h2 className={classes.h2}>1. Modify Parameters</h2>
                         </Col>
