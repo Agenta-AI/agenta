@@ -166,7 +166,7 @@ async def terminate_and_remove_app_variant(
 
                 # Only delete the docker image for users that are running the oss version
 
-            else:``
+            else:
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
                 )
