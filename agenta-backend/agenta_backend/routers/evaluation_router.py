@@ -3,7 +3,7 @@ import random
 from typing import List, Dict
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, APIRouter, Body, Depends, status, Response
+from fastapi import HTTPException, APIRouter, Body, Request, status, Response
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (
@@ -44,25 +44,10 @@ from agenta_backend.models import converters
 from agenta_backend.services import results_service
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
-        SessionContainer,
-        verify_session,
-    )
-    from agenta_backend.ee.services.selectors import (
-        get_user_and_org_id,
-    )  # noqa pylint: disable-all
-    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.ee.services.selectors import (  # noqa pylint: disable-all
         get_user_and_org_id,
     )
 else:
-    from agenta_backend.services.auth_helper import (
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
@@ -71,7 +56,7 @@ router = APIRouter()
 @router.post("/", response_model=SimpleEvaluationOutput)
 async def create_evaluation(
     payload: NewEvaluation,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Creates a new comparison table document
     Raises:
@@ -80,7 +65,7 @@ async def create_evaluation(
         _description_
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         access_app = await check_access_to_app(
             user_org_data=user_org_data,
             app_id=payload.app_id,
@@ -110,9 +95,9 @@ async def create_evaluation(
 
 @router.put("/{evaluation_id}/")
 async def update_evaluation_router(
+    request: Request,
     evaluation_id: str,
     update_data: EvaluationUpdate = Body(...),
-    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """Updates an evaluation's status.
 
@@ -124,7 +109,7 @@ async def update_evaluation_router(
     """
     try:
         # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         await update_evaluation(evaluation_id, update_data, **user_org_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -141,7 +126,7 @@ async def update_evaluation_router(
 )
 async def fetch_evaluation_scenarios(
     evaluation_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
 
@@ -155,7 +140,7 @@ async def fetch_evaluation_scenarios(
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
 
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     eval_scenarios = await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
         evaluation_id, **user_org_data
     )
@@ -167,7 +152,7 @@ async def fetch_evaluation_scenarios(
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Create a new evaluation scenario for a given evaluation ID.
 
@@ -177,7 +162,7 @@ async def create_evaluation_scenario(
     Returns:
         None: 204 No Content status code upon success.
     """
-    user_org_data = await get_user_and_org_id(stoken_session)
+    user_org_data = await get_user_and_org_id(request.state.user_id)
     await evaluation_service.create_evaluation_scenario(
         evaluation_id, evaluation_scenario, **user_org_data
     )
@@ -191,7 +176,7 @@ async def update_evaluation_scenario_router(
     evaluation_scenario_id: str,
     evaluation_type: EvaluationType,
     evaluation_scenario: EvaluationScenarioUpdate,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Updates an evaluation scenario's vote or score based on its type.
 
@@ -201,7 +186,7 @@ async def update_evaluation_scenario_router(
     Returns:
         None: 204 No Content status code upon successful update.
     """
-    user_org_data = await get_user_and_org_id(stoken_session)
+    user_org_data = await get_user_and_org_id(request.state.user_id)
     try:
         await update_evaluation_scenario(
             evaluation_scenario_id,
@@ -217,7 +202,7 @@ async def update_evaluation_scenario_router(
 @router.post("/evaluation_scenario/ai_critique/", response_model=str)
 async def evaluate_ai_critique(
     payload: AICritiqueCreate,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> str:
     """
     Evaluate AI critique based on the given payload.
@@ -254,7 +239,7 @@ async def evaluate_ai_critique(
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score/")
 async def get_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> Dict[str, str]:
     """
     Fetch the score of a specific evaluation scenario.
@@ -266,7 +251,7 @@ async def get_evaluation_scenario_score_router(
     Returns:
         Dictionary containing the scenario ID and its score.
     """
-    user_org_data = await get_user_and_org_id(stoken_session)
+    user_org_data = await get_user_and_org_id(request.state.user_id)
     return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
 
 
@@ -274,7 +259,7 @@ async def get_evaluation_scenario_score_router(
 async def update_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     payload: EvaluationScenarioScoreUpdate,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Updates the score of an evaluation scenario.
 
@@ -284,7 +269,7 @@ async def update_evaluation_scenario_score_router(
     Returns:
         None: 204 No Content status code upon successful update.
     """
-    user_org_data = await get_user_and_org_id(stoken_session)
+    user_org_data = await get_user_and_org_id(request.state.user_id)
     try:
         await update_evaluation_scenario_score(
             evaluation_scenario_id, payload.score, **user_org_data
@@ -297,7 +282,7 @@ async def update_evaluation_scenario_score_router(
 @router.get("/", response_model=List[Evaluation])
 async def fetch_list_evaluations(
     app_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Fetches a list of evaluations, optionally filtered by an app ID.
 
@@ -307,7 +292,7 @@ async def fetch_list_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    user_org_data = await get_user_and_org_id(stoken_session)
+    user_org_data = await get_user_and_org_id(request.state.user_id)
     return await evaluation_service.fetch_list_evaluations(
         app_id=app_id, **user_org_data
     )
@@ -316,7 +301,7 @@ async def fetch_list_evaluations(
 @router.get("/{evaluation_id}/", response_model=Evaluation)
 async def fetch_evaluation(
     evaluation_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Fetches a single evaluation based on its ID.
 
@@ -326,14 +311,14 @@ async def fetch_evaluation(
     Returns:
         Evaluation: The fetched evaluation.
     """
-    user_org_data = await get_user_and_org_id(stoken_session)
+    user_org_data = await get_user_and_org_id(request.state.user_id)
     return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
 
 
 @router.delete("/", response_model=List[str])
 async def delete_evaluations(
     delete_evaluations: DeleteEvaluation,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Delete specific comparison tables based on their unique IDs.
@@ -346,7 +331,7 @@ async def delete_evaluations(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     await evaluation_service.delete_evaluations(
         delete_evaluations.evaluations_ids, **user_org_data
     )
@@ -356,7 +341,7 @@ async def delete_evaluations(
 @router.get("/{evaluation_id}/results/")
 async def fetch_results(
     evaluation_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Fetch all the results for one the comparison table
 
@@ -368,7 +353,7 @@ async def fetch_results(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     evaluation = await evaluation_service._fetch_evaluation_and_check_access(
         evaluation_id, **user_org_data
     )
@@ -410,7 +395,7 @@ async def fetch_results(
 @router.post("/custom_evaluation/")
 async def create_custom_evaluation(
     custom_evaluation_payload: CreateCustomEvaluation,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Create evaluation with custom python code.
 
@@ -419,7 +404,7 @@ async def create_custom_evaluation(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     # create custom evaluation in database
     evaluation_id = await create_custom_code_evaluation(
@@ -442,7 +427,7 @@ async def create_custom_evaluation(
 )
 async def list_custom_evaluations(
     app_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """List the custom code evaluations for a given app.
 
@@ -454,7 +439,7 @@ async def list_custom_evaluations(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     # Fetch custom evaluations from database
     evaluations = await fetch_custom_evaluations(app_id, **user_org_data)
@@ -467,7 +452,7 @@ async def list_custom_evaluations(
 )
 async def get_custom_evaluation(
     id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Get the custom code evaluation detail.
 
@@ -479,7 +464,7 @@ async def get_custom_evaluation(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     # Fetch custom evaluations from database
     evaluation = await fetch_custom_evaluation_detail(id, **user_org_data)
@@ -490,9 +475,7 @@ async def get_custom_evaluation(
     "/custom_evaluation/{app_name}/names/",
     response_model=List[CustomEvaluationNames],
 )
-async def get_custom_evaluation_names(
-    app_name: str, stoken_session: SessionContainer = Depends(verify_session())
-):
+async def get_custom_evaluation_names(app_name: str, request: Request):
     """Get the names of custom evaluation for a given app.
 
     Args:
@@ -502,7 +485,7 @@ async def get_custom_evaluation_names(
         List[CustomEvaluationNames]: the list of name of custom evaluations
     """
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     custom_eval_names = await fetch_custom_evaluation_names(app_name, **user_org_data)
     return custom_eval_names
@@ -514,7 +497,7 @@ async def get_custom_evaluation_names(
 async def execute_custom_evaluation(
     evaluation_id: str,
     payload: ExecuteCustomEvaluationCode,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Execute a custom evaluation code.
 
@@ -527,7 +510,7 @@ async def execute_custom_evaluation(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     # Execute custom code evaluation
     formatted_inputs = format_inputs(payload.inputs)

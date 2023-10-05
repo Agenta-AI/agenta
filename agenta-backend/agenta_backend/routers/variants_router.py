@@ -3,7 +3,7 @@ import logging
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
 from typing import Any, Optional, Union
-from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import APIRouter, HTTPException, Request, Body
 from agenta_backend.services import (
     app_manager,
     db_manager,
@@ -25,18 +25,10 @@ from agenta_backend.models.api.api_models import (
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.ee.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
-    from agenta_backend.services.auth_helper import (
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
@@ -47,7 +39,7 @@ logger.setLevel(logging.DEBUG)
 @router.post("/from-base/")
 async def add_variant_from_base_and_config(
     payload: AddVariantFromBasePayload,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> Union[AppVariantOutput, Any]:
     """Add a new variant based on an existing one.
     Same as POST /config
@@ -65,7 +57,7 @@ async def add_variant_from_base_and_config(
     try:
         logger.debug("Initiating process to add a variant based on a previous one.")
         logger.debug(f"Received payload: {payload}")
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         base_db = await db_manager.fetch_base_and_check_access(
             payload.base_id, user_org_data
         )
@@ -89,7 +81,7 @@ async def add_variant_from_base_and_config(
 @router.delete("/{variant_id}/")
 async def remove_variant(
     variant_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Remove a variant from the server.
     In the case it's the last variant using the image, stop the container and remove the image.
@@ -101,7 +93,7 @@ async def remove_variant(
         HTTPException: If there is a problem removing the app variant
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
         # Check app access
 
@@ -132,9 +124,9 @@ async def remove_variant(
 
 @router.put("/{variant_id}/parameters/")
 async def update_variant_parameters(
+    request: Request,
     variant_id: str,
     payload: UpdateVariantParameterPayload = Body(...),
-    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """
     Updates the parameters for an app variant.
@@ -151,7 +143,7 @@ async def update_variant_parameters(
         JSONResponse: A JSON response containing the updated app variant parameters.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         access_variant = await check_access_to_variant(
             user_org_data=user_org_data, variant_id=variant_id
         )
@@ -183,7 +175,7 @@ async def update_variant_parameters(
 async def update_variant_image(
     variant_id: str,
     image: Image,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Updates the image used in an app variant.
@@ -199,7 +191,7 @@ async def update_variant_image(
         JSONResponse: A JSON response indicating whether the update was successful or not.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         access_variant = await check_access_to_variant(
             user_org_data=user_org_data, variant_id=variant_id
         )
@@ -230,10 +222,10 @@ async def update_variant_image(
 
 @router.put("/{variant_id}/")
 async def start_variant(
+    request: Request,
     variant_id: str,
     action: VariantAction,
     env_vars: Optional[DockerEnvVars] = None,
-    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     """
     Start a variant of an app.
@@ -252,7 +244,7 @@ async def start_variant(
     """
 
     logger.debug("Starting variant %s", variant_id)
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] == "demo":
