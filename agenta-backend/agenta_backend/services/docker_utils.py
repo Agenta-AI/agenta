@@ -6,8 +6,6 @@ from typing import List
 import docker
 from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
-    URI,
-    AppVariant,
     Image,
     DockerEnvVars,
     Dict,
@@ -270,7 +268,7 @@ def experimental_pull_image(image_name: str):
         image = client.images.pull(image_name)
         return image
     except docker.errors.APIError as e:
-        raise RuntimeError(f"An error occurred while pulling the image: {str(e)}")
+        raise RuntimeError(f"An error occurred while pulling the image: {str(e)}") from e
 
 
 def experimental_is_image_pulled(image_name: str) -> bool:
