@@ -233,7 +233,7 @@ export async function saveNewVariant(
 
 export async function updateVariantParams(variantId: string, parameters: Parameter[]) {
     await axios.put(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/variants/${variantId}/parameters`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/variants/${variantId}/parameters/`,
         {
             parameters: parameters.reduce((acc, param) => {
                 return {...acc, [param.name]: param.default}
@@ -243,13 +243,13 @@ export async function updateVariantParams(variantId: string, parameters: Paramet
 }
 
 export async function removeApp(appId: string) {
-    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/${appId}`, {
+    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/${appId}/`, {
         data: {app_id: appId},
     })
 }
 
 export async function removeVariant(variantId: string) {
-    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/variants/${variantId}`)
+    await axios.delete(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/variants/${variantId}/`)
 }
 
 /**
@@ -273,7 +273,7 @@ export const useLoadTestsetsList = (appId: string) => {
 
 export async function createNewTestset(appId: string, testsetName: string, testsetData: any) {
     const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${appId}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${appId}/`,
         {
             name: testsetName,
             csvdata: testsetData,
@@ -284,7 +284,7 @@ export async function createNewTestset(appId: string, testsetName: string, tests
 
 export async function updateTestset(testsetId: String, testsetName: string, testsetData: any) {
     const response = await axios.put(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}/`,
         {
             name: testsetName,
             csvdata: testsetData,
@@ -295,7 +295,7 @@ export async function updateTestset(testsetId: String, testsetName: string, test
 
 export const loadTestset = async (testsetId: string) => {
     const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${testsetId}/`,
     )
     return response.data
 }
@@ -323,7 +323,7 @@ export const loadEvaluations = async (appId: string) => {
 
 export const loadEvaluation = async (evaluationId: string) => {
     return await axios
-        .get(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}`)
+        .get(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}/`)
         .then((responseData) => {
             return fromEvaluationResponseToEvaluation(responseData.data)
         })
@@ -344,7 +344,7 @@ export const loadEvaluationsScenarios = async (
 ) => {
     return await axios
         .get(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationTableId}/evaluation_scenarios`,
+            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationTableId}/evaluation_scenarios/`,
         )
         .then((responseData) => {
             const evaluationsRows = responseData.data.map((item: any) => {
@@ -401,7 +401,7 @@ export const createNewEvaluation = async (
 
 export const updateEvaluation = async (evaluationId: string, data: GenericObject) => {
     const response = await axios.put(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}/`,
         data,
     )
     return response.data
@@ -414,7 +414,7 @@ export const updateEvaluationScenario = async (
     evaluationType: EvaluationType,
 ) => {
     const response = await axios.put(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}/`,
         data,
     )
     return response.data
@@ -422,7 +422,7 @@ export const updateEvaluationScenario = async (
 
 export const postEvaluationScenario = async (evaluationTableId: string, data: GenericObject) => {
     const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationTableId}/evaluation_scenario`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationTableId}/evaluation_scenario/`,
         data,
     )
     return response.data
@@ -433,7 +433,7 @@ export const evaluateAICritiqueForEvalScenario = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/ai_critique`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/ai_critique/`,
         data,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -442,14 +442,14 @@ export const evaluateAICritiqueForEvalScenario = async (
 
 export const fetchEvaluationResults = async (evaluationId: string) => {
     const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}/results`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${evaluationId}/results/`,
     )
     return response.data
 }
 
 export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: string) => {
     const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
     )
     return response
 }
@@ -468,7 +468,7 @@ export const saveCustomCodeEvaluation = async (
 
 export const fetchCustomEvaluations = async (app_id: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_id}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_id}/`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
@@ -479,7 +479,7 @@ export const fetchCustomEvaluationDetail = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${id}`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${id}/`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response.data
@@ -514,7 +514,7 @@ export const updateEvaluationScenarioScore = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const response = await axios.put(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score`,
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/evaluation_scenario/${evaluation_scenario_id}/score/`,
         {score},
         {_ignoreError: ignoreAxiosError} as any,
     )

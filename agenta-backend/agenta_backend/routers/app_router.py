@@ -79,7 +79,7 @@ async def list_app_variants(
             app_id=app_id, **user_org_data
         )
         return [
-            converters.app_variant_db_to_output(app_variant)
+            await converters.app_variant_db_to_output(app_variant)
             for app_variant in app_variants
         ]
 
@@ -120,7 +120,7 @@ async def get_variant_by_env(
         # Check if the fetched app variant is None and raise exception if it is
         if app_variant_db is None:
             raise HTTPException(status_code=500, detail="App Variant not found")
-        return converters.app_variant_db_to_output(app_variant_db)
+        return await converters.app_variant_db_to_output(app_variant_db)
     except ValueError as e:
         # Handle ValueErrors and return 400 status code
         raise HTTPException(status_code=400, detail=str(e))
@@ -251,7 +251,7 @@ async def add_variant_from_image(
             )
         app = await db_manager.fetch_app_by_id(app_id)
 
-        app_variant_db = await db_manager.add_variant_based_on_image(
+        app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
             docker_id=payload.docker_id,
@@ -260,12 +260,12 @@ async def add_variant_from_image(
             config_name=payload.config_name,
             **user_org_data,
         )
-        return converters.app_variant_db_to_output(app_variant_db)
+        return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{app_id}")
+@router.delete("/{app_id}/")
 async def remove_app(
     app_id: str, stoken_session: SessionContainer = Depends(verify_session())
 ):
@@ -359,7 +359,7 @@ async def create_app_and_variant_from_template(
             "Step 6: Creating image instance and adding variant based on image"
         )
         image_name = f"agentaai/templates:{payload.image_tag}"
-        app_variant_db = await db_manager.add_variant_based_on_image(
+        app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
             docker_id=payload.image_id,
@@ -385,14 +385,14 @@ async def create_app_and_variant_from_template(
         await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
 
         logger.debug("End: Successfully created app and variant")
-        return converters.app_variant_db_to_output(app_variant_db)
+        return await converters.app_variant_db_to_output(app_variant_db)
 
     except Exception as e:
         logger.debug(f"Error: Exception caught - {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{app_id}/environments", response_model=List[EnvironmentOutput])
+@router.get("/{app_id}/environments/", response_model=List[EnvironmentOutput])
 async def list_environments(
     app_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),
