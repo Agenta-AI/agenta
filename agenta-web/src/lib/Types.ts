@@ -41,6 +41,11 @@ export interface PlaygroundTabsItem {
 export interface Evaluation {
     id: string
     createdAt: string
+    createdBy: string
+    user: {
+        id: string
+        username: string
+    }
     variants: Variant[]
     evaluationType: EvaluationType
     status: EvaluationFlow
@@ -132,6 +137,8 @@ export interface EvaluationResponseType {
     testset_name: string
     testset_id: string
     created_at: string
+    user_username: string
+    user_id: string
 }
 
 export type LanguageItem = {displayName: string; languageKey: string}

@@ -35,6 +35,7 @@ class Evaluation(BaseModel):
     id: str
     app_id: str
     user_id: str
+    user_username: str
     evaluation_type: EvaluationType
     evaluation_type_settings: Optional[EvaluationTypeSettings]
     variant_ids: List[str]
