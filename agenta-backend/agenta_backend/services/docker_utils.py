@@ -262,7 +262,9 @@ def experimental_pull_image(image_name: str):
         image = client.images.pull(image_name)
         return image
     except docker.errors.APIError as e:
-        raise RuntimeError(f"An error occurred while pulling the image: {str(e)}") from e
+        raise RuntimeError(
+            f"An error occurred while pulling the image: {str(e)}"
+        ) from e
 
 
 def experimental_is_image_pulled(image_name: str) -> bool:

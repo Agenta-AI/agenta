@@ -1,6 +1,10 @@
+import os
 from typing import List, Dict, Union
 from agenta_backend.services import db_manager, docker_utils
-from agenta_backend.models.db_models import AppVariantDB, DeploymentDB
+from agenta_backend.models.db_models import AppVariantDB, DeploymentDB, ImageDB
+from agenta_backend.models.api.api_models import Image
+from agenta_backend.config import settings
+from docker.errors import DockerException
 import logging
 
 logger = logging.getLogger(__name__)
@@ -8,8 +12,8 @@ logger.setLevel(logging.DEBUG)
 
 
 async def start_service(
-        app_variant_db: AppVariantDB,
-        env_vars: Dict[str, str]) -> DeploymentDB:
+    app_variant_db: AppVariantDB, env_vars: Dict[str, str]
+) -> DeploymentDB:
     """
     Start a service.
 
@@ -53,6 +57,43 @@ async def start_service(
         status="running",
     )
     return deployment
+
+
+async def remove_image(image: ImageDB):
+    try:
+        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+            docker_utils.delete_image(image.docker_id)
+        logger.info(f"Image {image.docker_id} deleted")
+    except Exception as e:
+        logger.error(f"Error deleting image {image.docker_id}: {e}")
+
+
+async def stop_service(deployment: DeploymentDB):
+    docker_utils.delete_container(deployment.container_id)
+    logger.info(f"Container {deployment.container_id} deleted")
+
+
+async def stop_and_delete_service(deployment: DeploymentDB):
+    container_id = deployment.container_id
+    docker_utils.stop_container(container_id)
+    logger.info(f"Container {container_id} stopped")
+    docker_utils.delete_container(container_id)
+    logger.info(f"Container {container_id} deleted")
+
+
+async def validate_image(image: Image):
+    if image.tags in ["", None]:
+        msg = "Image tags cannot be empty"
+        logger.error(msg)
+        raise ValueError(msg)
+    if not image.tags.startswith(settings.registry):
+        raise ValueError(
+            "Image should have a tag starting with the registry name (agenta-server)"
+        )
+    if image not in docker_utils.list_images():
+        raise DockerException(
+            f"Image {image.docker_id} with tags {image.tags} not found"
+        )
 
 
 # def find_image(image: Image) -> Union[str, None]:
