@@ -658,7 +658,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     logger.debug("db_app_variant: %s", db_app_variant)
     query_expression = (
         AppVariantDB.organization == ObjectId(db_app_variant.organization.id)
-    ) & (AppVariantDB.image == ObjectId(db_app_variant.image.id))
+    ) & (AppVariantDB.base == ObjectId(db_app_variant.base.id))
     # Count the number of variants that match the query expression
     count_variants = await engine.count(AppVariantDB, query_expression)
 

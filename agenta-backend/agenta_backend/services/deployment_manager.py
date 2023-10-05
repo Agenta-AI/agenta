@@ -102,6 +102,7 @@ async def stop_and_delete_service(deployment: DeploymentDB):
     Returns:
         None
     """
+    logger.debug(f"Stopping container {deployment.container_id}")
     container_id = deployment.container_id
     docker_utils.stop_container(container_id)
     logger.info(f"Container {container_id} stopped")
