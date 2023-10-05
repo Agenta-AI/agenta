@@ -54,12 +54,14 @@ async def start_variant(
             db_app_variant.organization,
         )
         logger.debug("App name is %s", db_app_variant.app.app_name)
+        uri_path = f"{db_app_variant.organization.id}/{db_app_variant.app.app_name}/{db_app_variant.base_name}"
+        container_name = f"{db_app_variant.app.app_name}-{db_app_variant.base_name}-{db_app_variant.organization.id}"
+
         results = docker_utils.start_container(
             image_name=db_app_variant.image.tags,
-            app_name=db_app_variant.app.app_name,
-            base_name=db_app_variant.base_name,
+            uri_path=db_app_variant.app.app_name,
+            container_name=container_name,
             env_vars=env_vars,
-            organization_id=db_app_variant.organization.id,
         )
         uri = results["uri"]
         uri_path = results["uri_path"]
