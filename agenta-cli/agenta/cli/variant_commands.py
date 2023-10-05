@@ -39,8 +39,11 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     app_path = Path(app_folder)
     config_file = app_path / "config.toml"
     config = toml.load(config_file)
-    app_name = config["app-name"]
-    variant_name = file_name.removesuffix(".py")
+    app_name = config["app_name"]
+    app_id = config["app_id"]
+    base_name = file_name.removesuffix(".py")
+    config_name = "default"
+    variant_name = f"{base_name}.{config_name}"
     # check files in folder
     app_file = app_path / file_name
     if not app_file.exists():
@@ -71,7 +74,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
             sys.exit(0)
 
     # Validate variant name
-    if not re.match("^[a-zA-Z0-9_]+$", variant_name):
+    if not re.match("^[a-zA-Z0-9_]+$", base_name):
         click.echo(
             click.style(
                 "Invalid input. Please use only alphanumeric characters without spaces.",
@@ -82,6 +85,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
 
     # update the config file with the variant names from the backend
     overwrite = False
+
     if variant_name in config["variants"]:
         overwrite = questionary.confirm(
             "This variant already exists. Do you want to overwrite it?"
@@ -90,22 +94,22 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
             click.echo("Operation cancelled.")
             sys.exit(0)
 
-    if not overwrite:
-        config["variants"].append(variant_name)
     try:
         click.echo(
             click.style(
-                f"Preparing variant {variant_name} into a tar file...", fg="yellow"
+                f"Preparing variant {base_name} into a tar file...",
+                fg="yellow",
             )
         )
         tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
 
         click.echo(
             click.style(
-                f"Building variant {variant_name} into a docker image...", fg="yellow"
+                f"Building variant {base_name} into a docker image...",
+                fg="yellow",
             )
         )
-        image: Image = client.send_docker_tar(app_name, variant_name, tar_path, host)
+        image: Image = client.send_docker_tar(app_id, base_name, tar_path, host)
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
@@ -115,15 +119,18 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
         if overwrite:
             click.echo(
                 click.style(
-                    f"Updating variant {variant_name} to server...", fg="yellow"
+                    f"Updating {base_name} to server...",
+                    fg="yellow",
                 )
             )
-            client.update_variant_image(app_name, variant_name, image, host)
+            variant_id = config["variant_ids"][config["variants"].index(variant_name)]
+            client.update_variant_image(variant_id, image, host)
         else:
-            click.echo(
-                click.style(f"Adding variant {variant_name} to server...", fg="yellow")
-            )
-            client.add_variant_to_server(app_name, variant_name, image, host)
+            click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
+            response = client.add_variant_to_server(app_id, base_name, image, host)
+            variant_id = response["variant_id"]
+            config["variants"].append(variant_name)
+            config["variant_ids"].append(variant_id)
     except Exception as ex:
         if overwrite:
             click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
@@ -151,10 +158,10 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
         # TODO: Improve this stupid design
         return None
     else:
-        return variant_name
+        return variant_id
 
 
-def start_variant(variant_name: str, app_folder: str, host: str):
+def start_variant(variant_id: str, app_folder: str, host: str):
     """
     Starts a container for an existing variant
     Args:
@@ -164,17 +171,18 @@ def start_variant(variant_name: str, app_folder: str, host: str):
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     config = toml.load(config_file)
-    app_name = config["app-name"]
+    app_name = config["app_name"]
+    app_id = config["app_id"]
 
     if len(config["variants"]) == 0:
         click.echo("No variants found. Please add a variant first.")
         return
 
-    if variant_name:
-        if variant_name not in config["variants"]:
+    if variant_id:
+        if variant_id not in config["variant_ids"]:
             click.echo(
                 click.style(
-                    f"Variant {variant_name} not found in backend. Maybe you removed it in the webUI?",
+                    f"Variant {variant_id} not found in backend. Maybe you removed it in the webUI?",
                     fg="red",
                 )
             )
@@ -183,30 +191,30 @@ def start_variant(variant_name: str, app_folder: str, host: str):
         variant_name = questionary.select(
             "Please choose a variant", choices=config["variants"]
         ).ask()
+        variant_id = config["variant_ids"][config["variants"].index(variant_name)]
 
-    endpoint = client.start_variant(app_name, variant_name, host=host)
+    endpoint = client.start_variant(variant_id=variant_id, host=host)
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
-        click.style(f"Your app has been deployed locally as an API. 🚀", fg="cyan")
-        + click.style(f" You can access it here: ", fg="white")
+        click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
+        + click.style(" You can access it here: ", fg="white")
         + click.style(f"{endpoint}/", bold=True, fg="yellow")
     )
 
     click.echo(
-        click.style(f"\nRead the API documentation. 📚", fg="cyan")
-        + click.style(f" It's available at: ", fg="white")
+        click.style("\nRead the API documentation. 📚", fg="cyan")
+        + click.style(" It's available at: ", fg="white")
         + click.style(f"{endpoint}/docs", bold=True, fg="yellow")
     )
 
     webui_host = "http://localhost:3000" if host == "localhost" else host
     click.echo(
         click.style(
-            "\nStart experimenting with your app in the playground. 🎮", fg="cyan"
+            "\nStart experimenting with your app in the playground. 🎮",
+            fg="cyan",
         )
         + click.style(" Go to: ", fg="white")
-        + click.style(
-            f"{webui_host}/apps/{app_name}/playground", bold=True, fg="yellow"
-        )
+        + click.style(f"{webui_host}/apps/{app_id}/playground", bold=True, fg="yellow")
         + "\n"
     )
 
@@ -220,7 +228,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     """
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
-    app_name = config["app-name"]
+    app_name = config["app_name"]
 
     if variant_name:
         if variant_name not in config["variants"]:
@@ -235,8 +243,9 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
         variant_name = questionary.select(
             "Please choose a variant", choices=config["variants"]
         ).ask()
+    variant_id = config["variant_ids"][config["variants"].index(variant_name)]
     try:
-        client.remove_variant(app_name, variant_name, host)
+        client.remove_variant(variant_id, host)
     except Exception as ex:
         click.echo(
             click.style(
@@ -263,8 +272,9 @@ def list_variants(app_folder: str, host: str):
     """
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
-    app_name = config["app-name"]
-    variants: List[AppVariant] = client.list_variants(app_name, host)
+    app_id = config["app_id"]
+    app_name = config["app_name"]
+    variants: List[AppVariant] = client.list_variants(app_id, host)
     if variants:
         for variant in variants:
             helper.display_app_variant(variant)
@@ -313,7 +323,9 @@ def remove_variant_cli(variant_name: str, app_folder: str):
     """Remove an existing variant."""
     config_check(app_folder)
     remove_variant(
-        variant_name=variant_name, app_folder=app_folder, host=get_host(app_folder)
+        variant_name=variant_name,
+        app_folder=app_folder,
+        host=get_host(app_folder),
     )
 
 
@@ -344,17 +356,15 @@ def serve_cli(app_folder: str, file_name: str):
         return
 
     try:
-        variant_name = add_variant(
-            app_folder=app_folder, file_name=file_name, host=host
-        )
+        variant_id = add_variant(app_folder=app_folder, file_name=file_name, host=host)
     except Exception as e:
         click.echo(click.style("Failed to add variant.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
         return
 
-    if variant_name:
+    if variant_id:
         try:
-            start_variant(variant_name=variant_name, app_folder=app_folder, host=host)
+            start_variant(variant_id=variant_id, app_folder=app_folder, host=host)
         except ConnectionError:
             error_msg = "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
             error_msg += "- First, please ensure that the backend service is running and accessible.\n"

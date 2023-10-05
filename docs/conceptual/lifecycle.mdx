@@ -1,0 +1,90 @@
+---
+title: "Lifecycle"
+description: "An overview of the architecture of Agenta"
+---
+
+#### Apps
+
+Apps in agenta are individual projects. Each app is designed for a specific use case, like a chatbot or an automated summarization tool.
+
+#### Variants
+
+Variants provide alternative solutions for an app. Each variant is made up of two main components:
+
+- **Codebase**: The underlying code that sets the strategy for solving the problem.
+- **Configuration**: This includes elements like prompts, model parameters, and additional settings such as hyperparameters, tailored to the codebase.
+
+For instance, consider you're building a summarization application. You could employ two strategies: one using map-reduce and another based on a single prompt. For these strategies, you'd write separate codebases and create corresponding variants. Each variant would have its own codebase and a default configuration.
+
+#### Naming Conventions
+
+All variants adhere to a naming format: `base_name.config_name`. When you create your first variant, the `config_name` is automatically set to `default`.
+
+For example, if you've developed two codebases for a summarization app, your initial variants would be named `mapreduce.default` and `oneprompt.default`.
+
+#### Updating Configurations
+
+You can add multiple configurations to an existing variant. If you wish to experiment with different settings for the map-reduce strategy, simply create a new configuration and name it `mapreduce.newconfig`.
+
+
+## Database Schema
+
+The database schema consists of four key objects:
+
+- **App**: Holds the `appid` (e.g., `app123`) and `app_name` (e.g., "Summarizer").
+- **AppVariant**: The main object that contains detailed information about an app.
+- **Base**: Contains details about the codebase for a variant. Multiple variants can share the same base but have different configurations.
+- **Configuration**: Stores specific parameters for a variant.
+
+**Note**: An `AppVariant` is associated with an `App` and can have multiple `Base` and `Configuration` objects linked to it.
+
+### Creating an App
+
+You have two options for creating an app:
+
+1. **From the UI**: A backend call generates both the app and its default variant. This variant will use a base from the chosen template and begin with an empty default configuration.
+  
+    - Endpoint: `POST /apps/app_and_variant_from_template`
+    - This triggers the backend to add a variant based on the selected image and start it. The URI and state of the `Base` are saved in the `Base` object.
+
+2. **From the CLI**: Run `agenta init` to create an app without any variants.
+
+    - Endpoint: `POST /apps/`
+    - Provide the app name to get an app ID in return.
+
+### Creating a Variant with a New Base
+
+1. **From the UI**: The process is identical to creating an app from the UI.
+
+    - Endpoint: `POST /apps/app_and_variant_from_template`
+    - This action will add a variant based on an image and then start it. The URI and state of the `Base` are stored in the `Base` object.
+
+2. **From the CLI**: Use `agenta variant serve` to create or update a variant. This also creates or updates the base and sets an empty default configuration.
+
+    - Endpoints:
+        1. `POST /containers/build_image`
+        2. `POST /apps/{app_id}/variants/from-image`
+        3. `PUT /variants/{variant_id}` (status: start)
+    - The last step saves the URI and state of the `Base` in the `Base` object.
+
+### Creating a Variant with a New Configuration
+
+1. **From the UI**: Fork a variant to create a new one.
+
+    - Endpoint: `POST /variants/from-base`
+    - Payload: base-id, config_name, parameters, overwrite
+    - Returns a new variant ID
+
+2. **From the Code**: Push a new configuration to an existing variant.
+
+    - Endpoint: `POST /variants/from-base`
+    - Payload: base-id, config_name, parameters, overwrite
+    - Returns a new variant ID
+
+3. **From the CLI**: Use `agenta config push` to add a new configuration.
+
+    - Endpoint: `POST /variants/from-base`
+    - Payload: base-id, config_name, parameters, overwrite
+    - Returns a new variant ID
+
+To determine where to make the endpoint call, the URI of the container and its status should be included in the response from `GET /variants`.

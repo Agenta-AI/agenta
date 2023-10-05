@@ -49,8 +49,8 @@ class UpdateFeedback(BaseModel):
 
 
 class BaseTrace(BaseModel):
-    app_name: Optional[str]
-    variant_name: Optional[str]
+    app_id: Optional[str]
+    variant_id: Optional[str]
     cost: Optional[float]
     latency: float
     status: str
