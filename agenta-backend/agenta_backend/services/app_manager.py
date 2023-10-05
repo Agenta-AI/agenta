@@ -146,7 +146,9 @@ async def terminate_and_remove_app_variant(
         )
         if is_last_variant_for_image:
             # remove variant + terminate and rm containers + remove base
+
             image = app_variant_db.base.image
+            logger.debug("is_last_variant_for_image {image}")
             if image:
                 logger.debug("_stop_and_delete_app_container")
                 deployment = await db_manager.get_deployment_by_objectid(
@@ -164,7 +166,7 @@ async def terminate_and_remove_app_variant(
 
                 # Only delete the docker image for users that are running the oss version
 
-            else:
+            else:``
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
                 )
