@@ -66,8 +66,6 @@ def start_container(
     try:
         image = client.images.get(f"{image_name}")
 
-        image = client.images.get(f"{image_name}")
-
         # Set user backend url path and container name
         user_backend_url_path = f"{organization_id}/{app_name}/{base_name}"
         user_backend_container_name = f"{app_name}-{base_name}-{organization_id}"
