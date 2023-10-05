@@ -106,11 +106,7 @@ async def get_first_user_app():
     await engine.save(db_config)
 
     db_base = VariantBaseDB(
-        base_name="app",
-        image=db_image,
-        organization=organization,
-        user=user,
-        app=app
+        base_name="app", image=db_image, organization=organization, user=user, app=app
     )
     await engine.save(db_base)
 
