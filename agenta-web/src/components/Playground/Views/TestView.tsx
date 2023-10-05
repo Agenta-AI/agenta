@@ -154,8 +154,8 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         Add to Test Set
                     </Button>{" "}
                     <CopyButton
-                        text="Copy result"
-                        target={result}
+                        buttonText="Copy result"
+                        text={result}
                         disabled={result === "" || result === "Loading..."}
                         shape="round"
                         className={classes.copyBtn}
