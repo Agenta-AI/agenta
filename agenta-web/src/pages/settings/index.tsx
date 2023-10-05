@@ -12,7 +12,8 @@ const useStyles = createUseStyles({
         flexDirection: "column",
     },
     heading: {
-        marginBottom: "2rem !important",
+        marginTop: "1rem",
+        marginBottom: "1rem !important",
     },
     tabs: {
         height: "calc(100vh - 228px)",
@@ -39,39 +40,31 @@ const Settings: React.FC = () => {
             <Tabs
                 className={classes.tabs}
                 onChange={setTab}
-                tabPosition="left"
                 defaultActiveKey={tab}
                 items={[
-                    isDemo()
-                        ? {
-                              label: (
-                                  <span>
-                                      <ApartmentOutlined />
-                                      Workspace
-                                  </span>
-                              ),
-                              key: "workspace",
-                              children: <WorkspaceManage />,
-                          }
-                        : {
-                              label: (
-                                  <span>
-                                      <LockOutlined />
-                                      API Keys
-                                  </span>
-                              ),
-                              key: "apikeys",
-                              children: <ApiKeys />,
-                          },
+                    ...(isDemo()
+                        ? [
+                              {
+                                  label: (
+                                      <span>
+                                          <ApartmentOutlined />
+                                          Workspace
+                                      </span>
+                                  ),
+                                  key: "workspace",
+                                  children: <WorkspaceManage />,
+                              },
+                          ]
+                        : []),
                     {
                         label: (
                             <span>
-                                <GlobalOutlined />
-                                Languages
+                                <LockOutlined />
+                                API Keys
                             </span>
                         ),
-                        key: "languages",
-                        children: <div>Coming Soon!</div>,
+                        key: "apikeys",
+                        children: <ApiKeys />,
                     },
                 ]}
             />

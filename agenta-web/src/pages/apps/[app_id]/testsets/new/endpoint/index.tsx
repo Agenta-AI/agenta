@@ -48,7 +48,7 @@ export default function ImportTestsetFromEndpoint() {
         try {
             // TODO: move to api.ts
             await axios.post(
-                `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/endpoint`,
+                `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/endpoint/`,
                 formData,
                 {headers: {"Content-Type": "multipart/form-data"}},
             )
