@@ -42,7 +42,7 @@ interface ABTestingEvaluationTableRow {
         input_value: string
     }[]
     outputs: {
-        variant_name: string
+        variant_id: string
         variant_output: string
     }[]
     columnData0: string
@@ -108,12 +108,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const appName = Array.isArray(router.query.app_name)
-        ? router.query.app_name[0]
-        : router.query.app_name || ""
+    const appId = router.query.app_id as string
     const variants = evaluation.variants
 
-    const variantData = useVariants(appName, variants)
+    const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
@@ -121,10 +119,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     let num_of_rows = evaluationResults?.votes_data.nb_of_rows || 0
     let flag_votes = evaluationResults?.votes_data.flag_votes?.number_of_votes || 0
     let appVariant1 =
-        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[0]?.variantName]
+        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[0]?.variantId]
             ?.number_of_votes || 0
     let appVariant2 =
-        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[1]?.variantName]
+        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[1]?.variantId]
             ?.number_of_votes || 0
 
     useEffect(() => {
@@ -161,15 +159,13 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         if (evaluation_scenario_id) {
             setRowValue(rowIndex, "vote", "loading")
             // TODO: improve this to make it dynamic
-            const appVariantNameX = variants[0].variantName
-            const appVariantNameY = variants[1].variantName
             const outputVariantX = rows[rowIndex].columnData0
             const outputVariantY = rows[rowIndex].columnData1
             const data = {
                 vote: vote,
                 outputs: [
-                    {variant_name: appVariantNameX, variant_output: outputVariantX},
-                    {variant_name: appVariantNameY, variant_output: outputVariantY},
+                    {variant_id: variants[0].variantId, variant_output: outputVariantX},
+                    {variant_id: variants[0].variantId, variant_output: outputVariantY},
                 ],
             }
 
@@ -228,7 +224,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
                     }
                 }
-            } catch (e) {
+            } catch (err) {
+                console.log("Error running evaluation:", err)
                 setRowValue(rowIndex, columnName, "")
             }
         })
@@ -264,7 +261,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
-                            (output: any) => output.variant_name === variants[i].variantName,
+                            (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }
@@ -324,26 +321,26 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 <Spin spinning={rows[rowIndex].vote === "loading" ? true : false}>
                     <Space>
                         <Button
-                            type={record.vote === variants[0].variantName ? "primary" : "default"}
+                            type={record.vote === variants[0].variantId ? "primary" : "default"}
                             disabled={
                                 record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
                                 record.vote !== ""
                                     ? false
                                     : true
                             }
-                            onClick={() => handleVoteClick(rowIndex, variants[0].variantName)}
+                            onClick={() => handleVoteClick(rowIndex, variants[0].variantId)}
                         >
                             {`Variant: ${variants[0].variantName}`}
                         </Button>
                         <Button
-                            type={record.vote === variants[1].variantName ? "primary" : "default"}
+                            type={record.vote === variants[1].variantId ? "primary" : "default"}
                             disabled={
                                 record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
                                 record.vote !== ""
                                     ? false
                                     : true
                             }
-                            onClick={() => handleVoteClick(rowIndex, variants[1].variantName)}
+                            onClick={() => handleVoteClick(rowIndex, variants[1].variantId)}
                         >
                             {`Variant: ${variants[1].variantName}`}
                         </Button>

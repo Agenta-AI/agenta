@@ -1,4 +1,5 @@
 from . import sdk
+from . import config
 from .sdk import post, ingest, app
 from .sdk.types import (
     TextParam,
