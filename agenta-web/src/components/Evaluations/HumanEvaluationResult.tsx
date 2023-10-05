@@ -9,13 +9,15 @@ import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {getVotesPercentage} from "@/lib/helpers/evaluate"
+import {isDemo} from "@/lib/helpers/utils"
 
 interface VariantVotesData {
     number_of_votes: number
     percentage: number
 }
 
-interface EvaluationListTableDataType {
+export interface HumanEvaluationListTableDataType {
     key: string
     variants: string[]
     testset: {
@@ -83,7 +85,7 @@ const {Title} = Typography
 
 export default function HumanEvaluationResult() {
     const router = useRouter()
-    const [evaluationsList, setEvaluationsList] = useState<EvaluationListTableDataType[]>([])
+    const [evaluationsList, setEvaluationsList] = useState<HumanEvaluationListTableDataType[]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectionType] = useState<"checkbox" | "radio">("checkbox")
     const {appTheme} = useAppTheme()
@@ -102,7 +104,7 @@ export default function HumanEvaluationResult() {
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
                             return fetchData(
-                                `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${item.id}/results`,
+                                `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${item.id}/results/`,
                             )
                                 .then((results) => {
                                     if (item.evaluation_type === EvaluationType.human_a_b_testing) {
@@ -115,6 +117,10 @@ export default function HumanEvaluationResult() {
                                                 votesData: results.votes_data,
                                                 evaluationType: item.evaluation_type,
                                                 status: item.status,
+                                                user: {
+                                                    id: item.user_id,
+                                                    username: item.user_username,
+                                                },
                                                 testset: {
                                                     _id: item.testset_id,
                                                     name: item.testset_name,
@@ -153,15 +159,30 @@ export default function HumanEvaluationResult() {
         }
     }
 
-    const columns: ColumnsType<EvaluationListTableDataType> = [
+    const columns: ColumnsType<HumanEvaluationListTableDataType> = [
+        {
+            title: "Test set",
+            dataIndex: "testsetName",
+            key: "testsetName",
+            render: (_, record: HumanEvaluationListTableDataType, index: number) => {
+                return <span>{record.testset.name}</span>
+            },
+        },
         {
             title: "Variant 1",
             dataIndex: "variantNames",
             key: "variant1",
-            render: (value: any) => {
+            render: (value, record) => {
+                const percentage = getVotesPercentage(record, 0)
                 return (
                     <div>
-                        <span>{value[0]}</span>
+                        <Statistic
+                            className={classes.stat}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
+                            suffix="%"
+                        />
+                        <div>({value[0]})</div>
                     </div>
                 )
             },
@@ -170,59 +191,18 @@ export default function HumanEvaluationResult() {
             title: "Variant 2",
             dataIndex: "variantNames",
             key: "variant2",
-            render: (value: any) => {
+            render: (value, record) => {
+                const percentage = getVotesPercentage(record, 1)
                 return (
                     <div>
-                        <span>{value[1]}</span>
+                        <Statistic
+                            className={classes.stat}
+                            value={percentage}
+                            precision={percentage <= 99 ? 2 : 1}
+                            suffix="%"
+                        />
+                        <div>({value[1]})</div>
                     </div>
-                )
-            },
-        },
-        {
-            title: "Test set",
-            dataIndex: "testsetName",
-            key: "testsetName",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                return <span>{record.testset.name}</span>
-            },
-        },
-        {
-            title: "v1 better",
-            dataIndex: "v1Better",
-            key: "v1Better",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                let variant = record.votesData.variants[0]
-                let percentage = record.votesData.variants_votes_data[variant]?.percentage
-
-                return (
-                    <span>
-                        <Statistic
-                            className={classes.stat}
-                            value={percentage}
-                            precision={percentage <= 99 ? 2 : 1}
-                            suffix="%"
-                        />
-                    </span>
-                )
-            },
-        },
-        {
-            title: "v2 better",
-            dataIndex: "v2Better",
-            key: "v2Better",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                let variant = record.votesData.variants[1]
-                let percentage = record.votesData.variants_votes_data[variant]?.percentage
-
-                return (
-                    <span>
-                        <Statistic
-                            className={classes.stat}
-                            value={percentage}
-                            precision={percentage <= 99 ? 2 : 1}
-                            suffix="%"
-                        />
-                    </span>
                 )
             },
         },
@@ -230,7 +210,7 @@ export default function HumanEvaluationResult() {
             title: "Flag",
             dataIndex: "flag",
             key: "flag",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
+            render: (value: any, record: HumanEvaluationListTableDataType, index: number) => {
                 let percentage = record.votesData.flag_votes.percentage
                 return (
                     <span>
@@ -244,34 +224,47 @@ export default function HumanEvaluationResult() {
                 )
             },
         },
-        {
-            title: "Created at",
-            dataIndex: "createdAt",
-            key: "createdAt",
-            width: "300",
-        },
-        {
-            title: "Action",
-            dataIndex: "action",
-            key: "action",
-            render: (value: any, record: EvaluationListTableDataType, index: number) => {
-                let actionText = "View evaluation"
-                if (record.status !== EvaluationFlow.EVALUATION_FINISHED) {
-                    actionText = "Continue evaluation"
-                }
-                return (
-                    <div className="hover-button-wrapper">
-                        <Button type="primary" onClick={() => onCompleteEvaluation(record)}>
-                            {actionText}
-                        </Button>
-                    </div>
-                )
-            },
-        },
     ]
 
+    if (isDemo()) {
+        columns.push({
+            title: "User",
+            dataIndex: ["user", "username"],
+            key: "username",
+        })
+    }
+
+    columns.push(
+        ...[
+            {
+                title: "Created at",
+                dataIndex: "createdAt",
+                key: "createdAt",
+                width: "300",
+            },
+            {
+                title: "Action",
+                dataIndex: "action",
+                key: "action",
+                render: (value: any, record: HumanEvaluationListTableDataType, index: number) => {
+                    let actionText = "View evaluation"
+                    if (record.status !== EvaluationFlow.EVALUATION_FINISHED) {
+                        actionText = "Continue evaluation"
+                    }
+                    return (
+                        <div className="hover-button-wrapper">
+                            <Button type="primary" onClick={() => onCompleteEvaluation(record)}>
+                                {actionText}
+                            </Button>
+                        </div>
+                    )
+                },
+            },
+        ],
+    )
+
     const rowSelection = {
-        onChange: (selectedRowKeys: React.Key[], selectedRows: EvaluationListTableDataType[]) => {
+        onChange: (selectedRowKeys: React.Key[]) => {
             setSelectedRowKeys(selectedRowKeys)
         },
     }
