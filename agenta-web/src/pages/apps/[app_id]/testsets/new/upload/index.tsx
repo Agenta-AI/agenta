@@ -51,7 +51,7 @@ export default function AddANewTestset() {
                 setUploadLoading(true)
                 // TODO: move to api.ts
                 await axios.post(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/upload`,
+                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/upload/`,
                     formData,
                     {
                         headers: {

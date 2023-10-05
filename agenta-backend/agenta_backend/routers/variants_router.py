@@ -86,7 +86,7 @@ async def add_variant_from_base_and_config(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{variant_id}")
+@router.delete("/{variant_id}/")
 async def remove_variant(
     variant_id: str,
     stoken_session: SessionContainer = Depends(verify_session()),

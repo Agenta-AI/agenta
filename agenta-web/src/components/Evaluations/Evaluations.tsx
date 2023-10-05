@@ -10,6 +10,7 @@ import {
     Typography,
     Select,
     message,
+    ModalProps,
 } from "antd"
 import {DownOutlined, PlusOutlined} from "@ant-design/icons"
 import {
@@ -18,10 +19,10 @@ import {
     useLoadTestsetsList,
     fetchCustomEvaluations,
 } from "@/lib/services/api"
-import {getOpenAIKey} from "@/lib/helpers/utils"
+import {dynamicComponent, getOpenAIKey, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
-import {EvaluationFlow, EvaluationType} from "@/lib/enums"
+import {EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import EvaluationErrorModal from "./EvaluationErrorModal"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
@@ -57,10 +58,6 @@ const useStyles = createUseStyles({
         marginRight: "8px",
         filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
-    evaluationBtn: {
-        display: "flex",
-        justifyContent: "flex-end",
-    },
     createCustomEvalBtn: {
         color: "#fff  !important",
         backgroundColor: "#0fbf0f",
@@ -167,6 +164,12 @@ export default function Evaluations() {
 
     const [customCodeEvaluationList, setCustomCodeEvaluationList] =
         useState<SingleCustomEvaluation[]>()
+
+    const [shareModalOpen, setShareModalOpen] = useState(false)
+
+    const ShareEvaluationModal = dynamicComponent<ModalProps & GenericObject>(
+        "Evaluations/ShareEvaluationModal",
+    )
 
     useEffect(() => {
         const fetchData = async () => {
@@ -429,7 +432,7 @@ export default function Evaluations() {
                 {typeof isError === "string" && <div>{isError}</div>}
                 {areAppVariantsLoading && <div>loading variants...</div>}
             </div>
-            <div className={classes.evaluationContainer}>
+            <div className={classes.evaluationContainer} data-cy="evaluations-container">
                 <Row justify="start" gutter={24}>
                     <Col span={8}>
                         <Title level={4}>1. Select an evaluation type</Title>
@@ -607,8 +610,24 @@ export default function Evaluations() {
                     <Col span={6}></Col>
                 </Row>
 
-                <Row justify="end">
-                    <Col span={8} className={classes.evaluationBtn}>
+                <Row justify="end" gutter={8}>
+                    {selectedEvaluationType === EvaluationType.human_a_b_testing && isDemo() && (
+                        <Col>
+                            <Button
+                                disabled={
+                                    !(
+                                        selectedVariants[0].variantId &&
+                                        selectedVariants[0].variantId &&
+                                        selectedTestset._id
+                                    )
+                                }
+                                onClick={() => setShareModalOpen(true)}
+                            >
+                                Invite Collaborators
+                            </Button>
+                        </Col>
+                    )}
+                    <Col>
                         <Button onClick={onStartEvaluation} type="primary">
                             Start a new evaluation
                         </Button>
@@ -626,6 +645,15 @@ export default function Evaluations() {
                 <AutomaticEvaluationResult />
                 <HumanEvaluationResult />
             </div>
+
+            <ShareEvaluationModal
+                open={shareModalOpen}
+                onCancel={() => setShareModalOpen(false)}
+                destroyOnClose
+                variantIds={selectedVariants.map((v) => v.variantId)}
+                testsetId={selectedTestset._id}
+                evaluationType={EvaluationType.human_a_b_testing}
+            />
         </div>
     )
 }
