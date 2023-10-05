@@ -1,33 +1,25 @@
 import os
 from agenta_backend.utils.common import engine
 from agenta_backend.models.db_models import UserDB
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Request
 from agenta_backend.models.api.user_models import User
 
 router = APIRouter()
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.ee.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
-    from agenta_backend.services.auth_helper import (
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
 @router.get("/")
 async def user_profile(
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         user = await engine.find_one(UserDB, UserDB.uid == user_org_data["uid"])
         return User(
             id=str(user.id),
