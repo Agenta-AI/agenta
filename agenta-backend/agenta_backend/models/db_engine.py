@@ -47,12 +47,12 @@ class DBEngine(object):
             logger.info("Using test database...")
             return aio_engine
         elif self.mode == "default":
-            aio_engine = AIOEngine(client=self.initialize_client, database="agenta")
-            logger.info("Using default database...")
-            return aio_engine
-        elif self.mode == "v2":
             aio_engine = AIOEngine(client=self.initialize_client, database="agenta_v2")
             logger.info("Using v2 database...")
+            return aio_engine
+        elif self.mode == "old":
+            aio_engine = AIOEngine(client=self.initialize_client, database="agenta")
+            logger.info("Using old database...")
             return aio_engine
         raise ValueError(
             "Mode of database is unknown. Did you mean 'default' or 'test'?"
