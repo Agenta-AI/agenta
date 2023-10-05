@@ -73,9 +73,7 @@ async def test_create_image_in_db(image_create_data):
         OrganizationDB, OrganizationDB.owner == str(user_db.id)
     )
 
-    image_db = ImageDB(
-        **image_create_data, user=user_db, organization=organization_db
-    )
+    image_db = ImageDB(**image_create_data, user=user_db, organization=organization_db)
     await engine.save(image_db)
 
     assert image_db.user.id == user_db.id
@@ -210,7 +208,7 @@ async def test_get_traces_endpoint():
 @pytest.mark.asyncio
 async def test_get_trace_endpoint():
     traces = await engine.find(TraceDB)
-    
+
     variants = await engine.find(AppVariantDB)
     app_id, variant_id = variants[0].app.id, variants[0].id
 
@@ -226,9 +224,7 @@ async def test_get_trace_endpoint():
 @pytest.mark.asyncio
 async def test_update_trace_status_endpoint():
     payload = {
-        "status": random.choice(
-            ["initiated", "completed", "stopped", "cancelled"]
-        )
+        "status": random.choice(["initiated", "completed", "stopped", "cancelled"])
     }
 
     traces = await engine.find(TraceDB)
