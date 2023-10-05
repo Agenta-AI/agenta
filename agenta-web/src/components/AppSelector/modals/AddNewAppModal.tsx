@@ -63,6 +63,7 @@ const AddNewAppModal: React.FC<Props> = ({onCreateFromTemplate, onWriteOwnApp, .
 
     return (
         <Modal
+            data-cy="add-new-app-modal"
             rootClassName={classes.modal}
             centered
             footer={null}
@@ -76,7 +77,11 @@ const AddNewAppModal: React.FC<Props> = ({onCreateFromTemplate, onWriteOwnApp, .
         >
             <Row gutter={20} className={classes.row}>
                 <Col span={12}>
-                    <div className={classes.col} onClick={onCreateFromTemplate}>
+                    <div
+                        className={classes.col}
+                        onClick={onCreateFromTemplate}
+                        data-cy="create-from-template"
+                    >
                         <AppstoreAddOutlined />
                         <Title level={5}>Create From Template</Title>
                         <Text type="secondary">Create Quickly Simple Prompt Apps From UI</Text>
