@@ -31,6 +31,24 @@ const useStyles = createUseStyles({
             textAlign: "center",
         },
     },
+    cardCover: {
+        "z-index": 1,
+        position: "absolute",
+        top: 0,
+        right: 0,
+        left: 0,
+        background: "transparent",
+        margin: "auto",
+        width: "300px",
+        height: "70px",
+        display: "flex",
+        overflow: "hidden",
+        "flex-direction": "column",
+        "justify-content": "space-between",
+    },
+    cardLink: {
+        padding: "24px",
+    },
 })
 
 const DeleteModal: React.FC<{
