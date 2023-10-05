@@ -1,12 +1,13 @@
 """Converts db models to pydantic models
 """
 from typing import List
+from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
     AppVariantDB,
     ImageDB,
     TemplateDB,
     AppDB,
-    EnvironmentDB,
+    AppEnvironmentDB,
     TestSetDB,
     SpanDB,
     TraceDB,
@@ -53,9 +54,15 @@ def evaluation_db_to_simple_evaluation_output(
     )
 
 
-def evaluation_db_to_pydantic(
+async def evaluation_db_to_pydantic(
     evaluation_db: EvaluationDB,
 ) -> Evaluation:
+    variant_names = []
+    for variant_id in evaluation_db.variants:
+        variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
+        variant_name = variant.variant_name if variant else str(variant_id)
+        variant_names.append(str(variant_name))
+
     return Evaluation(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
@@ -64,6 +71,7 @@ def evaluation_db_to_pydantic(
         evaluation_type=evaluation_db.evaluation_type,
         evaluation_type_settings=evaluation_db.evaluation_type_settings,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
+        variant_names=variant_names,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
@@ -89,44 +97,62 @@ def app_variant_db_to_pydantic(
     app_variant_db: AppVariantDB, previous_variant_name: str = None
 ) -> AppVariant:
     return AppVariant(
-        app_id=str(app_variant_db.app_id.id),
-        app_name=app_variant_db.app_id.app_name,
+        app_id=str(app_variant_db.app.id),
+        app_name=app_variant_db.app.app_name,
         variant_name=app_variant_db.variant_name,
         parameters=app_variant_db.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
-        organization_id=str(app_variant_db.organization_id.id),
+        organization_id=str(app_variant_db.organization.id),
         base_name=app_variant_db.base_name,
         config_name=app_variant_db.config_name,
     )
 
 
-def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
+async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOutput:
+    if app_variant_db.base.deployment:
+        deployment = await db_manager.get_deployment_by_objectid(
+            app_variant_db.base.deployment
+        )
+        uri = deployment.uri_path
+    else:
+        uri = None
+    logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
     return AppVariantOutput(
-        app_id=str(app_variant_db.app_id.id),
-        app_name=str(app_variant_db.app_id.app_name),
+        app_id=str(app_variant_db.app.id),
+        app_name=str(app_variant_db.app.app_name),
         variant_name=app_variant_db.variant_name,
         variant_id=str(app_variant_db.id),
-        user_id=str(app_variant_db.user_id.id),
-        organization_id=str(app_variant_db.organization_id.id),
+        user_id=str(app_variant_db.user.id),
+        organization_id=str(app_variant_db.organization.id),
         parameters=app_variant_db.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         base_name=app_variant_db.base_name,
-        base_id=str(app_variant_db.base_id.id),
+        base_id=str(app_variant_db.base.id),
         config_name=app_variant_db.config_name,
-        config_id=str(app_variant_db.config_id.id),
+        config_id=str(app_variant_db.config.id),
+        uri=uri,
     )
 
 
-def environment_db_to_output(environment_db: EnvironmentDB) -> EnvironmentOutput:
+async def environment_db_to_output(
+    environment_db: AppEnvironmentDB,
+) -> EnvironmentOutput:
     deployed_app_variant_id = (
-        str(environment_db.deployed_app_variant_ref)
-        if environment_db.deployed_app_variant_ref
+        str(environment_db.deployed_app_variant)
+        if environment_db.deployed_app_variant
         else None
     )
+    if deployed_app_variant_id:
+        deployed_variant_name = (
+            await db_manager.get_app_variant_instance_by_id(deployed_app_variant_id)
+        ).variant_name
+    else:
+        deployed_variant_name = None
     return EnvironmentOutput(
         name=environment_db.name,
-        app_id=str(environment_db.app_id.id),
+        app_id=str(environment_db.app.id),
         deployed_app_variant_id=deployed_app_variant_id,
+        deployed_variant_name=deployed_variant_name,
     )
 
 
@@ -136,7 +162,7 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
 
 def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
     return ImageExtended(
-        organization_id=str(image_db.organization_id.id),
+        organization_id=str(image_db.organization.id),
         docker_id=image_db.docker_id,
         tags=image_db.tags,
         id=str(image_db.id),
@@ -146,7 +172,7 @@ def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
 def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
     return [
         Template(
-            id=template.template_id,
+            id=template.dockerhub_tag_id,
             image=TemplateImageInfo(
                 name=template.name,
                 size=template.size,

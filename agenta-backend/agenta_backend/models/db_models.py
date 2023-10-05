@@ -1,8 +1,9 @@
-from bson import ObjectId
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
-from odmantic import Field, Model, Reference, EmbeddedModel
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
+
+from bson import ObjectId
+from odmantic import EmbeddedModel, Field, Model, Reference
 
 
 class InvitationDB(EmbeddedModel):
@@ -19,6 +20,8 @@ class OrganizationDB(Model):
     owner: str  # user id
     members: Optional[List[ObjectId]]
     invitations: Optional[List[InvitationDB]] = []
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "organizations"
@@ -29,6 +32,8 @@ class UserDB(Model):
     username: str = Field(default="agenta")
     email: str = Field(default="demo@agenta.ai", unique=True)
     organizations: Optional[List[ObjectId]] = []
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "users"
@@ -39,8 +44,8 @@ class ImageDB(Model):
 
     docker_id: str = Field(index=True)
     tags: str
-    user_id: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -50,44 +55,77 @@ class ImageDB(Model):
 
 class AppDB(Model):
     app_name: str
-    organization_id: OrganizationDB = Reference(key_name="organization")
-    user_id: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
 
-class BaseDB(Model):  # not used
-    base_name: str
-    image_id: ImageDB = Reference(key_name="image")
-    status: Optional[str]
+class DeploymentDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
     container_name: Optional[str]
     container_id: Optional[str]
     uri: Optional[str]
+    uri_path: Optional[str]
+    status: str
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "deployments"
+
+
+class VariantBaseDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    base_name: str
+    image: ImageDB = Reference(key_name="image")
+    deployment: Optional[ObjectId]  # Reference to deployment
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "bases"
 
 
-class ConfigDB(Model):  # not used
+class ConfigVersionDB(EmbeddedModel):
+    version: int
+    parameters: Dict[str, Any]
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+
+class ConfigDB(Model):
     config_name: str
+    current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
+    version_history: List[ConfigVersionDB] = Field(default=[])
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "configs"
 
 
 class AppVariantDB(Model):
-    app_id: AppDB = Reference(key_name="app")
+    app: AppDB = Reference(key_name="app")
     variant_name: str
-    image_id: ImageDB = Reference(key_name="image")
-    user_id: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
-    parameters: Dict[str, Any] = Field(default=dict)
-    previous_variant_name: Optional[str]
+    image: ImageDB = Reference(key_name="image")
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
+    previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
-    base_id: BaseDB = Reference(key_name="bases")
+    base: VariantBaseDB = Reference(key_name="bases")
     config_name: Optional[str]
-    config_id: ConfigDB = Reference(key_name="configs")
+    config: ConfigDB = Reference(key_name="configs")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    is_deleted: bool = Field(
+    is_deleted: bool = Field(  # TODO: deprecated. remove
         default=False
     )  # soft deletion for using the template variants
 
@@ -95,21 +133,22 @@ class AppVariantDB(Model):
         collection = "app_variants"
 
 
-class EnvironmentDB(Model):
-    app_id: AppDB = Reference(key_name="app")
+class AppEnvironmentDB(Model):
+    app: AppDB = Reference(key_name="app")
     name: str
-    user_id: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
-    deployed_app_variant_ref: Optional[ObjectId]
-    deployed_base_ref: Optional[ObjectId]
-    deployed_config_ref: Optional[ObjectId]
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    deployed_app_variant: Optional[ObjectId]
+    deployment: Optional[ObjectId]  # reference to deployment
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
         collection = "environments"
 
 
 class TemplateDB(Model):
-    template_id: int
+    dockerhub_tag_id: int
     name: str
     repo_name: str
     architecture: str
@@ -127,10 +166,10 @@ class TemplateDB(Model):
 
 class TestSetDB(Model):
     name: str
-    app_id: AppDB = Reference(key_name="app")
+    app: AppDB = Reference(key_name="app")
     csvdata: List[Dict[str, str]]
     user: UserDB = Reference(key_name="user")
-    organization_id: OrganizationDB = Reference(key_name="organization")
+    organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 

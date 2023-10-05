@@ -1,13 +1,14 @@
 import {Modal, Card, Avatar} from "antd"
 import {DeleteOutlined} from "@ant-design/icons"
 import {removeApp} from "@/lib/services/api"
-import {mutate} from "swr"
 import {useState} from "react"
 import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {getGradientFromStr} from "@/lib/helpers/colors"
 import {ListAppsItem} from "@/lib/Types"
+import {useProfileData, Role} from "@/contexts/profile.context"
+import {useAppsData} from "@/contexts/app.context"
 
 const useStyles = createUseStyles({
     card: {
@@ -58,7 +59,11 @@ const AppCard: React.FC<{
     app: ListAppsItem
 }> = ({app}) => {
     const [visibleDelete, setVisibleDelete] = useState(false)
-    const [confirmLoading, setConfirmLoading] = useState(false) // add this line
+    const [confirmLoading, setConfirmLoading] = useState(false)
+    const {role} = useProfileData()
+    const isOwner = role === Role.OWNER
+    const {mutate} = useAppsData()
+
     const showDeleteModal = () => {
         setVisibleDelete(true)
     }
@@ -67,8 +72,7 @@ const AppCard: React.FC<{
         setConfirmLoading(true)
         try {
             await removeApp(app.app_id)
-            // Refresh the data (if you're using SWR or a similar library)
-            mutate(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/`)
+            mutate()
         } finally {
             setVisibleDelete(false)
             setConfirmLoading(false)
@@ -84,7 +88,11 @@ const AppCard: React.FC<{
         <>
             <Card
                 className={classes.card}
-                actions={[<DeleteOutlined key="delete" onClick={showDeleteModal} />]}
+                actions={
+                    isOwner
+                        ? [<DeleteOutlined key="delete" onClick={showDeleteModal} />]
+                        : undefined
+                }
             >
                 <Link data-cy="app-card-link" href={`/apps/${app.app_id}/playground`}>
                     <Card.Meta

@@ -9,7 +9,6 @@ from agenta_backend.models.api.api_models import (
     EnvironmentOutput,
     DeployToEnvironmentPayload,
 )
-from agenta_backend.models.converters import environment_db_to_output
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.auth_helper import (
@@ -35,7 +34,7 @@ async def deploy_to_environment(
     payload: DeployToEnvironmentPayload,
     stoken_session: SessionContainer = Depends(verify_session()),
 ):
-    """Deploys a given variant to an environment.
+    """Deploys a given variant to an environment
 
     Args:
         environment_name: Name of the environment to deploy to.

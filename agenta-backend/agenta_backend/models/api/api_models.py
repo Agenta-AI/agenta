@@ -1,7 +1,17 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from enum import Enum
 
 from pydantic import BaseModel
+
+
+class VariantActionEnum(str, Enum):
+    START = "START"
+    STOP = "STOP"
+
+
+class VariantAction(BaseModel):
+    action: VariantActionEnum
 
 
 class CreateApp(BaseModel):
@@ -18,12 +28,7 @@ class AppOutput(CreateAppOutput):
     pass
 
 
-class Variant(BaseModel):
-    variant_id: str
-
-
 class UpdateVariantParameterPayload(BaseModel):
-    variant_id: str
     parameters: Dict[str, Any]
 
 
@@ -55,16 +60,17 @@ class AppVariantOutput(BaseModel):
     base_id: str
     config_name: str
     config_id: str
+    uri: Optional[str]
 
 
 class EnvironmentOutput(BaseModel):
     name: str
     app_id: str
     deployed_app_variant_id: Optional[str]
+    deployed_variant_name: Optional[str]
 
 
 class AddVariantFromPreviousPayload(BaseModel):
-    previous_variant_id: str
     new_variant_name: str
     parameters: Dict[str, Any]
 
@@ -132,6 +138,10 @@ class URI(BaseModel):
 class App(BaseModel):
     app_id: str
     app_name: str
+
+
+class RemoveApp(BaseModel):
+    app_id: str
 
 
 class DockerEnvVars(BaseModel):

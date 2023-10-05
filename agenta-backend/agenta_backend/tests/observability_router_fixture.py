@@ -8,7 +8,7 @@ from agenta_backend.models.db_models import (
 )
 
 # Initialize database engine
-engine = DBEngine(mode="test").engine()
+engine = DBEngine().engine()
 
 
 @pytest.fixture()

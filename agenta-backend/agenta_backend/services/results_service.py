@@ -2,6 +2,7 @@ from agenta_backend.utils.common import engine
 from agenta_backend.services.db_manager import query
 from agenta_backend.models.db_models import EvaluationScenarioDB, EvaluationDB
 from agenta_backend.services import evaluation_service
+from agenta_backend.services import db_manager
 from agenta_backend.models.api.evaluation_model import EvaluationType
 from bson import ObjectId
 
@@ -16,6 +17,12 @@ async def fetch_results_for_evaluation(evaluation: EvaluationDB):
         return results
 
     results["variants"] = [str(variant) for variant in evaluation.variants]
+    variant_names = []
+    for variant_id in evaluation.variants:
+        variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
+        variant_name = variant.variant_name if variant else str(variant_id)
+        variant_names.append(str(variant_name))
+    results["variant_names"] = variant_names
     results["nb_of_rows"] = len(evaluation_scenarios)
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
         results.update(
@@ -78,9 +85,9 @@ async def _compute_stats_for_human_a_b_testing_evaluation(evaluation_scenarios: 
     return results
 
 
-async def fetch_results_for_auto_webhook_test(evaluation_id: str):
+async def fetch_results_for_auto_ai_critique(evaluation_id: str):
     pipeline = [
-        {"$match": {"evaluation_id": evaluation_id}},
+        {"$match": {"evaluations": ObjectId(evaluation_id)}},
         {"$group": {"_id": "$score", "count": {"$sum": 1}}},
     ]
 
@@ -92,22 +99,8 @@ async def fetch_results_for_auto_webhook_test(evaluation_id: str):
     return results
 
 
-async def fetch_results_for_auto_ai_critique(evaluation_id: str):
-    pipeline = [
-        {"$match": {"evaluation_id": evaluation_id}},
-        {"$group": {"_id": "$evaluation", "count": {"$sum": 1}}},
-    ]
-
-    results = {}
-    collection = engine.get_collection(EvaluationScenarioDB)
-    aggregation_cursor = await collection.aggregate(pipeline).to_list(length=None)
-    for doc in aggregation_cursor:
-        results[doc["_id"]] = doc["count"]
-    return results
-
-
 async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
-    query_exp = query.eq(EvaluationScenarioDB.evaluation_id, evaluation_id)
+    query_exp = EvaluationScenarioDB.evaluation == ObjectId(evaluation_id)
     eval_scenarios = await engine.find(EvaluationScenarioDB, query_exp)
 
     list_of_scores = []

@@ -144,7 +144,7 @@ async def create_new_evaluation(
     # Initialize and save evaluation instance to database
     eval_instance = EvaluationDB(
         app=app,
-        organization=app.organization_id,  # Assuming user has an organization_id attribute
+        organization=app.organization,  # Assuming user has an organization_id attribute
         user=user,
         status=payload.status,
         evaluation_type=payload.evaluation_type,
@@ -232,7 +232,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         eval_scenario_instance = EvaluationScenarioDB(
             **evaluation_scenario_payload,
             user=user,
-            organization=app.organization_id,
+            organization=app.organization,
             evaluation=new_evaluation,
             inputs=list_of_scenario_input,
             outputs=[],
@@ -275,7 +275,6 @@ async def create_evaluation_scenario(
         **_extend_with_evaluation(evaluation.evaluation_type),
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
-        evaluation_id=evaluation_id,
     )
 
     await engine.save(new_eval_scenario)
@@ -389,6 +388,7 @@ async def update_evaluation_scenario(
         EvaluationType.auto_similarity_match,
         EvaluationType.auto_regex_test,
         EvaluationType.auto_webhook_test,
+        EvaluationType.auto_ai_critique,
     ]:
         new_eval_set["score"] = updated_data["score"]
     elif evaluation_type == EvaluationType.human_a_b_testing:
@@ -525,14 +525,12 @@ def _extend_with_evaluation(evaluation_type: EvaluationType):
         or evaluation_type == EvaluationType.auto_similarity_match
         or evaluation_type == EvaluationType.auto_regex_test
         or evaluation_type == EvaluationType.auto_webhook_test
+        or EvaluationType.auto_ai_critique
     ):
         evaluation["score"] = ""
 
     if evaluation_type == EvaluationType.human_a_b_testing:
         evaluation["vote"] = ""
-
-    if evaluation_type == EvaluationType.auto_ai_critique:
-        evaluation["evaluation"] = ""
     return evaluation
 
 
@@ -575,7 +573,7 @@ async def fetch_list_evaluations(
         EvaluationDB, EvaluationDB.app == ObjectId(app_id)
     )
     return [
-        converters.evaluation_db_to_pydantic(evaluation)
+        await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
     ]
 
@@ -594,7 +592,7 @@ async def fetch_evaluation(evaluation_id: str, **user_org_data: dict) -> Evaluat
     evaluation = await _fetch_evaluation_and_check_access(
         evaluation_id=evaluation_id, **user_org_data
     )
-    return converters.evaluation_db_to_pydantic(evaluation)
+    return await converters.evaluation_db_to_pydantic(evaluation)
 
 
 async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -> None:
@@ -639,8 +637,8 @@ async def create_custom_code_evaluation(
     app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
     custom_eval = CustomEvaluationDB(
         evaluation_name=payload.evaluation_name,
-        user=app.user_id,
-        organization=app.organization_id,
+        user=app.user,
+        organization=app.organization,
         app=app,
         python_code=payload.python_code,
         created_at=datetime.utcnow(),
@@ -705,7 +703,7 @@ async def execute_custom_code_evaluation(
     app = await db_manager.fetch_app_by_id(app_id=app_id)
 
     # Build query expression for app variant
-    appvar_query_expression = query.eq(AppVariantDB.app_id, app.id) & query.eq(
+    appvar_query_expression = query.eq(AppVariantDB.app, app.id) & query.eq(
         AppVariantDB.id, ObjectId(variant_id)
     )
 
@@ -717,7 +715,7 @@ async def execute_custom_code_evaluation(
     # Execute the Python code with the provided inputs
     try:
         result = execute_code_safely(
-            app_variant.parameters,
+            app_variant.config.parameters,
             inputs,
             output,
             correct_answer,

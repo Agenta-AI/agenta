@@ -15,7 +15,7 @@ import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
 import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
-import {convertToCsv, downloadCsv} from "../../lib/helpers/utils"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/utils"
 import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
 
@@ -221,9 +221,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             setLoading(true)
             ;(async () => {
                 const backendVariants = await fetchVariants(appId)
-                const variant =
-                    backendVariants.find((v) => v.previousVariantName === null) ||
-                    backendVariants[0]
+                const variant = backendVariants[0]
                 const inputParams = await getVariantInputParameters(appId, variant)
                 const colData = inputParams.map((param) => ({field: param.name}))
                 colData.push({field: "correct_answer"})
