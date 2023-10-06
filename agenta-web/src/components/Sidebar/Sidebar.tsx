@@ -296,7 +296,9 @@ const Sidebar: React.FC = () => {
                         >
                             {doesSessionExist && (
                                 <Menu.Item key="settings" icon={<SettingOutlined />}>
-                                    <Link href="/settings">Settings</Link>
+                                    <Link data-cy="settings-link" href="/settings">
+                                        Settings
+                                    </Link>
                                 </Menu.Item>
                             )}
 
