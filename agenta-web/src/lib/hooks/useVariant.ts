@@ -37,7 +37,7 @@ export function useVariant(appId: string, variant: Variant) {
             }
         }
 
-        fetchParameters()
+        if (variant) fetchParameters()
     }, [appId, variant])
 
     useEffect(() => {
