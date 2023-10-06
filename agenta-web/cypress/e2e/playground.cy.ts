@@ -25,7 +25,7 @@ describe("Playgroynd | Simple prompt", function () {
 
     context("when an api key is provided", function () {
         it("should run the prompt and get a response from an LLM", () => {
-            cy.visit("/apikeys")
+            cy.visit("/settings")
             // Update your cypress.json file to include your OPENAI API KEY
             cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
             cy.get('[data-cy="apikeys-save-button"]').click()
@@ -48,7 +48,7 @@ describe("Playgroynd | Simple prompt", function () {
 
             cy.get('[data-cy="enter-app-name-modal-button"]').click()
 
-            cy.url().should("not.include", "/apikeys")
+            cy.url().should("not.include", "/settings")
 
             cy.intercept("POST", "/api/app_variant/add/from_template/").as("postRequest")
 
@@ -105,7 +105,7 @@ describe("Playgroynd | Simple prompt", function () {
 
             cy.get('[data-cy="enter-app-name-modal-button"]').click()
             cy.get(".ant-notification").should("exist")
-            cy.url().should("include", "apikeys")
+            cy.url().should("include", "/settings")
             cy.wait(5000)
             cy.get(".ant-notification").should("not.exist")
         })
