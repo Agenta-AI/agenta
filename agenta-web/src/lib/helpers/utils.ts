@@ -135,8 +135,8 @@ export const isDemo = () => {
     return false
 }
 
-export const dynamicComponent = (path: string, fallback: any = () => null) => {
-    return dynamic(() => import(`@/components/${path}`), {
+export function dynamicComponent<T>(path: string, fallback: any = () => null) {
+    return dynamic<T>(() => import(`@/components/${path}`), {
         loading: fallback,
         ssr: false,
     })
