@@ -201,6 +201,7 @@ const Sidebar: React.FC = () => {
                                         title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                     >
                                         <Menu.Item
+                                            key="playground"
                                             icon={
                                                 <RocketOutlined
                                                     className={classes.optionSideIcon}
