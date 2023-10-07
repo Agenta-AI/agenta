@@ -637,7 +637,11 @@ export default function Evaluations() {
                         </Col>
                     )}
                     <Col>
-                        <Button onClick={onStartEvaluation} type="primary" data-cy="start-new-evaluation-button">
+                        <Button
+                            onClick={onStartEvaluation}
+                            type="primary"
+                            data-cy="start-new-evaluation-button"
+                        >
                             Start a new evaluation
                         </Button>
                     </Col>
