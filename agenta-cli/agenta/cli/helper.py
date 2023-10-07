@@ -7,19 +7,20 @@ from agenta.client.api_models import AppVariant
 
 
 def update_variants_from_backend(
-    app_name: str, config: MutableMapping[str, Any], host: str
+    app_id: str, config: MutableMapping[str, Any], host: str
 ) -> MutableMapping[str, Any]:
     """Reads the list of variants from the backend and updates the config accordingly
 
     Arguments:
-        app_name -- the app name
+        app_id -- the app id
         config -- the config loaded using toml.load
 
     Returns:
         a new config object later to be saved using toml.dump(config, config_file.open('w'))
     """
-    variants: List[AppVariant] = client.list_variants(app_name, host)
+    variants: List[AppVariant] = client.list_variants(app_id, host)
     config["variants"] = [variant.variant_name for variant in variants]
+    config["variant_ids"] = [variant.variant_id for variant in variants]
     return config
 
 
@@ -31,10 +32,12 @@ def update_config_from_backend(config_file: Path, host: str):
     """
     assert config_file.exists(), "Config file does not exist!"
     config = toml.load(config_file)
-    app_name = config["app-name"]
+    app_id = config["app_id"]
     if "variants" not in config:
         config["variants"] = []
-    config = update_variants_from_backend(app_name, config, host)
+    if "variant_ids" not in config:
+        config["variant_ids"] = []
+    config = update_variants_from_backend(app_id, config, host)
     toml.dump(config, config_file.open("w"))
 
 

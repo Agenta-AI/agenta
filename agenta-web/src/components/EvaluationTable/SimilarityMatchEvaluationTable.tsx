@@ -41,7 +41,7 @@ interface SimilarityMatchEvaluationTableRow {
         input_value: string
     }[]
     outputs: {
-        variant_name: string
+        variant_id: string
         variant_output: string
     }[]
     columnData0: string
@@ -115,13 +115,11 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const appName = Array.isArray(router.query.app_name)
-        ? router.query.app_name[0]
-        : router.query.app_name || ""
+    const appId = router.query.app_id as string
 
     const variants = evaluation.variants
 
-    const variantData = useVariants(appName, variants)
+    const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<SimilarityMatchEvaluationTableRow[]>([])
     const [dissimilarAnswers, setDissimilarAnswers] = useState<number>(0)
@@ -130,7 +128,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     const [settings, setSettings] = useState(evaluation.evaluationTypeSettings)
     const [loading, setLoading] = useState<boolean[]>([])
     const [form] = Form.useForm()
-
     const {Text} = Typography
 
     useEffect(() => {
@@ -200,7 +197,6 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 },
                 status: EvaluationFlow.EVALUATION_FINISHED,
             }).then(() => {
-                setSettings({similarityThreshold})
                 message.success("Evaluation Results Saved")
             })
         })
@@ -234,9 +230,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         evaluationScenarioId,
                         {
                             score: isSimilar,
-                            outputs: [
-                                {variant_name: variants[0].variantName, variant_output: result},
-                            ],
+                            outputs: [{variant_id: variants[0].variantId, variant_output: result}],
                         },
                         evaluation.evaluationType,
                     )
@@ -290,7 +284,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
-                            (output: any) => output.variant_name === variants[i].variantName,
+                            (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }
@@ -383,8 +377,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
     return (
         <div>
             <Title level={2}>
-                Similarity match Evaluation (Threshold:{" "}
-                {evaluation.evaluationTypeSettings.similarityThreshold})
+                Similarity match Evaluation (Threshold: {settings.similarityThreshold})
             </Title>
             <div className={classes.div}>
                 <Text>
@@ -452,7 +445,13 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                     requiredMark={false}
                 >
                     <Form.Item label="Similarity Threshold" name="similarityThreshold">
-                        <Slider min={0} max={1} step={0.01} className={classes.slider} />
+                        <Slider
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            className={classes.slider}
+                            onChange={(value: number) => setSettings({similarityThreshold: value})}
+                        />
                     </Form.Item>
                 </Form>
             )}

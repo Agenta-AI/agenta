@@ -1,0 +1,30 @@
+name: Lint and Build
+
+on:
+  pull_request:
+    paths:
+      - "agenta-web/**"
+
+jobs:
+  lint_and_build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci --omit=dev
+        working-directory: agenta-web
+
+      - name: Run Lint
+        run: npm run lint
+        working-directory: agenta-web
+
+      - name: Run Build
+        run: npm run build
+        working-directory: agenta-web

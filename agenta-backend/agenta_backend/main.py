@@ -1,28 +1,27 @@
-import os
 import json
-from fastapi import FastAPI
+import os
+from contextlib import asynccontextmanager
 
 from agenta_backend.config import settings
-from agenta_backend.routers import app_variant
-from agenta_backend.routers import testset_router
-from fastapi.middleware.cors import CORSMiddleware
-from agenta_backend.routers import container_router
-from agenta_backend.routers import evaluation_router
-from agenta_backend.services.db_manager import (
-    add_template,
-    remove_old_template_from_db,
-)
-from agenta_backend.services.container_manager import (
-    pull_image_from_docker_hub,
+from agenta_backend.routers import (
+    app_router,
+    user_profile,
+    container_router,
+    environment_router,
+    evaluation_router,
+    observability_router,
+    testset_router,
+    organization_router,
+    variants_router,
 )
 from agenta_backend.services.cache_manager import (
     retrieve_templates_from_dockerhub_cached,
     retrieve_templates_info_from_dockerhub_cached,
 )
-
-from contextlib import asynccontextmanager
-from agenta_backend.config import settings
-
+from agenta_backend.services.container_manager import pull_image_from_docker_hub
+from agenta_backend.services.db_manager import add_template, remove_old_template_from_db
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 origins = [
     "http://localhost:3000",
@@ -60,7 +59,7 @@ async def lifespan(application: FastAPI, cache=True):
             if str(tag["name"]).startswith(temp_info_key):
                 await add_template(
                     **{
-                        "template_id": tag["id"],
+                        "dockerhub_tag_id": tag["id"],
                         "name": tag["name"],
                         "size": tag["images"][0]["size"],
                         "architecture": tag["images"][0]["architecture"],
@@ -85,10 +84,15 @@ async def lifespan(application: FastAPI, cache=True):
 
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(app_variant.router, prefix="/app_variant")
+app.include_router(user_profile.router, prefix="/profile")
+app.include_router(app_router.router, prefix="/apps")
+app.include_router(variants_router.router, prefix="/variants")
 app.include_router(evaluation_router.router, prefix="/evaluations")
 app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
+app.include_router(environment_router.router, prefix="/environments")
+app.include_router(observability_router.router, prefix="/observability")
+app.include_router(organization_router.router, prefix="/organizations")
 
 allow_headers = ["Content-Type"]
 

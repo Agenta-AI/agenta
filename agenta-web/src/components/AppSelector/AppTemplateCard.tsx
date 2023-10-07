@@ -68,7 +68,12 @@ const AppTemplateCard: React.FC<Props> = ({title, tag, onClick, body, noTemplate
                     <Text type="secondary">
                         <p>{body}</p>
                     </Text>
-                    <Button shape="round" onClick={onClick} className={classes.createBtn}>
+                    <Button
+                        shape="round"
+                        onClick={onClick}
+                        className={classes.createBtn}
+                        data-cy="create-app-button"
+                    >
                         Create App
                     </Button>
                 </div>

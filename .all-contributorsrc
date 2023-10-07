@@ -185,7 +185,7 @@
     },
     {
       "login": "kangsuhyun-yanolja",
-      "name": "Kang Suhuyn",
+      "name": "Kang Suhyun",
       "avatar_url": "https://avatars.githubusercontent.com/u/124246127?v=4",
       "profile": "https://github.com/kangsuhyun-yanolja",
       "contributions": [
@@ -199,6 +199,51 @@
       "profile": "https://github.com/yeokyeong-yanolja",
       "contributions": [
         "code"
+      ]
+    },
+    {
+      "login": "mrkirthi-24",
+      "name": "Kirthi Bagrecha Jain",
+      "avatar_url": "https://avatars.githubusercontent.com/u/53830546?v=4",
+      "profile": "https://mrkirthi24.netlify.app/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "navdeep1840",
+      "name": "Navdeep",
+      "avatar_url": "https://avatars.githubusercontent.com/u/80774259?v=4",
+      "profile": "https://github.com/navdeep1840",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Rhythm-08",
+      "name": "Rhythm Sharma",
+      "avatar_url": "https://avatars.githubusercontent.com/u/64489317?v=4",
+      "profile": "https://www.linkedin.com/in/rhythm-sharma-708a421a8/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "vicradon",
+      "name": "Osinachi Chukwujama ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/40396070?v=4",
+      "profile": "https://osinachi.me",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "morsoli",
+      "name": "莫尔索",
+      "avatar_url": "https://avatars.githubusercontent.com/u/47264881?v=4",
+      "profile": "https://liduos.com/",
+      "contributions": [
+        "doc"
       ]
     }
   ],
