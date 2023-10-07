@@ -385,6 +385,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     <Col span={12}>
                         <Space>
                             <Button
+                                data-cy="regex-run-evaluation"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}
@@ -458,6 +459,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         ]}
                     >
                         <Input
+                            data-cy="regex-evaluation-input"
                             placeholder="Pattern (ex: ^this_word\d{3}$)"
                             className={classes.regexInput}
                         />
@@ -474,7 +476,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         rules={[{required: true, message: "Please select strategy"}]}
                         name="regexShouldMatch"
                     >
-                        <Radio.Group>
+                        <Radio.Group data-cy="regex-evaluation-strategy">
                             <Radio value={true}> Match </Radio>
                             <Radio value={false}> Mismatch </Radio>
                         </Radio.Group>
