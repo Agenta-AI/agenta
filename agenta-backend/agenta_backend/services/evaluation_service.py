@@ -562,7 +562,7 @@ async def fetch_list_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    access = check_access_to_app(user_org_data=user_org_data, app_id=app_id)
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
     if not access:
         raise HTTPException(
             status_code=403,
