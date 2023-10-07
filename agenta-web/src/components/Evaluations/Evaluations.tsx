@@ -238,7 +238,11 @@ export default function Evaluations() {
     const getTestsetDropdownMenu = (): MenuProps => {
         const items: MenuProps["items"] = testsetsList.map((testset, index) => {
             return {
-                label: testset.name,
+                label: (
+                    <>
+                        <div data-cy={`testset-${index}`}>{testset.name}</div>
+                    </>
+                ),
                 key: `${testset.name}-${testset._id}`,
             }
         })
@@ -281,12 +285,16 @@ export default function Evaluations() {
     const getVariantsDropdownMenu = (index: number): MenuProps => {
         const selectedVariantsNames = selectedVariants.map((variant) => variant.variantName)
 
-        const items = variants.reduce((filteredVariants, variant) => {
+        const items = variants.reduce((filteredVariants, variant, idx) => {
             const label = variant.variantName
 
             if (!selectedVariantsNames.includes(label)) {
                 filteredVariants.push({
-                    label,
+                    label: (
+                        <>
+                            <div data-cy={`variant-${idx}`}>{variant.variantName}</div>
+                        </>
+                    ),
                     key: label,
                 })
             }
@@ -570,7 +578,7 @@ export default function Evaluations() {
                             </div>
                         </Radio.Group>
                     </Col>
-                    <Col span={8} data-cy="variants-dropdown">
+                    <Col span={8}>
                         <div className="evalaution-title">
                             <Title level={4}>2. Which variants would you like to evaluate</Title>
                         </div>
@@ -582,6 +590,7 @@ export default function Evaluations() {
                                     style={{
                                         marginTop: index === 0 ? 40 : 10,
                                     }}
+                                    data-cy={`variants-dropdown-${index}`}
                                 >
                                     <div className={classes.dropdownStyles}>
                                         {selectedVariants[index]?.variantName || "Select a variant"}
@@ -591,14 +600,14 @@ export default function Evaluations() {
                             </Dropdown>
                         ))}
                     </Col>
-                    <Col span={8} data-cy="selected-testset">
+                    <Col span={8}>
                         <div className="evalaution-title">
                             {" "}
                             <Title level={4}>3. Which testset you want to use?</Title>
                         </div>
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
-                            <Button className={classes.dropdownBtn}>
+                            <Button className={classes.dropdownBtn} data-cy="selected-testset">
                                 <div className={classes.dropdownStyles}>
                                     {selectedTestset.name}
 
@@ -628,7 +637,11 @@ export default function Evaluations() {
                         </Col>
                     )}
                     <Col>
-                        <Button onClick={onStartEvaluation} type="primary">
+                        <Button
+                            onClick={onStartEvaluation}
+                            type="primary"
+                            data-cy="start-new-evaluation-button"
+                        >
                             Start a new evaluation
                         </Button>
                     </Col>
