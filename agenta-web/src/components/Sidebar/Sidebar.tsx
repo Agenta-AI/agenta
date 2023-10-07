@@ -201,6 +201,7 @@ const Sidebar: React.FC = () => {
                                         title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                     >
                                         <Menu.Item
+                                            key="playground"
                                             icon={
                                                 <RocketOutlined
                                                     className={classes.optionSideIcon}
@@ -295,7 +296,9 @@ const Sidebar: React.FC = () => {
                         >
                             {doesSessionExist && (
                                 <Menu.Item key="settings" icon={<SettingOutlined />}>
-                                    <Link href="/settings">Settings</Link>
+                                    <Link data-cy="settings-link" href="/settings">
+                                        Settings
+                                    </Link>
                                 </Menu.Item>
                             )}
 
