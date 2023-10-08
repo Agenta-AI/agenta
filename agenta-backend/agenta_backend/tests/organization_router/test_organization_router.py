@@ -44,6 +44,6 @@ async def test_get_user_organization():
 async def test_user_does_not_have_an_organization():
     user = UserDB(uid="0123", username="john_doe", email="johndoe@email.com")
     await engine.save(user)
-    
+
     user_org = await selectors.get_user_own_org(user.uid)
     assert user_org == None

@@ -22,12 +22,12 @@ BACKEND_API_HOST = "http://localhost:8000"
 async def test_user_profile():
     user_db = await engine.find_one(UserDB, UserDB.uid == "0")
     user_db_dict = User(
-            id=str(user_db.id),
-            uid=str(user_db.uid),
-            username=str(user_db.username),
-            email=str(user_db.email),
-        ).dict(exclude_unset=True)
-    
+        id=str(user_db.id),
+        uid=str(user_db.uid),
+        username=str(user_db.username),
+        email=str(user_db.email),
+    ).dict(exclude_unset=True)
+
     response = await test_client.get(f"{BACKEND_API_HOST}/profile/")
 
     assert response.status_code == 200
