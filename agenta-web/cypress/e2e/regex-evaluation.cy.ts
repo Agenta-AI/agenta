@@ -52,7 +52,7 @@ describe("Regex Evaluation workflow", () => {
     })
 
     context("When it works", () => {
-        it("Should work", () => {
+        beforeEach(() => {
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
@@ -70,6 +70,60 @@ describe("Regex Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
 
             cy.location("pathname").should("include", "/auto_regex_test")
+
+            cy.get(".ant-form-item-explain-error").should("not.exist")
+        })
+
+        it("Should show error", () => {
+            cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
+
+            cy.get(".ant-form-item-explain-error").should("exist")
+        })
+
+        it("Should match", () => {
+            cy.get('[data-cy="regex-evaluation-input"]').type(`^[A-Z][a-z]*$`)
+
+            cy.get('[data-cy="regex-evaluation-strategy"]').within(() => {
+                cy.get("label").eq(0).click()
+            })
+
+            cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
+
+            cy.request({
+                url: `http://localhost/api/organizations/`,
+                method: "GET",
+            }).then((response) => {
+                expect(response.status).to.eq(200)
+                cy.request({
+                    url: `http://localhost/${response.body[0].id}/capitals/app/generate`,
+                    method: "POST",
+                }).then((res) => {
+                    expect(res.status).to.eq(200)
+                })
+            })
+        })
+
+        it("Should not match", () => {
+            cy.get('[data-cy="regex-evaluation-input"]').type(`^[A-Z][a-z]*$`)
+
+            cy.get('[data-cy="regex-evaluation-strategy"]').within(() => {
+                cy.get("label").eq(1).click()
+            })
+
+            cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
+
+            cy.request({
+                url: `http://localhost/api/organizations/`,
+                method: "GET",
+            }).then((response) => {
+                expect(response.status).to.eq(200)
+                cy.request({
+                    url: `http://localhost/${response.body[0].id}/capitals/app/generate`,
+                    method: "POST",
+                }).then((res) => {
+                    expect(res.status).to.eq(200)
+                })
+            })
         })
     })
 })
