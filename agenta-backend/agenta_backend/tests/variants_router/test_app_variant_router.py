@@ -29,6 +29,9 @@ new_object_id = ObjectId()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# Set global variables
+BACKEND_API_HOST = "http://localhost:8000"
+
 
 @pytest.mark.asyncio
 async def test_create_app(get_first_user_object):
@@ -36,7 +39,7 @@ async def test_create_app(get_first_user_object):
     organization = await selectors.get_user_own_org(user.uid)
 
     response = await test_client.post(
-        f"http://localhost:8000/apps/",
+        f"{BACKEND_API_HOST}/apps/",
         json={
             "app_name": "app_variant_test",
             "organization_id": str(organization.id),
@@ -113,7 +116,7 @@ async def test_delete_app_without_permission(get_second_user_object):
     await engine.save(user2_app)
 
     response = await test_client.delete(
-        f"http://localhost:8000/apps/{str(user2_app.id)}/",
+        f"{BACKEND_API_HOST}/apps/{str(user2_app.id)}/",
         timeout=timeout,
     )
     assert response.status_code == 400

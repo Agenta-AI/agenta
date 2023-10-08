@@ -27,11 +27,14 @@ engine = DBEngine().engine()
 test_client = httpx.AsyncClient()
 timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
+# Set global variables
+BACKEND_API_HOST = "http://localhost:8000"
+
 
 @pytest.mark.asyncio
 async def test_create_spans_endpoint(spans_db_data):
     response = await test_client.post(
-        "http://localhost:8000/observability/spans/",
+        f"{BACKEND_API_HOST}/observability/spans/",
         json=spans_db_data[0],
         timeout=timeout,
     )
@@ -187,7 +190,7 @@ async def test_create_trace_endpoint(trace_create_data):
         "spans": spans_id,
     }
     response = await test_client.post(
-        "http://localhost:8000/observability/traces/",
+        f"{BACKEND_API_HOST}/observability/traces/",
         json=payload,
     )
     assert response.status_code == 200
@@ -199,7 +202,7 @@ async def test_get_traces_endpoint():
     app_id, variant_id = variants[0].app.id, variants[0].id
 
     response = await test_client.get(
-        f"http://localhost:8000/observability/traces/{str(app_id)}/{str(variant_id)}/"
+        f"{BACKEND_API_HOST}/observability/traces/{str(app_id)}/{str(variant_id)}/"
     )
     assert response.status_code == 200
     assert len(response.json()) == 1
@@ -213,7 +216,7 @@ async def test_get_trace_endpoint():
     app_id, variant_id = variants[0].app.id, variants[0].id
 
     response = await test_client.get(
-        f"http://localhost:8000/observability/traces/{str(traces[0].id)}/"
+        f"{BACKEND_API_HOST}/observability/traces/{str(traces[0].id)}/"
     )
     assert response.status_code == 200
     assert len(response.json()["spans"]) == 3
@@ -229,7 +232,7 @@ async def test_update_trace_status_endpoint():
 
     traces = await engine.find(TraceDB)
     response = await test_client.put(
-        f"http://localhost:8000/observability/traces/{str(traces[0].id)}/",
+        f"{BACKEND_API_HOST}/observability/traces/{str(traces[0].id)}/",
         json=payload,
     )
     assert response.status_code == 200
@@ -241,7 +244,7 @@ async def test_create_feedback_endpoint(feedbacks_create_data):
     traces = await engine.find(TraceDB)
     for feedback_data in feedbacks_create_data:
         response = await test_client.post(
-            f"http://localhost:8000/observability/feedbacks/{str(traces[0].id)}/",
+            f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/",
             json=feedback_data,
         )
         assert response.status_code == 200
@@ -252,7 +255,7 @@ async def test_create_feedback_endpoint(feedbacks_create_data):
 async def test_get_trace_feedbacks_endpoint():
     traces = await engine.find(TraceDB)
     response = await test_client.get(
-        f"http://localhost:8000/observability/feedbacks/{str(traces[0].id)}/"
+        f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/"
     )
     assert response.status_code == 200
     assert len(response.json()) == 2
@@ -263,7 +266,7 @@ async def test_get_feedback_endpoint():
     traces = await engine.find(TraceDB)
     feedback_id = traces[0].feedbacks[0].uid
     response = await test_client.get(
-        f"http://localhost:8000/observability/feedbacks/{str(traces[0].id)}/{feedback_id}/"
+        f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/{feedback_id}/"
     )
     assert response.status_code == 200
     assert response.json()["feedback_id"] == feedback_id
@@ -280,7 +283,7 @@ async def test_update_feedback_endpoint():
             "score": random.choice([50, 30]),
         }
         response = await test_client.put(
-            f"http://localhost:8000/observability/feedbacks/{str(traces[0].id)}/{feedback_id}/",
+            f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/{feedback_id}/",
             json=feedback_data,
         )
         assert response.status_code == 200
