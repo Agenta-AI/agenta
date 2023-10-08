@@ -6,7 +6,6 @@ from bson import ObjectId
 from agenta_backend.routers import app_router
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.services import selectors, db_manager
-from agenta_backend.models.api.api_models import RemoveApp
 from agenta_backend.models.db_models import (
     AppDB,
     VariantBaseDB,
