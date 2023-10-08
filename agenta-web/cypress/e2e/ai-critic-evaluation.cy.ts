@@ -80,16 +80,13 @@ describe("AI Critics Evaluation workflow", () => {
             cy.wait(1000)
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
 
-            // POST REQUEST
-
-            // cy.get('[data-cy="ai-critic-evaluation-result"]').should(
-            //     "contain.text",
-            //     "Results Data:",
-            // )
-            // cy.get(".ant-message-notice-content").should("exist")
-            // cy.wait(3000)
-            // cy.get(".ant-message-notice-content").should("not.exist")
-            // cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
+            cy.intercept(
+                "POST",
+                `${Cypress.env().baseApiURL}/evaluations/evaluation_scenario/ai_critique/`,
+            ).as("postRequest")
+            cy.wait("@postRequest").then((interception) => {
+                expect(interception.response.statusCode).to.eq(200)
+            })
         })
     })
 })
