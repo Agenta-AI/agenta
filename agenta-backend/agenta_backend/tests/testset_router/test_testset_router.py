@@ -43,7 +43,7 @@ TESTSET_SUBMODULE_DIR = Path(__file__).parent
 #         json=payload,
 #         files=files,
 #     )
-    
+
 #     print("Response: ", response.status_code)
 
 #     # assert response.status_code == 200
@@ -75,7 +75,7 @@ TESTSET_SUBMODULE_DIR = Path(__file__).parent
 
 #     # assert response.status_code == 200
 #     print("Response: ", response.json())
-    
+
 #     assert response.json()["name"] == payload["testset_name"]
 
 
@@ -156,9 +156,7 @@ async def test_get_testset():
     app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
     testset = await engine.find_one(TestSetDB, TestSetDB.app == app.id)
 
-    response = await test_client.get(
-        f"{BACKEND_API_HOST}/testsets/{str(testset.id)}/"
-    )
+    response = await test_client.get(f"{BACKEND_API_HOST}/testsets/{str(testset.id)}/")
 
     assert response.status_code == 200
     assert response.json()["name"] == testset.name
