@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from "react"
-import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
+import {Breadcrumb, Button, ConfigProvider, Dropdown, Layout, Space, Tooltip, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -113,7 +113,7 @@ type LayoutProps = {
 }
 
 const App: React.FC<LayoutProps> = ({children}) => {
-    const {appTheme, toggleAppTheme} = useAppTheme()
+    const {appTheme, themeMode, toggleAppTheme} = useAppTheme()
     const {currentApp} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
@@ -174,19 +174,42 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                     ]}
                                 />
                                 <div className={classes.topRightBar}>
-                                    <span
-                                        style={{cursor: "pointer"}}
-                                        onClick={() =>
-                                            toggleAppTheme(isDarkTheme ? "light" : "dark")
-                                        }
+                                    <Dropdown
+                                        trigger={["click"]}
+                                        menu={{
+                                            items: [
+                                                {
+                                                    key: "system",
+                                                    label: "System",
+                                                    onClick: () => toggleAppTheme("system"),
+                                                },
+                                                {
+                                                    key: "light",
+                                                    label: "Light",
+                                                    onClick: () => toggleAppTheme("light"),
+                                                },
+                                                {
+                                                    key: "dark",
+                                                    label: "Dark",
+                                                    onClick: () => toggleAppTheme("dark"),
+                                                },
+                                            ],
+                                            selectedKeys: [themeMode],
+                                        }}
                                     >
-                                        <Image
-                                            alt={`Switch to ${isDarkTheme ? "light" : "dark"} mode`}
-                                            src={isDarkTheme ? sunIcon : moonIcon}
-                                            width={24}
-                                            height={24}
-                                        />
-                                    </span>
+                                        <a onClick={(e) => e.preventDefault()}>
+                                            <Tooltip title="Change theme">
+                                                <Image
+                                                    alt={`Curren Theme: ${
+                                                        isDarkTheme ? "dark" : "light"
+                                                    }`}
+                                                    src={isDarkTheme ? sunIcon : moonIcon}
+                                                    width={24}
+                                                    height={24}
+                                                />
+                                            </Tooltip>
+                                        </a>
+                                    </Dropdown>
                                     <Button
                                         href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
                                         target="_blank"
