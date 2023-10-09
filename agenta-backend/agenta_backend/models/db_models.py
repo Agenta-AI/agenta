@@ -15,7 +15,7 @@ class APIKeyDB(Model):
     blacklist: bool = Field(default=False)
     created_at: Optional[datetime] = datetime.utcnow()
     updated_at: Optional[datetime] = datetime.utcnow()
-    
+
     class Config:
         collection = "api_keys"
 

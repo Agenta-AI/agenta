@@ -98,6 +98,7 @@ app.add_middleware(
 
 if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
     from agenta_backend.services.auth_helper import authentication_middleware
+
     app.middleware("http")(authentication_middleware)
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
