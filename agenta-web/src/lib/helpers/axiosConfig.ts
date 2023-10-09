@@ -1,5 +1,7 @@
 import axiosApi from "axios"
 import {getErrorMessage, globalErrorHandler} from "./errorHandler"
+import {isDemo} from "./utils"
+import {signOut} from "supertokens-auth-react/recipe/thirdpartypasswordless"
 
 const axios = axiosApi.create({
     headers: {
@@ -21,6 +23,13 @@ axios.interceptors.response.use(
         error.message = msg
 
         globalErrorHandler(error)
+
+        // if the user is unauthorized then logout
+        if (error.response?.status === 401 && isDemo()) {
+            signOut().then(() => {
+                window.location.pathname = "/auth"
+            })
+        }
 
         throw error
     },
