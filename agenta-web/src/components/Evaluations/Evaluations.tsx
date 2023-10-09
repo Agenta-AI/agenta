@@ -434,7 +434,7 @@ export default function Evaluations() {
     }
 
     const handleEditOption = (id: string) => {
-        router.push(`/apps/${appId}/evaluations/edit_custom_evaluation/${id}`)
+        router.push(`/apps/${appId}/evaluations/custom_evaluations/${id}`)
     }
 
     return (
