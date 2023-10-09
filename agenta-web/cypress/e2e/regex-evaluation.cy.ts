@@ -1,6 +1,6 @@
 describe("Regex Evaluation workflow", () => {
-    context("When navigating successfully to the evaluation path", () => {
-        it("Should navigate to evaluation page", () => {
+    context("When navigating to Evaluation Page", () => {
+        it("Should reach the Evaluation Page", () => {
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
@@ -8,7 +8,7 @@ describe("Regex Evaluation workflow", () => {
         })
     })
 
-    context("When starting without selecting type, variant or testset", () => {
+    context("When starting without Selection", () => {
         beforeEach(() => {
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
@@ -16,7 +16,7 @@ describe("Regex Evaluation workflow", () => {
             cy.url().should("include", "/evaluations")
         })
 
-        it("Should display warning message", () => {
+        it("Should display a warning to select", () => {
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get(".ant-message-notice-content")
                 .should("contain.text", "Please select a variant")
@@ -25,7 +25,7 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-message-notice-content").should("not.exist")
         })
 
-        it("Should show modal", () => {
+        it("Should display a warning to select Variant", () => {
             cy.clickLinkAndWait('[data-cy="regex-button"]')
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get(".ant-message-notice-content")
@@ -35,7 +35,7 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-message-notice-content").should("not.exist")
         })
 
-        it("Should show modal", () => {
+        it("Should display a warning to select Testset", () => {
             cy.clickLinkAndWait('[data-cy="regex-button"]')
 
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
@@ -51,7 +51,7 @@ describe("Regex Evaluation workflow", () => {
         })
     })
 
-    context("When starting after selecting type, variant or testset", () => {
+    context("When starting After Selection", () => {
         beforeEach(() => {
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
@@ -74,13 +74,13 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-form-item-explain-error").should("not.exist")
         })
 
-        it("Should display error to enter a regex pattern", () => {
+        it("Should display error for missing regex pattern", () => {
             cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
 
             cy.get(".ant-form-item-explain-error").should("exist")
         })
 
-        it("Should match", () => {
+        it("Should user to select 'Match' strategy", () => {
             cy.get('[data-cy="regex-evaluation-input"]').type(`^[A-Z][a-z]*$`)
 
             cy.get('[data-cy="regex-evaluation-strategy"]').within(() => {
@@ -107,7 +107,7 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-message-notice-content").should("not.exist")
         })
 
-        it("Should not match", () => {
+        it("Should user to select 'Mismatch' strategy", () => {
             cy.get('[data-cy="regex-evaluation-input"]').type(`^[A-Z][a-z]*$`)
 
             cy.get('[data-cy="regex-evaluation-strategy"]').within(() => {
