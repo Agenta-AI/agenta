@@ -23,11 +23,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from agenta_backend.services.container_manager import pull_image_from_docker_hub
 from agenta_backend.services.db_manager import add_template, remove_old_template_from_db
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import authentication_middleware
-else:
-    from agenta_backend.services.auth_helper import authentication_middleware
-
 origins = [
     "http://localhost:3000",
     "http://localhost:3001",
@@ -93,12 +88,6 @@ app = FastAPI()
 
 allow_headers = ["Content-Type"]
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    import agenta_backend.ee.main as ee
-
-    app, allow_headers = ee.extend_main(app)
-# this is the prefix in which we are reverse proxying the api
-#
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -107,7 +96,14 @@ app.add_middleware(
     allow_headers=allow_headers,
 )
 
-app.middleware("http")(authentication_middleware)
+if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+    from agenta_backend.services.auth_helper import authentication_middleware
+    app.middleware("http")(authentication_middleware)
+
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+    import agenta_backend.ee.main as ee
+
+    app, allow_headers = ee.extend_main(app)
 
 app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps")
