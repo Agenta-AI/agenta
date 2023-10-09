@@ -116,6 +116,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         )
         uri = deployment.uri_path
     else:
+        deployment= None
         uri = None
     logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
     return AppVariantOutput(
