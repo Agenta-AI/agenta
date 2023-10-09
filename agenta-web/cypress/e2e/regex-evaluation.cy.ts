@@ -8,7 +8,7 @@ describe("Regex Evaluation workflow", () => {
         })
     })
 
-    context("When user tries to start without selecting all options", () => {
+    context("When starting without selecting type, variant or testset", () => {
         beforeEach(() => {
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
@@ -16,7 +16,7 @@ describe("Regex Evaluation workflow", () => {
             cy.url().should("include", "/evaluations")
         })
 
-        it("Should show modal", () => {
+        it("Should display warning message", () => {
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get(".ant-message-notice-content")
                 .should("contain.text", "Please select a variant")
@@ -51,7 +51,7 @@ describe("Regex Evaluation workflow", () => {
         })
     })
 
-    context("When it works", () => {
+    context("When starting after selecting type, variant or testset", () => {
         beforeEach(() => {
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
@@ -74,7 +74,7 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-form-item-explain-error").should("not.exist")
         })
 
-        it("Should show error", () => {
+        it("Should display error to enter a regex pattern", () => {
             cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
 
             cy.get(".ant-form-item-explain-error").should("exist")
@@ -89,18 +89,22 @@ describe("Regex Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
 
-            cy.request({
-                url: `http://localhost/api/organizations/`,
-                method: "GET",
-            }).then((response) => {
-                expect(response.status).to.eq(200)
-                cy.request({
-                    url: `http://localhost/${response.body[0].id}/capitals/app/generate`,
-                    method: "POST",
-                }).then((res) => {
-                    expect(res.status).to.eq(200)
+            cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 10000})
+                .invoke("text")
+                .then((text) => {
+                    // Check if the text contains either "Match" or "Mismatch"
+                    expect(text.includes("Match") || text.includes("Mismatch")).to.be.true
                 })
-            })
+            cy.get('[data-cy="regex-evaluation-score"]', {timeout: 10000})
+                .invoke("text")
+                .then((text) => {
+                    // Check if the text contains either "correct" or "wrong"
+                    expect(text.includes("correct") || text.includes("wrong")).to.be.true
+                })
+
+            cy.get(".ant-message-notice-content").should("exist")
+            cy.wait(3000)
+            cy.get(".ant-message-notice-content").should("not.exist")
         })
 
         it("Should not match", () => {
@@ -112,18 +116,21 @@ describe("Regex Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
 
-            cy.request({
-                url: `http://localhost/api/organizations/`,
-                method: "GET",
-            }).then((response) => {
-                expect(response.status).to.eq(200)
-                cy.request({
-                    url: `http://localhost/${response.body[0].id}/capitals/app/generate`,
-                    method: "POST",
-                }).then((res) => {
-                    expect(res.status).to.eq(200)
+            cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 10000})
+                .invoke("text")
+                .then((text) => {
+                    // Check if the text contains either "Match" or "Mismatch"
+                    expect(text.includes("Match") || text.includes("Mismatch")).to.be.true
                 })
-            })
+            cy.get('[data-cy="regex-evaluation-score"]', {timeout: 10000})
+                .invoke("text")
+                .then((text) => {
+                    // Check if the text contains either "correct" or "wrong"
+                    expect(text.includes("correct") || text.includes("wrong")).to.be.true
+                })
+            cy.get(".ant-message-notice-content").should("exist")
+            cy.wait(3000)
+            cy.get(".ant-message-notice-content").should("not.exist")
         })
     })
 })
