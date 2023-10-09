@@ -100,7 +100,10 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({
     }
 
     const pythonDefaultEvalCode = () => {
-        return `from typing import Dict
+        if (editMode) {
+            return editCode
+        } else {
+            return `from typing import Dict
 
 def evaluate(
     app_params: Dict[str, str], 
@@ -110,6 +113,7 @@ def evaluate(
 ) -> float:
     # ...
     return 0.75  # Replace with your calculated score`
+        }
     }
 
     const switchEditorThemeBasedOnTheme = () => {
@@ -142,7 +146,14 @@ def evaluate(
             <Title level={4} className={classes.customTitle}>
                 {editMode ? "Edit Python Code Evaluation" : "Save Python Code Evaluation"}
             </Title>
-            <Form form={form} onFinish={handlerToSubmitFormData}>
+            <Form
+                form={form}
+                onFinish={handlerToSubmitFormData}
+                initialValues={{
+                    evaluationName: editName,
+                    pythonCode: pythonDefaultEvalCode(),
+                }}
+            >
                 <Row justify="start" gutter={24}>
                     <Col span={8}>
                         <Form.Item
@@ -154,7 +165,6 @@ def evaluate(
                                 disabled={submitting}
                                 onChange={checkForEvaluationName}
                                 placeholder="Input name of evaluation"
-                                defaultValue={editName}
                             />
                         </Form.Item>
                         <div className={classes.exampleContainer}>
@@ -188,7 +198,6 @@ def evaluate(
                                 theme={switchEditorThemeBasedOnTheme()}
                                 value={form.getFieldValue("pythonCode")}
                                 onChange={(code) => form.setFieldsValue({pythonCode: code})}
-                                defaultValue={editMode ? editCode : pythonDefaultEvalCode()}
                             />
                         </Form.Item>
                     </Col>
