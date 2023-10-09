@@ -7,13 +7,17 @@ from odmantic import EmbeddedModel, Field, Model, Reference
 
 
 class APIKeyDB(Model):
-    key: str = Field(default=str(uuid4()), unique=True, index=True)
+    prefix: str
+    hashed_key: str
     user_id: str
-    rate_limit: int
+    rate_limit: int = Field(default=1000)
     expiration_date: Optional[datetime]
     blacklist: bool = Field(default=False)
     created_at: Optional[datetime] = datetime.utcnow()
     updated_at: Optional[datetime] = datetime.utcnow()
+    
+    class Config:
+        collection = "api_keys"
 
 
 class InvitationDB(EmbeddedModel):
