@@ -350,7 +350,11 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
                 const isCorrect = val === "correct"
                 const isMatch = settings.regexShouldMatch ? isCorrect : !isCorrect
-                return settings.regexPattern ? <div>{isMatch ? "Match" : "Mismatch"}</div> : null
+                return settings.regexPattern ? (
+                    <div data-cy="regex-evaluation-regex-match">
+                        {isMatch ? "Match" : "Mismatch"}
+                    </div>
+                ) : null
             },
         },
         {
@@ -367,6 +371,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                             <Tag
                                 color={score === "correct" ? "green" : "red"}
                                 className={classes.tag}
+                                data-cy="regex-evaluation-score"
                             >
                                 {score}
                             </Tag>
