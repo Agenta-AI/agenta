@@ -25,7 +25,7 @@ describe("Playgroynd | Simple prompt", function () {
 
     context("when an api key is provided", function () {
         it("should run the prompt and get a response from an LLM", () => {
-            cy.visit("/apikeys")
+            cy.visit("/settings")
             // Update your cypress.json file to include your OPENAI API KEY
             cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
             cy.get('[data-cy="apikeys-save-button"]').click()
@@ -48,34 +48,37 @@ describe("Playgroynd | Simple prompt", function () {
 
             cy.get('[data-cy="enter-app-name-modal-button"]').click()
 
-            cy.url().should("not.include", "/apikeys")
+            cy.url().should("not.include", "/settings")
 
-            cy.intercept("POST", "/api/app_variant/add/from_template/").as("postRequest")
+            cy.intercept("POST", "/api/apps/app_and_variant_from_template/").as("postRequest")
 
             cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
                 expect(interception.response.statusCode).to.eq(200)
-            })
-            cy.intercept("GET", ` /api/app_variant/list_variants/?app_name=${appName}`).as(
-                "getRequest",
-            )
-            cy.wait("@getRequest", {requestTimeout: 15000}).then((interception) => {
-                expect(interception.response.statusCode).to.eq(200)
+
+                cy.intercept("GET", `/api/apps/${interception.response.body.app_id}/variants/`).as(
+                    "getRequest",
+                )
+                cy.wait("@getRequest", {requestTimeout: 15000}).then((interception) => {
+                    expect(interception.response.statusCode).to.eq(200)
+                })
+                cy.url().should("include", `/apps/${interception.response.body.app_id}/playground`)
             })
 
-            cy.url().should("include", `/apps/${appName}/playground`)
             cy.contains(/modify parameters/i)
-            cy.get('[data-cy="testview-input-parameters-0"]').type("Nigeria")
+            cy.get('[data-cy="testview-input-parameters-0"]').type("Germany")
+
             cy.get('[data-cy="testview-input-parameters-run-button"]').click()
 
             cy.request({
+                url: `${Cypress.env().baseApiURL}/organizations/`,
                 method: "GET",
-                url: `${
-                    Cypress.env().baseApiURL
-                }/containers/container_url/?app_name=${appName}&variant_name=v1`,
-            }).then((response) => {
+            }).then((res) => {
+                expect(res.status).to.eq(200)
                 cy.request({
                     method: "POST",
-                    url: `${Cypress.env().localBaseUrl}/${response.body.uri}/generate`,
+                    url: `${Cypress.env().localBaseUrl}/${
+                        res.body[0].id
+                    }/${appName.toLowerCase()}/app/generate`,
                 }).then((response) => {
                     expect(response.status).to.eq(200)
                 })
@@ -105,7 +108,7 @@ describe("Playgroynd | Simple prompt", function () {
 
             cy.get('[data-cy="enter-app-name-modal-button"]').click()
             cy.get(".ant-notification").should("exist")
-            cy.url().should("include", "apikeys")
+            cy.url().should("include", "/settings")
             cy.wait(5000)
             cy.get(".ant-notification").should("not.exist")
         })

@@ -35,6 +35,7 @@ from agenta_backend.services.evaluation_service import (
     update_evaluation_scenario_score,
     update_evaluation,
     create_custom_code_evaluation,
+    update_custom_code_evaluation,
     execute_custom_code_evaluation,
 )
 from agenta_backend.services import evaluation_service
@@ -421,6 +422,37 @@ async def create_custom_evaluation(
     )
 
 
+@router.put("/custom_evaluation/{id}")
+async def update_custom_evaluation(
+    id: str,
+    updated_data: CreateCustomEvaluation,
+    stoken_session: SessionContainer = Depends(verify_session()),
+):
+    """Update a custom code evaluation.
+    Args:
+        id (str): the ID of the custom evaluation to update
+        updated_data (CreateCustomEvaluation): the payload with updated data
+        stoken_session (SessionContainer): session container for authentication
+    """
+
+    # Get user and organization id
+    kwargs: dict = await get_user_and_org_id(stoken_session)
+
+    # Update the evaluation with the provided data
+    updated_evaluation_id = await update_custom_code_evaluation(
+        id, updated_data, **kwargs
+    )
+
+    return JSONResponse(
+        {
+            "status": "success",
+            "message": "Evaluation edited successfully.",
+            "evaluation_id": updated_evaluation_id,
+        },
+        status_code=200,
+    )
+
+
 @router.get(
     "/custom_evaluation/list/{app_id}/",
     response_model=List[CustomEvaluationOutput],
@@ -432,7 +464,7 @@ async def list_custom_evaluations(
     """List the custom code evaluations for a given app.
 
     Args:
-        app_name (str): the name of the app
+        app_id (str): the id of the app
 
     Returns:
         List[CustomEvaluationOutput]: a list of custom evaluation
