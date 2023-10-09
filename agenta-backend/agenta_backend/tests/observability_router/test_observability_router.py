@@ -1,16 +1,21 @@
+import json
 import pytest
 import random
 from typing import List
 
 from agenta_backend.models.db_models import (
+    AppDB,
+    ConfigDB,
     SpanDB,
     UserDB,
     TraceDB,
     OrganizationDB,
     ImageDB,
     AppVariantDB,
+    VariantBaseDB,
 )
 from agenta_backend.models.db_engine import DBEngine
+from agenta_backend.services import selectors
 
 import httpx
 
@@ -20,49 +25,102 @@ engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
+timeout = httpx.Timeout(timeout=5, read=None, write=5)
+
+# Set global variables
+BACKEND_API_HOST = "http://localhost:8000"
 
 
 @pytest.mark.asyncio
 async def test_create_spans_endpoint(spans_db_data):
     response = await test_client.post(
-        "http://localhost:8000/observability/spans/",
+        f"{BACKEND_API_HOST}/observability/spans/",
         json=spans_db_data[0],
+        timeout=timeout,
     )
     assert response.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_create_user_and_org(user_create_data, organization_create_data):
-    org_db = OrganizationDB(**organization_create_data)
+    user_db = UserDB(**user_create_data)
+    await engine.save(user_db)
+
+    org_db = OrganizationDB(**organization_create_data, owner=str(user_db.id))
     await engine.save(org_db)
 
-    user_db = UserDB(**user_create_data, organization=org_db)
+    user_db.organizations = [org_db.id]
     await engine.save(user_db)
 
     assert org_db.name == "Agenta"
     assert user_db.username == "agenta"
-    assert user_db.organization.id == org_db.id
+    assert user_db.organizations == [org_db.id]
+
+
+@pytest.mark.asyncio
+async def test_create_organization(organization_create_data):
+    user_db = await engine.find_one(UserDB, UserDB.uid == "0")
+    organization = OrganizationDB(
+        **organization_create_data,
+        type="default",
+        owner=str(user_db.id),
+        members=[user_db.id],
+    )
+    await engine.save(organization)
 
 
 @pytest.mark.asyncio
 async def test_create_image_in_db(image_create_data):
     user_db = await engine.find_one(UserDB, UserDB.uid == "0")
+    organization_db = await engine.find_one(
+        OrganizationDB, OrganizationDB.owner == str(user_db.id)
+    )
 
-    image_db = ImageDB(**image_create_data, user=user_db)
+    image_db = ImageDB(**image_create_data, user=user_db, organization=organization_db)
     await engine.save(image_db)
 
     assert image_db.user.id == user_db.id
-    assert image_db.tags == "agentaai/templates:local_test_prompt"
+    assert image_db.tags == image_create_data["tags"]
 
 
 @pytest.mark.asyncio
 async def test_create_appvariant_in_db(app_variant_create_data):
     user_db = await engine.find_one(UserDB, UserDB.uid == "0")
-
+    organization_db = await selectors.get_user_own_org(user_db.uid)
     image_db = await engine.find_one(ImageDB, ImageDB.user == user_db.id)
 
+    app = AppDB(
+        app_name="test_app",
+        organization=organization_db,
+        user=user_db,
+    )
+    await engine.save(app)
+
+    db_config = ConfigDB(
+        config_name="default",
+        parameters={},
+    )
+    await engine.save(db_config)
+
+    db_base = VariantBaseDB(
+        app=app,
+        organization=organization_db,
+        user=user_db,
+        base_name="app",
+        image=image_db,
+    )
+    await engine.save(db_base)
+
     app_variant_db = AppVariantDB(
-        **app_variant_create_data, image=image_db, user=user_db
+        **app_variant_create_data,
+        app=app,
+        image=image_db,
+        user=user_db,
+        organization=organization_db,
+        base_name="app",
+        config_name="default",
+        base=db_base,
+        config=db_config,
     )
     await engine.save(app_variant_db)
 
@@ -122,25 +180,29 @@ async def test_create_trace_endpoint(trace_create_data):
 
     # Prepare required data
     spans_id = [str(span.id) for span in spans]
-    app_name, variant_name = variants[0].app_name, variants[0].variant_name
+    app_id, variant_id = variants[0].app.id, variants[0].id
 
     # Update trace_create_data
-    trace_create_data["app_name"] = app_name
-    trace_create_data["variant_name"] = variant_name
-    trace_create_data["spans"] = spans_id
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:8000/observability/traces/",
-            json=trace_create_data,
-        )
-        assert response.status_code == 200
+    payload = {
+        "app_id": str(app_id),
+        "variant_id": str(variant_id),
+        **trace_create_data,
+        "spans": spans_id,
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/observability/traces/",
+        json=payload,
+    )
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_get_traces_endpoint():
+    variants = await engine.find(AppVariantDB)
+    app_id, variant_id = variants[0].app.id, variants[0].id
+
     response = await test_client.get(
-        "http://localhost:8000/observability/traces/test_app/v1/"
+        f"{BACKEND_API_HOST}/observability/traces/{str(app_id)}/{str(variant_id)}/"
     )
     assert response.status_code == 200
     assert len(response.json()) == 1
@@ -150,13 +212,16 @@ async def test_get_traces_endpoint():
 async def test_get_trace_endpoint():
     traces = await engine.find(TraceDB)
 
+    variants = await engine.find(AppVariantDB)
+    app_id, variant_id = variants[0].app.id, variants[0].id
+
     response = await test_client.get(
-        f"http://localhost:8000/observability/traces/{str(traces[0].id)}/"
+        f"{BACKEND_API_HOST}/observability/traces/{str(traces[0].id)}/"
     )
     assert response.status_code == 200
     assert len(response.json()["spans"]) == 3
-    assert response.json()["app_name"] == "test_app"
-    assert response.json()["variant_name"] == "v1"
+    assert response.json()["app_id"] == str(app_id)
+    assert response.json()["variant_id"] == str(variant_id)
 
 
 @pytest.mark.asyncio
@@ -167,7 +232,7 @@ async def test_update_trace_status_endpoint():
 
     traces = await engine.find(TraceDB)
     response = await test_client.put(
-        f"http://localhost:8000/observability/traces/{str(traces[0].id)}/",
+        f"{BACKEND_API_HOST}/observability/traces/{str(traces[0].id)}/",
         json=payload,
     )
     assert response.status_code == 200
@@ -179,7 +244,7 @@ async def test_create_feedback_endpoint(feedbacks_create_data):
     traces = await engine.find(TraceDB)
     for feedback_data in feedbacks_create_data:
         response = await test_client.post(
-            f"http://localhost:8000/observability/feedbacks/{str(traces[0].id)}/",
+            f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/",
             json=feedback_data,
         )
         assert response.status_code == 200
@@ -190,7 +255,7 @@ async def test_create_feedback_endpoint(feedbacks_create_data):
 async def test_get_trace_feedbacks_endpoint():
     traces = await engine.find(TraceDB)
     response = await test_client.get(
-        f"http://localhost:8000/observability/feedbacks/{str(traces[0].id)}/"
+        f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/"
     )
     assert response.status_code == 200
     assert len(response.json()) == 2
@@ -201,7 +266,7 @@ async def test_get_feedback_endpoint():
     traces = await engine.find(TraceDB)
     feedback_id = traces[0].feedbacks[0].uid
     response = await test_client.get(
-        f"http://localhost:8000/observability/feedbacks/{str(traces[0].id)}/{feedback_id}/"
+        f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/{feedback_id}/"
     )
     assert response.status_code == 200
     assert response.json()["feedback_id"] == feedback_id
@@ -218,7 +283,7 @@ async def test_update_feedback_endpoint():
             "score": random.choice([50, 30]),
         }
         response = await test_client.put(
-            f"http://localhost:8000/observability/feedbacks/{str(traces[0].id)}/{feedback_id}/",
+            f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/{feedback_id}/",
             json=feedback_data,
         )
         assert response.status_code == 200

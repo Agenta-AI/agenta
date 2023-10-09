@@ -1,5 +1,6 @@
 import {useSession} from "@/hooks/useSession"
 import useStateCallback from "@/hooks/useStateCallback"
+import {isDemo} from "@/lib/helpers/utils"
 import {getOrgsList, getProfile} from "@/lib/services/api"
 import {Org, User} from "@/lib/Types"
 import {useRouter} from "next/router"
@@ -58,7 +59,7 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [orgs, setOrgs] = useState<Org[]>([])
     const [selectedOrg, setSelectedOrg] = useStateCallback<Org | null>(null)
     const [loading, setLoading] = useState(false)
-    const context = useSession()
+    const {logout, doesSessionExist} = useSession()
 
     const fetcher = useCallback((onSuccess?: () => void) => {
         setLoading(true)
@@ -74,7 +75,10 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                     onSuccess,
                 )
             })
-            .catch(console.error)
+            .catch((error) => {
+                console.error(error)
+                if (isDemo()) logout()
+            })
             .finally(() => setLoading(false))
     }, [])
 
@@ -84,10 +88,10 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     useEffect(() => {
         // fetch profile and orgs list only if user is logged in
-        if (context.doesSessionExist) {
+        if (doesSessionExist) {
             fetcher()
         }
-    }, [context.doesSessionExist])
+    }, [doesSessionExist])
 
     const changeSelectedOrg: ProfileContextType["changeSelectedOrg"] = (orgId, onSuccess) => {
         setSelectedOrg(
