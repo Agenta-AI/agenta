@@ -2,13 +2,21 @@ import React, {useState, useEffect} from "react"
 import {useRouter} from "next/router"
 import {Input, Form, Button, Row, Col, Typography, notification} from "antd"
 import {CreateCustomEvaluationSuccessResponse} from "@/lib/Types"
-import {saveCustomCodeEvaluation, fetchCustomEvaluationNames} from "@/lib/services/api"
+import {
+    saveCustomCodeEvaluation,
+    fetchCustomEvaluationNames,
+    editCustomEvaluationDetail,
+} from "@/lib/services/api"
 import Editor from "@monaco-editor/react"
 
 interface ICustomPythonProps {
     classes: any
     appId: string
     appTheme: string
+    editMode: boolean
+    editCode?: string
+    editName?: string
+    editId?: string
 }
 
 interface ICustomEvalNames {
@@ -16,7 +24,15 @@ interface ICustomEvalNames {
     evaluation_name: string
 }
 
-const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appId, appTheme}) => {
+const CustomPythonCode: React.FC<ICustomPythonProps> = ({
+    classes,
+    appId,
+    appTheme,
+    editMode,
+    editCode = "",
+    editName = "",
+    editId = "",
+}) => {
     const {Title} = Typography
     const [form] = Form.useForm()
     const router = useRouter()
@@ -50,7 +66,9 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appId, appThem
             python_code: values.pythonCode,
             app_id: appId,
         }
-        const response = await saveCustomCodeEvaluation(data)
+        const response = editMode
+            ? await editCustomEvaluationDetail(editId, data)
+            : await saveCustomCodeEvaluation(data)
         if (response.status === 200) {
             const data: CreateCustomEvaluationSuccessResponse = response.data
 
@@ -77,8 +95,15 @@ const CustomPythonCode: React.FC<ICustomPythonProps> = ({classes, appId, appThem
         )
     }
 
+    const isEditButtonDisabled = () => {
+        return evalNameExist
+    }
+
     const pythonDefaultEvalCode = () => {
-        return `from typing import Dict
+        if (editMode) {
+            return editCode
+        } else {
+            return `from typing import Dict
 
 def evaluate(
     app_params: Dict[str, str], 
@@ -88,6 +113,7 @@ def evaluate(
 ) -> float:
     # ...
     return 0.75  # Replace with your calculated score`
+        }
     }
 
     const switchEditorThemeBasedOnTheme = () => {
@@ -100,7 +126,9 @@ def evaluate(
 
     const checkForEvaluationName = async () => {
         const evalName = form.getFieldValue("evaluationName")
-        if (evalNames.map((e) => e.evaluation_name).includes(evalName)) {
+        if (evalName === editName) {
+            return
+        } else if (evalNames.map((e) => e.evaluation_name).includes(evalName)) {
             showNotification({
                 type: "error",
                 message: "Custom Evaluation",
@@ -116,9 +144,16 @@ def evaluate(
     return (
         <div className={classes.evaluationContainer}>
             <Title level={4} className={classes.customTitle}>
-                Save Python Code Evaluation
+                {editMode ? "Edit Python Code Evaluation" : "Save Python Code Evaluation"}
             </Title>
-            <Form form={form} onFinish={handlerToSubmitFormData}>
+            <Form
+                form={form}
+                onFinish={handlerToSubmitFormData}
+                initialValues={{
+                    evaluationName: editName,
+                    pythonCode: pythonDefaultEvalCode(),
+                }}
+            >
                 <Row justify="start" gutter={24}>
                     <Col span={8}>
                         <Form.Item
@@ -163,7 +198,6 @@ def evaluate(
                                 theme={switchEditorThemeBasedOnTheme()}
                                 value={form.getFieldValue("pythonCode")}
                                 onChange={(code) => form.setFieldsValue({pythonCode: code})}
-                                defaultValue={pythonDefaultEvalCode()}
                             />
                         </Form.Item>
                     </Col>
@@ -175,9 +209,13 @@ def evaluate(
                                     type="primary"
                                     loading={submitting}
                                     className={classes.submitBtn}
-                                    disabled={isSaveButtonDisabled() || submitting}
+                                    disabled={
+                                        (editMode
+                                            ? isEditButtonDisabled()
+                                            : isSaveButtonDisabled()) || submitting
+                                    }
                                 >
-                                    Save
+                                    {editMode ? "Save Changes" : "Save"}
                                 </Button>
                             )}
                         </Form.Item>
