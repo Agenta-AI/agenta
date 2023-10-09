@@ -1,8 +1,5 @@
 import pytest
-import asyncio
 import logging
-from bson import ObjectId
-from datetime import datetime
 
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
@@ -15,7 +12,7 @@ from agenta_backend.models.db_models import (
     OrganizationDB,
 )
 
-from agenta_backend.services import new_db_manager
+from agenta_backend.services import selectors
 
 # Initialize database engine
 engine = DBEngine().engine()
@@ -50,7 +47,7 @@ async def get_first_user_object():
 
 @pytest.fixture(scope="function")
 async def get_second_user_object():
-    """Create a secind user object."""
+    """Create a second user object."""
 
     try:
         user = await engine.find_one(UserDB, UserDB.uid == "1")
@@ -75,7 +72,7 @@ async def get_second_user_object():
         pytest.fail(f"Failed to get or create the second user: {e}")
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 async def get_first_user_app():
     user = await engine.find_one(UserDB, UserDB.uid == "0")
     if user is None:
@@ -89,16 +86,16 @@ async def get_first_user_app():
         await engine.save(user)
         await engine.save(organization)
 
-    organization = await new_db_manager.get_user_own_org(user.uid)
+    organization = await selectors.get_user_own_org(user.uid)
 
-    app = AppDB(app_name="myapp", organization_id=organization, user_id=user)
+    app = AppDB(app_name="myapp", organization=organization, user=user)
     await engine.save(app)
 
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         tags="agentaai/templates:local_test_prompt",
-        user_id=user,
-        organization_id=organization,
+        user=user,
+        organization=organization,
     )
     await engine.save(db_image)
 
@@ -109,22 +106,21 @@ async def get_first_user_app():
     await engine.save(db_config)
 
     db_base = VariantBaseDB(
-        base_name="app",
-        image_id=db_image,
+        base_name="app", image=db_image, organization=organization, user=user, app=app
     )
     await engine.save(db_base)
 
     appvariant = AppVariantDB(
-        app_id=app,
+        app=app,
         variant_name="app",
-        image_id=db_image,
-        user_id=user,
-        organization_id=organization,
+        image=db_image,
+        user=user,
+        organization=organization,
         parameters={},
         base_name="app",
         config_name="default",
-        base_id=db_base,
-        config_id=db_config,
+        base=db_base,
+        config=db_config,
     )
     await engine.save(appvariant)
 
