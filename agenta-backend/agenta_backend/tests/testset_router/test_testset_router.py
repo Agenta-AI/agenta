@@ -23,60 +23,8 @@ BACKEND_API_HOST = "http://localhost:8000"
 TESTSET_SUBMODULE_DIR = Path(__file__).parent
 
 
-# @pytest.mark.asyncio
-# async def test_csv_upload_file():
-#     app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
-
-#     payload = {
-#         "testset_name": "variant_testset_csv_upload",
-#         "app_id": str(app.id),
-#     }
-#     files = {
-#         "file": (
-#             "test_countries.csv",
-#             open(f"{TESTSET_SUBMODULE_DIR}/test_countries_testset.csv", "rb"),
-#         ),
-#         "content_type": "text/csv",
-#     }
-#     response = await test_client.post(
-#         f"{BACKEND_API_HOST}/testsets/upload",
-#         json=payload,
-#         files=files,
-#     )
-
-#     print("Response: ", response.status_code)
-
-#     # assert response.status_code == 200
-#     assert response.json()["name"] == payload["testset_name"]
-
-
-# @pytest.mark.asyncio
-# async def test_json_upload_file():
-#     app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
-
-#     payload = {
-#         "testset_name": "variant_testset_json_upload",
-#         "upload_type": "JSON",
-#         "app_id": str(app.id),
-#     }
-
-#     files = {
-#         "file": (
-#             "test_countries.json",
-#             open(f"{TESTSET_SUBMODULE_DIR}/test_countries_testset.json", "rb"),
-#         ),
-#         "content_type": "application/json",
-#     }
-#     response = await test_client.post(
-#         f"{BACKEND_API_HOST}/testsets/upload",
-#         json=payload,
-#         files=files,
-#     )
-
-#     # assert response.status_code == 200
-#     print("Response: ", response.json())
-
-#     assert response.json()["name"] == payload["testset_name"]
+# TODO: test_csv_upload_file
+# TODO: test_json_upload_file
 
 
 @pytest.mark.asyncio
