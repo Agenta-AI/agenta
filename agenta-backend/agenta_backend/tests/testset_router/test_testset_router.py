@@ -1,5 +1,4 @@
 import pytest
-import aiofiles
 from pathlib import Path
 
 from agenta_backend.models.db_engine import DBEngine
