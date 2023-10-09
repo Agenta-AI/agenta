@@ -52,7 +52,7 @@ describe("AI Critics Evaluation workflow", () => {
     })
 
     context("When you select evaluation in the presence of an API key", () => {
-        it("Should executes a complete evaluation workflow", () => {
+        beforeEach(() => {
             cy.visit("/apikeys")
             cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
             cy.get('[data-cy="apikeys-save-button"]').click()
@@ -70,8 +70,14 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
+        })
+
+        it("Should navigate successfully to ai critic", () => {
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.url().should("include", "/auto_ai_critique")
+        })
+
+        it("Should executes a complete evaluation workflow without error", () => {
             cy.get('[data-cy="ai-critic-evaluation-result"]').should(
                 "contain.text",
                 "Run evaluation to see results!",
@@ -80,13 +86,21 @@ describe("AI Critics Evaluation workflow", () => {
             cy.wait(1000)
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
 
-            cy.intercept(
-                "POST",
-                `${Cypress.env().baseApiURL}/evaluations/evaluation_scenario/ai_critique/`,
-            ).as("postRequest")
-            cy.wait("@postRequest").then((interception) => {
-                expect(interception.response.statusCode).to.eq(200)
-            })
+            cy.get('[data-cy="ai-critic-evaluation-result"]', {timeout: 10000}).should(
+                "contain.text",
+                "Results Data",
+            )
+        })
+
+        it("Should executes a complete evaluation workflow with error", () => {
+            cy.clearLocalStorage("openAiToken")
+            cy.wait(1000)
+            cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
+
+            cy.get('[data-cy="ai-critic-evaluation-result"]', {timeout: 10000}).should(
+                "not.contain.text",
+                "Results Data",
+            )
         })
     })
 })
