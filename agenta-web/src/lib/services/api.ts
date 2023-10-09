@@ -466,6 +466,19 @@ export const saveCustomCodeEvaluation = async (
     return response
 }
 
+export const editCustomEvaluationDetail = async (
+    id: string,
+    payload: CreateCustomEvaluation,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.put(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${id}`,
+        payload,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
 export const fetchCustomEvaluations = async (app_id: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_id}/`,
