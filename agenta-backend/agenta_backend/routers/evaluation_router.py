@@ -426,7 +426,7 @@ async def create_custom_evaluation(
 async def update_custom_evaluation(
     id: str,
     updated_data: CreateCustomEvaluation,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Update a custom code evaluation.
     Args:
@@ -436,7 +436,7 @@ async def update_custom_evaluation(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(stoken_session)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
 
     # Update the evaluation with the provided data
     updated_evaluation_id = await update_custom_code_evaluation(
