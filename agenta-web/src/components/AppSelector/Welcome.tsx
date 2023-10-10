@@ -11,7 +11,7 @@ type StyleProps = {
 const useStyles = createUseStyles({
     heading: {
         display: "flex",
-        alignItems: "center",
+        alignItems: "baseline",
         gap: "1rem",
         "& > h1": {
             margin: 0,
@@ -63,6 +63,7 @@ const useStyles = createUseStyles({
     },
     container: ({themeMode}: StyleProps) => ({
         display: "flex",
+        justifyContent: "space-between",
         cursor: "pointer",
         flexDirection: "column",
         border: `1px solid ${themeMode === "dark" ? "rgb(13, 17, 23)" : "#91caff"}`,
@@ -71,7 +72,7 @@ const useStyles = createUseStyles({
         flex: 1,
         backgroundColor: themeMode === "dark" ? "#000" : "#fff",
         "&:hover": {
-            backgroundColor: themeMode === "dark" ? "rgb(13, 17, 23)" : "#f8f9fa",
+            backgroundColor: themeMode === "dark" ? "rgb(13, 17, 23)" : "#f3faff",
         },
     }),
     title: {
@@ -112,10 +113,6 @@ const useStyles = createUseStyles({
             textTransform: "capitalize",
         },
     }),
-    listContainer: {
-        display: "flex",
-        justifyContent: "space-between",
-    },
 })
 
 interface Props {
@@ -133,9 +130,11 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                 <section>
                     <div className={classes.heading}>
                         <h1>Welcome to Agenta</h1>
+                        <h2 className={classes.h2}>
+                            The developer-first open source LLMOps platform.
+                        </h2>
                         <img src="/assets/wave.png" />
                     </div>
-                    <h2 className={classes.h2}>The developer-first open source LLMOps platform.</h2>
                 </section>
                 <section className={classes.wrapper}>
                     <div className={classes.container} onClick={onCreateFromTemplate}>
@@ -175,60 +174,44 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                         </ul>
                     </div>
                     <div className={classes.container} onClick={onWriteOwnApp}>
-                        <div className={classes.title}>
-                            <h1>Build complex apps</h1>
-                            <Tag
-                                className={classes.tag}
-                                icon={<ClockCircleOutlined />}
-                                color={appTheme === "dark" ? "warning" : "blue"}
-                            >
-                                12-15 mins
-                            </Tag>
+                        <div>
+                            <div className={classes.title}>
+                                <h1>Build complex apps</h1>
+                                <Tag
+                                    className={classes.tag}
+                                    icon={<ClockCircleOutlined />}
+                                    color={appTheme === "dark" ? "warning" : "blue"}
+                                >
+                                    12-15 mins
+                                </Tag>
+                            </div>
+
+                            <img
+                                src="/assets/complex-img.png"
+                                alt="Complex build Image"
+                                className={classes.img}
+                            />
                         </div>
 
-                        <img
-                            src="/assets/complex-img.png"
-                            alt="Complex build Image"
-                            className={classes.img}
-                        />
-
                         <ul className={classes.steps}>
-                            <div className={classes.listContainer}>
-                                <div>
-                                    <li>
-                                        <CheckCircleFilled /> Start <span>from code</span>
-                                    </li>
-                                    <li>
-                                        <CheckCircleFilled /> Compare different workflows
-                                    </li>
-                                    <li>
-                                        <CheckCircleFilled /> Test parameters in the UI
-                                    </li>
-                                    <li>
-                                        <CheckCircleFilled /> Evaluate outputs
-                                    </li>
-                                    <li>
-                                        <CheckCircleFilled /> Deploy in one click
-                                    </li>
-                                </div>
-                                <div>
-                                    <li>
-                                        <CheckCircleFilled /> Start from a template
-                                    </li>
-                                    <li>
-                                        <CheckCircleFilled /> Compare prompts and models
-                                    </li>
-                                    <li>
-                                        <CheckCircleFilled /> Create testsets
-                                    </li>
-                                    <li>
-                                        <CheckCircleFilled /> Evaluate outputs
-                                    </li>
-                                    <li>
-                                        <CheckCircleFilled /> Deploy in one click
-                                    </li>
-                                </div>
-                            </div>
+                            <li>
+                                <CheckCircleFilled /> Start <span>from code</span>
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Compare different workflows
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Test parameters in the UI
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Evaluate outputs
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> Deploy in one click
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> + Everything in the left
+                            </li>
                         </ul>
                     </div>
                 </section>
