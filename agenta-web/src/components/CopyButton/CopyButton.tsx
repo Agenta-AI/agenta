@@ -1,7 +1,7 @@
 import {copyToClipboard} from "@/lib/helpers/copyToClipboard"
-import {CopyOutlined} from "@ant-design/icons"
+import {CheckOutlined, CopyOutlined} from "@ant-design/icons"
 import {Button, notification} from "antd"
-import React, {ComponentProps} from "react"
+import React, {ComponentProps, useState} from "react"
 
 type Props = {
     text: string
@@ -15,17 +15,24 @@ const CopyButton: React.FC<Props & ComponentProps<typeof Button>> = ({
     icon = false,
     ...props
 }) => {
+    const [buttonIcon, setButtonIcon] = useState(<CopyOutlined />)
+
     return (
         <Button
-            icon={icon && <CopyOutlined />}
+            icon={icon && buttonIcon}
             {...props}
             onClick={async (e: React.MouseEvent) => {
                 if (text === "") return
                 const copied = await copyToClipboard(e, text)
-                if (copied)
+                if (copied) {
                     notification.success({
                         message: "Copied to clipboard!",
                     })
+                    setButtonIcon(<CheckOutlined />)
+                    setTimeout(() => {
+                        setButtonIcon(<CopyOutlined />)
+                    }, 3000)
+                }
             }}
         >
             {buttonText}
