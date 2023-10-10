@@ -316,12 +316,21 @@ Answer ONLY with one of the given grading or evaluation options.
                 key: columnKey,
                 width: "30%",
                 render: (text: any, record: AICritiqueEvaluationTableRow, rowIndex: number) => {
-                    if (record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED) {
+                    if (
+                        record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
+                        evaluationStatus === EvaluationFlow.EVALUATION_STARTED
+                    ) {
                         return (
                             <center>
                                 <Spin />
                             </center>
                         )
+                    }
+                    if (
+                        record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
+                        evaluationStatus === EvaluationFlow.EVALUATION_FAILED
+                    ) {
+                        return
                     }
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
@@ -382,8 +391,17 @@ Answer ONLY with one of the given grading or evaluation options.
             width: 200,
             align: "center" as "left" | "right" | "center",
             render: (score: string, record: any) => {
-                if (record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED) {
+                if (
+                    record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
+                    evaluationStatus === EvaluationFlow.EVALUATION_STARTED
+                ) {
                     return <Spin></Spin>
+                }
+                if (
+                    record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
+                    evaluationStatus === EvaluationFlow.EVALUATION_FAILED
+                ) {
+                    return
                 }
                 let tagColor = ""
 
