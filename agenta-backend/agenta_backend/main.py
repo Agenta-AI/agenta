@@ -83,8 +83,7 @@ async def lifespan(application: FastAPI, cache=True):
     yield
 
 
-# app = FastAPI(lifespan=lifespan)
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 allow_headers = ["Content-Type"]
 
