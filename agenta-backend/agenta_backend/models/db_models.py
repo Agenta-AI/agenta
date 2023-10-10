@@ -274,10 +274,11 @@ class Feedback(EmbeddedModel):
 
 
 class TraceDB(Model):
+    app_id: Optional[str]
+    variant_id: str
     spans: List[ObjectId]
     start_time: datetime
     end_time: datetime = Field(default=datetime.utcnow())
-    variant_id: Optional[str]
     cost: Optional[float]
     latency: float
     status: str  # initiated, completed, stopped, cancelled, failed
