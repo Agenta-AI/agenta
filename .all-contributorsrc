@@ -245,6 +245,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "dejongbaba",
+      "name": "Agunbiade Adedeji",
+      "avatar_url": "https://avatars.githubusercontent.com/u/22600781?v=4",
+      "profile": "http://luccithedev.com",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
