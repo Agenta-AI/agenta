@@ -2,9 +2,7 @@ import {Button, Tag} from "antd"
 import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
-import {isDemo} from "@/lib/helpers/utils"
 import {CheckCircleFilled, ClockCircleOutlined} from "@ant-design/icons"
-import TypingAnimator from "react-typing-animator"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -48,13 +46,12 @@ const useStyles = createUseStyles({
             transform: "rotate(0deg)",
         },
     },
-    typing: {
-        margin: "15px 0 20px",
-        lineHeight: 1.5,
-        fontWeight: "bold",
-        "& .cursor": {
-            width: 15,
-            display: "inline-block",
+    header: {
+        marginBottom: 30,
+        "& p": {
+            lineHeight: 1.5,
+            fontWeight: "bold",
+            fontSize: 20,
         },
     },
     description: {
@@ -140,30 +137,20 @@ interface Props {
 const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const textArray = [
-        "Agenta is the developer-first open source LLM-Ops platform.",
-        "Agenta is an open-source LLMOps platform designed to streamline the development of robust LLM applications.",
-        "Agenta provides tools for quick experimentation, prompt-engineering, and evaluation, making it easier to iterate on your LLM apps.",
-    ]
+
     return (
         <>
             <section>
-                <div className={classes.heading}>
-                    <h1>Welcome to Agenta</h1>
-                    <img src="/assets/wave.png" />
-                </div>
-                <div className={classes.typing}>
-                    <TypingAnimator
-                        fontSize="20px"
-                        textArray={textArray}
-                        loop
-                        typingSpeed={30}
-                        delaySpeed={2000}
-                        height="60px"
-                        cursorColor={appTheme === "dark" ? "#fff" : "#333"}
-                        textColor={appTheme === "dark" ? "#fff" : "#000"}
-                    />
-                </div>
+                <header className={classes.header}>
+                    <div className={classes.heading}>
+                        <h1>Welcome to Agenta</h1>
+                        <img src="/assets/wave.png" />
+                    </div>
+                    <p>
+                        Agenta is an open-source LLMOps platform designed to streamline the
+                        development of robust LLM applications.
+                    </p>
+                </header>
                 <section className={classes.wrapper}>
                     <div className={classes.container}>
                         <div className={classes.title}>
