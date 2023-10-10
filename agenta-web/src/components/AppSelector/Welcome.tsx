@@ -135,10 +135,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                         <h1>Welcome to Agenta</h1>
                         <img src="/assets/wave.png" />
                     </div>
-                    <h2 className={classes.h2}>
-                        Agenta is an open-source LLMOps platform designed to streamline the
-                        development of robust LLM applications.
-                    </h2>
+                    <h2 className={classes.h2}>The developer-first open source LLMOps platform.</h2>
                 </section>
                 <section className={classes.wrapper}>
                     <div className={classes.container} onClick={onCreateFromTemplate}>
