@@ -48,7 +48,6 @@
         "react-jss": "^10.10.0",
         "react-markdown": "^8.0.7",
         "react-syntax-highlighter": "^15.5.0",
-        "react-typing-animator": "^5.6.2",
         "react-youtube": "^10.1.0",
         "supertokens-auth-react": "^0.34.0",
         "supertokens-node": "^15.0.4",
