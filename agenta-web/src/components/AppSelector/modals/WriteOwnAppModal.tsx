@@ -63,6 +63,11 @@ const useStyles = createUseStyles({
             letterSpacing: 0.3,
         },
     }),
+    youtube: {
+        "& iframe": {
+            height: 410,
+        },
+    },
 })
 
 const {Title} = Typography
@@ -173,6 +178,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                 ref={(youtube) => {
                     youtubePlayer.current = youtube
                 }}
+                className={classes.youtube}
             />
         </Modal>
     )
