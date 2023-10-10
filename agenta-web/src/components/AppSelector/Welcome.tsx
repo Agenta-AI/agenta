@@ -46,13 +46,9 @@ const useStyles = createUseStyles({
             transform: "rotate(0deg)",
         },
     },
-    header: {
-        marginBottom: 30,
-        "& p": {
-            lineHeight: 1.5,
-            fontWeight: "bold",
-            fontSize: 20,
-        },
+    h2: {
+        fontSize: 24,
+        margin: "20px 0",
     },
     description: {
         lineHeight: 1.7,
@@ -67,9 +63,10 @@ const useStyles = createUseStyles({
     },
     container: ({themeMode}: StyleProps) => ({
         display: "flex",
+        cursor: "pointer",
         flexDirection: "column",
         border: `1px solid ${themeMode === "dark" ? "rgb(13, 17, 23)" : "#91caff"}`,
-        padding: "20px",
+        padding: "15px",
         borderRadius: 10,
         flex: 1,
         backgroundColor: themeMode === "dark" ? "#000" : "#fff",
@@ -91,32 +88,20 @@ const useStyles = createUseStyles({
         padding: "2px 6px",
         fontWeight: "bold",
     },
-    btnContainer: ({themeMode}: StyleProps) => ({
-        textAlign: "right",
-        marginTop: "auto",
-        "& button": {
-            backgroundColor: themeMode === "dark" ? "#fa8416" : "#0958d9",
-            "&:not([disabled]):hover": {
-                backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#0959d9ca"} !important`,
-            },
-            "&:not([disabled]):active": {
-                backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#0959d9ca"} !important`,
-            },
-        },
-    }),
     img: ({themeMode}: StyleProps) => ({
         width: "100%",
         filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
     steps: ({themeMode}: StyleProps) => ({
         fontSize: 16,
-        margin: "10px 0",
+        margin: "20px 0 0",
         display: "flex",
         flexDirection: "column",
         listStyleType: "none",
-        gap: 10,
-        borderRadius: 10,
         padding: 20,
+        "& li": {
+            marginBottom: 10,
+        },
         "& svg": {
             color: themeMode === "dark" ? "#fa8416" : "#0958d9",
             marginRight: 10,
@@ -127,6 +112,10 @@ const useStyles = createUseStyles({
             textTransform: "capitalize",
         },
     }),
+    listContainer: {
+        display: "flex",
+        justifyContent: "space-between",
+    },
 })
 
 interface Props {
@@ -141,18 +130,18 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
     return (
         <>
             <section>
-                <header className={classes.header}>
+                <section>
                     <div className={classes.heading}>
                         <h1>Welcome to Agenta</h1>
                         <img src="/assets/wave.png" />
                     </div>
-                    <p>
+                    <h2 className={classes.h2}>
                         Agenta is an open-source LLMOps platform designed to streamline the
                         development of robust LLM applications.
-                    </p>
-                </header>
+                    </h2>
+                </section>
                 <section className={classes.wrapper}>
-                    <div className={classes.container}>
+                    <div className={classes.container} onClick={onCreateFromTemplate}>
                         <div className={classes.title}>
                             <h1>Simple start</h1>
                             <Tag
@@ -187,14 +176,8 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                                 <CheckCircleFilled /> Deploy in one click
                             </li>
                         </ul>
-
-                        <div className={classes.btnContainer}>
-                            <Button size="large" type="primary" onClick={onCreateFromTemplate}>
-                                Start
-                            </Button>
-                        </div>
                     </div>
-                    <div className={classes.container}>
+                    <div className={classes.container} onClick={onWriteOwnApp}>
                         <div className={classes.title}>
                             <h1>Build complex apps</h1>
                             <Tag
@@ -213,47 +196,43 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                         />
 
                         <ul className={classes.steps}>
-                            <li>
-                                <CheckCircleFilled /> Start <span>from code</span>
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Compare different workflows
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Test parameters in the UI
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Evaluate outputs
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Deploy in one click
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Start from a template
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Compare prompts and models
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Create testsets
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Evaluate outputs
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Deploy in one click
-                            </li>
+                            <div className={classes.listContainer}>
+                                <div>
+                                    <li>
+                                        <CheckCircleFilled /> Start <span>from code</span>
+                                    </li>
+                                    <li>
+                                        <CheckCircleFilled /> Compare different workflows
+                                    </li>
+                                    <li>
+                                        <CheckCircleFilled /> Test parameters in the UI
+                                    </li>
+                                    <li>
+                                        <CheckCircleFilled /> Evaluate outputs
+                                    </li>
+                                    <li>
+                                        <CheckCircleFilled /> Deploy in one click
+                                    </li>
+                                </div>
+                                <div>
+                                    <li>
+                                        <CheckCircleFilled /> Start from a template
+                                    </li>
+                                    <li>
+                                        <CheckCircleFilled /> Compare prompts and models
+                                    </li>
+                                    <li>
+                                        <CheckCircleFilled /> Create testsets
+                                    </li>
+                                    <li>
+                                        <CheckCircleFilled /> Evaluate outputs
+                                    </li>
+                                    <li>
+                                        <CheckCircleFilled /> Deploy in one click
+                                    </li>
+                                </div>
+                            </div>
                         </ul>
-                        <div className={classes.btnContainer}>
-                            <Button
-                                type="primary"
-                                onClick={onWriteOwnApp}
-                                data-cy="create-new-app-button"
-                                size="large"
-                            >
-                                Start
-                            </Button>
-                        </div>
                     </div>
                 </section>
             </section>
