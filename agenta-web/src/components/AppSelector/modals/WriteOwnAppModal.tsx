@@ -19,6 +19,7 @@ const useStyles = createUseStyles({
         },
         "& .ant-modal-body": {
             display: "flex",
+            alignItems: "center",
             gap: 10,
         },
     },
@@ -31,6 +32,7 @@ const useStyles = createUseStyles({
     },
     wrapper: {
         width: 450,
+        marginRight: 10,
     },
     copyBtn: ({themeMode}: StyleProps) => ({
         border: "none",
@@ -45,11 +47,10 @@ const useStyles = createUseStyles({
         "& li": {
             fontSize: 16,
             fontWeight: 600,
-            marginBottom: 10,
+            marginBottom: 3,
         },
     },
     command: ({themeMode}: StyleProps) => ({
-        minHeight: 30,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -102,21 +103,14 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                 }
             }}
         >
-            <YouTube
-                videoId="nggaRwDZM-0"
-                onStateChange={onPlayerReady}
-                ref={(youtube) => {
-                    youtubePlayer.current = youtube
-                }}
-            />
             <div className={classes.wrapper}>
                 <ol>
                     <div className={classes.container}>
-                        <li>Install Agenta Library</li>
+                        <li>Clone agenta’s repo</li>
                         <div className={classes.command}>
-                            <span>pip install agenta</span>
+                            <span>git clone https://github.com/Agenta-AI/agenta.git</span>
                             <CopyButton
-                                text="pip install agenta"
+                                text="git clone https://github.com/Agenta-AI/agenta.git"
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
@@ -124,14 +118,11 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>Clone and start Agenta</li>
+                        <li>Start Agenta</li>
                         <div className={classes.command}>
-                            <span>
-                                git clone agenta <br />
-                                docker-compose up
-                            </span>
+                            <span>docker compose up</span>
                             <CopyButton
-                                text={"git clone agenta \ndocker-compose up"}
+                                text={"docker compose up"}
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
@@ -139,14 +130,35 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>Start a variant</li>
+                        <li>Checkout to your llm app folder</li>
                         <div className={classes.command}>
-                            <span>
-                                agenta init <br />
-                                agenta variant serve --file_name app.py
-                            </span>
+                            <span>cd your-llm-app-folder</span>
                             <CopyButton
-                                text={"agenta init \nagenta variant serve --file_name app.py"}
+                                text={"cd your-llm-app-folder"}
+                                icon={true}
+                                buttonText={""}
+                                className={classes.copyBtn}
+                            />
+                        </div>
+                    </div>
+                    <div className={classes.container}>
+                        <li>Create an llm app</li>
+                        <div className={classes.command}>
+                            <span>agenta init</span>
+                            <CopyButton
+                                text={"agenta init"}
+                                icon={true}
+                                buttonText={""}
+                                className={classes.copyBtn}
+                            />
+                        </div>
+                    </div>
+                    <div className={classes.container}>
+                        <li>Serve an app variant</li>
+                        <div className={classes.command}>
+                            <span>agenta variant serve --file_name app.py</span>
+                            <CopyButton
+                                text={"agenta variant serve --file_name app.py"}
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
@@ -155,6 +167,13 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                     </div>
                 </ol>
             </div>
+            <YouTube
+                videoId="nggaRwDZM-0"
+                onStateChange={onPlayerReady}
+                ref={(youtube) => {
+                    youtubePlayer.current = youtube
+                }}
+            />
         </Modal>
     )
 }
