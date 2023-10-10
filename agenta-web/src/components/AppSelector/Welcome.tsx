@@ -71,13 +71,13 @@ const useStyles = createUseStyles({
     container: ({themeMode}: StyleProps) => ({
         display: "flex",
         flexDirection: "column",
-        border: `1px solid ${themeMode === "dark" ? "#000" : "#009432"}`,
+        border: `1px solid ${themeMode === "dark" ? "rgb(13, 17, 23)" : "#91caff"}`,
         padding: "20px",
         borderRadius: 10,
         flex: 1,
         backgroundColor: themeMode === "dark" ? "#000" : "#fff",
         "&:hover": {
-            backgroundColor: themeMode === "dark" ? "#ff9c3f31" : "#ebffeb",
+            backgroundColor: themeMode === "dark" ? "rgb(13, 17, 23)" : "#f8f9fa",
         },
     }),
     title: {
@@ -98,12 +98,12 @@ const useStyles = createUseStyles({
         textAlign: "right",
         marginTop: "auto",
         "& button": {
-            backgroundColor: themeMode === "dark" ? "#fa8416" : "#009432",
+            backgroundColor: themeMode === "dark" ? "#fa8416" : "#0958d9",
             "&:not([disabled]):hover": {
-                backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
+                backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#0959d9ca"} !important`,
             },
             "&:not([disabled]):active": {
-                backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#10b045"} !important`,
+                backgroundColor: `${themeMode === "dark" ? "#ff9a3c" : "#0959d9ca"} !important`,
             },
         },
     }),
@@ -121,11 +121,11 @@ const useStyles = createUseStyles({
         borderRadius: 10,
         padding: 20,
         "& svg": {
-            color: themeMode === "dark" ? "#fa8416" : "#009432",
+            color: themeMode === "dark" ? "#fa8416" : "#0958d9",
             marginRight: 10,
         },
         "& span": {
-            color: themeMode === "dark" ? "#fa8416" : "#009432",
+            color: themeMode === "dark" ? "#fa8416" : "#0958d9",
             fontWeight: 600,
             textTransform: "capitalize",
         },
@@ -171,7 +171,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             <Tag
                                 className={classes.tag}
                                 icon={<ClockCircleOutlined />}
-                                color={appTheme === "dark" ? "warning" : "green"}
+                                color={appTheme === "dark" ? "warning" : "blue"}
                             >
                                 2-3 mins
                             </Tag>
@@ -213,7 +213,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             <Tag
                                 className={classes.tag}
                                 icon={<ClockCircleOutlined />}
-                                color={appTheme === "dark" ? "warning" : "green"}
+                                color={appTheme === "dark" ? "warning" : "blue"}
                             >
                                 12-15 mins
                             </Tag>
