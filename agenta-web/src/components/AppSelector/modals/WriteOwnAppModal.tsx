@@ -10,7 +10,13 @@ type StyleProps = {
 }
 
 const useStyles = createUseStyles({
-    modal: {
+    modal: ({themeMode}: StyleProps) => ({
+        "& .ant-modal-content": {
+            backgroundColor: themeMode === "dark" ? "rgb(13, 17, 23)" : "#fff",
+        },
+        "& .ant-modal-header": {
+            backgroundColor: themeMode === "dark" ? "rgb(13, 17, 23)" : "#fff",
+        },
         "& .ant-modal-close": {
             top: 23,
         },
@@ -22,7 +28,7 @@ const useStyles = createUseStyles({
             alignItems: "center",
             gap: 10,
         },
-    },
+    }),
     title: {
         margin: 0,
     },
@@ -33,15 +39,15 @@ const useStyles = createUseStyles({
     wrapper: {
         width: 450,
         marginRight: 10,
+        "& ol": {
+            padding: "0 5px",
+            listStyleType: "none",
+        },
     },
-    copyBtn: ({themeMode}: StyleProps) => ({
-        border: "none",
+    copyBtn: {
         backgroundColor: "transparent",
         alignSelf: "flex-start",
-        color: themeMode === "light" ? "#389e0d" : "#d89614",
-        width: "auto !important",
-        height: "auto !important",
-    }),
+    },
     container: {
         margin: "20px 0",
         "& li": {
@@ -54,18 +60,18 @@ const useStyles = createUseStyles({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        backgroundColor: themeMode === "light" ? "#f6ffed" : "#2b2111",
-        padding: "3px 10px",
+        backgroundColor: themeMode === "light" ? "#f6f8fa" : "#161b22",
+        padding: "5px 10px",
         borderRadius: 5,
-        border: `1px solid ${themeMode === "light" ? "#389e0d" : "#d89614"}`,
-        color: themeMode === "light" ? "#389e0d" : "#d89614",
+        border: `1px solid ${themeMode === "light" ? "#d0d7de" : "#30363d"}`,
+        color: themeMode === "light" ? "#1f2328" : "#e6edf3",
         "& span": {
             letterSpacing: 0.3,
         },
     }),
     youtube: {
         "& iframe": {
-            height: 410,
+            height: 430,
         },
     },
 })
@@ -111,7 +117,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
             <div className={classes.wrapper}>
                 <ol>
                     <div className={classes.container}>
-                        <li>Clone agenta’s repo</li>
+                        <li>1. Clone agenta’s repo</li>
                         <div className={classes.command}>
                             <span>git clone https://github.com/Agenta-AI/agenta.git</span>
                             <CopyButton
@@ -123,7 +129,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>Start Agenta</li>
+                        <li>2. Start Agenta</li>
                         <div className={classes.command}>
                             <span>docker compose up</span>
                             <CopyButton
@@ -135,7 +141,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>Checkout to your llm app folder</li>
+                        <li>3. Checkout to your llm app folder</li>
                         <div className={classes.command}>
                             <span>cd your-llm-app-folder</span>
                             <CopyButton
@@ -147,7 +153,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>Create an llm app</li>
+                        <li>4. Create an llm app</li>
                         <div className={classes.command}>
                             <span>agenta init</span>
                             <CopyButton
@@ -159,7 +165,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>Serve an app variant</li>
+                        <li>5. Serve an app variant</li>
                         <div className={classes.command}>
                             <span>agenta variant serve --file_name app.py</span>
                             <CopyButton
