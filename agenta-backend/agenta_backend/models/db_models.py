@@ -10,9 +10,8 @@ class APIKeyDB(Model):
     prefix: str
     hashed_key: str
     user_id: str
-    rate_limit: int = Field(default=1000)
+    rate_limit: int = Field(default=0)
     expiration_date: Optional[datetime]
-    blacklist: bool = Field(default=False)
     created_at: Optional[datetime] = datetime.utcnow()
     updated_at: Optional[datetime] = datetime.utcnow()
 
