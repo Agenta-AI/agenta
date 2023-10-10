@@ -8,7 +8,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
+import {getOpenAIKey, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {createAndStartTemplate, getTemplates} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
@@ -172,7 +172,7 @@ const AppSelector: React.FC = () => {
         }
 
         // warn the user and redirect if openAI key is not present
-        const openAIKey = localStorage.getItem("openAiToken")
+        const openAIKey = getOpenAIKey()
         if (!openAIKey && !isDemo()) {
             notification.error({
                 message: "OpenAI API Key Missing",
