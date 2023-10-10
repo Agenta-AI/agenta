@@ -224,6 +224,7 @@ Answer ONLY with one of the given grading or evaluation options.
             console.log("All evaluations finished.")
         } catch (err) {
             console.error("An error occurred:", err)
+            setEvaluationStatus(EvaluationFlow.EVALUATION_FAILED)
         }
     }
 
@@ -381,7 +382,7 @@ Answer ONLY with one of the given grading or evaluation options.
             width: 200,
             align: "center" as "left" | "right" | "center",
             render: (score: string, record: any) => {
-                if (record.evaluationFlow === "COMPARISON_RUN_STARTED") {
+                if (record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED) {
                     return <Spin></Spin>
                 }
                 let tagColor = ""
@@ -447,17 +448,22 @@ Answer ONLY with one of the given grading or evaluation options.
             </div>
             <div className={classes.evaluationResult} data-cy="ai-critic-evaluation-result">
                 <center>
+                    {evaluationStatus === EvaluationFlow.EVALUATION_FAILED && <div>Error!</div>}
+
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
                         <div>Run evaluation to see results!</div>
                     )}
+
                     {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
-                    {evaluationResults && evaluationResults.results_data && (
-                        <div>
-                            <h3 className={classes.h3}>Results Data:</h3>
-                            <Row gutter={8} justify="center" className={classes.resultDataRow}>
-                                {Object.entries(evaluationResults.results_data).map(
-                                    ([key, value], index) => {
-                                        return (
+
+                    {evaluationStatus === EvaluationFlow.EVALUATION_FINISHED &&
+                        evaluationResults &&
+                        evaluationResults.results_data && (
+                            <div>
+                                <h3 className={classes.h3}>Results Data:</h3>
+                                <Row gutter={8} justify="center" className={classes.resultDataRow}>
+                                    {Object.entries(evaluationResults.results_data).map(
+                                        ([key, value], index) => (
                                             <Col key={index} className={classes.resultDataCol}>
                                                 <Card
                                                     bordered={false}
@@ -470,12 +476,11 @@ Answer ONLY with one of the given grading or evaluation options.
                                                     />
                                                 </Card>
                                             </Col>
-                                        )
-                                    },
-                                )}
-                            </Row>
-                        </div>
-                    )}
+                                        ),
+                                    )}
+                                </Row>
+                            </div>
+                        )}
                 </center>
             </div>
             <div>
