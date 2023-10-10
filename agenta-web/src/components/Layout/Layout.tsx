@@ -140,6 +140,34 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [appTheme])
 
+    const computePlaygroundBreadCrumbs = () => {
+        const {variant_name} = router.query
+        const [app, playground] = ["/apps", "/playground"]
+        if (router?.pathname?.includes(playground)) {
+            return [
+                {title: <Link href={app}>Apps</Link>},
+                {
+                    title: (
+                        <Link href={`${[app, `${appId}${playground}`].join("/")}`}>Playground</Link>
+                    ),
+                },
+                {
+                    title:
+                        variant_name &&
+                        renameVariablesCapitalizeAll(decodeURI(variant_name as string)),
+                },
+            ]
+        }
+
+        return [{title: <Link href="/apps">Apps</Link>}, {title: capitalizedAppName}]
+    }
+
+    const breadCrumbItems = useMemo(computePlaygroundBreadCrumbs, [
+        capitalizedAppName,
+        router.pathname,
+        router.query,
+    ])
+
     // wait unitl we have the app id, if its an app route
     if (isAppRoute && !appId) return null
 
@@ -157,10 +185,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             <Space className={classes.breadcrumbContainer}>
                                 <Breadcrumb
                                     className={classes.breadcrumb}
-                                    items={[
-                                        {title: <Link href="/apps">Apps</Link>},
-                                        {title: capitalizedAppName},
-                                    ]}
+                                    items={breadCrumbItems}
                                 />
                                 <div className={classes.topRightBar}>
                                     <Dropdown
