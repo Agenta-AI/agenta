@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from "react"
-import {Breadcrumb, Button, ConfigProvider, Layout, Space, theme} from "antd"
+import {Breadcrumb, Button, ConfigProvider, Dropdown, Layout, Space, Tooltip, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -102,7 +102,7 @@ type LayoutProps = {
 }
 
 const App: React.FC<LayoutProps> = ({children}) => {
-    const {appTheme, toggleAppTheme} = useAppTheme()
+    const {appTheme, themeMode, toggleAppTheme} = useAppTheme()
     const {currentApp} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
@@ -140,6 +140,34 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [appTheme])
 
+    const computePlaygroundBreadCrumbs = () => {
+        const {variant_name} = router.query
+        const [app, playground] = ["/apps", "/playground"]
+        if (router?.pathname?.includes(playground)) {
+            return [
+                {title: <Link href={app}>Apps</Link>},
+                {
+                    title: (
+                        <Link href={`${[app, `${appId}${playground}`].join("/")}`}>Playground</Link>
+                    ),
+                },
+                {
+                    title:
+                        variant_name &&
+                        renameVariablesCapitalizeAll(decodeURI(variant_name as string)),
+                },
+            ]
+        }
+
+        return [{title: <Link href="/apps">Apps</Link>}, {title: capitalizedAppName}]
+    }
+
+    const breadCrumbItems = useMemo(computePlaygroundBreadCrumbs, [
+        capitalizedAppName,
+        router.pathname,
+        router.query,
+    ])
+
     // wait unitl we have the app id, if its an app route
     if (isAppRoute && !appId) return null
 
@@ -157,25 +185,45 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             <Space className={classes.breadcrumbContainer}>
                                 <Breadcrumb
                                     className={classes.breadcrumb}
-                                    items={[
-                                        {title: <Link href="/apps">Apps</Link>},
-                                        {title: capitalizedAppName},
-                                    ]}
+                                    items={breadCrumbItems}
                                 />
                                 <div className={classes.topRightBar}>
-                                    <span
-                                        style={{cursor: "pointer"}}
-                                        onClick={() =>
-                                            toggleAppTheme(isDarkTheme ? "light" : "dark")
-                                        }
+                                    <Dropdown
+                                        trigger={["click"]}
+                                        menu={{
+                                            items: [
+                                                {
+                                                    key: "system",
+                                                    label: "System",
+                                                    onClick: () => toggleAppTheme("system"),
+                                                },
+                                                {
+                                                    key: "light",
+                                                    label: "Light",
+                                                    onClick: () => toggleAppTheme("light"),
+                                                },
+                                                {
+                                                    key: "dark",
+                                                    label: "Dark",
+                                                    onClick: () => toggleAppTheme("dark"),
+                                                },
+                                            ],
+                                            selectedKeys: [themeMode],
+                                        }}
                                     >
-                                        <Image
-                                            alt={`Switch to ${isDarkTheme ? "light" : "dark"} mode`}
-                                            src={isDarkTheme ? sunIcon : moonIcon}
-                                            width={24}
-                                            height={24}
-                                        />
-                                    </span>
+                                        <a onClick={(e) => e.preventDefault()}>
+                                            <Tooltip title="Change theme">
+                                                <Image
+                                                    alt={`Curren Theme: ${
+                                                        isDarkTheme ? "dark" : "light"
+                                                    }`}
+                                                    src={isDarkTheme ? sunIcon : moonIcon}
+                                                    width={24}
+                                                    height={24}
+                                                />
+                                            </Tooltip>
+                                        </a>
+                                    </Dropdown>
                                     <Button
                                         className={classes.star}
                                         href="https://github.com/Agenta-AI/agenta"
