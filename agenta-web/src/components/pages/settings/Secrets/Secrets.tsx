@@ -3,9 +3,11 @@ import {Button, Input, Space, Typography, message} from "antd"
 import {useState} from "react"
 import {createUseStyles} from "react-jss"
 
+const {Title, Text} = Typography
+
 const useStyles = createUseStyles({
     title: {
-        marginBottom: "30px !important",
+        marginTop: 0,
     },
     container: {
         marginLeft: 0,
@@ -14,53 +16,49 @@ const useStyles = createUseStyles({
         margin: "0px 0",
     },
     input: {
-        minWidth: 300,
+        minWidth: 400,
     },
 })
 
-export default function ApiKeys() {
-    const {Title, Text} = Typography
-
+export default function Secrets() {
     const classes = useStyles()
-
     const savedOpenAiKey = getOpenAIKey()
-
     const [openAiKey, setOpenAiKey] = useState(savedOpenAiKey)
     const [messageAPI, contextHolder] = message.useMessage()
 
     const saveDisabled = openAiKey === savedOpenAiKey
 
     return (
-        <div data-cy="apikeys">
+        <div data-cy="secrets">
             {contextHolder}
             <Title level={3} className={classes.title}>
-                API Keys
+                Secrets
             </Title>
 
             <Text>
-                Currently, the API keys are solely saved in your browser and are not sent to our
+                Currently, the secrets are solely saved in your browser and are not sent to our
                 servers!
             </Text>
 
             <div className={classes.container}>
-                <Title level={4}>LLM providers</Title>
+                <Title level={5}>LLM providers</Title>
 
                 <div className={classes.apiContainer}>
                     <Space direction="horizontal">
                         <Input.Password
-                            data-cy="apikeys-input"
+                            data-cy="openai-api-input"
                             value={openAiKey}
                             onChange={(e) => setOpenAiKey(e.target.value)}
-                            addonBefore="OpenAI"
+                            addonBefore="OpenAI API Key"
                             visibilityToggle={false}
                             className={classes.input}
                         />
                         <Button
-                            data-cy="apikeys-save-button"
+                            data-cy="openai-api-save"
                             disabled={saveDisabled}
                             onClick={() => {
                                 saveOpenAIKey(openAiKey)
-                                messageAPI.success("The key is saved")
+                                messageAPI.success("The secret is saved")
                             }}
                         >
                             Save
@@ -69,7 +67,7 @@ export default function ApiKeys() {
                             onClick={() => {
                                 removeOpenAIKey()
                                 setOpenAiKey("")
-                                messageAPI.warning("The key is deleted")
+                                messageAPI.warning("The secret is deleted")
                             }}
                         >
                             Delete
