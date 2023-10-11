@@ -16,7 +16,7 @@ const useStyles = createUseStyles({
         gap: "1rem",
         "& > h1": {
             margin: 0,
-            fontSize: 42,
+            fontSize: 36,
         },
 
         "& > img": {
@@ -48,7 +48,7 @@ const useStyles = createUseStyles({
         },
     },
     h2: {
-        fontSize: 24,
+        fontSize: 18,
         margin: "20px 0",
         textAlign: "center",
     },
@@ -108,11 +108,6 @@ const useStyles = createUseStyles({
         "& svg": {
             color: themeMode === "dark" ? "#fa8416" : "#0958d9",
             marginRight: 10,
-        },
-        "& span": {
-            color: themeMode === "dark" ? "#fa8416" : "#0958d9",
-            fontWeight: 600,
-            textTransform: "capitalize",
         },
     }),
 })
@@ -195,7 +190,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
 
                         <ul className={classes.steps}>
                             <li>
-                                <CheckCircleFilled /> Start <span>from code</span>
+                                <CheckCircleFilled /> Start from code
                             </li>
                             <li>
                                 <CheckCircleFilled /> Compare different workflows
