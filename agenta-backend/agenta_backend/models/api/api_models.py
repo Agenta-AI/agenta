@@ -196,5 +196,5 @@ class PostVariantConfigPayload(BaseModel):
 class ListAPIKeysOutput(BaseModel):
     prefix: str
     created_at: datetime
-    last_used_at: datetime
+    last_used_at: datetime = None
     expiration_date: datetime = None
