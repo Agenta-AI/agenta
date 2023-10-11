@@ -10,7 +10,7 @@ from agenta_backend.utils.common import engine
 from agenta_backend.models.api.organization_models import Organization
 
 
-async def get_user_and_org_id(session) -> Dict[str, List]:
+async def get_user_and_org_id(user_uid_id) -> Dict[str, List]:
     """Retrieves the user ID and organization ID based on the logged-in session.
 
     Arguments:
@@ -19,7 +19,6 @@ async def get_user_and_org_id(session) -> Dict[str, List]:
     Returns:
         A dictionary containing the user_id and a list of the user's organization_ids.
     """
-    user_uid_id = "0"
     user_id, org_ids = await get_user_objectid(user_uid_id)
     return {"uid": user_id, "organization_ids": org_ids}
 
