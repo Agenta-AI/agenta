@@ -11,7 +11,8 @@ type StyleProps = {
 const useStyles = createUseStyles({
     heading: {
         display: "flex",
-        alignItems: "baseline",
+        alignItems: "center",
+        justifyContent: "center",
         gap: "1rem",
         "& > h1": {
             margin: 0,
@@ -49,6 +50,7 @@ const useStyles = createUseStyles({
     h2: {
         fontSize: 24,
         margin: "20px 0",
+        textAlign: "center",
     },
     description: {
         lineHeight: 1.7,
@@ -130,11 +132,9 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                 <section>
                     <div className={classes.heading}>
                         <h1>Welcome to Agenta</h1>
-                        <h2 className={classes.h2}>
-                            The developer-first open source LLMOps platform.
-                        </h2>
                         <img src="/assets/wave.png" />
                     </div>
+                    <h2 className={classes.h2}>The developer-first open source LLMOps platform.</h2>
                 </section>
                 <section className={classes.wrapper}>
                     <div className={classes.container} onClick={onCreateFromTemplate}>
