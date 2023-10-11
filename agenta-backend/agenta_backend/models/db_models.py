@@ -13,7 +13,7 @@ class APIKeyDB(Model):
     rate_limit: int = Field(default=0)
     expiration_date: Optional[datetime]
     created_at: Optional[datetime] = datetime.utcnow()
-    updated_at: Optional[datetime] = datetime.utcnow()
+    updated_at: Optional[datetime]
 
     class Config:
         collection = "api_keys"
