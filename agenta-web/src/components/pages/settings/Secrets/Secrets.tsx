@@ -32,7 +32,7 @@ export default function Secrets() {
         <div data-cy="secrets">
             {contextHolder}
             <Title level={3} className={classes.title}>
-                Secrets
+                LLM Keys
             </Title>
 
             <Text>
@@ -41,7 +41,7 @@ export default function Secrets() {
             </Text>
 
             <div className={classes.container}>
-                <Title level={5}>LLM providers</Title>
+                <Title level={5}>Providers</Title>
 
                 <div className={classes.apiContainer}>
                     <Space direction="horizontal">

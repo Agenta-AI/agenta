@@ -48,7 +48,7 @@ const Settings: React.FC = () => {
             label: (
                 <span>
                     <LockOutlined />
-                    Secrets
+                    LLM Keys
                 </span>
             ),
             key: "secrets",
