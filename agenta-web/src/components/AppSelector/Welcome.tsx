@@ -139,7 +139,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                 <section className={classes.wrapper}>
                     <div className={classes.container} onClick={onCreateFromTemplate}>
                         <div className={classes.title}>
-                            <h1>Simple start</h1>
+                            <h1>Start simple</h1>
                             <Tag
                                 className={classes.tag}
                                 icon={<ClockCircleOutlined />}
