@@ -1,8 +1,8 @@
-import ApiKeys from "@/components/ApiKeys/ApiKeys"
+import Secrets from "@/components/pages/settings/Secrets/Secrets"
 import ProtectedRoute from "@/components/ProtectedRoute/ProtectedRoute"
 import {useQueryParam} from "@/hooks/useQuery"
 import {dynamicComponent, isDemo} from "@/lib/helpers/utils"
-import {ApartmentOutlined, GlobalOutlined, LockOutlined} from "@ant-design/icons"
+import {ApartmentOutlined, KeyOutlined, LockOutlined} from "@ant-design/icons"
 import {Tabs, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
@@ -25,12 +25,47 @@ const useStyles = createUseStyles({
 })
 
 const Settings: React.FC = () => {
-    const [tab, setTab] = useQueryParam("tab", isDemo() ? "workspace" : "apikeys")
+    const [tab, setTab] = useQueryParam("tab", isDemo() ? "workspace" : "secrets")
     const classes = useStyles()
 
-    const WorkspaceManage = isDemo()
-        ? dynamicComponent(`pages/settings/WorkspaceManage/WorkspaceManage`)
-        : () => null
+    //dynamic components for demo
+    const WorkspaceManage = dynamicComponent(`pages/settings/WorkspaceManage/WorkspaceManage`)
+    const APIKeys = dynamicComponent(`pages/settings/APIKeys/APIKeys`)
+
+    const items = [
+        {
+            label: (
+                <span>
+                    <ApartmentOutlined />
+                    Workspace
+                </span>
+            ),
+            key: "workspace",
+            children: <WorkspaceManage />,
+            hidden: !isDemo(),
+        },
+        {
+            label: (
+                <span>
+                    <LockOutlined />
+                    Secrets
+                </span>
+            ),
+            key: "secrets",
+            children: <Secrets />,
+        },
+        {
+            label: (
+                <span>
+                    <KeyOutlined />
+                    API Keys
+                </span>
+            ),
+            key: "apiKeys",
+            children: <APIKeys />,
+            hidden: !isDemo(),
+        },
+    ]
 
     return (
         <div className={classes.root}>
@@ -40,33 +75,8 @@ const Settings: React.FC = () => {
             <Tabs
                 className={classes.tabs}
                 onChange={setTab}
-                defaultActiveKey={tab}
-                items={[
-                    ...(isDemo()
-                        ? [
-                              {
-                                  label: (
-                                      <span>
-                                          <ApartmentOutlined />
-                                          Workspace
-                                      </span>
-                                  ),
-                                  key: "workspace",
-                                  children: <WorkspaceManage />,
-                              },
-                          ]
-                        : []),
-                    {
-                        label: (
-                            <span>
-                                <LockOutlined />
-                                API Keys
-                            </span>
-                        ),
-                        key: "apikeys",
-                        children: <ApiKeys />,
-                    },
-                ]}
+                activeKey={tab}
+                items={items.filter((item) => !item.hidden)}
             />
         </div>
     )
