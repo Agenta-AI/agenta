@@ -1,4 +1,4 @@
-import {Button, Tag} from "antd"
+import {Tag} from "antd"
 import React from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
@@ -9,6 +9,14 @@ type StyleProps = {
 }
 
 const useStyles = createUseStyles({
+    head: {
+        marginBottom: 30,
+        "& h2": {
+            fontSize: 18,
+            margin: "20px 0",
+            textAlign: "center",
+        },
+    },
     heading: {
         display: "flex",
         alignItems: "center",
@@ -47,11 +55,6 @@ const useStyles = createUseStyles({
             transform: "rotate(0deg)",
         },
     },
-    h2: {
-        fontSize: 18,
-        margin: "20px 0",
-        textAlign: "center",
-    },
     description: {
         lineHeight: 1.7,
     },
@@ -73,8 +76,10 @@ const useStyles = createUseStyles({
         borderRadius: 10,
         flex: 1,
         backgroundColor: themeMode === "dark" ? "#000" : "#fff",
+        transition: "all 0.3s ease-out",
         "&:hover": {
-            backgroundColor: themeMode === "dark" ? "rgb(13, 17, 23)" : "#f3faff",
+            backgroundColor: themeMode === "dark" ? "" : "#f3faff",
+            boxShadow: themeMode === "dark" ? "0 0 10px rgba(225, 225, 225, 0.3)" : "",
         },
     }),
     title: {
@@ -106,8 +111,11 @@ const useStyles = createUseStyles({
             marginBottom: 10,
         },
         "& svg": {
-            color: themeMode === "dark" ? "#fa8416" : "#0958d9",
+            color: themeMode === "dark" ? "#fff" : "#0958d9",
             marginRight: 10,
+        },
+        "& span": {
+            fontWeight: 600,
         },
     }),
 })
@@ -124,12 +132,12 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
     return (
         <>
             <section>
-                <section>
+                <section className={classes.head}>
                     <div className={classes.heading}>
                         <h1>Welcome to Agenta</h1>
                         <img src="/assets/wave.png" />
                     </div>
-                    <h2 className={classes.h2}>The developer-first open source LLMOps platform.</h2>
+                    <h2>The developer-first open source LLMOps platform.</h2>
                 </section>
                 <section className={classes.wrapper}>
                     <div className={classes.container} onClick={onCreateFromTemplate}>
@@ -138,7 +146,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                             <Tag
                                 className={classes.tag}
                                 icon={<ClockCircleOutlined />}
-                                color={appTheme === "dark" ? "warning" : "blue"}
+                                color={appTheme === "dark" ? "" : "blue"}
                             >
                                 2-3 mins
                             </Tag>
@@ -175,7 +183,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                                 <Tag
                                     className={classes.tag}
                                     icon={<ClockCircleOutlined />}
-                                    color={appTheme === "dark" ? "warning" : "blue"}
+                                    color={appTheme === "dark" ? "" : "blue"}
                                 >
                                     12-15 mins
                                 </Tag>
@@ -190,7 +198,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
 
                         <ul className={classes.steps}>
                             <li>
-                                <CheckCircleFilled /> Start from code
+                                <CheckCircleFilled /> Start <span>from code</span>
                             </li>
                             <li>
                                 <CheckCircleFilled /> Compare different workflows
