@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Union, Optional
 
 from fastapi.responses import JSONResponse
-from fastapi import UploadFile, APIRouter, Depends
+from fastapi import UploadFile, APIRouter, Request
 
 from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
@@ -26,18 +26,10 @@ from agenta_backend.services.container_manager import (
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.ee.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
-    from agenta_backend.services.auth_helper import (
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.services.selectors import get_user_and_org_id
 import logging
 
@@ -53,7 +45,7 @@ async def build_image(
     app_id: str,
     base_name: str,
     tar_file: UploadFile,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> Image:
     """
     Builds a Docker image from a tar file containing the application code.
@@ -68,7 +60,7 @@ async def build_image(
         Image: The Docker image that was built.
     """
     # Get user and org id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     # Check app access
     app_db = await db_manager.fetch_app_and_check_access(
@@ -115,7 +107,7 @@ async def build_image(
 @router.post("/restart_container/")
 async def restart_docker_container(
     payload: RestartAppContainer,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> dict:
     """Restart docker container.
 
@@ -124,7 +116,7 @@ async def restart_docker_container(
     """
     logger.debug(f"Restarting container for variant {payload.variant_id}")
     # Get user and org id
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     app_variant_db = await db_manager.fetch_app_variant_and_check_access(
         app_variant_id=payload.variant_id, user_org_data=user_org_data
     )
@@ -143,7 +135,7 @@ async def restart_docker_container(
 
 @router.get("/templates/")
 async def container_templates(
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> Union[List[Template], str]:
     """
     Returns a list of templates available for creating new containers.
@@ -162,7 +154,7 @@ async def container_templates(
 @router.get("/templates/{image_name}/images/")
 async def pull_image(
     image_name: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> dict:
     """
     Pulls a Docker image from Docker Hub with the provided configuration.
@@ -198,9 +190,9 @@ async def pull_image(
 
 @router.get("/container_url/")
 async def construct_app_container_url(
+    request: Request,
     base_id: Optional[str] = None,
     variant_id: Optional[str] = None,
-    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> URI:
     """
     Constructs the URL for an app container based on the provided base_id or variant_id.
@@ -216,7 +208,7 @@ async def construct_app_container_url(
     Raises:
         HTTPException: If the base or variant cannot be found or the user does not have access.
     """
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     if base_id:
         base_db = await db_manager.fetch_base_and_check_access(
             base_id=base_id, user_org_data=user_org_data
