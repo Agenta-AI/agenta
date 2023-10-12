@@ -466,7 +466,9 @@ Answer ONLY with one of the given grading or evaluation options.
             </div>
             <div className={classes.evaluationResult} data-cy="ai-critic-evaluation-result">
                 <center>
-                    {evaluationStatus === EvaluationFlow.EVALUATION_FAILED && <div>Error!</div>}
+                    {evaluationStatus === EvaluationFlow.EVALUATION_FAILED && (
+                        <div>Failed to evaluate AI critique!</div>
+                    )}
 
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
                         <div>Run evaluation to see results!</div>
