@@ -201,7 +201,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
 
                         <ul className={classes.steps}>
                             <li>
-                                <CheckCircleFilled /> <span>Start from code!</span>
+                                <CheckCircleFilled /> Start <span>from code!</span>
                             </li>
                             <li>
                                 <CheckCircleFilled /> Build sophisticated apps!
