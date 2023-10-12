@@ -4,7 +4,7 @@ from docker.errors import DockerException
 from fastapi.responses import JSONResponse
 from agenta_backend.config import settings
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Request
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
@@ -29,18 +29,10 @@ from agenta_backend.models.api.api_models import (
 from agenta_backend.models import converters
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.ee.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
-    from agenta_backend.services.auth_helper import (
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
@@ -51,7 +43,7 @@ logger.setLevel(logging.DEBUG)
 @router.get("/{app_id}/variants/", response_model=List[AppVariantOutput])
 async def list_app_variants(
     app_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Retrieve a list of app variants for a given app ID.
@@ -64,7 +56,7 @@ async def list_app_variants(
         List[AppVariantOutput]: A list of app variants for the given app ID.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
         access_app = await check_access_to_app(
             user_org_data=user_org_data, app_id=app_id
@@ -93,7 +85,7 @@ async def list_app_variants(
 async def get_variant_by_env(
     app_id: str,
     environment: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Retrieve the app variant based on the provided app_id and environment.
@@ -111,7 +103,7 @@ async def get_variant_by_env(
     """
     try:
         # Retrieve the user and organization ID based on the session token
-        user_org_data = await get_user_and_org_id(stoken_session)
+        user_org_data = await get_user_and_org_id(request.state.user_id)
         await check_access_to_app(user_org_data, app_id=app_id)
 
         # Fetch the app variant using the provided app_id and environment
@@ -136,7 +128,7 @@ async def get_variant_by_env(
 @router.post("/", response_model=CreateAppOutput)
 async def create_app(
     payload: CreateApp,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> CreateAppOutput:
     """
     Create a new app for a user or organization.
@@ -152,7 +144,7 @@ async def create_app(
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         if payload.organization_id:
             access = await check_user_org_access(user_org_data, payload.organization_id)
             if not access:
@@ -181,9 +173,9 @@ async def create_app(
 
 @router.get("/", response_model=List[App])
 async def list_apps(
+    request: Request,
     app_name: Optional[str] = None,
     org_id: Optional[str] = None,
-    stoken_session: SessionContainer = Depends(verify_session()),
 ) -> List[App]:
     """
     Retrieve a list of apps filtered by app_name and org_id.
@@ -200,7 +192,7 @@ async def list_apps(
         HTTPException: If there was an error retrieving the list of apps.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         apps = await db_manager.list_apps(app_name, org_id, **user_org_data)
         return apps
     except Exception as e:
@@ -212,7 +204,7 @@ async def list_apps(
 async def add_variant_from_image(
     app_id: str,
     payload: AddVariantFromImagePayload,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Add a new variant to an app based on a Docker image.
@@ -235,7 +227,7 @@ async def add_variant_from_image(
         )
 
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         access_app = await check_access_to_app(user_org_data, app_id=app_id)
         if not access_app:
             error_msg = f"You cannot access app: {app_id}"
@@ -268,16 +260,14 @@ async def add_variant_from_image(
 
 
 @router.delete("/{app_id}/")
-async def remove_app(
-    app_id: str, stoken_session: SessionContainer = Depends(verify_session())
-):
+async def remove_app(app_id: str, request: Request):
     """Remove app, all its variant, containers and images
 
     Arguments:
         app -- App to remove
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         access_app = await check_access_to_app(
             user_org_data, app_id=app_id, check_owner=True
         )
@@ -302,7 +292,7 @@ async def remove_app(
 @router.post("/app_and_variant_from_template/")
 async def create_app_and_variant_from_template(
     payload: CreateAppVariant,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> AppVariantOutput:
     """
     Create an app and variant from a template.
@@ -322,7 +312,7 @@ async def create_app_and_variant_from_template(
 
         # Get user and org id
         logger.debug("Step 1: Getting user and organization ID")
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
         # Check if the user has reached app limit
         logger.debug("Step 2: Checking user app limit")
@@ -397,7 +387,7 @@ async def create_app_and_variant_from_template(
 @router.get("/{app_id}/environments/", response_model=List[EnvironmentOutput])
 async def list_environments(
     app_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Retrieve a list of environments for a given app ID.
@@ -412,7 +402,7 @@ async def list_environments(
     logger.debug(f"Listing environments for app: {app_id}")
     try:
         logger.debug("get user and org data")
-        user_and_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_and_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
         # Check if has app access
         logger.debug("check_access_to_app")

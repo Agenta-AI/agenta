@@ -1,6 +1,9 @@
 import {useSession} from "@/hooks/useSession"
+import useStateCallback from "@/hooks/useStateCallback"
+import {isDemo} from "@/lib/helpers/utils"
 import {getOrgsList, getProfile} from "@/lib/services/api"
 import {Org, User} from "@/lib/Types"
+import {useRouter} from "next/router"
 import {
     PropsWithChildren,
     createContext,
@@ -26,9 +29,9 @@ type ProfileContextType = {
     selectedOrg: Org | null
     role: Role | null
     loading: boolean
-    changeSelectedOrg: (orgId: string) => void
+    changeSelectedOrg: (orgId: string, onSuccess?: () => void) => void
     reset: () => void
-    refetch: (onSuccess?: Function) => void
+    refetch: (onSuccess?: () => void) => void
 }
 
 const initialValues: ProfileContextType = {
@@ -51,13 +54,14 @@ const profileContextValues = {...initialValues}
 export const getProfileValues = () => profileContextValues
 
 const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
+    const router = useRouter()
     const [user, setUser] = useState<User | null>(null)
     const [orgs, setOrgs] = useState<Org[]>([])
-    const [selectedOrg, setSelectedOrg] = useState<Org | null>(null)
+    const [selectedOrg, setSelectedOrg] = useStateCallback<Org | null>(null)
     const [loading, setLoading] = useState(false)
-    const context = useSession()
+    const {logout, doesSessionExist} = useSession()
 
-    const fetcher = useCallback((onSuccess?: Function) => {
+    const fetcher = useCallback((onSuccess?: () => void) => {
         setLoading(true)
         Promise.all([getProfile(), getOrgsList()])
             .then(([profile, orgs]) => {
@@ -68,10 +72,13 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                         orgs.data.find((org: Org) => org.owner === profile.data.id) ||
                         orgs.data[0] ||
                         null,
+                    onSuccess,
                 )
-                if (onSuccess) onSuccess()
             })
-            .catch(console.error)
+            .catch((error) => {
+                console.error(error)
+                if (isDemo()) logout()
+            })
             .finally(() => setLoading(false))
     }, [])
 
@@ -81,13 +88,19 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     useEffect(() => {
         // fetch profile and orgs list only if user is logged in
-        if (context.doesSessionExist) {
+        if (doesSessionExist) {
             fetcher()
         }
-    }, [context.doesSessionExist])
+    }, [doesSessionExist])
 
-    const changeSelectedOrg = (orgId: string) => {
-        setSelectedOrg(orgs.find((org) => org.id === orgId) || selectedOrg)
+    const changeSelectedOrg: ProfileContextType["changeSelectedOrg"] = (orgId, onSuccess) => {
+        setSelectedOrg(
+            orgs.find((org) => org.id === orgId) || selectedOrg,
+            onSuccess ||
+                (() => {
+                    router.push("/apps")
+                }),
+        )
     }
 
     const reset = () => {

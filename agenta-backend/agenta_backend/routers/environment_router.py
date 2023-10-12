@@ -3,7 +3,7 @@ from typing import List
 
 from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Request, HTTPException
 from agenta_backend.utils.common import check_access_to_app, check_access_to_variant
 from agenta_backend.models.api.api_models import (
     EnvironmentOutput,
@@ -11,15 +11,10 @@ from agenta_backend.models.api.api_models import (
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (
-        SessionContainer,
-        verify_session,
-    )  # noqa pylint: disable-all
     from agenta_backend.ee.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
-    from agenta_backend.services.auth_helper import SessionContainer, verify_session
     from agenta_backend.services.selectors import get_user_and_org_id
 import logging
 
@@ -32,7 +27,7 @@ router = APIRouter()
 @router.post("/deploy/")
 async def deploy_to_environment(
     payload: DeployToEnvironmentPayload,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """Deploys a given variant to an environment
 
@@ -45,7 +40,7 @@ async def deploy_to_environment(
         HTTPException: If the deployment fails.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
         # Check if has app access
         access_app = await check_access_to_variant(

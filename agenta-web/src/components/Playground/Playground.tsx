@@ -75,6 +75,7 @@ const Playground: React.FC = () => {
         const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
         if (newVariants.length < 1) {
             router.push(`/apps`)
+            return
         }
         let newActiveKey = ""
         if (newVariants.length > 0) {
