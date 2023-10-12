@@ -8,6 +8,25 @@ describe("Regex Evaluation workflow", () => {
         })
     })
 
+    context("Should check user's created variants and testsets", () => {
+        beforeEach(() => {
+            cy.visit("/apps")
+            cy.clickLinkAndWait('[data-cy="app-card-link"]')
+            cy.url().should("include", "/playground")
+        })
+        it("Should check if user has a variant created", () => {
+            cy.get(".ant-tabs-nav-list").within(() => {
+                cy.get(".ant-tabs-tab").should("have.length.gt", 0)
+            })
+        })
+        it("Should check if user has a variant created", () => {
+            cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
+            cy.get(".ant-table-tbody").within(() => {
+                cy.get("tr.ant-table-row").should("have.length.gt", 0)
+            })
+        })
+    })
+
     context("When starting without Selection", () => {
         beforeEach(() => {
             cy.visit("/apps")
