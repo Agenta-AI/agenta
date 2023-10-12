@@ -85,11 +85,15 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get(".ant-message-notice-content").should("not.exist")
             cy.wait(1000)
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
+            cy.get(".ant-spin").should("exist")
 
             cy.get('[data-cy="ai-critic-evaluation-result"]', {timeout: 10000}).should(
                 "contain.text",
                 "Results Data",
             )
+
+            cy.get(".ant-spin").should("not.exist")
+            cy.get(".ant-message-notice-content").should("contain.text", "Evaluation Results Saved")
         })
 
         it("Should executes a complete evaluation workflow with error", () => {
@@ -97,10 +101,14 @@ describe("AI Critics Evaluation workflow", () => {
             cy.wait(1000)
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
 
+            cy.get(".ant-spin").should("exist")
             cy.get('[data-cy="ai-critic-evaluation-result"]', {timeout: 10000}).should(
-                "not.contain.text",
-                "Results Data",
+                "contain.text",
+                "Failed to evaluate AI critique",
             )
+
+            cy.get(".ant-spin").should("not.exist")
+            cy.get(".ant-message-notice-content").should("exist")
         })
     })
 })
