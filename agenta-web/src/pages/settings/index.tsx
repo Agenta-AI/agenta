@@ -1,6 +1,7 @@
 import Secrets from "@/components/pages/settings/Secrets/Secrets"
 import ProtectedRoute from "@/components/ProtectedRoute/ProtectedRoute"
 import {useQueryParam} from "@/hooks/useQuery"
+import {isFeatureEnabled} from "@/lib/helpers/featureFlag"
 import {dynamicComponent, isDemo} from "@/lib/helpers/utils"
 import {ApartmentOutlined, KeyOutlined, LockOutlined} from "@ant-design/icons"
 import {Tabs, Typography} from "antd"
@@ -63,7 +64,7 @@ const Settings: React.FC = () => {
             ),
             key: "apiKeys",
             children: <APIKeys />,
-            hidden: !isDemo(),
+            hidden: !isDemo() || !isFeatureEnabled("API_KEYS"),
         },
     ]
 
