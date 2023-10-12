@@ -334,7 +334,7 @@ export default function Evaluations() {
                 message:
                     "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
                 btnText: "Go to API Keys",
-                endpoint: "/settings/?tab=apikeys",
+                endpoint: "/settings/?tab=secrets",
             })
             return
         }
