@@ -6,7 +6,7 @@ from bson import ObjectId
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Depends
+from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse
 
 from agenta_backend.models.api.testset_model import (
@@ -27,28 +27,20 @@ router = APIRouter()
 
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
-        SessionContainer,  # noqa pylint: disable-all
-        verify_session,  # noqa pylint: disable-all
-    )
     from agenta_backend.ee.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
-    from agenta_backend.services.auth_helper import (
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
 @router.post("/upload/", response_model=TestSetSimpleResponse)
 async def upload_file(
+    request: Request,
     upload_type: str = Form(None),
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
     app_id: str = Form(None),
-    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """
     Uploads a CSV or JSON file and saves its data to MongoDB.
@@ -62,7 +54,7 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     access_app = await check_access_to_app(
         user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
@@ -120,10 +112,10 @@ async def upload_file(
 
 @router.post("/endpoint/", response_model=TestSetSimpleResponse)
 async def import_testset(
+    request: Request,
     endpoint: str = Form(None),
     testset_name: str = Form(None),
     app_id: str = Form(None),
-    stoken_session: SessionContainer = Depends(verify_session()),
 ):
     """
     Import JSON testset data from an endpoint and save it to MongoDB.
@@ -135,7 +127,7 @@ async def import_testset(
     Returns:
         dict: The result of the import process.
     """
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     access_app = await check_access_to_app(
         user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
@@ -199,7 +191,7 @@ async def import_testset(
 async def create_testset(
     app_id: str,
     csvdata: NewTestset,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Create a testset with given name and app_name, save the testset to MongoDB.
@@ -213,7 +205,7 @@ async def create_testset(
     str: The id of the test set created.
     """
 
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     user = await get_user_object(user_org_data["uid"])
     access_app = await check_access_to_app(
         user_org_data=user_org_data, app_id=app_id, check_owner=False
@@ -253,7 +245,7 @@ async def create_testset(
 async def update_testset(
     testset_id: str,
     csvdata: NewTestset,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Update a testset with given id, update the testset in MongoDB.
@@ -270,7 +262,7 @@ async def update_testset(
         "csvdata": csvdata.csvdata,
         "updated_at": datetime.now().isoformat(),
     }
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
@@ -304,7 +296,7 @@ async def update_testset(
 @router.get("/", tags=["testsets"])
 async def get_testsets(
     app_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ) -> List[TestSetOutputResponse]:
     """
     Get all testsets.
@@ -315,7 +307,7 @@ async def get_testsets(
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     access_app = await check_access_to_app(
         user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
@@ -344,7 +336,7 @@ async def get_testsets(
 @router.get("/{testset_id}/", tags=["testsets"])
 async def get_testset(
     testset_id: str,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Fetch a specific testset in a MongoDB collection using its _id.
@@ -355,7 +347,7 @@ async def get_testset(
     Returns:
         The requested testset if found, else an HTTPException.
     """
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
@@ -374,7 +366,7 @@ async def get_testset(
 @router.delete("/", response_model=List[str])
 async def delete_testsets(
     delete_testsets: DeleteTestsets,
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Delete specific testsets based on their unique IDs.
@@ -385,7 +377,7 @@ async def delete_testsets(
     Returns:
     A list of the deleted testsets' IDs.
     """
-    user_org_data: dict = await get_user_and_org_id(stoken_session)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     deleted_ids = []
 

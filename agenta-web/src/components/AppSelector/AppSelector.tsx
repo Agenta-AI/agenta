@@ -180,7 +180,7 @@ const AppSelector: React.FC = () => {
                 duration: 5,
             })
             onFinish()
-            router.push("/settings?tab=apikeys")
+            router.push("/settings?tab=secrets")
             return
         }
 
