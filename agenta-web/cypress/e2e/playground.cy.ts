@@ -27,8 +27,8 @@ describe("Playgroynd | Simple prompt", function () {
         it("should run the prompt and get a response from an LLM", () => {
             cy.visit("/settings")
             // Update your cypress.json file to include your OPENAI API KEY
-            cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
-            cy.get('[data-cy="apikeys-save-button"]').click()
+            cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
+            cy.get('[data-cy="openai-api-save"]').click()
             cy.visit("/apps")
             cy.get('[data-cy="add-new-app-modal"]').should("not.exist")
             cy.get('[data-cy="choose-template-modal"]').should("not.exist")
