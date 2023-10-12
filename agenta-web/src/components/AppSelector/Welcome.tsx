@@ -118,6 +118,9 @@ const useStyles = createUseStyles({
             fontWeight: 600,
         },
     }),
+    text: {
+        marginLeft: 25,
+    },
 })
 
 interface Props {
@@ -198,22 +201,18 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
 
                         <ul className={classes.steps}>
                             <li>
-                                <CheckCircleFilled /> Start <span>from code</span>
+                                <CheckCircleFilled /> <span>Start from code!</span>
                             </li>
                             <li>
-                                <CheckCircleFilled /> Compare different workflows
+                                <CheckCircleFilled /> Build sophisticated apps!
                             </li>
                             <li>
-                                <CheckCircleFilled /> Test parameters in the UI
+                                <CheckCircleFilled /> <span>Continue in the UI </span>{" "}
+                                <div className={classes.text}>(Everything in the left)</div>
                             </li>
                             <li>
-                                <CheckCircleFilled /> Evaluate outputs
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> Deploy in one click
-                            </li>
-                            <li>
-                                <CheckCircleFilled /> + Everything in the left
+                                <CheckCircleFilled /> Streamline collaboration between devs and
+                                domain experts.
                             </li>
                         </ul>
                     </div>
