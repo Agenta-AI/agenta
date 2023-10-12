@@ -1,13 +1,4 @@
 describe("Regex Evaluation workflow", () => {
-    context("When navigating to Evaluation Page", () => {
-        it("Should reach the Evaluation Page", () => {
-            cy.visit("/apps")
-            cy.clickLinkAndWait('[data-cy="app-card-link"]')
-            cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
-            cy.url().should("include", "/evaluations")
-        })
-    })
-
     context("Should check user's created variants and testsets", () => {
         beforeEach(() => {
             cy.visit("/apps")
@@ -24,6 +15,15 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-table-tbody").within(() => {
                 cy.get("tr.ant-table-row").should("have.length.gt", 0)
             })
+        })
+    })
+
+    context("When navigating to Evaluation Page", () => {
+        it("Should reach the Evaluation Page", () => {
+            cy.visit("/apps")
+            cy.clickLinkAndWait('[data-cy="app-card-link"]')
+            cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
+            cy.url().should("include", "/evaluations")
         })
     })
 
