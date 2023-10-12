@@ -34,18 +34,18 @@ export const saveOpenAIKey = (key: string) => {
 }
 
 export const getOpenAIKey = (): string => {
-    let token: string | null = ""
-
+    // precedence order: local storage, env variable, empty string
+    let key
     if (typeof window !== "undefined") {
-        // TODO: add decryption here
-        token = localStorage.getItem(openAItoken)
+        key = localStorage.getItem(openAItoken)
     }
-
-    return token ?? ""
+    return key ?? process.env.NEXT_PUBLIC_OPENAI_API_KEY ?? ""
 }
 
 export const removeOpenAIKey = () => {
-    localStorage.removeItem(openAItoken)
+    if (typeof window !== "undefined") {
+        localStorage.removeItem(openAItoken)
+    }
 }
 
 export const capitalize = (s: string) => {
@@ -135,8 +135,8 @@ export const isDemo = () => {
     return false
 }
 
-export const dynamicComponent = (path: string, fallback: any = () => null) => {
-    return dynamic(() => import(`@/components/${path}`), {
+export function dynamicComponent<T>(path: string, fallback: any = () => null) {
+    return dynamic<T>(() => import(`@/components/${path}`), {
         loading: fallback,
         ssr: false,
     })

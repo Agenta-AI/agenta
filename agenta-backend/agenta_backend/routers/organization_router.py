@@ -4,7 +4,7 @@ Does not deal with the instanciation of the images
 
 import os
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Request
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.models.api.organization_models import (
     OrganizationOutput,
@@ -13,18 +13,10 @@ from agenta_backend.models.api.organization_models import (
 from agenta_backend.services import db_manager
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.auth_helper import (  # noqa pylint: disable-all
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.ee.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
-    from agenta_backend.services.auth_helper import (
-        SessionContainer,
-        verify_session,
-    )
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
@@ -35,7 +27,7 @@ logger.setLevel(logging.DEBUG)
 
 @router.get("/", response_model=list[Organization])
 async def list_organizations(
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     """
     Returns a list of organizations associated with the user's session.
@@ -51,7 +43,7 @@ async def list_organizations(
     """
 
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         organizations_db = await db_manager.get_organizations_by_list_ids(
             user_org_data["organization_ids"]
         )
@@ -76,10 +68,10 @@ async def list_organizations(
 
 @router.get("/own/")
 async def get_user_organization(
-    stoken_session: SessionContainer = Depends(verify_session()),
+    request: Request,
 ):
     try:
-        user_org_data: dict = await get_user_and_org_id(stoken_session)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         org_db = await get_user_own_org(user_org_data["uid"])
         if org_db is None:
             raise HTTPException(404, detail="User does not have an organization")

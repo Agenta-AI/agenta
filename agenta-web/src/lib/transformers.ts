@@ -27,6 +27,10 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
     return {
         id: item.id,
         createdAt: formatDate(item.created_at),
+        user: {
+            id: item.user_id,
+            username: item.user_username,
+        },
         variants,
         testset: {
             _id: item.testset_id,

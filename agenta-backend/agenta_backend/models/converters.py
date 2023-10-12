@@ -67,6 +67,7 @@ async def evaluation_db_to_pydantic(
         id=str(evaluation_db.id),
         app_id=str(evaluation_db.app.id),
         user_id=str(evaluation_db.user.id),
+        user_username=evaluation_db.user.username or "",
         status=evaluation_db.status,
         evaluation_type=evaluation_db.evaluation_type,
         evaluation_type_settings=evaluation_db.evaluation_type_settings,
@@ -115,6 +116,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         )
         uri = deployment.uri_path
     else:
+        deployment = None
         uri = None
     logger.info(f"uri: {uri} deployment: {app_variant_db.base.deployment} {deployment}")
     return AppVariantOutput(
@@ -257,8 +259,8 @@ def trace_db_to_pydantic(trace_db: TraceDB) -> Trace:
 
     return Trace(
         trace_id=str(trace_db.id),
-        app_name=trace_db.app_name,
-        variant_name=trace_db.variant_name,
+        app_id=trace_db.app_id,
+        variant_id=trace_db.variant_id,
         cost=trace_db.cost,
         latency=trace_db.latency,
         status=trace_db.status,

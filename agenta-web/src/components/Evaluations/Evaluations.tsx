@@ -10,18 +10,20 @@ import {
     Typography,
     Select,
     message,
+    ModalProps,
+    Tooltip,
 } from "antd"
-import {DownOutlined, PlusOutlined} from "@ant-design/icons"
+import {DownOutlined, PlusOutlined, EditFilled} from "@ant-design/icons"
 import {
     createNewEvaluation,
     fetchVariants,
     useLoadTestsetsList,
     fetchCustomEvaluations,
 } from "@/lib/services/api"
-import {getOpenAIKey} from "@/lib/helpers/utils"
+import {dynamicComponent, getOpenAIKey, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
-import {EvaluationFlow, EvaluationType} from "@/lib/enums"
+import {EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import EvaluationErrorModal from "./EvaluationErrorModal"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
@@ -57,10 +59,6 @@ const useStyles = createUseStyles({
         marginRight: "8px",
         filter: themeMode === "dark" ? "invert(1)" : "none",
     }),
-    evaluationBtn: {
-        display: "flex",
-        justifyContent: "flex-end",
-    },
     createCustomEvalBtn: {
         color: "#fff  !important",
         backgroundColor: "#0fbf0f",
@@ -128,6 +126,11 @@ const useStyles = createUseStyles({
         gap: 8,
         color: "#1668dc",
     },
+    newCodeEvalList: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
 })
 const {Title} = Typography
 
@@ -138,6 +141,7 @@ export default function Evaluations() {
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
     const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const {Option} = Select
 
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
@@ -167,6 +171,12 @@ export default function Evaluations() {
 
     const [customCodeEvaluationList, setCustomCodeEvaluationList] =
         useState<SingleCustomEvaluation[]>()
+
+    const [shareModalOpen, setShareModalOpen] = useState(false)
+
+    const ShareEvaluationModal = dynamicComponent<ModalProps & GenericObject>(
+        "Evaluations/ShareEvaluationModal",
+    )
 
     useEffect(() => {
         const fetchData = async () => {
@@ -319,15 +329,12 @@ export default function Evaluations() {
         } else if (selectedTestset?.name === "Select a Test set") {
             message.error("Please select a testset")
             return
-        } else if (
-            getOpenAIKey() === "" &&
-            selectedEvaluationType === EvaluationType.auto_ai_critique
-        ) {
+        } else if (!getOpenAIKey() && selectedEvaluationType === EvaluationType.auto_ai_critique) {
             setError({
                 message:
                     "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
                 btnText: "Go to API Keys",
-                endpoint: "/settings/?tab=apikeys",
+                endpoint: "/settings/?tab=secrets",
             })
             return
         }
@@ -421,6 +428,10 @@ export default function Evaluations() {
         }
         setSelectedCustomEvaluationID(id)
         setSelectedEvaluationType(EvaluationType.custom_code_run)
+    }
+
+    const handleEditOption = (id: string) => {
+        router.push(`/apps/${appId}/evaluations/custom_evaluations/${id}`)
     }
 
     return (
@@ -541,24 +552,38 @@ export default function Evaluations() {
                                     }`}
                                     value={selectedCustomEvaluationID || "Code Evaluation"}
                                     onChange={handleCustomEvaluationOptionChange}
-                                    options={[
-                                        {
-                                            value: "new",
-                                            label: (
-                                                <div className={classes.newCodeEval}>
-                                                    <PlusOutlined />
-                                                    New code evaluation
+                                    optionLabelProp="label"
+                                >
+                                    <Option value="new" label="New code evaluation">
+                                        <div className={classes.newCodeEval}>
+                                            <PlusOutlined />
+                                            New code evaluation
+                                        </div>
+                                    </Option>
+                                    {...(customCodeEvaluationList || []).map(
+                                        (item: SingleCustomEvaluation) => (
+                                            <Option
+                                                key={item.id}
+                                                value={item.id}
+                                                label={item.evaluation_name}
+                                            >
+                                                <div className={classes.newCodeEvalList}>
+                                                    <p>{item.evaluation_name}</p>
+                                                    <Tooltip placement="right" title="Edit">
+                                                        <Button
+                                                            type="text"
+                                                            onClick={() =>
+                                                                handleEditOption(item.id)
+                                                            }
+                                                        >
+                                                            <EditFilled />
+                                                        </Button>
+                                                    </Tooltip>
                                                 </div>
-                                            ),
-                                        },
-                                        ...(customCodeEvaluationList || []).map(
-                                            (item: SingleCustomEvaluation) => ({
-                                                value: item.id,
-                                                label: `${item.evaluation_name}`,
-                                            }),
+                                            </Option>
                                         ),
-                                    ]}
-                                />
+                                    )}
+                                </Select>
                                 <Image
                                     src={codeIcon}
                                     alt="Picture of the author"
@@ -607,8 +632,24 @@ export default function Evaluations() {
                     <Col span={6}></Col>
                 </Row>
 
-                <Row justify="end">
-                    <Col span={8} className={classes.evaluationBtn}>
+                <Row justify="end" gutter={8}>
+                    {selectedEvaluationType === EvaluationType.human_a_b_testing && isDemo() && (
+                        <Col>
+                            <Button
+                                disabled={
+                                    !(
+                                        selectedVariants[0].variantId &&
+                                        selectedVariants[0].variantId &&
+                                        selectedTestset._id
+                                    )
+                                }
+                                onClick={() => setShareModalOpen(true)}
+                            >
+                                Invite Collaborators
+                            </Button>
+                        </Col>
+                    )}
+                    <Col>
                         <Button onClick={onStartEvaluation} type="primary">
                             Start a new evaluation
                         </Button>
@@ -626,6 +667,15 @@ export default function Evaluations() {
                 <AutomaticEvaluationResult />
                 <HumanEvaluationResult />
             </div>
+
+            <ShareEvaluationModal
+                open={shareModalOpen}
+                onCancel={() => setShareModalOpen(false)}
+                destroyOnClose
+                variantIds={selectedVariants.map((v) => v.variantId)}
+                testsetId={selectedTestset._id}
+                evaluationType={EvaluationType.human_a_b_testing}
+            />
         </div>
     )
 }
