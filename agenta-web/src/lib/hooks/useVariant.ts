@@ -37,8 +37,8 @@ export function useVariant(appId: string, variant: Variant) {
             }
         }
 
-        if (variant) fetchParameters()
-    }, [appId, variant])
+        if (variant.variantName && appId) fetchParameters()
+    }, [variant.variantName])
 
     useEffect(() => {
         const updatedInputParams = updateInputParams(optParams, inputParams || [])
