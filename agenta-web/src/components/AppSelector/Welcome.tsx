@@ -207,12 +207,12 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                                 <CheckCircleFilled /> Build sophisticated apps!
                             </li>
                             <li>
-                                <CheckCircleFilled /> <span>Continue in the UI </span>{" "}
+                                <CheckCircleFilled /> <span>Continue in the UI! </span>{" "}
                                 <div className={classes.text}>(Everything in the left)</div>
                             </li>
                             <li>
                                 <CheckCircleFilled /> Streamline <span>collaboration</span> between
-                                devs and domain experts.
+                                devs and domain experts!
                             </li>
                         </ul>
                     </div>
