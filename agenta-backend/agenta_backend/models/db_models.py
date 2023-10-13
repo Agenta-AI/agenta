@@ -6,6 +6,19 @@ from bson import ObjectId
 from odmantic import EmbeddedModel, Field, Model, Reference
 
 
+class APIKeyDB(Model):
+    prefix: str
+    hashed_key: str
+    user_id: str
+    rate_limit: int = Field(default=0)
+    expiration_date: Optional[datetime]
+    created_at: Optional[datetime] = datetime.utcnow()
+    updated_at: Optional[datetime]
+
+    class Config:
+        collection = "api_keys"
+
+
 class InvitationDB(EmbeddedModel):
     token: str = Field(unique=True)
     email: str
@@ -274,10 +287,11 @@ class Feedback(EmbeddedModel):
 
 
 class TraceDB(Model):
+    app_id: Optional[str]
+    variant_id: str
     spans: List[ObjectId]
     start_time: datetime
     end_time: datetime = Field(default=datetime.utcnow())
-    variant_id: Optional[str]
     cost: Optional[float]
     latency: float
     status: str  # initiated, completed, stopped, cancelled, failed
