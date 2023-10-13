@@ -5,8 +5,8 @@ describe("Regex Evaluation workflow", () => {
     context("When creating variants and testsets", () => {
         it("Should create app variant", () => {
             cy.visit("/settings")
-            cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
-            cy.get('[data-cy="apikeys-save-button"]').click()
+            cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
+            cy.get('[data-cy="openai-api-save"]').click()
             cy.visit("/apps")
             cy.get('[data-cy="create-new-app-button"]').click()
             cy.get('[data-cy="add-new-app-modal"]').should("exist")
