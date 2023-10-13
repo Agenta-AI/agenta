@@ -11,8 +11,9 @@ import {
     Select,
     message,
     ModalProps,
+    Tooltip,
 } from "antd"
-import {DownOutlined, PlusOutlined} from "@ant-design/icons"
+import {DownOutlined, PlusOutlined, EditFilled} from "@ant-design/icons"
 import {
     createNewEvaluation,
     fetchVariants,
@@ -125,6 +126,11 @@ const useStyles = createUseStyles({
         gap: 8,
         color: "#1668dc",
     },
+    newCodeEvalList: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
 })
 const {Title} = Typography
 
@@ -135,6 +141,7 @@ export default function Evaluations() {
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
     const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const {Option} = Select
 
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
@@ -330,15 +337,12 @@ export default function Evaluations() {
         } else if (selectedTestset?.name === "Select a Test set") {
             message.error("Please select a testset")
             return
-        } else if (
-            getOpenAIKey() === "" &&
-            selectedEvaluationType === EvaluationType.auto_ai_critique
-        ) {
+        } else if (!getOpenAIKey() && selectedEvaluationType === EvaluationType.auto_ai_critique) {
             setError({
                 message:
                     "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
                 btnText: "Go to API Keys",
-                endpoint: "/settings/?tab=apikeys",
+                endpoint: "/settings/?tab=secrets",
             })
             return
         }
@@ -432,6 +436,10 @@ export default function Evaluations() {
         }
         setSelectedCustomEvaluationID(id)
         setSelectedEvaluationType(EvaluationType.custom_code_run)
+    }
+
+    const handleEditOption = (id: string) => {
+        router.push(`/apps/${appId}/evaluations/custom_evaluations/${id}`)
     }
 
     return (
@@ -552,24 +560,38 @@ export default function Evaluations() {
                                     }`}
                                     value={selectedCustomEvaluationID || "Code Evaluation"}
                                     onChange={handleCustomEvaluationOptionChange}
-                                    options={[
-                                        {
-                                            value: "new",
-                                            label: (
-                                                <div className={classes.newCodeEval}>
-                                                    <PlusOutlined />
-                                                    New code evaluation
+                                    optionLabelProp="label"
+                                >
+                                    <Option value="new" label="New code evaluation">
+                                        <div className={classes.newCodeEval}>
+                                            <PlusOutlined />
+                                            New code evaluation
+                                        </div>
+                                    </Option>
+                                    {...(customCodeEvaluationList || []).map(
+                                        (item: SingleCustomEvaluation) => (
+                                            <Option
+                                                key={item.id}
+                                                value={item.id}
+                                                label={item.evaluation_name}
+                                            >
+                                                <div className={classes.newCodeEvalList}>
+                                                    <p>{item.evaluation_name}</p>
+                                                    <Tooltip placement="right" title="Edit">
+                                                        <Button
+                                                            type="text"
+                                                            onClick={() =>
+                                                                handleEditOption(item.id)
+                                                            }
+                                                        >
+                                                            <EditFilled />
+                                                        </Button>
+                                                    </Tooltip>
                                                 </div>
-                                            ),
-                                        },
-                                        ...(customCodeEvaluationList || []).map(
-                                            (item: SingleCustomEvaluation) => ({
-                                                value: item.id,
-                                                label: `${item.evaluation_name}`,
-                                            }),
+                                            </Option>
                                         ),
-                                    ]}
-                                />
+                                    )}
+                                </Select>
                                 <Image
                                     src={codeIcon}
                                     alt="Picture of the author"
