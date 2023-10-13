@@ -7,6 +7,7 @@ import {fetchEnvironments, fetchVariants, removeVariant} from "@/lib/services/ap
 import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
 import {SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
+import TestContextProvider from "./TestsetContextProvider"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -186,32 +187,35 @@ const Playground: React.FC = () => {
     return (
         <div>
             {contextHolder}
-            <div style={{position: "relative"}}>
-                <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
-                    <SyncOutlined
-                        spin={isLoading}
-                        style={{color: "#1677ff", fontSize: "17px"}}
-                        onClick={() => {
-                            setIsLoading(true)
-                            fetchData()
+
+            <TestContextProvider>
+                <div style={{position: "relative"}}>
+                    <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
+                        <SyncOutlined
+                            spin={isLoading}
+                            style={{color: "#1677ff", fontSize: "17px"}}
+                            onClick={() => {
+                                setIsLoading(true)
+                                fetchData()
+                            }}
+                        />
+                    </div>
+                    <Tabs
+                        type="editable-card"
+                        activeKey={activeKey}
+                        onChange={setActiveKey}
+                        onEdit={(targetKey, action) => {
+                            if (action === "add") {
+                                setIsModalOpen(true)
+                            } else if (action === "remove") {
+                                setRemovalVariantName(targetKey as string)
+                                setRemovalWarningModalOpen1(true)
+                            }
                         }}
+                        items={tabItems}
                     />
                 </div>
-                <Tabs
-                    type="editable-card"
-                    activeKey={activeKey}
-                    onChange={setActiveKey}
-                    onEdit={(targetKey, action) => {
-                        if (action === "add") {
-                            setIsModalOpen(true)
-                        } else if (action === "remove") {
-                            setRemovalVariantName(targetKey as string)
-                            setRemovalWarningModalOpen1(true)
-                        }
-                    }}
-                    items={tabItems}
-                />
-            </div>
+            </TestContextProvider>
 
             <NewVariantModal
                 isModalOpen={isModalOpen}
