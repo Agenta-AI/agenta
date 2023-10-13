@@ -100,8 +100,9 @@ async def test_create_app_variant(get_first_user_object):
     )
     await engine.save(appvariant)
 
-    response = await app_router.list_app_variants(app_id=str(app.id))
-    assert len(response) == 1
+    response = await test_client.get(f"{BACKEND_API_HOST}/apps/{str(app.id)}/variants/")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
 
 
 @pytest.mark.asyncio
