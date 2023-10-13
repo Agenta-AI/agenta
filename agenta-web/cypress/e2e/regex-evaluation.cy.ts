@@ -1,27 +1,87 @@
+import {randString} from "../../src/lib/helpers/utils"
+
 describe("Regex Evaluation workflow", () => {
-    context("Should check user's created variants and testsets", () => {
-        beforeEach(() => {
+    let app_id
+    context("When creating variants and testsets", () => {
+        it("Should create app variant", () => {
+            cy.visit("/settings")
+            cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
+            cy.get('[data-cy="apikeys-save-button"]').click()
             cy.visit("/apps")
-            cy.clickLinkAndWait('[data-cy="app-card-link"]')
-            cy.url().should("include", "/playground")
-        })
-        it("Should check if user has a variant created", () => {
-            cy.get(".ant-tabs-nav-list").within(() => {
-                cy.get(".ant-tabs-tab").should("have.length.gt", 0)
+            cy.get('[data-cy="create-new-app-button"]').click()
+            cy.get('[data-cy="add-new-app-modal"]').should("exist")
+            cy.get('[data-cy="create-from-template"]').click()
+            cy.get('[data-cy="choose-template-modal"]').should("exist")
+            cy.get('[data-cy="create-app-button"]').click()
+            const appName = randString(5)
+
+            cy.get('[data-cy="enter-app-name-modal"]')
+                .should("exist")
+                .within(() => {
+                    cy.get("input").type(appName)
+                })
+
+            cy.get('[data-cy="enter-app-name-modal-button"]').click()
+            cy.intercept("POST", "/api/apps/app_and_variant_from_template/").as("postRequest")
+            cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
+                expect(interception.response.statusCode).to.eq(200)
+
+                cy.intercept("GET", `/api/apps/${interception.response.body.app_id}/variants/`).as(
+                    "getRequest",
+                )
+                cy.wait("@getRequest", {requestTimeout: 15000}).then((interception) => {
+                    expect(interception.response.statusCode).to.eq(200)
+                })
+                cy.url().should("include", `/apps/${interception.response.body.app_id}/playground`)
+                app_id = interception.response.body.app_id
             })
         })
-        it("Should check if user has a variant created", () => {
+
+        it("Should create testset", () => {
+            cy.visit(`/apps/${app_id}/playground`)
             cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
-            cy.get(".ant-table-tbody").within(() => {
-                cy.get("tr.ant-table-row").should("have.length.gt", 0)
-            })
+            cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
+            const testsetName = randString(5)
+
+            cy.get('[data-cy="testset-name-input"]').type(testsetName)
+
+            cy.get(".ag-row")
+                .eq(0)
+                .within(() => {
+                    cy.get("div.ag-cell")
+                        .eq(1)
+                        .within(() => {
+                            cy.get("span").eq(0).dblclick()
+                            cy.get(".ag-input-field-input").type("Germany")
+                        })
+                })
+            cy.get(".ag-row")
+                .eq(1)
+                .within(() => {
+                    cy.get("div.ag-cell")
+                        .eq(1)
+                        .within(() => {
+                            cy.get("span").eq(0).dblclick()
+                            cy.get(".ag-input-field-input").type("Sweden")
+                        })
+                })
+            cy.get(".ag-row")
+                .eq(2)
+                .within(() => {
+                    cy.get("div.ag-cell")
+                        .eq(1)
+                        .within(() => {
+                            cy.get("span").eq(0).dblclick()
+                            cy.get(".ag-input-field-input").type("France")
+                        })
+                })
+            cy.get('[data-cy="testset-save-button"]').click()
         })
     })
 
     context("When navigating to Evaluation Page", () => {
         it("Should reach the Evaluation Page", () => {
-            cy.visit("/apps")
-            cy.clickLinkAndWait('[data-cy="app-card-link"]')
+            cy.visit(`/apps/${app_id}/playground`)
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
             cy.url().should("include", "/evaluations")
         })
@@ -29,8 +89,7 @@ describe("Regex Evaluation workflow", () => {
 
     context("When starting without Selection", () => {
         beforeEach(() => {
-            cy.visit("/apps")
-            cy.clickLinkAndWait('[data-cy="app-card-link"]')
+            cy.visit(`/apps/${app_id}/playground`)
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
             cy.url().should("include", "/evaluations")
         })
@@ -72,8 +131,7 @@ describe("Regex Evaluation workflow", () => {
 
     context("When starting After Selection", () => {
         beforeEach(() => {
-            cy.visit("/apps")
-            cy.clickLinkAndWait('[data-cy="app-card-link"]')
+            cy.visit(`/apps/${app_id}/playground`)
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
             cy.url().should("include", "/evaluations")
             cy.clickLinkAndWait('[data-cy="regex-button"]')
@@ -108,13 +166,13 @@ describe("Regex Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
 
-            cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 10000})
+            cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 15000})
                 .invoke("text")
                 .then((text) => {
                     // Check if the text contains either "Match" or "Mismatch"
                     expect(text.includes("Match") || text.includes("Mismatch")).to.be.true
                 })
-            cy.get('[data-cy="regex-evaluation-score"]', {timeout: 10000})
+            cy.get('[data-cy="regex-evaluation-score"]', {timeout: 15000})
                 .invoke("text")
                 .then((text) => {
                     // Check if the text contains either "correct" or "wrong"
@@ -135,13 +193,13 @@ describe("Regex Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
 
-            cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 10000})
+            cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 15000})
                 .invoke("text")
                 .then((text) => {
                     // Check if the text contains either "Match" or "Mismatch"
                     expect(text.includes("Match") || text.includes("Mismatch")).to.be.true
                 })
-            cy.get('[data-cy="regex-evaluation-score"]', {timeout: 10000})
+            cy.get('[data-cy="regex-evaluation-score"]', {timeout: 15000})
                 .invoke("text")
                 .then((text) => {
                     // Check if the text contains either "correct" or "wrong"
