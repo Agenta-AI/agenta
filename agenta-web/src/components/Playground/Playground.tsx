@@ -1,27 +1,24 @@
 import React, {useState, useEffect} from "react"
 import {Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
-import VariantRemovalWarningModal from "./VariantRemovalWarningModal"
 import NewVariantModal from "./NewVariantModal"
-import {fetchEnvironments, fetchVariants, removeVariant} from "@/lib/services/api"
+import {fetchEnvironments, fetchVariants} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
 import {SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
+import {useQueryParam} from "@/hooks/useQuery"
+import AlertPopup from "../AlertPopup/AlertPopup"
 
 const Playground: React.FC = () => {
     const router = useRouter()
     const appId = router.query.app_id as string
     const [templateVariantName, setTemplateVariantName] = useState("") // We use this to save the template variant name when the user creates a new variant
-    const [activeKey, setActiveKey] = useState("1")
+    const [activeKey, setActiveKey] = useQueryParam("variant")
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [variants, setVariants] = useState<Variant[]>([]) // These are the variants that exist in the backend
     const [isLoading, setIsLoading] = useState(true)
     const [isError, setIsError] = useState(false)
     const [newVariantName, setNewVariantName] = useState("") // This is the name of the new variant that the user is creating
-    const [isWarningModalOpen1, setRemovalWarningModalOpen1] = useState(false)
-    const [isWarningModalOpen2, setRemovalWarningModalOpen2] = useState(false)
-    const [removalVariantName, setRemovalVariantName] = useState<string | null>(null)
-    const [isDeleteLoading, setIsDeleteLoading] = useState(false)
     const [messageApi, contextHolder] = message.useMessage()
 
     const addTab = () => {
@@ -90,7 +87,7 @@ const Playground: React.FC = () => {
             const backendVariants = await fetchVariants(appId)
             if (backendVariants.length > 0) {
                 setVariants(backendVariants)
-                setActiveKey(backendVariants[0].variantName)
+                if (!activeKey) setActiveKey(backendVariants[0].variantName)
             }
             setIsLoading(false)
         } catch (error) {
@@ -119,29 +116,6 @@ const Playground: React.FC = () => {
     if (isError) return <div>failed to load variants for app {appId}</div>
     if (isLoading) return <div>loading variants...</div>
 
-    const handleRemove = () => {
-        if (removalVariantName) {
-            removeTab()
-        }
-        setRemovalWarningModalOpen1(false)
-    }
-    const handleBackendRemove = async () => {
-        if (removalVariantName) {
-            setIsDeleteLoading(true)
-            // only call the backend if the variant is persistent
-            const toRemove = variants.find((variant) => variant.variantName === removalVariantName)
-            if (toRemove?.persistent) await removeVariant(toRemove.variantId)
-
-            removeTab()
-            setIsDeleteLoading(false)
-        }
-        setRemovalWarningModalOpen1(false)
-        removedSuccessfully()
-    }
-
-    const handleCancel1 = () => setRemovalWarningModalOpen1(false)
-    const handleCancel2 = () => setRemovalWarningModalOpen2(false)
-
     /**
      * Called when the variant is saved for the first time to the backend
      * after this point, the variant cannot be removed from the tab menu
@@ -158,10 +132,31 @@ const Playground: React.FC = () => {
             })
         })
     }
-    const removedSuccessfully = () => {
-        messageApi.open({
-            type: "success",
-            content: "Variant removed successfully!",
+
+    const deleteVariant = (deleteAction?: Function) => {
+        AlertPopup({
+            title: "Delete Variant",
+            message: (
+                <span>
+                    You're about to delete this variant. This action is irreversible.
+                    <br />
+                    Are you sure you want to proceed?
+                </span>
+            ),
+            okButtonProps: {
+                type: "primary",
+                danger: true,
+            },
+            onOk: async () => {
+                try {
+                    if (deleteAction) await deleteAction()
+                    removeTab()
+                    messageApi.open({
+                        type: "success",
+                        content: "Variant removed successfully!",
+                    })
+                } catch {}
+            },
         })
     }
 
@@ -173,11 +168,9 @@ const Playground: React.FC = () => {
             <ViewNavigation
                 variant={variant}
                 handlePersistVariant={handlePersistVariant}
-                setRemovalVariantName={setRemovalVariantName}
-                setRemovalWarningModalOpen={setRemovalWarningModalOpen2}
-                isDeleteLoading={isDeleteLoading && removalVariantName === variant.variantName}
                 environments={environments}
                 onAdd={fetchData}
+                deleteVariant={deleteVariant}
             />
         ),
         closable: !variant.persistent,
@@ -201,12 +194,11 @@ const Playground: React.FC = () => {
                     type="editable-card"
                     activeKey={activeKey}
                     onChange={setActiveKey}
-                    onEdit={(targetKey, action) => {
+                    onEdit={(_, action) => {
                         if (action === "add") {
                             setIsModalOpen(true)
                         } else if (action === "remove") {
-                            setRemovalVariantName(targetKey as string)
-                            setRemovalWarningModalOpen1(true)
+                            deleteVariant()
                         }
                     }}
                     items={tabItems}
@@ -221,18 +213,6 @@ const Playground: React.FC = () => {
                 setNewVariantName={setNewVariantName}
                 newVariantName={newVariantName}
                 setTemplateVariantName={setTemplateVariantName}
-            />
-            <VariantRemovalWarningModal
-                isModalOpen={isWarningModalOpen1}
-                setIsModalOpen={setRemovalWarningModalOpen1}
-                handleRemove={handleRemove}
-                handleCancel={handleCancel1}
-            />
-            <VariantRemovalWarningModal
-                isModalOpen={isWarningModalOpen2}
-                setIsModalOpen={setRemovalWarningModalOpen2}
-                handleRemove={handleBackendRemove}
-                handleCancel={handleCancel2}
             />
         </div>
     )
