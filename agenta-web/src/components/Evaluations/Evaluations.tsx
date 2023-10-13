@@ -487,7 +487,7 @@ export default function Evaluations() {
                                         className={classes.evaluationImg}
                                     />
 
-                                    <span>
+                                    <span data-cy="automatic-radio-button-exact-match">
                                         {EvaluationTypeLabels[EvaluationType.auto_exact_match]}
                                     </span>
                                 </div>
@@ -614,7 +614,7 @@ export default function Evaluations() {
                                     }}
                                     data-cy={`variants-dropdown-${index}`}
                                 >
-                                    <div className={classes.dropdownStyles}>
+                                    <div data-cy={`variant-select-${index}`} className={classes.dropdownStyles}>
                                         {selectedVariants[index]?.variantName || "Select a variant"}
                                         <DownOutlined />
                                     </div>
@@ -630,7 +630,7 @@ export default function Evaluations() {
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
                             <Button className={classes.dropdownBtn} data-cy="selected-testset">
-                                <div className={classes.dropdownStyles}>
+                                <div data-cy="testset-select" className={classes.dropdownStyles}>
                                     {selectedTestset.name}
 
                                     <DownOutlined />

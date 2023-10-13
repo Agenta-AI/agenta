@@ -370,6 +370,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                     <Col span={12}>
                         <Space>
                             <Button
+                                data-cy="exact-match-evaluation-button"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}
