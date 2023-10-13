@@ -7,13 +7,13 @@ import {fetchEnvironments, fetchVariants, removeVariant} from "@/lib/services/ap
 import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
 import {SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
+import TestContextProvider from "./TestsetContextProvider"
 
 const Playground: React.FC = () => {
     const router = useRouter()
     const appId = router.query.app_id as string
-    const variantName = router.query.variant_name as unknown as string
     const [templateVariantName, setTemplateVariantName] = useState("") // We use this to save the template variant name when the user creates a new variant
-    const [activeKey, setActiveKey] = useState("")
+    const [activeKey, setActiveKey] = useState("1")
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [variants, setVariants] = useState<Variant[]>([]) // These are the variants that exist in the backend
     const [isLoading, setIsLoading] = useState(true)
@@ -76,6 +76,7 @@ const Playground: React.FC = () => {
         const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
         if (newVariants.length < 1) {
             router.push(`/apps`)
+            return
         }
         let newActiveKey = ""
         if (newVariants.length > 0) {
@@ -91,11 +92,6 @@ const Playground: React.FC = () => {
             if (backendVariants.length > 0) {
                 setVariants(backendVariants)
                 setActiveKey(backendVariants[0].variantName)
-                if (!variantName) {
-                    router.push([router.asPath, backendVariants[0].variantName].join("/"))
-                } else {
-                    setActiveKey(variantName)
-                }
             }
             setIsLoading(false)
         } catch (error) {
@@ -103,12 +99,6 @@ const Playground: React.FC = () => {
             setIsLoading(false)
         }
     }
-
-    useEffect(() => {
-        if (variantName && activeKey) {
-            router.push(router.asPath?.replace(encodeURI(variantName), activeKey))
-        }
-    }, [activeKey])
 
     useEffect(() => {
         fetchData()
@@ -177,7 +167,7 @@ const Playground: React.FC = () => {
     }
 
     // Map the variants array to create the items array conforming to the Tab interface
-    const tabItems: PlaygroundTabsItem[] = variants.map((variant) => ({
+    const tabItems: PlaygroundTabsItem[] = variants.map((variant, index) => ({
         key: variant.variantName,
         label: `Variant ${variant.variantName}`,
         children: (
@@ -197,32 +187,35 @@ const Playground: React.FC = () => {
     return (
         <div>
             {contextHolder}
-            <div style={{position: "relative"}}>
-                <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
-                    <SyncOutlined
-                        spin={isLoading}
-                        style={{color: "#1677ff", fontSize: "17px"}}
-                        onClick={() => {
-                            setIsLoading(true)
-                            fetchData()
+
+            <TestContextProvider>
+                <div style={{position: "relative"}}>
+                    <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
+                        <SyncOutlined
+                            spin={isLoading}
+                            style={{color: "#1677ff", fontSize: "17px"}}
+                            onClick={() => {
+                                setIsLoading(true)
+                                fetchData()
+                            }}
+                        />
+                    </div>
+                    <Tabs
+                        type="editable-card"
+                        activeKey={activeKey}
+                        onChange={setActiveKey}
+                        onEdit={(targetKey, action) => {
+                            if (action === "add") {
+                                setIsModalOpen(true)
+                            } else if (action === "remove") {
+                                setRemovalVariantName(targetKey as string)
+                                setRemovalWarningModalOpen1(true)
+                            }
                         }}
+                        items={tabItems}
                     />
                 </div>
-                <Tabs
-                    type="editable-card"
-                    activeKey={activeKey}
-                    onChange={setActiveKey}
-                    onEdit={(targetKey, action) => {
-                        if (action === "add") {
-                            setIsModalOpen(true)
-                        } else if (action === "remove") {
-                            setRemovalVariantName(targetKey as string)
-                            setRemovalWarningModalOpen1(true)
-                        }
-                    }}
-                    items={tabItems}
-                />
-            </div>
+            </TestContextProvider>
 
             <NewVariantModal
                 isModalOpen={isModalOpen}
