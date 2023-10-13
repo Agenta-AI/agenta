@@ -210,4 +210,20 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-message-notice-content").should("not.exist")
         })
     })
+
+    context("Cleanup", () => {
+        it("Should delete app variant", () => {
+            cy.visit("/apps")
+
+            cy.request({
+                url: `${Cypress.env().baseApiURL}/apps/${app_id}/`,
+                method: "DELETE",
+                body: {
+                    app_id,
+                },
+            }).then((res) => {
+                expect(res.status).to.eq(200)
+            })
+        })
+    })
 })
