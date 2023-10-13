@@ -717,7 +717,8 @@ async def execute_custom_code_evaluation(
         result: The result of the executed custom code
     """
     logger.debug(
-        f"evaluation_id {evaluation_id} | app_id {app_id} | variant_id {variant_id} | inputs {inputs} | output {output} | correct_answer {correct_answer}")
+        f"evaluation_id {evaluation_id} | app_id {app_id} | variant_id {variant_id} | inputs {inputs} | output {output} | correct_answer {correct_answer}"
+    )
     # Get user object
     user = await get_user_object(user_org_data["uid"])
 
