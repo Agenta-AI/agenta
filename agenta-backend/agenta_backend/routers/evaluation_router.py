@@ -547,10 +547,13 @@ async def execute_custom_evaluation(
     # Execute custom code evaluation
     formatted_inputs = format_inputs(payload.inputs)
     formatted_outputs = format_outputs(payload.outputs)
+    output = list(formatted_outputs.values())[
+        0
+    ]  # for now we expect one output as a string
     result = await execute_custom_code_evaluation(
         evaluation_id,
         payload.app_id,
-        formatted_outputs,  # gets the output of the app variant
+        output,
         payload.correct_answer,
         payload.variant_id,
         formatted_inputs,

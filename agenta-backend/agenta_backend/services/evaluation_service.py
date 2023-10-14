@@ -1,3 +1,4 @@
+import logging
 from agenta_backend.services.security.sandbox import execute_code_safely
 from bson import ObjectId
 from datetime import datetime
@@ -36,6 +37,9 @@ from agenta_backend.models.db_models import (
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class UpdateEvaluationScenarioError(Exception):
@@ -712,7 +716,9 @@ async def execute_custom_code_evaluation(
     Returns:
         result: The result of the executed custom code
     """
-
+    logger.debug(
+        f"evaluation_id {evaluation_id} | app_id {app_id} | variant_id {variant_id} | inputs {inputs} | output {output} | correct_answer {correct_answer}"
+    )
     # Get user object
     user = await get_user_object(user_org_data["uid"])
 
