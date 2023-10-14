@@ -26,6 +26,9 @@ supertokens-python = "^0.15.1"
 sendgrid = "^6.10.0"
 restrictedpython = { version = "^6.2", python = ">=3.9,<3.12" }
 pytest-mock = "^3.11.1"
+boto3 = "^1.28.63"
+asyncer = "^0.0.2"
+anyio = "==3.7.1"
 
 
 [tool.poetry.group.dev.dependencies]
