@@ -614,7 +614,10 @@ export default function Evaluations() {
                                     }}
                                     data-cy={`variants-dropdown-${index}`}
                                 >
-                                    <div data-cy={`variant-select-${index}`} className={classes.dropdownStyles}>
+                                    <div
+                                        data-cy={`variant-select-${index}`}
+                                        className={classes.dropdownStyles}
+                                    >
                                         {selectedVariants[index]?.variantName || "Select a variant"}
                                         <DownOutlined />
                                     </div>
