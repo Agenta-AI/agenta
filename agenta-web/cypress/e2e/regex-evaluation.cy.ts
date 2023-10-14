@@ -37,7 +37,7 @@ describe("Regex Evaluation workflow", () => {
             })
         })
 
-        it("Should create testset", () => {
+        it("Should successfully create testset", () => {
             cy.visit(`/apps/${app_id}/playground`)
             cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
             cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
