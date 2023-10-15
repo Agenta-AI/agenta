@@ -10,7 +10,6 @@ from agenta_backend.services import (
     app_manager,
     docker_utils,
     db_manager,
-    deployment_manager,
 )
 from agenta_backend.utils.common import (
     check_access_to_app,
@@ -34,6 +33,13 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
+
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.ee.services import (
+        deployment_manager,
+    )  # noqa pylint: disable-all
+else:
+    from agenta_backend.services import deployment_manager
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
