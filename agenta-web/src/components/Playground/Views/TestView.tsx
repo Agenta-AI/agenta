@@ -2,7 +2,7 @@ import React, {useContext, useState} from "react"
 import {Button, Input, Card, Row, Col, Space} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
-import {Parameter} from "@/lib/Types"
+import {Parameter, Variant} from "@/lib/Types"
 import {randString, renameVariables} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
@@ -11,6 +11,7 @@ import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {createUseStyles} from "react-jss"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {TestContext} from "../TestsetContextProvider"
+import {useRouter} from "next/router"
 
 const useStylesBox = createUseStyles({
     card: {
@@ -83,7 +84,7 @@ const useStylesApp = createUseStyles({
 })
 
 interface TestViewProps {
-    URIPath: string | null
+    variant: Variant
     inputParams: Parameter[] | null
     optParams: Parameter[] | null
 }
@@ -187,7 +188,9 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     )
 }
 
-const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
+const App: React.FC<TestViewProps> = ({inputParams, optParams, variant}) => {
+    const router = useRouter()
+    const appId = router.query.app_id as unknown as string
     const {testList, setTestList} = useContext(TestContext)
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
@@ -209,7 +212,8 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, URIPath}) => {
                 testList[index],
                 inputParams || [],
                 optParams || [],
-                URIPath || "",
+                appId || "",
+                variant.baseId || "",
             )
 
             setResultForIndex(res, index)
