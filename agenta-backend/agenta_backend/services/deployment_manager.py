@@ -31,6 +31,11 @@ async def start_service(
 
     uri_path = f"{app_variant_db.organization.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
     container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.organization.id}"
+    logger.debug("Starting service with the following parameters:")
+    logger.debug(f"image_name: {app_variant_db.image.tags}")
+    logger.debug(f"uri_path: {uri_path}")
+    logger.debug(f"container_name: {container_name}")
+    logger.debug(f"env_vars: {env_vars}")
 
     results = docker_utils.start_container(
         image_name=app_variant_db.image.tags,
@@ -39,7 +44,6 @@ async def start_service(
         env_vars=env_vars,
     )
     uri = results["uri"]
-    uri_path = results["uri_path"]
     container_id = results["container_id"]
     container_name = results["container_name"]
 
