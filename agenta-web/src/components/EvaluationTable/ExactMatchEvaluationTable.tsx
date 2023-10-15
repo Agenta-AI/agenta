@@ -190,8 +190,10 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                     inputParamsDict,
                     variantData[idx].inputParams!,
                     variantData[idx].optParams!,
-                    variantData[idx].URIPath!,
+                    appId || "",
+                    variants[idx].baseId || "",
                 )
+
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
                 evaluate(rowIndex)
