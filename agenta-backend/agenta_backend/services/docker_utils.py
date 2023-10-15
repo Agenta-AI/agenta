@@ -14,8 +14,8 @@ from agenta_backend.models.api.api_models import (
 client = docker.from_env()
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def port_generator(start_port=9000):
@@ -63,6 +63,11 @@ def list_images() -> List[Image]:
 def start_container(
     image_name: str, uri_path: str, container_name: str, env_vars: DockerEnvVars
 ) -> Dict:
+    logger.debug("Starting container with the following parameters:")
+    logger.debug(f"image_name: {image_name}")
+    logger.debug(f"uri_path: {uri_path}")
+    logger.debug(f"container_name: {container_name}")
+    logger.debug(f"env_vars: {env_vars}")
     try:
         image = client.images.get(f"{image_name}")
 
@@ -115,8 +120,7 @@ def start_container(
             logs = container.logs().decode("utf-8")
             raise Exception(f"Container exited immediately. Docker Logs: {logs}")
         return {
-            "uri": f"http://{os.environ['BARE_DOMAIN_NAME']}/{uri_path}",
-            "uri_path": f"/{uri_path}",
+            "uri": f"{os.environ['DOMAIN_NAME']}/{uri_path}",
             "container_id": container.id,
             "container_name": container_name,
         }

@@ -31,6 +31,11 @@ async def start_service(
 
     uri_path = f"{app_variant_db.organization.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
     container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.organization.id}"
+    logger.debug("Starting service with the following parameters:")
+    logger.debug(f"image_name: {app_variant_db.image.tags}")
+    logger.debug(f"uri_path: {uri_path}")
+    logger.debug(f"container_name: {container_name}")
+    logger.debug(f"env_vars: {env_vars}")
 
     results = docker_utils.start_container(
         image_name=app_variant_db.image.tags,
@@ -39,7 +44,6 @@ async def start_service(
         env_vars=env_vars,
     )
     uri = results["uri"]
-    uri_path = results["uri_path"]
     container_id = results["container_id"]
     container_name = results["container_name"]
 
@@ -54,7 +58,6 @@ async def start_service(
         container_name=container_name,
         container_id=container_id,
         uri=uri,
-        uri_path=uri_path,
         status="running",
     )
     return deployment
@@ -110,7 +113,7 @@ async def stop_and_delete_service(deployment: DeploymentDB):
     logger.info(f"Container {container_id} deleted")
 
 
-async def validate_image(image: Image):
+async def validate_image(image: Image) -> bool:
     """
     Validates the given image by checking if it has tags, if the tags start with the registry name, and if the image exists in the list of Docker images.
 
@@ -133,3 +136,4 @@ async def validate_image(image: Image):
         raise DockerException(
             f"Image {image.docker_id} with tags {image.tags} not found"
         )
+    return True

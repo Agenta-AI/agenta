@@ -14,7 +14,15 @@ from agenta_backend.models.db_models import (
     AppEnvironmentDB,
     AppDB,
 )
-from agenta_backend.services import db_manager, deployment_manager
+from agenta_backend.services import db_manager
+
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.ee.services import (
+        deployment_manager,
+    )  # noqa pylint: disable-all
+else:
+    from agenta_backend.services import deployment_manager
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

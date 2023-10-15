@@ -17,7 +17,6 @@ import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {ErrorBoundary} from "react-error-boundary"
 import {createUseStyles} from "react-jss"
-import {signOut} from "supertokens-auth-react/recipe/thirdpartypasswordless"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import {useProfileData} from "@/contexts/profile.context"
 import {getColorFromStr, getGradientFromStr} from "@/lib/helpers/colors"
@@ -121,7 +120,7 @@ const Sidebar: React.FC = () => {
         themeMode: appTheme,
         colorBgContainer,
     } as StyleProps)
-    const {doesSessionExist} = useSession()
+    const {doesSessionExist, logout} = useSession()
 
     const pathSegments = router.asPath.split("/")
     const page_name = pathSegments[3]
@@ -153,11 +152,7 @@ const Sidebar: React.FC = () => {
         AlertPopup({
             title: "Logout",
             message: "Are you sure you want to logout?",
-            onOk: async () => {
-                await signOut()
-                reset()
-                router.push("/auth")
-            },
+            onOk: logout,
         })
     }
 
@@ -201,6 +196,7 @@ const Sidebar: React.FC = () => {
                                         title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                     >
                                         <Menu.Item
+                                            key="playground"
                                             icon={
                                                 <RocketOutlined
                                                     className={classes.optionSideIcon}
@@ -295,7 +291,9 @@ const Sidebar: React.FC = () => {
                         >
                             {doesSessionExist && (
                                 <Menu.Item key="settings" icon={<SettingOutlined />}>
-                                    <Link href="/settings">Settings</Link>
+                                    <Link data-cy="settings-link" href="/settings">
+                                        Settings
+                                    </Link>
                                 </Menu.Item>
                             )}
 

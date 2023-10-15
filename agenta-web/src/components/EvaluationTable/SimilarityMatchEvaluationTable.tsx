@@ -212,11 +212,12 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         const columnsDataNames = ["columnData0"]
         columnsDataNames.forEach(async (columnName: any, idx: number) => {
             try {
-                const result = await callVariant(
+                let result = await callVariant(
                     inputParamsDict,
                     variantData[idx].inputParams!,
                     variantData[idx].optParams!,
-                    variantData[idx].URIPath!,
+                    appId || "",
+                    variants[idx].baseId || "",
                 )
 
                 const {similarityThreshold} = form.getFieldsValue()
