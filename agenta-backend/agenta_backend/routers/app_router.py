@@ -10,6 +10,7 @@ from agenta_backend.services import (
     app_manager,
     docker_utils,
     db_manager,
+    deployment_manager,
 )
 from agenta_backend.utils.common import (
     check_access_to_app,

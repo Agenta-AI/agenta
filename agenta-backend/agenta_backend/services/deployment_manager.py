@@ -132,7 +132,6 @@ async def validate_image(image: Image) -> bool:
         raise ValueError(
             "Image should have a tag starting with the registry name (agenta-server)"
         )
-
     if image not in docker_utils.list_images():
         raise DockerException(
             f"Image {image.docker_id} with tags {image.tags} not found"
