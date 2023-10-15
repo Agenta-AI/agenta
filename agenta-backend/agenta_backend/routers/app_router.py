@@ -309,7 +309,6 @@ async def create_app_and_variant_from_template(
     """
     logger.debug("Start: Creating app and variant from template")
     try:
-
         # Get user and org id
         logger.debug("Step 1: Getting user and organization ID")
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
