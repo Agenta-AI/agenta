@@ -1,4 +1,4 @@
-import {randString} from "../../src/lib/helpers/utils"
+import {randString} from "../../../src/lib/helpers/utils"
 
 export let app_id
 export function createVariantsAndTestsets() {

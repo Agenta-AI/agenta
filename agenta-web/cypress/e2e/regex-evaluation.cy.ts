@@ -1,4 +1,4 @@
-import {createVariantsAndTestsets, app_id} from "./createVariantsAndTestsets"
+import {createVariantsAndTestsets, app_id} from "../utils/helpers/createVariantsAndTestsets"
 
 describe("Regex Evaluation workflow", () => {
     createVariantsAndTestsets()
