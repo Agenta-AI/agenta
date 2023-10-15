@@ -244,7 +244,6 @@ async def add_variant_from_image(
         valid_image = await deployment_manager.validate_image(image)
         if not valid_image:
             raise HTTPException(status_code=404, detail="Image not found")
-
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
