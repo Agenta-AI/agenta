@@ -44,11 +44,11 @@ describe("App Navigation without errors", () => {
             cy.visit("/apps")
         })
 
-        it("should navigate to apikeys and check if it's successful", () => {
-            cy.clickLinkAndWait('[data-cy="apikeys-link"]')
-            cy.location("pathname").should("include", "/apikeys")
-            cy.get('[data-cy="apikeys"]').within(() => {
-                cy.contains("API Keys")
+        it("should navigate to secrets and check if it's successful", () => {
+            cy.clickLinkAndWait('[data-cy="settings-link"]')
+            cy.location("pathname").should("include", "/settings")
+            cy.get('[data-cy="secrets"]').within(() => {
+                cy.contains("Secrets")
                 cy.contains("LLM providers")
             })
         })

@@ -31,7 +31,7 @@ export default function VariantEndpoint() {
     const loadURL = async (environment: Environment) => {
         if (environment.deployed_app_variant_id) {
             const url = await getAppContainerURL(appId, environment.deployed_app_variant_id)
-            setURI(`${process.env.NEXT_PUBLIC_AGENTA_API_URL}${url}/generate`)
+            setURI(`${url}/generate`)
         }
     }
 

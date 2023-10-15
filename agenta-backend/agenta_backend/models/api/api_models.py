@@ -191,3 +191,10 @@ class PostVariantConfigPayload(BaseModel):
     config_name: str
     parameters: Dict[str, Any]
     overwrite: bool
+
+
+class ListAPIKeysOutput(BaseModel):
+    prefix: str
+    created_at: datetime
+    last_used_at: datetime = None
+    expiration_date: datetime = None

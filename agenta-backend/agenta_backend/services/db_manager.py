@@ -287,7 +287,6 @@ async def create_deployment(
     container_name: str,
     container_id: str,
     uri: str,
-    uri_path: str,
     status: str,
 ) -> DeploymentDB:
     """Create a new deployment.
@@ -298,7 +297,6 @@ async def create_deployment(
         container_name (str): The name of the container.
         container_id (str): The ID of the container.
         uri (str): The URI of the container.
-        uri_path (str): The URI path of the container.
         status (str): The status of the container.
     Returns:
         DeploymentDB: The created deployment.
@@ -310,7 +308,6 @@ async def create_deployment(
         container_name=container_name,
         container_id=container_id,
         uri=uri,
-        uri_path=uri_path,
         status=status,
     )
     await engine.save(deployment)

@@ -214,8 +214,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     inputParamsDict,
                     variantData[idx].inputParams!,
                     variantData[idx].optParams!,
-                    variantData[idx].URIPath!,
+                    appId || "",
+                    variants[idx].baseId || "",
                 )
+
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
                 if (idx === columnsDataNames.length - 1) {

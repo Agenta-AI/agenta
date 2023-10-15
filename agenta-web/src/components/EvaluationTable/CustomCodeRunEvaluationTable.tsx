@@ -244,8 +244,10 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                 inputParamsDict,
                 variantData[idx].inputParams!,
                 variantData[idx].optParams!,
-                variantData[idx].URIPath!,
+                appId || "",
+                variants[idx].baseId || "",
             )
+
             setRowValue(rowIndex, columnName as any, result)
             await evaluate(rowIndex)
             setShouldFetchResults(true)
