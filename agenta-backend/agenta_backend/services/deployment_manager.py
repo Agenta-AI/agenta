@@ -113,7 +113,7 @@ async def stop_and_delete_service(deployment: DeploymentDB):
     logger.info(f"Container {container_id} deleted")
 
 
-async def validate_image(image: Image):
+async def validate_image(image: Image) -> bool:
     """
     Validates the given image by checking if it has tags, if the tags start with the registry name, and if the image exists in the list of Docker images.
 
@@ -132,7 +132,9 @@ async def validate_image(image: Image):
         raise ValueError(
             "Image should have a tag starting with the registry name (agenta-server)"
         )
+
     if image not in docker_utils.list_images():
         raise DockerException(
             f"Image {image.docker_id} with tags {image.tags} not found"
         )
+    return True
