@@ -91,6 +91,8 @@ const AppCard: React.FC<{
         try {
             await removeApp(app.app_id)
             mutate()
+        } catch (error) {
+            console.error(error)
         } finally {
             setVisibleDelete(false)
             setConfirmLoading(false)
