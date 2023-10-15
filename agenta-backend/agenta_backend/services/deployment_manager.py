@@ -54,7 +54,6 @@ async def start_service(
         container_name=container_name,
         container_id=container_id,
         uri=uri,
-        uri_path=uri_path,
         status="running",
     )
     return deployment
