@@ -1,7 +1,11 @@
-import {createVariantsAndTestsets, app_id} from "../utils/helpers/createVariantsAndTestsets"
+import {app_id} from "../support/commands/utils"
 
 describe("Regex Evaluation workflow", () => {
-    createVariantsAndTestsets()
+    context("When creating variants and testsets", () => {
+        it("Should successfully create app variant and testset", () => {
+            cy.createVariantsAndTestsets()
+        })
+    })
 
     context("When navigating to Evaluation Page", () => {
         it("Should reach the Evaluation Page", () => {
