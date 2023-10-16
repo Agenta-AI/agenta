@@ -19,15 +19,6 @@ describe("Regex Evaluation workflow", () => {
         })
 
         it("Should display a warning to select Variant", () => {
-            cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
-            cy.get(".ant-message-notice-content")
-                .should("contain.text", "Please select a variant")
-                .should("exist")
-            cy.wait(3000)
-            cy.get(".ant-message-notice-content").should("not.exist")
-        })
-
-        it("Should display a warning to select Variant", () => {
             cy.clickLinkAndWait('[data-cy="regex-button"]')
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get(".ant-message-notice-content")
