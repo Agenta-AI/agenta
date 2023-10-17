@@ -18,10 +18,8 @@ class DBEngine(object):
     Database engine to initialize client and return engine based on mode
     """
 
-    def __init__(self, mode=None) -> None:
-
-        if not mode:
-            self.mode = "v2"
+    def __init__(self) -> None:
+        self.mode = os.environ.get("DATABASE_MODE", "v2")
         self.db_url = os.environ["MONGODB_URI"]
 
     @property
