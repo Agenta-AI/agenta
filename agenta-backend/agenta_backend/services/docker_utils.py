@@ -109,9 +109,9 @@ def start_container(
         domain_name = os.environ.get("DOMAIN_NAME") or "http://host.docker.internal"
         env_vars.update(
             {
-                "AGENTA_APP_NAME": app_name,
-                "AGENTA_BASE_NAME": base_name,
-                "AGENTA_USER_ID": user_id,
+                # "AGENTA_APP_NAME": app_name,
+                # "AGENTA_BASE_NAME": base_name,
+                # "AGENTA_USER_ID": user_id,
                 "AGENTA_HOST": domain_name,
             }
         )
