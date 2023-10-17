@@ -27,7 +27,7 @@ from agenta_backend.models.db_models import (
     OrganizationDB,
     TemplateDB,
     TestSetDB,
-    UserDB
+    UserDB,
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud"]:
