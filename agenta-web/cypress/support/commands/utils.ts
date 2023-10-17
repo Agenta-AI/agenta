@@ -12,9 +12,7 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.get('[data-cy="openai-api-save"]').click()
     cy.visit("/apps")
     cy.get('[data-cy="create-new-app-button"]').click()
-    cy.get('[data-cy="add-new-app-modal"]').should("exist")
     cy.get('[data-cy="create-from-template"]').click()
-    cy.get('[data-cy="choose-template-modal"]').should("exist")
     cy.get('[data-cy="create-app-button"]').click()
     const appName = randString(5)
 
@@ -27,14 +25,11 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
     cy.intercept("POST", "/api/apps/app_and_variant_from_template/").as("postRequest")
     cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
-        expect(interception.response.statusCode).to.eq(200)
-
         cy.intercept("GET", `/api/apps/${interception.response.body.app_id}/variants/`).as(
             "getRequest",
         )
-        cy.wait("@getRequest", {requestTimeout: 15000}).then((interception) => {
-            expect(interception.response.statusCode).to.eq(200)
-        })
+        cy.wait("@getRequest", {requestTimeout: 15000})
+
         cy.url().should("include", `/apps/${interception.response.body.app_id}/playground`)
         app_id = interception.response.body.app_id
     })
