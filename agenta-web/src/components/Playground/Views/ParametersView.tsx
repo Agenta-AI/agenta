@@ -5,8 +5,6 @@ import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
-import useBlockNavigation from "@/hooks/useBlockNavigation"
-import {useQueryParam} from "@/hooks/useQuery"
 import {removeVariant} from "@/lib/services/api"
 
 interface Props {
@@ -71,8 +69,10 @@ const ParametersView: React.FC<Props> = ({
     const [messageApi, contextHolder] = message.useMessage()
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
-    const [unSavedChanges, setUnSavedChanges] = useState(variant.persistent === false)
-    const [currVariant] = useQueryParam("variant")
+
+    useEffect(() => {
+        onStateChange(variant.persistent === false)
+    }, [])
 
     const onChange = (param: Parameter, newValue: number | string) => {
         handleParamChange(param.name, newValue)
@@ -81,7 +81,6 @@ const ParametersView: React.FC<Props> = ({
         const newOptParams = optParams?.map((param) =>
             param.name === name ? {...param, default: newVal} : param,
         )
-        setUnSavedChanges(true)
         onStateChange(true)
         newOptParams && onOptParamsChange(newOptParams, false, false)
     }
@@ -100,7 +99,6 @@ const ParametersView: React.FC<Props> = ({
                     content: "Changes saved successfully!",
                     onClose: () => handlePersistVariant(variant.variantName),
                 })
-                setUnSavedChanges(false)
                 onStateChange(false)
                 res(true)
             })
@@ -111,30 +109,11 @@ const ParametersView: React.FC<Props> = ({
         deleteVariant(() => {
             if (variant.persistent) {
                 return removeVariant(variant.variantId).then(() => {
-                    setUnSavedChanges(false)
                     onStateChange(false)
                 })
             }
         })
     }
-
-    // useBlockNavigation(unSavedChanges && currVariant === variant.variantName, {
-    //     title: "Unsaved changes",
-    //     message: (
-    //         <span>
-    //             You have unsaved changes in variant <strong>{variant.variantName}</strong>. Do you
-    //             want to save these changes before leaving the page?
-    //         </span>
-    //     ),
-    //     width: 500,
-    //     okText: "Save",
-    //     onOk: onSave,
-    //     onCancel: async () => {
-    //         setUnSavedChanges(false)
-    //         return true
-    //     },
-    //     cancelText: "Proceed without saving",
-    // })
 
     useEffect(() => {
         getHelpers({

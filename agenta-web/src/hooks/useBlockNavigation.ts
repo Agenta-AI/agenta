@@ -2,11 +2,16 @@ import AlertPopup, {AlertPopupProps} from "@/components/AlertPopup/AlertPopup"
 import Router from "next/router"
 import {useEffect, useRef} from "react"
 
-const useBlockNavigation = (_blocking: boolean, _props: AlertPopupProps) => {
+const useBlockNavigation = (
+    _blocking: boolean,
+    _props: AlertPopupProps,
+    _shouldAlert?: (newRoute: string) => boolean,
+) => {
     // whether the popup has been opened
     const opened = useRef(false)
     const blocking = useRef(_blocking)
     const props = useRef(_props)
+    const shouldAlert = useRef(_shouldAlert)
 
     useEffect(() => {
         blocking.current = _blocking
@@ -17,11 +22,17 @@ const useBlockNavigation = (_blocking: boolean, _props: AlertPopupProps) => {
     }, [_props])
 
     useEffect(() => {
+        shouldAlert.current = _shouldAlert
+    }, [_shouldAlert])
+
+    useEffect(() => {
         // prevent from reload or closing tab
         window.onbeforeunload = () => true
 
         const handler = (newRoute: string) => {
             if (opened.current || !blocking.current) return
+
+            if (shouldAlert.current && !shouldAlert.current(newRoute)) return
 
             opened.current = true
             AlertPopup({
