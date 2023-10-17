@@ -5,14 +5,12 @@ import logging
 from odmantic import AIOEngine
 from pymongo import MongoClient
 from motor.motor_asyncio import AsyncIOMotorClient
+from ..tests.setenv import setup_pytest_variables
 
 
 # Configure and set logging level
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-# Load the settings from the .toml file
-toml_config = toml.load("agenta_backend/config.toml")
 
 
 class DBEngine(object):
@@ -21,8 +19,10 @@ class DBEngine(object):
     """
 
     def __init__(self, mode=None) -> None:
+        setup_pytest_variables()
+
         if not mode:
-            self.mode = toml_config["database_mode"]
+            self.mode = os.environ["DATABASE_MODE"]
         self.db_url = os.environ["MONGODB_URI"]
 
     @property
