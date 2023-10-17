@@ -8,21 +8,22 @@ from requests.exceptions import RequestException
 
 BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
 
-
 class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
-def get_app_by_name(app_name: str, host: str) -> str:
+def get_app_by_name(app_name: str, host: str, api_key : str = None) -> str:
     """Get app by its name on the server.
 
     Args:
         app_name (str): Name of the app
         host (str): Hostname of the server
+        api_key (str): The API key to use for the request.
     """
 
     response = requests.get(
         f"{host}/{BACKEND_URL_SUFFIX}/apps/?app_name={app_name}/",
+        headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
     if response.status_code != 200:
@@ -33,17 +34,19 @@ def get_app_by_name(app_name: str, host: str) -> str:
     return response.json()["app_id"]
 
 
-def create_new_app(app_name: str, host: str) -> str:
+def create_new_app(app_name: str, host: str, api_key: str = None) -> str:
     """Creates new app on the server.
 
     Args:
         app_name (str): Name of the app
         host (str): Hostname of the server
+        api_key (str): The API key to use for the request.
     """
 
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/apps/",
         json={"app_name": app_name},
+        headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
     if response.status_code != 200:
@@ -54,7 +57,7 @@ def create_new_app(app_name: str, host: str) -> str:
     return response.json()["app_id"]
 
 
-def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str) -> Dict:
+def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str, api_key: str = None) -> Dict:
     """
     Adds a variant to the server.
 
@@ -63,6 +66,7 @@ def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str) 
         variant_name (str): The name of the variant to add.
         image (Image): The image to use for the variant.
         host (str): The host URL of the server.
+        api_key (str): The API key to use for the request.
 
     Returns:
         dict: The JSON response from the server.
@@ -80,6 +84,7 @@ def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str) 
     response = requests.post(
         f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variant/from-image/",
         json=payload,
+        headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
     if response.status_code != 200:
@@ -91,7 +96,7 @@ def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str) 
 
 
 def start_variant(
-    variant_id: str, host: str, env_vars: Optional[Dict[str, str]] = None
+    variant_id: str, host: str, env_vars: Optional[Dict[str, str]] = None, api_key: str = None
 ) -> str:
     """
     Starts or stops a container with the given variant and exposes its endpoint.
@@ -100,6 +105,7 @@ def start_variant(
         variant_id (str): The ID of the variant.
         host (str): The host URL.
         env_vars (Optional[Dict[str, str]]): Optional environment variables to inject into the container.
+        api_key (str): The API key to use for the request.
 
     Returns:
         str: The endpoint of the container.
@@ -116,6 +122,7 @@ def start_variant(
         response = requests.put(
             f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/",
             json=payload,
+            headers={"Authorization": api_key} if api_key is not None else None,
             timeout=600,
         )
         if response.status_code == 404:
@@ -133,19 +140,21 @@ def start_variant(
         raise APIRequestError(f"An error occurred while making the request: {e}")
 
 
-def list_variants(app_id: str, host: str) -> List[AppVariant]:
+def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVariant]:
     """
     Returns a list of AppVariant objects for a given app_id and host.
 
     Args:
         app_id (str): The ID of the app to retrieve variants for.
         host (str): The URL of the host to make the request to.
+        api_key (str): The API key to use for the request.
 
     Returns:
         List[AppVariant]: A list of AppVariant objects for the given app_id and host.
     """
     response = requests.get(
         f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variants/",
+        headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
 
@@ -159,13 +168,14 @@ def list_variants(app_id: str, host: str) -> List[AppVariant]:
     return [AppVariant(**variant) for variant in app_variants]
 
 
-def remove_variant(variant_id: str, host: str):
+def remove_variant(variant_id: str, host: str, api_key: str = None):
     """
     Sends a DELETE request to the Agenta backend to remove a variant with the given ID.
 
     Args:
         variant_id (str): The ID of the variant to be removed.
         host (str): The URL of the Agenta backend.
+        api_key (str): The API key to use for the request.
 
     Raises:
         APIRequestError: If the request to the remove_variant endpoint fails.
@@ -175,7 +185,10 @@ def remove_variant(variant_id: str, host: str):
     """
     response = requests.delete(
         f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}",
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": api_key if api_key is not None else None,
+            },
         timeout=600,
     )
 
@@ -187,7 +200,7 @@ def remove_variant(variant_id: str, host: str):
         )
 
 
-def update_variant_image(variant_id: str, image: Image, host: str):
+def update_variant_image(variant_id: str, image: Image, host: str, api_key: str = None):
     """
     Update the image of a variant with the given ID.
 
@@ -195,6 +208,7 @@ def update_variant_image(variant_id: str, image: Image, host: str):
         variant_id (str): The ID of the variant to update.
         image (Image): The new image to set for the variant.
         host (str): The URL of the host to send the request to.
+        api_key (str): The API key to use for the request.
 
     Raises:
         APIRequestError: If the request to update the variant fails.
@@ -205,6 +219,7 @@ def update_variant_image(variant_id: str, image: Image, host: str):
     response = requests.put(
         f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/image/",
         json=image.dict(),
+        headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
     if response.status_code != 200:
@@ -214,7 +229,7 @@ def update_variant_image(variant_id: str, image: Image, host: str):
         )
 
 
-def send_docker_tar(app_id: str, base_name: str, tar_path: Path, host: str) -> Image:
+def send_docker_tar(app_id: str, base_name: str, tar_path: Path, host: str, api_key: str = None) -> Image:
     """
     Sends a Docker tar file to the specified host to build an image for the given app ID and variant name.
 
@@ -223,6 +238,7 @@ def send_docker_tar(app_id: str, base_name: str, tar_path: Path, host: str) -> I
         base_name (str): The name of the codebase.
         tar_path (Path): The path to the Docker tar file.
         host (str): The URL of the host to send the request to.
+        api_key (str): The API key to use for the request.
 
     Returns:
         Image: The built Docker image.
@@ -236,6 +252,7 @@ def send_docker_tar(app_id: str, base_name: str, tar_path: Path, host: str) -> I
             files={
                 "tar_file": tar_file,
             },
+            headers={"Authorization": api_key} if api_key is not None else None,
             timeout=1200,
         )
 
@@ -271,7 +288,7 @@ def validate_api_key(api_key: str, host: str) -> bool:
         
         prefix = api_key.split(".")[0]
         
-        response = requests.post(
+        response = requests.get(
             f"{host}/{BACKEND_URL_SUFFIX}/keys/{prefix}/validate/",
             headers=headers,
             timeout=600,

@@ -41,6 +41,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     config = toml.load(config_file)
     app_name = config["app_name"]
     app_id = config["app_id"]
+    api_key = config.get("api_key", None)
     base_name = file_name.removesuffix(".py")
     config_name = "default"
     variant_name = f"{base_name}.{config_name}"
@@ -109,7 +110,7 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
                 fg="yellow",
             )
         )
-        image: Image = client.send_docker_tar(app_id, base_name, tar_path, host)
+        image: Image = client.send_docker_tar(app_id, base_name, tar_path, host, api_key)
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
@@ -124,10 +125,10 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
                 )
             )
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
-            client.update_variant_image(variant_id, image, host)
+            client.update_variant_image(variant_id, image, host, api_key)
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
-            response = client.add_variant_to_server(app_id, base_name, image, host)
+            response = client.add_variant_to_server(app_id, base_name, image, host, api_key)
             variant_id = response["variant_id"]
             config["variants"].append(variant_name)
             config["variant_ids"].append(variant_id)
@@ -172,6 +173,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
     config_file = app_folder / "config.toml"
     config = toml.load(config_file)
     app_name = config["app_name"]
+    api_key = config.get("api_key", None)
     app_id = config["app_id"]
 
     if len(config["variants"]) == 0:
@@ -193,7 +195,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         ).ask()
         variant_id = config["variant_ids"][config["variants"].index(variant_name)]
 
-    endpoint = client.start_variant(variant_id=variant_id, host=host)
+    endpoint = client.start_variant(variant_id=variant_id, host=host, api_key=api_key)
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -229,6 +231,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
     app_name = config["app_name"]
+    api_key = config.get("api_key", None)
 
     if variant_name:
         if variant_name not in config["variants"]:
@@ -245,7 +248,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
         ).ask()
     variant_id = config["variant_ids"][config["variants"].index(variant_name)]
     try:
-        client.remove_variant(variant_id, host)
+        client.remove_variant(variant_id, host, api_key)
     except Exception as ex:
         click.echo(
             click.style(
@@ -274,7 +277,8 @@ def list_variants(app_folder: str, host: str):
     config = toml.load(config_file)
     app_id = config["app_id"]
     app_name = config["app_name"]
-    variants: List[AppVariant] = client.list_variants(app_id, host)
+    api_key = config.get("api_key", None)
+    variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
     if variants:
         for variant in variants:
             helper.display_app_variant(variant)
