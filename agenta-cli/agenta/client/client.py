@@ -8,11 +8,12 @@ from requests.exceptions import RequestException
 
 BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
 
+
 class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
-def get_app_by_name(app_name: str, host: str, api_key : str = None) -> str:
+def get_app_by_name(app_name: str, host: str, api_key: str = None) -> str:
     """Get app by its name on the server.
 
     Args:
@@ -57,7 +58,9 @@ def create_new_app(app_name: str, host: str, api_key: str = None) -> str:
     return response.json()["app_id"]
 
 
-def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str, api_key: str = None) -> Dict:
+def add_variant_to_server(
+    app_id: str, base_name: str, image: Image, host: str, api_key: str = None
+) -> Dict:
     """
     Adds a variant to the server.
 
@@ -96,7 +99,10 @@ def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str, 
 
 
 def start_variant(
-    variant_id: str, host: str, env_vars: Optional[Dict[str, str]] = None, api_key: str = None
+    variant_id: str,
+    host: str,
+    env_vars: Optional[Dict[str, str]] = None,
+    api_key: str = None,
 ) -> str:
     """
     Starts or stops a container with the given variant and exposes its endpoint.
@@ -188,7 +194,7 @@ def remove_variant(variant_id: str, host: str, api_key: str = None):
         headers={
             "Content-Type": "application/json",
             "Authorization": api_key if api_key is not None else None,
-            },
+        },
         timeout=600,
     )
 
@@ -229,7 +235,9 @@ def update_variant_image(variant_id: str, image: Image, host: str, api_key: str 
         )
 
 
-def send_docker_tar(app_id: str, base_name: str, tar_path: Path, host: str, api_key: str = None) -> Image:
+def send_docker_tar(
+    app_id: str, base_name: str, tar_path: Path, host: str, api_key: str = None
+) -> Image:
     """
     Sends a Docker tar file to the specified host to build an image for the given app ID and variant name.
 
@@ -282,12 +290,10 @@ def validate_api_key(api_key: str, host: str) -> bool:
         bool: Whether the API key is valid or not.
     """
     try:
-        headers = {
-            "Authorization": api_key
-        }
-        
+        headers = {"Authorization": api_key}
+
         prefix = api_key.split(".")[0]
-        
+
         response = requests.get(
             f"{host}/{BACKEND_URL_SUFFIX}/keys/{prefix}/validate/",
             headers=headers,
@@ -301,4 +307,3 @@ def validate_api_key(api_key: str, host: str) -> bool:
         return True
     except RequestException as e:
         raise APIRequestError(f"An error occurred while making the request: {e}")
-    
