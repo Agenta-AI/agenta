@@ -110,7 +110,9 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
                 fg="yellow",
             )
         )
-        image: Image = client.send_docker_tar(app_id, base_name, tar_path, host, api_key)
+        image: Image = client.send_docker_tar(
+            app_id, base_name, tar_path, host, api_key
+        )
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
@@ -128,7 +130,9 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
             client.update_variant_image(variant_id, image, host, api_key)
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
-            response = client.add_variant_to_server(app_id, base_name, image, host, api_key)
+            response = client.add_variant_to_server(
+                app_id, base_name, image, host, api_key
+            )
             variant_id = response["variant_id"]
             config["variants"].append(variant_name)
             config["variant_ids"].append(variant_id)
