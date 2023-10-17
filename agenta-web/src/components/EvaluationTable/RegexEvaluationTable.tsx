@@ -351,7 +351,11 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
                 const isCorrect = val === "correct"
                 const isMatch = settings.regexShouldMatch ? isCorrect : !isCorrect
-                return settings.regexPattern ? <div>{isMatch ? "Match" : "Mismatch"}</div> : null
+                return settings.regexPattern ? (
+                    <div data-cy="regex-evaluation-regex-match">
+                        {isMatch ? "Match" : "Mismatch"}
+                    </div>
+                ) : null
             },
         },
         {
@@ -368,6 +372,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                             <Tag
                                 color={score === "correct" ? "green" : "red"}
                                 className={classes.tag}
+                                data-cy="regex-evaluation-score"
                             >
                                 {score}
                             </Tag>
@@ -386,6 +391,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     <Col span={12}>
                         <Space>
                             <Button
+                                data-cy="regex-evaluation-run"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}
@@ -459,6 +465,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         ]}
                     >
                         <Input
+                            data-cy="regex-evaluation-input"
                             placeholder="Pattern (ex: ^this_word\d{3}$)"
                             className={classes.regexInput}
                         />
@@ -475,7 +482,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         rules={[{required: true, message: "Please select strategy"}]}
                         name="regexShouldMatch"
                     >
-                        <Radio.Group>
+                        <Radio.Group data-cy="regex-evaluation-strategy">
                             <Radio value={true}> Match </Radio>
                             <Radio value={false}> Mismatch </Radio>
                         </Radio.Group>
