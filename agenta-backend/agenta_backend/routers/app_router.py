@@ -10,7 +10,6 @@ from agenta_backend.services import (
     app_manager,
     docker_utils,
     db_manager,
-    deployment_manager,
 )
 from agenta_backend.utils.common import (
     check_access_to_app,
@@ -24,7 +23,6 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     AddVariantFromImagePayload,
     EnvironmentOutput,
-    Image,
 )
 from agenta_backend.models import converters
 
@@ -34,13 +32,6 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
-
-if os.environ["FEATURE_FLAG"] in ["cloud"]:
-    from agenta_backend.ee.services import (
-        deployment_manager,
-    )  # noqa pylint: disable-all
-else:
-    from agenta_backend.services import deployment_manager
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -227,11 +218,13 @@ async def add_variant_from_image(
     Returns:
         dict: The newly added variant.
     """
-    if os.environ["FEATURE_FLAG"] == "demo":
+    if not payload.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500,
-            detail="This feature is not available in the demo version",
+            detail="Image should have a tag starting with the registry name (agenta-server)",
         )
+    elif docker_utils.find_image_by_docker_id(payload.docker_id) is None:
+        raise HTTPException(status_code=404, detail="Image not found")
 
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
@@ -244,13 +237,7 @@ async def add_variant_from_image(
                 status_code=403,
             )
         app = await db_manager.fetch_app_by_id(app_id)
-        image = Image(
-            docker_id=payload.docker_id,
-            tags=payload.tags,
-        )
-        valid_image = await deployment_manager.validate_image(image)
-        if not valid_image:
-            raise HTTPException(status_code=404, detail="Image not found")
+
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
@@ -313,8 +300,9 @@ async def create_app_and_variant_from_template(
     Returns:
         AppVariantOutput: The output of the created app variant.
     """
-    logger.debug("Start: Creating app and variant from template")
     try:
+        logger.debug("Start: Creating app and variant from template")
+
         # Get user and org id
         logger.debug("Step 1: Getting user and organization ID")
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
@@ -367,7 +355,7 @@ async def create_app_and_variant_from_template(
         )
 
         logger.debug("Step 7: Starting variant and injecting environment variables")
-        if os.environ["FEATURE_FLAG"] in ["demo", "cloud"]:
+        if os.environ["FEATURE_FLAG"] == "demo":
             if not os.environ["OPENAI_API_KEY"]:
                 raise HTTPException(
                     status_code=400,
