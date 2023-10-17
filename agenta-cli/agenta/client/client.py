@@ -251,3 +251,37 @@ def send_docker_tar(app_id: str, base_name: str, tar_path: Path, host: str) -> I
     response.raise_for_status()
     image = Image.parse_obj(response.json())
     return image
+
+
+def validate_api_key(api_key: str, host: str) -> bool:
+    """
+    Validates an API key with the Agenta backend.
+
+    Args:
+        api_key (str): The API key to validate.
+        host (str): The URL of the Agenta backend.
+
+    Returns:
+        bool: Whether the API key is valid or not.
+    """
+    try:
+        headers = {
+            "Authorization": api_key
+        }
+        
+        prefix = api_key.split(".")[0]
+        
+        response = requests.post(
+            f"{host}/{BACKEND_URL_SUFFIX}/keys/{prefix}/validate/",
+            headers=headers,
+            timeout=600,
+        )
+        if response.status_code != 200:
+            error_message = response.json()
+            raise APIRequestError(
+                f"Request to validate api key failed with status code {response.status_code} and error message: {error_message}."
+            )
+        return True
+    except RequestException as e:
+        raise APIRequestError(f"An error occurred while making the request: {e}")
+    
