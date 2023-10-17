@@ -81,7 +81,6 @@ class DeploymentDB(Model):
     container_name: Optional[str]
     container_id: Optional[str]
     uri: Optional[str]
-    uri_path: Optional[str]
     status: str
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
