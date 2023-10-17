@@ -218,11 +218,6 @@ async def add_variant_from_image(
     Returns:
         dict: The newly added variant.
     """
-    if os.environ["FEATURE_FLAG"] == "demo":
-        raise HTTPException(
-            status_code=500,
-            detail="This feature is not available in the demo version",
-        )
     if not payload.tags.startswith(settings.registry):
         raise HTTPException(
             status_code=500,
