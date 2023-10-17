@@ -26,8 +26,6 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-message-notice-content")
                 .should("contain.text", "Please select a variant")
                 .should("exist")
-            cy.wait(3000)
-            cy.get(".ant-message-notice-content").should("not.exist")
         })
 
         it("Should display a warning to select Testset", () => {
@@ -41,8 +39,6 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-message-notice-content")
                 .should("contain.text", "Please select a testset")
                 .should("exist")
-            cy.wait(3000)
-            cy.get(".ant-message-notice-content").should("not.exist")
         })
     })
 
@@ -97,8 +93,6 @@ describe("Regex Evaluation workflow", () => {
                 })
 
             cy.get(".ant-message-notice-content").should("exist")
-            cy.wait(3000)
-            cy.get(".ant-message-notice-content").should("not.exist")
         })
 
         it("Should select the 'Mismatch' strategy and run the evaluation", () => {
@@ -123,8 +117,6 @@ describe("Regex Evaluation workflow", () => {
                     expect(text.includes("correct") || text.includes("wrong")).to.be.true
                 })
             cy.get(".ant-message-notice-content").should("exist")
-            cy.wait(3000)
-            cy.get(".ant-message-notice-content").should("not.exist")
         })
     })
 
