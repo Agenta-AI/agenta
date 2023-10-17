@@ -687,13 +687,12 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/apps/${appId}/environments/`,
     )
 
-    const environments: Environment[] = data.map((env: any) => ({
-        name: env.name,
-        deployedVariantName: env.deployed_app_variant,
-        deployedBaseName: env.deployed_base_name,
-        deployedConfigName: env.deployed_config_name,
-    }))
-    return environments
+    if (response.status !== 200) {
+        throw new Error("Failed to fetch environments")
+    }
+
+    const data: Environment[] = await response.json()
+    return data
 }
 
 export const publishVariant = async (variantId: string, environmentName: string) => {
