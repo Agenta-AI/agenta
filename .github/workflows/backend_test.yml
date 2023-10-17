@@ -19,7 +19,9 @@ jobs:
 
                 - name: Wait for backend to start
                   run: |
-                        docker-compose exec -T backend sh -c 'while ! curl -f http://localhost; do sleep 1; done'
+                    while [[ "$(wget -qO- http://localhost/api/docs)" != "200 OK" ]]; do
+                      sleep 1
+                    done
 
                 # - name: Run pytest in backend container
                 #   run: |
