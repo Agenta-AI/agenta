@@ -21,9 +21,9 @@ const CopyButton: React.FC<Props & ComponentProps<typeof Button>> = ({
         <Button
             icon={icon && buttonIcon}
             {...props}
-            onClick={async (e: React.MouseEvent) => {
+            onClick={async () => {
                 if (text === "") return
-                const copied = await copyToClipboard(e, text)
+                const copied = await copyToClipboard(text)
                 if (copied) {
                     notification.success({
                         message: "Copied to clipboard!",
