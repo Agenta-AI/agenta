@@ -72,6 +72,7 @@ const useStyles = createUseStyles({
     youtube: {
         "& iframe": {
             height: 430,
+            width: 560,
         },
     },
 })
@@ -117,11 +118,24 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
             <div className={classes.wrapper}>
                 <ol>
                     <div className={classes.container}>
-                        <li>1. Clone agenta’s repo</li>
+                        <li>1. Install agenta</li>
                         <div className={classes.command}>
-                            <span>git clone https://github.com/Agenta-AI/agenta.git</span>
+                            <span>pip install -U agenta</span>
                             <CopyButton
-                                text="git clone https://github.com/Agenta-AI/agenta.git"
+                                text="pip install -U agenta"
+                                icon={true}
+                                buttonText={""}
+                                className={classes.copyBtn}
+                            />
+                        </div>
+                    </div>
+
+                    <div className={classes.container}>
+                        <li>2. Clone the example application</li>
+                        <div className={classes.command}>
+                            <span>git clone https://github.com/Agenta-AI/simple_prompt</span>
+                            <CopyButton
+                                text="git clone https://github.com/Agenta-AI/simple_prompt"
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
@@ -129,11 +143,11 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>2. Start Agenta</li>
+                        <li>3. Set up environement variable</li>
                         <div className={classes.command}>
-                            <span>docker compose up</span>
+                            <span>echo "OPENAI_API_KEY=sk-xxx" `{">"}` .env</span>
                             <CopyButton
-                                text={"docker compose up"}
+                                text={"echo 'OPENAI_API_KEY=sk-xxx' `{'>'}` .env<"}
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
@@ -141,19 +155,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>3. Checkout to your llm app folder</li>
-                        <div className={classes.command}>
-                            <span>cd your-llm-app-folder</span>
-                            <CopyButton
-                                text={"cd your-llm-app-folder"}
-                                icon={true}
-                                buttonText={""}
-                                className={classes.copyBtn}
-                            />
-                        </div>
-                    </div>
-                    <div className={classes.container}>
-                        <li>4. Create an llm app</li>
+                        <li>4. Setup agenta (start from blank)</li>
                         <div className={classes.command}>
                             <span>agenta init</span>
                             <CopyButton
@@ -176,6 +178,12 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                             />
                         </div>
                     </div>
+                    <span>
+                        Check out{" "}
+                        <a href="https://docs.agenta.ai/tutorials/your-first-llm-app">
+                            our tutorial for writing your first LLM app
+                        </a>
+                    </span>
                 </ol>
             </div>
             <YouTube
