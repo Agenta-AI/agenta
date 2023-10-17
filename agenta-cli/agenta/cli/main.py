@@ -88,15 +88,27 @@ def init(app_name: str):
                     )
 
     where_question = questionary.select(
-        "Are you running agenta locally?", choices=["Yes", "No"]
+        "Where are you running agenta?",
+        # choices=["On my local machine", "On a remote machine", "On agenta cloud"],
+        choices=["On my local machine", "On a remote machine"],
     ).ask()
 
-    if where_question == "Yes":
+    if where_question == "On my local machine":
         backend_host = "http://localhost"
-    elif where_question == "No":
+    elif where_question == "On a remote machine":
         backend_host = questionary.text(
             "Please provide the IP or URL of your remote host"
         ).ask()
+    elif where_question == "On agenta cloud":
+        backend_host = "https://stage.agenta.ai"
+
+        api_key = questionary.text("Please provide your API key:").ask()
+
+        if api_key is None:  # User pressed Ctrl+C
+            sys.exit(0)
+
+        client.validate_api_key(api_key, backend_host)
+
     elif where_question is None:  # User pressed Ctrl+C
         sys.exit(0)
     backend_host = (
@@ -106,10 +118,17 @@ def init(app_name: str):
     )
 
     # Get app_id after creating new app in the backend server
-    app_id = client.create_new_app(app_name, backend_host)
+    app_id = client.create_new_app(
+        app_name, backend_host, api_key if where_question == "On agenta cloud" else None
+    )
 
     # Set app toml configuration
-    config = {"app_name": app_name, "app_id": app_id, "backend_host": backend_host}
+    config = {
+        "app_name": app_name,
+        "app_id": app_id,
+        "backend_host": backend_host,
+        "api_key": api_key if where_question == "On agenta cloud" else None,
+    }
     with open("config.toml", "w") as config_file:
         toml.dump(config, config_file)
 
