@@ -17,12 +17,13 @@ jobs:
                   run: |
                         docker compose -f "docker-compose.yml" up -d --build
 
-                # - name: Wait for backend to start
-                #   run: |
-                #     while [[ "$(wget -qO- http://localhost/api/docs)" != "200 OK" ]]; do
-                #       sleep 1
-                #     done
-
-                - name: Run pytest in backend container
+                - name: Wait for backend to start
                   run: |
-                      docker exec agenta-backend-1 pytest
+                        while ! docker-compose exec -T backend curl -s http://agenta-backend-1/api/docs > /dev/null; do
+                            sleep 1
+                        done
+                        
+
+                # - name: Run pytest in backend container
+                #   run: |
+                #         docker-compose exec backend pytest
