@@ -390,7 +390,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     <Col span={12}>
                         <Space>
                             <Button
-                                data-cy="regex-run-evaluation"
+                                data-cy="regex-evaluation-run"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}

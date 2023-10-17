@@ -65,7 +65,7 @@ describe("Regex Evaluation workflow", () => {
         })
 
         it("Should display error for missing regex pattern", () => {
-            cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
+            cy.clickLinkAndWait('[data-cy="regex-evaluation-run"]')
 
             cy.get(".ant-form-item-explain-error").should("exist")
         })
@@ -77,7 +77,7 @@ describe("Regex Evaluation workflow", () => {
                 cy.get("label").eq(0).click()
             })
 
-            cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
+            cy.clickLinkAndWait('[data-cy="regex-evaluation-run"]')
 
             cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 15000})
                 .invoke("text")
@@ -102,7 +102,7 @@ describe("Regex Evaluation workflow", () => {
                 cy.get("label").eq(1).click()
             })
 
-            cy.clickLinkAndWait('[data-cy="regex-run-evaluation"]')
+            cy.clickLinkAndWait('[data-cy="regex-evaluation-run"]')
 
             cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 15000})
                 .invoke("text")
