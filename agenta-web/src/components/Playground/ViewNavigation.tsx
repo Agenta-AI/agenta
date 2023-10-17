@@ -8,17 +8,22 @@ import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-import {getAppContainerURL, restartAppVariantContainer, waitForAppToStart} from "@/lib/services/api"
+import {
+    getAppContainerURL,
+    removeVariant,
+    restartAppVariantContainer,
+    waitForAppToStart,
+} from "@/lib/services/api"
 import {useAppsData} from "@/contexts/app.context"
 
 interface Props {
     variant: Variant
     handlePersistVariant: (variantName: string) => void
-    setRemovalVariantName: (variantName: string) => void
-    setRemovalWarningModalOpen: (value: boolean) => void
-    isDeleteLoading: boolean
     environments: Environment[]
     onAdd: () => void
+    deleteVariant: (deleteAction?: Function) => void
+    getHelpers: (helpers: {save: Function; delete: Function}) => void
+    onStateChange: (isDirty: boolean) => void
 }
 
 const useStyles = createUseStyles({
@@ -33,11 +38,11 @@ const useStyles = createUseStyles({
 const ViewNavigation: React.FC<Props> = ({
     variant,
     handlePersistVariant,
-    setRemovalVariantName,
-    setRemovalWarningModalOpen,
-    isDeleteLoading,
     environments,
     onAdd,
+    deleteVariant,
+    getHelpers,
+    onStateChange,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -162,10 +167,8 @@ const ViewNavigation: React.FC<Props> = ({
                             type="primary"
                             danger
                             onClick={() => {
-                                setRemovalVariantName(variant.variantName)
-                                setRemovalWarningModalOpen(true)
+                                deleteVariant(() => removeVariant(variant.variantId))
                             }}
-                            loading={isDeleteLoading}
                         >
                             <Tooltip placement="bottom" title="Delete the variant permanently">
                                 Delete Variant
@@ -188,13 +191,13 @@ const ViewNavigation: React.FC<Props> = ({
                         onOptParamsChange={saveOptParams}
                         handlePersistVariant={handlePersistVariant}
                         isPersistent={variant.persistent} // if the variant persists in the backend, then saveoptparams will need to know to update and not save new variant
-                        setRemovalVariantName={setRemovalVariantName}
-                        setRemovalWarningModalOpen={setRemovalWarningModalOpen}
-                        isDeleteLoading={isDeleteLoading}
+                        deleteVariant={deleteVariant}
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         environments={environments}
                         onAdd={onAdd}
+                        getHelpers={getHelpers}
+                        onStateChange={onStateChange}
                     />
                 </Col>
             </Row>
