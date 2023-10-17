@@ -30,10 +30,7 @@ from .types import (
 app = FastAPI()
 
 origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://0.0.0.0:3000",
-    "http://0.0.0.0:3001",
+    "*",
 ]
 
 app.add_middleware(
