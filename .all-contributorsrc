@@ -218,6 +218,52 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Rhythm-08",
+      "name": "Rhythm Sharma",
+      "avatar_url": "https://avatars.githubusercontent.com/u/64489317?v=4",
+      "profile": "https://www.linkedin.com/in/rhythm-sharma-708a421a8/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "vicradon",
+      "name": "Osinachi Chukwujama ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/40396070?v=4",
+      "profile": "https://osinachi.me",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "morsoli",
+      "name": "莫尔索",
+      "avatar_url": "https://avatars.githubusercontent.com/u/47264881?v=4",
+      "profile": "https://liduos.com/",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "dejongbaba",
+      "name": "Agunbiade Adedeji",
+      "avatar_url": "https://avatars.githubusercontent.com/u/22600781?v=4",
+      "profile": "http://luccithedev.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "techemmy",
+      "name": "Emmanuel Oloyede",
+      "avatar_url": "https://avatars.githubusercontent.com/u/43725109?v=4",
+      "profile": "https://techemmy.github.io/",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

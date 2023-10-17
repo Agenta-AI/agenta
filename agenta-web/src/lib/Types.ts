@@ -1,10 +1,14 @@
-import {AbsoluteString} from "next/dist/lib/metadata/types/metadata-types"
 import {EvaluationFlow, EvaluationType} from "./enums"
 
 export interface testset {
     _id: string
     name: string
     created_at: string
+}
+
+export interface ListAppsItem {
+    app_id: string
+    app_name: string
 }
 
 export interface AppVariant {
@@ -19,28 +23,11 @@ export interface Variant {
     persistent: boolean // whether the variant is persistent in the backend or not
     parameters: Record<string, string> | null // parameters of the variant. Only set in the case of forked variants
     previousVariantName?: null | string // name of the variant that was forked from. Only set in the case of forked variants
-    baseName?: null | string // name of the codebase for the variant (not available in old versions of the SDK)
-    configName?: null | string // name of the config for the variant (not available in old versions of the SDK)
-}
-
-export interface RestartVariantDocker {
-    app_name: string
-    variant_name: string
-}
-
-export interface RestartVariantDockerResponse {
-    status: number
-    data: {
-        message: string
-    }
-}
-
-export interface RestartVariantDockerErrResponse {
-    response?: {
-        data?: {
-            detail: string
-        }
-    }
+    variantId: string
+    baseId: string
+    baseName: string
+    configId: string
+    configName: string
 }
 
 // Define the interface for the tabs item in playground page
@@ -54,20 +41,34 @@ export interface PlaygroundTabsItem {
 export interface Evaluation {
     id: string
     createdAt: string
+    createdBy: string
+    user: {
+        id: string
+        username: string
+    }
     variants: Variant[]
-    evaluationType: string
+    evaluationType: EvaluationType
     status: EvaluationFlow
     testset: {
         _id: string
         name: string
     }
     appName: string
+    llmAppPromptTemplate?: string
+    evaluationTypeSettings: {
+        similarityThreshold: number
+        regexPattern: string
+        regexShouldMatch: boolean
+        webhookUrl: string
+        customCodeEvaluationId?: string
+        llmAppPromptTemplate?: string
+    }
 }
 
 export interface CreateCustomEvaluation {
     evaluation_name: string
     python_code: string
-    app_name: string
+    app_id: string
 }
 
 export interface CreateCustomEvaluationSuccessResponse {
@@ -80,15 +81,24 @@ export interface ExecuteCustomEvalCode {
     evaluation_id: string
     inputs: Array<Object>
     outputs: Array<Object>
-    app_name: string
-    variant_name: string
+    variant_id: string
     correct_answer: string
+    app_id: string
 }
 
 export interface SingleCustomEvaluation {
     id: string
     app_name: string
     evaluation_name: string
+}
+
+export interface AICritiqueCreate {
+    correct_answer: string
+    llm_app_prompt_template?: string
+    inputs: Array<Object>
+    outputs: Array<Object>
+    evaluation_prompt_template: string
+    open_ai_key: string
 }
 
 export interface Parameter {
@@ -104,7 +114,8 @@ export interface Parameter {
 
 export interface EvaluationResponseType {
     id: string
-    variants: string[]
+    variant_ids: string[]
+    variant_names: string[]
     votes_data: {
         variants_votes_data: {
             number_of_votes: number
@@ -112,7 +123,7 @@ export interface EvaluationResponseType {
         }
         flag_votes: {number_of_votes: number; percentage: number}
     }
-    app_name: string
+    app_id: string
     status: string
     evaluation_type: string
     evaluation_type_settings: {
@@ -120,14 +131,14 @@ export interface EvaluationResponseType {
         regex_pattern: string
         regex_should_match: boolean
         webhook_url: string
+        custom_code_evaluation_id?: string
+        llm_app_prompt_template?: string
     }
-    custom_code_evaluation_id?: string
-    llm_app_prompt_template?: string
-    testset: {
-        _id: string
-        name: string
-    }
+    testset_name: string
+    testset_id: string
     created_at: string
+    user_username: string
+    user_id: string
 }
 
 export type LanguageItem = {displayName: string; languageKey: string}
@@ -178,31 +189,17 @@ export interface AppTemplate {
     env_vars?: {
         OPENAI_API_KEY: string | null
     }
+    organization_id?: string
 }
 
-export interface ISession {
-    loading: boolean
-    doesSessionExist: boolean
-    userId: string
-    invalidClaims: Array<any>
-    accessTokenPayload: {
-        exp: number
-        iat: number
-        iss: string
-        parentRefreshTokenHash1: string
-        refreshTokenHash1: string
-        sessionHandle: string
-        sub: string
-    }
-}
 export type GenericObject = Record<string, any>
 export type KeyValuePair = Record<string, string>
 
 export interface Environment {
     name: string
-    deployedVariantName: string
-    deployedBaseName: string
-    deployedConfigName: string
+    app_id: string
+    deployed_app_variant_id: string | null
+    deployed_variant_name: string | null
 }
 
 export interface CustomEvaluation {
@@ -212,4 +209,18 @@ export interface CustomEvaluation {
     python_code: string
     created_at: string
     updated_at: string
+}
+
+export interface User {
+    id: string
+    uid: string
+    username: string
+    email: string
+}
+
+export interface Org {
+    id: string
+    name: string
+    description?: string
+    owner: string
 }

@@ -1,8 +1,7 @@
 import os
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Optional, Dict, Any
 
-import agenta.config
 import requests
 from agenta.client.api_models import AppVariant, Image, VariantConfigPayload
 from docker.models.images import Image as DockerImage
@@ -15,30 +14,81 @@ class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
 
 
-def add_variant_to_server(
-    app_name: str,
-    variant_name: str,
-    base_name: str,
-    config_name: str,
-    image: Image,
-    host: str,
-):
-    """Adds a variant to the server.
+def get_app_by_name(app_name: str, host: str, api_key: str = None) -> str:
+    """Get app by its name on the server.
 
-    Arguments:
-        app_name -- Name of the app
-        variant_name -- Name of the variant
-        image_name -- Name of the image
+    Args:
+        app_name (str): Name of the app
+        host (str): Hostname of the server
+        api_key (str): The API key to use for the request.
     """
-    app_variant: AppVariant = AppVariant(
-        app_name=app_name,
-        variant_name=variant_name,
-        base_name=base_name,
-        config_name=config_name,
+
+    response = requests.get(
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/?app_name={app_name}/",
+        headers={"Authorization": api_key} if api_key is not None else None,
+        timeout=600,
     )
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to get app failed with status code {response.status_code} and error message: {error_message}."
+        )
+    return response.json()["app_id"]
+
+
+def create_new_app(app_name: str, host: str, api_key: str = None) -> str:
+    """Creates new app on the server.
+
+    Args:
+        app_name (str): Name of the app
+        host (str): Hostname of the server
+        api_key (str): The API key to use for the request.
+    """
+
     response = requests.post(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/add/from_image/",
-        json={"app_variant": app_variant.dict(), "image": image.dict()},
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/",
+        json={"app_name": app_name},
+        headers={"Authorization": api_key} if api_key is not None else None,
+        timeout=600,
+    )
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to create new app failed with status code {response.status_code} and error message: {error_message}."
+        )
+    return response.json()["app_id"]
+
+
+def add_variant_to_server(
+    app_id: str, base_name: str, image: Image, host: str, api_key: str = None
+) -> Dict:
+    """
+    Adds a variant to the server.
+
+    Args:
+        app_id (str): The ID of the app to add the variant to.
+        variant_name (str): The name of the variant to add.
+        image (Image): The image to use for the variant.
+        host (str): The host URL of the server.
+        api_key (str): The API key to use for the request.
+
+    Returns:
+        dict: The JSON response from the server.
+    Raises:
+        APIRequestError: If the request to the server fails.
+    """
+    variant_name = f"{base_name.lower()}.default"
+    payload = {
+        "variant_name": variant_name,
+        "base_name": base_name.lower(),
+        "config_name": "default",
+        "docker_id": image.docker_id,
+        "tags": image.tags,
+    }
+    response = requests.post(
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variant/from-image/",
+        json=payload,
+        headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
     if response.status_code != 200:
@@ -46,51 +96,72 @@ def add_variant_to_server(
         raise APIRequestError(
             f"Request to app_variant endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
+    return response.json()
 
 
 def start_variant(
-    app_name: str, variant_name: str, base_name: str, config_name: str, host: str
+    variant_id: str,
+    host: str,
+    env_vars: Optional[Dict[str, str]] = None,
+    api_key: str = None,
 ) -> str:
-    """Starts a container with the variant an expose its endpoint
-
-    Arguments:
-        app_name --
-        variant_name -- _description_
-
-    Returns:
-        The endpoint of the container
     """
-    app_variant: AppVariant = AppVariant(
-        app_name=app_name,
-        variant_name=variant_name,
-        base_name=base_name,
-        config_name=config_name,
-    )
-    response = requests.post(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/start/",
-        json={"app_variant": app_variant.dict()},
-        timeout=600,
-    )
+    Starts or stops a container with the given variant and exposes its endpoint.
 
-    if response.status_code != 200:
-        error_message = response.json()
-        raise APIRequestError(
-            f"Request to start variant endpoint failed with status code {response.status_code} and error message: {error_message}."
-        )
-    return response.json()["uri"]
-
-
-def list_variants(app_name: str, host: str) -> List[AppVariant]:
-    """Lists all the variants registered in the backend for an app
-
-    Arguments:
-        app_name -- the app name to which to return all the variants
+    Args:
+        variant_id (str): The ID of the variant.
+        host (str): The host URL.
+        env_vars (Optional[Dict[str, str]]): Optional environment variables to inject into the container.
+        api_key (str): The API key to use for the request.
 
     Returns:
-        a list of the variants using the pydantic model
+        str: The endpoint of the container.
+
+    Raises:
+        APIRequestError: If the API request fails.
+    """
+    payload = {}
+    payload["action"] = {"action": "START"}
+    if env_vars:
+        payload["env_vars"] = {"env_vars": env_vars}
+
+    try:
+        response = requests.put(
+            f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/",
+            json=payload,
+            headers={"Authorization": api_key} if api_key is not None else None,
+            timeout=600,
+        )
+        if response.status_code == 404:
+            raise APIRequestError(
+                f"404: Variant with ID {variant_id} does not exist on the server."
+            )
+        elif response.status_code != 200:
+            error_message = response.text
+            raise APIRequestError(
+                f"Request to start variant endpoint failed with status code {response.status_code} and error message: {error_message}."
+            )
+        return response.json().get("uri", "")
+
+    except RequestException as e:
+        raise APIRequestError(f"An error occurred while making the request: {e}")
+
+
+def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVariant]:
+    """
+    Returns a list of AppVariant objects for a given app_id and host.
+
+    Args:
+        app_id (str): The ID of the app to retrieve variants for.
+        host (str): The URL of the host to make the request to.
+        api_key (str): The API key to use for the request.
+
+    Returns:
+        List[AppVariant]: A list of AppVariant objects for the given app_id and host.
     """
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/list_variants/?app_name={app_name}",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_id}/variants/",
+        headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
 
@@ -98,48 +169,33 @@ def list_variants(app_name: str, host: str) -> List[AppVariant]:
     if response.status_code != 200:
         error_message = response.json()
         raise APIRequestError(
-            f"Request to list_variants endpoint failed with status code {response.status_code} and error message: {error_message}."
+            f"Request to apps endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
     app_variants = response.json()
     return [AppVariant(**variant) for variant in app_variants]
 
 
-def get_variant_by_name(app_name: str, variant_name: str, host: str) -> AppVariant:
-    """Gets a variant by name
+def remove_variant(variant_id: str, host: str, api_key: str = None):
+    """
+    Sends a DELETE request to the Agenta backend to remove a variant with the given ID.
 
-    Arguments:
-        app_name -- the app name
-        variant_name -- the variant name
+    Args:
+        variant_id (str): The ID of the variant to be removed.
+        host (str): The URL of the Agenta backend.
+        api_key (str): The API key to use for the request.
+
+    Raises:
+        APIRequestError: If the request to the remove_variant endpoint fails.
 
     Returns:
-        the variant using the pydantic model
+        None
     """
-    response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/get_variant_by_name/?app_name={app_name}&variant_name={variant_name}",
-        timeout=600,
-    )
-
-    # Check for successful request
-    if response.status_code != 200:
-        error_message = response.json()
-        raise APIRequestError(
-            f"Request to get_variant_by_name endpoint failed with status code {response.status_code} and error message: {error_message}."
-        )
-
-
-def remove_variant(app_name: str, variant_name: str, host: str):
-    """Removes a variant from the backend
-
-    Arguments:
-        app_name -- the app name
-        variant_name -- the variant name
-    """
-    app_variant = AppVariant(app_name=app_name, variant_name=variant_name)
-    app_variant_json = app_variant.json()
     response = requests.delete(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/remove_variant/",
-        data=app_variant_json,
-        headers={"Content-Type": "application/json"},
+        f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": api_key if api_key is not None else None,
+        },
         timeout=600,
     )
 
@@ -151,30 +207,26 @@ def remove_variant(app_name: str, variant_name: str, host: str):
         )
 
 
-def update_variant_image(
-    app_name: str,
-    variant_name: str,
-    base_name: str,
-    config_name: str,
-    image: Image,
-    host: str,
-):
-    """Adds a variant to the server.
-
-    Arguments:
-        app_name -- Name of the app
-        variant_name -- Name of the variant
-        image_name -- Name of the image
+def update_variant_image(variant_id: str, image: Image, host: str, api_key: str = None):
     """
-    app_variant: AppVariant = AppVariant(
-        app_name=app_name,
-        variant_name=variant_name,
-        base_name=base_name,
-        config_name=config_name,
-    )
+    Update the image of a variant with the given ID.
+
+    Args:
+        variant_id (str): The ID of the variant to update.
+        image (Image): The new image to set for the variant.
+        host (str): The URL of the host to send the request to.
+        api_key (str): The API key to use for the request.
+
+    Raises:
+        APIRequestError: If the request to update the variant fails.
+
+    Returns:
+        None
+    """
     response = requests.put(
-        f"{host}/{BACKEND_URL_SUFFIX}/app_variant/update_variant_image/",
-        json={"app_variant": app_variant.dict(), "image": image.dict()},
+        f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/image/",
+        json=image.dict(),
+        headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
     if response.status_code != 200:
@@ -184,13 +236,32 @@ def update_variant_image(
         )
 
 
-def send_docker_tar(app_name: str, base_name: str, tar_path: Path, host: str) -> Image:
+def send_docker_tar(
+    app_id: str, base_name: str, tar_path: Path, host: str, api_key: str = None
+) -> Image:
+    """
+    Sends a Docker tar file to the specified host to build an image for the given app ID and variant name.
+
+    Args:
+        app_id (str): The ID of the app.
+        base_name (str): The name of the codebase.
+        tar_path (Path): The path to the Docker tar file.
+        host (str): The URL of the host to send the request to.
+        api_key (str): The API key to use for the request.
+
+    Returns:
+        Image: The built Docker image.
+
+    Raises:
+        Exception: If the response status code is 500, indicating that serving the variant failed.
+    """
     with tar_path.open("rb") as tar_file:
         response = requests.post(
-            f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_name={app_name}&base_name={base_name}",
+            f"{host}/{BACKEND_URL_SUFFIX}/containers/build_image/?app_id={app_id}&base_name={base_name}",
             files={
                 "tar_file": tar_file,
             },
+            headers={"Authorization": api_key} if api_key is not None else None,
             timeout=1200,
         )
 
@@ -208,112 +279,142 @@ def send_docker_tar(app_name: str, base_name: str, tar_path: Path, host: str) ->
     return image
 
 
-def save_variant_config(
-    app_name: str,
-    base_name: str,
-    config_name: str,
-    parameters: Dict[str, Any],
-    overwrite: bool,
-    host: str,
-) -> None:
+# def save_variant_config(
+#     app_name: str,
+#     base_name: str,
+#     config_name: str,
+#     parameters: Dict[str, Any],
+#     overwrite: bool,
+#     host: str,
+# ) -> None:
+#     """
+#     Save or update a variant configuration to the server.
+
+#     Args:
+#         variant_config (VariantConfigPayload): Pydantic model containing the variant configuration.
+#         host (str): The server host URL.
+#         session_token (str): The session token.
+
+#     Raises:
+#         APIRequestError: If the API request fails.
+#     """
+#     if host is None:
+#         raise ValueError("The 'host' is not specified in save_variant_config")
+
+#     headers = {
+#         "Content-Type": "application/json",
+#     }
+#     variant_config = VariantConfigPayload(
+#         app_name=app_name,
+#         base_name=base_name,
+#         config_name=config_name,
+#         parameters=parameters,
+#         overwrite=overwrite,
+#     )
+#     try:
+#         response = requests.post(
+#             f"{host}/{BACKEND_URL_SUFFIX}/app_variant/config/",
+#             json=variant_config.dict(),
+#             headers=headers,
+#             timeout=600,
+#         )
+#         request = f"POST {host}/{BACKEND_URL_SUFFIX}/app_variant/config/ {variant_config.dict()}"
+
+#         # Check for successful request
+#         if response.status_code != 200:
+#             error_message = response.json().get("detail", "Unknown error")
+#             raise APIRequestError(
+#                 f"Request {request} to save_variant_config endpoint failed with status code {response.status_code}. Error message: {error_message}"
+#             )
+#     except RequestException as e:
+#         raise APIRequestError(f"Request failed: {str(e)}")
+
+
+# def fetch_variant_config(
+#     app_name: str,
+#     base_name: str,
+#     host: str,
+#     config_name: str = None,
+#     environment_name: str = None,
+# ) -> Dict[str, Any]:
+#     """
+#     Fetch a variant configuration from the server.
+
+#     Args:
+#         app_name (str): Name of the app.
+#         variant_name (str): Name of the variant.
+#         base_name (str): Base name for the configuration.
+#         config_name (str): Configuration name.
+#         session_token (str): The session token.
+#         host (str): The server host URL.
+
+#     Raises:
+#         APIRequestError: If the API request fails.
+
+#     Returns:
+#         dict: The requested variant configuration.
+#     """
+
+#     if host is None:
+#         raise ValueError("The 'host' is not specified in fetch_variant_config")
+
+#     headers = {
+#         "Content-Type": "application/json",
+#     }
+
+#     try:
+#         response = requests.get(
+#             f"{host}/{BACKEND_URL_SUFFIX}/app_variant/config/",
+#             params={
+#                 "app_name": app_name,
+#                 "base_name": base_name,
+#                 "config_name": config_name,
+#                 "environment_name": environment_name,
+#             },
+#             headers=headers,
+#             timeout=600,
+#         )
+
+#         request = f"GET {host}/{BACKEND_URL_SUFFIX}/app_variant/config/ {app_name} {base_name} {config_name} {environment_name}"
+
+#         # Check for successful request
+#         if response.status_code != 200:
+#             error_message = response.json().get("detail", "Unknown error")
+#             raise APIRequestError(
+#                 f"Request {request} to fetch_variant_config endpoint failed with status code {response.status_code}. Error message: {error_message}"
+#             )
+
+#         return response.json()
+
+
+#     except RequestException as e:
+#         raise APIRequestError(f"Request failed: {str(e)}")
+def validate_api_key(api_key: str, host: str) -> bool:
     """
-    Save or update a variant configuration to the server.
+    Validates an API key with the Agenta backend.
 
     Args:
-        variant_config (VariantConfigPayload): Pydantic model containing the variant configuration.
-        host (str): The server host URL.
-        session_token (str): The session token.
-
-    Raises:
-        APIRequestError: If the API request fails.
-    """
-    if host is None:
-        raise ValueError("The 'host' is not specified in save_variant_config")
-
-    headers = {
-        "Content-Type": "application/json",
-    }
-    variant_config = VariantConfigPayload(
-        app_name=app_name,
-        base_name=base_name,
-        config_name=config_name,
-        parameters=parameters,
-        overwrite=overwrite,
-    )
-    try:
-        response = requests.post(
-            f"{host}/{BACKEND_URL_SUFFIX}/app_variant/config/",
-            json=variant_config.dict(),
-            headers=headers,
-            timeout=600,
-        )
-        request = f"POST {host}/{BACKEND_URL_SUFFIX}/app_variant/config/ {variant_config.dict()}"
-
-        # Check for successful request
-        if response.status_code != 200:
-            error_message = response.json().get("detail", "Unknown error")
-            raise APIRequestError(
-                f"Request {request} to save_variant_config endpoint failed with status code {response.status_code}. Error message: {error_message}"
-            )
-    except RequestException as e:
-        raise APIRequestError(f"Request failed: {str(e)}")
-
-
-def fetch_variant_config(
-    app_name: str,
-    base_name: str,
-    host: str,
-    config_name: str = None,
-    environment_name: str = None,
-) -> Dict[str, Any]:
-    """
-    Fetch a variant configuration from the server.
-
-    Args:
-        app_name (str): Name of the app.
-        variant_name (str): Name of the variant.
-        base_name (str): Base name for the configuration.
-        config_name (str): Configuration name.
-        session_token (str): The session token.
-        host (str): The server host URL.
-
-    Raises:
-        APIRequestError: If the API request fails.
+        api_key (str): The API key to validate.
+        host (str): The URL of the Agenta backend.
 
     Returns:
-        dict: The requested variant configuration.
+        bool: Whether the API key is valid or not.
     """
-
-    if host is None:
-        raise ValueError("The 'host' is not specified in fetch_variant_config")
-
-    headers = {
-        "Content-Type": "application/json",
-    }
-
     try:
+        headers = {"Authorization": api_key}
+
+        prefix = api_key.split(".")[0]
+
         response = requests.get(
-            f"{host}/{BACKEND_URL_SUFFIX}/app_variant/config/",
-            params={
-                "app_name": app_name,
-                "base_name": base_name,
-                "config_name": config_name,
-                "environment_name": environment_name,
-            },
+            f"{host}/{BACKEND_URL_SUFFIX}/keys/{prefix}/validate/",
             headers=headers,
             timeout=600,
         )
-
-        request = f"GET {host}/{BACKEND_URL_SUFFIX}/app_variant/config/ {app_name} {base_name} {config_name} {environment_name}"
-
-        # Check for successful request
         if response.status_code != 200:
-            error_message = response.json().get("detail", "Unknown error")
+            error_message = response.json()
             raise APIRequestError(
-                f"Request {request} to fetch_variant_config endpoint failed with status code {response.status_code}. Error message: {error_message}"
+                f"Request to validate api key failed with status code {response.status_code} and error message: {error_message}."
             )
-
-        return response.json()
-
+        return True
     except RequestException as e:
-        raise APIRequestError(f"Request failed: {str(e)}")
+        raise APIRequestError(f"An error occurred while making the request: {e}")

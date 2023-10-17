@@ -81,6 +81,9 @@
 </h3>
 
 ---
+# ⚠ Breaking Changes Notice
+
+> **Important**: In version 0.3, we had to do a large refactoring that introduced breaking changes. This means that version 0.3 cannot be used with data from versions 0.2 and below. You should manually save your data before pulling version 0.3. Feel free to contact us on Slack if you need help with the migration.
 
 # ℹ️ About
 
@@ -221,7 +224,7 @@ Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-s
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-22-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-27-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -260,6 +263,11 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/navdeep1840"><img src="https://avatars.githubusercontent.com/u/80774259?v=4?s=100" width="100px;" alt="Navdeep"/><br /><sub><b>Navdeep</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=navdeep1840" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.linkedin.com/in/rhythm-sharma-708a421a8/"><img src="https://avatars.githubusercontent.com/u/64489317?v=4?s=100" width="100px;" alt="Rhythm Sharma"/><br /><sub><b>Rhythm Sharma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Rhythm-08" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://osinachi.me"><img src="https://avatars.githubusercontent.com/u/40396070?v=4?s=100" width="100px;" alt="Osinachi Chukwujama "/><br /><sub><b>Osinachi Chukwujama </b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=vicradon" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://liduos.com/"><img src="https://avatars.githubusercontent.com/u/47264881?v=4?s=100" width="100px;" alt="莫尔索"/><br /><sub><b>莫尔索</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=morsoli" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://luccithedev.com"><img src="https://avatars.githubusercontent.com/u/22600781?v=4?s=100" width="100px;" alt="Agunbiade Adedeji"/><br /><sub><b>Agunbiade Adedeji</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=dejongbaba" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://techemmy.github.io/"><img src="https://avatars.githubusercontent.com/u/43725109?v=4?s=100" width="100px;" alt="Emmanuel Oloyede"/><br /><sub><b>Emmanuel Oloyede</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=techemmy" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=techemmy" title="Documentation">📖</a></td>
     </tr>
   </tbody>
 </table>

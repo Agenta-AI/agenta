@@ -5,29 +5,27 @@ import {
     AppstoreOutlined,
     DatabaseOutlined,
     CloudUploadOutlined,
-    BarChartOutlined,
     LineChartOutlined,
     QuestionOutlined,
-    DashboardOutlined,
-    LockOutlined,
+    PhoneOutlined,
+    SettingOutlined,
 } from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme, Dropdown} from "antd"
+import {Layout, Menu, Space, Tooltip, theme, Dropdown, Select, Avatar} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {ErrorBoundary} from "react-error-boundary"
 import {createUseStyles} from "react-jss"
+import AlertPopup from "../AlertPopup/AlertPopup"
+import {useProfileData} from "@/contexts/profile.context"
+import {getColorFromStr, getGradientFromStr} from "@/lib/helpers/colors"
+import {getInitials, isDemo} from "@/lib/helpers/utils"
+import {useSession} from "@/hooks/useSession"
 
 type StyleProps = {
     themeMode: "system" | "dark" | "light"
     colorBgContainer: string
-}
-
-type MenuItem = {
-    key: string
-    label?: string
-    onClick: () => void
 }
 
 const {Sider} = Layout
@@ -76,6 +74,39 @@ const useStyles = createUseStyles({
     optionSideIcon: {
         paddingLeft: "20px",
     },
+    menuItemNoBg: {
+        textOverflow: "unset !important",
+        "& .ant-select-selector": {
+            padding: "0 !important",
+        },
+        "&> span": {
+            display: "inline-block",
+            marginTop: 4,
+        },
+        "& .ant-select-selection-item": {
+            "&> span > span": {
+                width: 120,
+                marginRight: 10,
+            },
+        },
+    },
+    orgLabel: {
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        justifyContent: "flex-start",
+        "&> div": {
+            width: 18,
+            height: 18,
+            aspectRatio: "1/1",
+            borderRadius: "50%",
+        },
+        "&> span": {
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+        },
+    },
 })
 
 const Sidebar: React.FC = () => {
@@ -84,8 +115,13 @@ const Sidebar: React.FC = () => {
         token: {colorBgContainer},
     } = theme.useToken()
     const router = useRouter()
-    const {app_name} = router.query
-    const classes = useStyles({themeMode: appTheme, colorBgContainer} as StyleProps)
+    const appId = router.query.app_id as string
+    const classes = useStyles({
+        themeMode: appTheme,
+        colorBgContainer,
+    } as StyleProps)
+    const {doesSessionExist, logout} = useSession()
+
     const pathSegments = router.asPath.split("/")
     const page_name = pathSegments[3]
 
@@ -98,43 +134,7 @@ const Sidebar: React.FC = () => {
         initialSelectedKeys = ["apps"]
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
-    const [themeKey, setTheme] = useState(() => {
-        const savedTheme = localStorage.getItem("agenta-theme")
-
-        if (!savedTheme) {
-            toggleAppTheme("system")
-            return 0
-        }
-
-        return savedTheme === "dark" ? 1 : 2
-    })
-    const items: MenuItem[] = [
-        {
-            key: "0",
-            label: "System",
-            onClick: () => {
-                setTheme(0)
-                toggleAppTheme("system")
-            },
-        },
-        {
-            key: "1",
-            label: "Dark Mode",
-            onClick: () => {
-                setTheme(1)
-                toggleAppTheme("dark")
-            },
-        },
-
-        {
-            key: "2",
-            label: "Light Mode",
-            onClick: () => {
-                setTheme(2)
-                toggleAppTheme("light")
-            },
-        },
-    ] as any[]
+    const {user, orgs, selectedOrg, changeSelectedOrg, reset} = useProfileData()
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
@@ -143,11 +143,17 @@ const Sidebar: React.FC = () => {
     const getNavigationPath = (path: string) => {
         if (path === "apps") {
             return "/apps"
-        } else if (path === "keys") {
-            return "/apikeys"
         } else {
-            return `/apps/${app_name}/${path}`
+            return `/apps/${appId}/${path}`
         }
+    }
+
+    const handleLogout = () => {
+        AlertPopup({
+            title: "Logout",
+            message: "Are you sure you want to logout?",
+            onOk: logout,
+        })
     }
 
     return (
@@ -190,6 +196,7 @@ const Sidebar: React.FC = () => {
                                         title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                     >
                                         <Menu.Item
+                                            key="playground"
                                             icon={
                                                 <RocketOutlined
                                                     className={classes.optionSideIcon}
@@ -282,44 +289,93 @@ const Sidebar: React.FC = () => {
                             className={classes.menuContainer2}
                             selectedKeys={selectedKeys}
                         >
-                            <Tooltip
-                                placement="right"
-                                key="apikeys"
-                                title="Your api keys that are used in applications"
-                            >
-                                <Menu.Item icon={<LockOutlined />}>
-                                    <Link
-                                        data-cy="apikeys-link"
-                                        href={getNavigationPath("keys")}
-                                        className={classes.menuLinks}
-                                    >
-                                        <Space>
-                                            <span>API keys</span>
-                                        </Space>
+                            {doesSessionExist && (
+                                <Menu.Item key="settings" icon={<SettingOutlined />}>
+                                    <Link data-cy="settings-link" href="/settings">
+                                        Settings
                                     </Link>
                                 </Menu.Item>
-                            </Tooltip>
-
-                            <Menu.Item key="theme" icon={<DashboardOutlined />}>
-                                <Dropdown menu={{items}} trigger={["click"]}>
-                                    <Space>
-                                        <span>Theme: {items[themeKey]?.label}</span>
-                                    </Space>
-                                </Dropdown>
-                            </Menu.Item>
+                            )}
 
                             <Menu.Item key="help" icon={<QuestionOutlined />}>
                                 <Link href="https://docs.agenta.ai" target="_blank">
                                     Help
                                 </Link>
                             </Menu.Item>
-                            {/* <Menu.Item key="user">
-                        <Space>
-                            <Avatar size="small" style={{ backgroundColor: '#87d068' }} icon={<UserOutlined />} />
-                            <span>Foulen</span>
-                        </Space>
 
-                    </Menu.Item> */}
+                            {isDemo() && (
+                                <>
+                                    {" "}
+                                    <Menu.Item key="expert" icon={<PhoneOutlined />}>
+                                        <Link
+                                            href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"
+                                            target="_blank"
+                                        >
+                                            Talk to an Expert
+                                        </Link>
+                                    </Menu.Item>
+                                    {selectedOrg && (
+                                        <Menu.Item key="org" className={classes.menuItemNoBg}>
+                                            <Select
+                                                bordered={false}
+                                                value={selectedOrg.id}
+                                                options={orgs.map((org) => ({
+                                                    label: (
+                                                        <Tooltip title={org.name}>
+                                                            <span className={classes.orgLabel}>
+                                                                <div
+                                                                    style={{
+                                                                        backgroundImage:
+                                                                            getGradientFromStr(
+                                                                                org.id,
+                                                                            ),
+                                                                    }}
+                                                                />
+                                                                <span>{org.name}</span>
+                                                            </span>
+                                                        </Tooltip>
+                                                    ),
+                                                    value: org.id,
+                                                }))}
+                                                onChange={(value) => changeSelectedOrg(value)}
+                                            />
+                                        </Menu.Item>
+                                    )}
+                                    {user?.username && (
+                                        <Menu.Item key="user">
+                                            <Dropdown
+                                                menu={{
+                                                    items: [
+                                                        {key: "email", label: user.email},
+                                                        {
+                                                            key: "logout",
+                                                            label: "Logout",
+                                                            onClick: handleLogout,
+                                                        },
+                                                    ],
+                                                }}
+                                                trigger={["click"]}
+                                            >
+                                                <a onClick={(e) => e.preventDefault()}>
+                                                    <Space>
+                                                        <Avatar
+                                                            style={{
+                                                                backgroundColor: getColorFromStr(
+                                                                    user.email,
+                                                                ),
+                                                            }}
+                                                            size="small"
+                                                        >
+                                                            {getInitials(user.email)}
+                                                        </Avatar>
+                                                        <span>{user.username}</span>
+                                                    </Space>
+                                                </a>
+                                            </Dropdown>
+                                        </Menu.Item>
+                                    )}
+                                </>
+                            )}
                         </Menu>
                     </div>
                 </ErrorBoundary>

@@ -3,20 +3,27 @@ import {Col, Row, Divider, Button, Tooltip, Spin, notification} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {Environment, RestartVariantDocker, Variant} from "@/lib/Types"
+import {Environment, Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
-import {getAppContainerURL, restartAppVariantContainer, waitForAppToStart} from "@/lib/services/api"
+import {
+    getAppContainerURL,
+    removeVariant,
+    restartAppVariantContainer,
+    waitForAppToStart,
+} from "@/lib/services/api"
+import {useAppsData} from "@/contexts/app.context"
 
 interface Props {
     variant: Variant
     handlePersistVariant: (variantName: string) => void
-    setRemovalVariantName: (variantName: string) => void
-    setRemovalWarningModalOpen: (value: boolean) => void
-    isDeleteLoading: boolean
     environments: Environment[]
+    onAdd: () => void
+    deleteVariant: (deleteAction?: Function) => void
+    getHelpers: (helpers: {save: Function; delete: Function}) => void
+    onStateChange: (isDirty: boolean) => void
 }
 
 const useStyles = createUseStyles({
@@ -31,14 +38,15 @@ const useStyles = createUseStyles({
 const ViewNavigation: React.FC<Props> = ({
     variant,
     handlePersistVariant,
-    setRemovalVariantName,
-    setRemovalWarningModalOpen,
-    isDeleteLoading,
     environments,
+    onAdd,
+    deleteVariant,
+    getHelpers,
+    onStateChange,
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const appName = router.query.app_name as unknown as string
+    const appId = router.query.app_id as unknown as string
     const {
         inputParams,
         optParams,
@@ -48,11 +56,12 @@ const ViewNavigation: React.FC<Props> = ({
         isParamSaveLoading,
         saveOptParams,
         isLoading,
-    } = useVariant(appName, variant)
+    } = useVariant(appId, variant)
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
-    const [containerURIPath, setContainerURIPath] = useState("")
+    const [containerURI, setContainerURI] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
+    const {currentApp} = useAppsData()
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
@@ -62,9 +71,9 @@ const ViewNavigation: React.FC<Props> = ({
     }
 
     if (isError) {
-        let imageName = `agentaai/${appName.toLowerCase()}_`
-        // TODO: Change this to variant.baseName
         let variantDesignator = variant.templateVariantName
+        let imageName = `agentaai/${(currentApp?.app_name || "").toLowerCase()}_`
+
         if (!variantDesignator || variantDesignator === "") {
             variantDesignator = variant.variantName
             imageName += variantDesignator.toLowerCase()
@@ -73,24 +82,18 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const variantContainerPath = async () => {
-            const urlPath = await getAppContainerURL(appName!, variantDesignator!)
-            setContainerURIPath(urlPath)
+            const url = await getAppContainerURL(appId, variant.variantId, variant.baseId)
+            setContainerURI(url)
         }
-        if (!containerURIPath) {
+        if (!containerURI) {
             variantContainerPath()
         }
 
         const restartContainerHandler = async () => {
             // Set restarting to true
             setRestarting(true)
-
-            // Set payload to send to backend
-            const data: RestartVariantDocker = {
-                app_name: appName.toLowerCase(),
-                variant_name: variant.variantName,
-            }
             try {
-                const response = await restartAppVariantContainer(data)
+                const response = await restartAppVariantContainer(variant.variantId)
                 if (response.status === 200) {
                     showNotification({
                         type: "success",
@@ -101,16 +104,17 @@ const ViewNavigation: React.FC<Props> = ({
                     })
 
                     // Set restarting to false
-                    await waitForAppToStart(appName)
+                    await waitForAppToStart(appId)
                     router.reload()
                     setRestarting(false)
                 }
-            } catch (err: any) {
+            } catch {
+            } finally {
                 setRestarting(false)
             }
         }
 
-        const apiAddress = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${containerURIPath}/openapi.json`
+        const apiAddress = `${containerURI}/openapi.json`
         return (
             <div>
                 {error ? (
@@ -163,10 +167,8 @@ const ViewNavigation: React.FC<Props> = ({
                             type="primary"
                             danger
                             onClick={() => {
-                                setRemovalVariantName(variant.variantName)
-                                setRemovalWarningModalOpen(true)
+                                deleteVariant(() => removeVariant(variant.variantId))
                             }}
-                            loading={isDeleteLoading}
                         >
                             <Tooltip placement="bottom" title="Delete the variant permanently">
                                 Delete Variant
@@ -183,18 +185,19 @@ const ViewNavigation: React.FC<Props> = ({
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
-                        variantName={variant.variantName}
+                        variant={variant}
                         optParams={optParams}
                         isParamSaveLoading={isParamSaveLoading}
                         onOptParamsChange={saveOptParams}
                         handlePersistVariant={handlePersistVariant}
                         isPersistent={variant.persistent} // if the variant persists in the backend, then saveoptparams will need to know to update and not save new variant
-                        setRemovalVariantName={setRemovalVariantName}
-                        setRemovalWarningModalOpen={setRemovalWarningModalOpen}
-                        isDeleteLoading={isDeleteLoading}
+                        deleteVariant={deleteVariant}
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         environments={environments}
+                        onAdd={onAdd}
+                        getHelpers={getHelpers}
+                        onStateChange={onStateChange}
                     />
                 </Col>
             </Row>
@@ -202,7 +205,7 @@ const ViewNavigation: React.FC<Props> = ({
 
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]} className={classes.row}>
                 <Col span={24}>
-                    <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
+                    <TestView inputParams={inputParams} optParams={optParams} variant={variant} />
                 </Col>
             </Row>
         </Spin>
