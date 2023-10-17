@@ -1,4 +1,4 @@
-import {app_id} from "../support/commands/utils"
+import {app_id} from "../support/commands/evaluations"
 
 describe("Regex Evaluation workflow", () => {
     before(() => {
@@ -120,19 +120,7 @@ describe("Regex Evaluation workflow", () => {
         })
     })
 
-    context("Cleanup", () => {
-        it("Should delete app variant", () => {
-            cy.visit("/apps")
-
-            cy.request({
-                url: `${Cypress.env().baseApiURL}/apps/${app_id}/`,
-                method: "DELETE",
-                body: {
-                    app_id,
-                },
-            }).then((res) => {
-                expect(res.status).to.eq(200)
-            })
-        })
+    after(() => {
+        cy.cleanupVariantAndTestset()
     })
 })

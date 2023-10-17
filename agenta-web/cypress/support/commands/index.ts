@@ -7,6 +7,7 @@ declare global {
         interface Chainable {
             clickLinkAndWait(selector: string): Chainable<void>
             createVariantsAndTestsets(): Chainable<void>
+            cleanupVariantAndTestset(): Chainable<void>
         }
     }
 }
