@@ -18,7 +18,7 @@ export interface AppVariant {
 }
 
 export interface Variant {
-    variantName: string // name of the variant: <baseName>-<configName>
+    variantName: string
     templateVariantName: string | null // template name of the variant in case it has a precursor. Needed to compute the URI path
     persistent: boolean // whether the variant is persistent in the backend or not
     parameters: Record<string, string> | null // parameters of the variant. Only set in the case of forked variants
