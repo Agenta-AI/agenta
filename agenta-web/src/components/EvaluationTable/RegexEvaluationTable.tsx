@@ -45,7 +45,7 @@ interface RegexEvaluationTableRow {
         input_value: string
     }[]
     outputs: {
-        variant_name: string
+        variant_id: string
         variant_output: string
     }[]
     columnData0: string
@@ -125,11 +125,9 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const appName = Array.isArray(router.query.app_name)
-        ? router.query.app_name[0]
-        : router.query.app_name || ""
+    const appId = router.query.app_id as string
     const variants = evaluation.variants
-    const variantData = useVariants(appName, variants)
+    const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<RegexEvaluationTableRow[]>([])
     const [wrongAnswers, setWrongAnswers] = useState<number>(0)
@@ -218,11 +216,12 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
         for (let idx = 0; idx < columnsDataNames.length; ++idx) {
             const columnName = columnsDataNames[idx] as keyof RegexEvaluationTableRow
             try {
-                const result = await callVariant(
+                let result = await callVariant(
                     inputParamsDict,
                     variantData[idx].inputParams!,
                     variantData[idx].optParams!,
-                    variantData[idx].URIPath!,
+                    appId || "",
+                    variants[idx].baseId || "",
                 )
 
                 const {regexPattern, regexShouldMatch} = form.getFieldsValue()
@@ -236,9 +235,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         evaluationScenarioId,
                         {
                             score,
-                            outputs: [
-                                {variant_name: variants[0].variantName, variant_output: result},
-                            ],
+                            outputs: [{variant_id: variants[0].variantId, variant_output: result}],
                         },
                         evaluation.evaluationType,
                     )
@@ -297,7 +294,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     let outputValue = value
                     if (record.outputs && record.outputs.length > 0) {
                         outputValue = record.outputs.find(
-                            (output: any) => output.variant_name === variants[i].variantName,
+                            (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                     }
 
@@ -354,7 +351,11 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
                 const isCorrect = val === "correct"
                 const isMatch = settings.regexShouldMatch ? isCorrect : !isCorrect
-                return settings.regexPattern ? <div>{isMatch ? "Match" : "Mismatch"}</div> : null
+                return settings.regexPattern ? (
+                    <div data-cy="regex-evaluation-regex-match">
+                        {isMatch ? "Match" : "Mismatch"}
+                    </div>
+                ) : null
             },
         },
         {
@@ -371,6 +372,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                             <Tag
                                 color={score === "correct" ? "green" : "red"}
                                 className={classes.tag}
+                                data-cy="regex-evaluation-score"
                             >
                                 {score}
                             </Tag>
@@ -389,6 +391,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                     <Col span={12}>
                         <Space>
                             <Button
+                                data-cy="regex-evaluation-run"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}
@@ -462,6 +465,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         ]}
                     >
                         <Input
+                            data-cy="regex-evaluation-input"
                             placeholder="Pattern (ex: ^this_word\d{3}$)"
                             className={classes.regexInput}
                         />
@@ -478,7 +482,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         rules={[{required: true, message: "Please select strategy"}]}
                         name="regexShouldMatch"
                     >
-                        <Radio.Group>
+                        <Radio.Group data-cy="regex-evaluation-strategy">
                             <Radio value={true}> Match </Radio>
                             <Radio value={false}> Mismatch </Radio>
                         </Radio.Group>

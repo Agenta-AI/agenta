@@ -10,6 +10,6 @@ def get_all_contexts():
     return {"contexts": contexts}
 
 
-@router.get("/health/")
+@router.get("/health")
 def health():
-    return "OK"
+    return {"status": "ok"}

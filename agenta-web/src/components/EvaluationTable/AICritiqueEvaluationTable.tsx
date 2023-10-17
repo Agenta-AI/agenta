@@ -21,6 +21,7 @@ import {
     callVariant,
     fetchEvaluationResults,
     updateEvaluation,
+    evaluateAICritiqueForEvalScenario,
 } from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
@@ -46,12 +47,12 @@ interface AICritiqueEvaluationTableRow {
         input_value: string
     }[]
     outputs: {
-        variant_name: string
+        variant_id: string
         variant_output: string
     }[]
     columnData0: string
     correctAnswer: string
-    evaluation: string
+    score: string
     evaluationFlow: EvaluationFlow
 }
 
@@ -148,13 +149,11 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const router = useRouter()
-    const appName = Array.isArray(router.query.app_name)
-        ? router.query.app_name[0]
-        : router.query.app_name || ""
+    const appId = router.query.app_id as string
 
     const variants = evaluation.variants
 
-    const variantData = useVariants(appName, variants)
+    const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<AICritiqueEvaluationTableRow[]>([])
     const [evaluationPromptTemplate, setEvaluationPromptTemplate] =
@@ -243,8 +242,10 @@ Answer ONLY with one of the given grading or evaluation options.
                 inputParamsDict,
                 variantData[idx].inputParams!,
                 variantData[idx].optParams!,
-                variantData[idx].URIPath!,
+                appId || "",
+                variants[idx].baseId || "",
             )
+
             setRowValue(rowIndex, columnName as any, result)
             await evaluate(rowIndex)
             setShouldFetchResults(true)
@@ -257,26 +258,31 @@ Answer ONLY with one of the given grading or evaluation options.
 
     const evaluate = async (rowNumber: number) => {
         const evaluation_scenario_id = rows[rowNumber].id
-        const appVariantNameX = variants[0].variantName
         const outputVariantX = rows[rowNumber].columnData0
 
         if (evaluation_scenario_id) {
             const data = {
-                outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+                outputs: [{variant_id: variants[0].variantId, variant_output: outputVariantX}],
+            }
+
+            const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario({
+                correct_answer: rows[rowNumber].correctAnswer,
+                llm_app_prompt_template: evaluation.llmAppPromptTemplate,
                 inputs: rows[rowNumber].inputs,
+                outputs: data.outputs,
                 evaluation_prompt_template: evaluationPromptTemplate,
                 open_ai_key: getOpenAIKey(),
-            }
+            })
 
             try {
                 const responseData = await updateEvaluationScenario(
                     evaluation.id,
                     evaluation_scenario_id,
-                    data,
+                    {...data, score: aiCritiqueScoreResponse.data},
                     evaluation.evaluationType as EvaluationType,
                 )
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
-                setRowValue(rowNumber, "evaluation", responseData.evaluation)
+                setRowValue(rowNumber, "score", aiCritiqueScoreResponse.data)
             } catch (err) {
                 console.error(err)
             }
@@ -320,7 +326,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     }
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
-                            (output: any) => output.variant_name === variants[i].variantName,
+                            (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }
@@ -373,22 +379,22 @@ Answer ONLY with one of the given grading or evaluation options.
         {
             title: "Evaluation",
             dataIndex: "evaluation",
-            key: "evaluation",
+            key: "score",
             width: 200,
             align: "center" as "left" | "right" | "center",
-            render: (text: any, record: any, rowIndex: number) => {
+            render: (score: string, record: any) => {
                 if (record.evaluationFlow === "COMPARISON_RUN_STARTED") {
                     return <Spin></Spin>
                 }
                 let tagColor = ""
 
                 return (
-                    <Spin spinning={rows[rowIndex].evaluation === "loading" ? true : false}>
+                    <Spin spinning={score === "loading"}>
                         <Space>
                             <div>
-                                {rows[rowIndex].evaluation !== "" && (
+                                {score !== "" && (
                                     <Tag color={tagColor} className={classes.tag}>
-                                        {record.evaluation}
+                                        {record.score}
                                     </Tag>
                                 )}
                             </div>

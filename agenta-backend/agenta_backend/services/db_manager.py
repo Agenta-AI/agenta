@@ -1,453 +1,48 @@
-import os
 import logging
-from pathlib import Path
-from bson import ObjectId
+import os
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any, Dict, List, Optional
 
 from agenta_backend.models.api.api_models import (
     App,
     AppVariant,
-    Environment,
-    Image,
     ImageExtended,
     Template,
 )
 from agenta_backend.models.converters import (
-    app_variant_db_to_pydantic,
+    app_db_to_pydantic,
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
-from agenta_backend.services.json_importer_helper import get_json
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
+    AppDB,
     AppVariantDB,
-    EnvironmentDB,
+    VariantBaseDB,
+    ConfigDB,
+    ConfigVersionDB,
+    AppEnvironmentDB,
+    EvaluationDB,
+    EvaluationScenarioDB,
     ImageDB,
     OrganizationDB,
     TemplateDB,
     TestSetDB,
     UserDB,
 )
-from agenta_backend.services import helpers
+
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.ee.models.db_models import DeploymentDB
+else:
+    from agenta_backend.models.db_models import DeploymentDB
+
+from agenta_backend.utils.common import check_user_org_access, engine
 from bson import ObjectId
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 from odmantic import query
 
-# Initialize database engine
-engine = DBEngine(mode="default").engine()
-
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Define parent directory
-PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
-
-
-async def get_templates() -> List[Template]:
-    templates = await engine.find(TemplateDB)
-    return templates_db_to_pydantic(templates)
-
-
-async def add_template(**kwargs: dict):
-    existing_template = await engine.find_one(
-        TemplateDB, TemplateDB.template_id == kwargs["template_id"]
-    )
-    if existing_template is None:
-        db_template = TemplateDB(**kwargs)
-        await engine.save(db_template)
-
-
-async def add_variant_based_on_image(
-    app_variant: AppVariant, image: Image, **kwargs: dict
-):
-    """Adds an app variant based on an image. This the functionality called by the cli.
-    Currently we are not using the parameters field, but it is there for future use.
-
-    Arguments:
-        app_variant -- contains the app name and variant name and optionally the parameters
-        image -- contains the docker id and the tags
-
-    Raises:
-        ValueError: if variant exists or missing inputs
-    """
-
-    await clean_soft_deleted_variants()
-    if (
-        app_variant is None
-        or image is None
-        or app_variant.app_name in [None, ""]
-        or app_variant.variant_name in [None, ""]
-        or image.docker_id in [None, ""]
-        or image.tags in [None, ""]
-    ):
-        raise ValueError("App variant or image is None")
-    if app_variant.parameters is not None:
-        raise ValueError("Parameters are not supported when adding based on image")
-
-    soft_deleted_variants = await list_app_variants(show_soft_deleted=True, **kwargs)
-    already_exists = any(
-        [
-            av
-            for av in soft_deleted_variants
-            if av.app_name == app_variant.app_name
-            and av.variant_name == app_variant.variant_name
-        ]
-    )
-    if already_exists:
-        raise ValueError("App variant with the same name already exists")
-
-    # Get user instance
-    user_instance = await get_user_object(kwargs["uid"])
-    user_db_image = await get_user_image_instance(user_instance.uid, image.docker_id)
-
-    # Add image
-    if user_db_image is None:
-        db_image = ImageDB(
-            docker_id=image.docker_id,
-            tags=image.tags,
-            user_id=user_instance,
-        )
-        await engine.save(db_image)
-
-    user_db_image = db_image
-
-    # Add app variant and link it to the app variant
-    parameters = {} if app_variant.parameters is None else app_variant.parameters
-
-    db_app_variant = AppVariantDB(
-        image_id=user_db_image,
-        app_name=app_variant.app_name,
-        variant_name=app_variant.variant_name,  # variant name is <base_name>.<config_name>
-        base_name=app_variant.base_name,
-        config_name=app_variant.config_name,
-        user_id=user_instance,
-        parameters=parameters,
-        previous_variant_name=app_variant.previous_variant_name,
-    )
-    await engine.save(db_app_variant)
-
-
-async def add_testset_to_app_variant(
-    app_variant: AppVariant, image: Image, **kwargs: dict
-):
-    """Add testset to app variant.
-
-    Args:
-        app_variant (AppVariant): the app variant
-        image (Image): the image
-    """
-
-    user_instance = await get_user_object(kwargs["uid"])
-
-    app_template_name = image.tags.split(":")[-1]
-    if app_template_name == "single_prompt":
-        json_path = (
-            f"{PARENT_DIRECTORY}/resources/default_testsets/single_prompt_testsets.json"
-        )
-        csvdata = get_json(json_path)
-        testset = {
-            "name": f"{app_variant.app_name}_testset",
-            "app_name": app_variant.app_name,
-            "created_at": datetime.now().isoformat(),
-            "csvdata": csvdata,
-        }
-        testset = TestSetDB(**testset, user=user_instance)
-        await engine.save(testset)
-
-
-async def add_variant_based_on_previous(
-    previous_app_variant: AppVariant,
-    new_variant_name: str,
-    new_variant_config_name: str,
-    parameters: Dict[str, Any],
-    **kwargs: dict,
-):
-    """Adds a new variant from a previous/template one by changing the parameters.
-
-    Arguments:
-        app_variant -- contains the name of the app and variant
-
-    Keyword Arguments:
-        parameters -- the new parameters.
-
-    Raises:
-        ValueError: _description_
-    """
-
-    await clean_soft_deleted_variants()
-    if (
-        previous_app_variant is None
-        or previous_app_variant.app_name in [None, ""]
-        or previous_app_variant.variant_name in [None, ""]
-    ):
-        raise ValueError("App variant is None")
-    if parameters is None:
-        raise ValueError("Parameters is None")
-
-    # Build the query expression for the two conditions
-    query_expression = query.eq(
-        AppVariantDB.app_name, previous_app_variant.app_name
-    ) & query.eq(AppVariantDB.variant_name, previous_app_variant.variant_name)
-
-    # get the template variant to base the new one on
-    template_variant: AppVariantDB = await engine.find_one(
-        AppVariantDB, query_expression
-    )
-
-    if template_variant is None:
-        await print_all()
-        raise ValueError("Template app variant not found")
-    elif template_variant.previous_variant_name is not None:
-        raise ValueError(
-            "Template app variant is not a template, it is a forked variant itself"
-        )
-
-    soft_deleted_app_variants = await list_app_variants(
-        show_soft_deleted=True, **kwargs
-    )
-    already_exists = any(
-        [
-            av
-            for av in soft_deleted_app_variants
-            if av.app_name == previous_app_variant.app_name
-            and av.variant_name == new_variant_name
-        ]
-    )
-    if already_exists:
-        raise ValueError("App variant with the same name already exists")
-
-    user_instance = await get_user_object(kwargs["uid"])
-    db_app_variant = AppVariantDB(
-        app_name=template_variant.app_name,
-        variant_name=new_variant_name,
-        image_id=template_variant.image_id,
-        parameters=parameters,
-        previous_variant_name=template_variant.variant_name,
-        user_id=user_instance,
-        base_name=template_variant.base_name,
-        config_name=new_variant_config_name,
-    )
-    await engine.save(db_app_variant)
-
-
-async def list_app_variants(
-    app_name: str = None, show_soft_deleted=False, **kwargs: dict
-) -> List[AppVariant]:
-    """
-    Lists all the app variants from the db
-    Args:
-        app_name: if specified, only returns the variants for the app name
-        show_soft_deleted: if true, returns soft deleted variants as well
-    Returns:
-        List[AppVariant]: List of AppVariant objects
-    """
-
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    # Construct query expressions
-    query_filters = None
-    users_query = query.eq(AppVariantDB.user_id, user.id)
-    if not show_soft_deleted:
-        query_filters = query.eq(AppVariantDB.is_deleted, False) & users_query
-
-    if show_soft_deleted:
-        query_filters = query.eq(AppVariantDB.is_deleted, True) & users_query
-
-    if app_name is not None:
-        query_filters = query.eq(AppVariantDB.app_name, app_name) & users_query
-
-    if not show_soft_deleted and app_name is not None:
-        query_filters = (
-            query.eq(AppVariantDB.is_deleted, False)
-            & query.eq(AppVariantDB.app_name, app_name)
-            & users_query
-        )
-
-    app_variants_db: List[AppVariantDB] = await engine.find(
-        AppVariantDB,
-        query_filters,
-        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
-    )
-
-    # Include previous variant name
-    app_variants: List[AppVariant] = [
-        app_variant_db_to_pydantic(av) for av in app_variants_db
-    ]
-    return app_variants
-
-
-async def get_app_variants_by_app_name_and_base_name(
-    app_name: str, base_name: str, show_soft_deleted: bool = True, **kwargs: dict
-) -> List[AppVariant]:
-    """Returns all the app variants based on app_name and base_name
-
-    Args:
-        app_name: Name of the app.
-        base_name: Name of the base.
-        show_soft_deleted: If true, returns soft deleted variants as well. Defaults to True.
-
-    Returns:
-        List[AppVariant]: List of AppVariant objects.
-    """
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    # Construct query expressions
-    query_filters = (
-        query.eq(AppVariantDB.user_id, user.id)
-        & query.eq(AppVariantDB.app_name, app_name)
-        & query.eq(AppVariantDB.base_name, base_name)
-    )
-
-    if not show_soft_deleted:
-        query_filters &= query.eq(AppVariantDB.is_deleted, False)
-
-    app_variants_db: List[AppVariantDB] = await engine.find(
-        AppVariantDB,
-        query_filters,
-        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
-    )
-
-    # Include previous variant name
-    app_variants: List[AppVariant] = [
-        app_variant_db_to_pydantic(av) for av in app_variants_db
-    ]
-    return app_variants
-
-
-async def get_app_variant_by_app_name_and_variant_name(
-    app_name: str,
-    variant_name: str,
-    show_soft_deleted: bool = False,
-    **kwargs: dict,
-) -> AppVariant:
-    """Fetches an app variant based on app_name and variant_name.
-
-    Args:
-        app_name (str): Name of the app.
-        variant_name (str): Name of the variant.
-        show_soft_deleted: if true, returns soft deleted variants as well
-        **kwargs (dict): Additional keyword arguments.
-
-    Returns:
-        AppVariant: The fetched app variant.
-    """
-
-    # Get the user object using the user ID
-    user = await get_user_object(kwargs["uid"])
-
-    # Construct the base query for the user
-    users_query = query.eq(AppVariantDB.user_id, user.id)
-
-    # Construct the query for soft-deleted items
-    soft_delete_query = query.eq(AppVariantDB.is_deleted, show_soft_deleted)
-
-    # Construct the final query filters
-    query_filters = (
-        query.eq(AppVariantDB.app_name, app_name)
-        & query.eq(AppVariantDB.variant_name, variant_name)
-        & users_query
-        & soft_delete_query
-    )
-
-    # Perform the database query
-    app_variants_db = await engine.find(
-        AppVariantDB,
-        query_filters,
-        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
-    )
-
-    # Convert the database object to AppVariant and return it
-    # Assuming that find will return a list, take the first element if it exists
-    app_variant: AppVariant = (
-        app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
-    )
-
-    return app_variant
-
-
-async def get_app_variant_by_app_name_and_environment(
-    app_name: str, environment: str, **kwargs: dict
-) -> AppVariant:
-    # Get the user object using the user ID
-    user = await get_user_object(kwargs["uid"])
-
-    # Construct the base query for the user
-    users_query = query.eq(EnvironmentDB.user_id, user.id)
-
-    # Construct query filters for finding the environment in the database
-    query_filters_for_environment = (
-        query.eq(EnvironmentDB.name, environment)
-        & query.eq(EnvironmentDB.app_name, app_name)
-        & users_query
-    )
-
-    # Perform the database query to find the environment
-    environment_db = await engine.find(
-        EnvironmentDB,
-        query_filters_for_environment,
-        sort=(EnvironmentDB.app_name, EnvironmentDB.name),
-    )
-
-    if not environment_db:
-        return None
-
-    # Construct query filters for finding the app variant in the database
-    query_filters_for_app_variant = (
-        query.eq(AppVariantDB.app_name, app_name)
-        & query.eq(AppVariantDB.variant_name, environment_db[0].deployed_app_variant)
-        & users_query
-    )
-
-    # Perform the database query to find the app variant
-    app_variants_db = await engine.find(
-        AppVariantDB,
-        query_filters_for_app_variant,
-        sort=(AppVariantDB.app_name, AppVariantDB.variant_name),
-    )
-
-    # Convert the first matching database object to AppVariant and return it
-    app_variant = (
-        app_variant_db_to_pydantic(app_variants_db[0]) if app_variants_db else None
-    )
-
-    return app_variant
-
-
-async def list_apps(**kwargs: dict) -> List[App]:
-    """
-    Lists all the unique app names from the database
-    """
-    await clean_soft_deleted_variants()
-
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-    if user is None:
-        return []
-
-    query_expression = query.eq(AppVariantDB.user_id, user.id) & query.eq(
-        AppVariantDB.is_deleted, False
-    )
-    apps: List[AppVariantDB] = await engine.find(AppVariantDB, query_expression)
-    apps_names = [app.app_name for app in apps]
-    sorted_names = sorted(set(apps_names))
-    return [App(app_name=app_name) for app_name in sorted_names]
-
-
-async def count_apps(**kwargs: dict) -> int:
-    """
-    Counts all the unique app names from the database
-    """
-    await clean_soft_deleted_variants()
-
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-    if user is None:
-        return 0
-
-    no_of_apps = await engine.count(AppVariantDB, AppVariantDB.user_id == user.id)
-    return no_of_apps
+logger.setLevel(logging.DEBUG)
 
 
 async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
@@ -460,276 +55,411 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
         Image -- The Image associated with the app variant
     """
 
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
     # Build the query expression for the two conditions
     query_expression = (
-        query.eq(AppVariantDB.app_name, app_variant.app_name)
+        query.eq(AppVariantDB.app, ObjectId(app_variant.app_id))
         & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
-        & query.eq(AppVariantDB.user_id, user.id)
+        & query.eq(AppVariantDB.organization, ObjectId(app_variant.organization))
     )
 
     db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
     if db_app_variant:
         image_db: ImageDB = await engine.find_one(
-            ImageDB, ImageDB.id == ObjectId(db_app_variant.image_id.id)
+            ImageDB, ImageDB.id == ObjectId(db_app_variant.image.id)
         )
         return image_db_to_pydantic(image_db)
     else:
         raise Exception("App variant not found")
 
 
-async def remove_app_variant(app_variant: AppVariant, **kwargs: dict):
-    """Remove an app variant from the db
-    the logic for removing the image is in app_manager.py
+async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
+    """Fetches an app by its ID.
 
-    Arguments:
-        app_variant -- AppVariant to remove
+    Args:
+        app_id: _description_
     """
-
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    if (
-        app_variant is None
-        or app_variant.app_name in [None, ""]
-        or app_variant.variant_name in [None, ""]
-    ):
-        raise ValueError("App variant is None")
-
-    # Build the query expression for the two conditions
-    query_expression = (
-        query.eq(AppVariantDB.app_name, app_variant.app_name)
-        & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
-        & query.eq(AppVariantDB.user_id, user.id)
-    )
-
-    # Build the query expression to delete variants with is_deleted flag
-    delete_var_query_expression = (
-        query.eq(AppVariantDB.app_name, app_variant.app_name)
-        & query.eq(AppVariantDB.user_id, user.id)
-        & query.eq(AppVariantDB.is_deleted, True)
-    )
-
-    # Get app variant
-    app_variant_db = await engine.find_one(AppVariantDB, query_expression)
-
-    # Get variant with is_deleted flag
-    pending_variant_to_delete = await engine.find_one(
-        AppVariantDB, delete_var_query_expression
-    )
-    is_last_variant_for_image = await check_is_last_variant_for_image(app_variant_db)
-    if app_variant_db is None:
-        raise ValueError("App variant not found")
-
-    # Remove the variant from the associated environments
-    environments = await list_environments_by_variant(
-        app_variant.app_name, app_variant.variant_name, **kwargs
-    )
-    for environment in environments:
-        environment.deployed_app_variant = None
-        await engine.save(environment)
-
-    if app_variant_db.previous_variant_name is not None:  # forked variant
-        await engine.delete(app_variant_db)
-        if pending_variant_to_delete is not None:
-            await engine.delete(pending_variant_to_delete)
-
-    elif is_last_variant_for_image:  # last variant using the image, okay to delete
-        await engine.delete(app_variant_db)
-        if pending_variant_to_delete is not None:
-            await engine.delete(pending_variant_to_delete)
-
-    else:
-        app_variant_db.is_deleted = True  # soft deletion
-        await engine.save(app_variant_db)
+    assert app_id is not None, "app_id cannot be None"
+    app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
+    return app
 
 
-async def remove_image(image: ImageExtended, **kwargs: dict):
-    """Remove image from db based on pydantic class
+async def fetch_app_by_name(
+    app_name: str, organization_id: Optional[str] = None, **user_org_data: dict
+) -> Optional[AppDB]:
+    """Fetches an app by its name.
 
-    Arguments:
-        image -- Image to remove
-    """
-    if image is None or image.docker_id in [None, ""] or image.tags in [None, ""]:
-        raise ValueError("Image is None")
+    Args:
+        app_name (str): The name of the app to fetch.
 
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    # Build the query expression for the two conditions
-    query_expression = (
-        query.eq(ImageDB.tags, image.tags)
-        & query.eq(ImageDB.docker_id, image.docker_id)
-        & query.eq(ImageDB.user_id, user.id)
-        & query.eq(ImageDB.id, ObjectId(image.id))
-    )
-    image_db = await engine.find_one(ImageDB, query_expression)
-    if image_db is None:
-        raise ValueError("Image not found")
-
-    await engine.delete(image_db)
-
-
-async def check_is_last_variant_for_image(
-    db_app_variant: AppVariantDB,
-) -> bool:
-    """Checks whether the input variant is the sole variant that uses its linked image
-    This is a helpful function to determine whether to delete the image when removing a variant
-    Usually many variants will use the same image (these variants would have been created using the UI)
-    We only delete the image and shutdown the container if the variant is the last one using the image
-
-    Arguments:
-        app_variant -- AppVariant to check
     Returns:
-        true if it's the last variant, false otherwise
+        AppDB: the instance of the app
     """
-
-    # Build the query expression for the two conditions
-    query_expression = (
-        query.eq(AppVariantDB.user_id, db_app_variant.user_id.id)
-        & query.eq(AppVariantDB.image_id, db_app_variant.image_id.id)
-        & query.eq(AppVariantDB.is_deleted, False)
-    )
-
-    # Count the number of variants that match the query expression
-    count_variants = await engine.count(AppVariantDB, query_expression)
-
-    # If it's the only variant left that uses the image, delete the image
-    if count_variants == 1:
-        return True
+    if not organization_id:
+        user = await get_user_object(user_org_data["uid"])
+        query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id)
+        app = await engine.find_one(AppDB, query_expression)
     else:
+        query_expression = (AppDB.app_name == app_name) & (
+            AppDB.organization == ObjectId(organization_id)
+        )
+        app = await engine.find_one(AppDB, query_expression)
+    return app
+
+
+async def fetch_app_variant_by_id(
+    app_variant_id: str,
+) -> Optional[AppVariantDB]:
+    """
+    Fetches an app variant by its ID.
+
+    Args:
+        app_variant_id (str): The ID of the app variant to fetch.
+
+    Returns:
+        AppVariantDB: The fetched app variant, or None if no app variant was found.
+    """
+    assert app_variant_id is not None, "app_variant_id cannot be None"
+    app_variant = await engine.find_one(
+        AppVariantDB, AppVariantDB.id == ObjectId(app_variant_id)
+    )
+    return app_variant
+
+
+async def fetch_base_by_id(
+    base_id: str,
+    user_org_data: dict,
+) -> Optional[VariantBaseDB]:
+    """
+    Fetches a base by its ID.
+    Args:
+        base_id (str): The ID of the base to fetch.
+    Returns:
+        VariantBaseDB: The fetched base, or None if no base was found.
+    """
+    if base_id is None:
+        raise Exception("No base_id provided")
+    base = await engine.find_one(VariantBaseDB, VariantBaseDB.id == ObjectId(base_id))
+    if base is None:
+        logger.error("Base not found")
         return False
+    organization_id = base.organization.id
+    access = await check_user_org_access(
+        user_org_data, str(organization_id), check_owner=False
+    )
+    if not access:
+        logger.error("User does not have access to this base")
+        return False
+    return base
 
 
-async def get_variant_from_db(app_variant: AppVariant, **kwargs: dict) -> AppVariantDB:
-    """Checks whether the app variant exists in our db
-    and returns the AppVariantDB object if it does
+async def fetch_app_variant_by_name_and_appid(
+    variant_name: str, app_id: str
+) -> AppVariantDB:
+    """Fetch an app variant by it's name and app id.
 
-    Arguments:
-        app_variant -- AppVariant to check
+    Args:
+        variant_name (str): The name of the variant
+        app_id (str): The ID of the variant app
 
     Returns:
-        AppVariantDB -- The AppVariantDB object if it exists, None otherwise
+        AppVariantDB: the instance of the app variant
     """
 
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
-
-    # Build the query expression for the two conditions
-    query_expression = (
-        query.eq(AppVariantDB.app_name, app_variant.app_name)
-        & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
-        & query.eq(AppVariantDB.user_id, user.id)
+    query_expression = (AppVariantDB.variant_name == variant_name) & (
+        AppVariantDB.app == ObjectId(app_id)
     )
-
-    # Find app_variant in the database
-    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
-    logger.info(f"Found app variant: {db_app_variant}")
-    if db_app_variant:
-        return db_app_variant
-    return None
+    app_variant_db = await engine.find_one(AppVariantDB, query_expression)
+    return app_variant_db
 
 
-async def print_all():
-    """Prints all the tables in the database"""
-
-    variants = await engine.find(AppVariantDB)
-    images = await engine.find(ImageDB)
-    for app_variant in variants:
-        helpers.print_app_variant(app_variant)
-    for image in images:
-        helpers.print_image(image)
-
-
-async def clean_soft_deleted_variants():
-    """Remove soft-deleted app variants if their image is not used by any existing variant."""
-
-    # Get all soft-deleted app variants
-    soft_deleted_variants: List[AppVariantDB] = await engine.find(
-        AppVariantDB, AppVariantDB.is_deleted == True
+async def create_new_variant_base(
+    app: AppDB,
+    organization: OrganizationDB,
+    user: UserDB,
+    base_name: str,
+    image: ImageDB,
+) -> VariantBaseDB:
+    """Create a new base.
+    Args:
+        base_name (str): The name of the base.
+        image (ImageDB): The image of the base.
+    Returns:
+        VariantBaseDB: The created base.
+    """
+    logger.debug(f"Creating new base: {base_name} with image: {image} for app: {app}")
+    base = VariantBaseDB(
+        app=app,
+        organization=organization,
+        user=user,
+        base_name=base_name,
+        image=image,
     )
-
-    for variant in soft_deleted_variants:
-        # Build the query expression for the two conditions
-        query_expression = query.eq(
-            AppVariantDB.image_id, variant.image_id.id
-        ) & query.eq(AppVariantDB.is_deleted, False)
-
-        # Get non-deleted variants that use the same image
-        image_used = await engine.find_one(AppVariantDB, query_expression)
-
-        # If the image is not used by any non-deleted variant, delete the variant
-        if image_used is None:
-            await engine.delete(variant)
+    await engine.save(base)
+    return base
 
 
-async def update_variant_parameters(
-    app_variant: AppVariant, parameters: Dict[str, Any], **kwargs: dict
-):
-    """Updates the parameters of a specific variant
+async def create_new_config(
+    config_name: str,
+    parameters: Dict,
+) -> ConfigDB:
+    """Create a new config.
+    Args:
+        config_name (str): The name of the config.
+        parameters (Dict): The parameters of the config.
+    Returns:
+        ConfigDB: The created config.
+    """
+    config_db = ConfigDB(
+        config_name=config_name,
+        parameters=parameters,
+        current_version=1,
+        version_history=[
+            ConfigVersionDB(
+                version=1, parameters=parameters, created_at=datetime.utcnow()
+            )
+        ],
+    )
+    await engine.save(config_db)
+    return config_db
 
-    Arguments:
-        app_variant -- contains the name of the app and variant
-        parameters -- the new parameters.
+
+async def create_new_app_variant(
+    app: AppDB,
+    organization: OrganizationDB,
+    user: UserDB,
+    variant_name: str,
+    image: ImageDB,
+    base: VariantBaseDB,
+    config: ConfigDB,
+    base_name: str,
+    config_name: str,
+    parameters: Dict,
+) -> AppVariantDB:
+    """Create a new variant.
+    Args:
+        variant_name (str): The name of the variant.
+        image (ImageDB): The image of the variant.
+        base (VariantBaseDB): The base of the variant.
+        config (ConfigDB): The config of the variant.
+    Returns:
+        AppVariantDB: The created variant.
+    """
+    variant = AppVariantDB(
+        app=app,
+        organization=organization,
+        user=user,
+        variant_name=variant_name,
+        image=image,
+        base=base,
+        config=config,
+        base_name=base_name,
+        config_name=config_name,
+        parameters=parameters,
+    )
+    await engine.save(variant)
+    return variant
+
+
+async def create_image(
+    docker_id: str,
+    tags: str,
+    user: UserDB,
+    organization: OrganizationDB,
+) -> ImageDB:
+    """Create a new image.
+    Args:
+        docker_id (str): The ID of the image.
+        tags (str): The tags of the image.
+        user (UserDB): The user that the image belongs to.
+        organization (OrganizationDB): The organization that the image belongs to.
+    Returns:
+        ImageDB: The created image.
+    """
+    image = ImageDB(
+        docker_id=docker_id,
+        tags=tags,
+        user=user,
+        organization=organization,
+    )
+    await engine.save(image)
+    return image
+
+
+async def create_deployment(
+    app: AppVariantDB,
+    organization: OrganizationDB,
+    user: UserDB,
+    container_name: str,
+    container_id: str,
+    uri: str,
+    status: str,
+) -> DeploymentDB:
+    """Create a new deployment.
+    Args:
+        app (AppVariantDB): The app variant to create the deployment for.
+        organization (OrganizationDB): The organization that the deployment belongs to.
+        user (UserDB): The user that the deployment belongs to.
+        container_name (str): The name of the container.
+        container_id (str): The ID of the container.
+        uri (str): The URI of the container.
+        status (str): The status of the container.
+    Returns:
+        DeploymentDB: The created deployment.
+    """
+    deployment = DeploymentDB(
+        app=app,
+        organization=organization,
+        user=user,
+        container_name=container_name,
+        container_id=container_id,
+        uri=uri,
+        status=status,
+    )
+    await engine.save(deployment)
+    return deployment
+
+
+async def create_app_and_envs(
+    app_name: str, organization_id: str, **user_org_data
+) -> AppDB:
+    """
+    Create a new app with the given name and organization ID.
+
+    Args:
+        app_name (str): The name of the app to create.
+        organization_id (str): The ID of the organization that the app belongs to.
+        **user_org_data: Additional keyword arguments.
+
+    Returns:
+        AppDB: The created app.
 
     Raises:
-        ValueError: If the variant doesn't exist or parameters is None.
+        ValueError: If an app with the same name already exists.
     """
-    if (
-        app_variant is None
-        or app_variant.app_name in [None, ""]
-        or app_variant.variant_name in [None, ""]
-    ):
-        raise ValueError("App variant is None")
-    if parameters is None:
-        raise ValueError("Parameters is None")
 
-    # Get user object
-    user = await get_user_object(kwargs["uid"])
+    user_instance = await get_user_object(user_org_data["uid"])
+    app = await fetch_app_by_name(app_name, organization_id, **user_org_data)
+    if app is not None:
+        raise ValueError("App with the same name already exists")
 
-    # Build the query expression for the two conditions
-    query_expression = (
-        query.eq(AppVariantDB.app_name, app_variant.app_name)
-        & query.eq(AppVariantDB.variant_name, app_variant.variant_name)
-        & query.eq(AppVariantDB.user_id, user.id)
+    organization_db = await get_organization_object(organization_id)
+    app = AppDB(
+        app_name=app_name,
+        organization=organization_db,
+        user=user_instance,
     )
-
-    db_app_variant: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
-
-    if db_app_variant is None:
-        raise ValueError("App variant not found")
-
-    if db_app_variant.parameters == {} or db_app_variant.parameters is not None:
-        db_app_variant.parameters = parameters
-        await engine.save(db_app_variant)
-
-    # TODO: Currently we're ignoring this because of the issue with DictInput parameters
-    # elif db_app_variant.parameters is not None and set(
-    #     db_app_variant.parameters.keys()
-    # ) != set(parameters.keys()):
-    #     logger.error(
-    #         f"Parameters keys don't match: {db_app_variant.parameters.keys()} vs {parameters.keys()}"
-    #     )
-    #     raise ValueError("Parameters keys don't match")
+    await engine.save(app)
+    await initialize_environments(app, **user_org_data)
+    return app
 
 
-async def remove_old_template_from_db(template_ids: list) -> None:
-    """Deletes old templates that are no longer in docker hub.
+async def create_user_organization(user_uid: str) -> OrganizationDB:
+    """Create a default organization for a user.
+
+    Args:
+        user_uid (str): The uid of the user
+
+    Returns:
+        OrganizationDB: Instance of OrganizationDB
+    """
+
+    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
+    org_db = OrganizationDB(owner=str(user.id), type="default")
+    await engine.save(org_db)
+    return org_db
+
+
+async def get_deployment_by_objectid(
+    deployment_id: ObjectId,
+) -> DeploymentDB:
+    """Get the deployment object from the database with the provided id.
 
     Arguments:
-        template_ids -- list of template IDs you want to keep
+        deployment_id (ObjectId): The deployment id
+
+    Returns:
+        DeploymentDB: instance of deployment object
     """
 
-    templates_to_delete = []
-    templates = await engine.find(TemplateDB)
-    for temp in templates:
-        if temp.template_id not in template_ids:
-            templates_to_delete.append(temp)
+    deployment = await engine.find_one(DeploymentDB, DeploymentDB.id == deployment_id)
+    logger.debug(f"deployment: {deployment}")
+    return deployment
 
-    for template in templates_to_delete:
-        await engine.delete(template)
+
+async def get_organization_object(organization_id: str) -> OrganizationDB:
+    """
+    Fetches an organization by its ID.
+
+    Args:
+        organization_id (str): The ID of the organization to fetch.
+
+    Returns:
+        OrganizationDB: The fetched organization.
+    """
+    organization = await engine.find_one(
+        OrganizationDB, OrganizationDB.id == ObjectId(organization_id)
+    )
+    return organization
+
+
+async def get_organizations_by_list_ids(organization_ids: List) -> List:
+    """
+    Retrieve organizations from the database by their IDs.
+
+    Args:
+        organization_ids (List): A list of organization IDs to retrieve.
+
+    Returns:
+        List: A list of dictionaries representing the retrieved organizations.
+    """
+
+    organizations_db: List[OrganizationDB] = await engine.find(
+        OrganizationDB, OrganizationDB.id.in_(organization_ids)
+    )
+
+    return organizations_db
+
+
+async def list_app_variants_for_app_id(
+    app_id: str, **kwargs: dict
+) -> List[AppVariantDB]:
+    """
+    Lists all the app variants from the db
+    Args:
+        app_name: if specified, only returns the variants for the app name
+    Returns:
+        List[AppVariant]: List of AppVariant objects
+    """
+    assert app_id is not None, "app_id cannot be None"
+    query_expression = AppVariantDB.app == ObjectId(app_id)
+    app_variants_db: List[AppVariantDB] = await engine.find(
+        AppVariantDB,
+        query_expression,
+        sort=(AppVariantDB.variant_name),
+    )
+
+    return app_variants_db
+
+
+async def list_app_variant_for_base(
+    base: VariantBaseDB, **kwargs: dict
+) -> List[AppVariantDB]:
+    """
+    Lists all the app variants from the db for a base
+    Args:
+        base: if specified, only returns the variants for the base
+    Returns:
+        List[AppVariant]: List of AppVariant objects
+    """
+    assert base is not None, "base cannot be None"
+    query_expression = AppVariantDB.base == ObjectId(base.id)
+    app_variants_db: List[AppVariantDB] = await engine.find(
+        AppVariantDB,
+        query_expression,
+        sort=(AppVariantDB.variant_name),
+    )
+
+    return app_variants_db
 
 
 async def get_user_object(user_uid: str) -> UserDB:
@@ -744,183 +474,851 @@ async def get_user_object(user_uid: str) -> UserDB:
 
     user = await engine.find_one(UserDB, UserDB.uid == user_uid)
     if user is None:
-        org = OrganizationDB()
-        return UserDB(uid="0", organization_id=org)
-    return user
+        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+            create_user = UserDB(uid="0")
+            await engine.save(create_user)
+
+            org = OrganizationDB(type="default", owner=str(create_user.id))
+            await engine.save(org)
+
+            create_user.organizations.append(org.id)
+            await engine.save(create_user)
+            await engine.save(org)
+
+            return create_user
+        else:
+            raise Exception("Please login or signup")
+    else:
+        return user
 
 
-async def get_user_organization(user_id: str) -> OrganizationDB:
-    """Get the user organization object from the database.
-
-    Arguments:
-        user_id (str): The user unique identifier
-
-    Returns:
-        OrganizationDB: instance of user organization
-    """
-
-    user = await get_user_object(user_id)
-    organization = await engine.find_one(
-        OrganizationDB, OrganizationDB.id == user.organization_id
-    )
-    return organization
-
-
-async def get_user_image_instance(user_id: str, docker_id: str) -> ImageDB:
+async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
-        user_id (str): Ther user unique identifier
+        organization_id (str): The orga unique identifier
         docker_id (str): The image id
 
     Returns:
         ImageDB: instance of image object
     """
 
-    query_expression = query.eq(ImageDB.user_id, user_id) & query.eq(
+    query_expression = (ImageDB.organization == ObjectId(organization_id)) & query.eq(
         ImageDB.docker_id, docker_id
     )
     image = await engine.find_one(ImageDB, query_expression)
     return image
 
 
-async def create_environment(name: str, app_name: str, **kwargs: dict):
-    """
-    Creates a new environment for the given app with the given name.
-    """
-    user = await get_user_object(kwargs["uid"])
+async def get_app_instance_by_id(app_id: str) -> AppDB:
+    """Get the app object from the database with the provided id.
 
-    environment_db = EnvironmentDB(
-        name=name,
-        app_name=app_name,
-        user_id=user,
-    )
-    await engine.save(environment_db)
+    Arguments:
+        app_id (str): The app unique identifier
 
-
-async def list_environments(app_name: str, **kwargs: dict) -> List[Environment]:
-    """
-    Lists all the environments for the given app name from the DB
+    Returns:
+        AppDB: instance of app object
     """
 
-    async def fetch_environments() -> List[EnvironmentDB]:
-        query_filters = query.eq(EnvironmentDB.app_name, app_name) & query.eq(
-            EnvironmentDB.user_id, user.id
-        )
-        return await engine.find(EnvironmentDB, query_filters)
-
-    user = await get_user_object(kwargs["uid"])
-
-    # Fetch the environments for the given app name and user
-    environments_db: List[EnvironmentDB] = await fetch_environments()
-
-    if environments_db:
-        return environments_db
-
-    await initialize_environments(app_name, **kwargs)
-    environments_db: List[EnvironmentDB] = await fetch_environments()
-
-    return environments_db
+    app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
+    return app
 
 
-async def list_environments_by_variant(
-    app_name: str, variant_name: str, **kwargs: dict
-) -> List[Environment]:
-    """
-    Lists all the environments for the given app name and variant from the DB
-    """
-    user = await get_user_object(kwargs["uid"])
-
-    # Find the environments for the given app name and user
-    query_filters = (
-        query.eq(EnvironmentDB.app_name, app_name)
-        & query.eq(EnvironmentDB.user_id, user.id)
-        & query.eq(EnvironmentDB.deployed_app_variant, variant_name)
-    )
-    environments_db: List[EnvironmentDB] = await engine.find(
-        EnvironmentDB, query_filters
-    )
-
-    return environments_db
-
-
-async def remove_environment(environment_name: str, app_name: str, **kwargs: dict):
-    """
-    Removes the given environment for the given app.
-    """
-    user = await get_user_object(kwargs["uid"])
-
-    query_filters = (
-        query.eq(EnvironmentDB.app_name, app_name)
-        & query.eq(EnvironmentDB.user_id, user.id)
-        & query.eq(EnvironmentDB.name, environment_name)
-    )
-    environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
-    if environment_db is None:
-        raise ValueError("Environment not found")
-
-    print(
-        f"Deleting environment: {environment_db.name} for app: {environment_db.app_name}"
-    )
-    print(environment_db)
-
-    await engine.delete(environment_db)
-
-
-async def deploy_to_environment(
-    app_name: str, environment_name: str, variant_name: str, **kwargs: dict
+async def add_variant_from_base_and_config(
+    base_db: VariantBaseDB,
+    new_config_name: str,
+    parameters: Dict[str, Any],
+    **user_org_data: dict,
 ):
     """
-    Deploys a variant to a given environment.
-    """
-    user = await get_user_object(kwargs["uid"])
+    Add a new variant to the database based on an existing base and a new configuration.
 
-    # Check whether the app variant exists first
-    app_variant = await get_app_variant_by_app_name_and_variant_name(
-        app_name, variant_name, **kwargs
+    Args:
+        base_db (VariantBaseDB): The existing base to use as a template for the new variant.
+        new_config_name (str): The name of the new configuration to use for the new variant.
+        parameters (Dict[str, Any]): The parameters to use for the new configuration.
+        **user_org_data (dict): Additional user and organization data.
+
+    Returns:
+        AppVariantDB: The newly created app variant.
+    """
+    new_variant_name = f"{base_db.base_name}.{new_config_name}"
+    previous_app_variant_db = await find_previous_variant_from_base_id(str(base_db.id))
+    if previous_app_variant_db is None:
+        logger.error("Failed to find the previous app variant in the database.")
+        raise HTTPException(status_code=500, detail="Previous app variant not found")
+    logger.debug(f"Located previous variant: {previous_app_variant_db}")
+    app_variant_for_base = await list_app_variant_for_base(base_db)
+
+    already_exists = any(
+        [av for av in app_variant_for_base if av.config_name == new_config_name]
     )
-    if app_variant is None:
+    if already_exists:
+        raise ValueError("App variant with the same name already exists")
+    user_db = await get_user_object(user_org_data["uid"])
+    config_db = ConfigDB(
+        config_name=new_config_name,
+        parameters=parameters,
+        current_version=1,
+        version_history=[
+            ConfigVersionDB(
+                version=1, parameters=parameters, created_at=datetime.utcnow()
+            )
+        ],
+    )
+    await engine.save(config_db)
+    db_app_variant = AppVariantDB(
+        app=previous_app_variant_db.app,
+        variant_name=new_variant_name,
+        image=base_db.image,
+        user=user_db,
+        organization=previous_app_variant_db.organization,
+        parameters=parameters,
+        previous_variant_name=previous_app_variant_db.variant_name,  # TODO: Remove in future
+        base_name=base_db.base_name,
+        base=base_db,
+        config_name=new_config_name,
+        config=config_db,
+        is_deleted=False,
+    )
+    await engine.save(db_app_variant)
+    return db_app_variant
+
+
+async def list_apps(
+    app_name: str = None, org_id: str = None, **user_org_data: dict
+) -> List[App]:
+    """
+    Lists all the unique app names and their IDs from the database
+
+    Errors:
+        JSONResponse: You do not have permission to access this organization; status_code: 403
+
+    Returns:
+        List[App]
+    """
+
+    user = await get_user_object(user_org_data["uid"])
+    assert user is not None, "User is None"
+
+    if app_name is not None:
+        app_db = await fetch_app_by_name(app_name, org_id, **user_org_data)
+        return [app_db_to_pydantic(app_db)]
+    elif org_id is not None:
+        organization_access = await check_user_org_access(user_org_data, org_id)
+        if organization_access:
+            apps: List[AppDB] = await engine.find(
+                AppDB, AppDB.organization == ObjectId(org_id)
+            )
+            return [app_db_to_pydantic(app) for app in apps]
+
+        else:
+            return JSONResponse(
+                {"error": "You do not have permission to access this organization"},
+                status_code=403,
+            )
+
+    else:
+        apps: List[AppVariantDB] = await engine.find(AppDB, AppDB.user == user.id)
+        return [app_db_to_pydantic(app) for app in apps]
+
+
+async def list_app_variants(app_id: str = None, **kwargs: dict) -> List[AppVariantDB]:
+    """
+    Lists all the app variants from the db
+    Args:
+        app_name: if specified, only returns the variants for the app name
+    Returns:
+        List[AppVariant]: List of AppVariant objects
+    """
+
+    # Construct query expressions
+    logger.debug("app_id: %s", app_id)
+    query_filters = query.QueryExpression()
+    if app_id is not None:
+        query_filters = query_filters & (AppVariantDB.app == ObjectId(app_id))
+    logger.debug("query_filters: %s", query_filters)
+    app_variants_db: List[AppVariantDB] = await engine.find(AppVariantDB, query_filters)
+
+    # Include previous variant name
+    return app_variants_db
+
+
+async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
+    """Checks whether the input variant is the sole variant that uses its linked image
+    This is a helpful function to determine whether to delete the image when removing a variant
+    Usually many variants will use the same image (these variants would have been created using the UI)
+    We only delete the image and shutdown the container if the variant is the last one using the image
+
+    Arguments:
+        app_variant -- AppVariant to check
+    Returns:
+        true if it's the last variant, false otherwise
+    """
+
+    # Build the query expression for the two conditions
+    logger.debug("db_app_variant: %s", db_app_variant)
+    query_expression = (
+        AppVariantDB.organization == ObjectId(db_app_variant.organization.id)
+    ) & (AppVariantDB.base == ObjectId(db_app_variant.base.id))
+    # Count the number of variants that match the query expression
+    count_variants = await engine.count(AppVariantDB, query_expression)
+
+    # If it's the only variant left that uses the image, delete the image
+    return bool(count_variants == 1)
+
+
+async def remove_deployment(deployment_db: DeploymentDB, **kwargs: dict):
+    """Remove a deployment from the db
+
+    Arguments:
+        deployment -- Deployment to remove
+    """
+    logger.debug("Removing deployment")
+    assert deployment_db is not None, "deployment_db is missing"
+
+    await engine.delete(deployment_db)
+
+
+async def remove_app_variant_from_db(app_variant_db: AppVariantDB, **kwargs: dict):
+    """Remove an app variant from the db
+    the logic for removing the image is in app_manager.py
+
+    Arguments:
+        app_variant -- AppVariant to remove
+    """
+    logger.debug("Removing app variant")
+    assert app_variant_db is not None, "app_variant_db is missing"
+
+    # Remove the variant from the associated environments
+    logger.debug("list_environments_by_variant")
+    environments = await list_environments_by_variant(
+        app_variant_db,
+        **kwargs,
+    )
+    for environment in environments:
+        environment.deployed_app_variant = None
+        await engine.save(environment)
+    # removing the config
+    config = app_variant_db.config
+    await engine.delete(config)
+
+    await engine.delete(app_variant_db)
+
+
+async def deploy_to_environment(environment_name: str, variant_id: str, **kwargs: dict):
+    """
+    Deploys an app variant to a specified environment.
+
+    Args:
+        environment_name (str): The name of the environment to deploy the app variant to.
+        variant_id (str): The ID of the app variant to deploy.
+        **kwargs (dict): Additional keyword arguments.
+
+    Raises:
+        ValueError: If the app variant is not found or if the environment is not found or if the app variant is already
+                    deployed to the environment.
+
+    Returns:
+        None
+    """
+    app_variant_db = await fetch_app_variant_by_id(variant_id)
+    if app_variant_db is None:
         raise ValueError("App variant not found")
 
     # Find the environment for the given app name and user
     query_filters = (
-        query.eq(EnvironmentDB.app_name, app_name)
-        & query.eq(EnvironmentDB.user_id, user.id)
-        & query.eq(EnvironmentDB.name, environment_name)
+        AppEnvironmentDB.app == ObjectId(app_variant_db.app.id)
+    ) & query.eq(AppEnvironmentDB.name, environment_name)
+    environment_db: AppEnvironmentDB = await engine.find_one(
+        AppEnvironmentDB, query_filters
     )
-    environment_db: EnvironmentDB = await engine.find_one(EnvironmentDB, query_filters)
     if environment_db is None:
         raise ValueError(f"Environment {environment_name} not found")
-    if environment_db.deployed_app_variant == variant_name:
+    if environment_db.deployed_app_variant == app_variant_db:
         raise ValueError(
-            f"Variant {app_name}/{variant_name} is already deployed to the environment {environment_name}"
+            f"Variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} is already deployed to the environment {environment_name}"
         )
 
     # Update the environment with the new variant name
-    environment_db.deployed_app_variant = variant_name
-    environment_db.deployed_base_name = app_variant.base_name
-    environment_db.deployed_config_name = app_variant.config_name
+    environment_db.deployed_app_variant = app_variant_db.id
     await engine.save(environment_db)
 
 
-async def initialize_environments(app_name: str, **kwargs: dict):
-    await create_environment("development", app_name, **kwargs)
-    await create_environment("staging", app_name, **kwargs)
-    await create_environment("production", app_name, **kwargs)
-
-
-async def does_app_exist(app_name: str, **kwargs: dict) -> bool:
+async def list_environments(app_id: str, **kwargs: dict) -> List[AppEnvironmentDB]:
     """
-    Checks if a specific app exists in the database
-    """
-    user = await get_user_object(kwargs["uid"])
+    List all environments for a given app ID.
 
-    query_expression = (
-        query.eq(AppVariantDB.user_id, user.id)
-        & query.eq(AppVariantDB.is_deleted, False)
-        & query.eq(AppVariantDB.app_name, app_name)
+    Args:
+        app_id (str): The ID of the app to list environments for.
+        **kwargs (dict): Additional keyword arguments.
+
+    Returns:
+        List[AppEnvironmentDB]: A list of AppEnvironmentDB objects representing the environments for the given app ID.
+    """
+    logging.debug("Listing environments for app %s", app_id)
+    app_instance = await fetch_app_by_id(app_id=app_id)
+    if app_instance is None:
+        logging.error(f"App with id {app_id} not found")
+        raise ValueError("App not found")
+
+    environments_db: List[AppEnvironmentDB] = await engine.find(
+        AppEnvironmentDB, AppEnvironmentDB.app == ObjectId(app_id)
     )
 
-    app: AppVariantDB = await engine.find_one(AppVariantDB, query_expression)
+    return environments_db
 
-    return app is not None
+
+async def initialize_environments(
+    app_db: AppDB, **kwargs: dict
+) -> List[AppEnvironmentDB]:
+    """
+    Initializes the environments for the app with the given database.
+
+    Args:
+        app_db (AppDB): The database for the app.
+        **kwargs (dict): Additional keyword arguments.
+
+    Returns:
+        List[AppEnvironmentDB]: A list of the initialized environments.
+    """
+    environments = []
+    for env_name in ["development", "staging", "production"]:
+        env = await create_environment(name=env_name, app_db=app_db, **kwargs)
+        environments.append(env)
+    return environments
+
+
+async def create_environment(
+    name: str, app_db: AppDB, **kwargs: dict
+) -> AppEnvironmentDB:
+    """
+    Creates a new environment in the database.
+
+    Args:
+        name (str): The name of the environment.
+        app_db (AppDB): The AppDB object representing the app that the environment belongs to.
+        **kwargs (dict): Additional keyword arguments.
+
+    Returns:
+        AppEnvironmentDB: The newly created AppEnvironmentDB object.
+    """
+    environment_db = AppEnvironmentDB(
+        app=app_db,
+        name=name,
+        user=app_db.user,
+        organization=app_db.organization,
+    )
+    await engine.save(environment_db)
+    return environment_db
+
+
+async def list_environments_by_variant(
+    app_variant: AppVariantDB, **kwargs: dict
+) -> List[AppEnvironmentDB]:
+    """
+    Returns a list of environments for a given app variant.
+
+    Args:
+        app_variant (AppVariantDB): The app variant to retrieve environments for.
+        **kwargs (dict): Additional keyword arguments.
+
+    Returns:
+        List[AppEnvironmentDB]: A list of AppEnvironmentDB objects.
+    """
+
+    environments_db: List[AppEnvironmentDB] = await engine.find(
+        AppEnvironmentDB, (AppEnvironmentDB.app == ObjectId(app_variant.app.id))
+    )
+
+    return environments_db
+
+
+async def remove_image(image: ImageDB, **kwargs: dict):
+    """
+    Removes an image from the database.
+
+    Args:
+        image (ImageDB): The image to remove from the database.
+        **kwargs (dict): Additional keyword arguments.
+
+    Raises:
+        ValueError: If the image is None.
+
+    Returns:
+        None
+    """
+    if image is None:
+        raise ValueError("Image is None")
+    await engine.delete(image)
+
+
+async def remove_environment(environment_db: AppEnvironmentDB, **kwargs: dict):
+    """
+    Removes an environment from the database.
+
+    Args:
+        environment_db (AppEnvironmentDB): The environment to remove from the database.
+        **kwargs (dict): Additional keyword arguments.
+
+    Raises:
+        AssertionError: If environment_db is None.
+
+    Returns:
+        None
+    """
+    assert environment_db is not None, "environment_db is missing"
+    await engine.delete(environment_db)
+
+
+async def remove_app_testsets(app_id: str, **kwargs):
+    """Returns a list of testsets owned by an app.
+
+    Args:
+        app_id (str): The name of the app
+
+    Returns:
+        int: The number of testsets deleted
+    """
+
+    # Get user object
+    # Find testsets owned by the app
+    deleted_count: int = 0
+
+    # Build query expression
+    testsets = await engine.find(TestSetDB, TestSetDB.app == ObjectId(app_id))
+
+    # Perform deletion if there are testsets to delete
+    if testsets is not None:
+        for testset in testsets:
+            await engine.delete(testset)
+            deleted_count += 1
+            logger.info(f"{deleted_count} testset(s) deleted for app {app_id}")
+            return deleted_count
+
+    logger.info(f"No testsets found for app {app_id}")
+    return 0
+
+
+async def remove_base_from_db(base: VariantBaseDB, **kwargs):
+    """
+    Remove a base from the database.
+
+    Args:
+        base (VariantBaseDB): The base to be removed from the database.
+        **kwargs: Additional keyword arguments.
+
+    Raises:
+        ValueError: If the base is None.
+
+    Returns:
+        None
+    """
+    if base is None:
+        raise ValueError("Base is None")
+    await engine.delete(base)
+
+
+async def remove_app_by_id(app_id: str, **kwargs):
+    """
+    Removes an app instance from the database by its ID.
+
+    Args:
+        app_id (str): The ID of the app instance to remove.
+
+    Raises:
+        AssertionError: If app_id is None or if the app instance could not be found.
+
+    Returns:
+        None
+    """
+    assert app_id is not None, "app_id cannot be None"
+    app_instance = await fetch_app_by_id(app_id=app_id)
+    assert app_instance is not None, f"app instance for {app_id} could not be found"
+    await engine.delete(app_instance)
+
+
+async def update_variant_parameters(
+    app_variant_db: AppVariantDB, parameters: Dict[str, Any], **kwargs: dict
+) -> None:
+    """
+    Update the parameters of an app variant in the database.
+
+    Args:
+        app_variant_db (AppVariantDB): The app variant to update.
+        parameters (Dict[str, Any]): The new parameters to set for the app variant.
+        **kwargs (dict): Additional keyword arguments.
+
+    Raises:
+        ValueError: If there is an issue updating the variant parameters.
+    """
+    assert app_variant_db is not None, "app_variant is missing"
+    assert parameters is not None, "parameters is missing"
+
+    try:
+        logging.debug("Updating variant parameters")
+
+        # Update AppVariantDB parameters
+        app_variant_db.parameters = parameters
+
+        # Update associated ConfigDB parameters and versioning
+        config_db = app_variant_db.config
+        new_version = config_db.current_version + 1
+        config_db.version_history.append(
+            ConfigVersionDB(
+                version=new_version,
+                parameters=config_db.parameters,
+                created_at=datetime.utcnow(),
+            )
+        )
+        config_db.current_version = new_version
+        config_db.parameters = parameters
+        # Save updated ConfigDB and AppVariantDB
+        await engine.save(config_db)
+        await engine.save(app_variant_db)
+
+    except Exception as e:
+        logging.error(f"Issue updating variant parameters: {e}")
+        raise ValueError("Issue updating variant parameters")
+
+
+async def get_app_variant_by_app_name_and_environment(
+    app_id: str, environment: str, **kwargs: dict
+) -> Optional[AppVariantDB]:
+    """
+    Retrieve the deployed app variant for a given app and environment.
+
+    Args:
+        app_id (str): The ID of the app to retrieve the variant for.
+        environment (str): The name of the environment to retrieve the variant for.
+        **kwargs (dict): Additional keyword arguments to pass to the function.
+
+    Returns:
+        Optional[AppVariantDB]: The deployed app variant for the given app and environment, or None if not found.
+    """
+    # Get the environment
+    # Construct query filters for finding the environment in the database
+    query_filters_for_environment = query.eq(AppEnvironmentDB.name, environment) & (
+        AppEnvironmentDB.app == ObjectId(app_id)
+    )
+
+    # Perform the database query to find the environment
+    environment_db = await engine.find_one(
+        AppEnvironmentDB, query_filters_for_environment
+    )
+
+    if not environment_db:
+        logger.info(f"Environment {environment} not found")
+        return None
+    if environment_db.deployed_app_variant is None:
+        logger.info(f"No variant deployed to environment {environment}")
+        return None
+
+    app_variant_db = await get_app_variant_instance_by_id(
+        str(environment_db.deployed_app_variant)
+    )
+
+    return app_variant_db
+
+
+async def get_app_variant_instance_by_id(variant_id: str):
+    """Get the app variant object from the database with the provided id.
+
+    Arguments:
+        variant_id (str): The app variant unique identifier
+
+    Returns:
+        AppVariantDB: instance of app variant object
+    """
+
+    app_variant_db = await engine.find_one(
+        AppVariantDB, AppVariantDB.id == ObjectId(variant_id)
+    )
+    return app_variant_db
+
+
+async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
+    """Fetches a testset by its ID.
+    Args:
+        testset_id (str): The ID of the testset to fetch.
+    Returns:
+        TestSetDB: The fetched testset, or None if no testset was found.
+    """
+    assert testset_id is not None, "testset_id cannot be None"
+    testset = await engine.find_one(TestSetDB, TestSetDB.id == ObjectId(testset_id))
+    return testset
+
+
+async def fetch_testsets_by_app_id(app_id: str) -> List[TestSetDB]:
+    """Fetches all testsets for a given app.
+    Args:
+        app_id (str): The ID of the app to fetch testsets for.
+    Returns:
+        List[TestSetDB]: The fetched testsets.
+    """
+    assert app_id is not None, "app_id cannot be None"
+    testsets = await engine.find(TestSetDB, TestSetDB.app == ObjectId(app_id))
+    return testsets
+
+
+async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
+    """Fetches a evaluation by its ID.
+    Args:
+        evaluation_id (str): The ID of the evaluation to fetch.
+    Returns:
+        EvaluationDB: The fetched evaluation, or None if no evaluation was found.
+    """
+    assert evaluation_id is not None, "evaluation_id cannot be None"
+    evaluation = await engine.find_one(
+        EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
+    )
+    return evaluation
+
+
+async def fetch_evaluation_scenario_by_id(
+    evaluation_scenario_id: str,
+) -> Optional[EvaluationScenarioDB]:
+    """Fetches and evaluation scenario by its ID.
+    Args:
+        evaluation_scenario_id (str): The ID of the evaluation scenario to fetch.
+    Returns:
+        EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
+    """
+    assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
+    evaluation_scenario = await engine.find_one(
+        EvaluationScenarioDB,
+        EvaluationScenarioDB.id == ObjectId(evaluation_scenario_id),
+    )
+    return evaluation_scenario
+
+
+async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVariantDB]:
+    """Find the previous variant from a base id.
+
+    Args:
+        base_id (str): The base id to search for.
+
+    Returns:
+        Optional[AppVariantDB]: The previous variant, or None if no previous variant was found.
+    """
+    assert base_id is not None, "base_id cannot be None"
+    previous_variants = await engine.find(
+        AppVariantDB, AppVariantDB.base == ObjectId(base_id)
+    )
+    logger.debug("previous_variants: %s", previous_variants)
+    if len(list(previous_variants)) == 0:
+        return None
+    # select the variant for which previous_variant_name is None
+    for previous_variant in previous_variants:
+        # if previous_variant.previous_variant_name is None:
+        #     logger.debug("previous_variant: %s", previous_variant)
+        return previous_variant  # we don't care which variant do we return
+    assert False, "None of the previous variants has previous_variant_name=None"
+
+
+async def add_template(**kwargs: dict):
+    """
+    Adds a new template to the database.
+
+    Args:
+        **kwargs (dict): Keyword arguments containing the template data.
+
+    Returns:
+        None
+    """
+    existing_template = await engine.find_one(
+        TemplateDB, TemplateDB.dockerhub_tag_id == kwargs["dockerhub_tag_id"]
+    )
+    if existing_template is None:
+        db_template = TemplateDB(**kwargs)
+        await engine.save(db_template)
+
+
+async def remove_old_template_from_db(dockerhub_tag_ids: list) -> None:
+    """Deletes old templates that are no longer in docker hub.
+
+    Arguments:
+        dockerhub_tag_ids -- list of template IDs you want to keep
+    """
+
+    templates_to_delete = []
+    templates = await engine.find(TemplateDB)
+    for temp in templates:
+        if temp.dockerhub_tag_id not in dockerhub_tag_ids:
+            templates_to_delete.append(temp)
+
+    for template in templates_to_delete:
+        await engine.delete(template)
+
+
+async def get_templates() -> List[Template]:
+    templates = await engine.find(TemplateDB)
+    return templates_db_to_pydantic(templates)
+
+
+async def count_apps(**user_org_data: dict) -> int:
+    """
+    Counts all the unique app names from the database
+    """
+
+    # Get user object
+    user = await get_user_object(user_org_data["uid"])
+    if user is None:
+        return 0
+
+    no_of_apps = await engine.count(AppVariantDB, AppVariantDB.user == user.id)
+    return no_of_apps
+
+
+async def update_base(
+    base: VariantBaseDB,
+    **kwargs: dict,
+) -> VariantBaseDB:
+    """Update the base object in the database with the provided id.
+
+    Arguments:
+        base (VariantBaseDB): The base object to update.
+    """
+    for key, value in kwargs.items():
+        if key in base.__fields__:
+            setattr(base, key, value)
+    await engine.save(base)
+    return base
+
+
+async def update_app_variant(
+    app_variant: AppVariantDB,
+    **kwargs: dict,
+) -> AppVariantDB:
+    """Update the app variant object in the database with the provided id.
+
+    Arguments:
+        app_variant (AppVariantDB): The app variant object to update.
+    """
+    for key, value in kwargs.items():
+        if key in app_variant.__fields__:
+            setattr(app_variant, key, value)
+    await engine.save(app_variant)
+    return app_variant
+
+
+async def fetch_base_and_check_access(
+    base_id: str, user_org_data: dict, check_owner=False
+):
+    """
+    Fetches a base from the database and checks if the user has access to it.
+
+    Args:
+        base_id (str): The ID of the base to fetch.
+        user_org_data (dict): The user's organization data.
+        check_owner (bool, optional): Whether to check if the user is the owner of the base. Defaults to False.
+
+    Raises:
+        Exception: If no base_id is provided.
+        HTTPException: If the base is not found or the user does not have access to it.
+
+    Returns:
+        VariantBaseDB: The fetched base.
+    """
+    if base_id is None:
+        raise Exception("No base_id provided")
+    base = await engine.find_one(VariantBaseDB, VariantBaseDB.id == ObjectId(base_id))
+    if base is None:
+        logger.error("Base not found")
+        raise HTTPException(status_code=404, detail="Base not found")
+    organization_id = base.organization.id
+    access = await check_user_org_access(
+        user_org_data, str(organization_id), check_owner
+    )
+    if not access:
+        error_msg = f"You do not have access to this base: {base_id}"
+        raise HTTPException(status_code=403, detail=error_msg)
+    return base
+
+
+async def fetch_app_and_check_access(
+    app_id: str, user_org_data: dict, check_owner=False
+):
+    """
+    Fetches an app from the database and checks if the user has access to it.
+
+    Args:
+        app_id (str): The ID of the app to fetch.
+        user_org_data (dict): The user's organization data.
+        check_owner (bool, optional): Whether to check if the user is the owner of the app. Defaults to False.
+
+    Returns:
+        dict: The fetched app.
+
+    Raises:
+        HTTPException: If the app is not found or the user does not have access to it.
+    """
+    app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
+    if app is None:
+        logger.error("App not found")
+        raise HTTPException
+
+    # Check user's access to the organization linked to the app.
+    organization_id = app.organization.id
+    access = await check_user_org_access(
+        user_org_data, str(organization_id), check_owner
+    )
+    if not access:
+        error_msg = f"You do not have access to this app: {app_id}"
+        raise HTTPException(status_code=403, detail=error_msg)
+    return app
+
+
+async def fetch_app_variant_and_check_access(
+    app_variant_id: str, user_org_data: dict, check_owner=False
+):
+    """
+    Fetches an app variant from the database and checks if the user has access to it.
+
+    Args:
+        app_variant_id (str): The ID of the app variant to fetch.
+        user_org_data (dict): The user's organization data.
+        check_owner (bool, optional): Whether to check if the user is the owner of the app variant. Defaults to False.
+
+    Returns:
+        AppVariantDB: The fetched app variant.
+
+    Raises:
+        HTTPException: If the app variant is not found or the user does not have access to it.
+    """
+    app_variant = await engine.find_one(
+        AppVariantDB, AppVariantDB.id == ObjectId(app_variant_id)
+    )
+    if app_variant is None:
+        logger.error("App variant not found")
+        raise HTTPException
+
+    # Check user's access to the organization linked to the app.
+    organization_id = app_variant.organization.id
+    access = await check_user_org_access(
+        user_org_data, str(organization_id), check_owner
+    )
+    if not access:
+        error_msg = f"You do not have access to this app variant: {app_variant_id}"
+        raise HTTPException(status_code=403, detail=error_msg)
+    return app_variant
+
+
+async def fetch_app_by_name_and_organization(
+    app_name: str, organization_id: str, **user_org_data: dict
+):
+    """Fetch an app by it's name and organization id.
+
+    Args:
+        app_name (str): The name of the app
+        organization_id (str): The ID of the app organization
+
+    Returns:
+        AppDB: the instance of the app
+    """
+
+    query_expression = (AppDB.app_name == app_name) & (
+        AppDB.organization == ObjectId(organization_id)
+    )
+    app_db = await engine.find_one(AppDB, query_expression)
+    return app_db

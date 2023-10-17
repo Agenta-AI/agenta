@@ -1,15 +1,13 @@
-from agenta_backend.services.db_manager import engine, UserDB
+from agenta_backend.utils.common import engine
+from agenta_backend.models.db_models import UserDB
 from agenta_backend.models.api.user_models import User, UserUpdate
-from agenta_backend.services.organization_service import get_organization
 
 
 async def create_new_user(payload: User) -> UserDB:
-    org_instance = await get_organization(payload.organization_id)
     user_instance = UserDB(
         uid=payload.uid,
         username=payload.username,
         email=payload.email,
-        organization_id=org_instance,
     )
     user = await engine.save(user_instance)
     return user
