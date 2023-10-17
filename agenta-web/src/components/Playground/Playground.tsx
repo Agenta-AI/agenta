@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from "react"
+import React, {useState, useEffect, useRef, useCallback} from "react"
 import {Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"
@@ -9,6 +9,7 @@ import {useRouter} from "next/router"
 import {useQueryParam} from "@/hooks/useQuery"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import TestContextProvider from "./TestsetContextProvider"
+import useBlockNavigation from "@/hooks/useBlockNavigation"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -21,6 +22,8 @@ const Playground: React.FC = () => {
     const [isError, setIsError] = useState(false)
     const [newVariantName, setNewVariantName] = useState("") // This is the name of the new variant that the user is creating
     const [messageApi, contextHolder] = message.useMessage()
+    const [unsavedVariants, setUnsavedVariants] = useState<boolean[]>([])
+    const variantHelpers = useRef<{save: Function; delete: Function}[]>([])
 
     const addTab = () => {
         // Find the template variant
@@ -114,6 +117,33 @@ const Playground: React.FC = () => {
         loadEnvironments()
     }, [appId, activeKey])
 
+    useBlockNavigation(
+        unsavedVariants.reduce((acc, curr) => acc || curr, false),
+        {
+            title: "Unsaved changes",
+            message: (
+                <span>
+                    You have unsaved changes in your Variant(s). Do you want to save these changes
+                    before leaving the page?
+                </span>
+            ),
+            width: 500,
+            okText: "Save",
+            onOk: async () => {
+                const promises = unsavedVariants.map((isDirty, i) =>
+                    isDirty ? variantHelpers.current[i].save() : Promise.resolve(),
+                )
+                await Promise.all(promises)
+                return true
+            },
+            onCancel: async () => {
+                setUnsavedVariants(variants.map(() => false))
+                return true
+            },
+            cancelText: "Proceed without saving",
+        },
+    )
+
     if (isError) return <div>failed to load variants for app {appId}</div>
     if (isLoading) return <div>loading variants...</div>
 
@@ -172,6 +202,12 @@ const Playground: React.FC = () => {
                 environments={environments}
                 onAdd={fetchData}
                 deleteVariant={deleteVariant}
+                onStateChange={(isDirty) =>
+                    setUnsavedVariants((prev) =>
+                        prev.map((_, i) => (i === index ? isDirty : prev[i])),
+                    )
+                }
+                getHelpers={(helpers) => (variantHelpers.current[index] = helpers)}
             />
         ),
         closable: !variant.persistent,

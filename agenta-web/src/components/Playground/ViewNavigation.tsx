@@ -22,6 +22,8 @@ interface Props {
     environments: Environment[]
     onAdd: () => void
     deleteVariant: (deleteAction?: Function) => void
+    getHelpers: (helpers: {save: Function; delete: Function}) => void
+    onStateChange: (isDirty: boolean) => void
 }
 
 const useStyles = createUseStyles({
@@ -39,6 +41,8 @@ const ViewNavigation: React.FC<Props> = ({
     environments,
     onAdd,
     deleteVariant,
+    getHelpers,
+    onStateChange,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -192,6 +196,8 @@ const ViewNavigation: React.FC<Props> = ({
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         environments={environments}
                         onAdd={onAdd}
+                        getHelpers={getHelpers}
+                        onStateChange={onStateChange}
                     />
                 </Col>
             </Row>
