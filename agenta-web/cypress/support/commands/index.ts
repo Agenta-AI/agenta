@@ -1,6 +1,7 @@
 /// <reference types="cypress" />
 
 import "./utils"
+import "./evaluations"
 
 declare global {
     namespace Cypress {

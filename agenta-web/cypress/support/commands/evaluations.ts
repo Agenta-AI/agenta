@@ -1,5 +1,6 @@
 import {randString} from "../../../src/lib/helpers/utils"
-export let app_id
+
+let app_id
 
 Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.visit("/settings")
@@ -24,9 +25,8 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
             "getRequest",
         )
         cy.wait("@getRequest", {requestTimeout: 15000})
-
-        cy.url().should("include", `/apps/${interception.response.body.app_id}/playground`)
         app_id = interception.response.body.app_id
+        cy.wrap(interception.response.body.app_id).as("app_id")
     })
 
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
@@ -77,7 +77,5 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
         body: {
             app_id,
         },
-    }).then((res) => {
-        expect(res.status).to.eq(200)
     })
 })

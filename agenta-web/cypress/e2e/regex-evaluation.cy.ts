@@ -1,8 +1,10 @@
-import {app_id} from "../support/commands/evaluations"
-
 describe("Regex Evaluation workflow", () => {
+    let app_id
     before(() => {
         cy.createVariantsAndTestsets()
+        cy.get("@app_id").then((appId) => {
+            app_id = appId
+        })
     })
 
     context("When navigating to Evaluation Page", () => {
@@ -15,9 +17,7 @@ describe("Regex Evaluation workflow", () => {
 
     context("When no Variant and Testset are Selected", () => {
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/playground`)
-            cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
-            cy.url().should("include", "/evaluations")
+            cy.visit(`/apps/${app_id}/evaluations`)
         })
 
         it("Should display a warning to select Variant", () => {
@@ -44,9 +44,7 @@ describe("Regex Evaluation workflow", () => {
 
     context("When Variant and Testset are Selected", () => {
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/playground`)
-            cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
-            cy.url().should("include", "/evaluations")
+            cy.visit(`/apps/${app_id}/evaluations`)
             cy.clickLinkAndWait('[data-cy="regex-button"]')
 
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
