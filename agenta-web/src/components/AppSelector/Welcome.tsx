@@ -145,14 +145,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                 <section className={classes.wrapper}>
                     <div className={classes.container} onClick={onCreateFromTemplate}>
                         <div className={classes.title}>
-                            <h1>Start simple</h1>
-                            <Tag
-                                className={classes.tag}
-                                icon={<ClockCircleOutlined />}
-                                color={appTheme === "dark" ? "" : "blue"}
-                            >
-                                2-3 mins
-                            </Tag>
+                            <h1>Quickstart From a Template</h1>
                         </div>
 
                         <img
@@ -163,33 +156,26 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
 
                         <ul className={classes.steps}>
                             <li>
-                                <CheckCircleFilled /> Start from a template
+                                <CheckCircleFilled /> <span>Start from a template</span>
                             </li>
                             <li>
-                                <CheckCircleFilled /> Compare prompts and models
+                                <CheckCircleFilled /> <span>Compare</span> prompts and models
                             </li>
                             <li>
                                 <CheckCircleFilled /> Create testsets
                             </li>
                             <li>
-                                <CheckCircleFilled /> Evaluate outputs
+                                <CheckCircleFilled /> <span>Evaluate</span> outputs
                             </li>
                             <li>
-                                <CheckCircleFilled /> Deploy in one click
+                                <CheckCircleFilled /> <span>Deploy</span> in one click
                             </li>
                         </ul>
                     </div>
                     <div className={classes.container} onClick={onWriteOwnApp}>
                         <div>
                             <div className={classes.title}>
-                                <h1>Build complex apps</h1>
-                                <Tag
-                                    className={classes.tag}
-                                    icon={<ClockCircleOutlined />}
-                                    color={appTheme === "dark" ? "" : "blue"}
-                                >
-                                    12-15 mins
-                                </Tag>
+                                <h1>Build Complex LLM apps</h1>
                             </div>
 
                             <img
@@ -201,14 +187,19 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
 
                         <ul className={classes.steps}>
                             <li>
-                                <CheckCircleFilled /> Start <span>from code!</span>
+                                <CheckCircleFilled /> <span>Start from code</span>
                             </li>
                             <li>
-                                <CheckCircleFilled /> Build sophisticated apps!
+                                <CheckCircleFilled /> Use <span>Langchain</span>,{" "}
+                                <span>Llama Index</span>, or any framework
                             </li>
                             <li>
-                                <CheckCircleFilled /> <span>Continue in the UI! </span>{" "}
-                                <div className={classes.text}>(Everything in the left)</div>
+                                <CheckCircleFilled /> Use <span>OpenAI</span>, <span>Cohere</span>,
+                                or self-hosted open-source models
+                            </li>
+                            <li>
+                                <CheckCircleFilled /> <span>Continue in the UI: </span>Everything in
+                                the left
                             </li>
                             <li>
                                 <CheckCircleFilled /> Streamline <span>collaboration</span> between
