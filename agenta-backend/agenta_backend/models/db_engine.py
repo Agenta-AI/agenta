@@ -19,10 +19,9 @@ class DBEngine(object):
     """
 
     def __init__(self, mode=None) -> None:
-        setup_pytest_variables()
 
         if not mode:
-            self.mode = os.environ["DATABASE_MODE"]
+            self.mode = "v2"
         self.db_url = os.environ["MONGODB_URI"]
 
     @property
