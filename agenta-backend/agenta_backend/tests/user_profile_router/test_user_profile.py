@@ -15,7 +15,7 @@ test_client = httpx.AsyncClient()
 timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 # Set global variables
-BACKEND_API_HOST = "http://localhost:8000"
+BACKEND_API_HOST = "http://agenta-backend-1:8000"
 
 
 @pytest.mark.asyncio
