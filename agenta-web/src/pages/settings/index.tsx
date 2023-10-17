@@ -64,7 +64,7 @@ const Settings: React.FC = () => {
             ),
             key: "apiKeys",
             children: <APIKeys />,
-            hidden: !isFeatureEnabled("API_KEYS"),
+            hidden: !isDemo() || isFeatureEnabled("API_KEYS"),
         },
     ]
 
