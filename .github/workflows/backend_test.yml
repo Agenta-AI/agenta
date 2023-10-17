@@ -1,39 +1,28 @@
 name: Execute Backend tests
 
 on:
-    pull_request:
-        branches:
-            - '*'
+        pull_request:
+                branches:
+                        - '*'
 
 jobs:
-    test:
-        runs-on: ubuntu-latest
+        test:
+            runs-on: ubuntu-latest
 
-        services:
-            docker:
-                image: docker:dind
-                ports:
-                    - 2375:2375
-                options: >-
-                    --privileged
-                    --group-add docker
-                env:
-                    DOCKER_DRIVER: overlay2
+            steps:
+                - name: Checkout code
+                  uses: actions/checkout@v2
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v2
+                - name: Build and run backend container
+                  run: |
+                        docker compose -f "docker-compose.yml" up -d --build
 
-            - name: Build and run backend container
-              run: |
-                    docker compose -f "docker-compose.yml" up -d --build
+                - name: Wait for backend to start
+                  run: |
+                        while ! docker-compose exec -T backend curl -s http://localhost > /dev/null; do
+                            sleep 1
+                        done
 
-            - name: Wait for backend to start
-              run: |
-                    while ! docker-compose exec -T backend curl -s http://localhost > /dev/null; do
-                        sleep 1
-                    done
-
-            # - name: Run pytest in backend container
-            #   run: |
-            #         docker-compose exec backend pytest
+                # - name: Run pytest in backend container
+                #   run: |
+                #         docker-compose exec backend pytest
