@@ -237,6 +237,10 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     app_name = config["app_name"]
     api_key = config.get("api_key", None)
 
+    if not config["variants"]:
+        click.echo(click.style(f"No variants found for app {app_name}. Make sure you have deployed at least one variant.", fg="red"))
+        return
+
     if variant_name:
         if variant_name not in config["variants"]:
             click.echo(
@@ -282,7 +286,13 @@ def list_variants(app_folder: str, host: str):
     app_id = config["app_id"]
     app_name = config["app_name"]
     api_key = config.get("api_key", None)
-    variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
+    variants = []
+
+    try:
+        variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
+    except Exception as ex:
+        raise ex
+
     if variants:
         for variant in variants:
             helper.display_app_variant(variant)
@@ -329,12 +339,16 @@ def get_host(app_folder: str) -> str:
 @click.option("--variant_name", default="")
 def remove_variant_cli(variant_name: str, app_folder: str):
     """Remove an existing variant."""
-    config_check(app_folder)
-    remove_variant(
-        variant_name=variant_name,
-        app_folder=app_folder,
-        host=get_host(app_folder),
-    )
+    
+    try:
+        config_check(app_folder)
+        remove_variant(
+            variant_name=variant_name,
+            app_folder=app_folder,
+            host=get_host(app_folder),
+        )
+    except Exception as ex:
+        click.echo(click.style(f"Error while removing variant: {ex}", fg="red"))
 
 
 @variant.command(name="serve")
@@ -389,5 +403,8 @@ def serve_cli(app_folder: str, file_name: str):
 @click.option("--app_folder", default=".")
 def list_variants_cli(app_folder: str):
     """List the variants in the backend"""
-    config_check(app_folder)
-    list_variants(app_folder=app_folder, host=get_host(app_folder))
+    try:
+        config_check(app_folder)
+        list_variants(app_folder=app_folder, host=get_host(app_folder))
+    except Exception as ex:
+        click.echo(click.style(f"Error while listing variants: {ex}", fg="red"))
