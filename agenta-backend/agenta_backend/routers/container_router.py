@@ -147,7 +147,10 @@ async def container_templates(
 
     Union[List[Template], str]: A list of templates or an error message.
     """
-    templates = await get_templates()
+    try:
+        templates = await get_templates()
+    except Exception as e:
+        return JSONResponse({"message": str(e)}, status_code=500)
     return templates
 
 
