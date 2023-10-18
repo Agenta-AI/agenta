@@ -8,7 +8,7 @@ from agenta.client.api_models import AppVariant, Image, VariantConfigPayload
 from docker.models.images import Image as DockerImage
 from requests.exceptions import RequestException
 
-BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
 
 class APIRequestError(Exception):
@@ -34,7 +34,7 @@ def get_base_by_app_id_and_name(
         APIRequestError: If the request to get the base fails or the base does not exist on the server.
     """
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/bases/?app_id={app_id}&base_name={base_name}/",
+        f"{host}/{BACKEND_URL_SUFFIX}/bases/?app_id={app_id}&base_name={base_name}",
         headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
@@ -61,7 +61,7 @@ def get_app_by_name(app_name: str, host: str, api_key: str = None) -> str:
     """
 
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps/?app_name={app_name}/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/?app_name={app_name}",
         headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
