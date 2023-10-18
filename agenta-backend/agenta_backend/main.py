@@ -1,5 +1,4 @@
 import os
-import json
 from contextlib import asynccontextmanager
 
 from agenta_backend.config import settings
@@ -62,23 +61,33 @@ async def lifespan(application: FastAPI, cache=True):
     for temp in templates:
         # Append the template id in the list of templates_ids
         # We do this to remove old templates from database
-        templates_ids.append(temp["id"])
+        templates_ids.append(int(temp["tag_id"]))
         for temp_info_key in templates_info:
             temp_info = templates_info[temp_info_key]
             if str(temp["name"]).startswith(temp_info_key):
                 await add_template(
                     **{
-                        "tag_id": temp["id"],
+                        "tag_id": int(temp["tag_id"]),
                         "name": temp["name"],
-                        "repo_name": temp["last_updater_username"],
+                        "repo_name": temp.get(
+                            "last_updater_username", "repo_name"
+                        ),
                         "title": temp_info["name"],
                         "description": temp_info["description"],
-                        "size": temp["images"][0]["size"],
+                        "size": (
+                            temp["images"][0]["size"]
+                            if not temp.get("size", None)
+                            else temp["size"]
+                        ),
                         "digest": temp["digest"],
-                        "last_pushed": temp["images"][0]["last_pushed"],
+                        "last_pushed": (
+                            temp["images"][0]["last_pushed"]
+                            if not temp.get("last_pushed", None)
+                            else temp["last_pushed"]
+                        ),
                     }
                 )
-                print(f"Template {temp['id']} added to the database.")
+                print(f"Template {temp['tag_id']} added to the database.")
 
                 if os.environ["FEATURE_FLAG"] == "oss":
                     # Get docker hub config
