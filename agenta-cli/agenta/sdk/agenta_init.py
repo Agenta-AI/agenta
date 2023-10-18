@@ -21,6 +21,8 @@ class AgentaSingleton:
         self,
         app_name: Optional[str] = None,
         base_name: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_id: Optional[str] = None,
         host: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
@@ -42,31 +44,40 @@ class AgentaSingleton:
             app_name = os.environ.get("AGENTA_APP_NAME")
         if base_name is None:
             base_name = os.environ.get("AGENTA_BASE_NAME")
+        if api_key is None:
+            api_key = os.environ.get("AGENTA_API_KEY")
+        if base_id is None:
+            base_id = os.environ.get("AGENTA_BASE_ID")
         if host is None:
             host = os.environ.get("AGENTA_HOST")
 
-        if app_name is None:
+        if base_id is not None:
+            pass
+        elif app_name is not None and base_name is not None:
+            pass
+        else:
             raise ValueError(
-                "The 'app_name' is not specified. Please provide it as an argument or set the 'AGENTA_APP_NAME' environment variable."
-            )
-        if base_name is None:
-            raise ValueError(
-                "The 'base_name' is not specified. Please provide it as an argument or set the 'AGENTA_BASE_NAME' environment variable."
+                f"You need to specify either the base_id or the app_name and base_name. The current values are app_name: {app_name} and base_name: {base_name} and base_id: {base_id}"
             )
         if host is None:
             raise ValueError(
                 "The 'host' is not specified. Please provide it as an argument or set the 'AGENTA_HOST' environment variable."
             )
-
-        self.setup = AgentaSetup(app_name=app_name, base_name=base_name, **kwargs)
-        self.config = Config(app_name=app_name, base_name=base_name, host=host)
+        if base_id is None:
+            client.get_base_id_by_app_name_and_base_name(
+                app_name=app_name, base_name=base_name, host=host, api_key=api_key
+            )
+        self.base_id = base_id
+        self.host = host
+        self.api_key = api_key
+        self.config = Config(base_id=base_id, host=host, api_key=api_key)
 
 
 class Config:
-    def __init__(self, app_name=None, base_name=None, host=None):
-        self.app_name = app_name
-        self.base_name = base_name
+    def __init__(self, base_id, host, api_key):
+        self.base_id = base_id
         self.host = host
+        self.api_key = api_key
 
     def default(self, overwrite=False, **kwargs):
         """Saves the default parameters to the app_name and base_name in case they are not already saved.
@@ -91,12 +102,12 @@ class Config:
         """
         try:
             client.save_variant_config(
-                app_name=self.app_name,
-                base_name=self.base_name,
+                base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
                 overwrite=overwrite,
                 host=self.host,
+                api_key=self.api_key,
             )
         except Exception as ex:
             raise Exception(
@@ -108,18 +119,18 @@ class Config:
         try:
             if environment_name:
                 config = client.fetch_variant_config(
-                    app_name=self.app_name,
-                    base_name=self.base_name,
+                    base_id=self.base_id,
                     environment_name=environment_name,
                     host=self.host,
+                    api_key=self.api_key,
                 )
 
             else:
                 config = client.fetch_variant_config(
-                    app_name=self.app_name,
-                    base_name=self.base_name,
+                    base_id=self.base_id,
                     config_name=config_name,
                     host=self.host,
+                    api_key=self.api_key,
                 )
         except Exception as ex:
             raise Exception(
@@ -148,16 +159,6 @@ class Config:
         Args:
             **kwargs: A dict containing the parameters
         """
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-
-class AgentaSetup:
-    """Saves the setup of the LLM app (app_name, base_name, etc.)"""
-
-    def __init__(self, app_name=None, base_name=None, **kwargs):
-        self.app_name = app_name
-        self.base_name = base_name
         for key, value in kwargs.items():
             setattr(self, key, value)
 

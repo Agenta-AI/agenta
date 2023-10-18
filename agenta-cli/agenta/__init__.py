@@ -10,7 +10,6 @@ from .sdk.types import (
     TextParam,
 )
 from .sdk.utils.preinit import PreInitObject
-from .sdk.agenta_init import Config, AgentaSetup, init
+from .sdk.agenta_init import Config, init
 
 config = PreInitObject("agenta.config", Config)
-setup = PreInitObject("agenta.setup", AgentaSetup)

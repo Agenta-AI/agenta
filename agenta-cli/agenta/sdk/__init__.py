@@ -11,7 +11,6 @@ from .types import (
     MultipleChoiceParam,
     TextParam,
 )
-from .agenta_init import Config, AgentaSetup, init
+from .agenta_init import Config, init
 
 config = PreInitObject("agenta.config", Config)
-setup = PreInitObject("agenta.setup", AgentaSetup)
