@@ -77,7 +77,8 @@ export async function callVariant(
     inputParametersDict: Record<string, string>,
     inputParamDefinition: Parameter[],
     optionalParameters: Parameter[],
-    URIPath: string,
+    appId: string,
+    baseId: string,
 ) {
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
@@ -109,21 +110,11 @@ export async function callVariant(
         ...optParams,
     }
 
-    let splittedURIPath = URIPath.split("/")
-    const appContainerURIPath = await getAppContainerURL(
-        splittedURIPath[0],
-        undefined,
-        splittedURIPath[1],
-    )
+    const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
 
-    return axios
-        .post(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}${appContainerURIPath}/generate`,
-            requestBody,
-        )
-        .then((res) => {
-            return res.data
-        })
+    return axios.post(`${appContainerURI}/generate`, requestBody).then((res) => {
+        return res.data
+    })
 }
 
 /**
@@ -138,8 +129,8 @@ export const getVariantParametersFromOpenAPI = async (
     baseId?: string,
     ignoreAxiosError: boolean = false,
 ) => {
-    const appContainerURIPath = await getAppContainerURL(appId, variantId, baseId)
-    const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}${appContainerURIPath}/openapi.json`
+    const appContainerURI = await getAppContainerURL(appId, variantId, baseId)
+    const url = `${appContainerURI}/openapi.json`
     const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
     let APIParams = parseOpenApiSchema(response.data)
     // we create a new param for DictInput that will contain the name of the inputs

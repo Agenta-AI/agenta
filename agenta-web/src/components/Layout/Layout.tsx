@@ -69,6 +69,17 @@ const useStyles = createUseStyles({
             padding: "0 15px",
         },
     }),
+    joinBtn: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        "& span": {
+            display: "block",
+        },
+        "& img": {
+            width: "15px",
+        },
+    },
     footer: {
         position: "absolute",
         bottom: 0,
@@ -199,6 +210,14 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             </Tooltip>
                                         </a>
                                     </Dropdown>
+                                    <Button
+                                        href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
+                                        target="_blank"
+                                        className={classes.joinBtn}
+                                    >
+                                        <img src="/assets/slack.png" alt="Slack Image" />
+                                        <span>Join us</span>
+                                    </Button>
                                     <Button
                                         className={classes.star}
                                         href="https://github.com/Agenta-AI/agenta"

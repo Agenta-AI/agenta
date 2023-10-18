@@ -28,8 +28,13 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     TestSetDB,
     UserDB,
-    DeploymentDB,
 )
+
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.ee.models.db_models import DeploymentDB
+else:
+    from agenta_backend.models.db_models import DeploymentDB
+
 from agenta_backend.utils.common import check_user_org_access, engine
 from bson import ObjectId
 from fastapi import HTTPException
@@ -287,7 +292,6 @@ async def create_deployment(
     container_name: str,
     container_id: str,
     uri: str,
-    uri_path: str,
     status: str,
 ) -> DeploymentDB:
     """Create a new deployment.
@@ -298,7 +302,6 @@ async def create_deployment(
         container_name (str): The name of the container.
         container_id (str): The ID of the container.
         uri (str): The URI of the container.
-        uri_path (str): The URI path of the container.
         status (str): The status of the container.
     Returns:
         DeploymentDB: The created deployment.
@@ -310,7 +313,6 @@ async def create_deployment(
         container_name=container_name,
         container_id=container_id,
         uri=uri,
-        uri_path=uri_path,
         status=status,
     )
     await engine.save(deployment)
@@ -658,7 +660,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     logger.debug("db_app_variant: %s", db_app_variant)
     query_expression = (
         AppVariantDB.organization == ObjectId(db_app_variant.organization.id)
-    ) & (AppVariantDB.image == ObjectId(db_app_variant.image.id))
+    ) & (AppVariantDB.base == ObjectId(db_app_variant.base.id))
     # Count the number of variants that match the query expression
     count_variants = await engine.count(AppVariantDB, query_expression)
 

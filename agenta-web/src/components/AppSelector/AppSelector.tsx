@@ -284,7 +284,7 @@ const AppSelector: React.FC = () => {
             if (apps) {
                 setAppNameExist(apps.some((app: GenericObject) => app.app_name === newApp))
             }
-        }, 3000)
+        }, 9000)
     }, [apps, newApp])
 
     return (
@@ -340,7 +340,10 @@ const AppSelector: React.FC = () => {
                         <TipsAndFeatures />
                     </>
                 ) : (
-                    <Welcome onCreateAppClick={showCreateAppModal} />
+                    <Welcome
+                        onWriteOwnApp={showWriteAppModal}
+                        onCreateFromTemplate={showCreateAppFromTemplateModal}
+                    />
                 )}
             </div>
 
