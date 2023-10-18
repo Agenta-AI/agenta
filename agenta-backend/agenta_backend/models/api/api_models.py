@@ -117,17 +117,14 @@ class TemplateImageInfo(BaseModel):
     name: str
     size: int
     digest: str
-    status: str
-    architecture: str
     title: str
     description: str
     last_pushed: datetime
     repo_name: str
-    media_type: str
 
 
 class Template(BaseModel):
-    id: int
+    id: str
     image: TemplateImageInfo
 
 
