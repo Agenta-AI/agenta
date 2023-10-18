@@ -1,17 +1,15 @@
 import os
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Request, HTTPException
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
     GetConfigPayload,
     GetConfigReponse,
 )
-from fastapi.responses import JSONResponse
 from agenta_backend.services import (
     db_manager,
     app_manager,
 )
-from agenta_backend.models import converters
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.selectors import (
