@@ -198,3 +198,8 @@ class ListAPIKeysOutput(BaseModel):
     created_at: datetime
     last_used_at: datetime = None
     expiration_date: datetime = None
+
+
+class BaseOutput(BaseModel):
+    base_id: str
+    base_name: str

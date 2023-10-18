@@ -13,6 +13,7 @@ from agenta_backend.routers import (
     testset_router,
     organization_router,
     variants_router,
+    bases_router,
 )
 from agenta_backend.services.cache_manager import (
     retrieve_templates_from_dockerhub_cached,
@@ -114,3 +115,4 @@ app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")
 app.include_router(observability_router.router, prefix="/observability")
 app.include_router(organization_router.router, prefix="/organizations")
+app.include_router(bases_router.router, prefix="/bases")
