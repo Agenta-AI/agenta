@@ -1,7 +1,6 @@
 import agenta as ag
 import openai
 import replicate
-from agenta.types import MultipleChoiceParam
 from langchain.chains import LLMChain
 from langchain.chat_models import ChatOpenAI
 from langchain.llms import OpenAI
@@ -34,7 +33,7 @@ CHAT_LLM_GPT = [
 
 ag.config.default(
     temperature=ag.FloatParam(0.9),
-    model=MultipleChoiceParam(
+    model=ag.MultipleChoiceParam(
         "gpt-3.5-turbo", CHAT_LLM_GPT + list(replicate_dict.keys())
     ),
     maximum_length=ag.IntParam(100, 0, 4000),
