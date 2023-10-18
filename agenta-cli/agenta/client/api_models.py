@@ -27,8 +27,7 @@ class URI(BaseModel):
 
 
 class VariantConfigPayload(BaseModel):
-    app_name: str
-    base_name: str
+    base_id: str
     config_name: str
     parameters: Dict[str, Any]
     overwrite: bool
