@@ -458,7 +458,7 @@ async def list_bases_for_app_id(
     return bases_db
 
 
-async def list_app_variant_for_base(
+async def list_variants_for_base(
     base: VariantBaseDB, **kwargs: dict
 ) -> List[AppVariantDB]:
     """
