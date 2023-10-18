@@ -123,17 +123,17 @@ class Config:
             if environment_name:
                 config = client.fetch_variant_config(
                     base_id=self.base_id,
-                    environment_name=environment_name,
                     host=self.host,
                     api_key=self.api_key,
+                    environment_name=environment_name,
                 )
 
             else:
                 config = client.fetch_variant_config(
                     base_id=self.base_id,
-                    config_name=config_name,
                     host=self.host,
                     api_key=self.api_key,
+                    config_name=config_name,
                 )
         except Exception as ex:
             raise Exception(
