@@ -512,7 +512,7 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_regex_test}
                                 className={classes.radioBtn}
                             >
-                                <div className={classes.evaluationType}>
+                                <div className={classes.evaluationType} data-cy="regex-button">
                                     <Image
                                         src={regexIcon}
                                         alt="Regex"
