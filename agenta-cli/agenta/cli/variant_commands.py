@@ -238,7 +238,12 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     api_key = config.get("api_key", None)
 
     if not config["variants"]:
-        click.echo(click.style(f"No variants found for app {app_name}. Make sure you have deployed at least one variant.", fg="red"))
+        click.echo(
+            click.style(
+                f"No variants found for app {app_name}. Make sure you have deployed at least one variant.",
+                fg="red",
+            )
+        )
         return
 
     if variant_name:
@@ -339,7 +344,7 @@ def get_host(app_folder: str) -> str:
 @click.option("--variant_name", default="")
 def remove_variant_cli(variant_name: str, app_folder: str):
     """Remove an existing variant."""
-    
+
     try:
         config_check(app_folder)
         remove_variant(
