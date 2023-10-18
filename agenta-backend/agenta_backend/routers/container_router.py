@@ -219,7 +219,7 @@ async def construct_app_container_url(
         # TODO: Add status check if base_db.status == "running"
         if base_db.deployment:
             deployment = await db_manager.get_deployment_by_objectid(base_db.deployment)
-            uri = deployment.uri_path
+            uri = deployment.uri
         else:
             uri = None
 
@@ -231,7 +231,7 @@ async def construct_app_container_url(
         deployment = await db_manager.get_deployment_by_objectid(
             variant_db.base.deployment
         )
-        return URI(uri=deployment.uri_path)
+        return URI(uri=deployment.uri)
     else:
         return JSONResponse(
             {"detail": "Please provide either base_id or variant_id"},

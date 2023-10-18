@@ -114,7 +114,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         deployment = await db_manager.get_deployment_by_objectid(
             app_variant_db.base.deployment
         )
-        uri = deployment.uri_path
+        uri = deployment.uri
     else:
         deployment = None
         uri = None
