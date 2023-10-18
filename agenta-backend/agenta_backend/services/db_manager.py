@@ -1125,24 +1125,24 @@ async def add_template(**kwargs: dict):
         None
     """
     existing_template = await engine.find_one(
-        TemplateDB, TemplateDB.dockerhub_tag_id == kwargs["dockerhub_tag_id"]
+        TemplateDB, TemplateDB.tag_id == kwargs["tag_id"]
     )
     if existing_template is None:
         db_template = TemplateDB(**kwargs)
         await engine.save(db_template)
 
 
-async def remove_old_template_from_db(dockerhub_tag_ids: list) -> None:
+async def remove_old_template_from_db(tag_ids: list) -> None:
     """Deletes old templates that are no longer in docker hub.
 
     Arguments:
-        dockerhub_tag_ids -- list of template IDs you want to keep
+        tag_ids -- list of template IDs you want to keep
     """
 
     templates_to_delete = []
-    templates = await engine.find(TemplateDB)
+    templates: List[TemplateDB] = await engine.find(TemplateDB)
     for temp in templates:
-        if temp.dockerhub_tag_id not in dockerhub_tag_ids:
+        if temp.tag_id not in tag_ids:
             templates_to_delete.append(temp)
 
     for template in templates_to_delete:
