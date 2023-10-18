@@ -64,7 +64,7 @@ async def retrieve_templates_info_from_s3(
         cached_data = r.get("temp_data")
         if cached_data is not None:
             print("Using cache...")
-            return json.loads(cached_data.decode("utf-8"))
+            return json.loads(cached_data)
 
     # If not cached, fetch data from Docker Hub and cache it in Redis
     response = await get_templates_info_from_s3(
@@ -72,6 +72,6 @@ async def retrieve_templates_info_from_s3(
     )
 
     # Cache the data in Redis for 60 minutes
-    r.set("temp_data", response, ex=900)
+    r.set("temp_data", json.dumps(response), ex=900)
     print("Using network call...")
     return response
