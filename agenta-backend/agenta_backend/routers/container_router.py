@@ -175,9 +175,7 @@ async def pull_image(
 
     # Pull image from docker hub with provided config
     try:
-        image_res = await pull_docker_image(
-            f"{repo_owner}/{repo_name}", image_name
-        )
+        image_res = await pull_docker_image(f"{repo_owner}/{repo_name}", image_name)
     except DockerError as ext:
         return JSONResponse(
             {"message": "Image with tag does not exist", "meta": str(ext)}, 404
