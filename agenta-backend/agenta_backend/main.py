@@ -15,13 +15,16 @@ from agenta_backend.routers import (
     variants_router,
 )
 from agenta_backend.services.cache_manager import (
-    retrieve_templates_from_dockerhub_cached,
-    retrieve_templates_info_from_dockerhub_cached,
+    retrieve_templates_info_from_s3,
 )
+from agenta_backend.services.container_manager import pull_docker_image
+from agenta_backend.services.db_manager import (
+    add_template,
+    remove_old_template_from_db,
+)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from agenta_backend.services.container_manager import pull_image_from_docker_hub
-from agenta_backend.services.db_manager import add_template, remove_old_template_from_db
 
 origins = [
     "http://localhost:3000",
@@ -39,47 +42,59 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
-    # Get docker hub config
-    repo_owner = settings.docker_hub_repo_owner
-    repo_name = settings.docker_hub_repo_name
 
-    tags_data = await retrieve_templates_from_dockerhub_cached(cache=cache)
-    templates_info_string = await retrieve_templates_info_from_dockerhub_cached(
-        cache=cache
-    )
-    templates_info = json.loads(templates_info_string)
+    if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+        from agenta_backend.ee.services.cache_manager import (
+            retrieve_templates_from_ecr_cached,
+        )
 
-    templates_in_hub = []
-    for tag in tags_data:
-        # Append the template id in the list of templates_in_hub
+        templates = await retrieve_templates_from_ecr_cached(cache)
+
+    else:
+        from agenta_backend.services.cache_manager import (
+            retrieve_templates_from_dockerhub_cached,
+        )
+
+        templates = await retrieve_templates_from_dockerhub_cached(cache)
+
+    templates_ids = []
+    templates_info = await retrieve_templates_info_from_s3(cache)
+    for temp in templates:
+        # Append the template id in the list of templates_ids
         # We do this to remove old templates from database
-        templates_in_hub.append(tag["id"])
+        templates_ids.append(temp["id"])
         for temp_info_key in templates_info:
             temp_info = templates_info[temp_info_key]
-            if str(tag["name"]).startswith(temp_info_key):
+            if str(temp["name"]).startswith(temp_info_key):
                 await add_template(
                     **{
-                        "dockerhub_tag_id": tag["id"],
-                        "name": tag["name"],
-                        "size": tag["images"][0]["size"],
-                        "architecture": tag["images"][0]["architecture"],
+                        "tag_id": temp["id"],
+                        "name": temp["name"],
+                        "repo_name": temp["last_updater_username"],
                         "title": temp_info["name"],
                         "description": temp_info["description"],
-                        "digest": tag["digest"],
-                        "status": tag["images"][0]["status"],
-                        "last_pushed": tag["images"][0]["last_pushed"],
-                        "repo_name": tag["last_updater_username"],
-                        "media_type": tag["media_type"],
+                        "size": temp["images"][0]["size"],
+                        "digest": temp["digest"],
+                        "last_pushed": temp["images"][0]["last_pushed"],
                     }
                 )
-                image_res = await pull_image_from_docker_hub(
-                    f"{repo_owner}/{repo_name}", tag["name"]
-                )
-                print(f"Template {tag['id']} added to the database.")
-                print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
+                print(f"Template {temp['id']} added to the database.")
+
+                if os.environ["FEATURE_FLAG"] == "oss":
+                    # Get docker hub config
+                    repo_owner = settings.docker_hub_repo_owner
+                    repo_name = settings.docker_hub_repo_name
+
+                    # Pull image from DockerHub
+                    image_res = await pull_docker_image(
+                        repo_name=f"{repo_owner}/{repo_name}", tag=temp["name"]
+                    )
+                    print(
+                        f"Template Image {image_res[0]['id']} pulled from DockerHub."
+                    )
 
     # Remove old templates from database
-    await remove_old_template_from_db(templates_in_hub)
+    await remove_old_template_from_db(templates_ids)
     yield
 
 
