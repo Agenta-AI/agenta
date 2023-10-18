@@ -1,12 +1,12 @@
 import agenta as ag
 import openai
-from agenta.types import FloatParam, TextParam
+from agenta import FloatParam, TextParam
 
 default_prompt = (
     "Give me 5 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init()
+ag.init(app_name="test", base_name="app", host="http://localhost")
 ag.config.default(
     temperature=FloatParam(0.9), prompt_template=TextParam(default_prompt)
 )
@@ -28,6 +28,6 @@ def generate(country: str, gender: str) -> str:
 
     chat_completion = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": ag.config.prompt_template}],
+        messages=[{"role": "user", "content": prompt}],
     )
     return chat_completion.choices[0].message.content
