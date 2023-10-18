@@ -2,9 +2,8 @@
 """
 import logging
 import os
-from typing import List, Optional, Any, Dict
+from typing import List, Any, Dict
 
-from agenta_backend.config import settings
 from agenta_backend.models.api.api_models import (
     URI,
     DockerEnvVars,
@@ -15,8 +14,15 @@ from agenta_backend.models.db_models import (
     AppEnvironmentDB,
     AppDB,
 )
-from agenta_backend.services import db_manager, docker_utils
-from docker.errors import DockerException
+from agenta_backend.services import db_manager
+
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.ee.services import (
+        deployment_manager,
+    )  # noqa pylint: disable-all
+else:
+    from agenta_backend.services import deployment_manager
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -54,33 +60,9 @@ async def start_variant(
             db_app_variant.organization,
         )
         logger.debug("App name is %s", db_app_variant.app.app_name)
-        results = docker_utils.start_container(
-            image_name=db_app_variant.image.tags,
-            app_name=db_app_variant.app.app_name,
-            base_name=db_app_variant.base_name,
-            env_vars=env_vars,
-            organization_id=db_app_variant.organization.id,
+        deployment = await deployment_manager.start_service(
+            app_variant_db=db_app_variant, env_vars=env_vars
         )
-        uri = results["uri"]
-        uri_path = results["uri_path"]
-        container_id = results["container_id"]
-        container_name = results["container_name"]
-
-        logger.info(
-            f"Started Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name} at URI {uri}"
-        )
-
-        deployment = await db_manager.create_deployment(
-            app=db_app_variant.app,
-            organization=db_app_variant.organization,
-            user=db_app_variant.user,
-            container_name=container_name,
-            container_id=container_id,
-            uri=uri,
-            uri_path=uri_path,
-            status="running",
-        )
-
         await db_manager.update_base(
             db_app_variant.base,
             deployment=deployment.id,
@@ -93,7 +75,7 @@ async def start_variant(
             f"Failed to start Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name} \n {str(e)}"
         )
 
-    return URI(uri=uri)
+    return URI(uri=deployment.uri)
 
 
 async def update_variant_image(
@@ -105,44 +87,22 @@ async def update_variant_image(
         app_variant -- the app variant to update
         image -- the image to update
     """
-    if image.tags in ["", None]:
-        msg = "Image tags cannot be empty"
-        logger.error(msg)
-        raise ValueError(msg)
-    if not image.tags.startswith(settings.registry):
-        raise ValueError(
-            "Image should have a tag starting with the registry name (agenta-server)"
-        )
-    if image not in docker_utils.list_images():
-        raise DockerException(
-            f"Image {image.docker_id} with tags {image.tags} not found"
-        )
 
-    ###
-    # Stop and delete the container
-    container_ids = docker_utils.stop_containers_based_on_image_id(
-        app_variant_db.base.image.docker_id
+    valid_image = await deployment_manager.validate_image(image)
+    if not valid_image:
+        raise ValueError("Image could not be found in registery.")
+    deployment = await db_manager.get_deployment_by_objectid(
+        app_variant_db.base.deployment
     )
-    logger.info(f"Containers {container_ids} stopped")
-    for container_id in container_ids:
-        docker_utils.delete_container(container_id)
-        logger.info(f"Container {container_id} deleted")
-    if app_variant_db.base.deployment is not None:
-        deployment = await db_manager.get_deployment_by_objectid(
-            app_variant_db.base.deployment
-        )
-        await db_manager.remove_deployment(deployment)
 
-    # Delete the image
-    image_docker_id = app_variant_db.base.image.docker_id
+    await deployment_manager.stop_service(deployment)
+    await db_manager.remove_deployment(deployment)
+
+    await deployment_manager.remove_image(app_variant_db.base.image)
     await db_manager.remove_image(app_variant_db.base.image)
-    if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
-        docker_utils.delete_image(image_docker_id)
-
     # Create a new image instance
     db_image = await db_manager.create_image(
-        docker_id=image.docker_id,
-        tags=image.tags,
+        **image.dict(),
         user=app_variant_db.user,
         organization=app_variant_db.organization,
     )
@@ -194,31 +154,26 @@ async def terminate_and_remove_app_variant(
         )
         if is_last_variant_for_image:
             # remove variant + terminate and rm containers + remove base
+
             image = app_variant_db.base.image
-            docker_id = str(image.docker_id)
+            logger.debug("is_last_variant_for_image {image}")
             if image:
                 logger.debug("_stop_and_delete_app_container")
-                await _stop_and_delete_app_container(app_variant_db, **kwargs)
+                deployment = await db_manager.get_deployment_by_objectid(
+                    app_variant_db.base.deployment
+                )
+                await deployment_manager.stop_and_delete_service(deployment)
+                await deployment_manager.remove_image(image)
                 logger.debug("remove base")
                 await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
                 logger.debug("Remove image object from db")
                 await db_manager.remove_image(image, **kwargs)
-                deployment = await db_manager.get_deployment_by_objectid(
-                    app_variant_db.base.deployment
-                )
                 await db_manager.remove_deployment(deployment)
                 await db_manager.remove_base_from_db(app_variant_db.base, **kwargs)
                 logger.debug("remove_app_variant_from_db")
 
                 # Only delete the docker image for users that are running the oss version
-                try:
-                    if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
-                        logger.debug("Remove image from docker registry")
-                        docker_utils.delete_image(docker_id)
-                except RuntimeError as e:
-                    logger.error(
-                        f"Ignoring error while deleting Docker image {docker_id}: {str(e)}"
-                    )
+
             else:
                 logger.debug(
                     f"Image associated with app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name} not found. Skipping deletion."
@@ -238,32 +193,6 @@ async def terminate_and_remove_app_variant(
             f"An error occurred while deleting app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}: {str(e)}"
         )
         raise e from None
-
-
-async def _stop_and_delete_app_container(
-    app_variant_db: AppVariantDB, **kwargs: dict
-) -> None:
-    """
-    Stops and deletes Docker container associated with a given app.
-
-    Args:
-        app_variant_db (AppVariant): The app variant whose associated container is to be stopped and deleted.
-
-    Raises:
-        Exception: Any exception raised during Docker operations.
-    """
-    try:
-        deployment = await db_manager.get_deployment_by_objectid(
-            app_variant_db.base.deployment
-        )
-        logger.debug(f"deployment: {deployment}")
-        container_id = deployment.container_id
-        docker_utils.stop_container(container_id)
-        logger.info(f"Container {container_id} stopped")
-        docker_utils.delete_container(container_id)
-        logger.info(f"Container {container_id} deleted")
-    except Exception as e:
-        logger.error(f"Error stopping and deleting Docker container: {str(e)}")
 
 
 async def remove_app_related_resources(app_id: str, **kwargs: dict):

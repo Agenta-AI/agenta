@@ -52,3 +52,5 @@ docker-compose.demo.prod.yml
 docker-compose.demo.dev.yml
 docker-compose.cloud.prod.yml
 agenta-web/src/pages/auth/[[...path]].tsx
+agenta-web/cypress/screenshots/
+agenta-web/cypress/videos/

@@ -1,10 +1,11 @@
 import {Environment, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
-import React, {useState} from "react"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
+import {removeVariant} from "@/lib/services/api"
 
 interface Props {
     variant: Variant
@@ -17,14 +18,14 @@ interface Props {
         onSuccess?: (isNew: boolean) => void,
     ) => void
     handlePersistVariant: (variantName: string) => void
-    setRemovalVariantName: (variantName: string) => void
-    setRemovalWarningModalOpen: (value: boolean) => void
-    isDeleteLoading: boolean
     isPersistent: boolean
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
     environments: Environment[]
     onAdd: () => void
+    deleteVariant: (deleteAction?: Function) => void
+    getHelpers: (helpers: {save: Function; delete: Function}) => void
+    onStateChange: (isDirty: boolean) => void
 }
 
 const useStyles = createUseStyles({
@@ -55,19 +56,23 @@ const ParametersView: React.FC<Props> = ({
     isParamSaveLoading,
     onOptParamsChange,
     handlePersistVariant,
-    setRemovalVariantName,
-    setRemovalWarningModalOpen,
-    isDeleteLoading,
     isPersistent,
     isParamsCollapsed,
     setIsParamsCollapsed,
     environments,
     onAdd,
+    deleteVariant,
+    getHelpers,
+    onStateChange,
 }) => {
     const classes = useStyles()
     const [messageApi, contextHolder] = message.useMessage()
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
+
+    useEffect(() => {
+        onStateChange(variant.persistent === false)
+    }, [])
 
     const onChange = (param: Parameter, newValue: number | string) => {
         handleParamChange(param.name, newValue)
@@ -76,21 +81,47 @@ const ParametersView: React.FC<Props> = ({
         const newOptParams = optParams?.map((param) =>
             param.name === name ? {...param, default: newVal} : param,
         )
+        onStateChange(true)
         newOptParams && onOptParamsChange(newOptParams, false, false)
-    }
-    const onSuccess = (isNew: boolean) => {
-        if (isNew && onAdd) onAdd()
-        messageApi.open({
-            type: "success",
-            content: "Changes saved successfully!",
-            onClose: () => handlePersistVariant(variant.variantName),
-        })
     }
 
     const onChangeCollapse = (key: string | string[]) => {
         const newValue = Array.isArray(key) && key.includes("1") ? "1" : ""
         setIsParamsCollapsed(newValue)
     }
+
+    const onSave = () => {
+        return new Promise((res) => {
+            onOptParamsChange(optParams!, true, isPersistent, (isNew: boolean) => {
+                if (isNew && onAdd) onAdd()
+                messageApi.open({
+                    type: "success",
+                    content: "Changes saved successfully!",
+                    onClose: () => handlePersistVariant(variant.variantName),
+                })
+                onStateChange(false)
+                res(true)
+            })
+        })
+    }
+
+    const handleDelete = () => {
+        deleteVariant(() => {
+            if (variant.persistent) {
+                return removeVariant(variant.variantId).then(() => {
+                    onStateChange(false)
+                })
+            }
+        })
+    }
+
+    useEffect(() => {
+        getHelpers({
+            save: onSave,
+            delete: handleDelete,
+        })
+    }, [getHelpers])
+
     const items: CollapseProps["items"] = [
         {
             key: "1",
@@ -114,9 +145,7 @@ const ParametersView: React.FC<Props> = ({
                                 )}
                                 <Button
                                     type="primary"
-                                    onClick={() => {
-                                        onOptParamsChange(optParams!, true, isPersistent, onSuccess)
-                                    }}
+                                    onClick={onSave}
                                     loading={isParamSaveLoading}
                                 >
                                     <Tooltip
@@ -126,15 +155,7 @@ const ParametersView: React.FC<Props> = ({
                                         Save changes
                                     </Tooltip>
                                 </Button>
-                                <Button
-                                    type="primary"
-                                    danger
-                                    onClick={() => {
-                                        setRemovalVariantName(variant.variantName)
-                                        setRemovalWarningModalOpen(true)
-                                    }}
-                                    loading={isDeleteLoading}
-                                >
+                                <Button type="primary" danger onClick={handleDelete}>
                                     <Tooltip
                                         placement="bottom"
                                         title="Delete the variant permanently"
