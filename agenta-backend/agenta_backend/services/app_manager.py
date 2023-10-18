@@ -60,6 +60,14 @@ async def start_variant(
             db_app_variant.organization,
         )
         logger.debug("App name is %s", db_app_variant.app.app_name)
+        # update the env variables
+        domain_name = os.environ.get("DOMAIN_NAME")
+        if domain_name is None or domain_name == "http://localhost":
+            # in the case of agenta running locally, the containers can access the host machine via this address
+            domain_name = "http://host.docker.internal"
+        env_vars.update(
+            {"AGENTA_BASE_ID": str(db_app_variant.base.id), "AGENTA_HOST": domain_name}
+        )
         deployment = await deployment_manager.start_service(
             app_variant_db=db_app_variant, env_vars=env_vars
         )
