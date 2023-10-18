@@ -49,7 +49,7 @@ class AgentaSingleton:
         if base_id is None:
             base_id = os.environ.get("AGENTA_BASE_ID")
         if host is None:
-            host = os.environ.get("AGENTA_HOST")
+            host = os.environ.get("AGENTA_HOST", "http://localhost")
 
         if base_id is not None:
             pass
@@ -82,7 +82,7 @@ class Config:
         self.host = host
         self.api_key = api_key
 
-    def default(self, overwrite=False, **kwargs):
+    def default(self, overwrite=True, **kwargs):
         """Saves the default parameters to the app_name and base_name in case they are not already saved.
         Args:
             overwrite: Whether to overwrite the existing configuration or not
@@ -152,7 +152,7 @@ class Config:
         return {
             k: v
             for k, v in self.__dict__.items()
-            if k not in ["app_name", "base_name", "host"]
+            if k not in ["app_name", "base_name", "host", "base_id", "api_key"]
         }
 
     # function to set the parameters for the app variant

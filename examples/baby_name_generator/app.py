@@ -3,12 +3,12 @@ import openai
 from agenta import FloatParam, TextParam
 
 default_prompt = (
-    "Give me 5 names for a baby from this country {country} with gender {gender}!!!!"
+    "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"
 )
 
-ag.init(app_name="test", base_name="app", host="http://localhost")
+ag.init(app_name="test", base_name="app")
 ag.config.default(
-    temperature=FloatParam(0.9), prompt_template=TextParam(default_prompt)
+    temperature=FloatParam(0.2), prompt_template=TextParam(default_prompt)
 )
 
 

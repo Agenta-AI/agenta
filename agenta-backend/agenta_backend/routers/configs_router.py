@@ -1,6 +1,8 @@
 import os
 from typing import Optional
 from fastapi import APIRouter, Request, HTTPException
+import logging
+
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
     GetConfigPayload,
@@ -18,7 +20,6 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
-import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -42,8 +43,9 @@ async def save_config(
             if variant_db.config_name == payload.config_name:
                 variant_to_overwrite = variant_db
                 break
-        if variant_to_overwrite:
+        if variant_to_overwrite is not None:
             if payload.overwrite:
+                print(f"update_variant_parameters  ===> {payload.overwrite}")
                 await app_manager.update_variant_parameters(
                     app_variant_id=str(variant_to_overwrite.id),
                     parameters=payload.parameters,
@@ -55,15 +57,21 @@ async def save_config(
                     detail="Config name already exists. Please use a different name or set overwrite to True.",
                 )
         else:
+            print(
+                f"add_variant_from_base_and_config overwrite ===> {payload.overwrite}"
+            )
             await db_manager.add_variant_from_base_and_config(
                 base_db=base_db,
                 new_config_name=payload.config_name,
                 parameters=payload.parameters,
                 **user_org_data,
             )
+    except HTTPException as e:
+        logger.error(f"save_config http exception ===> {e.detail}")
+        raise
     except Exception as e:
         logger.error(f"save_config exception ===> {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/config/", response_model=GetConfigReponse)

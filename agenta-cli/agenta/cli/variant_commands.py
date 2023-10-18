@@ -132,7 +132,9 @@ def add_variant(
                 )
             )
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
-            client.update_variant_image(variant_id, image, host, api_key)
+            client.update_variant_image(
+                variant_id, image, host, api_key
+            )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
             response = client.add_variant_to_server(
@@ -167,7 +169,7 @@ def add_variant(
     if overwrite:
         # In the case we are overwriting, don't return anything. Otherwise the command server would attempt to start the container which would result in an error!!!
         # TODO: Improve this stupid design
-        return None, None, None
+        return None
     else:
         return variant_id
 

@@ -3,9 +3,8 @@ import uuid
 import asyncio
 from pathlib import Path
 from typing import List, Union, Optional
-
 from fastapi.responses import JSONResponse
-from fastapi import UploadFile, APIRouter, Request
+from fastapi import UploadFile, APIRouter, Request, HTTPException
 
 from agenta_backend.config import settings
 from aiodocker.exceptions import DockerError
@@ -218,7 +217,10 @@ async def construct_app_container_url(
             deployment = await db_manager.get_deployment_by_objectid(base_db.deployment)
             uri = deployment.uri
         else:
-            uri = None
+            raise HTTPException(
+                status_code=400,
+                detail=f"Base {base_id} does not have a deployment",
+            )
 
         return URI(uri=uri)
     elif variant_id:
@@ -228,6 +230,7 @@ async def construct_app_container_url(
         deployment = await db_manager.get_deployment_by_objectid(
             variant_db.base.deployment
         )
+        assert deployment and deployment.uri, "Deployment not found"
         return URI(uri=deployment.uri)
     else:
         return JSONResponse(
