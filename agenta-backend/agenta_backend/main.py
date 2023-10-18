@@ -69,9 +69,7 @@ async def lifespan(application: FastAPI, cache=True):
                     **{
                         "tag_id": int(temp["tag_id"]),
                         "name": temp["name"],
-                        "repo_name": temp.get(
-                            "last_updater_username", "repo_name"
-                        ),
+                        "repo_name": temp.get("last_updater_username", "repo_name"),
                         "title": temp_info["name"],
                         "description": temp_info["description"],
                         "size": (
@@ -98,9 +96,7 @@ async def lifespan(application: FastAPI, cache=True):
                     image_res = await pull_docker_image(
                         repo_name=f"{repo_owner}/{repo_name}", tag=temp["name"]
                     )
-                    print(
-                        f"Template Image {image_res[0]['id']} pulled from DockerHub."
-                    )
+                    print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
 
     # Remove old templates from database
     await remove_old_template_from_db(templates_ids)
