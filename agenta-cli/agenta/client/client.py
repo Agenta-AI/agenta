@@ -406,13 +406,16 @@ def fetch_variant_config(
         raise ValueError("The 'host' is not specified in fetch_variant_config")
 
     try:
+        if environment_name:
+            endpoint_params = f"?base_id={base_id}&environment_name={environment_name}"
+        elif config_name:
+            endpoint_params = f"?base_id={base_id}&config_name={config_name}"
+        else:
+            raise ValueError(
+                "Either 'config_name' or 'environment_name' must be specified in fetch_variant_config"
+            )
         response = requests.get(
-            f"{host}/{BACKEND_URL_SUFFIX}/configs/",
-            params={
-                "base_id": base_id,
-                "config_name": config_name,
-                "environment_name": environment_name,
-            },
+            f"{host}/{BACKEND_URL_SUFFIX}/configs/{endpoint_params}",
             headers={"Authorization": api_key} if api_key is not None else None,
             timeout=600,
         )
