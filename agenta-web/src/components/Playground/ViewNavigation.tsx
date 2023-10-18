@@ -59,7 +59,7 @@ const ViewNavigation: React.FC<Props> = ({
     } = useVariant(appId, variant)
 
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
-    const [containerURIPath, setContainerURIPath] = useState("")
+    const [containerURI, setContainerURI] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
     const {currentApp} = useAppsData()
 
@@ -82,10 +82,10 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const variantContainerPath = async () => {
-            const urlPath = await getAppContainerURL(appId, variant.variantId, variant.baseId)
-            setContainerURIPath(urlPath)
+            const url = await getAppContainerURL(appId, variant.variantId, variant.baseId)
+            setContainerURI(url)
         }
-        if (!containerURIPath) {
+        if (!containerURI) {
             variantContainerPath()
         }
 
@@ -114,7 +114,7 @@ const ViewNavigation: React.FC<Props> = ({
             }
         }
 
-        const apiAddress = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/${containerURIPath}/openapi.json`
+        const apiAddress = `${containerURI}/openapi.json`
         return (
             <div>
                 {error ? (
@@ -205,7 +205,7 @@ const ViewNavigation: React.FC<Props> = ({
 
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]} className={classes.row}>
                 <Col span={24}>
-                    <TestView inputParams={inputParams} optParams={optParams} URIPath={URIPath} />
+                    <TestView inputParams={inputParams} optParams={optParams} variant={variant} />
                 </Col>
             </Row>
         </Spin>
