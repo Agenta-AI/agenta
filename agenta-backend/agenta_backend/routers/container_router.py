@@ -22,7 +22,7 @@ from agenta_backend.services import db_manager
 from agenta_backend.services.container_manager import (
     build_image_job,
     get_image_details_from_docker_hub,
-    pull_image_from_docker_hub,
+    pull_docker_image,
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
@@ -172,7 +172,7 @@ async def pull_image(
 
     # Pull image from docker hub with provided config
     try:
-        image_res = await pull_image_from_docker_hub(
+        image_res = await pull_docker_image(
             f"{repo_owner}/{repo_name}", image_name
         )
     except DockerError as ext:
