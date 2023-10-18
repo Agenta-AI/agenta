@@ -5,7 +5,20 @@ from enum import Enum
 from pydantic import BaseModel
 
 
-class ConfigInput(BaseModel):
+class GetConfigReponse(BaseModel):
+    config_id: str
+    config_name: str
+    current_version: int
+    parameters: Dict[str, Any]
+
+
+class GetConfigPayload(BaseModel):
+    base_id: str
+    config_name: Optional[str]
+    environment_name: Optional[str]
+
+
+class SaveConfigPayload(BaseModel):
     base_id: str
     config_name: str
     parameters: Dict[str, Any]

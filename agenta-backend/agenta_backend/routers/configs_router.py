@@ -1,7 +1,11 @@
 import os
 from typing import List, Optional
 from fastapi import APIRouter, Request, HTTPException
-from agenta_backend.models.api.api_models import ConfigInput
+from agenta_backend.models.api.api_models import (
+    SaveConfigPayload,
+    GetConfigPayload,
+    GetConfigReponse,
+)
 from fastapi.responses import JSONResponse
 from agenta_backend.services import (
     db_manager,
@@ -26,7 +30,7 @@ router = APIRouter()
 
 @router.post("/")
 async def save_config(
-    payload: ConfigInput,
+    payload: SaveConfigPayload,
     request: Request,
 ):
     try:
@@ -35,13 +39,12 @@ async def save_config(
             payload.base_id, user_org_data
         )
         variants_db = await db_manager.list_variants_for_base(base_db, **user_org_data)
-        config_exist = False
+        variant_to_overwrite = None
         for variant_db in variants_db:
             if variant_db.config_name == payload.config_name:
-                config_exist = True
                 variant_to_overwrite = variant_db
                 break
-        if config_exist:
+        if variant_to_overwrite:
             if payload.overwrite:
                 await app_manager.update_variant_parameters(
                     app_variant_id=str(variant_to_overwrite.id),
@@ -61,47 +64,65 @@ async def save_config(
                 **user_org_data,
             )
     except Exception as e:
-        logger.error(f"list_bases exception ===> {e}")
+        logger.error(f"save_config exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/from-base/")
-async def add_variant_from_base_and_config(
-    payload: AddVariantFromBasePayload,
+@router.get("/config/", response_model=GetConfigReponse)
+async def get_config(
     request: Request,
-) -> Union[AppVariantOutput, Any]:
-    """Add a new variant based on an existing one.
-    Same as POST /config
-
-    Args:
-        payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
-        stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
-
-    Raises:
-        HTTPException: Raised if the variant could not be added or accessed.
-
-    Returns:
-        Union[AppVariantOutput, Any]: New variant details or exception.
-    """
+    payload: GetConfigPayload,
+):
     try:
-        logger.debug("Initiating process to add a variant based on a previous one.")
-        logger.debug(f"Received payload: {payload}")
+        # detemine whether the user has access to the base
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         base_db = await db_manager.fetch_base_and_check_access(
             payload.base_id, user_org_data
         )
-
-        # Find the previous variant in the database
-
-        db_app_variant = await db_manager.add_variant_from_base_and_config(
-            base_db=base_db,
-            new_config_name=payload.new_config_name,
-            parameters=payload.parameters,
-            **user_org_data,
+        # in case environment_name is provided, find the variant deployed
+        if payload.environment_name:
+            app_environments = await db_manager.list_environments(
+                app_id=str(base_db.app.id)
+            )
+            found_variant = None
+            for app_environments in app_environments:
+                if app_environments.name == payload.environment_name:
+                    found_variant = await db_manager.get_app_variant_instance_by_id(
+                        str(app_environments.deployed_app_variant)
+                    )
+                    break
+            if not found_variant:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Environment name {payload.environment_name} not found for base {payload.base_id}",
+                )
+            if found_variant.config_name != payload.config_name:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Environment {payload.environment_name} does not deploy base {payload.base_id}",
+                )
+            config = found_variant.config
+        elif payload.config_name:
+            variants_db = await db_manager.list_variants_for_base(
+                base_db, **user_org_data
+            )
+            found_variant = None
+            for variant_db in variants_db:
+                if variant_db.config_name == payload.config_name:
+                    found_variant = variant_db
+                    break
+            if not found_variant:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Config name {payload.config_name} not found for base {payload.base_id}",
+                )
+            config = found_variant.config
+        return GetConfigReponse(
+            config_id=str(config.id),
+            config_name=config.config_name,
+            current_version=config.current_version,
+            parameters=config.parameters,
         )
-        logger.debug(f"Successfully added new variant: {db_app_variant}")
-        return await converters.app_variant_db_to_output(db_app_variant)
-
     except Exception as e:
-        logger.error(f"An exception occurred while adding the new variant: {e}")
+        logger.error(f"get_config exception: {e}")
         raise HTTPException(status_code=500, detail=str(e))

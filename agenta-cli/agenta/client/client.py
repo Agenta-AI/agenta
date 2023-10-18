@@ -380,9 +380,9 @@ def save_variant_config(
 
 def fetch_variant_config(
     base_id: str,
-    config_name: str,
-    environment_name: str,
     host: str,
+    config_name: Optional[str] = None,
+    environment_name: Optional[str] = None,
     api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
