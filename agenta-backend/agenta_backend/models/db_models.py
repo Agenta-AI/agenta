@@ -161,16 +161,13 @@ class AppEnvironmentDB(Model):
 
 
 class TemplateDB(Model):
-    dockerhub_tag_id: int
+    tag_id: int
     name: str
     repo_name: str
-    architecture: str
     title: str
     description: str
     size: int
     digest: str
-    status: str
-    media_type: str
     last_pushed: datetime
 
     class Config:
