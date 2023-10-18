@@ -14,6 +14,7 @@ from agenta_backend.models.db_models import (
     Feedback as FeedbackDB,
     EvaluationDB,
     EvaluationScenarioDB,
+    VariantBaseDB,
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
@@ -24,6 +25,7 @@ from agenta_backend.models.api.api_models import (
     App,
     EnvironmentOutput,
     TestSetOutput,
+    BaseOutput,
 )
 from agenta_backend.models.api.observability_models import (
     Span,
@@ -156,6 +158,10 @@ async def environment_db_to_output(
         deployed_app_variant_id=deployed_app_variant_id,
         deployed_variant_name=deployed_variant_name,
     )
+
+
+def base_db_to_pydantic(base_db: VariantBaseDB) -> BaseOutput:
+    return BaseOutput(base_id=str(base_db.id), base_name=base_db.base_name)
 
 
 def app_db_to_pydantic(app_db: AppDB) -> App:

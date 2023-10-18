@@ -441,6 +441,23 @@ async def list_app_variants_for_app_id(
     return app_variants_db
 
 
+async def list_bases_for_app_id(
+    app_id: str, base_name: Optional[str] = None, **kwargs: dict
+) -> List[VariantBaseDB]:
+    assert app_id is not None, "app_id cannot be None"
+    query_expression = VariantBaseDB.app == ObjectId(app_id)
+    if base_name:
+        query_expression = query_expression & query.eq(
+            VariantBaseDB.base_name, base_name
+        )
+    bases_db: List[VariantBaseDB] = await engine.find(
+        VariantBaseDB,
+        query_expression,
+        sort=(VariantBaseDB.base_name),
+    )
+    return bases_db
+
+
 async def list_app_variant_for_base(
     base: VariantBaseDB, **kwargs: dict
 ) -> List[AppVariantDB]:

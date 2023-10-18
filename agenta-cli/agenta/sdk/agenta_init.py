@@ -64,8 +64,11 @@ class AgentaSingleton:
                 "The 'host' is not specified. Please provide it as an argument or set the 'AGENTA_HOST' environment variable."
             )
         if base_id is None:
-            client.get_base_id_by_app_name_and_base_name(
-                app_name=app_name, base_name=base_name, host=host, api_key=api_key
+            app_id = client.get_app_by_name(
+                app_name=app_name, host=host, api_key=api_key
+            )
+            base_id = client.get_base_by_app_id_and_name(
+                app_id=app_id, base_name=base_name, host=host, api_key=api_key
             )
         self.base_id = base_id
         self.host = host
