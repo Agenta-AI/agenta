@@ -141,7 +141,7 @@ class Config:
                 + str(ex)
             ) from ex
         try:
-            self.set(**config)
+            self.set(**config["parameters"])
         except Exception as ex:
             raise Exception(
                 "Failed to set the configuration with error: " + str(ex)
