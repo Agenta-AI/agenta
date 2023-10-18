@@ -5,6 +5,13 @@ from enum import Enum
 from pydantic import BaseModel
 
 
+class ConfigInput(BaseModel):
+    base_id: str
+    config_name: str
+    parameters: Dict[str, Any]
+    overwrite: bool
+
+
 class VariantActionEnum(str, Enum):
     START = "START"
     STOP = "STOP"
