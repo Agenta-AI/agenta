@@ -468,7 +468,7 @@ Answer ONLY with one of the given grading or evaluation options.
             <div className={classes.evaluationResult}>
                 <center>
                     {evaluationStatus === EvaluationFlow.EVALUATION_FAILED && (
-                        <div>Failed to evaluate AI critique!</div>
+                        <div>Failed to run evaluation</div>
                     )}
 
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
