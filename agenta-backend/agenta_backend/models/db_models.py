@@ -61,6 +61,7 @@ class ImageDB(Model):
     organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    deletable: bool = Field(default=True)
 
     class Config:
         collection = "docker_images"

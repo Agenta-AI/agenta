@@ -59,6 +59,8 @@ async def update_and_sync_templates(cache: bool = True) -> None:
                     repo_name=f"{repo_owner}/{repo_name}", tag=temp["name"]
                 )
                 print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
+                # TODO create image object
+                # TODO connect image object to Template object
 
     # Remove old templates from database
     await db_manager.remove_old_template_from_db(templates_ids)
