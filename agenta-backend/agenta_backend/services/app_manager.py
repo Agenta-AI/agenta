@@ -162,13 +162,15 @@ async def terminate_and_remove_app_variant(
                 deployment = await db_manager.get_deployment_by_objectid(
                     app_variant_db.base.deployment
                 )
-                await deployment_manager.stop_and_delete_service(deployment)
+                if deployment:
+                    await deployment_manager.stop_and_delete_service(deployment)
                 await deployment_manager.remove_image(image)
                 logger.debug("remove base")
                 await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
                 logger.debug("Remove image object from db")
                 await db_manager.remove_image(image, **kwargs)
-                await db_manager.remove_deployment(deployment)
+                if deployment:
+                    await db_manager.remove_deployment(deployment)
                 await db_manager.remove_base_from_db(app_variant_db.base, **kwargs)
                 logger.debug("remove_app_variant_from_db")
 
