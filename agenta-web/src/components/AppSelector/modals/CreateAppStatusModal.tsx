@@ -191,7 +191,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
 
             <div className={classes.statusSteps}>
                 {Object.values(messages).map(({type, message, errorMessage}, ix) => (
-                    <div className={classes.statusRow}>
+                    <div className={classes.statusRow} key={message}>
                         {type === "success" ? (
                             <CheckCircleOutlined style={{color: colorSuccess}} />
                         ) : type === "error" ? (
