@@ -298,7 +298,7 @@ async def add_variant_based_on_image(
     tags: str,
     base_name: str = None,
     config_name: str = "default",
-    deletable: bool = True,
+    is_template_image: bool = False,
     **user_org_data: dict,
 ) -> AppVariantDB:
     """
@@ -311,7 +311,7 @@ async def add_variant_based_on_image(
         tags (str): The tags associated with the Docker image.
         base_name (str, optional): The name of the base to use for the new variant. Defaults to None.
         config_name (str, optional): The name of the configuration to use for the new variant. Defaults to "default".
-        deletable (bool, optional): Whether or not the new variant template should be deletable. Defaults to True.
+        is_template_image (bool, optional): Whether or not the image used is for a template (in this case we won't delete it in the future).
         **user_org_data (dict): Additional user and organization data.
 
     Returns:
@@ -356,7 +356,7 @@ async def add_variant_based_on_image(
         db_image = await db_manager.create_image(
             docker_id=docker_id,
             tags=tags,
-            deletable=deletable,
+            deletable=not (is_template_image),
             user=user_instance,
             organization=app.organization,
         )
