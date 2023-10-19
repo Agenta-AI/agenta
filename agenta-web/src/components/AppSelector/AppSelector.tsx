@@ -20,7 +20,6 @@ import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
-import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
@@ -201,9 +200,12 @@ const AppSelector: React.FC = () => {
             openAIKey: isDemo() ? "" : (openAIKey as string),
             timeout,
             onStatusChange: (status, details, appId) => {
+                setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)
-                setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
+                if (status === "success") {
+                    mutate()
+                }
             },
         })
     }
@@ -212,6 +214,7 @@ const AppSelector: React.FC = () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
             await removeApp(statusData.appId).catch(console.error)
+            mutate()
         }
         handleTemplateCardClick(templateName as string)
     }
@@ -228,6 +231,8 @@ const AppSelector: React.FC = () => {
                 setStatusData((prev) => ({...prev, status: "error", details: error}))
             }
         }
+        setStatusData((prev) => ({...prev, status: "success", details: undefined}))
+        mutate()
     }
 
     const appNameExist = useMemo(

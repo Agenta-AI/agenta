@@ -1,7 +1,7 @@
 import {GenericObject} from "@/lib/Types"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {CheckCircleOutlined, CloseCircleOutlined, LoadingOutlined} from "@ant-design/icons"
-import {Modal, Typography, theme} from "antd"
+import {Alert, Modal, Typography, theme} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -16,6 +16,13 @@ const useStyles = createUseStyles({
         "& .anticon": {
             marginTop: 4,
         },
+    },
+    warning: {
+        margin: "8px 0",
+        marginLeft: -2,
+    },
+    statusSteps: {
+        marginTop: 12,
     },
 })
 
@@ -36,6 +43,10 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     ...props
 }) => {
     const router = useRouter()
+    const classes = useStyles()
+    const {
+        token: {colorError, colorSuccess, colorPrimary},
+    } = theme.useToken()
     const [messages, setMessages] = useState<{
         [status: string]: {
             type: "error" | "success" | "loading"
@@ -43,12 +54,30 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             errorMessage?: string
         }
     }>({})
-    const classes = useStyles()
+    const [isDelayed, setIsDelayed] = useState(false)
 
     const {appId, status, details} = statusData
     const isError = ["bad_request", "error"].includes(status)
     const isTimeout = status === "timeout"
     const isSuccess = status === "success"
+    const closable = isError || isTimeout || isSuccess
+
+    const reset = () => {
+        setMessages({})
+        setIsDelayed(false)
+    }
+
+    const onOk = (e: any) => {
+        reset()
+        if (isError) {
+            onErrorRetry?.()
+        } else if (isTimeout) {
+            onTimeoutRetry?.()
+        } else if (isSuccess) {
+            props.onCancel?.(e)
+            if (appId) router.push(`/apps/${appId}/playground`)
+        }
+    }
 
     useEffect(() => {
         setMessages((prev) => {
@@ -87,6 +116,10 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                 case "success":
                     obj = {
                         ...prev,
+                        [status]: {
+                            type: "success",
+                            message: "App created successfully!",
+                        },
                     }
                     if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
                     return obj
@@ -124,67 +157,69 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     }, [status])
 
     useEffect(() => {
-        if (!props.open) setMessages({})
-    }, [props.open])
-
-    const onOk = (e: any) => {
-        setMessages({})
-        if (isError) {
-            onErrorRetry?.()
-        } else if (isTimeout) {
-            onTimeoutRetry?.()
-        } else if (isSuccess) {
-            props.onCancel?.(e)
-            if (appId) router.push(`/apps/${appId}/playground`)
+        if (!props.open) reset()
+        else {
+            const timeout = setTimeout(() => {
+                setIsDelayed(true)
+            }, 20000)
+            return () => clearTimeout(timeout)
         }
-    }
-
-    const {
-        token: {colorError, colorSuccess, colorPrimary},
-    } = theme.useToken()
+    }, [props.open])
 
     return (
         <Modal
             destroyOnClose
             onOk={onOk}
             okText={isError || isTimeout ? "Retry" : "Go to App"}
-            footer={isError || isTimeout || isSuccess ? undefined : null}
-            closable={false}
-            title="Creating New App"
+            footer={closable ? undefined : null}
+            closable={closable}
+            title="App Creation Status"
             {...props}
+            onCancel={closable ? props.onCancel : undefined}
         >
+            {!closable && isDelayed && (
+                <Alert
+                    className={classes.warning}
+                    message="This is taking longer than usual. Please be patient."
+                    type="warning"
+                    showIcon
+                />
+            )}
             <Typography.Text>
-                Creating your app <strong>{appName}</strong> from template. This may take upto a
-                minute. Please wait...
+                Creating your app <strong>"{appName}"</strong>. This can take upto a minute.
             </Typography.Text>
-            {Object.values(messages).map(({type, message, errorMessage}) => (
-                <div className={classes.statusRow}>
-                    {type === "success" ? (
-                        <CheckCircleOutlined style={{color: colorSuccess}} />
-                    ) : type === "error" ? (
-                        <CloseCircleOutlined style={{color: colorError}} />
-                    ) : (
-                        <LoadingOutlined style={{color: colorPrimary}} />
-                    )}
-                    <Typography.Text
-                        type={
-                            type === "success"
-                                ? "success"
-                                : type === "error"
-                                ? "danger"
-                                : "secondary"
-                        }
-                    >
-                        {message}
-                        {errorMessage && (
-                            <>
-                                <br />
-                                {errorMessage}
-                            </>
+
+            <div className={classes.statusSteps}>
+                {Object.values(messages).map(({type, message, errorMessage}, ix) => (
+                    <div className={classes.statusRow}>
+                        {type === "success" ? (
+                            <CheckCircleOutlined style={{color: colorSuccess}} />
+                        ) : type === "error" ? (
+                            <CloseCircleOutlined style={{color: colorError}} />
+                        ) : (
+                            <LoadingOutlined style={{color: colorPrimary}} />
                         )}
-                    </Typography.Text>
-                </div>
-            ))}
+                        <Typography.Text
+                            type={
+                                type === "success"
+                                    ? "success"
+                                    : type === "error"
+                                    ? "danger"
+                                    : "secondary"
+                            }
+                            strong={Object.keys(messages)[ix] === "success"}
+                        >
+                            {message}
+                            {errorMessage && (
+                                <>
+                                    <br />
+                                    {errorMessage}
+                                </>
+                            )}
+                        </Typography.Text>
+                    </div>
+                ))}
+            </div>
         </Modal>
     )
 }
