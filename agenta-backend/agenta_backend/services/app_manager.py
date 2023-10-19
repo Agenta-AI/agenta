@@ -165,8 +165,8 @@ async def terminate_and_remove_app_variant(
                 )
                 await deployment_manager.stop_and_delete_service(deployment)
 
-                # If image deletable is False, don't remove docker image and image db
-                if not image.deletable:
+                # If image deletable is True, remove docker image and image db
+                if image.deletable:
                     await deployment_manager.remove_image(image)
                     await db_manager.remove_image(image, **kwargs)
 
