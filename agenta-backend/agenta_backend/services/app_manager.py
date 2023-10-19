@@ -158,17 +158,21 @@ async def terminate_and_remove_app_variant(
 
             image = app_variant_db.base.image
             logger.debug("is_last_variant_for_image {image}")
-            if image and image.deletable:
+            if image:
                 logger.debug("_stop_and_delete_app_container")
                 deployment = await db_manager.get_deployment_by_objectid(
                     app_variant_db.base.deployment
                 )
                 await deployment_manager.stop_and_delete_service(deployment)
-                await deployment_manager.remove_image(image)
+
+                # If image deletable is False, don't remove docker image and image db
+                if not image.deletable:
+                    await deployment_manager.remove_image(image)
+                    await db_manager.remove_image(image, **kwargs)
+
                 logger.debug("remove base")
                 await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
                 logger.debug("Remove image object from db")
-                await db_manager.remove_image(image, **kwargs)
                 await db_manager.remove_deployment(deployment)
                 await db_manager.remove_base_from_db(app_variant_db.base, **kwargs)
                 logger.debug("remove_app_variant_from_db")
