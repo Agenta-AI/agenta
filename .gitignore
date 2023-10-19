@@ -1,7 +1,7 @@
 /.nox/
 /docs/_build/
 __pycache__/
-.env
+*.env
 env/
 tests/poetry.lock
 agenta-cli/agenta/templates/main.py
