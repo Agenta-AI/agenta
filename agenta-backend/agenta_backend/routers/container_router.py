@@ -1,36 +1,33 @@
+import asyncio
 import os
 import uuid
-import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List, Union, Optional
-
-from fastapi.responses import JSONResponse
-from fastapi import UploadFile, APIRouter, Request
+from typing import List, Optional, Union
 
 from agenta_backend.config import settings
-from aiodocker.exceptions import DockerError
-from concurrent.futures import ThreadPoolExecutor
-from agenta_backend.services.docker_utils import restart_container
 from agenta_backend.models.api.api_models import (
+    URI,
     Image,
     RestartAppContainer,
     Template,
-    URI,
 )
-from agenta_backend.services.db_manager import get_templates
 from agenta_backend.services import db_manager
 from agenta_backend.services.container_manager import (
     build_image_job,
     get_image_details_from_docker_hub,
     pull_docker_image,
 )
+from agenta_backend.services.docker_utils import restart_container
+from aiodocker.exceptions import DockerError
+from fastapi import APIRouter, Request, UploadFile
+from fastapi.responses import JSONResponse
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.selectors import (
-        get_user_and_org_id,
-    )  # noqa pylint: disable-all
+    from agenta_backend.ee.services.selectors import get_user_and_org_id  # noqa pylint: disable-all
 else:
-    from agenta_backend.services.selectors import get_user_and_org_id
+    from agenta_backend.services.selectors import get_user_and_org_id  # noqa pylint: disable-all
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -148,7 +145,7 @@ async def container_templates(
     Union[List[Template], str]: A list of templates or an error message.
     """
     try:
-        templates = await get_templates()
+        templates = await db_manager.get_templates()
     except Exception as e:
         return JSONResponse({"message": str(e)}, status_code=500)
     return templates
