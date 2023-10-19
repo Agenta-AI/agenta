@@ -33,6 +33,8 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
             .click()
     })
 
+    cy.url().should("include", "/playground")
+
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
     const testsetName = randString(5)
