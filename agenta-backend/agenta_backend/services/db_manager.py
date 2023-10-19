@@ -277,7 +277,7 @@ async def create_image(
     Returns:
         ImageDB: The created image.
     """
-    
+
     image = ImageDB(
         docker_id=docker_id,
         tags=tags,
