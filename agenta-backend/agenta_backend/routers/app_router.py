@@ -351,6 +351,7 @@ async def create_app_and_variant_from_template(
             tags=f"{image_name}",
             base_name="app",
             config_name="default",
+            template_image=True,
             **user_org_data,
         )
 

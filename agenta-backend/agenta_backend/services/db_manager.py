@@ -264,6 +264,7 @@ async def create_image(
     docker_id: str,
     tags: str,
     user: UserDB,
+    template_image: bool,
     organization: OrganizationDB,
 ) -> ImageDB:
     """Create a new image.
@@ -271,13 +272,16 @@ async def create_image(
         docker_id (str): The ID of the image.
         tags (str): The tags of the image.
         user (UserDB): The user that the image belongs to.
+        template_image (bool): Whether the image is a template image.
         organization (OrganizationDB): The organization that the image belongs to.
     Returns:
         ImageDB: The created image.
     """
+    
     image = ImageDB(
         docker_id=docker_id,
         tags=tags,
+        deletable=False if template_image else True,
         user=user,
         organization=organization,
     )
