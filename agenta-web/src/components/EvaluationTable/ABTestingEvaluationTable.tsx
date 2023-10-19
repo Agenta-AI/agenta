@@ -6,6 +6,7 @@ import {
     Card,
     Col,
     Input,
+    Radio,
     Row,
     Space,
     Spin,
@@ -26,6 +27,8 @@ import {EvaluationFlow} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
 import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import {useQueryParam} from "@/hooks/useQuery"
+import EvaluationCardView from "../Evaluations/EvaluationCardView"
 
 const {Title} = Typography
 
@@ -99,6 +102,11 @@ const useStyles = createUseStyles({
             color: "#cf1322",
         },
     },
+    viewModeRow: {
+        display: "flex",
+        justifyContent: "flex-end",
+        margin: "1rem 0",
+    },
 })
 
 const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
@@ -116,6 +124,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
+    const [viewMode, setViewMode] = useQueryParam("viewMode", "tabular")
+
     let num_of_rows = evaluationResults?.votes_data.nb_of_rows || 0
     let flag_votes = evaluationResults?.votes_data.flag_votes?.number_of_votes || 0
     let appVariant1 =
@@ -413,13 +423,34 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     </Col>
                 </Row>
             </div>
-            <Table
-                dataSource={rows}
-                columns={columns}
-                pagination={false}
-                rowClassName={() => "editable-row"}
-                rowKey={(record) => record.id!}
-            />
+
+            <div className={classes.viewModeRow}>
+                <Radio.Group
+                    options={[
+                        {label: "Tabular View", value: "tabular"},
+                        {label: "Card View", value: "card"},
+                    ]}
+                    onChange={(e) => setViewMode(e.target.value)}
+                    value={viewMode}
+                    optionType="button"
+                />
+            </div>
+
+            {viewMode === "tabular" ? (
+                <Table
+                    dataSource={rows}
+                    columns={columns}
+                    pagination={false}
+                    rowClassName={() => "editable-row"}
+                    rowKey={(record) => record.id!}
+                />
+            ) : (
+                <EvaluationCardView
+                    evaluation={evaluation}
+                    evaluationScenarios={evaluationScenarios as any}
+                    results={evaluationResults}
+                />
+            )}
         </div>
     )
 }
