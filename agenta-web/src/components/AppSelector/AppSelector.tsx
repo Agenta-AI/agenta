@@ -200,14 +200,6 @@ const AppSelector: React.FC = () => {
             onStatusChange: (status, details, appId) => {
                 const title = "Template Selection"
                 switch (status) {
-                    case "fetching_image":
-                        showNotification({
-                            type: "info",
-                            message: title,
-                            description: "Fetching template image...",
-                            key: status,
-                        })
-                        break
                     case "creating_app":
                         showNotification({
                             type: "info",

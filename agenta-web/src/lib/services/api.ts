@@ -559,14 +559,6 @@ export const getTemplates = async () => {
     return response.data
 }
 
-export const pullTemplateImage = async (image_name: string, ignoreAxiosError: boolean = false) => {
-    const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`,
-        {_ignoreError: ignoreAxiosError} as any,
-    )
-    return response.data
-}
-
 export const createAppFromTemplate = async (
     templateObj: AppTemplate,
     ignoreAxiosError: boolean = false,
@@ -626,7 +618,6 @@ export const createAndStartTemplate = async ({
     orgId: string
     onStatusChange?: (
         status:
-            | "fetching_image"
             | "creating_app"
             | "starting_app"
             | "success"
@@ -638,10 +629,6 @@ export const createAndStartTemplate = async ({
     ) => void
 }) => {
     try {
-        onStatusChange?.("fetching_image")
-        const data: TemplateImage = await pullTemplateImage(imageName, true)
-        if (data.message) throw data.message
-
         onStatusChange?.("creating_app")
         let app
         try {
