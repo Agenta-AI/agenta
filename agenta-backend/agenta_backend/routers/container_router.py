@@ -43,6 +43,7 @@ logger.setLevel(logging.DEBUG)
 
 router = APIRouter()
 
+
 # TODO: We need to improve this to use the introduced abstraction to also use start and stop service
 @router.post("/build_image/")
 async def build_image(
