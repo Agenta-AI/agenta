@@ -151,41 +151,6 @@ async def container_templates(
     return templates
 
 
-@router.get("/templates/{image_name}/images/")
-async def pull_image(
-    image_name: str,
-    request: Request,
-) -> dict:
-    """
-    Pulls a Docker image from Docker Hub with the provided configuration.
-
-    Args:
-        image_name (str): The name of the Docker image to pull.
-        stoken_session (SessionContainer, optional): The session container to use for authentication. Defaults to Depends(verify_session()).
-
-    Returns:
-        dict: A JSON response containing the image tag and ID.
-    """
-    # Get docker hub config
-    repo_owner = settings.docker_hub_repo_owner
-    repo_name = settings.docker_hub_repo_name
-
-    # Pull image from docker hub with provided config
-    try:
-        image_res = await pull_docker_image(f"{repo_owner}/{repo_name}", image_name)
-    except DockerError as ext:
-        return JSONResponse(
-            {"message": "Image with tag does not exist", "meta": str(ext)}, 404
-        )
-
-    # Get data from image response
-    image_tag_name = image_res[0]["id"]
-    image_id = await get_image_details_from_docker_hub(
-        repo_owner, repo_name, image_tag_name
-    )
-    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
-
-
 @router.get("/container_url/")
 async def construct_app_container_url(
     request: Request,
