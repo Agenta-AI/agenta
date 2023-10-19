@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useMemo} from "react"
 import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
@@ -9,7 +9,12 @@ import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {getOpenAIKey, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
-import {createAndStartTemplate, getTemplates} from "@/lib/services/api"
+import {
+    createAndStartTemplate,
+    getTemplates,
+    removeApp,
+    waitForAppToStart,
+} from "@/lib/services/api"
 import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
@@ -18,6 +23,7 @@ import {createUseStyles} from "react-jss"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
+import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -86,6 +92,8 @@ const useStyles = createUseStyles({
     },
 })
 
+const timeout = isDemo() ? 60000 : 30000
+
 const AppSelector: React.FC = () => {
     const router = useRouter()
     const {appTheme} = useAppTheme()
@@ -99,11 +107,16 @@ const AppSelector: React.FC = () => {
     const [templateMessage, setTemplateMessage] = useState("")
     const [templateName, setTemplateName] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
+    const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
-    const [appNameExist, setAppNameExist] = useState(false)
     const [newApp, setNewApp] = useState("")
     const {selectedOrg} = useProfileData()
     const {apps, error, isLoading, mutate} = useAppsData()
+    const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
+        status: "",
+        details: undefined,
+        appId: undefined,
+    })
 
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
@@ -113,6 +126,8 @@ const AppSelector: React.FC = () => {
         setIsMaxAppModalOpen(true)
     }
     const showCreateAppFromTemplateModal = () => {
+        setTemplateName(undefined)
+        setNewApp("")
         setIsCreateAppModalOpen(false)
         setIsCreateAppFromTemplateModalOpen(true)
     }
@@ -142,8 +157,6 @@ const AppSelector: React.FC = () => {
     const handleInputTemplateModalCancel = () => {
         if (fetchingTemplate) return
         setIsInputTemplateModalOpen(false)
-        setNewApp("")
-        setTemplateName(undefined)
     }
 
     useEffect(() => {
@@ -161,15 +174,9 @@ const AppSelector: React.FC = () => {
     }, [])
 
     const handleTemplateCardClick = async (image_name: string) => {
-        setFetchingTemplate(true)
-
-        // cleanup routine
-        const onFinish = () => {
-            setFetchingTemplate(false)
-            handleCreateAppFromTemplateModalCancel()
-            handleCreateAppModalCancel()
-            handleInputTemplateModalCancel()
-        }
+        handleInputTemplateModalCancel()
+        handleCreateAppFromTemplateModalCancel()
+        handleCreateAppModalCancel()
 
         // warn the user and redirect if openAI key is not present
         const openAIKey = getOpenAIKey()
@@ -179,17 +186,12 @@ const AppSelector: React.FC = () => {
                 description: "Please provide your OpenAI API key to access this feature.",
                 duration: 5,
             })
-            onFinish()
             router.push("/settings?tab=secrets")
             return
         }
 
-        let prevKey = ""
-        const showNotification = (config: Parameters<typeof notification.open>[0]) => {
-            if (prevKey) notification.destroy(prevKey)
-            prevKey = (config.key || "") as string
-            notification.open(config)
-        }
+        setFetchingTemplate(true)
+        setStatusModalOpen(true)
 
         // attempt to create and start the template, notify user of the progress
         await createAndStartTemplate({
@@ -197,95 +199,41 @@ const AppSelector: React.FC = () => {
             imageName: image_name,
             orgId: selectedOrg?.id!,
             openAIKey: isDemo() ? "" : (openAIKey as string),
+            timeout,
             onStatusChange: (status, details, appId) => {
-                const title = "Template Selection"
-                switch (status) {
-                    case "fetching_image":
-                        showNotification({
-                            type: "info",
-                            message: title,
-                            description: "Fetching template image...",
-                            key: status,
-                        })
-                        break
-                    case "creating_app":
-                        showNotification({
-                            type: "info",
-                            message: title,
-                            description: "Creating variant from template image...",
-                            key: status,
-                        })
-                        break
-                    case "starting_app":
-                        showNotification({
-                            type: "info",
-                            message: title,
-                            description: "Waiting for the app to start...",
-                            key: status,
-                        })
-                        break
-                    case "success":
-                        showNotification({
-                            type: "success",
-                            message: title,
-                            description:
-                                "App has been started! Redirecting to the variant playground.",
-                            key: status,
-                        })
-                        onFinish()
-                        router.push(`/apps/${appId}/playground`)
-                        break
-                    case "bad_request":
-                        showNotification({
-                            type: "error",
-                            message: title,
-                            description: getErrorMessage(details),
-                            duration: 5,
-                            btn: (
-                                <Button>
-                                    <a
-                                        target="_blank"
-                                        href="https://github.com/Agenta-AI/agenta/issues/new?assignees=&labels=demo&projects=&template=bug_report.md&title="
-                                    >
-                                        File Issue
-                                    </a>
-                                </Button>
-                            ),
-                            key: status,
-                        })
-                        onFinish()
-                        break
-                    case "timeout":
-                        showNotification({
-                            type: "error",
-                            message: title,
-                            description:
-                                "The app took too long to start. Please refresh this page after some delay to see the new app",
-                            key: status,
-                        })
-                        onFinish()
-                        break
-                    case "error":
-                        showNotification({
-                            type: "error",
-                            message: title,
-                            description: getErrorMessage(details),
-                            key: status,
-                        })
-                        onFinish()
-                        break
-                }
+                if (["error", "bad_request", "timeout", "success"].includes(status))
+                    setFetchingTemplate(false)
+                setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
             },
         })
     }
 
-    useEffect(() => {
-        setTimeout(() => {
-            if (apps) {
-                setAppNameExist(apps.some((app: GenericObject) => app.app_name === newApp))
+    const onErrorRetry = async () => {
+        if (statusData.appId) {
+            setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
+            await removeApp(statusData.appId).catch(console.error)
+        }
+        handleTemplateCardClick(templateName as string)
+    }
+
+    const onTimeoutRetry = async () => {
+        if (!statusData.appId) return
+        setStatusData((prev) => ({...prev, status: "starting_app", details: undefined}))
+        try {
+            await waitForAppToStart(statusData.appId, timeout)
+        } catch (error: any) {
+            if (error.message === "timeout") {
+                setStatusData((prev) => ({...prev, status: "timeout", details: undefined}))
+            } else {
+                setStatusData((prev) => ({...prev, status: "error", details: error}))
             }
-        }, 9000)
-    }, [apps, newApp])
+        }
+    }
+
+    const appNameExist = useMemo(
+        () => apps.some((app: GenericObject) => app.app_name === newApp),
+        [apps, newApp],
+    )
 
     return (
         <ConfigProvider
@@ -397,6 +345,7 @@ const AppSelector: React.FC = () => {
                     className={classes.modalBtn}
                     type="primary"
                     loading={fetchingTemplate}
+                    disabled={appNameExist || newApp.length === 0}
                     onClick={() => {
                         if (appNameExist) {
                             notification.warning({
@@ -435,6 +384,15 @@ const AppSelector: React.FC = () => {
                     Create
                 </Button>
             </Modal>
+            <CreateAppStatusModal
+                open={statusModalOpen}
+                loading={fetchingTemplate}
+                onErrorRetry={onErrorRetry}
+                onTimeoutRetry={onTimeoutRetry}
+                onCancel={() => setStatusModalOpen(false)}
+                statusData={statusData}
+                appName={newApp}
+            />
 
             <WriteOwnAppModal open={isWriteAppModalOpen} onCancel={handleWriteApppModalCancel} />
         </ConfigProvider>
