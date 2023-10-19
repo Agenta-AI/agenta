@@ -1,9 +1,9 @@
 import json
 from typing import Any, Dict, List
 
-import redis
 from agenta_backend.config import settings
 from agenta_backend.services import container_manager, db_manager
+from agenta_backend.utils import redis_utils
 
 
 async def update_and_sync_templates(cache: bool = True) -> None:
@@ -64,18 +64,6 @@ async def update_and_sync_templates(cache: bool = True) -> None:
     await db_manager.remove_old_template_from_db(templates_ids)
 
 
-def redis_connection() -> redis.Redis:
-    """Returns a Redis client object connected to a Redis server specified
-        by the `redis_url` setting.
-
-    Returns:
-        A Redis client object.
-    """
-
-    redis_client = redis.from_url(url=settings.redis_url)
-    return redis_client
-
-
 async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
     """Retrieves templates from Docker Hub and caches the data in Redis for future use.
     Args:
@@ -83,7 +71,7 @@ async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
     Returns:
         List of tags data (cached or network-call)
     """
-    r = redis_connection()
+    r = redis_utils.redis_connection()
     if cache:
         cached_data = r.get("templates_data")
         if cached_data is not None:
@@ -114,7 +102,7 @@ async def retrieve_templates_info_from_s3(
         Information about organization in s3 (cached or network-call)
     """
 
-    r = redis_connection()
+    r = redis_utils.redis_connection()
     if cache:
         cached_data = r.get("temp_data")
         if cached_data is not None:
