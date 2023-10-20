@@ -97,7 +97,7 @@ const AppSelector: React.FC = () => {
     const [templates, setTemplates] = useState<Template[]>([])
 
     const [templateMessage, setTemplateMessage] = useState("")
-    const [templateName, setTemplateName] = useState<string | undefined>(undefined)
+    const [templateId, setTemplateId] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [appNameExist, setAppNameExist] = useState(false)
@@ -143,7 +143,7 @@ const AppSelector: React.FC = () => {
         if (fetchingTemplate) return
         setIsInputTemplateModalOpen(false)
         setNewApp("")
-        setTemplateName(undefined)
+        setTemplateId(undefined)
     }
 
     useEffect(() => {
@@ -353,7 +353,7 @@ const AppSelector: React.FC = () => {
                 noTemplateMessage={templateMessage}
                 onCardClick={(template) => {
                     showInputTemplateModal()
-                    setTemplateName(template.image.name)
+                    setTemplateId(template.image.id)
                 }}
             />
             <MaxAppModal
@@ -413,7 +413,7 @@ const AppSelector: React.FC = () => {
                             newApp.length > 0 &&
                             isAppNameInputValid(newApp)
                         ) {
-                            handleTemplateCardClick(templateName as string)
+                            handleTemplateCardClick(templateId as string)
                         } else {
                             notification.warning({
                                 message: "Template Selection",

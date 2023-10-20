@@ -608,13 +608,13 @@ export const waitForAppToStart = async (
 export const createAndStartTemplate = async ({
     appName,
     openAIKey,
-    imageName,
+    templateId,
     orgId,
     onStatusChange,
 }: {
     appName: string
     openAIKey: string
-    imageName: string
+    templateId: string
     orgId: string
     onStatusChange?: (
         status:
@@ -635,8 +635,7 @@ export const createAndStartTemplate = async ({
             app = await createAppFromTemplate(
                 {
                     app_name: appName,
-                    image_id: data.image_id,
-                    image_tag: data.image_tag,
+                    template_id: templateId,
                     env_vars: {
                         OPENAI_API_KEY: openAIKey,
                     },
