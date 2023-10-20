@@ -93,7 +93,6 @@ async def build_image(
     image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
 
     if os.environ["FEATURE_FLAG"] in ["cloud"]:
-        print("we are here in cloud")
         image_result = await build_image_job(
             app_name,
             base_name,
