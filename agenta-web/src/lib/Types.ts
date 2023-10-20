@@ -170,8 +170,8 @@ export interface Template {
     id: string
     image: {
         id: string
-        tags: string
         name: string
+        digest: string
         title: string
         description: string
     }
@@ -185,8 +185,7 @@ export interface TemplateImage {
 
 export interface AppTemplate {
     app_name: string
-    image_id: string
-    image_tag: string
+    template_id: string
     env_vars?: {
         OPENAI_API_KEY: string | null
     }
