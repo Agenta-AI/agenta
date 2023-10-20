@@ -33,7 +33,7 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.ee.services.container_manager import push_image_to_registry
+    from agenta_backend.ee.services.container_manager import push_image_to_registry # noqa pylint: disable-all
 
 import logging
 
