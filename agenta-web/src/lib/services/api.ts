@@ -618,12 +618,14 @@ export const createAndStartTemplate = async ({
     openAIKey,
     imageName,
     orgId,
+    timeout,
     onStatusChange,
 }: {
     appName: string
     openAIKey: string
     imageName: string
     orgId: string
+    timeout?: number
     onStatusChange?: (
         status:
             | "fetching_image"
@@ -665,18 +667,18 @@ export const createAndStartTemplate = async ({
             throw error
         }
 
-        onStatusChange?.("starting_app")
+        onStatusChange?.("starting_app", "", app?.data?.app_id)
         try {
-            await waitForAppToStart(app.data.app_id)
+            await waitForAppToStart(app?.data?.app_id, timeout)
         } catch (error: any) {
             if (error.message === "timeout") {
-                onStatusChange?.("timeout", "", app.data.app_id)
+                onStatusChange?.("timeout", "", app?.data?.app_id)
                 return
             }
             throw error
         }
 
-        onStatusChange?.("success", "", app.data.app_id)
+        onStatusChange?.("success", "", app?.data?.app_id)
     } catch (error) {
         onStatusChange?.("error", error)
     }
