@@ -160,6 +160,11 @@ class AppEnvironmentDB(Model):
         collection = "environments"
 
 
+class TemplateImage(EmbeddedModel):
+    image_id: str
+    docker_tags: str
+    
+
 class TemplateDB(Model):
     tag_id: int
     name: str
@@ -168,6 +173,7 @@ class TemplateDB(Model):
     description: str
     size: int
     digest: str
+    image: TemplateImage
     last_pushed: datetime
 
     class Config:

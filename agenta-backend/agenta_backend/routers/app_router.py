@@ -9,6 +9,7 @@ from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
     docker_utils,
+    container_manager,
     db_manager,
 )
 from agenta_backend.utils.common import (
@@ -105,13 +106,17 @@ async def get_variant_by_env(
         await check_access_to_app(user_org_data, app_id=app_id)
 
         # Fetch the app variant using the provided app_id and environment
-        app_variant_db = await db_manager.get_app_variant_by_app_name_and_environment(
-            app_id=app_id, environment=environment, **user_org_data
+        app_variant_db = (
+            await db_manager.get_app_variant_by_app_name_and_environment(
+                app_id=app_id, environment=environment, **user_org_data
+            )
         )
 
         # Check if the fetched app variant is None and raise exception if it is
         if app_variant_db is None:
-            raise HTTPException(status_code=500, detail="App Variant not found")
+            raise HTTPException(
+                status_code=500, detail="App Variant not found"
+            )
         return await converters.app_variant_db_to_output(app_variant_db)
     except ValueError as e:
         # Handle ValueErrors and return 400 status code
@@ -144,7 +149,9 @@ async def create_app(
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         if payload.organization_id:
-            access = await check_user_org_access(user_org_data, payload.organization_id)
+            access = await check_user_org_access(
+                user_org_data, payload.organization_id
+            )
             if not access:
                 raise HTTPException(
                     status_code=403,
@@ -164,7 +171,9 @@ async def create_app(
         app_db = await db_manager.create_app_and_envs(
             payload.app_name, organization_id, **user_org_data
         )
-        return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
+        return CreateAppOutput(
+            app_id=str(app_db.id), app_name=str(app_db.app_name)
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -323,7 +332,9 @@ async def create_app_and_variant_from_template(
         else:
             organization_id = payload.organization_id
 
-        logger.debug(f"Step 4: Checking if app {payload.app_name} already exists")
+        logger.debug(
+            f"Step 4: Checking if app {payload.app_name} already exists"
+        )
         app_name = payload.app_name.lower()
         app = await db_manager.fetch_app_by_name_and_organization(
             app_name, organization_id, **user_org_data
@@ -354,7 +365,19 @@ async def create_app_and_variant_from_template(
             **user_org_data,
         )
 
-        logger.debug("Step 7: Starting variant and injecting environment variables")
+        if os.environ["FEATURE_FLAG"] == "oss":
+            logger.debug("Step 6 (extra): Pulling image from Docker Hub")
+            repo_owner, repo_name = (
+                settings.docker_hub_repo_owner,
+                settings.docker_hub_repo_name,
+            )
+            await container_manager.pull_docker_image(
+                repo_name=f"{repo_owner}/{repo_name}", tag=payload.image_tag
+            )
+
+        logger.debug(
+            "Step 7: Starting variant and injecting environment variables"
+        )
         if os.environ["FEATURE_FLAG"] == "demo":
             if not os.environ["OPENAI_API_KEY"]:
                 raise HTTPException(
@@ -367,7 +390,9 @@ async def create_app_and_variant_from_template(
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
 
-        await app_manager.start_variant(app_variant_db, envvars, **user_org_data)
+        await app_manager.start_variant(
+            app_variant_db, envvars, **user_org_data
+        )
 
         logger.debug("End: Successfully created app and variant")
         return await converters.app_variant_db_to_output(app_variant_db)
@@ -395,7 +420,9 @@ async def list_environments(
     logger.debug(f"Listing environments for app: {app_id}")
     try:
         logger.debug("get user and org data")
-        user_and_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_and_org_data: dict = await get_user_and_org_id(
+            request.state.user_id
+        )
 
         # Check if has app access
         logger.debug("check_access_to_app")
