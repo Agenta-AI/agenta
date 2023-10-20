@@ -358,16 +358,6 @@ async def create_app_and_variant_from_template(
             **user_org_data,
         )
 
-        if os.environ["FEATURE_FLAG"] == "oss":
-            logger.debug("Step 6 (extra): Pulling image from Docker Hub")
-            repo_owner, repo_name = (
-                settings.docker_hub_repo_owner,
-                settings.docker_hub_repo_name,
-            )
-            await container_manager.pull_docker_image(
-                repo_name=f"{repo_owner}/{repo_name}", tag=template_db.name
-            )
-
         logger.debug("Step 7: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] == "demo":
             if not os.environ["OPENAI_API_KEY"]:
