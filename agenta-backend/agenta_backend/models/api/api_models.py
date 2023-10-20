@@ -117,17 +117,14 @@ class TemplateImageInfo(BaseModel):
     name: str
     size: int
     digest: str
-    status: str
-    architecture: str
     title: str
     description: str
     last_pushed: datetime
     repo_name: str
-    media_type: str
 
 
 class Template(BaseModel):
-    id: int
+    id: str
     image: TemplateImageInfo
 
 
@@ -150,8 +147,7 @@ class DockerEnvVars(BaseModel):
 
 class CreateAppVariant(BaseModel):
     app_name: str
-    image_id: str
-    image_tag: str
+    template_id: str
     env_vars: Dict[str, str]
     organization_id: Optional[str] = None
 

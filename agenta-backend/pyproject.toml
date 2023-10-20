@@ -22,14 +22,13 @@ aiodocker = "^0.21.0"
 openai = "^0.27.8"
 langchain = "^0.0.256"
 odmantic = "^0.9.2"
-supertokens-python = "^0.16.4"
+supertokens-python = "^0.15.1"
 sendgrid = "^6.10.0"
 restrictedpython = { version = "^6.2", python = ">=3.9,<3.12" }
 pytest-mock = "^3.11.1"
 boto3 = "^1.28.63"
 asyncer = "^0.0.2"
 anyio = "==3.7.1"
-
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"

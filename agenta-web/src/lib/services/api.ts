@@ -559,14 +559,6 @@ export const getTemplates = async () => {
     return response.data
 }
 
-export const pullTemplateImage = async (image_name: string, ignoreAxiosError: boolean = false) => {
-    const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`,
-        {_ignoreError: ignoreAxiosError} as any,
-    )
-    return response.data
-}
-
 export const createAppFromTemplate = async (
     templateObj: AppTemplate,
     ignoreAxiosError: boolean = false,
@@ -616,42 +608,30 @@ export const waitForAppToStart = async (
 export const createAndStartTemplate = async ({
     appName,
     openAIKey,
-    imageName,
+    templateId,
     orgId,
     timeout,
     onStatusChange,
 }: {
     appName: string
     openAIKey: string
-    imageName: string
+    templateId: string
     orgId: string
     timeout?: number
     onStatusChange?: (
-        status:
-            | "fetching_image"
-            | "creating_app"
-            | "starting_app"
-            | "success"
-            | "bad_request"
-            | "timeout"
-            | "error",
+        status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
         details?: any,
         appId?: string,
     ) => void
 }) => {
     try {
-        onStatusChange?.("fetching_image")
-        const data: TemplateImage = await pullTemplateImage(imageName, true)
-        if (data.message) throw data.message
-
         onStatusChange?.("creating_app")
         let app
         try {
             app = await createAppFromTemplate(
                 {
                     app_name: appName,
-                    image_id: data.image_id,
-                    image_tag: data.image_tag,
+                    template_id: templateId,
                     env_vars: {
                         OPENAI_API_KEY: openAIKey,
                     },
