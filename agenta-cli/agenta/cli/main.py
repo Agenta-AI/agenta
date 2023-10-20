@@ -89,8 +89,7 @@ def init(app_name: str):
 
     where_question = questionary.select(
         "Where are you running agenta?",
-        # choices=["On my local machine", "On a remote machine", "On agenta cloud"],
-        choices=["On my local machine", "On a remote machine"],
+        choices=["On my local machine", "On a remote machine", "On agenta cloud"],
     ).ask()
 
     if where_question == "On my local machine":
@@ -100,7 +99,7 @@ def init(app_name: str):
             "Please provide the IP or URL of your remote host"
         ).ask()
     elif where_question == "On agenta cloud":
-        backend_host = "https://stage.agenta.ai"
+        backend_host = "https://demo.agenta.ai"
 
         api_key = questionary.text("Please provide your API key:").ask()
 
