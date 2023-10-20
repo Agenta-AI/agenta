@@ -218,14 +218,6 @@ async def add_variant_from_image(
     Returns:
         dict: The newly added variant.
     """
-    if not payload.tags.startswith(settings.registry):
-        raise HTTPException(
-            status_code=500,
-            detail="Image should have a tag starting with the registry name (agenta-server)",
-        )
-    elif docker_utils.find_image_by_docker_id(payload.docker_id) is None:
-        raise HTTPException(status_code=404, detail="Image not found")
-
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         access_app = await check_access_to_app(user_org_data, app_id=app_id)
