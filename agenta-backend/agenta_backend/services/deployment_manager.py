@@ -77,8 +77,9 @@ async def remove_image(image: Image):
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"] and image.deletable:
             docker_utils.delete_image(image.docker_id)
         logger.info(f"Image {image.docker_id} deleted")
-    except Exception as e:
+    except RuntimeError as e:
         logger.error(f"Error deleting image {image.docker_id}: {e}")
+        raise e
 
 
 async def stop_service(deployment: DeploymentDB):

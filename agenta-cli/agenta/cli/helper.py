@@ -19,7 +19,12 @@ def update_variants_from_backend(
     Returns:
         a new config object later to be saved using toml.dump(config, config_file.open('w'))
     """
-    variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
+
+    try:
+        variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
+    except Exception as ex:
+        raise ex
+
     config["variants"] = [variant.variant_name for variant in variants]
     config["variant_ids"] = [variant.variant_id for variant in variants]
     return config
