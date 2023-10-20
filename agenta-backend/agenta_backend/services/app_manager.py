@@ -164,11 +164,19 @@ async def terminate_and_remove_app_variant(
                     app_variant_db.base.deployment
                 )
                 if deployment:
-                    await deployment_manager.stop_and_delete_service(deployment)
+                    try:
+                        await deployment_manager.stop_and_delete_service(deployment)
+                    except RuntimeError as e:
+                        logger.error(
+                            f"Failed to stop and delete service {deployment} {e}"
+                        )
 
                 # If image deletable is True, remove docker image and image db
                 if image.deletable:
-                    await deployment_manager.remove_image(image)
+                    try:
+                        await deployment_manager.remove_image(image)
+                    except RuntimeError as e:
+                        logger.error(f"Failed to remove image {image} {e}")
                     await db_manager.remove_image(image, **kwargs)
 
                 logger.debug("remove base")
