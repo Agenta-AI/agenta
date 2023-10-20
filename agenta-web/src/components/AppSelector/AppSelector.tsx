@@ -314,7 +314,7 @@ const AppSelector: React.FC = () => {
                 noTemplateMessage={templateMessage}
                 onCardClick={(template) => {
                     showInputTemplateModal()
-                    setTemplateId(template.image.id)
+                    setTemplateId(template.id)
                 }}
             />
             <MaxAppModal
