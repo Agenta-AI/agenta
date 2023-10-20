@@ -106,7 +106,6 @@ async def update_variant_image(
         user=app_variant_db.user,
         deletable=True,
         organization=app_variant_db.organization,
-        deletable=True,
     )
     # Update base with new image
     await db_manager.update_base(app_variant_db.base, image=db_image)
@@ -370,7 +369,6 @@ async def add_variant_based_on_image(
             deletable=not (is_template_image),
             user=user_instance,
             organization=app.organization,
-            deletable=not template_image,
         )
 
     # Create config
