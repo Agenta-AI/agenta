@@ -83,16 +83,6 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
         setMessages((prev) => {
             let obj: GenericObject
             switch (status) {
-                case "fetching_image":
-                    obj = {
-                        ...prev,
-                        [status]: {
-                            type: "loading",
-                            message: "Fetching image from template",
-                        },
-                    }
-                    if (obj.cleanup?.type === "loading") obj.cleanup.type = "success"
-                    return obj
                 case "creating_app":
                     obj = {
                         ...prev,
