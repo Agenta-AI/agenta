@@ -167,12 +167,13 @@ export interface InputParameter {
 }
 
 export interface Template {
-    id: number
+    id: string
     image: {
+        id: string
+        tags: string
         name: string
         title: string
         description: string
-        architecture: string
     }
 }
 
