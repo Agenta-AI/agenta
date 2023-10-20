@@ -34,6 +34,7 @@ describe("Code Evaluation workflow", () => {
             cy.get('[data-cy="code-evaluation-save-button"]').should("not.be.disabled")
             cy.clickLinkAndWait('[data-cy="code-evaluation-save-button"]')
             cy.url().should("include", "/evaluations")
+            cy.wait(3000)
         })
     })
 
