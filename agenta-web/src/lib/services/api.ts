@@ -617,13 +617,7 @@ export const createAndStartTemplate = async ({
     templateId: string
     orgId: string
     onStatusChange?: (
-        status:
-            | "creating_app"
-            | "starting_app"
-            | "success"
-            | "bad_request"
-            | "timeout"
-            | "error",
+        status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
         details?: any,
         appId?: string,
     ) => void
