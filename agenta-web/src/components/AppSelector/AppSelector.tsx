@@ -104,7 +104,7 @@ const AppSelector: React.FC = () => {
     const [templates, setTemplates] = useState<Template[]>([])
 
     const [templateMessage, setTemplateMessage] = useState("")
-    const [templateName, setTemplateName] = useState<string | undefined>(undefined)
+    const [templateId, setTemplateId] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
@@ -125,7 +125,7 @@ const AppSelector: React.FC = () => {
         setIsMaxAppModalOpen(true)
     }
     const showCreateAppFromTemplateModal = () => {
-        setTemplateName(undefined)
+        setTemplateId(undefined)
         setNewApp("")
         setIsCreateAppModalOpen(false)
         setIsCreateAppFromTemplateModalOpen(true)
@@ -172,7 +172,7 @@ const AppSelector: React.FC = () => {
         fetchTemplates()
     }, [])
 
-    const handleTemplateCardClick = async (image_name: string) => {
+    const handleTemplateCardClick = async (template_id: string) => {
         handleInputTemplateModalCancel()
         handleCreateAppFromTemplateModalCancel()
         handleCreateAppModalCancel()
@@ -195,7 +195,7 @@ const AppSelector: React.FC = () => {
         // attempt to create and start the template, notify user of the progress
         await createAndStartTemplate({
             appName: newApp,
-            imageName: image_name,
+            templateId: template_id,
             orgId: selectedOrg?.id!,
             openAIKey: isDemo() ? "" : (openAIKey as string),
             timeout,
@@ -216,7 +216,7 @@ const AppSelector: React.FC = () => {
             await removeApp(statusData.appId).catch(console.error)
             mutate()
         }
-        handleTemplateCardClick(templateName as string)
+        handleTemplateCardClick(templateId as string)
     }
 
     const onTimeoutRetry = async () => {
@@ -314,7 +314,7 @@ const AppSelector: React.FC = () => {
                 noTemplateMessage={templateMessage}
                 onCardClick={(template) => {
                     showInputTemplateModal()
-                    setTemplateName(template.image.name)
+                    setTemplateId(template.id)
                 }}
             />
             <MaxAppModal
@@ -375,7 +375,7 @@ const AppSelector: React.FC = () => {
                             newApp.length > 0 &&
                             isAppNameInputValid(newApp)
                         ) {
-                            handleTemplateCardClick(templateName as string)
+                            handleTemplateCardClick(templateId as string)
                         } else {
                             notification.warning({
                                 message: "Template Selection",
