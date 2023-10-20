@@ -162,12 +162,12 @@ class AppEnvironmentDB(Model):
 
 class TemplateDB(Model):
     tag_id: int
-    name: str # tag name of image
+    name: str  # tag name of image
     repo_name: str
     title: str
     description: str
     size: int
-    digest: str # sha256 hash of image digest
+    digest: str  # sha256 hash of image digest
     last_pushed: datetime
 
     class Config:

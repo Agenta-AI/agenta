@@ -1142,7 +1142,7 @@ async def add_template(**kwargs: dict) -> str:
         db_template = TemplateDB(**kwargs)
         await engine.save(db_template)
         return str(db_template.id)
-    
+
 
 async def get_template(template_id: str) -> TemplateDB:
     """
@@ -1154,11 +1154,13 @@ async def get_template(template_id: str) -> TemplateDB:
     Returns:
         TemplateDB: The fetched template.
     """
-    
+
     assert template_id is not None, "template_id cannot be None"
-    template_db = await engine.find_one(TemplateDB, TemplateDB.id == ObjectId(template_id))
+    template_db = await engine.find_one(
+        TemplateDB, TemplateDB.id == ObjectId(template_id)
+    )
     return template_db
-    
+
 
 async def remove_old_template_from_db(tag_ids: list) -> None:
     """Deletes old templates that are no longer in docker hub.
