@@ -149,8 +149,7 @@ class DockerEnvVars(BaseModel):
 
 class CreateAppVariant(BaseModel):
     app_name: str
-    image_id: str
-    image_tag: str
+    template_id: str
     env_vars: Dict[str, str]
     organization_id: Optional[str] = None
 

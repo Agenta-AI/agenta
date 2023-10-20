@@ -1125,7 +1125,7 @@ async def find_previous_variant_from_base_id(
     assert False, "None of the previous variants has previous_variant_name=None"
 
 
-async def add_template(**kwargs: dict):
+async def add_template(**kwargs: dict) -> str:
     """
     Adds a new template to the database.
 
@@ -1133,7 +1133,7 @@ async def add_template(**kwargs: dict):
         **kwargs (dict): Keyword arguments containing the template data.
 
     Returns:
-        None
+        template_id (Str): The Id of the created template.
     """
     existing_template = await engine.find_one(
         TemplateDB, TemplateDB.tag_id == kwargs["tag_id"]
@@ -1141,7 +1141,24 @@ async def add_template(**kwargs: dict):
     if existing_template is None:
         db_template = TemplateDB(**kwargs)
         await engine.save(db_template)
+        return str(db_template.id)
+    
 
+async def get_template(template_id: str) -> TemplateDB:
+    """
+    Fetches a template by its ID.
+
+    Args:
+        template_id (str): The ID of the template to fetch.
+
+    Returns:
+        TemplateDB: The fetched template.
+    """
+    
+    assert template_id is not None, "template_id cannot be None"
+    template_db = await engine.find_one(TemplateDB, TemplateDB.id == ObjectId(template_id))
+    return template_db
+    
 
 async def remove_old_template_from_db(tag_ids: list) -> None:
     """Deletes old templates that are no longer in docker hub.
