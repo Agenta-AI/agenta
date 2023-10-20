@@ -125,7 +125,7 @@ const AppSelector: React.FC = () => {
         setIsMaxAppModalOpen(true)
     }
     const showCreateAppFromTemplateModal = () => {
-        setTemplateName(undefined)
+        setTemplateId(undefined)
         setNewApp("")
         setIsCreateAppModalOpen(false)
         setIsCreateAppFromTemplateModalOpen(true)
