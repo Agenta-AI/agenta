@@ -57,6 +57,7 @@ class ImageDB(Model):
 
     docker_id: str = Field(index=True)
     tags: str
+    deletable: bool = Field(default=True)
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())

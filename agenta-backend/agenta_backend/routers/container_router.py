@@ -28,8 +28,11 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
-    from agenta_backend.services.selectors import (
-        get_user_and_org_id,
+    from agenta_backend.services.selectors import get_user_and_org_id
+
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    from agenta_backend.ee.services.container_manager import (
+        push_image_to_registry,
     )  # noqa pylint: disable-all
 
 import logging
@@ -41,6 +44,7 @@ logger.setLevel(logging.DEBUG)
 router = APIRouter()
 
 
+# TODO: We need to improve this to use the introduced abstraction to also use start and stop service
 @router.post("/build_image/")
 async def build_image(
     app_id: str,
@@ -102,6 +106,10 @@ async def build_image(
 
     # Return immediately while the image build is in progress
     image_result = await asyncio.wrap_future(future)
+
+    if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+        await push_image_to_registry(image_result)
+
     return image_result
 
 

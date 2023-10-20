@@ -246,6 +246,7 @@ async def add_variant_from_image(
             tags=payload.tags,
             base_name=payload.base_name,
             config_name=payload.config_name,
+            is_template_image=False,
             **user_org_data,
         )
         return await converters.app_variant_db_to_output(app_variant_db)
@@ -355,6 +356,7 @@ async def create_app_and_variant_from_template(
             tags=f"{image_name}",
             base_name="app",
             config_name="default",
+            is_template_image=True,
             **user_org_data,
         )
 
