@@ -114,8 +114,6 @@ class ImageExtended(Image):
 
 
 class TemplateImageInfo(BaseModel):
-    id: str
-    tags: str
     name: str
     size: int
     digest: str
