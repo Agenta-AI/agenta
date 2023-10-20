@@ -556,8 +556,14 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
             </div>
             {selectedRow && (
                 <div className={classes.btnContainer}>
-                    <Button onClick={onAddRow}>Add Row</Button>
-                    <Button onClick={onDeleteRow} disabled={selectedRow.length < 1}>
+                    <Button data-cy="testset-addrow-button" onClick={onAddRow}>
+                        Add Row
+                    </Button>
+                    <Button
+                        data-cy="testset-deleterow-button"
+                        onClick={onDeleteRow}
+                        disabled={selectedRow.length < 1}
+                    >
                         Delete Row{selectedRow.length > 1 ? "s" : null}
                     </Button>
                     <Button onClick={handleExportClick}>Export as CSV</Button>
