@@ -57,10 +57,12 @@ class ImageDB(Model):
 
     docker_id: str = Field(index=True)
     tags: str
+    deletable: bool = Field(default=True)
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    deletable: bool = Field(default=True)
 
     class Config:
         collection = "docker_images"
@@ -160,16 +162,13 @@ class AppEnvironmentDB(Model):
 
 
 class TemplateDB(Model):
-    dockerhub_tag_id: int
-    name: str
+    tag_id: int
+    name: str  # tag name of image
     repo_name: str
-    architecture: str
     title: str
     description: str
     size: int
-    digest: str
-    status: str
-    media_type: str
+    digest: str  # sha256 hash of image digest
     last_pushed: datetime
 
     class Config:

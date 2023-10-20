@@ -246,17 +246,18 @@ files = [
 
 [[package]]
 name = "boto3"
-version = "1.28.67"
+version = "1.28.63"
 description = "The AWS SDK for Python"
+category = "main"
 optional = false
 python-versions = ">= 3.7"
 files = [
-    {file = "boto3-1.28.67-py3-none-any.whl", hash = "sha256:7d17f987a8b4f804e5ae509a30589736a72c6db7b0e2fb1338997128fdc9a3ec"},
-    {file = "boto3-1.28.67.tar.gz", hash = "sha256:8db91c0648c9dcde1cf7fb4c15cd50da1fdef573595a9b9c769a303c7531b9a6"},
+    {file = "boto3-1.28.63-py3-none-any.whl", hash = "sha256:65d052ec13197460586ee385aa2d6bba0e7378d2d2c7f3e93c044c43ae1ca782"},
+    {file = "boto3-1.28.63.tar.gz", hash = "sha256:94218aba2feb5b404b665b8d76c172dc654f79b4c5fa0e9e92459c098da87bf4"},
 ]
 
 [package.dependencies]
-botocore = ">=1.31.67,<1.32.0"
+botocore = ">=1.31.63,<1.32.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.7.0,<0.8.0"
 
@@ -1935,13 +1936,13 @@ full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart", "pyyam
 
 [[package]]
 name = "supertokens-python"
-version = "0.16.4"
+version = "0.15.3"
 description = "SuperTokens SDK for Python"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "supertokens_python-0.16.4-py3-none-any.whl", hash = "sha256:60c22a7e341e81898a62f5c9dc6f97605e2d1b5af174d886f92b51b12befeaca"},
-    {file = "supertokens_python-0.16.4.tar.gz", hash = "sha256:a86d219e5a0703ec31414107b5630ff5b8711dbd3418be2fa68c8be89ba35a9e"},
+    {file = "supertokens_python-0.15.3-py3-none-any.whl", hash = "sha256:153173fd93b12a023f96f547208e27692fd08471bfc92dc94c6e23be5f98e629"},
+    {file = "supertokens_python-0.15.3.tar.gz", hash = "sha256:233e774f09e7470af025a22fa124c09bcddf4b59aeab86d87211e5f3afb8dac3"},
 ]
 
 [package.dependencies]
