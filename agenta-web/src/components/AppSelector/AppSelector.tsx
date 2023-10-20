@@ -216,7 +216,7 @@ const AppSelector: React.FC = () => {
             await removeApp(statusData.appId).catch(console.error)
             mutate()
         }
-        handleTemplateCardClick(templateName as string)
+        handleTemplateCardClick(templateId as string)
     }
 
     const onTimeoutRetry = async () => {
