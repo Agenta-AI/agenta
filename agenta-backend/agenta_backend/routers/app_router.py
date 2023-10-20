@@ -351,14 +351,17 @@ async def create_app_and_variant_from_template(
                 app_name, organization_id, **user_org_data
             )
 
+        logger.debug("Step 5 (extra): Retrieve template from db")
+        template_db = await db_manager.get_template(payload.template_id)
+
         logger.debug(
             "Step 6: Creating image instance and adding variant based on image"
         )
-        image_name = f"agentaai/templates:{payload.image_tag}"
+        image_name = f"agentaai/templates:{template_db.name}"
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id=payload.image_id,
+            docker_id=template_db.digest,
             tags=f"{image_name}",
             base_name="app",
             config_name="default",
@@ -372,7 +375,7 @@ async def create_app_and_variant_from_template(
                 settings.docker_hub_repo_name,
             )
             await container_manager.pull_docker_image(
-                repo_name=f"{repo_owner}/{repo_name}", tag=payload.image_tag
+                repo_name=f"{repo_owner}/{repo_name}", tag=template_db.name
             )
 
         logger.debug(

@@ -176,8 +176,6 @@ def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
         Template(
             id=str(template.id),
             image=TemplateImageInfo(
-                id=template.image.image_id,
-                tags=template.image.docker_tags,
                 name=template.name,
                 size=template.size,
                 digest=template.digest,

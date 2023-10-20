@@ -24,13 +24,13 @@ async def update_and_sync_templates(cache: bool = True) -> None:
     for temp in templates:
         # Append the template id in the list of templates_ids
         # We do this to remove old templates from database
-        templates_ids.append(int(temp["tag_id"]))
+        templates_ids.append(int(temp["id"]))
         for temp_info_key in templates_info:
             temp_info = templates_info[temp_info_key]
             if str(temp["name"]).startswith(temp_info_key):
-                await db_manager.add_template(
+                template_id = await db_manager.add_template(
                     **{
-                        "tag_id": int(temp["tag_id"]),
+                        "tag_id": int(temp["id"]),
                         "name": temp["name"],
                         "repo_name": temp.get("last_updater_username", "repo_name"),
                         "title": temp_info["name"],
@@ -48,7 +48,7 @@ async def update_and_sync_templates(cache: bool = True) -> None:
                         ),
                     }
                 )
-                print(f"Template {temp['tag_id']} added to the database.")
+                print(f"Template {template_id} added to the database.")
 
                 # Get docker hub config
                 repo_owner = settings.docker_hub_repo_owner
@@ -59,9 +59,7 @@ async def update_and_sync_templates(cache: bool = True) -> None:
                     repo_name=f"{repo_owner}/{repo_name}", tag=temp["name"]
                 )
                 print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
-                # TODO create image object
-                # TODO connect image object to Template object
-
+            
     # Remove old templates from database
     await db_manager.remove_old_template_from_db(templates_ids)
 
