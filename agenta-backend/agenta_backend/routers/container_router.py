@@ -20,7 +20,6 @@ from agenta_backend.models.api.api_models import (
 from agenta_backend.services.db_manager import get_templates
 from agenta_backend.services import db_manager
 from agenta_backend.services.container_manager import (
-    build_image_job,
     get_image_details_from_docker_hub,
     pull_image_from_docker_hub,
 )
@@ -33,9 +32,10 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.ee.services.container_manager import (
-        push_image_to_registry,
-    )  # noqa pylint: disable-all
+    from agenta_backend.ee.services.container_manager import build_image_job
+else:
+    from agenta_backend.services.container_manager import build_image_job
+
 
 import logging
 
@@ -92,25 +92,34 @@ async def build_image(
 
     image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
 
-    # Use the thread pool to run the build_image_job function in a separate thread
-    future = loop.run_in_executor(
-        thread_pool,
-        build_image_job,
-        *(
+    if os.environ["FEATURE_FLAG"] in ["cloud"]:
+        print("we are here in cloud")
+        image_result = await build_image_job(
             app_name,
             base_name,
             organization_id,
             tar_path,
             image_name,
             temp_dir,
-        ),
-    )
+        )
+        return image_result
+    else:
+        # Use the thread pool to run the build_image_job function in a separate thread
+        future = loop.run_in_executor(
+            thread_pool,
+            build_image_job,
+            *(
+                app_name,
+                base_name,
+                organization_id,
+                tar_path,
+                image_name,
+                temp_dir,
+            ),
+        )
 
     # Return immediately while the image build is in progress
     image_result = await asyncio.wrap_future(future)
-
-    if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-        await push_image_to_registry(image_result)
 
     return image_result
 
