@@ -160,7 +160,7 @@ const AppSelector: React.FC = () => {
         fetchTemplates()
     }, [])
 
-    const handleTemplateCardClick = async (image_name: string) => {
+    const handleTemplateCardClick = async (template_id: string) => {
         setFetchingTemplate(true)
 
         // cleanup routine
@@ -194,7 +194,7 @@ const AppSelector: React.FC = () => {
         // attempt to create and start the template, notify user of the progress
         await createAndStartTemplate({
             appName: newApp,
-            imageName: image_name,
+            templateId: template_id,
             orgId: selectedOrg?.id!,
             openAIKey: isDemo() ? "" : (openAIKey as string),
             onStatusChange: (status, details, appId) => {
