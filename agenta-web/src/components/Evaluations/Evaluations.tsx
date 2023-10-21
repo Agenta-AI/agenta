@@ -462,7 +462,7 @@ export default function Evaluations() {
                                 value={EvaluationType.human_a_b_testing}
                                 className={classes.radioBtn}
                             >
-                                <div className={classes.evaluationType}>
+                                <div className={classes.evaluationType} data-cy="abTesting-button">
                                     <Image
                                         src={abTesting}
                                         alt="Picture of the author"

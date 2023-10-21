@@ -323,6 +323,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 <Spin spinning={rows[rowIndex].vote === "loading" ? true : false}>
                     <Space>
                         <Button
+                            data-cy={`abTesting-app-variant-1-vote-button-${rowIndex}`}
                             type={record.vote === variants[0].variantId ? "primary" : "default"}
                             disabled={
                                 record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
@@ -335,6 +336,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             {`Variant: ${variants[0].variantName}`}
                         </Button>
                         <Button
+                            data-cy={`abTesting-app-variant-2-vote-button-${rowIndex}`}
                             type={record.vote === variants[1].variantId ? "primary" : "default"}
                             disabled={
                                 record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
@@ -347,6 +349,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                             {`Variant: ${variants[1].variantName}`}
                         </Button>
                         <Button
+                            data-cy={`abTesting-both-bad-vote-button-${rowIndex}`}
                             type={record.vote === "0" ? "primary" : "default"}
                             disabled={
                                 record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
@@ -372,7 +375,12 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 <Row align="middle">
                     <Col span={12}>
                         <Space>
-                            <Button type="primary" onClick={runAllEvaluations} size="large">
+                            <Button
+                                type="primary"
+                                onClick={runAllEvaluations}
+                                size="large"
+                                data-cy="abTesting-run-all-button"
+                            >
                                 Run All
                             </Button>
                             <SecondaryButton
