@@ -58,6 +58,6 @@
     "devDependencies": {
         "cypress": "^12.11.0",
         "node-mocks-http": "^1.12.2",
-        "prettier": "^3.0.0"
+        "prettier": "3.0.3"
     }
 }
