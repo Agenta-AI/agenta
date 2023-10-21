@@ -71,9 +71,7 @@ ag.config.default(
     splitter_separator=ag.TextParam("\n"),
     paragraph_separator=ag.TextParam("\n\n\n"),
     temperature=ag.FloatParam(0.0),
-    model=ag.MultipleChoiceParam(
-        "gpt-3.5-turbo", CHAT_LLM_GPT
-    ),
+    model=ag.MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT),
     embedding_model=ag.MultipleChoiceParam(
         "TEXT_EMBED_ADA_002", list(EMBEDDING_MODELS.keys())
     ),
@@ -102,7 +100,7 @@ def query(
     """
     prompt = Prompt(ag.config.prompt)
     text_splitter = ag.config.text_splitter
-    
+
     if text_splitter == "TokenTextSplitter":
         text_splitter = TEXT_SPLITTERS[text_splitter](
             separator=ag.config.splitter_separator,

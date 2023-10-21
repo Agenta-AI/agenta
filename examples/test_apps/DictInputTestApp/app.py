@@ -11,6 +11,7 @@ ag.config.default(
     prompt_template=ag.TextParam(default_prompt),
 )
 
+
 @ag.entrypoint
 def generate(
     inputs: ag.DictInput = ag.DictInput(default_keys=["product"]),

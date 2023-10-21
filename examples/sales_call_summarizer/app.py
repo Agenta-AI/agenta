@@ -12,6 +12,7 @@ ag.config.default(
     system_prompt=TextParam("Please summarize the following transcript:"),
 )
 
+
 @ag.entrypoint
 def generate(
     transcript: str,
@@ -23,7 +24,10 @@ def generate(
         presence_penalty=ag.config.presence_penalty,
         frequency_penalty=ag.config.frequency_penalty,
     )
-    messages = [SystemMessage(content=ag.config.system_prompt), HumanMessage(content=transcript)]
+    messages = [
+        SystemMessage(content=ag.config.system_prompt),
+        HumanMessage(content=transcript),
+    ]
 
     response = chat(
         messages,

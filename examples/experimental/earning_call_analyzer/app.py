@@ -11,6 +11,7 @@ import os
 
 ag.init()
 
+
 def ingest():
     if not os.path.exists("./storage"):
         documents = SimpleDirectoryReader("data").load_data()
