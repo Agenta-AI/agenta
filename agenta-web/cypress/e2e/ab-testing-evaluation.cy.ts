@@ -3,16 +3,16 @@ import {randString} from "../../src/lib/helpers/utils"
 describe("Regex Evaluation workflow", () => {
     let app_v2 = randString(5)
     let app_id
-    // before(() => {
-    //     cy.createVariantsAndTestsets()
-    //     cy.get("@app_id").then((appId) => {
-    //         app_id = appId
-    //     })
-    // })
+    before(() => {
+        cy.createVariantsAndTestsets()
+        cy.get("@app_id").then((appId) => {
+            app_id = appId
+        })
+    })
 
     context("SHould create second variant", () => {
         beforeEach(() => {
-            cy.visit(`/apps/653390289453efd2d0a7aa32/playground`)
+            cy.visit(`/apps/${app_id}/playground`)
         })
 
         it("When", () => {
@@ -37,37 +37,46 @@ describe("Regex Evaluation workflow", () => {
         })
     })
 
-    // context("When navigating to Evaluation Page", () => {
-    //     it("Should reach the Evaluation Page", () => {
-    //         cy.visit(`/apps/653390289453efd2d0a7aa32/playground`)
-    //         cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
-    //         cy.url().should("include", "/evaluations")
-    //     })
-    // })
+    context("When Variant and Testset are Selected", () => {
+        it("RUN", () => {
+            cy.visit(`/apps/${app_id}/evaluations`)
+            cy.clickLinkAndWait('[data-cy="abTesting-button"]')
 
-    // context("When Variant and Testset are Selected", () => {
-    //     beforeEach(() => {
-    //         cy.visit(`/apps/${app_id}/evaluations`)
-    //         cy.clickLinkAndWait('[data-cy="regex-button"]')
+            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
+            cy.get('[data-cy="variant-0"]').contains("app.default").click()
+            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
 
-    //         cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
-    //         cy.get('[data-cy="variant-0"]').click()
-    //         cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
+            cy.get('[data-cy="variants-dropdown-1"]').trigger("mouseover")
+            cy.get('[data-cy="variant-1"]').contains(`app.${app_v2}`).click()
+            cy.get('[data-cy="variants-dropdown-1"]').trigger("mouseout")
 
-    //         cy.get('[data-cy="selected-testset"]').trigger("mouseover")
-    //         cy.get('[data-cy="testset-0"]').click()
-    //         cy.get('[data-cy="selected-testset"]').trigger("mouseout")
+            cy.get('[data-cy="selected-testset"]').trigger("mouseover")
+            cy.get('[data-cy="testset-0"]').click()
+            cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
-    //         cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
+            cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
+            cy.url().should("include", "/human_a_b_testing")
+            cy.wait(1000)
+            cy.get('[data-cy="abTesting-run-all-button"]').click()
+            cy.get('[data-cy^="abTesting-app-variant-1-vote-button"]', {timeout: 15000}).should(
+                "not.be.disabled",
+            )
+            cy.get('[data-cy^="abTesting-app-variant-2-vote-button"]', {timeout: 15000}).should(
+                "not.be.disabled",
+            )
+            cy.get('[data-cy^="abTesting-both-bad-vote-button"]', {timeout: 15000}).should(
+                "not.be.disabled",
+            )
 
-    //         cy.location("pathname").should("include", "/auto_regex_test")
+            cy.get(".ant-message-notice-content").should("exist")
 
-    //         cy.get(".ant-form-item-explain-error").should("not.exist")
-    //     })
+            cy.get('[data-cy="abTesting-app-variant-1-vote-button-0"]').click()
+            cy.get('[data-cy="abTesting-app-variant-2-vote-button-1"]').click()
+            cy.get('[data-cy="abTesting-both-bad-vote-button-2"]').click()
+        })
+    })
 
-    // })
-
-    // after(() => {
-    //     cy.cleanupVariantAndTestset()
-    // })
+    after(() => {
+        cy.cleanupVariantAndTestset()
+    })
 })
