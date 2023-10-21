@@ -107,7 +107,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
             footer={null}
             title={
                 <Title level={4} className={classes.title}>
-                    Write your own app
+                    Write Your Own App
                 </Title>
             }
             {...props}
@@ -157,9 +157,9 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                     <div className={classes.container}>
                         <li>3. Set up environement variable</li>
                         <div className={classes.command}>
-                            <span>echo -e "OPENAI_API_KEY=sk-xxx" {">>"} .env</span>
+                            <span>echo -e "OPENAI_API_KEY=sk-xxx" {">"} .env</span>
                             <CopyButton
-                                text={"echo -e '\nOPENAI_API_KEY=sk-xxx' >> .env"}
+                                text={"echo -e 'OPENAI_API_KEY=sk-xxx' > .env"}
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
@@ -167,7 +167,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>4. Setup agenta (start from blank)</li>
+                        <li>4. Setup agenta (select start from blank)</li>
                         <div className={classes.command}>
                             <span>agenta init</span>
                             <CopyButton
