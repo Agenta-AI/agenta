@@ -1,9 +1,11 @@
+import Link from "next/link"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {Modal, Typography} from "antd"
 import React, {useEffect, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import YouTube, {YouTubeProps} from "react-youtube"
+import {isDemo} from "@/lib/helpers/utils"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -117,6 +119,13 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
         >
             <div className={classes.wrapper}>
                 <ol>
+                    {isDemo() && (
+                        <div className={classes.container}>
+                            <li>
+                                0. <Link href="/settings?tab=apiKeys">Get an API key</Link>
+                            </li>
+                        </div>
+                    )}
                     <div className={classes.container}>
                         <li>1. Install agenta</li>
                         <div className={classes.command}>
