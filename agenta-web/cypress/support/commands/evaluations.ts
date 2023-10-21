@@ -20,16 +20,15 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
             cy.get("input").type(appName)
         })
 
-    cy.get('[data-cy="enter-app-name-modal-button"]').click()
     cy.intercept("POST", "/api/apps/app_and_variant_from_template/").as("postRequest")
-    cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
+    cy.get('[data-cy="enter-app-name-modal-button"]').click()
+    cy.wait("@postRequest").then((interception) => {
         app_id = interception.response.body.app_id
         cy.wrap(interception.response.body.app_id).as("app_id")
     })
-    cy.wait(5000)
     cy.get('[data-cy="create-app-status-modal"]').within(() => {
         cy.get("span")
-            .contains(/go to app/i)
+            .contains(/go to app/i, {timeout: 15000})
             .click()
     })
 
