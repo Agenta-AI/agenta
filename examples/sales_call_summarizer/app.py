@@ -1,29 +1,29 @@
-from agenta import post, TextParam, FloatParam
-from agenta import post
-from langchain.chains import LLMChain
-from langchain.llms import OpenAI
-from langchain.prompts import PromptTemplate
+import agenta as ag
+from agenta import TextParam, FloatParam
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 
+ag.init()
+ag.config.default(
+    top_p=FloatParam(1.0),
+    temperature=FloatParam(0.5),
+    presence_penalty=FloatParam(0.0),
+    frequency_penalty=FloatParam(0.0),
+    system_prompt=TextParam("Please summarize the following transcript:"),
+)
 
-@post
+@ag.entrypoint
 def generate(
     transcript: str,
-    system_prompt: TextParam = "Please summarize the following transcript:",
-    temperature: FloatParam = 0.5,
-    top_p: FloatParam = 1.0,
-    presence_penalty: FloatParam = 0.0,
-    frequency_penalty: FloatParam = 0.0,
 ) -> str:
     chat = ChatOpenAI(
         model="gpt-3.5-turbo-16k",
-        temperature=temperature,
-        top_p=top_p,
-        presence_penalty=presence_penalty,
-        frequency_penalty=frequency_penalty,
+        temperature=ag.config.temperature,
+        top_p=ag.config.top_p,
+        presence_penalty=ag.config.presence_penalty,
+        frequency_penalty=ag.config.frequency_penalty,
     )
-    messages = [SystemMessage(content=system_prompt), HumanMessage(content=transcript)]
+    messages = [SystemMessage(content=ag.config.system_prompt), HumanMessage(content=transcript)]
 
     response = chat(
         messages,
