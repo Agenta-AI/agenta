@@ -142,9 +142,12 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                     <div className={classes.container}>
                         <li>2. Clone the example application</li>
                         <div className={classes.command}>
-                            <span>git clone https://github.com/Agenta-AI/simple_prompt</span>
+                            <span>
+                                git clone https://github.com/Agenta-AI/simple_prompt && cd
+                                simple_prompt
+                            </span>
                             <CopyButton
-                                text="git clone https://github.com/Agenta-AI/simple_prompt"
+                                text="git clone https://github.com/Agenta-AI/simple_prompt && cd simple_prompt"
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
@@ -154,9 +157,9 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                     <div className={classes.container}>
                         <li>3. Set up environement variable</li>
                         <div className={classes.command}>
-                            <span>echo "OPENAI_API_KEY=sk-xxx" `{">"}` .env</span>
+                            <span>echo -e "OPENAI_API_KEY=sk-xxx" {">>"} .env</span>
                             <CopyButton
-                                text={"echo 'OPENAI_API_KEY=sk-xxx' `{'>'}` .env<"}
+                                text={"echo -e '\nOPENAI_API_KEY=sk-xxx' >> .env"}
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
