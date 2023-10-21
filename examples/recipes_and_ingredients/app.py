@@ -21,13 +21,16 @@ ag.config.default(
     prompt_template=ag.TextParam(default_prompt),
 )
 
+
 @ag.entrypoint
 def generate(
     recipe_name: str,
 ) -> str:
     load_dotenv()
     llm = OpenAI(temperature=ag.config.temperature)
-    prompt = PromptTemplate(input_variables=["recipe_name"], template=ag.config.prompt_template)
+    prompt = PromptTemplate(
+        input_variables=["recipe_name"], template=ag.config.prompt_template
+    )
 
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(recipe_name=recipe_name)

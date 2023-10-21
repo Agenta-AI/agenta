@@ -11,6 +11,7 @@ ag.config.default(
     model=ag.MultipleChoiceParam(1, [1, 2]),
 )
 
+
 @ag.entrypoint
 def completion(
     product: str,

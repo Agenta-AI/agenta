@@ -48,6 +48,7 @@ ag.config.default(
     prompt_final=ag.TextParam(prompts["chat"]["output_prompt"]),
 )
 
+
 def call_llm(model, temperature, prompt, **kwargs):
     if model in CHAT_LLM_GPT:
         prompt = prompts["chat"]["input_prompt"].format(text=kwargs["text"])

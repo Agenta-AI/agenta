@@ -39,6 +39,7 @@ ag.config.default(
     prompt_template=TextParam(default_prompt),
 )
 
+
 @ag.entrypoint
 def generate(
     text: str,
