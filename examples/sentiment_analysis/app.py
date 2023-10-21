@@ -5,18 +5,22 @@ from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 
 default_prompt = "Categorise the sentiment of this text: {text}"
 
+ag.init()
+ag.config.default(
+    temperature=ag.FloatParam(0.9),
+    prompt_template=ag.TextParam(default_prompt),
+)
 
-@ag.post
+
+@ag.entrypoint
 def generate(
     text: str,
-    temperature: ag.FloatParam = 0.9,
-    prompt_template: ag.TextParam = default_prompt,
     category_name: str = "category",
     category_description: str = "name of sentiment category",
     degree_name: str = "degree",
     degree_description: str = "percentage of how much this sentiment is predicted to be in this category",
 ) -> str:
-    llm = ChatOpenAI(temperature=temperature)
+    llm = ChatOpenAI(temperature=ag.config.temperature)
 
     response_schemas = [
         ResponseSchema(name=category_name, description=category_description),
@@ -29,7 +33,7 @@ def generate(
     prompt = ChatPromptTemplate(
         messages=[
             HumanMessagePromptTemplate.from_template(
-                prompt_template + "\n{format_instructions}"
+                ag.config.prompt_template + "\n{format_instructions}"
             )
         ],
         input_variables=["text"],
