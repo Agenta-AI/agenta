@@ -158,6 +158,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
 
     return (
         <Modal
+            data-cy="create-app-status-modal"
             destroyOnClose
             onOk={onOk}
             okText={isError || isTimeout ? "Retry" : "Go to App"}

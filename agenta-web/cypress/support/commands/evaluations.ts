@@ -2,6 +2,8 @@ import {randString} from "../../../src/lib/helpers/utils"
 
 let app_id
 
+let countries = ["France", "Germany", "Sweden"]
+
 Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.visit("/settings")
     cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
@@ -21,50 +23,37 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
     cy.intercept("POST", "/api/apps/app_and_variant_from_template/").as("postRequest")
     cy.wait("@postRequest", {requestTimeout: 15000}).then((interception) => {
-        cy.intercept("GET", `/api/apps/${interception.response.body.app_id}/variants/`).as(
-            "getRequest",
-        )
-        cy.wait("@getRequest", {requestTimeout: 15000})
         app_id = interception.response.body.app_id
         cy.wrap(interception.response.body.app_id).as("app_id")
     })
+    cy.wait(5000)
+    cy.get('[data-cy="create-app-status-modal"]').within(() => {
+        cy.get("span")
+            .contains(/go to app/i)
+            .click()
+    })
 
+    cy.url().should("include", "/playground")
+    cy.wait(1000)
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
     const testsetName = randString(5)
 
     cy.get('[data-cy="testset-name-input"]').type(testsetName)
 
-    cy.get(".ag-row")
-        .eq(0)
-        .within(() => {
-            cy.get("div.ag-cell")
-                .eq(1)
-                .within(() => {
-                    cy.get("span").eq(0).dblclick()
-                    cy.get(".ag-input-field-input").type("Germany")
-                })
-        })
-    cy.get(".ag-row")
-        .eq(1)
-        .within(() => {
-            cy.get("div.ag-cell")
-                .eq(1)
-                .within(() => {
-                    cy.get("span").eq(0).dblclick()
-                    cy.get(".ag-input-field-input").type("Sweden")
-                })
-        })
-    cy.get(".ag-row")
-        .eq(2)
-        .within(() => {
-            cy.get("div.ag-cell")
-                .eq(1)
-                .within(() => {
-                    cy.get("span").eq(0).dblclick()
-                    cy.get(".ag-input-field-input").type("France")
-                })
-        })
+    countries.forEach((country, index) => {
+        cy.get(".ag-row")
+            .eq(index)
+            .within(() => {
+                cy.get("div.ag-cell")
+                    .eq(1)
+                    .within(() => {
+                        cy.get("span").eq(0).dblclick()
+                        cy.get(".ag-input-field-input").type(country)
+                    })
+            })
+    })
+
     cy.get('[data-cy="testset-save-button"]').click()
 })
 
