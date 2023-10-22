@@ -1,11 +1,12 @@
 import os
-import toml
 import logging
+
+from agenta_backend.tests.setenv import setup_pytest_variables
 
 from odmantic import AIOEngine
 from pymongo import MongoClient
 from motor.motor_asyncio import AsyncIOMotorClient
-from ..tests.setenv import setup_pytest_variables
+
 
 
 # Configure and set logging level
@@ -19,7 +20,7 @@ class DBEngine(object):
     """
 
     def __init__(self) -> None:
-        self.mode = os.environ.get("DATABASE_MODE", "v2")
+        self.mode = os.environ["DATABASE_MODE"]
         self.db_url = os.environ["MONGODB_URI"]
 
     @property
@@ -56,6 +57,10 @@ class DBEngine(object):
         )
 
     def remove_db(self) -> None:
+        """
+        Remove the database based on the mode.
+        """
+        
         client = MongoClient(self.db_url)
         if self.mode == "default":
             client.drop_database("agenta")
