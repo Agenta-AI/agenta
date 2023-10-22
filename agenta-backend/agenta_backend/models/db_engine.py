@@ -8,7 +8,6 @@ from pymongo import MongoClient
 from motor.motor_asyncio import AsyncIOMotorClient
 
 
-
 # Configure and set logging level
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -60,7 +59,7 @@ class DBEngine(object):
         """
         Remove the database based on the mode.
         """
-        
+
         client = MongoClient(self.db_url)
         if self.mode == "default":
             client.drop_database("agenta")
