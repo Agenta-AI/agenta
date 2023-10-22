@@ -14,7 +14,7 @@ from agenta_backend.models.api.api_models import Image
 import httpx
 import docker
 import backoff
-from aiodocker import Docker
+from aiodocker import Docker, exceptions
 from httpx import ConnectError, TimeoutException
 
 from fastapi import UploadFile
@@ -104,7 +104,9 @@ def build_image_job(
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
-            buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"},
+            buildargs={
+                "ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"
+            },
             rm=True,
         )
         for line in build_log:
@@ -123,7 +125,9 @@ def build_image_job(
         raise HTTPException(status_code=500, detail=str(ex))
 
 
-@backoff.on_exception(backoff.expo, (ConnectError, CancelledError), max_tries=5)
+@backoff.on_exception(
+    backoff.expo, (ConnectError, CancelledError), max_tries=5
+)
 async def retrieve_templates_from_dockerhub(
     url: str, repo_owner: str, repo_name: str
 ) -> Union[List[dict], dict]:
@@ -199,6 +203,11 @@ async def check_docker_arch() -> str:
         return arch_mapping.get(info["Architecture"], "unknown")
 
 
+@backoff.on_exception(
+    backoff.expo,
+    (ConnectError, TimeoutException, CancelledError, exceptions.DockerError),
+    max_tries=5,
+)
 async def pull_docker_image(repo_name: str, tag: str) -> dict:
     """Business logic to asynchronously pull an image from  either Docker Hub or ECR.
 
