@@ -1,28 +1,26 @@
+import asyncio
 import os
 import uuid
-import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List, Union, Optional
-
-from fastapi.responses import JSONResponse
-from fastapi import UploadFile, APIRouter, Request
+from typing import List, Optional, Union
 
 from agenta_backend.config import settings
-from aiodocker.exceptions import DockerError
-from concurrent.futures import ThreadPoolExecutor
-from agenta_backend.services.docker_utils import restart_container
 from agenta_backend.models.api.api_models import (
+    URI,
     Image,
     RestartAppContainer,
     Template,
-    URI,
 )
-from agenta_backend.services.db_manager import get_templates
 from agenta_backend.services import db_manager
 from agenta_backend.services.container_manager import (
     get_image_details_from_docker_hub,
-    pull_image_from_docker_hub,
+    pull_docker_image,
 )
+from agenta_backend.services.docker_utils import restart_container
+from aiodocker.exceptions import DockerError
+from fastapi import APIRouter, Request, UploadFile
+from fastapi.responses import JSONResponse
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.selectors import (
@@ -166,45 +164,11 @@ async def container_templates(
 
     Union[List[Template], str]: A list of templates or an error message.
     """
-    templates = await get_templates()
-    return templates
-
-
-@router.get("/templates/{image_name}/images/")
-async def pull_image(
-    image_name: str,
-    request: Request,
-) -> dict:
-    """
-    Pulls a Docker image from Docker Hub with the provided configuration.
-
-    Args:
-        image_name (str): The name of the Docker image to pull.
-        stoken_session (SessionContainer, optional): The session container to use for authentication. Defaults to Depends(verify_session()).
-
-    Returns:
-        dict: A JSON response containing the image tag and ID.
-    """
-    # Get docker hub config
-    repo_owner = settings.docker_hub_repo_owner
-    repo_name = settings.docker_hub_repo_name
-
-    # Pull image from docker hub with provided config
     try:
-        image_res = await pull_image_from_docker_hub(
-            f"{repo_owner}/{repo_name}", image_name
-        )
-    except DockerError as ext:
-        return JSONResponse(
-            {"message": "Image with tag does not exist", "meta": str(ext)}, 404
-        )
-
-    # Get data from image response
-    image_tag_name = image_res[0]["id"]
-    image_id = await get_image_details_from_docker_hub(
-        repo_owner, repo_name, image_tag_name
-    )
-    return JSONResponse({"image_tag": image_tag_name, "image_id": image_id}, 200)
+        templates = await db_manager.get_templates()
+    except Exception as e:
+        return JSONResponse({"message": str(e)}, status_code=500)
+    return templates
 
 
 @router.get("/container_url/")
