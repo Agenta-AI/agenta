@@ -1,5 +1,6 @@
 import logging
 import os
+from bson import ObjectId
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -29,17 +30,20 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     UserDB,
 )
+from agenta_backend.utils.common import check_user_org_access, engine
 
 if os.environ["FEATURE_FLAG"] in ["cloud"]:
     from agenta_backend.ee.models.db_models import DeploymentDB
 else:
     from agenta_backend.models.db_models import DeploymentDB
 
-from agenta_backend.utils.common import check_user_org_access, engine
-from bson import ObjectId
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
+
+
 from odmantic import query
+from odmantic.exceptions import DocumentParsingError
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -648,7 +652,9 @@ async def list_app_variants(app_id: str = None, **kwargs: dict) -> List[AppVaria
     return app_variants_db
 
 
-async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
+async def check_is_last_variant_for_image(
+    db_app_variant: AppVariantDB,
+) -> bool:
     """Checks whether the input variant is the sole variant that uses its linked image
     This is a helpful function to determine whether to delete the image when removing a variant
     Usually many variants will use the same image (these variants would have been created using the UI)
@@ -832,7 +838,8 @@ async def list_environments_by_variant(
     """
 
     environments_db: List[AppEnvironmentDB] = await engine.find(
-        AppEnvironmentDB, (AppEnvironmentDB.app == ObjectId(app_variant.app.id))
+        AppEnvironmentDB,
+        (AppEnvironmentDB.app == ObjectId(app_variant.app.id)),
     )
 
     return environments_db
@@ -1096,7 +1103,9 @@ async def fetch_evaluation_scenario_by_id(
     return evaluation_scenario
 
 
-async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVariantDB]:
+async def find_previous_variant_from_base_id(
+    base_id: str,
+) -> Optional[AppVariantDB]:
     """Find the previous variant from a base id.
 
     Args:
@@ -1120,7 +1129,7 @@ async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVarian
     assert False, "None of the previous variants has previous_variant_name=None"
 
 
-async def add_template(**kwargs: dict):
+async def add_template(**kwargs: dict) -> str:
     """
     Adds a new template to the database.
 
@@ -1128,31 +1137,69 @@ async def add_template(**kwargs: dict):
         **kwargs (dict): Keyword arguments containing the template data.
 
     Returns:
-        None
+        template_id (Str): The Id of the created template.
     """
     existing_template = await engine.find_one(
-        TemplateDB, TemplateDB.dockerhub_tag_id == kwargs["dockerhub_tag_id"]
+        TemplateDB, TemplateDB.tag_id == kwargs["tag_id"]
     )
     if existing_template is None:
         db_template = TemplateDB(**kwargs)
         await engine.save(db_template)
+        return str(db_template.id)
 
 
-async def remove_old_template_from_db(dockerhub_tag_ids: list) -> None:
+async def get_template(template_id: str) -> TemplateDB:
+    """
+    Fetches a template by its ID.
+
+    Args:
+        template_id (str): The ID of the template to fetch.
+
+    Returns:
+        TemplateDB: The fetched template.
+    """
+
+    assert template_id is not None, "template_id cannot be None"
+    template_db = await engine.find_one(
+        TemplateDB, TemplateDB.id == ObjectId(template_id)
+    )
+    return template_db
+
+
+async def remove_old_template_from_db(tag_ids: list) -> None:
     """Deletes old templates that are no longer in docker hub.
 
     Arguments:
-        dockerhub_tag_ids -- list of template IDs you want to keep
+        tag_ids -- list of template IDs you want to keep
     """
 
     templates_to_delete = []
-    templates = await engine.find(TemplateDB)
-    for temp in templates:
-        if temp.dockerhub_tag_id not in dockerhub_tag_ids:
-            templates_to_delete.append(temp)
+    try:
+        templates: List[TemplateDB] = await engine.find(TemplateDB)
 
-    for template in templates_to_delete:
-        await engine.delete(template)
+        for temp in templates:
+            if temp.tag_id not in tag_ids:
+                templates_to_delete.append(temp)
+
+        for template in templates_to_delete:
+            await engine.delete(template)
+    except DocumentParsingError as exc:
+        remove_document_using_driver(str(exc.primary_value), "templates")
+
+
+def remove_document_using_driver(document_id: str, collection_name: str) -> None:
+    """Deletes document from using pymongo driver"""
+
+    import pymongo
+
+    client = pymongo.MongoClient(os.environ["MONGODB_URI"])
+    db = client.get_database("agenta_v2")
+
+    collection = db.get_collection(collection_name)
+    deleted = collection.delete_one({"_id": ObjectId(document_id)})
+    print(
+        f"Deleted documents in {collection_name} collection. Acknowledged: {deleted.acknowledged}"
+    )
 
 
 async def get_templates() -> List[Template]:
