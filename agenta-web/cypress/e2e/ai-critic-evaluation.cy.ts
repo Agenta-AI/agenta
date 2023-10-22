@@ -11,11 +11,11 @@ describe("AI Critics Evaluation workflow", () => {
     context("When you select evaluation in the absence of an API key", () => {
         beforeEach(() => {
             cy.visit("/apps")
+            cy.clearLocalStorage("openAiToken")
+            cy.wait(1000)
+
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
-        })
-
-        it("Should display modal", () => {
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.get('[data-cy="ai-critic-button"]').click()
 
@@ -29,23 +29,13 @@ describe("AI Critics Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.get('[data-cy="evaluation-error-modal"]').should("exist")
+        })
+
+        it("Should display modal", () => {
             cy.get('[data-cy="evaluation-error-modal-ok-button"]').click()
         })
 
         it("Should display modal and naviagte to apikeys", () => {
-            cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
-            cy.get('[data-cy="ai-critic-button"]').click()
-
-            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
-            cy.get('[data-cy="variant-0"]').click()
-            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
-
-            cy.get('[data-cy="selected-testset"]').trigger("mouseover")
-            cy.get('[data-cy="testset-0"]').click()
-            cy.get('[data-cy="selected-testset"]').trigger("mouseout")
-
-            cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
-            cy.get('[data-cy="evaluation-error-modal"]').should("exist")
             cy.get('[data-cy="evaluation-error-modal-nav-button"]').click()
             cy.url().should("include", "/settings")
         })
@@ -53,9 +43,10 @@ describe("AI Critics Evaluation workflow", () => {
 
     context("When you select evaluation in the presence of an API key", () => {
         beforeEach(() => {
-            cy.visit("/apikeys")
-            cy.get('[data-cy="apikeys-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
-            cy.get('[data-cy="apikeys-save-button"]').click()
+            cy.visit("/settings")
+            cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
+            cy.get('[data-cy="openai-api-save"]').click()
+
             cy.visit("/apps")
             cy.clickLinkAndWait('[data-cy="app-card-link"]')
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
@@ -104,7 +95,7 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get(".ant-spin").should("exist")
             cy.get('[data-cy="ai-critic-evaluation-result"]', {timeout: 10000}).should(
                 "contain.text",
-                "Failed to evaluate AI critique",
+                "Failed to run evaluation",
             )
 
             cy.get(".ant-spin").should("not.exist")
