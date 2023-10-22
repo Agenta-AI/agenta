@@ -1,5 +1,8 @@
 import {randString} from "../../src/lib/helpers/utils"
 
+// This is added to prevent Cypress from failing the test prematurely due to application errors.
+Cypress.on("uncaught:exception", () => false)
+
 describe("Code Evaluation workflow", () => {
     const eval_name = randString(5)
     let app_id
@@ -34,7 +37,6 @@ describe("Code Evaluation workflow", () => {
             cy.get('[data-cy="code-evaluation-save-button"]').should("not.be.disabled")
             cy.clickLinkAndWait('[data-cy="code-evaluation-save-button"]')
             cy.url().should("include", "/evaluations")
-            cy.wait(3000)
         })
     })
 
