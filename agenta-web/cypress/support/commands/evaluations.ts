@@ -7,7 +7,22 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
     cy.get('[data-cy="openai-api-save"]').click()
     cy.visit("/apps")
-    cy.get('[data-cy="create-new-app-button"]').click()
+
+    // Check if there are app variants present
+    cy.request({
+        url: `http://localhost/api/organizations/`,
+        method: "GET",
+    }).then((res) => {
+        cy.request({
+            url: `http://localhost/api/apps/?org_id=${res.body[0].id}`,
+            method: "GET",
+        }).then((resp) => {
+            if (resp.body.length) {
+                cy.get('[data-cy="create-new-app-button"]').click()
+            }
+        })
+    })
+
     cy.get('[data-cy="create-from-template"]').click()
     cy.get('[data-cy="create-app-button"]').click()
     const appName = randString(5)
