@@ -22,11 +22,11 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
 
     cy.intercept("POST", "/api/apps/app_and_variant_from_template/").as("postRequest")
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
+    cy.get('[data-cy="create-app-status-modal"]').should("exist")
     cy.wait("@postRequest").then((interception) => {
         app_id = interception.response.body.app_id
         cy.wrap(interception.response.body.app_id).as("app_id")
     })
-    cy.get('[data-cy="create-app-status-modal"]').should("exist")
     cy.url({timeout: 15000}).should("include", "/playground")
     cy.wait(1000)
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
