@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+    backend:
+        build: ./agenta-backend
+        environment:
+            - MONGODB_URI=mongodb://username:password@mongo:27017/test
+            - ENVIRONMENT=development
+            - BARE_DOMAIN_NAME=localhost
+            - DOMAIN_NAME=http://localhost
+            - FEATURE_FLAG=oss
+        volumes:
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - ./agenta-backend/tests:/app/tests
+            - /var/run/docker.sock:/var/run/docker.sock
+        
+        command:
+            [
+                "uvicorn",
+                "agenta_backend.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8001",
+                "--reload",
+                "--log-level",
+                "info",
+                "--root-path",
+                "/api"
+            ]
+        depends_on:
+            mongo:
+                condition: service_healthy
+
+    mongo:
+        image: mongo:5.0
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: username
+            MONGO_INITDB_ROOT_PASSWORD: password
+        ports:
+        - "27017:27017"
+        healthcheck:
+            test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
+            interval: 10s
+            timeout: 10s
+            retries: 20
+
+    redis:
+        image: redis:latest
+        networks:
+            - agenta-network
+        volumes:
+            - redis_data:/data
+
+networks:
+    agenta-network:
+        name: agenta-network
+
+volumes:
+    mongodb_data:
+    redis_data:

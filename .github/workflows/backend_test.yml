@@ -15,15 +15,16 @@ jobs:
 
                 - name: Build and run backend container
                   run: |
-                        docker compose -f "docker-compose.yml" up -d --build
+                        docker compose -f "docker-compose.test.yml" up -d --build
+                        working-directory: ${{ github.workspace }}
 
-                - name: Wait for backend to start
-                  run: |
-                        while ! docker-compose exec -T backend curl -s http://agenta-backend-1/api/docs > /dev/null; do
-                            sleep 1
-                        done
+                # - name: Wait for backend to start
+                #   run: |
+                #         while ! docker-compose exec -T backend curl -s http://agenta-backend-1/api/docs > /dev/null; do
+                #             sleep 1
+                #         done
                         
 
-                # - name: Run pytest in backend container
-                #   run: |
-                #         docker-compose exec backend pytest
+                - name: Run pytest in backend container
+                  run: |
+                        docker-compose exec agenta-backend-1 pytest
