@@ -362,17 +362,18 @@ async def create_app_and_variant_from_template(
             is_template_image=True,
             **user_org_data,
         )
-        
+
         if os.environ["FEATURE_FLAG"] in ["demo", "cloud", "ee"]:
             logger.debug("Step 6 (extra): Creating testset for app variant")
-            
+
             from agenta_backend.ee.services.db_manager import add_testset_to_app_variant
+
             await add_testset_to_app_variant(
-                app_id=str(app.id), 
-                org_id=organization_id, 
-                template_name=template_db.name, 
+                app_id=str(app.id),
+                org_id=organization_id,
+                template_name=template_db.name,
                 app_name=app.app_name,
-                **user_org_data
+                **user_org_data,
             )
 
         logger.debug("Step 7: Starting variant and injecting environment variables")
