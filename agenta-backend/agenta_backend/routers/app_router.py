@@ -17,8 +17,6 @@ from agenta_backend.utils.common import (
 )
 from agenta_backend.models.api.api_models import (
     App,
-    AppVariant,
-    Image,
     CreateApp,
     CreateAppOutput,
     CreateAppVariant,
