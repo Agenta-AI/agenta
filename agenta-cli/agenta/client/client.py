@@ -209,7 +209,11 @@ def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVarian
     )
 
     # Check for successful request
-    if response.status_code != 200:
+    if response.status_code == 403:
+        raise APIRequestError(
+            f"No app by id {app_id} exists or you do not have access to it."
+        )
+    elif response.status_code != 200:
         error_message = response.json()
         raise APIRequestError(
             f"Request to apps endpoint failed with status code {response.status_code} and error message: {error_message}."
