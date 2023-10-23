@@ -60,7 +60,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     const isError = ["bad_request", "error"].includes(status)
     const isTimeout = status === "timeout"
     const isSuccess = status === "success"
-    const closable = isError || isTimeout || isSuccess
+    const closable = isError || isTimeout
 
     const reset = () => {
         setMessages({})
@@ -112,6 +112,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         },
                     }
                     if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
+                    if (appId) router.push(`/apps/${appId}/playground`)
                     return obj
                 case "bad_request":
                 case "error":
@@ -158,9 +159,10 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
 
     return (
         <Modal
+            data-cy="create-app-status-modal"
             destroyOnClose
             onOk={onOk}
-            okText={isError || isTimeout ? "Retry" : "Go to App"}
+            okText={"Retry"}
             footer={closable ? undefined : null}
             closable={closable}
             title="App Creation Status"
