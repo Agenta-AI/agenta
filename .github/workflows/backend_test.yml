@@ -16,7 +16,7 @@ jobs:
                 - name: Build and run backend container
                   run: |
                         docker compose -f "docker-compose.test.yml" up -d --build
-                        working-directory: ${{ github.workspace }}
+                  working-directory: ${{ github.workspace }}
 
                 # - name: Wait for backend to start
                 #   run: |
@@ -28,3 +28,4 @@ jobs:
                 - name: Run pytest in backend container
                   run: |
                         docker-compose exec agenta-backend-1 pytest
+                  working-directory: ${{ github.workspace }}
