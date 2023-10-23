@@ -51,7 +51,7 @@ async def get_variant_traces(
         List[Trace]: the list of traces for the given app variant
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
     query_expressions = (
         query.eq(TraceDB.user, user.id)
         & query.eq(TraceDB.app_id, app_id)
@@ -72,7 +72,7 @@ async def create_app_trace(payload: CreateTrace, **kwargs: dict) -> str:
         Trace: the created trace
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
 
     # Ensure spans exists in the db
     for span in payload.spans:
@@ -95,7 +95,7 @@ async def get_single_trace(trace_id: str, **kwargs: dict) -> Trace:
         Trace: the trace
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
     query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
         TraceDB.user, user.id
     )
@@ -118,7 +118,7 @@ async def trace_status_update(
         bool: True if successful
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
     query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
         TraceDB.user, user.id
     )
@@ -142,7 +142,7 @@ async def create_trace_span(payload: CreateSpan, **kwargs: dict) -> str:
         str: the created span id
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
 
     span_db = SpanDB(**payload.dict())
     await engine.save(span_db)
@@ -159,7 +159,7 @@ async def get_trace_spans(trace_id: str, **kwargs: dict) -> List[Span]:
         List[Span]: the list of spans for the given trace
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
     query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
         TraceDB.user, user.id
     )
@@ -185,7 +185,7 @@ async def add_feedback_to_trace(
         str: the feedback id
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
     feedback = FeedbackDB(
         user_id=str(user.id),
         feedback=payload.feedback,
@@ -214,7 +214,7 @@ async def get_trace_feedbacks(trace_id: str, **kwargs: dict) -> List[Feedback]:
         List[Feedback]: the list of feedbacks for the given trace
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
 
     # Build query expressions
     query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
@@ -240,7 +240,7 @@ async def get_feedback_detail(
         Feedback: the feedback
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
 
     # Build query expressions
     query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(
@@ -273,7 +273,7 @@ async def update_trace_feedback(
         Feedback: the feedback
     """
 
-    user = await db_manager.get_user_object(kwargs["uid"])
+    user = await db_manager.get_user_object(user_uid=kwargs["uid"])
 
     # Build query expressions
     query_expressions = query.eq(TraceDB.id, ObjectId(trace_id)) & query.eq(

@@ -98,7 +98,7 @@ async def upload_file(
                 row_data[columns[i]] = value
             document["csvdata"].append(row_data)
 
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user_object(user_uid=user_org_data["uid"])
     testset_instance = TestSetDB(**document, user=user)
     result = await engine.save(testset_instance)
 
@@ -161,7 +161,7 @@ async def import_testset(
         for row in json_response:
             document["csvdata"].append(row)
 
-        user = await get_user_object(user_org_data["uid"])
+        user = await get_user_object(user_uid=user_org_data["uid"])
         testset_instance = TestSetDB(**document, user=user)
         result = await engine.save(testset_instance)
 
@@ -206,7 +206,7 @@ async def create_testset(
     """
 
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user_object(user_uid=user_org_data["uid"])
     access_app = await check_access_to_app(
         user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
