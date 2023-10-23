@@ -15,8 +15,8 @@ def get_api_key():
     if credentials_file.is_file():
         with credentials_file.open("r") as f:
             for line in f:
-                key, value = line.strip().split('=')
-                if key == 'api_key':
+                key, value = line.strip().split("=")
+                if key == "api_key":
                     return value
     else:
         api_key = questionary.text("Please provide your API key:").ask()
@@ -28,6 +28,7 @@ def get_api_key():
             return api_key
         else:
             sys.exit(0)
+
 
 def update_variants_from_backend(
     app_id: str, config: MutableMapping[str, Any], host: str, api_key: str = None
