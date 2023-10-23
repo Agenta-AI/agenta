@@ -2,7 +2,11 @@ import {randString} from "../../../src/lib/helpers/utils"
 
 let app_id
 
-let countries = ["France", "Germany", "Sweden"]
+const countries = [
+    {country: "France", capital: "Paris"},
+    {country: "Germany", capital: "Berlin"},
+    {country: "Sweden", capital: "Stockholm"},
+]
 
 Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.visit("/settings")
@@ -43,7 +47,15 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
                     .eq(1)
                     .within(() => {
                         cy.get("span").eq(0).dblclick()
-                        cy.get(".ag-input-field-input").type(country)
+                        cy.get(".ag-input-field-input").type(country.country)
+                    })
+                cy.get("div.ag-cell")
+                    .eq(2)
+                    .within(() => {
+                        cy.get("span").eq(0).dblclick()
+                        cy.get(".ag-input-field-input").type(
+                            `The capital of ${country.country} is ${country.capital}.`,
+                        )
                     })
             })
     })
