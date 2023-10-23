@@ -1,10 +1,33 @@
-from pathlib import Path
-from typing import Any, List, MutableMapping
-import click
+import sys
 import toml
+import click
+import questionary
+from pathlib import Path
 from agenta.client import client
+from typing import Any, List, MutableMapping
 from agenta.client.api_models import AppVariant
 
+
+def get_api_key():
+    agenta_dir = Path.home() / ".agenta"
+    credentials_file = agenta_dir / "credentials"
+
+    if credentials_file.is_file():
+        with credentials_file.open("r") as f:
+            for line in f:
+                key, value = line.strip().split('=')
+                if key == 'api_key':
+                    return value
+    else:
+        api_key = questionary.text("Please provide your API key:").ask()
+        if api_key:
+            if not agenta_dir.is_dir():
+                agenta_dir.mkdir(parents=True, exist_ok=True)
+            with credentials_file.open("w") as f:
+                f.write(f"api_key={api_key}")
+            return api_key
+        else:
+            sys.exit(0)
 
 def update_variants_from_backend(
     app_id: str, config: MutableMapping[str, Any], host: str, api_key: str = None
