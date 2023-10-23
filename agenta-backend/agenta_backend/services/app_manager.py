@@ -114,6 +114,7 @@ async def update_variant_image(
         tags=image.tags,
         docker_id=image.docker_id,
         user=app_variant_db.user,
+        deletable=True,
         organization=app_variant_db.organization,
     )
     # Update base with new image
@@ -172,13 +173,27 @@ async def terminate_and_remove_app_variant(
                 deployment = await db_manager.get_deployment_by_objectid(
                     app_variant_db.base.deployment
                 )
-                await deployment_manager.stop_and_delete_service(deployment)
-                await deployment_manager.remove_image(image)
+                if deployment:
+                    try:
+                        await deployment_manager.stop_and_delete_service(deployment)
+                    except RuntimeError as e:
+                        logger.error(
+                            f"Failed to stop and delete service {deployment} {e}"
+                        )
+
+                # If image deletable is True, remove docker image and image db
+                if image.deletable:
+                    try:
+                        await deployment_manager.remove_image(image)
+                    except RuntimeError as e:
+                        logger.error(f"Failed to remove image {image} {e}")
+                    await db_manager.remove_image(image, **kwargs)
+
                 logger.debug("remove base")
                 await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
                 logger.debug("Remove image object from db")
-                await db_manager.remove_image(image, **kwargs)
-                await db_manager.remove_deployment(deployment)
+                if deployment:
+                    await db_manager.remove_deployment(deployment)
                 await db_manager.remove_base_from_db(app_variant_db.base, **kwargs)
                 logger.debug("remove_app_variant_from_db")
 
@@ -303,6 +318,7 @@ async def add_variant_based_on_image(
     tags: str,
     base_name: str = None,
     config_name: str = "default",
+    is_template_image: bool = False,
     **user_org_data: dict,
 ) -> AppVariantDB:
     """
@@ -315,6 +331,7 @@ async def add_variant_based_on_image(
         tags (str): The tags associated with the Docker image.
         base_name (str, optional): The name of the base to use for the new variant. Defaults to None.
         config_name (str, optional): The name of the configuration to use for the new variant. Defaults to "default".
+        is_template_image (bool, optional): Whether or not the image used is for a template (in this case we won't delete it in the future).
         **user_org_data (dict): Additional user and organization data.
 
     Returns:
@@ -359,6 +376,7 @@ async def add_variant_based_on_image(
         db_image = await db_manager.create_image(
             docker_id=docker_id,
             tags=tags,
+            deletable=not (is_template_image),
             user=user_instance,
             organization=app.organization,
         )

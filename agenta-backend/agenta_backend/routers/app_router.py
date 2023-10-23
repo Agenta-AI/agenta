@@ -9,6 +9,7 @@ from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
     docker_utils,
+    container_manager,
     db_manager,
 )
 from agenta_backend.utils.common import (
@@ -218,13 +219,15 @@ async def add_variant_from_image(
     Returns:
         dict: The newly added variant.
     """
-    if not payload.tags.startswith(settings.registry):
-        raise HTTPException(
-            status_code=500,
-            detail="Image should have a tag starting with the registry name (agenta-server)",
-        )
-    elif docker_utils.find_image_by_docker_id(payload.docker_id) is None:
-        raise HTTPException(status_code=404, detail="Image not found")
+
+    if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
+        if not payload.tags.startswith(settings.registry):
+            raise HTTPException(
+                status_code=500,
+                detail="Image should have a tag starting with the registry name (agenta-server)",
+            )
+        elif docker_utils.find_image_by_docker_id(payload.docker_id) is None:
+            raise HTTPException(status_code=404, detail="Image not found")
 
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
@@ -245,6 +248,7 @@ async def add_variant_from_image(
             tags=payload.tags,
             base_name=payload.base_name,
             config_name=payload.config_name,
+            is_template_image=False,
             **user_org_data,
         )
         return await converters.app_variant_db_to_output(app_variant_db)
@@ -340,17 +344,21 @@ async def create_app_and_variant_from_template(
                 app_name, organization_id, **user_org_data
             )
 
+        logger.debug("Step 5 (extra): Retrieve template from db")
+        template_db = await db_manager.get_template(payload.template_id)
+
         logger.debug(
             "Step 6: Creating image instance and adding variant based on image"
         )
-        image_name = f"agentaai/templates:{payload.image_tag}"
+        image_name = f"agentaai/templates:{template_db.name}"
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id=payload.image_id,
+            docker_id=template_db.digest,
             tags=f"{image_name}",
             base_name="app",
             config_name="default",
+            is_template_image=True,
             **user_org_data,
         )
 

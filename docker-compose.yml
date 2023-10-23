@@ -58,6 +58,7 @@ services:
         volumes:
             - ./agenta-web/src:/app/src
             - ./agenta-web/public:/app/public
+            - .nextjs_cache:/app/.next
         ports:
             - "3000:3000"
         networks:
