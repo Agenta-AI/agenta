@@ -19,7 +19,7 @@ def get_api_key():
                 if key == "api_key":
                     return value
     else:
-        api_key = questionary.text("Please provide your API key:").ask()
+        api_key = questionary.text("(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) Please provide your API key:").ask()
         if api_key:
             if not agenta_dir.is_dir():
                 agenta_dir.mkdir(parents=True, exist_ok=True)
