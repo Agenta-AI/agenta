@@ -67,18 +67,6 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
         setIsDelayed(false)
     }
 
-    const onOk = (e: any) => {
-        reset()
-        if (isError) {
-            onErrorRetry?.()
-        } else if (isTimeout) {
-            onTimeoutRetry?.()
-        } else if (isSuccess) {
-            props.onCancel?.(e)
-            if (appId) router.push(`/apps/${appId}/playground`)
-        }
-    }
-
     useEffect(() => {
         setMessages((prev) => {
             let obj: GenericObject
@@ -112,6 +100,14 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         },
                     }
                     if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
+                    if (isError) {
+                        onErrorRetry?.()
+                    } else if (isTimeout) {
+                        onTimeoutRetry?.()
+                    } else if (isSuccess) {
+                        if (appId) router.push(`/apps/${appId}/playground`)
+                    }
+                    reset()
                     return obj
                 case "bad_request":
                 case "error":
@@ -158,14 +154,12 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
 
     return (
         <Modal
+            data-cy="create-app-status-modal"
             destroyOnClose
-            onOk={onOk}
-            okText={isError || isTimeout ? "Retry" : "Go to App"}
-            footer={closable ? undefined : null}
+            footer={null}
             closable={closable}
             title="App Creation Status"
             {...props}
-            onCancel={closable ? props.onCancel : undefined}
         >
             {!closable && isDelayed && (
                 <Alert
