@@ -485,7 +485,10 @@ async def get_user_object(user_uid: str = None, user_id: ObjectId = None) -> Use
         raise Exception("Please provide either user_uid or user_id, but not both.")
 
     if user_uid:
-        user = await engine.find_one(UserDB, UserDB.uid == user_uid if '@' not in user_uid else UserDB.email == user_uid)
+        user = await engine.find_one(
+            UserDB,
+            UserDB.uid == user_uid if "@" not in user_uid else UserDB.email == user_uid,
+        )
     else:
         user = await engine.find_one(UserDB, UserDB.id == user_id)
 
@@ -535,8 +538,6 @@ async def save_object_to_db(object_to_save: Any) -> Any:
     """
     await engine.save(object_to_save)
     return object_to_save
-
-
 
 
 async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
