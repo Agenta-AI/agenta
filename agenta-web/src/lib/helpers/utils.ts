@@ -1,7 +1,8 @@
 import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 
-const openAItoken = "openAiToken"
+const llmAvailableProvidersToken = "llmAvailableProvidersToken"
+export const llmAvailableProviders = ["OpenIA", "Replicate", "Hugging Face", "Cohere", "Anthropic", "Azure", "TogetherAI"]
 
 export const renameVariables = (name: string) => {
     return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
@@ -26,25 +27,44 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.auto_webhook_test]: "Webhook Test",
 }
 
-export const saveOpenAIKey = (key: string) => {
+export const saveLlmProviderKey = (providerName: string, keyValue: string) => {
     if (typeof window !== "undefined") {
         // TODO: add encryption here
-        localStorage.setItem(openAItoken, key)
+        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken)) ?? {}
+        keys[providerName] = keyValue
+        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
     }
 }
 
-export const getOpenAIKey = (): string => {
+export const getLlmProviderKeys = (): Object => {
     // precedence order: local storage, env variable, empty string
-    let key
-    if (typeof window !== "undefined") {
-        key = localStorage.getItem(openAItoken)
+    let keys = {}
+    for (const prov of llmAvailableProviders) {
+        keys[prov] = ""
     }
-    return key ?? process.env.NEXT_PUBLIC_OPENAI_API_KEY ?? ""
+
+    if (typeof window !== "undefined") {
+        keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken)) ?? keys
+    }
+    // the "NEXT_PUBLIC_OPENIA_API_KEY logic here must be rethought
+    // return key ?? process.env.NEXT_PUBLIC_OPENAI_API_KEY ?? ""
+    return keys ?? {}
 }
 
-export const removeOpenAIKey = () => {
+export const getSingleLlmProviderKey = (providerName: string): string => {
+    let key = ""
     if (typeof window !== "undefined") {
-        localStorage.removeItem(openAItoken)
+        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken)) ?? {}
+        key = keys[providerName] ?? ""
+    }
+    return key
+}
+
+export const removeSingleLlmProviderKey = (providerName: string) => {
+    if (typeof window !== "undefined") {
+        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken)) ?? {}
+        keys[providerName] = "" 
+        localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
     }
 }
 
