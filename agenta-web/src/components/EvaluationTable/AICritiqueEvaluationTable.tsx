@@ -224,7 +224,6 @@ Answer ONLY with one of the given grading or evaluation options.
             console.log("All evaluations finished.")
         } catch (err) {
             console.error("An error occurred:", err)
-            setEvaluationStatus(EvaluationFlow.EVALUATION_FAILED)
         }
     }
 
@@ -318,21 +317,12 @@ Answer ONLY with one of the given grading or evaluation options.
                 key: columnKey,
                 width: "30%",
                 render: (text: any, record: AICritiqueEvaluationTableRow, rowIndex: number) => {
-                    if (
-                        record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
-                        evaluationStatus === EvaluationFlow.EVALUATION_STARTED
-                    ) {
+                    if (record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED) {
                         return (
                             <center>
                                 <Spin />
                             </center>
                         )
-                    }
-                    if (
-                        record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
-                        evaluationStatus === EvaluationFlow.EVALUATION_FAILED
-                    ) {
-                        return
                     }
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
@@ -393,17 +383,8 @@ Answer ONLY with one of the given grading or evaluation options.
             width: 200,
             align: "center" as "left" | "right" | "center",
             render: (score: string, record: any) => {
-                if (
-                    record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
-                    evaluationStatus === EvaluationFlow.EVALUATION_STARTED
-                ) {
+                if (record.evaluationFlow === "COMPARISON_RUN_STARTED") {
                     return <Spin></Spin>
-                }
-                if (
-                    record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
-                    evaluationStatus === EvaluationFlow.EVALUATION_FAILED
-                ) {
-                    return
                 }
                 let tagColor = ""
 
@@ -468,24 +449,17 @@ Answer ONLY with one of the given grading or evaluation options.
             </div>
             <div className={classes.evaluationResult} data-cy="ai-critic-evaluation-result">
                 <center>
-                    {evaluationStatus === EvaluationFlow.EVALUATION_FAILED && (
-                        <div>Failed to run evaluation!</div>
-                    )}
-
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
                         <div>Run evaluation to see results!</div>
                     )}
-
                     {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
-
-                    {evaluationStatus === EvaluationFlow.EVALUATION_FINISHED &&
-                        evaluationResults &&
-                        evaluationResults.results_data && (
-                            <div>
-                                <h3 className={classes.h3}>Results Data:</h3>
-                                <Row gutter={8} justify="center" className={classes.resultDataRow}>
-                                    {Object.entries(evaluationResults.results_data).map(
-                                        ([key, value], index) => (
+                    {evaluationResults && evaluationResults.results_data && (
+                        <div>
+                            <h3 className={classes.h3}>Results Data:</h3>
+                            <Row gutter={8} justify="center" className={classes.resultDataRow}>
+                                {Object.entries(evaluationResults.results_data).map(
+                                    ([key, value], index) => {
+                                        return (
                                             <Col key={index} className={classes.resultDataCol}>
                                                 <Card
                                                     bordered={false}
@@ -498,11 +472,12 @@ Answer ONLY with one of the given grading or evaluation options.
                                                     />
                                                 </Card>
                                             </Col>
-                                        ),
-                                    )}
-                                </Row>
-                            </div>
-                        )}
+                                        )
+                                    },
+                                )}
+                            </Row>
+                        </div>
+                    )}
                 </center>
             </div>
             <div>
