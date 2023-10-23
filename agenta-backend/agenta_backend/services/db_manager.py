@@ -99,7 +99,7 @@ async def fetch_app_by_name(
         AppDB: the instance of the app
     """
     if not organization_id:
-        user = await get_user_object(user_uid=user_org_data["uid"])
+        user = await get_user(user_uid=user_org_data["uid"])
         query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id)
         app = await engine.find_one(AppDB, query_expression)
     else:
@@ -345,7 +345,7 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    user_instance = await get_user_object(user_uid=user_org_data["uid"])
+    user_instance = await get_user(user_uid=user_org_data["uid"])
     app = await fetch_app_by_name(app_name, organization_id, **user_org_data)
     if app is not None:
         raise ValueError("App with the same name already exists")
@@ -470,7 +470,7 @@ async def list_app_variant_for_base(
     return app_variants_db
 
 
-async def get_user_object(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
+async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
     """Get the user object from the database.
 
     Arguments:
@@ -603,7 +603,7 @@ async def add_variant_from_base_and_config(
     )
     if already_exists:
         raise ValueError("App variant with the same name already exists")
-    user_db = await get_user_object(user_uid=user_org_data["uid"])
+    user_db = await get_user(user_uid=user_org_data["uid"])
     config_db = ConfigDB(
         config_name=new_config_name,
         parameters=parameters,
@@ -646,7 +646,7 @@ async def list_apps(
         List[App]
     """
 
-    user = await get_user_object(user_uid=user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
     assert user is not None, "User is None"
 
     if app_name is not None:
@@ -1253,7 +1253,7 @@ async def count_apps(**user_org_data: dict) -> int:
     """
 
     # Get user object
-    user = await get_user_object(user_uid=user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
     if user is None:
         return 0
 

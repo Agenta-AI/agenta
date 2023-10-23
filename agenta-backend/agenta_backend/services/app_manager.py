@@ -355,7 +355,7 @@ async def add_variant_based_on_image(
 
     # Retrieve user and image objects
     logger.debug("Step 3: Retrieving user and image objects")
-    user_instance = await db_manager.get_user_object(user_uid=user_org_data["uid"])
+    user_instance = await db_manager.get_user(user_uid=user_org_data["uid"])
     db_image = await db_manager.get_orga_image_instance(
         organization_id=str(app.organization.id), docker_id=docker_id
     )
