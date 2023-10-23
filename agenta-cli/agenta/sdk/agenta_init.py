@@ -51,25 +51,18 @@ class AgentaSingleton:
         if host is None:
             host = os.environ.get("AGENTA_HOST", "http://localhost")
 
-        if base_id is not None:
-            pass
-        elif app_name is not None and base_name is not None:
-            pass
-        else:
-            raise ValueError(
-                f"You need to specify either the base_id or the app_name and base_name. The current values are app_name: {app_name} and base_name: {base_name} and base_id: {base_id}"
-            )
-        if host is None:
-            raise ValueError(
-                "The 'host' is not specified. Please provide it as an argument or set the 'AGENTA_HOST' environment variable."
-            )
         if base_id is None:
-            app_id = client.get_app_by_name(
-                app_name=app_name, host=host, api_key=api_key
-            )
-            base_id = client.get_base_by_app_id_and_name(
-                app_id=app_id, base_name=base_name, host=host, api_key=api_key
-            )
+            if app_name is None or base_name is None:
+                print(
+                    f"Warning: Your configuration will not be saved permanently since app_name and base_name are not provided."
+                )
+            else:
+                app_id = client.get_app_by_name(
+                    app_name=app_name, host=host, api_key=api_key
+                )
+                base_id = client.get_base_by_app_id_and_name(
+                    app_id=app_id, base_name=base_name, host=host, api_key=api_key
+                )
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
@@ -81,6 +74,10 @@ class Config:
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
+        if base_id is None or host is None:
+            self.persist = False
+        else:
+            self.persist = True
 
     def default(self, overwrite=True, **kwargs):
         """Saves the default parameters to the app_name and base_name in case they are not already saved.
@@ -103,6 +100,8 @@ class Config:
             overwrite: Whether to overwrite the existing configuration or not
             **kwargs: A dict containing the parameters
         """
+        if not self.persist:
+            return
         try:
             client.save_variant_config(
                 base_id=self.base_id,
@@ -119,27 +118,34 @@ class Config:
 
     def pull(self, config_name: str = "default", environment_name: str = None):
         """Pulls the parameters for the app variant from the server and sets them to the config"""
-        try:
-            if environment_name:
-                config = client.fetch_variant_config(
-                    base_id=self.base_id,
-                    host=self.host,
-                    api_key=self.api_key,
-                    environment_name=environment_name,
-                )
-
-            else:
-                config = client.fetch_variant_config(
-                    base_id=self.base_id,
-                    host=self.host,
-                    api_key=self.api_key,
-                    config_name=config_name,
-                )
-        except Exception as ex:
+        if not self.persist and (
+            config_name != "default" or environment_name is not None
+        ):
             raise Exception(
-                "Failed to pull the configuration from the server with error: "
-                + str(ex)
-            ) from ex
+                "Cannot pull the configuration from the server since the app_name and base_name are not provided."
+            )
+        if self.persist:
+            try:
+                if environment_name:
+                    config = client.fetch_variant_config(
+                        base_id=self.base_id,
+                        host=self.host,
+                        api_key=self.api_key,
+                        environment_name=environment_name,
+                    )
+
+                else:
+                    config = client.fetch_variant_config(
+                        base_id=self.base_id,
+                        host=self.host,
+                        api_key=self.api_key,
+                        config_name=config_name,
+                    )
+            except Exception as ex:
+                raise Exception(
+                    "Failed to pull the configuration from the server with error: "
+                    + str(ex)
+                ) from ex
         try:
             self.set(**config["parameters"])
         except Exception as ex:

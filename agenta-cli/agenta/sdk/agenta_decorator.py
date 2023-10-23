@@ -303,7 +303,7 @@ def handle_terminal_run(
             file_path=args_func_params[name],
         )
     agenta.config.set(**args_config_params)
-    print(func(**args_func_params))
+    # print(func(**args_func_params))
 
 
 def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params: dict):
@@ -343,7 +343,7 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
         f"Body_{func_name}_{endpoint}_post"
     ]["properties"]
     for param_name, param_val in params.items():
-        print(param_name, param_val)
+        # print(param_name, param_val)
         if isinstance(param_val, MultipleChoiceParam):
             subschema = find_in_schema(schema_to_override, param_name, "choice")
             default = str(param_val)
