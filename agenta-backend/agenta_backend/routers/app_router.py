@@ -9,7 +9,6 @@ from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
     docker_utils,
-    container_manager,
     db_manager,
 )
 from agenta_backend.utils.common import (
@@ -18,6 +17,8 @@ from agenta_backend.utils.common import (
 )
 from agenta_backend.models.api.api_models import (
     App,
+    AppVariant,
+    Image,
     CreateApp,
     CreateAppOutput,
     CreateAppVariant,
@@ -361,6 +362,18 @@ async def create_app_and_variant_from_template(
             is_template_image=True,
             **user_org_data,
         )
+        
+        if os.environ["FEATURE_FLAG"] in ["demo", "cloud", "ee"]:
+            logger.debug("Step 6 (extra): Creating testset for app variant")
+            
+            from agenta_backend.ee.services.db_manager import add_testset_to_app_variant
+            await add_testset_to_app_variant(
+                app_id=str(app.id), 
+                org_id=organization_id, 
+                template_name=template_db.name, 
+                app_name=app.app_name,
+                **user_org_data
+            )
 
         logger.debug("Step 7: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] == "demo":
