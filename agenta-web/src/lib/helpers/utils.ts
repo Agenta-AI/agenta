@@ -38,21 +38,21 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
 export const saveLlmProviderKey = (providerName: string, keyValue: string) => {
     if (typeof window !== "undefined") {
         // TODO: add encryption here
-        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken)) ?? {}
+        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "{}")
         keys[providerName] = keyValue
         localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
     }
 }
 
-export const getLlmProviderKeys = (): Object => {
+export const getLlmProviderKeys = () => {
     // precedence order: local storage, env variable, empty string
-    let keys = {}
+    let keys: {[key: string]: string} = {}
     for (const prov of llmAvailableProviders) {
         keys[prov] = ""
     }
 
     if (typeof window !== "undefined") {
-        keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken)) ?? keys
+        keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "{}")
     }
     // the "NEXT_PUBLIC_OPENIA_API_KEY logic here must be rethought
     // return key ?? process.env.NEXT_PUBLIC_OPENAI_API_KEY ?? ""
@@ -62,7 +62,7 @@ export const getLlmProviderKeys = (): Object => {
 export const getSingleLlmProviderKey = (providerName: string): string => {
     let key = ""
     if (typeof window !== "undefined") {
-        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken)) ?? {}
+        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "{}")
         key = keys[providerName] ?? ""
     }
     return key
@@ -70,7 +70,7 @@ export const getSingleLlmProviderKey = (providerName: string): string => {
 
 export const removeSingleLlmProviderKey = (providerName: string) => {
     if (typeof window !== "undefined") {
-        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken)) ?? {}
+        const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "{}")
         keys[providerName] = ""
         localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
     }

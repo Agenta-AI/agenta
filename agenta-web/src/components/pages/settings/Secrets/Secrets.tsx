@@ -32,7 +32,9 @@ const useStyles = createUseStyles({
 
 export default function Secrets() {
     const classes = useStyles()
-    const [llmProviderKeys, setLlmProviderKeys] = useState(getLlmProviderKeys())
+    const [llmProviderKeys, setLlmProviderKeys] = useState<{[key: string]: string}>(
+        getLlmProviderKeys(),
+    )
     const [messageAPI, contextHolder] = message.useMessage()
 
     return (
