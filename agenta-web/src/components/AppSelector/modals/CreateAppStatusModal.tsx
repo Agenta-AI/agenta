@@ -60,11 +60,23 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     const isError = ["bad_request", "error"].includes(status)
     const isTimeout = status === "timeout"
     const isSuccess = status === "success"
-    const closable = isError || isTimeout || isSuccess
+    const closable = isError || isTimeout
 
     const reset = () => {
         setMessages({})
         setIsDelayed(false)
+    }
+
+    const onOk = (e: any) => {
+        reset()
+        if (isError) {
+            onErrorRetry?.()
+        } else if (isTimeout) {
+            onTimeoutRetry?.()
+        } else if (isSuccess) {
+            props.onCancel?.(e)
+            if (appId) router.push(`/apps/${appId}/playground`)
+        }
     }
 
     useEffect(() => {
@@ -100,14 +112,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         },
                     }
                     if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
-                    if (isError) {
-                        onErrorRetry?.()
-                    } else if (isTimeout) {
-                        onTimeoutRetry?.()
-                    } else if (isSuccess) {
-                        if (appId) router.push(`/apps/${appId}/playground`)
-                    }
-                    reset()
+                    if (appId) router.push(`/apps/${appId}/playground`)
                     return obj
                 case "bad_request":
                 case "error":
@@ -156,10 +161,13 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
         <Modal
             data-cy="create-app-status-modal"
             destroyOnClose
-            footer={null}
+            onOk={onOk}
+            okText={"Retry"}
+            footer={closable ? undefined : null}
             closable={closable}
             title="App Creation Status"
             {...props}
+            onCancel={closable ? props.onCancel : undefined}
         >
             {!closable && isDelayed && (
                 <Alert
