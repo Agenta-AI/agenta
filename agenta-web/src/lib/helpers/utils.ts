@@ -2,7 +2,15 @@ import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
-export const llmAvailableProviders = ["OpenIA", "Replicate", "Hugging Face", "Cohere", "Anthropic", "Azure", "TogetherAI"]
+export const llmAvailableProviders = [
+    "OpenIA",
+    "Replicate",
+    "Hugging Face",
+    "Cohere",
+    "Anthropic",
+    "Azure",
+    "TogetherAI",
+]
 
 export const renameVariables = (name: string) => {
     return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
@@ -63,7 +71,7 @@ export const getSingleLlmProviderKey = (providerName: string): string => {
 export const removeSingleLlmProviderKey = (providerName: string) => {
     if (typeof window !== "undefined") {
         const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken)) ?? {}
-        keys[providerName] = "" 
+        keys[providerName] = ""
         localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
     }
 }
