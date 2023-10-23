@@ -3,7 +3,7 @@ import {EvaluationType} from "../enums"
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 export const llmAvailableProviders = [
-    "OpenIA",
+    "OpenAI",
     "Replicate",
     "Hugging Face",
     "Cohere",
