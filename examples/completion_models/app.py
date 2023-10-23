@@ -1,13 +1,8 @@
-import agenta as ag
-from agenta.types import MultipleChoiceParam
-from langchain.chains import LLMChain
-from langchain.llms import OpenAI
-from langchain.prompts import PromptTemplate
-from langchain.chat_models import ChatOpenAI
 import os
-from langchain.schema import HumanMessage
 import openai
 import replicate
+import agenta as ag
+from langchain.prompts import PromptTemplate
 
 prompts = {
     "chat": {
@@ -36,6 +31,22 @@ CHAT_LLM_GPT = [
     "babbage",
     "ada",
 ]
+
+ag.init()
+ag.config.default(
+    temperature=ag.FloatParam(0.5),
+    model=ag.MultipleChoiceParam(
+        "gpt-3.5-turbo",
+        CHAT_LLM_GPT + ["replicate"],
+    ),
+    maximum_length=ag.IntParam(1000, 0, 4000),
+    stop_sequence=ag.TextParam(""),
+    top_p=ag.FloatParam(0.9),
+    frequence_penalty=ag.FloatParam(0.0),
+    presence_penalty=ag.FloatParam(0.0),
+    prompt_chunks=ag.TextParam(prompts["chat"]["input_prompt"]),
+    prompt_final=ag.TextParam(prompts["chat"]["output_prompt"]),
+)
 
 
 def call_llm(model, temperature, prompt, **kwargs):
@@ -71,47 +82,33 @@ def call_llm(model, temperature, prompt, **kwargs):
         return "".join(list(output))
 
 
-@ag.post
+@ag.entrypoint
 def generate(
     transcript: str,
-    # ----- ChatGPT 3.5 Params -----
-    temperature: ag.FloatParam = 0.9,
-    model: MultipleChoiceParam = MultipleChoiceParam(
-        "gpt-3.5-turbo",
-        CHAT_LLM_GPT + ["replicate"],
-    ),
-    # Min 1000, Max 4000
-    maximum_length: ag.IntParam = 3000,
-    stop_sequence: ag.TextParam = "\n",
-    top_p: ag.FloatParam = 0.9,
-    frequence_penalty: ag.FloatParam = 0.0,
-    presence_penalty: ag.FloatParam = 0.0,
-    prompt_chunks: ag.TextParam = prompts["chat"]["input_prompt"],
-    prompt_final: ag.TextParam = prompts["chat"]["output_prompt"],
 ) -> str:
     transcript_chunks = [
-        transcript[i : i + int(maximum_length)]
-        for i in range(0, len(transcript), int(maximum_length))
+        transcript[i : i + int(ag.config.maximum_length)]
+        for i in range(0, len(transcript), int(ag.config.maximum_length))
     ]
 
     outputs = []
     prompt = PromptTemplate(
         input_variables=["text"],
-        template=prompt_chunks,
+        template=ag.config.prompt_chunks,
     )
 
     for chunk in transcript_chunks:
         outputs.append(
             call_llm(
-                model=model,
-                temperature=temperature,
+                model=ag.config.model,
+                temperature=ag.config.temperature,
                 prompt=prompt,
                 text=chunk,
-                maximum_length=int(maximum_length),
-                stop_sequence=stop_sequence,
-                top_p=top_p,
-                frequence_penalty=frequence_penalty,
-                presence_penalty=presence_penalty,
+                maximum_length=int(ag.config.maximum_length),
+                stop_sequence=ag.config.stop_sequence,
+                top_p=ag.config.top_p,
+                frequence_penalty=ag.config.frequence_penalty,
+                presence_penalty=ag.config.presence_penalty,
             )
         )
 

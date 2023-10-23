@@ -84,6 +84,7 @@ class MultipleChoiceParam(str):
 
         instance = super().__new__(cls, default)
         instance.choices = choices
+        instance.default = default
         return instance
 
     @classmethod
