@@ -26,13 +26,8 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
         app_id = interception.response.body.app_id
         cy.wrap(interception.response.body.app_id).as("app_id")
     })
-    cy.get('[data-cy="create-app-status-modal"]').within(() => {
-        cy.get("span")
-            .contains(/go to app/i, {timeout: 15000})
-            .click()
-    })
-
-    cy.url().should("include", "/playground")
+    cy.get('[data-cy="create-app-status-modal"]').should("exist")
+    cy.url({timeout: 15000}).should("include", "/playground")
     cy.wait(1000)
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
