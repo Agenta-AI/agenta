@@ -116,7 +116,9 @@ def init(app_name: str):
 
         # Get app_id after creating new app in the backend server
         app_id = client.create_new_app(
-            app_name, backend_host, api_key if where_question == "On agenta cloud" else None
+            app_name,
+            backend_host,
+            api_key if where_question == "On agenta cloud" else None,
         )
 
         # Set app toml configuration
