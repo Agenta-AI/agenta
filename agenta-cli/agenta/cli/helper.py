@@ -10,6 +10,7 @@ from agenta.client.api_models import AppVariant
 
 def get_api_key():
     agenta_dir = Path.home() / ".agenta"
+    agenta_dir.mkdir(exist_ok=True)
     credentials_file = agenta_dir / "config.toml"
 
     if credentials_file.exists():
