@@ -1,5 +1,6 @@
-import logging
 import os
+import logging
+from pathlib import Path
 from bson import ObjectId
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -15,6 +16,7 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
+from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
     AppDB,
     AppVariantDB,
@@ -40,13 +42,47 @@ else:
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-
 from odmantic import query
 from odmantic.exceptions import DocumentParsingError
 
 
+# Define logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+# Define parent directory
+PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
+
+
+async def add_testset_to_app_variant(
+    app_id: str, org_id: str, template_name: str, app_name: str, **kwargs: dict
+):
+    """Add testset to app variant.
+    Args:
+        app_id (str): The id of the app
+        org_id (str): The id of the organization
+        template_name (str): The name of the app template image
+        app_name (str): The name of the app
+        **kwargs (dict): Additional keyword arguments
+    """
+
+    app_db = await get_app_instance_by_id(app_id)
+    org_db = await get_organization_object(org_id)
+    user_db = await get_user_object(kwargs["uid"])
+
+    if template_name == "single_prompt":
+        json_path = (
+            f"{PARENT_DIRECTORY}/resources/default_testsets/single_prompt_testsets.json"
+        )
+        csvdata = get_json(json_path)
+        testset = {
+            "name": f"{app_name}_testset",
+            "app_name": app_name,
+            "created_at": datetime.now().isoformat(),
+            "csvdata": csvdata,
+        }
+        testset = TestSetDB(**testset, app=app_db, user=user_db, organization=org_db)
+        await engine.save(testset)
 
 
 async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
@@ -449,7 +485,24 @@ async def list_app_variants_for_app_id(
     return app_variants_db
 
 
-async def list_app_variant_for_base(
+async def list_bases_for_app_id(
+    app_id: str, base_name: Optional[str] = None, **kwargs: dict
+) -> List[VariantBaseDB]:
+    assert app_id is not None, "app_id cannot be None"
+    query_expression = VariantBaseDB.app == ObjectId(app_id)
+    if base_name:
+        query_expression = query_expression & query.eq(
+            VariantBaseDB.base_name, base_name
+        )
+    bases_db: List[VariantBaseDB] = await engine.find(
+        VariantBaseDB,
+        query_expression,
+        sort=(VariantBaseDB.base_name),
+    )
+    return bases_db
+
+
+async def list_variants_for_base(
     base: VariantBaseDB, **kwargs: dict
 ) -> List[AppVariantDB]:
     """
@@ -556,7 +609,7 @@ async def add_variant_from_base_and_config(
         logger.error("Failed to find the previous app variant in the database.")
         raise HTTPException(status_code=500, detail="Previous app variant not found")
     logger.debug(f"Located previous variant: {previous_app_variant_db}")
-    app_variant_for_base = await list_app_variant_for_base(base_db)
+    app_variant_for_base = await list_variants_for_base(base_db)
 
     already_exists = any(
         [av for av in app_variant_for_base if av.config_name == new_config_name]
