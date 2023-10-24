@@ -16,16 +16,16 @@ def get_api_key():
         config = toml.load(credentials_file)
         api_key = config["api_key"]
         return api_key
-        
+
     else:
-        api_key = questionary.text("(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) Please provide your API key:").ask()
+        api_key = questionary.text(
+            "(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) Please provide your API key:"
+        ).ask()
         if api_key:
-            config = {
-                "api_key": api_key
-            }
+            config = {"api_key": api_key}
             with open(credentials_file, "w") as config_file:
                 toml.dump(config, config_file)
-            
+
             return api_key
         else:
             sys.exit(0)
