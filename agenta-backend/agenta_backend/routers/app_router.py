@@ -219,13 +219,15 @@ async def add_variant_from_image(
     Returns:
         dict: The newly added variant.
     """
-    if not payload.tags.startswith(settings.registry):
-        raise HTTPException(
-            status_code=500,
-            detail="Image should have a tag starting with the registry name (agenta-server)",
-        )
-    elif docker_utils.find_image_by_docker_id(payload.docker_id) is None:
-        raise HTTPException(status_code=404, detail="Image not found")
+
+    if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
+        if not payload.tags.startswith(settings.registry):
+            raise HTTPException(
+                status_code=500,
+                detail="Image should have a tag starting with the registry name (agenta-server)",
+            )
+        elif docker_utils.find_image_by_docker_id(payload.docker_id) is None:
+            raise HTTPException(status_code=404, detail="Image not found")
 
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
@@ -348,7 +350,7 @@ async def create_app_and_variant_from_template(
         logger.debug(
             "Step 6: Creating image instance and adding variant based on image"
         )
-        image_name = f"agentaai/templates:{template_db.name}"
+        image_name = f"agentaai/templates_v2:{template_db.name}"
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
@@ -369,6 +371,7 @@ async def create_app_and_variant_from_template(
                 )
             envvars = {
                 "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+                **(payload.env_vars or {}),
             }
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
