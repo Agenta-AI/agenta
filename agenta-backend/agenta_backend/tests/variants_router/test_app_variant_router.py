@@ -65,7 +65,7 @@ async def test_create_app_variant(get_first_user_object):
 
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        tags="agentaai/templates:local_test_prompt",
+        tags="agentaai/templates_v2:local_test_prompt",
         user=user,
         organization=organization,
     )

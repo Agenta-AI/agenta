@@ -57,7 +57,7 @@ class DBEngine(object):
         """
         Remove the database based on the mode.
         """
-
+        
         client = MongoClient(self.db_url)
         if self.mode == "default":
             client.drop_database("agenta")
