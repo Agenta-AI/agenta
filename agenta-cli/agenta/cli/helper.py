@@ -14,21 +14,31 @@ def get_api_key():
 
     if credentials_file.exists():
         config = toml.load(credentials_file)
-        api_key = config["api_key"]
-        return api_key
+        api_key = config.get("api_key", None)
 
-    else:
-        api_key = questionary.text(
-            "(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) Please provide your API key:"
-        ).ask()
         if api_key:
-            config = {"api_key": api_key}
-            with open(credentials_file, "w") as config_file:
-                toml.dump(config, config_file)
+            # API key exists in the config file, ask for confirmation
+            confirm_api_key = questionary.confirm(
+                f"API Key found: {api_key}\nDo you want to use this API Key?"
+            ).ask()
 
-            return api_key
-        else:
-            sys.exit(0)
+            if confirm_api_key:
+                return api_key
+            elif confirm_api_key is None:  # User pressed Ctrl+C
+                sys.exit(0)
+
+    api_key = questionary.text(
+        "(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) Please provide your API key:"
+    ).ask()
+
+    if api_key:
+        config = {"api_key": api_key}
+        with open(credentials_file, "w") as config_file:
+            toml.dump(config, config_file)
+
+        return api_key
+    elif api_key is None:  # User pressed Ctrl+C
+        sys.exit(0)
 
 
 def update_variants_from_backend(
