@@ -24,6 +24,7 @@ jobs:
         with:
           config-file: ${{ github.workspace }}/agenta-web/cypress.config.ts
           working-directory: agenta-web
+          env: baseApiURL=http://localhost/api,localBaseUrl=http://localhost,OPENAI_API_KEY=''
 
       - name: Stop server and database
         run: docker-compose -f "docker-compose.yml" down
