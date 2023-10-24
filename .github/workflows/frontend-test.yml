@@ -1,0 +1,26 @@
+name: Execute Frontend tests
+
+on: push
+
+jobs:
+  cypress:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Build and run backend container
+        run: |
+          docker compose -f "docker-compose.yml" up -d --build
+        working-directory: ${{ github.workspace }}
+
+      - name: Cypress run
+        uses: cypress-io/github-action@v6
+        with:
+          browser: chrome
+          build: npm run build
+          start: npm run start
+          wait-on: "http://localhost:3000"
+
+      - name: Stop server and database
+        run: docker-compose -f "docker-compose.yml" down
