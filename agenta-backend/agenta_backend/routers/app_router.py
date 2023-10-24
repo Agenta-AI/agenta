@@ -370,8 +370,8 @@ async def create_app_and_variant_from_template(
                     detail="Unable to start app container. Please file an issue by clicking on the button below.",
                 )
             envvars = {
-                "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
                 **(payload.env_vars or {}),
+                "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],  # order is important here
             }
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
