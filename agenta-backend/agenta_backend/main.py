@@ -12,9 +12,11 @@ from agenta_backend.routers import (
     testset_router,
     user_profile,
     variants_router,
+    bases_router,
+    configs_router,
 )
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.ee.services import templates_manager
 else:
     from agenta_backend.services import templates_manager
@@ -73,3 +75,5 @@ app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")
 app.include_router(observability_router.router, prefix="/observability")
 app.include_router(organization_router.router, prefix="/organizations")
+app.include_router(bases_router.router, prefix="/bases")
+app.include_router(configs_router.router, prefix="/configs")
