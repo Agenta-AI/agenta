@@ -362,7 +362,16 @@ async def create_app_and_variant_from_template(
             **user_org_data,
         )
 
-        logger.debug("Step 7: Starting variant and injecting environment variables")
+        logger.debug("Step 7: Creating testset for app variant")
+        await db_manager.add_testset_to_app_variant(
+            app_id=str(app.id),
+            org_id=organization_id,
+            template_name=template_db.name,
+            app_name=app.app_name,
+            **user_org_data,
+        )
+
+        logger.debug("Step 8: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] == "demo":
             if not os.environ["OPENAI_API_KEY"]:
                 raise HTTPException(
