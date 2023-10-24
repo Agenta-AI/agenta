@@ -19,27 +19,31 @@ function_json_string = """
 }
 """
 
+ag.init()
+ag.config.default(
+    temperature=ag.FloatParam(0.9),
+    prompt_template=ag.TextParam(default_prompt),
+    function_json=ag.TextParam(function_json_string),
+)
 
-@ag.post
+
+@ag.entrypoint
 def generate(
     text: str,
-    temperature: ag.FloatParam = 0.9,
-    prompt_template: ag.TextParam = default_prompt,
-    function_json: ag.TextParam = function_json_string,
 ) -> str:
     messages = [
         {
             "role": "user",
-            "content": prompt_template.format(text=text),
+            "content": ag.config.prompt_template.format(text=text),
         },
     ]
 
-    function = json.loads(function_json)
+    function = json.loads(ag.config.function_json)
 
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo-0613",
         messages=messages,
-        temperature=temperature,
+        temperature=ag.config.temperature,
         functions=[function],
     )
 

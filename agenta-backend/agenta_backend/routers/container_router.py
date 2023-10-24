@@ -1,6 +1,5 @@
 import os
 from typing import List, Optional, Union
-
 from agenta_backend.models.api.api_models import (
     URI,
     Image,
@@ -9,7 +8,7 @@ from agenta_backend.models.api.api_models import (
 )
 from agenta_backend.services import db_manager
 from agenta_backend.services.docker_utils import restart_container
-from fastapi import APIRouter, Request, UploadFile
+from fastapi import APIRouter, Request, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
@@ -151,7 +150,10 @@ async def construct_app_container_url(
             deployment = await db_manager.get_deployment_by_objectid(base_db.deployment)
             uri = deployment.uri
         else:
-            uri = None
+            raise HTTPException(
+                status_code=400,
+                detail=f"Base {base_id} does not have a deployment",
+            )
 
         return URI(uri=uri)
     elif variant_id:
@@ -161,6 +163,7 @@ async def construct_app_container_url(
         deployment = await db_manager.get_deployment_by_objectid(
             variant_db.base.deployment
         )
+        assert deployment and deployment.uri, "Deployment not found"
         return URI(uri=deployment.uri)
     else:
         return JSONResponse(
