@@ -16,12 +16,6 @@ jobs:
 
       - name: Cypress run
         uses: cypress-io/github-action@v6
-        working-directory: ${{ github.workspace }}/agenta-web/
-        with:
-          browser: chrome
-          build: npm run build
-          start: npm run start
-          wait-on: "http://localhost:3000"
 
       - name: Stop server and database
         run: docker-compose -f "docker-compose.yml" down
