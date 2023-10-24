@@ -359,7 +359,7 @@ async def create_app_and_variant_from_template(
             is_template_image=True,
             **user_org_data,
         )
-        
+
         logger.debug("Step 7: Creating testset for app variant")
         await db_manager.add_testset_to_app_variant(
             app_id=str(app.id),
