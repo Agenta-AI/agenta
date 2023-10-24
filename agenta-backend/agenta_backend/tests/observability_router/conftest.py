@@ -73,7 +73,7 @@ def spans_db_data():
 def image_create_data():
     return {
         "docker_id": "sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "tags": "agentaai/templates:local_test_prompt",
+        "tags": "agentaai/templates_v2:local_test_prompt",
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
     }
