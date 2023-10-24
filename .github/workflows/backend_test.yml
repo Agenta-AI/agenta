@@ -9,10 +9,10 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Start Docker Compose
-        run: docker-compose up -d
+        run: docker-compose up -d --build
 
       - name: Run tests
-        run: docker exec agenta-backend-1 pytest
+        run: docker exec agenta_backend_1 pytest
 
       - name: Stop Docker Compose
         run: docker-compose down
