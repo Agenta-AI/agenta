@@ -49,6 +49,15 @@ class DBEngine(object):
             aio_engine = AIOEngine(client=self.initialize_client, database="agenta_v2")
             logger.info("Using v2 database...")
             return aio_engine
+        else:
+            # make sure that self.mode does only contain alphanumeric characters
+            if not self.mode.isalnum():
+                raise ValueError("Mode of database needs to be alphanumeric.")
+            aio_engine = AIOEngine(
+                client=self.initialize_client, database=f"agenta_{self.mode}"
+            )
+            logger.info(f"Using {self.mode} database...")
+            return aio_engine
         raise ValueError(
             "Mode of database is unknown. Did you mean 'default' or 'test'?"
         )
