@@ -11,7 +11,6 @@ class EvaluationTypeSettings(BaseModel):
     webhook_url: Optional[str]
     custom_code_evaluation_id: Optional[str]
     llm_app_prompt_template: Optional[str]
-    evaluation_prompt_template: Optional[str]
 
 
 class EvaluationType(str, Enum):
