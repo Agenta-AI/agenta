@@ -9,10 +9,10 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Build and run backend container
-        run: |
-          docker compose -f "docker-compose.yml" up -d --build
-        working-directory: ${{ github.workspace }}
+      # - name: Build and run backend container
+      #   run: |
+      #     docker compose -f "docker-compose.yml" up -d --build
+      #   working-directory: ${{ github.workspace }}
 
       - name: Install dependencies
         run: |
