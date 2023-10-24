@@ -52,7 +52,7 @@ interface CustomCodeEvaluationTableRow {
         input_value: string
     }[]
     outputs: {
-        variant_name: string
+        variant_id: string
         variant_output: string
     }[]
     columnData0: string
@@ -154,13 +154,11 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const appName = Array.isArray(router.query.app_name)
-        ? router.query.app_name[0]
-        : router.query.app_name || ""
+    const appId = router.query.app_id as string
 
     const variants = evaluation.variants
 
-    const variantData = useVariants(appName, variants)
+    const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<CustomCodeEvaluationTableRow[]>([])
 
@@ -246,8 +244,10 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                 inputParamsDict,
                 variantData[idx].inputParams!,
                 variantData[idx].optParams!,
-                variantData[idx].URIPath!,
+                appId || "",
+                variants[idx].baseId || "",
             )
+
             setRowValue(rowIndex, columnName as any, result)
             await evaluate(rowIndex)
             setShouldFetchResults(true)
@@ -285,12 +285,11 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
 
     const evaluate = async (rowNumber: number) => {
         const evaluation_scenario_id = rows[rowNumber].id
-        const appVariantNameX = variants[0].variantName
         const outputVariantX = rows[rowNumber].columnData0
 
         if (evaluation_scenario_id) {
             const data = {
-                outputs: [{variant_name: appVariantNameX, variant_output: outputVariantX}],
+                outputs: [{variant_id: variants[0].variantId, variant_output: outputVariantX}],
                 inputs: rows[rowNumber].inputs,
                 correct_answer: correctAnswer(rows[rowNumber].inputs),
                 open_ai_key: getOpenAIKey(),
@@ -305,20 +304,17 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                     evaluation.evaluationType as EvaluationType,
                 )
 
-                if (responseData) {
-                    // Call custom code evaluation
-                    const result = await callCustomCodeHandler(
-                        data.inputs,
-                        appName,
-                        appVariantNameX,
-                        responseData.outputs,
-                    )
-                    if (result) {
-                        // Update the evaluation scenario with the score
-                        await updateEvaluationScenarioScore(evaluation_scenario_id, result)
-                    }
-                    setRowValue(rowNumber, "codeResult", result)
+                // Call custom code evaluation
+                const result = await callCustomCodeHandler(
+                    variants[0].variantId,
+                    data.inputs,
+                    data.outputs,
+                )
+                if (result) {
+                    // Update the evaluation scenario with the score
+                    await updateEvaluationScenarioScore(evaluation_scenario_id, result)
                 }
+                setRowValue(rowNumber, "codeResult", result)
 
                 setRowValue(rowNumber, "evaluationFlow", EvaluationFlow.EVALUATION_FINISHED)
                 setRowValue(rowNumber, "evaluation", responseData.evaluation)
@@ -329,20 +325,18 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
     }
 
     const callCustomCodeHandler = async (
-        variantInput: Array<IVariantInputs>,
-        appName: string,
-        variantName: string,
+        variantId: string,
+        inputs: Array<IVariantInputs>,
         outputs: Array<Object>,
     ) => {
-        const expectedTarget = correctAnswer(variantInput)
-        console.log("customEvaluationId: ", customEvaluationId)
+        const expectedTarget = correctAnswer(inputs)
         const data = {
             evaluation_id: customEvaluationId,
-            inputs: variantInput,
-            outputs: outputs,
-            app_name: appName,
+            inputs,
+            outputs,
             correct_answer: expectedTarget,
-            variant_name: variantName,
+            variant_id: variantId,
+            app_id: appId,
         }
         const response = await executeCustomEvaluationCode(data)
         if (response.status === 200) {
@@ -387,7 +381,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                     }
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
-                            (output: any) => output.variant_name === variants[i].variantName,
+                            (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }

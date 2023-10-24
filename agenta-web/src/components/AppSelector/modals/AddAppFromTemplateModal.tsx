@@ -45,6 +45,7 @@ const AddAppFromTemplatedModal: React.FC<Props> = ({
 
     return (
         <Modal
+            data-cy="choose-template-modal"
             rootClassName={classes.modal}
             centered
             footer={null}

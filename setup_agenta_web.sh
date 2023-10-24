@@ -23,4 +23,9 @@ update_env_var() {
 update_env_var "NEXT_PUBLIC_AGENTA_API_URL" "${DOMAIN_NAME:=http://localhost}" "./agenta-web/.env"
 update_env_var "NEXT_PUBLIC_FF" oss "./agenta-web/.env"
 
+# Copy the .env.local.example to .env.local if it doesn't exist
+if ! [ -e ./agenta-web/.env.local ] ; then
+    cp ./agenta-web/.env.local.example ./agenta-web/.env.local
+fi
+
 # docker-compose -f docker-compose.prod.yml up

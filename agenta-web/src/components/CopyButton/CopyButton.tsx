@@ -1,23 +1,41 @@
 import {copyToClipboard} from "@/lib/helpers/copyToClipboard"
+import {CheckOutlined, CopyOutlined} from "@ant-design/icons"
 import {Button, notification} from "antd"
+import React, {ComponentProps, useState} from "react"
 
-const CopyButton = (props: any) => {
-    const {text, target} = props
+type Props = {
+    text: string
+    buttonText?: string | null
+    icon?: boolean
+}
+
+const CopyButton: React.FC<Props & ComponentProps<typeof Button>> = ({
+    text,
+    buttonText = "Copy",
+    icon = false,
+    ...props
+}) => {
+    const [buttonIcon, setButtonIcon] = useState(<CopyOutlined />)
 
     return (
         <Button
+            icon={icon && buttonIcon}
             {...props}
-            onClick={async (e: React.MouseEvent) => {
-                if (target === "") return
-                const copied = await copyToClipboard(e, target)
-                if (copied)
+            onClick={async () => {
+                if (text === "") return
+                const copied = await copyToClipboard(text)
+                if (copied) {
                     notification.success({
-                        message: "Copied",
-                        duration: 5,
+                        message: "Copied to clipboard!",
                     })
+                    setButtonIcon(<CheckOutlined />)
+                    setTimeout(() => {
+                        setButtonIcon(<CopyOutlined />)
+                    }, 3000)
+                }
             }}
         >
-            {text}
+            {buttonText}
         </Button>
     )
 }

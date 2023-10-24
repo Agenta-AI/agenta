@@ -1,16 +1,18 @@
-import httpx
 import shutil
-import docker
 import logging
-import backoff
 from pathlib import Path
-from aiodocker import Docker
-from httpx import ConnectError
-from typing import List, Union
+from typing import List, Union, Dict, Any
+from asyncio.exceptions import CancelledError
+
 from fastapi import HTTPException
 
-from asyncio.exceptions import CancelledError
 from agenta_backend.models.api.api_models import Image
+
+import httpx
+import docker
+import backoff
+from aiodocker import Docker, exceptions
+from httpx import ConnectError, TimeoutException
 
 
 client = docker.from_env()
@@ -22,8 +24,8 @@ logger.setLevel(logging.INFO)
 
 def build_image_job(
     app_name: str,
-    variant_name: str,
-    user_id: str,
+    base_name: str,
+    organization_id: str,
     tar_path: Path,
     image_name: str,
     temp_dir: Path,
@@ -34,10 +36,10 @@ def build_image_job(
 
     Arguments:
         app_name --  The `app_name` parameter is a string that represents the name of the application
-        variant_name --  The `variant_name` parameter is a string that represents the variant of the \
+        base_name --  The `base_name` parameter is a string that represents the variant of the \
             application. It could be a specific version, configuration, or any other distinguishing \
                 factor for the application
-        user_id -- The unique id of the user
+        organization_id -- The id of the organization the app belongs to
         tar_path --  The `tar_path` parameter is the path to the tar file that contains the source code \
             or files needed to build the Docker image
         image_name --  The `image_name` parameter is a string that represents the name of the Docker \
@@ -60,12 +62,18 @@ def build_image_job(
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
-            buildargs={"ROOT_PATH": f"/{user_id}/{app_name}/{variant_name}"},
+            buildargs={
+                "ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"
+            },
             rm=True,
         )
         for line in build_log:
             logger.info(line)
-        return Image(docker_id=image.id, tags=image.tags[0])
+        return Image(
+            docker_id=image.id,
+            tags=image.tags[0],
+            organization_id=organization_id,
+        )
     except docker.errors.BuildError as ex:
         log = "Error building Docker image:\n"
         log += str(ex) + "\n"
@@ -75,7 +83,9 @@ def build_image_job(
         raise HTTPException(status_code=500, detail=str(ex))
 
 
-@backoff.on_exception(backoff.expo, (ConnectError, CancelledError), max_tries=5)
+@backoff.on_exception(
+    backoff.expo, (ConnectError, CancelledError), max_tries=5
+)
 async def retrieve_templates_from_dockerhub(
     url: str, repo_owner: str, repo_name: str
 ) -> Union[List[dict], dict]:
@@ -105,22 +115,23 @@ async def retrieve_templates_from_dockerhub(
         return response_data
 
 
-async def get_templates_info(url: str, repo_owner: str, repo_name: str) -> dict:
+@backoff.on_exception(
+    backoff.expo, (ConnectError, TimeoutException, CancelledError), max_tries=5
+)
+async def get_templates_info_from_s3(url: str) -> Dict[str, Dict[str, Any]]:
     """
-    Business logic to retrieve templates from DockerHub.
+    Business logic to retrieve templates information from S3.
 
     Args:
-        url (str): The URL endpoint for retrieving templates. Should contain placeholders `{}`
-            for the `repo_owner` and `repo_name` values to be inserted. For example:
-            `https://hub.docker.com/v2/repositories/{}/{}/tags`.
-        repo_owner (str): The owner or organization of the repository from which templates are to be retrieved.
-        repo_name (str): The name of the repository where the templates are located.
+        url (str): The URL endpoint for retrieving templates info.
 
     Returns:
-        tuple: A tuple containing two values.
+        response_data (Dict[str, Dict[str, Any]]): A dictionary \
+            containing dictionaries of templates information.
     """
+
     async with httpx.AsyncClient() as client:
-        response = await client.get(f"{url.format(repo_owner, repo_name)}/", timeout=10)
+        response = await client.get(url, timeout=10)
         if response.status_code == 200:
             response_data = response.json()
             return response_data
@@ -150,17 +161,23 @@ async def check_docker_arch() -> str:
         return arch_mapping.get(info["Architecture"], "unknown")
 
 
-async def pull_image_from_docker_hub(repo_name: str, tag: str) -> dict:
-    """Bussiness logic to asynchronously pull an image from Docker Hub.
+@backoff.on_exception(
+    backoff.expo,
+    (ConnectError, TimeoutException, CancelledError, exceptions.DockerError),
+    max_tries=5,
+)
+async def pull_docker_image(repo_name: str, tag: str) -> dict:
+    """Business logic to asynchronously pull an image from  either Docker Hub or ECR.
 
     Args:
-        repo_name (str): The name of the repository on Docker Hub from which the image is to be pulled.
+        repo_name (str): The name of the repository from which the image is to be pulled.
             Typically follows the format `username/repository_name`.
-        tag (str): Specifies a specific version or tag of the image to pull from the Docker Hub repository.
+        tag (str): Specifies a specific version or tag of the image to pull from the repository.
 
     Returns:
-        Image: An image object from Docker Hub.
+        Image: An image object.
     """
+
     async with Docker() as docker:
         image = await docker.images.pull(repo_name, tag=tag)
         return image
