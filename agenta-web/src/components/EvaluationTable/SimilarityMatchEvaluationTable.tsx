@@ -41,7 +41,7 @@ interface SimilarityMatchEvaluationTableRow {
         input_value: string
     }[]
     outputs: {
-        variant_name: string
+        variant_id: string
         variant_output: string
     }[]
     columnData0: string
@@ -115,13 +115,11 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const appName = Array.isArray(router.query.app_name)
-        ? router.query.app_name[0]
-        : router.query.app_name || ""
+    const appId = router.query.app_id as string
 
     const variants = evaluation.variants
 
-    const variantData = useVariants(appName, variants)
+    const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<SimilarityMatchEvaluationTableRow[]>([])
     const [dissimilarAnswers, setDissimilarAnswers] = useState<number>(0)
@@ -214,11 +212,12 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         const columnsDataNames = ["columnData0"]
         columnsDataNames.forEach(async (columnName: any, idx: number) => {
             try {
-                const result = await callVariant(
+                let result = await callVariant(
                     inputParamsDict,
                     variantData[idx].inputParams!,
                     variantData[idx].optParams!,
-                    variantData[idx].URIPath!,
+                    appId || "",
+                    variants[idx].baseId || "",
                 )
 
                 const {similarityThreshold} = form.getFieldsValue()
@@ -232,9 +231,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         evaluationScenarioId,
                         {
                             score: isSimilar,
-                            outputs: [
-                                {variant_name: variants[0].variantName, variant_output: result},
-                            ],
+                            outputs: [{variant_id: variants[0].variantId, variant_output: result}],
                         },
                         evaluation.evaluationType,
                     )
@@ -288,7 +285,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
-                            (output: any) => output.variant_name === variants[i].variantName,
+                            (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }

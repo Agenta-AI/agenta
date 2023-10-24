@@ -1,41 +1,42 @@
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
+import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
+
+export enum ThemeMode {
+    Light = "light",
+    Dark = "dark",
+    System = "system",
+}
+type ThemeType = `${ThemeMode}`
 
 export const ThemeContext = createContext<{
-    appTheme: string
-    toggleAppTheme: (themeName: string) => void
+    appTheme: ThemeType
+    themeMode: ThemeMode
+    toggleAppTheme: (themeName: ThemeType) => void
 }>({
-    appTheme: "light",
+    appTheme: ThemeMode.Light,
+    themeMode: ThemeMode.Light,
     toggleAppTheme: () => {},
 })
 
 export const useAppTheme = () => useContext(ThemeContext)
 
+const getDeviceTheme = () => {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? ThemeMode.Dark
+        : ThemeMode.Light
+}
+
+const getAppTheme = (themeMode: ThemeMode) =>
+    themeMode === ThemeMode.System ? getDeviceTheme() : themeMode
+
 const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
-    const [appTheme, setAppTheme] = useState<string | null>(null)
-    const [sysTheme, setSysTheme] = useState(false)
-
-    const getDeviceTheme = (): string => {
-        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
-    }
-
-    useEffect(() => {
-        const savedTheme = localStorage.getItem("agenta-theme")
-        if (savedTheme) {
-            setAppTheme(savedTheme)
-        } else {
-            setAppTheme(getDeviceTheme())
-            setSysTheme(true)
-        }
-    }, [])
-
-    useEffect(() => {
-        if (appTheme) localStorage.setItem("agenta-theme", appTheme)
-    }, [appTheme])
+    const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>("agenta-theme", ThemeMode.Light)
+    const [appTheme, setAppTheme] = useState<ThemeType>(getAppTheme(themeMode))
 
     useEffect(() => {
         const handleSystemThemeChange = ({matches}: MediaQueryListEvent) => {
-            if (sysTheme) {
-                setAppTheme(matches ? "dark" : "light")
+            if (themeMode === ThemeMode.System) {
+                setAppTheme(matches ? ThemeMode.Dark : ThemeMode.Light)
             }
         }
 
@@ -45,23 +46,18 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         return () => {
             mediaQuery.removeEventListener("change", handleSystemThemeChange)
         }
-    }, [sysTheme])
+    }, [themeMode])
 
-    const toggleAppTheme = (themeName: string) => {
-        if (themeName === "system") {
-            setAppTheme(getDeviceTheme())
-            setSysTheme(true)
-        } else {
-            setAppTheme(themeName)
-            setSysTheme(false)
-        }
-    }
+    useUpdateEffect(() => {
+        setAppTheme(getAppTheme(themeMode))
+    }, [themeMode])
 
     return (
         <ThemeContext.Provider
             value={{
-                appTheme: appTheme || "light",
-                toggleAppTheme,
+                appTheme,
+                toggleAppTheme: (themeType) => setThemeMode(themeType as ThemeMode),
+                themeMode,
             }}
         >
             {children}
