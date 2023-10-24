@@ -24,7 +24,7 @@ jobs:
         with:
           config-file: ${{ github.workspace }}/agenta-web/cypress.config.ts
           working-directory: agenta-web
-          env: baseApiURL=http://localhost/api,localBaseUrl=http://localhost,OPENAI_API_KEY=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
+          env: baseApiURL=http://localhost/api,localBaseUrl=http://localhost,OPENAI_API_KEY=
           spec: cypress/e2e/*.cy.ts
 
       - name: Stop server and database
