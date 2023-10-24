@@ -1,7 +1,7 @@
-from agenta import post, TextParam, FloatParam
-from dotenv import load_dotenv
-from langchain.chains import LLMChain
+import agenta as ag
 from langchain.llms import OpenAI
+from langchain.chains import LLMChain
+from agenta import TextParam, FloatParam
 from langchain.prompts import PromptTemplate
 
 default_prompt = """Hey chat, we are gonna play a game. You are gonna act as NoteGPT, an AI that hepls people with taking notes. This AI is made to write the best notes possible, it knows how to fit every piece of information in a simple note. People need to send the AI a text to make a note of the text. This is the most important rule of the game: do never explain yourself, just give me exactly the requested output. If i ask you to display something between double ‘*’, you will display it exactly as i ask you to.
@@ -33,18 +33,21 @@ Here is the text:
 {text}
   
 """
+ag.init()
+ag.config.default(
+    temperature=FloatParam(0.9),
+    prompt_template=TextParam(default_prompt),
+)
 
 
-@post
+@ag.entrypoint
 def generate(
     text: str,
-    temperature: FloatParam = 0.9,
-    prompt_template: TextParam = default_prompt,
 ) -> str:
-    llm = OpenAI(temperature=temperature)
+    llm = OpenAI(temperature=ag.config.temperature)
     prompt = PromptTemplate(
         input_variables=["text"],
-        template=prompt_template,
+        template=ag.config.prompt_template,
     )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(text=text)

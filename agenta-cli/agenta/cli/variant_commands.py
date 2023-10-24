@@ -24,16 +24,21 @@ def variant():
     pass
 
 
-def add_variant(app_folder: str, file_name: str, host: str) -> str:
+def add_variant(
+    app_folder: str, file_name: str, host: str, config_name="default"
+) -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
+    The app variant name to be added is
+    {file_name.removesuffix(".py")}.{config_name}
     Args:
         variant_name: the name of the variant
         app_folder: the folder of the app
-        file_name: the name of the file to run
+        file_name: the name of the file to run.
         host: the host to use for the variant
+        config_name: the name of the config to use for now it is always default
     Returns:
-        the name of the variant(useful for serve)
+        the name of the code base and variant(useful for serve)
     """
 
     app_path = Path(app_folder)
@@ -78,13 +83,14 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     if not re.match("^[a-zA-Z0-9_]+$", base_name):
         click.echo(
             click.style(
-                "Invalid input. Please use only alphanumeric characters without spaces.",
+                "Invalid input. Please use only alphanumeric characters without spaces in the filename.",
                 fg="red",
             )
         )
         sys.exit(0)
 
     # update the config file with the variant names from the backend
+    variant_name = f"{base_name}.{config_name}"
     overwrite = False
 
     if variant_name in config["variants"]:
@@ -98,16 +104,15 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     try:
         click.echo(
             click.style(
-                f"Preparing variant {base_name} into a tar file...",
-                fg="yellow",
+                f"Preparing code base {base_name} into a tar file...", fg="bright_black"
             )
         )
         tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
 
         click.echo(
             click.style(
-                f"Building variant {base_name} into a docker image...",
-                fg="yellow",
+                f"Building code base {base_name} for {variant_name} into a docker image...",
+                fg="bright_black",
             )
         )
         image: Image = client.send_docker_tar(
@@ -123,11 +128,13 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
             click.echo(
                 click.style(
                     f"Updating {base_name} to server...",
-                    fg="yellow",
+                    fg="bright_black",
                 )
             )
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
-            client.update_variant_image(variant_id, image, host, api_key)
+            client.update_variant_image(
+                variant_id, image, host, api_key
+            )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
             response = client.add_variant_to_server(
@@ -145,7 +152,8 @@ def add_variant(app_folder: str, file_name: str, host: str) -> str:
     if overwrite:
         click.echo(
             click.style(
-                f"Variant {variant_name} for App {app_name} updated successfully to Agenta!",
+                f"Variant {variant_name} for App {app_name} updated successfully 🎉",
+                bold=True,
                 fg="green",
             )
         )
@@ -312,7 +320,7 @@ def config_check(app_folder: str):
         app_folder -- the app folder
     """
 
-    click.echo(click.style("\nChecking and updating config file...", fg="yellow"))
+    click.echo(click.style("\nChecking and updating config file...", fg="bright_black"))
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     if not config_file.exists():
@@ -356,17 +364,29 @@ def remove_variant_cli(variant_name: str, app_folder: str):
         click.echo(click.style(f"Error while removing variant: {ex}", fg="red"))
 
 
-@variant.command(name="serve")
+@variant.command(
+    name="serve",
+    context_settings=dict(
+        ignore_unknown_options=True,
+        allow_extra_args=True,
+    ),
+)
 @click.option("--app_folder", default=".")
-@click.option("--file_name", help="The name of the file to run")
-def serve_cli(app_folder: str, file_name: str):
-    """Adds a variant to the web ui and serves the api locally."""
+@click.option("--file_name", default=None, help="The name of the file to run")
+@click.pass_context
+def serve_cli(ctx, app_folder: str, file_name: str):
+    """Adds a variant to the web ui and serves the API locally."""
 
     if not file_name:
-        error_msg = "To serve variant, kindly provide the filename and run:\n"
-        error_msg += ">>> agenta variant serve --file_name <filename>.py"
-        click.echo(click.style(f"{error_msg}", fg="red"))
-        sys.exit(0)
+        if ctx.args:
+            file_name = ctx.args[0]
+        else:
+            error_msg = "To serve variant, kindly provide the filename and run:\n"
+            error_msg += ">>> agenta variant serve --file_name <filename>.py\n"
+            error_msg += "or\n"
+            error_msg += ">>> agenta variant serve <filename>.py"
+            click.echo(click.style(f"{error_msg}", fg="red"))
+            sys.exit(0)
 
     try:
         config_check(app_folder)
