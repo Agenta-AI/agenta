@@ -34,20 +34,23 @@ Rework the initial draft, incorporating the improvements identified in the previ
 
 """
 
+ag.init()
+ag.config.default(
+    temperature=ag.FloatParam(0.9), prompt_template=ag.TextParam(default_prompt)
+)
 
-@ag.post
+
+@ag.entrypoint
 def generate(
     from_sender: str,
     to_receiver: str,
     email_style: str,
     email_content: str,
-    temperature: ag.FloatParam = 0.9,
-    prompt_template: ag.TextParam = default_prompt,
 ) -> str:
-    llm = OpenAI(temperature=temperature)
+    llm = OpenAI(temperature=ag.config.temperature)
     prompt = PromptTemplate(
         input_variables=["from_sender", "to_receiver", "email_style", "email_content"],
-        template=prompt_template,
+        template=ag.config.prompt_template,
     )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(
