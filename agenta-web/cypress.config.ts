@@ -7,7 +7,7 @@ export default defineConfig({
     },
     env: {
         baseApiURL: Cypress.env("http://localhost/api"),
-        OPENAI_API_KEY:  Cypress.env("your_api_key_here"),
+        OPENAI_API_KEY: Cypress.env("your_api_key_here"),
         localBaseUrl: Cypress.env("http://localhost"),
     },
 })
