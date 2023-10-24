@@ -4,16 +4,14 @@ services:
     backend:
         build: ./agenta-backend
         environment:
-            - MONGODB_URI=mongodb://username:password@mongo:27017/test
+            - MONGODB_URI=mongodb://username:password@mongo:27017/
             - ENVIRONMENT=development
-            - BARE_DOMAIN_NAME=localhost
-            - DOMAIN_NAME=http://localhost
+            - DATBASE_MODE=test
             - FEATURE_FLAG=oss
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
-        
         command:
             [
                 "uvicorn",
@@ -24,13 +22,15 @@ services:
                 "8001",
                 "--reload",
                 "--log-level",
-                "info",
-                "--root-path",
-                "/api"
+                "info"
             ]
+        ports:
+            - "8000:8001"
         depends_on:
             mongo:
                 condition: service_healthy
+        networks:
+            - agenta-test-network
 
     mongo:
         image: mongo:5.0
@@ -44,17 +44,19 @@ services:
             interval: 10s
             timeout: 10s
             retries: 20
+        networks:
+            - agenta-test-network
 
     redis:
         image: redis:latest
         networks:
-            - agenta-network
+            - agenta-test-network
         volumes:
             - redis_data:/data
 
 networks:
-    agenta-network:
-        name: agenta-network
+    agenta-test-network:
+        name: agenta-test-network
 
 volumes:
     mongodb_data:
