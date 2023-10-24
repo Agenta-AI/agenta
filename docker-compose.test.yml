@@ -3,10 +3,11 @@ version: '3.8'
 services:
     backend:
         build: ./agenta-backend
+        container_name: agenta-backend-test
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017/
             - ENVIRONMENT=development
-            - DATBASE_MODE=test
+            - DATABASE_MODE=test
             - FEATURE_FLAG=oss
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
