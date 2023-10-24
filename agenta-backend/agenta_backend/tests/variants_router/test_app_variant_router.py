@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Set global variables
-BACKEND_API_HOST = "http://agenta-backend-1:8000"
+BACKEND_API_HOST = "http://localhost:8000"
 
 
 @pytest.mark.asyncio
