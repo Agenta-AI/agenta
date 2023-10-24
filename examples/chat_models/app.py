@@ -1,20 +1,16 @@
 import agenta as ag
-from agenta.types import MultipleChoiceParam
-from langchain.chains import LLMChain
-from langchain.llms import OpenAI
-from langchain.prompts import PromptTemplate
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
 import openai
 import replicate
+from langchain.chains import LLMChain
+from langchain.chat_models import ChatOpenAI
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
+from langchain.schema import HumanMessage, SystemMessage
+
+ag.init()
 
 prompts = {
-    "human_prompt": """What is the capital of {text}. Answer in one word that contains only aphabetical letters and without a dot at the end.
-Remove dots, spaces, return to line, tab space characters and all invisible non printable before the word.
-Remove dots, spaces, return to line, tab space characters and all invisible non printable after the word.
-Remove all Carriage Return (ASCII 13, \r ) Line Feed (ASCII 10, \n ) characters.
-ANSWER IN ONE SINGLE WORD WITHOUT ANY POSSIBLE INVISIBLE CHARACTER!!!.
-REMOVE ALL NEWLINE CHARACTER, LINE BREAK, ENDOF LINE (EOL) OR "\n",""",
+    "human_prompt": """What is the capital of {text}""",
     "system_prompt": "You are an expert in geography.",
 }
 
@@ -35,18 +31,32 @@ CHAT_LLM_GPT = [
     "gpt-4",
 ]
 
+ag.config.default(
+    temperature=ag.FloatParam(0.9),
+    model=ag.MultipleChoiceParam(
+        "gpt-3.5-turbo", CHAT_LLM_GPT + list(replicate_dict.keys())
+    ),
+    maximum_length=ag.IntParam(100, 0, 4000),
+    prompt_system=ag.TextParam(prompts["system_prompt"]),
+    prompt_human=ag.TextParam(prompts["human_prompt"]),
+    stop_sequence=ag.TextParam(""),
+    top_p=ag.FloatParam(0.9),
+    frequence_penalty=ag.FloatParam(0.0),
+    presence_penalty=ag.FloatParam(0.0),
+)
 
-def call_llm(model, temperature, prompt_system, prompt_human, **kwargs):
-    if model in CHAT_LLM_GPT:
+
+def call_llm(prompt_system, prompt_human):
+    if ag.config.model in CHAT_LLM_GPT:
         chat = ChatOpenAI(
-            model=model,
-            temperature=temperature,
-            max_tokens=kwargs["maximum_length"],
+            model=ag.config.model,
+            temperature=ag.config.temperature,
+            max_tokens=ag.config.maximum_length,
             model_kwargs={
-                "stop": kwargs["stop_sequence"],
-                "top_p": kwargs["top_p"],
-                "frequency_penalty": kwargs["frequence_penalty"],
-                "presence_penalty": kwargs["presence_penalty"],
+                "stop": ag.config.stop_sequence,
+                "top_p": ag.config.top_p,
+                "frequency_penalty": ag.config.frequence_penalty,
+                "presence_penalty": ag.config.presence_penalty,
             },
         )
         messages = [
@@ -58,60 +68,41 @@ def call_llm(model, temperature, prompt_system, prompt_human, **kwargs):
         ).content
 
     # replicate
-    if model.startswith("replicate"):
+    if ag.config.model.startswith("replicate"):
         output = replicate.run(
-            replicate_dict[model],
+            replicate_dict[ag.config.model],
             input={
                 "prompt": prompt_human,
-                "system_prompt": prompt_system,
-                "max_new_tokens": kwargs["maximum_length"],
-                "temperature": temperature,
-                "top_p": kwargs["top_p"],
-                "repetition_penalty": kwargs["frequence_penalty"],
+                "system_prompt": ag.config.prompt_system,
+                "max_new_tokens": ag.config.maximum_length,
+                "temperature": ag.config.temperature,
+                "top_p": ag.config.top_p,
+                "repetition_penalty": ag.config.frequence_penalty,
             },
         )
 
     return "".join(list(output))
 
 
-@ag.post
+@ag.entrypoint
 def generate(
     inputs: ag.DictInput = ag.DictInput(default_keys=["text"]),
-    temperature: ag.FloatParam = 0.9,
-    model: MultipleChoiceParam = ag.MultipleChoiceParam(
-        "gpt-3.5-turbo",
-        CHAT_LLM_GPT + list(replicate_dict.keys()),
-    ),
-    maximum_length: ag.IntParam = ag.IntParam(100, 0, 4000),
-    prompt_system: ag.TextParam = prompts["system_prompt"],
-    prompt_human: ag.TextParam = prompts["human_prompt"],
-    stop_sequence: ag.TextParam = "\n",
-    top_p: ag.FloatParam = 0.9,
-    frequence_penalty: ag.FloatParam = 0.0,
-    presence_penalty: ag.FloatParam = 0.0,
 ) -> str:
     try:
         prompt_human = PromptTemplate(
-            input_variables=list(inputs.keys()), template=prompt_human
+            input_variables=list(inputs.keys()), template=ag.config.prompt_human
         ).format(**inputs)
-    except Exception as e:
-        prompt_human = prompt_human
+    except Exception:
+        prompt_human = ag.config.prompt_human
     try:
         prompt_system = PromptTemplate(
-            input_variables=list(inputs.keys()), template=prompt_system
+            input_variables=list(inputs.keys()), template=ag.config.prompt_system
         ).format(**inputs)
-    except Exception as e:
-        prompt_system = prompt_system
+    except Exception:
+        prompt_system = ag.config.prompt_system
 
     outputs = call_llm(
-        model=model,
-        temperature=temperature,
         prompt_system=prompt_system,
         prompt_human=prompt_human,
-        maximum_length=int(maximum_length),
-        stop_sequence=stop_sequence,
-        top_p=top_p,
-        frequence_penalty=frequence_penalty,
-        presence_penalty=presence_penalty,
     )
     return str(outputs)
