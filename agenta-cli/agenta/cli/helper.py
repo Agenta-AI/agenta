@@ -10,21 +10,22 @@ from agenta.client.api_models import AppVariant
 
 def get_api_key():
     agenta_dir = Path.home() / ".agenta"
-    credentials_file = agenta_dir / "credentials"
+    credentials_file = agenta_dir / "config.toml"
 
-    if credentials_file.is_file():
-        with credentials_file.open("r") as f:
-            for line in f:
-                key, value = line.strip().split("=")
-                if key == "api_key":
-                    return value
+    if credentials_file.exists():
+        config = toml.load(credentials_file)
+        api_key = config["api_key"]
+        return api_key
+        
     else:
         api_key = questionary.text("(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) Please provide your API key:").ask()
         if api_key:
-            if not agenta_dir.is_dir():
-                agenta_dir.mkdir(parents=True, exist_ok=True)
-            with credentials_file.open("w") as f:
-                f.write(f"api_key={api_key}")
+            config = {
+                "api_key": api_key
+            }
+            with open(credentials_file, "w") as config_file:
+                toml.dump(config, config_file)
+            
             return api_key
         else:
             sys.exit(0)
