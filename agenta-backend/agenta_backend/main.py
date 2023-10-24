@@ -16,7 +16,7 @@ from agenta_backend.routers import (
     configs_router,
 )
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.ee.services import templates_manager
 else:
     from agenta_backend.services import templates_manager
