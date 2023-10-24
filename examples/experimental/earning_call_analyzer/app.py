@@ -1,3 +1,4 @@
+import agenta as ag
 from llama_index import (
     VectorStoreIndex,
     SimpleDirectoryReader,
@@ -5,8 +6,10 @@ from llama_index import (
     StorageContext,
     Prompt,
 )
-from agenta import post, FloatParam, TextParam
+from agenta import TextParam
 import os
+
+ag.init()
 
 
 def ingest():
@@ -28,13 +31,16 @@ default_prompt = (
     "\n---------------------\n"
     "Given this information, please answer the question: {query_str}\n"
 )
+ag.config.default(
+    prompt_template=TextParam(default_prompt),
+)
 
 
-@post
-def query(question: str, prompt: TextParam = default_prompt) -> str:
+@ag.entrypoint
+def query(question: str) -> str:
     index = ingest()
 
-    QA_TEMPLATE = Prompt(prompt)
+    QA_TEMPLATE = Prompt(ag.config.prompt_template.format())
     #
     query_engine = index.as_query_engine(text_qa_template=QA_TEMPLATE)
     response = query_engine.query(question)
