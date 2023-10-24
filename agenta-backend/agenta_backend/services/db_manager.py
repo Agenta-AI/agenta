@@ -135,7 +135,7 @@ async def fetch_app_by_name(
         AppDB: the instance of the app
     """
     if not organization_id:
-        user = await get_user_object(user_org_data["uid"])
+        user = await get_user(user_uid=user_org_data["uid"])
         query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id)
         app = await engine.find_one(AppDB, query_expression)
     else:
@@ -381,7 +381,7 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    user_instance = await get_user_object(user_org_data["uid"])
+    user_instance = await get_user(user_uid=user_org_data["uid"])
     app = await fetch_app_by_name(app_name, organization_id, **user_org_data)
     if app is not None:
         raise ValueError("App with the same name already exists")
@@ -523,17 +523,28 @@ async def list_variants_for_base(
     return app_variants_db
 
 
-async def get_user_object(user_uid: str) -> UserDB:
+async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
     """Get the user object from the database.
 
     Arguments:
-        user_id (str): The user unique identifier
+        user_uid (str): The user unique identifier (can be the user uid or email address)
+        user_id (ObjectId): The user ObjectId (user id)
 
     Returns:
         UserDB: instance of user
     """
 
-    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
+    if (user_uid is None) == (user_id is None):
+        raise Exception("Please provide either user_uid or user_id, but not both.")
+
+    if user_uid:
+        user = await engine.find_one(
+            UserDB,
+            UserDB.uid == user_uid if "@" not in user_uid else UserDB.email == user_uid,
+        )
+    else:
+        user = await engine.find_one(UserDB, UserDB.id == user_id)
+
     if user is None:
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
             create_user = UserDB(uid="0")
@@ -548,9 +559,38 @@ async def get_user_object(user_uid: str) -> UserDB:
 
             return create_user
         else:
-            raise Exception("Please login or signup")
+            return None
     else:
         return user
+
+
+async def get_users_by_ids(user_ids: List) -> List:
+    """
+    Retrieve users from the database by their IDs.
+
+    Args:
+        user_ids (List): A list of user IDs to retrieve.
+
+    Returns:
+        List: A list of dictionaries representing the retrieved users.
+    """
+
+    users_db: List[UserDB] = await engine.find(UserDB, UserDB.id.in_(user_ids))
+
+    return users_db
+
+
+async def save_object_to_db(object_to_save: Any) -> Any:
+    """Save an object to the database.
+
+    Arguments:
+        object_to_save (Any): The object to save
+
+    Returns:
+        Any: instance of saved object
+    """
+    await engine.save(object_to_save)
+    return object_to_save
 
 
 async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
@@ -616,7 +656,7 @@ async def add_variant_from_base_and_config(
     )
     if already_exists:
         raise ValueError("App variant with the same name already exists")
-    user_db = await get_user_object(user_org_data["uid"])
+    user_db = await get_user(user_uid=user_org_data["uid"])
     config_db = ConfigDB(
         config_name=new_config_name,
         parameters=parameters,
@@ -659,7 +699,7 @@ async def list_apps(
         List[App]
     """
 
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
     assert user is not None, "User is None"
 
     if app_name is not None:
@@ -1266,7 +1306,7 @@ async def count_apps(**user_org_data: dict) -> int:
     """
 
     # Get user object
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
     if user is None:
         return 0
 
