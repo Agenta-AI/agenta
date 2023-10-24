@@ -68,8 +68,8 @@ async def start_variant(
         domain_name = os.environ.get("DOMAIN_NAME")
         if domain_name is None or domain_name == "http://localhost":
             # in the case of agenta running locally, the containers can access the host machine via this address
-            # domain_name = "http://host.docker.internal"  # unclear why this stopped working
-            domain_name = "http://localhost"
+            domain_name = "http://host.docker.internal"  # unclear why this stopped working
+            # domain_name = "http://localhost"
         env_vars = {} if env_vars is None else env_vars
         env_vars.update(
             {"AGENTA_BASE_ID": str(db_app_variant.base.id), "AGENTA_HOST": domain_name}
