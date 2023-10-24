@@ -162,10 +162,6 @@ def start_variant(
     """
     payload = {}
     payload["action"] = {"action": "START"}
-    if api_key and env_vars:
-        env_vars.update({"AGENTA_API_KEY": api_key})
-    elif api_key:
-        env_vars = {"AGENTA_API_KEY": api_key}
     if env_vars:
         payload["env_vars"] = env_vars
     try:
