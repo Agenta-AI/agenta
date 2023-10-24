@@ -14,7 +14,7 @@ from agenta_backend.models.api.api_models import Image
 import httpx
 import docker
 import backoff
-from aiodocker import Docker
+from aiodocker import Docker, exceptions
 from httpx import ConnectError, TimeoutException
 
 from fastapi import UploadFile
@@ -199,6 +199,11 @@ async def check_docker_arch() -> str:
         return arch_mapping.get(info["Architecture"], "unknown")
 
 
+@backoff.on_exception(
+    backoff.expo,
+    (ConnectError, TimeoutException, CancelledError, exceptions.DockerError),
+    max_tries=5,
+)
 async def pull_docker_image(repo_name: str, tag: str) -> dict:
     """Business logic to asynchronously pull an image from  either Docker Hub or ECR.
 
