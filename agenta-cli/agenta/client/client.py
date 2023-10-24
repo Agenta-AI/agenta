@@ -361,13 +361,12 @@ def save_variant_config(
     )
     try:
         response = requests.post(
-            f"{host}/{BACKEND_URL_SUFFIX}/configs",
+            f"{host}/{BACKEND_URL_SUFFIX}/configs/",
             json=variant_config.dict(),
             headers={"Authorization": api_key} if api_key is not None else None,
             timeout=600,
         )
         request = f"POST {host}/{BACKEND_URL_SUFFIX}/configs/ {variant_config.dict()}"
-
         # Check for successful request
         if response.status_code != 200:
             error_message = response.json().get("detail", "Unknown error")
