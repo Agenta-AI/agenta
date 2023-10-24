@@ -3,6 +3,9 @@ import logging
 from pathlib import Path
 from typing import List, Union, Dict, Any
 from asyncio.exceptions import CancelledError
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import uuid
 
 from fastapi import HTTPException
 
@@ -14,12 +17,51 @@ import backoff
 from aiodocker import Docker, exceptions
 from httpx import ConnectError, TimeoutException
 
+from fastapi import UploadFile
+from agenta_backend.models.db_models import (
+    AppDB,
+)
 
 client = docker.from_env()
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+async def build_image(app_db: AppDB, base_name: str, tar_file: UploadFile) -> Image:
+    app_name = app_db.app_name
+    organization_id = str(app_db.organization.id)
+
+    image_name = f"agentaai/{app_name.lower()}_{base_name.lower()}:latest"
+    # Get event loop
+    loop = asyncio.get_event_loop()
+
+    # Create a ThreadPoolExecutor for running threads
+    thread_pool = ThreadPoolExecutor(max_workers=4)
+
+    # Create a unique temporary directory for each upload
+    temp_dir = Path(f"/tmp/{uuid.uuid4()}")
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save uploaded file to the temporary directory
+    tar_path = temp_dir / tar_file.filename
+    with tar_path.open("wb") as buffer:
+        buffer.write(await tar_file.read())
+    future = loop.run_in_executor(
+        thread_pool,
+        build_image_job,
+        *(
+            app_name,
+            base_name,
+            organization_id,
+            tar_path,
+            image_name,
+            temp_dir,
+        ),
+    )
+    image_result = await asyncio.wrap_future(future)
+    return image_result
 
 
 def build_image_job(
@@ -62,7 +104,9 @@ def build_image_job(
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
-            buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"},
+            buildargs={
+                "ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"
+            },
             rm=True,
         )
         for line in build_log:
@@ -81,7 +125,9 @@ def build_image_job(
         raise HTTPException(status_code=500, detail=str(ex))
 
 
-@backoff.on_exception(backoff.expo, (ConnectError, CancelledError), max_tries=5)
+@backoff.on_exception(
+    backoff.expo, (ConnectError, CancelledError), max_tries=5
+)
 async def retrieve_templates_from_dockerhub(
     url: str, repo_owner: str, repo_name: str
 ) -> Union[List[dict], dict]:

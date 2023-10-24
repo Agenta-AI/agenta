@@ -485,7 +485,24 @@ async def list_app_variants_for_app_id(
     return app_variants_db
 
 
-async def list_app_variant_for_base(
+async def list_bases_for_app_id(
+    app_id: str, base_name: Optional[str] = None, **kwargs: dict
+) -> List[VariantBaseDB]:
+    assert app_id is not None, "app_id cannot be None"
+    query_expression = VariantBaseDB.app == ObjectId(app_id)
+    if base_name:
+        query_expression = query_expression & query.eq(
+            VariantBaseDB.base_name, base_name
+        )
+    bases_db: List[VariantBaseDB] = await engine.find(
+        VariantBaseDB,
+        query_expression,
+        sort=(VariantBaseDB.base_name),
+    )
+    return bases_db
+
+
+async def list_variants_for_base(
     base: VariantBaseDB, **kwargs: dict
 ) -> List[AppVariantDB]:
     """
@@ -592,7 +609,7 @@ async def add_variant_from_base_and_config(
         logger.error("Failed to find the previous app variant in the database.")
         raise HTTPException(status_code=500, detail="Previous app variant not found")
     logger.debug(f"Located previous variant: {previous_app_variant_db}")
-    app_variant_for_base = await list_app_variant_for_base(base_db)
+    app_variant_for_base = await list_variants_for_base(base_db)
 
     already_exists = any(
         [av for av in app_variant_for_base if av.config_name == new_config_name]

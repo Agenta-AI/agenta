@@ -5,6 +5,20 @@ from enum import Enum
 from pydantic import BaseModel
 
 
+class GetConfigReponse(BaseModel):
+    config_id: str
+    config_name: str
+    current_version: int
+    parameters: Dict[str, Any]
+
+
+class SaveConfigPayload(BaseModel):
+    base_id: str
+    config_name: str
+    parameters: Dict[str, Any]
+    overwrite: bool
+
+
 class VariantActionEnum(str, Enum):
     START = "START"
     STOP = "STOP"
@@ -194,3 +208,8 @@ class ListAPIKeysOutput(BaseModel):
     created_at: datetime
     last_used_at: datetime = None
     expiration_date: datetime = None
+
+
+class BaseOutput(BaseModel):
+    base_id: str
+    base_name: str
