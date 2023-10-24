@@ -544,7 +544,7 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_ai_critique}
                                 className={classes.radioBtn}
                             >
-                                <div className={classes.evaluationType}>
+                                <div className={classes.evaluationType} data-cy="ai-critic-button">
                                     <Image src={ai} alt="AI" className={classes.evaluationImg} />
 
                                     <span>
