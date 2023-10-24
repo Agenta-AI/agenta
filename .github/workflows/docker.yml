@@ -1,0 +1,24 @@
+name: docker build and push
+on:
+  pull_request:
+    paths:
+      - "agenta-backend/**"
+      - "agenta-web/**"
+
+jobs:
+  linter_name:
+    name: 
+    runs-on: ubuntu-latest
+    steps:
+        - name: Checkout code
+          uses: actions/checkout@v2
+    
+        - name: Login to GitHub Container Registry
+          run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+    
+        - name: Build and push Docker images
+          run: |
+            docker build -t ghcr.io/${{ github.repository }}/agenta-web:latest ./agenta-web/
+            docker build -t ghcr.io/${{ github.repository }}/agenta-backend:latest ./agenta-backend/
+            docker push ghcr.io/${{ github.repository }}/agenta-web:latest
+            docker push ghcr.io/${{ github.repository }}/agenta-backend:latest
