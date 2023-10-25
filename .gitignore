@@ -55,5 +55,4 @@ agenta-web/src/pages/auth/[[...path]].tsx
 agenta-web/cypress/screenshots/
 agenta-web/cypress/videos/
 .nextjs_cache/
-node_modules
 
