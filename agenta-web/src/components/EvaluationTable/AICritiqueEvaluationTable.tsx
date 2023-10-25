@@ -200,7 +200,12 @@ Answer ONLY with one of the given grading or evaluation options.
                 .then((data) => setEvaluationResults(data))
                 .catch((err) => console.error("Failed to fetch results:", err))
                 .then(() => {
-                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
+                    updateEvaluation(evaluation.id, {
+                        status: EvaluationFlow.EVALUATION_FINISHED,
+                        evaluation_type_settings: {
+                            evaluation_prompt_template: evaluationPromptTemplate,
+                        },
+                    })
                 })
                 .catch((err) => console.error("Failed to fetch results:", err))
         }
@@ -256,8 +261,6 @@ Answer ONLY with one of the given grading or evaluation options.
             idx++
         }
     }
-
-    console.log(evaluation.evaluationTypeSettings.evaluationPromptTemplate)
 
     const evaluate = async (rowNumber: number) => {
         const evaluation_scenario_id = rows[rowNumber].id
