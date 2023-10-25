@@ -19,9 +19,9 @@ async def user_profile(
 ):
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
-        
+
         print("user_org_data", user_org_data)
-        
+
         user = await db_manager.get_user(user_uid=user_org_data["uid"])
         return User(
             id=str(user.id),
