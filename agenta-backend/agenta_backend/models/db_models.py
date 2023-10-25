@@ -196,6 +196,7 @@ class EvaluationTypeSettings(EmbeddedModel):
     webhook_url: Optional[str]
     llm_app_prompt_template: Optional[str]
     custom_code_evaluation_id: Optional[str]
+    evaluation_prompt_template: Optional[str]
 
 
 class EvaluationScenarioInput(EmbeddedModel):
