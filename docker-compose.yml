@@ -66,6 +66,8 @@ services:
                 - HTTP_PROXY=$HTTP_PROXY
                 - HTTPS_PROXY=$HTTPS_PROXY
         environment:
+            - MASTER_HOST=$MASTER_HOST
+            - MASTER_PORT=$MASTER_PORT
             - SERVER_HOST=$SERVER_HOST
             - SERVER_PORT=$SERVER_PORT
         volumes:

@@ -176,7 +176,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             height={24}
                                         />
                                     </span>
-                                    <Button
+                                    {/* <Button
                                         className={classes.star}
                                         href="https://github.com/Agenta-AI/agenta"
                                     >
@@ -185,7 +185,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             <p>Star</p>
                                         </div>
                                         <div>{starCount || 0}</div>
-                                    </Button>
+                                    </Button> */}
                                 </div>
                             </Space>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
