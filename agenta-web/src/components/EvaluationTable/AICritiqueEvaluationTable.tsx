@@ -257,6 +257,8 @@ Answer ONLY with one of the given grading or evaluation options.
         }
     }
 
+    console.log(evaluation.evaluationTypeSettings.evaluationPromptTemplate)
+
     const evaluate = async (rowNumber: number) => {
         const evaluation_scenario_id = rows[rowNumber].id
         const outputVariantX = rows[rowNumber].columnData0
@@ -440,7 +442,10 @@ Answer ONLY with one of the given grading or evaluation options.
                             bordered={false}
                             placeholder="e.g:"
                             onChange={onChangeEvaluationPromptTemplate}
-                            value={evaluationPromptTemplate}
+                            value={
+                                evaluation.evaluationTypeSettings.evaluationPromptTemplate ||
+                                evaluationPromptTemplate
+                            }
                         />
                     </Card>
                 </div>
