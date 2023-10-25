@@ -43,7 +43,7 @@ async def list_organizations(
     """
 
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         organizations_db = await db_manager.get_organizations_by_list_ids(
             user_org_data["organization_ids"]
         )
@@ -71,7 +71,7 @@ async def get_user_organization(
     request: Request,
 ):
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         org_db = await get_user_own_org(user_org_data["uid"])
         if org_db is None:
             raise HTTPException(404, detail="User does not have an organization")

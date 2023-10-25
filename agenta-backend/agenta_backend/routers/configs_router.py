@@ -32,7 +32,7 @@ async def save_config(
     request: Request,
 ):
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         base_db = await db_manager.fetch_base_and_check_access(
             payload.base_id, user_org_data
         )
@@ -82,7 +82,7 @@ async def get_config(
 ):
     try:
         # detemine whether the user has access to the base
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         base_db = await db_manager.fetch_base_and_check_access(base_id, user_org_data)
         # in case environment_name is provided, find the variant deployed
         if environment_name:

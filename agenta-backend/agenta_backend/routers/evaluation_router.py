@@ -66,7 +66,7 @@ async def create_evaluation(
         _description_
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         access_app = await check_access_to_app(
             user_org_data=user_org_data,
             app_id=payload.app_id,
@@ -110,7 +110,7 @@ async def update_evaluation_router(
     """
     try:
         # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         await update_evaluation(evaluation_id, update_data, **user_org_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -141,7 +141,7 @@ async def fetch_evaluation_scenarios(
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
 
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     eval_scenarios = await evaluation_service.fetch_evaluation_scenarios_for_evaluation(
         evaluation_id, **user_org_data
     )
@@ -163,7 +163,7 @@ async def create_evaluation_scenario(
     Returns:
         None: 204 No Content status code upon success.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
+    user_org_data = await get_user_and_org_id(request.state.user_uid)
     await evaluation_service.create_evaluation_scenario(
         evaluation_id, evaluation_scenario, **user_org_data
     )
@@ -187,7 +187,7 @@ async def update_evaluation_scenario_router(
     Returns:
         None: 204 No Content status code upon successful update.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
+    user_org_data = await get_user_and_org_id(request.state.user_uid)
     try:
         await update_evaluation_scenario(
             evaluation_scenario_id,
@@ -252,7 +252,7 @@ async def get_evaluation_scenario_score_router(
     Returns:
         Dictionary containing the scenario ID and its score.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
+    user_org_data = await get_user_and_org_id(request.state.user_uid)
     return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
 
 
@@ -270,7 +270,7 @@ async def update_evaluation_scenario_score_router(
     Returns:
         None: 204 No Content status code upon successful update.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
+    user_org_data = await get_user_and_org_id(request.state.user_uid)
     try:
         await update_evaluation_scenario_score(
             evaluation_scenario_id, payload.score, **user_org_data
@@ -293,7 +293,7 @@ async def fetch_list_evaluations(
     Returns:
         List[Evaluation]: A list of evaluations.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
+    user_org_data = await get_user_and_org_id(request.state.user_uid)
     return await evaluation_service.fetch_list_evaluations(
         app_id=app_id, **user_org_data
     )
@@ -312,7 +312,7 @@ async def fetch_evaluation(
     Returns:
         Evaluation: The fetched evaluation.
     """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
+    user_org_data = await get_user_and_org_id(request.state.user_uid)
     return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
 
 
@@ -332,7 +332,7 @@ async def delete_evaluations(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     await evaluation_service.delete_evaluations(
         delete_evaluations.evaluations_ids, **user_org_data
     )
@@ -354,7 +354,7 @@ async def fetch_results(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     evaluation = await evaluation_service._fetch_evaluation_and_check_access(
         evaluation_id, **user_org_data
     )
@@ -405,7 +405,7 @@ async def create_custom_evaluation(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
     # create custom evaluation in database
     evaluation_id = await create_custom_code_evaluation(
@@ -436,7 +436,7 @@ async def update_custom_evaluation(
     """
 
     # Get user and organization id
-    kwargs: dict = await get_user_and_org_id(request.state.user_id)
+    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
 
     # Update the evaluation with the provided data
     updated_evaluation_id = await update_custom_code_evaluation(
@@ -471,7 +471,7 @@ async def list_custom_evaluations(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
     # Fetch custom evaluations from database
     evaluations = await fetch_custom_evaluations(app_id, **user_org_data)
@@ -496,7 +496,7 @@ async def get_custom_evaluation(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
     # Fetch custom evaluations from database
     evaluation = await fetch_custom_evaluation_detail(id, **user_org_data)
@@ -517,7 +517,7 @@ async def get_custom_evaluation_names(app_name: str, request: Request):
         List[CustomEvaluationNames]: the list of name of custom evaluations
     """
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
     custom_eval_names = await fetch_custom_evaluation_names(app_name, **user_org_data)
     return custom_eval_names
@@ -542,7 +542,7 @@ async def execute_custom_evaluation(
     """
 
     # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
     # Execute custom code evaluation
     formatted_inputs = format_inputs(payload.inputs)
