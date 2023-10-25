@@ -68,7 +68,7 @@ async def add_testset_to_app_variant(
 
     app_db = await get_app_instance_by_id(app_id)
     org_db = await get_organization_object(org_id)
-    user_db = await get_user_object(kwargs["uid"])
+    user_db = await get_user(user_uid=kwargs["uid"])
 
     if template_name == "single_prompt":
         json_path = (
@@ -524,7 +524,7 @@ async def list_variants_for_base(
 
 
 async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
-    """Get the user object from the database.
+    """Get the user object from the database. If both inputs are none, we create a new user.
 
     Arguments:
         user_uid (str): The user unique identifier (can be the user uid or email address)
@@ -534,18 +534,19 @@ async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
         UserDB: instance of user
     """
 
-    if (user_uid is None) == (user_id is None):
-        raise Exception("Please provide either user_uid or user_id, but not both.")
+    if user_uid and user_id:
+        raise Exception(
+            "Please provide either user_uid or user_id, not both or neither"
+        )
 
     if user_uid:
         user = await engine.find_one(
             UserDB,
             UserDB.uid == user_uid if "@" not in user_uid else UserDB.email == user_uid,
         )
-    else:
+    elif user_id:
         user = await engine.find_one(UserDB, UserDB.id == user_id)
-
-    if user is None:
+    elif user_id is None and user_uid is None:  # create a new user in case of oss
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
             create_user = UserDB(uid="0")
             await engine.save(create_user)
@@ -557,11 +558,13 @@ async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
             await engine.save(create_user)
             await engine.save(org)
 
-            return create_user
-        else:
-            return None
+            user = create_user
     else:
-        return user
+        raise Exception(
+            f"The provided user {user_uid}/{user_id} does not exist in the database"
+        )
+
+    return user
 
 
 async def get_users_by_ids(user_ids: List) -> List:
