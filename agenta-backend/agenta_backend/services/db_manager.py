@@ -1280,22 +1280,23 @@ async def remove_old_template_from_db(tag_ids: list) -> None:
         for template in templates_to_delete:
             await engine.delete(template)
     except DocumentParsingError as exc:
-        remove_document_using_driver(str(exc.primary_value), "templates")
+        await remove_document_using_driver(str(exc.primary_value), "templates")
 
 
-def remove_document_using_driver(document_id: str, collection_name: str) -> None:
+async def remove_document_using_driver(document_id: str, collection_name: str) -> None:
     """Deletes document from using pymongo driver"""
+    
+    import motor.motor_asyncio
 
-    import pymongo
-
-    client = pymongo.MongoClient(os.environ["MONGODB_URI"])
+    client = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGODB_URI"])
     db = client.get_database("agenta_v2")
 
     collection = db.get_collection(collection_name)
-    deleted = collection.delete_one({"_id": ObjectId(document_id)})
+    await collection.delete_one({"_id": ObjectId(document_id)})
     print(
-        f"Deleted documents in {collection_name} collection. Acknowledged: {deleted.acknowledged}"
+        f"Deleted document {document_id} in {collection_name} collection."
     )
+
 
 
 async def get_templates() -> List[Template]:
