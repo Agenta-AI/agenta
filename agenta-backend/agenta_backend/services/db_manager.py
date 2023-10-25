@@ -534,7 +534,7 @@ async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
         UserDB: instance of user
     """
 
-    if (user_uid is None) == (user_id is None):
+    if user_uid and user_id:
         raise Exception(
             "Please provide either user_uid or user_id, not both or neither"
         )
