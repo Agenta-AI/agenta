@@ -43,7 +43,7 @@ async def create_trace(
     request: Request,
 ):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     trace = await create_app_trace(payload, **kwargs)
     return trace
 
@@ -55,7 +55,7 @@ async def get_traces(
     request: Request,
 ):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     traces = await get_variant_traces(app_id, variant_id, **kwargs)
     return traces
 
@@ -66,7 +66,7 @@ async def get_trace(
     request: Request,
 ):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     trace = await get_single_trace(trace_id, **kwargs)
     return trace
 
@@ -77,7 +77,7 @@ async def create_span(
     request: Request,
 ):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     spans_id = await create_trace_span(payload, **kwargs)
     return spans_id
 
@@ -88,7 +88,7 @@ async def get_spans_of_trace(
     request: Request,
 ):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     spans = await get_trace_spans(trace_id, **kwargs)
     return spans
 
@@ -100,7 +100,7 @@ async def update_trace_status(
     request: Request,
 ):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     trace = await trace_status_update(trace_id, payload, **kwargs)
     return trace
 
@@ -112,7 +112,7 @@ async def create_feedback(
     request: Request,
 ):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     feedback = await add_feedback_to_trace(trace_id, payload, **kwargs)
     return feedback
 
@@ -120,7 +120,7 @@ async def create_feedback(
 @router.get("/feedbacks/{trace_id}/", response_model=List[Feedback])
 async def get_feedbacks(trace_id: str, request: Request):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     feedbacks = await get_trace_feedbacks(trace_id, **kwargs)
     return feedbacks
 
@@ -132,7 +132,7 @@ async def get_feedback(
     request: Request,
 ):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     feedback = await get_feedback_detail(trace_id, feedback_id, **kwargs)
     return feedback
 
@@ -145,6 +145,6 @@ async def update_feedback(
     request: Request,
 ):
     # Get user and org id
-    kwargs: dict = await get_user_and_org_id(request.state.user_uid)
+    kwargs: dict = await get_user_and_org_id(request.state.user_id)
     feedback = await update_trace_feedback(trace_id, feedback_id, payload, **kwargs)
     return feedback

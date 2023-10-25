@@ -43,7 +43,7 @@ async def list_bases(
         HTTPException: If there was an error retrieving the bases.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         access_app = await check_access_to_app(
             user_org_data=user_org_data, app_id=app_id
         )
