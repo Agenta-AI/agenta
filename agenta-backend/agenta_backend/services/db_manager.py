@@ -560,7 +560,9 @@ async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
 
             user = create_user
     else:
-        raise Exception(f"The provided user {user_uid}/{user_id} does not exist in the database")
+        raise Exception(
+            f"The provided user {user_uid}/{user_id} does not exist in the database"
+        )
 
     return user
 
