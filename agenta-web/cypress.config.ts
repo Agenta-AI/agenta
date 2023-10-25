@@ -6,8 +6,8 @@ export default defineConfig({
         defaultCommandTimeout: 6000,
     },
     env: {
-        baseApiURL: "http://localhost/api",
-        OPENAI_API_KEY: "your_api_key_here",
-        localBaseUrl: "http://localhost",
+        baseApiURL: Cypress.env("http://localhost/api"),
+        OPENAI_API_KEY: Cypress.env("your_api_key_here"),
+        localBaseUrl: Cypress.env("http://localhost"),
     },
 })
