@@ -8,7 +8,6 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
-import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {calculateResultsDataAvg} from "@/lib/helpers/evaluate"
 
@@ -103,7 +102,7 @@ export default function AutomaticEvaluationResult() {
                     ) {
                         return {
                             key: item.id,
-                            createdAt: formatDate(item.createdAt),
+                            createdAt: item.createdAt,
                             variants: item.variants,
                             scoresData: result.scores_data,
                             evaluationType: item.evaluationType,

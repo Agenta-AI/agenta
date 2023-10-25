@@ -16,6 +16,7 @@ services:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
             - BARE_DOMAIN_NAME=localhost
+            - DOMAIN_NAME=http://localhost
             - FEATURE_FLAG=oss
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
@@ -57,6 +58,7 @@ services:
         volumes:
             - ./agenta-web/src:/app/src
             - ./agenta-web/public:/app/public
+            - .nextjs_cache:/app/.next
         ports:
             - "3000:3000"
         networks:

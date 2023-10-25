@@ -65,61 +65,62 @@ TEXT_SPLITTERS = {
     # "SentenceSplitter": SentenceSplitter ## Currently does not work
 }
 
+ag.init()
+ag.config.default(
+    prompt=ag.TextParam(DEFAULT_PROMPT),
+    splitter_separator=ag.TextParam("\n"),
+    paragraph_separator=ag.TextParam("\n\n\n"),
+    temperature=ag.FloatParam(0.0),
+    model=ag.MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT),
+    embedding_model=ag.MultipleChoiceParam(
+        "TEXT_EMBED_ADA_002", list(EMBEDDING_MODELS.keys())
+    ),
+    embedding_mode=ag.MultipleChoiceParam(
+        "TEXT_SEARCH_MODE", list(EMBEDDING_MODES.keys())
+    ),
+    text_splitter=ag.MultipleChoiceParam(
+        "TokenTextSplitter", list(TEXT_SPLITTERS.keys())
+    ),
+    text_splitter_chunk_size=ag.IntParam(1024, 0, 10000),
+    text_splitter_chunk_overlap=ag.IntParam(20, 0, 10000),
+)
 
-@ag.post
+
+@ag.entrypoint
 def query(
     transcript: str,
     question: str,
-    prompt: ag.TextParam = DEFAULT_PROMPT,
-    splitter_separator: ag.TextParam = "\n",
-    paragraph_separator: ag.TextParam = "\n\n\n",
-    temperature: ag.FloatParam = 0.0,
-    model: ag.MultipleChoiceParam = ag.MultipleChoiceParam(
-        "gpt-3.5-turbo", CHAT_LLM_GPT
-    ),
-    embedding_model: ag.MultipleChoiceParam = ag.MultipleChoiceParam(
-        "TEXT_EMBED_ADA_002", list(EMBEDDING_MODELS.keys())
-    ),
-    embedding_mode: ag.MultipleChoiceParam = ag.MultipleChoiceParam(
-        "TEXT_SEARCH_MODE", list(EMBEDDING_MODES.keys())
-    ),
-    text_splitter: ag.MultipleChoiceParam = ag.MultipleChoiceParam(
-        "TokenTextSplitter", list(TEXT_SPLITTERS.keys())
-    ),
-    text_splitter_chunk_size: ag.IntParam = ag.IntParam(1024, 0, 10000),
-    text_splitter_chunk_overlap: ag.IntParam = ag.IntParam(20, 0, 10000),
 ) -> str:
     """Query a transcript with a question and return the answer.
     Args:
         transcript (str): The transcript to query.
         question (str): The question to ask.
-        temperature (float): The temperature to use for the OpenAI model.
-        model (str): The OpenAI model to use.
-        prompt (str): The prompt template to wrap around the context and query.
     Returns:
         str: The answer to the question.
     """
-    prompt = Prompt(prompt)
+    prompt = Prompt(ag.config.prompt)
+    text_splitter = ag.config.text_splitter
+
     if text_splitter == "TokenTextSplitter":
         text_splitter = TEXT_SPLITTERS[text_splitter](
-            separator=splitter_separator,
-            chunk_size=text_splitter_chunk_size,
-            chunk_overlap=text_splitter_chunk_overlap,
+            separator=ag.config.splitter_separator,
+            chunk_size=ag.config.text_splitter_chunk_size,
+            chunk_overlap=ag.config.text_splitter_chunk_overlap,
         )
     elif text_splitter == "SentenceSplitter":
         text_splitter = TEXT_SPLITTERS[text_splitter](
-            separator=splitter_separator,
-            chunk_size=text_splitter_chunk_size,
-            chunk_overlap=text_splitter_chunk_overlap,
-            paragraph_separator=text_splitter_chunk_overlap,
+            separator=ag.config.splitter_separator,
+            chunk_size=ag.config.text_splitter_chunk_size,
+            chunk_overlap=ag.config.text_splitter_chunk_overlap,
+            paragraph_separator=ag.config.text_splitter_chunk_overlap,
         )
 
     # define a service context for the OpenAI to model and temperature
     service_context = ServiceContext.from_defaults(
-        llm=OpenAI(temperature=temperature, model=model),
+        llm=OpenAI(temperature=ag.config.temperature, model=ag.config.model),
         embed_model=OpenAIEmbedding(
-            mode=EMBEDDING_MODES[embedding_mode],
-            model=EMBEDDING_MODELS[embedding_model],
+            mode=EMBEDDING_MODES[ag.config.embedding_mode],
+            model=EMBEDDING_MODELS[ag.config.embedding_model],
         ),
         node_parser=SimpleNodeParser(text_splitter=text_splitter),
     )

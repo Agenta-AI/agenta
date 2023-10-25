@@ -245,6 +245,25 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "dejongbaba",
+      "name": "Agunbiade Adedeji",
+      "avatar_url": "https://avatars.githubusercontent.com/u/22600781?v=4",
+      "profile": "http://luccithedev.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "techemmy",
+      "name": "Emmanuel Oloyede",
+      "avatar_url": "https://avatars.githubusercontent.com/u/43725109?v=4",
+      "profile": "https://techemmy.github.io/",
+      "contributions": [
+        "code",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

@@ -5,6 +5,20 @@ from enum import Enum
 from pydantic import BaseModel
 
 
+class GetConfigReponse(BaseModel):
+    config_id: str
+    config_name: str
+    current_version: int
+    parameters: Dict[str, Any]
+
+
+class SaveConfigPayload(BaseModel):
+    base_id: str
+    config_name: str
+    parameters: Dict[str, Any]
+    overwrite: bool
+
+
 class VariantActionEnum(str, Enum):
     START = "START"
     STOP = "STOP"
@@ -117,17 +131,14 @@ class TemplateImageInfo(BaseModel):
     name: str
     size: int
     digest: str
-    status: str
-    architecture: str
     title: str
     description: str
     last_pushed: datetime
     repo_name: str
-    media_type: str
 
 
 class Template(BaseModel):
-    id: int
+    id: str
     image: TemplateImageInfo
 
 
@@ -150,8 +161,7 @@ class DockerEnvVars(BaseModel):
 
 class CreateAppVariant(BaseModel):
     app_name: str
-    image_id: str
-    image_tag: str
+    template_id: str
     env_vars: Dict[str, str]
     organization_id: Optional[str] = None
 
@@ -191,3 +201,15 @@ class PostVariantConfigPayload(BaseModel):
     config_name: str
     parameters: Dict[str, Any]
     overwrite: bool
+
+
+class ListAPIKeysOutput(BaseModel):
+    prefix: str
+    created_at: datetime
+    last_used_at: datetime = None
+    expiration_date: datetime = None
+
+
+class BaseOutput(BaseModel):
+    base_id: str
+    base_name: str

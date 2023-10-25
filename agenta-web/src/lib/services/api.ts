@@ -77,7 +77,8 @@ export async function callVariant(
     inputParametersDict: Record<string, string>,
     inputParamDefinition: Parameter[],
     optionalParameters: Parameter[],
-    URIPath: string,
+    appId: string,
+    baseId: string,
 ) {
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
@@ -109,21 +110,11 @@ export async function callVariant(
         ...optParams,
     }
 
-    let splittedURIPath = URIPath.split("/")
-    const appContainerURIPath = await getAppContainerURL(
-        splittedURIPath[0],
-        undefined,
-        splittedURIPath[1],
-    )
+    const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
 
-    return axios
-        .post(
-            `${process.env.NEXT_PUBLIC_AGENTA_API_URL}${appContainerURIPath}/generate`,
-            requestBody,
-        )
-        .then((res) => {
-            return res.data
-        })
+    return axios.post(`${appContainerURI}/generate`, requestBody).then((res) => {
+        return res.data
+    })
 }
 
 /**
@@ -138,8 +129,8 @@ export const getVariantParametersFromOpenAPI = async (
     baseId?: string,
     ignoreAxiosError: boolean = false,
 ) => {
-    const appContainerURIPath = await getAppContainerURL(appId, variantId, baseId)
-    const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}${appContainerURIPath}/openapi.json`
+    const appContainerURI = await getAppContainerURL(appId, variantId, baseId)
+    const url = `${appContainerURI}/openapi.json`
     const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
     let APIParams = parseOpenApiSchema(response.data)
     // we create a new param for DictInput that will contain the name of the inputs
@@ -466,6 +457,19 @@ export const saveCustomCodeEvaluation = async (
     return response
 }
 
+export const editCustomEvaluationDetail = async (
+    id: string,
+    payload: CreateCustomEvaluation,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.put(
+        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/${id}`,
+        payload,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response
+}
+
 export const fetchCustomEvaluations = async (app_id: string, ignoreAxiosError: boolean = false) => {
     const response = await axios.get(
         `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/custom_evaluation/list/${app_id}/`,
@@ -555,14 +559,6 @@ export const getTemplates = async () => {
     return response.data
 }
 
-export const pullTemplateImage = async (image_name: string, ignoreAxiosError: boolean = false) => {
-    const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/templates/${image_name}/images/`,
-        {_ignoreError: ignoreAxiosError} as any,
-    )
-    return response.data
-}
-
 export const createAppFromTemplate = async (
     templateObj: AppTemplate,
     ignoreAxiosError: boolean = false,
@@ -612,40 +608,30 @@ export const waitForAppToStart = async (
 export const createAndStartTemplate = async ({
     appName,
     openAIKey,
-    imageName,
+    templateId,
     orgId,
+    timeout,
     onStatusChange,
 }: {
     appName: string
     openAIKey: string
-    imageName: string
+    templateId: string
     orgId: string
+    timeout?: number
     onStatusChange?: (
-        status:
-            | "fetching_image"
-            | "creating_app"
-            | "starting_app"
-            | "success"
-            | "bad_request"
-            | "timeout"
-            | "error",
+        status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
         details?: any,
         appId?: string,
     ) => void
 }) => {
     try {
-        onStatusChange?.("fetching_image")
-        const data: TemplateImage = await pullTemplateImage(imageName, true)
-        if (data.message) throw data.message
-
         onStatusChange?.("creating_app")
         let app
         try {
             app = await createAppFromTemplate(
                 {
                     app_name: appName,
-                    image_id: data.image_id,
-                    image_tag: data.image_tag,
+                    template_id: templateId,
                     env_vars: {
                         OPENAI_API_KEY: openAIKey,
                     },
@@ -661,18 +647,18 @@ export const createAndStartTemplate = async ({
             throw error
         }
 
-        onStatusChange?.("starting_app")
+        onStatusChange?.("starting_app", "", app?.data?.app_id)
         try {
-            await waitForAppToStart(app.data.app_id)
+            await waitForAppToStart(app?.data?.app_id, timeout)
         } catch (error: any) {
             if (error.message === "timeout") {
-                onStatusChange?.("timeout", "", app.data.app_id)
+                onStatusChange?.("timeout", "", app?.data?.app_id)
                 return
             }
             throw error
         }
 
-        onStatusChange?.("success", "", app.data.app_id)
+        onStatusChange?.("success", "", app?.data?.app_id)
     } catch (error) {
         onStatusChange?.("error", error)
     }
