@@ -535,7 +535,9 @@ async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
     """
 
     if (user_uid is None) == (user_id is None):
-        raise Exception("Please provide either user_uid or user_id, not both or neither")
+        raise Exception(
+            "Please provide either user_uid or user_id, not both or neither"
+        )
 
     if user_uid:
         user = await engine.find_one(
