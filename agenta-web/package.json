@@ -36,6 +36,7 @@
         "classnames": "^2.3.2",
         "eslint": "8.39.0",
         "eslint-config-next": "13.3.4",
+        "jotai": "^2.5.0",
         "js-beautify": "^1.14.8",
         "next": "13.3.4",
         "nextjs-cors": "^2.1.2",

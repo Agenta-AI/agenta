@@ -2,16 +2,18 @@ import ABTestingEvaluationTable from "@/components/EvaluationTable/ABTestingEval
 import {Evaluation} from "@/lib/Types"
 import {loadEvaluation, loadEvaluationsScenarios} from "@/lib/services/api"
 import {useRouter} from "next/router"
-import {useEffect, useState} from "react"
+import {useEffect} from "react"
 import {fetchVariants} from "@/lib/services/api"
+import {useAtom} from "jotai"
+import {evaluationAtom, evaluationScenariosAtom} from "@/lib/atoms/evaluation"
 
 export default function Evaluation() {
     const router = useRouter()
     const evaluationTableId = router.query.evaluation_id
         ? router.query.evaluation_id.toString()
         : ""
-    const [evaluationScenarios, setEvaluationScenarios] = useState([])
-    const [evaluation, setEvaluation] = useState<Evaluation | undefined>()
+    const [evaluationScenarios, setEvaluationScenarios] = useAtom(evaluationScenariosAtom)
+    const [evaluation, setEvaluation] = useAtom(evaluationAtom)
     const appId = router.query.app_id as string
     const columnsCount = 2
 
@@ -53,7 +55,7 @@ export default function Evaluation() {
             {evaluationTableId && evaluationScenarios && evaluation && (
                 <ABTestingEvaluationTable
                     columnsCount={columnsCount}
-                    evaluationScenarios={evaluationScenarios}
+                    evaluationScenarios={evaluationScenarios as any[]}
                     evaluation={evaluation}
                 />
             )}
