@@ -221,7 +221,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         + click.style(f"{endpoint}/docs", bold=True, fg="yellow")
     )
 
-    webui_host = "http://localhost:3000" if host == "localhost" else host
+    webui_host = "http://localhost" if host == "localhost" else host
     click.echo(
         click.style(
             "\nStart experimenting with your app in the playground. 🎮",
