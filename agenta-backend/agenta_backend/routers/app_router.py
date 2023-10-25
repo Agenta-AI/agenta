@@ -380,7 +380,9 @@ async def create_app_and_variant_from_template(
                 )
             envvars = {
                 **(payload.env_vars or {}),
-                "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],  # order is important here
+                "OPENAI_API_KEY": os.environ[
+                    "OPENAI_API_KEY"
+                ],  # order is important here
             }
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
