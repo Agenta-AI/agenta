@@ -12,7 +12,6 @@ import {
     getSingleLlmProviderKey,
     isAppNameInputValid,
     isDemo,
-    llmAvailableProviders,
 } from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
