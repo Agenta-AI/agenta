@@ -20,9 +20,9 @@ def verify_session():
 async def authentication_middleware(request: Request, call_next):
     try:
         # Initialize the user_id attribute in the request state if it doesn't exist
-        if not hasattr(request.state, "user_uid"):
+        if not hasattr(request.state, "user_id"):
             user_uid_id = "0"
-            setattr(request.state, "user_uid", user_uid_id)
+            setattr(request.state, "user_id", user_uid_id)
 
         # Call the next middleware or route handler
         response = await call_next(request)
