@@ -15,8 +15,8 @@ jobs:
     
         - name: Build and push Docker images
           run: |
-            docker build -t ghcr.io/${{ github.repository }}/agenta-web:latest agenta-web/
-            docker build -t ghcr.io/${{ github.repository }}/agenta-backend:latest agenta-backend/
-            docker push ghcr.io/${{ github.repository }}/agenta-web:latest
-            docker push ghcr.io/${{ github.repository }}/agenta-backend:latest
+            docker build -t israelabraham/agentaai/agenta-web:latest agenta-web/
+            docker build -t israelabraham/agentaai/agenta-backend:latest agenta-backend/
+            docker push israelabraham/agentaai/agenta-web:latest
+            docker push israelabraham/agentaai/agenta-backend:latest
           
