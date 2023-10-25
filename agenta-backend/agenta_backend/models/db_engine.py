@@ -1,5 +1,4 @@
 import os
-import toml
 import logging
 
 from odmantic import AIOEngine
@@ -11,18 +10,14 @@ from motor.motor_asyncio import AsyncIOMotorClient
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# Load the settings from the .toml file
-toml_config = toml.load("agenta_backend/config.toml")
-
 
 class DBEngine(object):
     """
     Database engine to initialize client and return engine based on mode
     """
 
-    def __init__(self, mode=None) -> None:
-        if not mode:
-            self.mode = toml_config["database_mode"]
+    def __init__(self) -> None:
+        self.mode = os.environ.get("DATABASE_MODE", "v2")
         self.db_url = os.environ["MONGODB_URI"]
 
     @property
@@ -54,11 +49,24 @@ class DBEngine(object):
             aio_engine = AIOEngine(client=self.initialize_client, database="agenta_v2")
             logger.info("Using v2 database...")
             return aio_engine
+        else:
+            # make sure that self.mode does only contain alphanumeric characters
+            if not self.mode.isalnum():
+                raise ValueError("Mode of database needs to be alphanumeric.")
+            aio_engine = AIOEngine(
+                client=self.initialize_client, database=f"agenta_{self.mode}"
+            )
+            logger.info(f"Using {self.mode} database...")
+            return aio_engine
         raise ValueError(
             "Mode of database is unknown. Did you mean 'default' or 'test'?"
         )
 
     def remove_db(self) -> None:
+        """
+        Remove the database based on the mode.
+        """
+
         client = MongoClient(self.db_url)
         if self.mode == "default":
             client.drop_database("agenta")

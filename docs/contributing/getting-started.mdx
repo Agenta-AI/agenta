@@ -40,4 +40,13 @@ We had many zombie issues and PRs (assigned but inactive) in the past. We want t
 - An issue may only be assigned to one person for up to one week (three days for very simple issues). If the issue remains unsolved after a week, it will be unassigned and made available to others.
 - Any pull request (PR) left inactive by the author for over a week will be closed. The author can reopen it if they wish to continue.
 
+## Running the Backend Tests
+
+It is important that you run your tests locally and make sure they pass before you make a pull request. Here is how to do it:
+1. Start the agenta platform locally by running `docker compose -f "docker-compose.yml" up -d --build`
+2. To interact with the backend container in a shell, run `docker exec -it agenta-backend-1 sh`
+3. Run `pytest` to run the tests
+
+
+
 We look forward to seeing your contributions to Agenta!

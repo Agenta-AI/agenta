@@ -1,10 +1,7 @@
 import pytest
 import asyncio
-from bson import ObjectId
-from datetime import datetime
 
 from agenta_backend.models.db_engine import DBEngine
-
 
 engine = DBEngine().engine()
 

@@ -11,8 +11,9 @@ import {
     Select,
     message,
     ModalProps,
+    Tooltip,
 } from "antd"
-import {DownOutlined, PlusOutlined} from "@ant-design/icons"
+import {DownOutlined, PlusOutlined, EditFilled} from "@ant-design/icons"
 import {
     createNewEvaluation,
     fetchVariants,
@@ -125,6 +126,11 @@ const useStyles = createUseStyles({
         gap: 8,
         color: "#1668dc",
     },
+    newCodeEvalList: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
 })
 const {Title} = Typography
 
@@ -135,6 +141,7 @@ export default function Evaluations() {
     const [isError, setIsError] = useState<boolean | string>(false)
     const [variants, setVariants] = useState<any[]>([])
     const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const {Option} = Select
 
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
@@ -238,7 +245,11 @@ export default function Evaluations() {
     const getTestsetDropdownMenu = (): MenuProps => {
         const items: MenuProps["items"] = testsetsList.map((testset, index) => {
             return {
-                label: testset.name,
+                label: (
+                    <>
+                        <div data-cy={`testset-${index}`}>{testset.name}</div>
+                    </>
+                ),
                 key: `${testset.name}-${testset._id}`,
             }
         })
@@ -281,12 +292,16 @@ export default function Evaluations() {
     const getVariantsDropdownMenu = (index: number): MenuProps => {
         const selectedVariantsNames = selectedVariants.map((variant) => variant.variantName)
 
-        const items = variants.reduce((filteredVariants, variant) => {
+        const items = variants.reduce((filteredVariants, variant, idx) => {
             const label = variant.variantName
 
             if (!selectedVariantsNames.includes(label)) {
                 filteredVariants.push({
-                    label,
+                    label: (
+                        <>
+                            <div data-cy={`variant-${idx}`}>{variant.variantName}</div>
+                        </>
+                    ),
                     key: label,
                 })
             }
@@ -322,15 +337,12 @@ export default function Evaluations() {
         } else if (selectedTestset?.name === "Select a Test set") {
             message.error("Please select a testset")
             return
-        } else if (
-            getOpenAIKey() === "" &&
-            selectedEvaluationType === EvaluationType.auto_ai_critique
-        ) {
+        } else if (!getOpenAIKey() && selectedEvaluationType === EvaluationType.auto_ai_critique) {
             setError({
                 message:
                     "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
                 btnText: "Go to API Keys",
-                endpoint: "/settings/?tab=apikeys",
+                endpoint: "/settings/?tab=secrets",
             })
             return
         }
@@ -426,6 +438,10 @@ export default function Evaluations() {
         setSelectedEvaluationType(EvaluationType.custom_code_run)
     }
 
+    const handleEditOption = (id: string) => {
+        router.push(`/apps/${appId}/evaluations/custom_evaluations/${id}`)
+    }
+
     return (
         <div>
             <div>
@@ -496,7 +512,7 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_regex_test}
                                 className={classes.radioBtn}
                             >
-                                <div className={classes.evaluationType}>
+                                <div className={classes.evaluationType} data-cy="regex-button">
                                     <Image
                                         src={regexIcon}
                                         alt="Regex"
@@ -528,7 +544,7 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_ai_critique}
                                 className={classes.radioBtn}
                             >
-                                <div className={classes.evaluationType}>
+                                <div className={classes.evaluationType} data-cy="ai-critic-button">
                                     <Image src={ai} alt="AI" className={classes.evaluationImg} />
 
                                     <span>
@@ -544,24 +560,38 @@ export default function Evaluations() {
                                     }`}
                                     value={selectedCustomEvaluationID || "Code Evaluation"}
                                     onChange={handleCustomEvaluationOptionChange}
-                                    options={[
-                                        {
-                                            value: "new",
-                                            label: (
-                                                <div className={classes.newCodeEval}>
-                                                    <PlusOutlined />
-                                                    New code evaluation
+                                    optionLabelProp="label"
+                                >
+                                    <Option value="new" label="New code evaluation">
+                                        <div className={classes.newCodeEval}>
+                                            <PlusOutlined />
+                                            New code evaluation
+                                        </div>
+                                    </Option>
+                                    {...(customCodeEvaluationList || []).map(
+                                        (item: SingleCustomEvaluation) => (
+                                            <Option
+                                                key={item.id}
+                                                value={item.id}
+                                                label={item.evaluation_name}
+                                            >
+                                                <div className={classes.newCodeEvalList}>
+                                                    <p>{item.evaluation_name}</p>
+                                                    <Tooltip placement="right" title="Edit">
+                                                        <Button
+                                                            type="text"
+                                                            onClick={() =>
+                                                                handleEditOption(item.id)
+                                                            }
+                                                        >
+                                                            <EditFilled />
+                                                        </Button>
+                                                    </Tooltip>
                                                 </div>
-                                            ),
-                                        },
-                                        ...(customCodeEvaluationList || []).map(
-                                            (item: SingleCustomEvaluation) => ({
-                                                value: item.id,
-                                                label: `${item.evaluation_name}`,
-                                            }),
+                                            </Option>
                                         ),
-                                    ]}
-                                />
+                                    )}
+                                </Select>
                                 <Image
                                     src={codeIcon}
                                     alt="Picture of the author"
@@ -582,6 +612,7 @@ export default function Evaluations() {
                                     style={{
                                         marginTop: index === 0 ? 40 : 10,
                                     }}
+                                    data-cy={`variants-dropdown-${index}`}
                                 >
                                     <div className={classes.dropdownStyles}>
                                         {selectedVariants[index]?.variantName || "Select a variant"}
@@ -598,7 +629,7 @@ export default function Evaluations() {
                         </div>
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
-                            <Button className={classes.dropdownBtn}>
+                            <Button className={classes.dropdownBtn} data-cy="selected-testset">
                                 <div className={classes.dropdownStyles}>
                                     {selectedTestset.name}
 
@@ -628,7 +659,11 @@ export default function Evaluations() {
                         </Col>
                     )}
                     <Col>
-                        <Button onClick={onStartEvaluation} type="primary">
+                        <Button
+                            onClick={onStartEvaluation}
+                            type="primary"
+                            data-cy="start-new-evaluation-button"
+                        >
                             Start a new evaluation
                         </Button>
                     </Col>

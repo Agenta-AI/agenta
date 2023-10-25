@@ -195,11 +195,12 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
         for (let idx = 0; idx < columnsDataNames.length; ++idx) {
             const columnName = columnsDataNames[idx] as keyof WebhookEvaluationTableRow
             try {
-                const result = await callVariant(
+                let result = await callVariant(
                     inputParamsDict,
                     variantData[idx].inputParams!,
                     variantData[idx].optParams!,
-                    variantData[idx].URIPath!,
+                    appId || "",
+                    variants[idx].baseId || "",
                 )
 
                 const {webhookUrl} = form.getFieldsValue()

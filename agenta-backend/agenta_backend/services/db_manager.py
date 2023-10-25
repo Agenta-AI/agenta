@@ -1,5 +1,7 @@
-import logging
 import os
+import logging
+from pathlib import Path
+from bson import ObjectId
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -14,6 +16,7 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
+from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
     AppDB,
     AppVariantDB,
@@ -28,16 +31,58 @@ from agenta_backend.models.db_models import (
     TemplateDB,
     TestSetDB,
     UserDB,
-    DeploymentDB,
 )
 from agenta_backend.utils.common import check_user_org_access, engine
-from bson import ObjectId
+
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.ee.models.db_models import DeploymentDB
+else:
+    from agenta_backend.models.db_models import DeploymentDB
+
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from odmantic import query
 
+from odmantic import query
+from odmantic.exceptions import DocumentParsingError
+
+
+# Define logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+# Define parent directory
+PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
+
+
+async def add_testset_to_app_variant(
+    app_id: str, org_id: str, template_name: str, app_name: str, **kwargs: dict
+):
+    """Add testset to app variant.
+    Args:
+        app_id (str): The id of the app
+        org_id (str): The id of the organization
+        template_name (str): The name of the app template image
+        app_name (str): The name of the app
+        **kwargs (dict): Additional keyword arguments
+    """
+
+    app_db = await get_app_instance_by_id(app_id)
+    org_db = await get_organization_object(org_id)
+    user_db = await get_user_object(kwargs["uid"])
+
+    if template_name == "single_prompt":
+        json_path = (
+            f"{PARENT_DIRECTORY}/resources/default_testsets/single_prompt_testsets.json"
+        )
+        csvdata = get_json(json_path)
+        testset = {
+            "name": f"{app_name}_testset",
+            "app_name": app_name,
+            "created_at": datetime.now().isoformat(),
+            "csvdata": csvdata,
+        }
+        testset = TestSetDB(**testset, app=app_db, user=user_db, organization=org_db)
+        await engine.save(testset)
 
 
 async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
@@ -90,7 +135,7 @@ async def fetch_app_by_name(
         AppDB: the instance of the app
     """
     if not organization_id:
-        user = await get_user_object(user_org_data["uid"])
+        user = await get_user(user_uid=user_org_data["uid"])
         query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id)
         app = await engine.find_one(AppDB, query_expression)
     else:
@@ -259,6 +304,7 @@ async def create_image(
     docker_id: str,
     tags: str,
     user: UserDB,
+    deletable: bool,
     organization: OrganizationDB,
 ) -> ImageDB:
     """Create a new image.
@@ -266,13 +312,16 @@ async def create_image(
         docker_id (str): The ID of the image.
         tags (str): The tags of the image.
         user (UserDB): The user that the image belongs to.
+        deletable (bool): Whether the image can be deleted.
         organization (OrganizationDB): The organization that the image belongs to.
     Returns:
         ImageDB: The created image.
     """
+
     image = ImageDB(
         docker_id=docker_id,
         tags=tags,
+        deletable=deletable,
         user=user,
         organization=organization,
     )
@@ -287,7 +336,6 @@ async def create_deployment(
     container_name: str,
     container_id: str,
     uri: str,
-    uri_path: str,
     status: str,
 ) -> DeploymentDB:
     """Create a new deployment.
@@ -298,7 +346,6 @@ async def create_deployment(
         container_name (str): The name of the container.
         container_id (str): The ID of the container.
         uri (str): The URI of the container.
-        uri_path (str): The URI path of the container.
         status (str): The status of the container.
     Returns:
         DeploymentDB: The created deployment.
@@ -310,7 +357,6 @@ async def create_deployment(
         container_name=container_name,
         container_id=container_id,
         uri=uri,
-        uri_path=uri_path,
         status=status,
     )
     await engine.save(deployment)
@@ -335,7 +381,7 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    user_instance = await get_user_object(user_org_data["uid"])
+    user_instance = await get_user(user_uid=user_org_data["uid"])
     app = await fetch_app_by_name(app_name, organization_id, **user_org_data)
     if app is not None:
         raise ValueError("App with the same name already exists")
@@ -439,7 +485,24 @@ async def list_app_variants_for_app_id(
     return app_variants_db
 
 
-async def list_app_variant_for_base(
+async def list_bases_for_app_id(
+    app_id: str, base_name: Optional[str] = None, **kwargs: dict
+) -> List[VariantBaseDB]:
+    assert app_id is not None, "app_id cannot be None"
+    query_expression = VariantBaseDB.app == ObjectId(app_id)
+    if base_name:
+        query_expression = query_expression & query.eq(
+            VariantBaseDB.base_name, base_name
+        )
+    bases_db: List[VariantBaseDB] = await engine.find(
+        VariantBaseDB,
+        query_expression,
+        sort=(VariantBaseDB.base_name),
+    )
+    return bases_db
+
+
+async def list_variants_for_base(
     base: VariantBaseDB, **kwargs: dict
 ) -> List[AppVariantDB]:
     """
@@ -460,17 +523,28 @@ async def list_app_variant_for_base(
     return app_variants_db
 
 
-async def get_user_object(user_uid: str) -> UserDB:
+async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
     """Get the user object from the database.
 
     Arguments:
-        user_id (str): The user unique identifier
+        user_uid (str): The user unique identifier (can be the user uid or email address)
+        user_id (ObjectId): The user ObjectId (user id)
 
     Returns:
         UserDB: instance of user
     """
 
-    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
+    if (user_uid is None) == (user_id is None):
+        raise Exception("Please provide either user_uid or user_id, but not both.")
+
+    if user_uid:
+        user = await engine.find_one(
+            UserDB,
+            UserDB.uid == user_uid if "@" not in user_uid else UserDB.email == user_uid,
+        )
+    else:
+        user = await engine.find_one(UserDB, UserDB.id == user_id)
+
     if user is None:
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
             create_user = UserDB(uid="0")
@@ -485,9 +559,38 @@ async def get_user_object(user_uid: str) -> UserDB:
 
             return create_user
         else:
-            raise Exception("Please login or signup")
+            return None
     else:
         return user
+
+
+async def get_users_by_ids(user_ids: List) -> List:
+    """
+    Retrieve users from the database by their IDs.
+
+    Args:
+        user_ids (List): A list of user IDs to retrieve.
+
+    Returns:
+        List: A list of dictionaries representing the retrieved users.
+    """
+
+    users_db: List[UserDB] = await engine.find(UserDB, UserDB.id.in_(user_ids))
+
+    return users_db
+
+
+async def save_object_to_db(object_to_save: Any) -> Any:
+    """Save an object to the database.
+
+    Arguments:
+        object_to_save (Any): The object to save
+
+    Returns:
+        Any: instance of saved object
+    """
+    await engine.save(object_to_save)
+    return object_to_save
 
 
 async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
@@ -546,14 +649,14 @@ async def add_variant_from_base_and_config(
         logger.error("Failed to find the previous app variant in the database.")
         raise HTTPException(status_code=500, detail="Previous app variant not found")
     logger.debug(f"Located previous variant: {previous_app_variant_db}")
-    app_variant_for_base = await list_app_variant_for_base(base_db)
+    app_variant_for_base = await list_variants_for_base(base_db)
 
     already_exists = any(
         [av for av in app_variant_for_base if av.config_name == new_config_name]
     )
     if already_exists:
         raise ValueError("App variant with the same name already exists")
-    user_db = await get_user_object(user_org_data["uid"])
+    user_db = await get_user(user_uid=user_org_data["uid"])
     config_db = ConfigDB(
         config_name=new_config_name,
         parameters=parameters,
@@ -596,7 +699,7 @@ async def list_apps(
         List[App]
     """
 
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
     assert user is not None, "User is None"
 
     if app_name is not None:
@@ -642,7 +745,9 @@ async def list_app_variants(app_id: str = None, **kwargs: dict) -> List[AppVaria
     return app_variants_db
 
 
-async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
+async def check_is_last_variant_for_image(
+    db_app_variant: AppVariantDB,
+) -> bool:
     """Checks whether the input variant is the sole variant that uses its linked image
     This is a helpful function to determine whether to delete the image when removing a variant
     Usually many variants will use the same image (these variants would have been created using the UI)
@@ -658,7 +763,7 @@ async def check_is_last_variant_for_image(db_app_variant: AppVariantDB) -> bool:
     logger.debug("db_app_variant: %s", db_app_variant)
     query_expression = (
         AppVariantDB.organization == ObjectId(db_app_variant.organization.id)
-    ) & (AppVariantDB.image == ObjectId(db_app_variant.image.id))
+    ) & (AppVariantDB.base == ObjectId(db_app_variant.base.id))
     # Count the number of variants that match the query expression
     count_variants = await engine.count(AppVariantDB, query_expression)
 
@@ -826,7 +931,8 @@ async def list_environments_by_variant(
     """
 
     environments_db: List[AppEnvironmentDB] = await engine.find(
-        AppEnvironmentDB, (AppEnvironmentDB.app == ObjectId(app_variant.app.id))
+        AppEnvironmentDB,
+        (AppEnvironmentDB.app == ObjectId(app_variant.app.id)),
     )
 
     return environments_db
@@ -1090,7 +1196,9 @@ async def fetch_evaluation_scenario_by_id(
     return evaluation_scenario
 
 
-async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVariantDB]:
+async def find_previous_variant_from_base_id(
+    base_id: str,
+) -> Optional[AppVariantDB]:
     """Find the previous variant from a base id.
 
     Args:
@@ -1114,7 +1222,7 @@ async def find_previous_variant_from_base_id(base_id: str) -> Optional[AppVarian
     assert False, "None of the previous variants has previous_variant_name=None"
 
 
-async def add_template(**kwargs: dict):
+async def add_template(**kwargs: dict) -> str:
     """
     Adds a new template to the database.
 
@@ -1122,31 +1230,69 @@ async def add_template(**kwargs: dict):
         **kwargs (dict): Keyword arguments containing the template data.
 
     Returns:
-        None
+        template_id (Str): The Id of the created template.
     """
     existing_template = await engine.find_one(
-        TemplateDB, TemplateDB.dockerhub_tag_id == kwargs["dockerhub_tag_id"]
+        TemplateDB, TemplateDB.tag_id == kwargs["tag_id"]
     )
     if existing_template is None:
         db_template = TemplateDB(**kwargs)
         await engine.save(db_template)
+        return str(db_template.id)
 
 
-async def remove_old_template_from_db(dockerhub_tag_ids: list) -> None:
+async def get_template(template_id: str) -> TemplateDB:
+    """
+    Fetches a template by its ID.
+
+    Args:
+        template_id (str): The ID of the template to fetch.
+
+    Returns:
+        TemplateDB: The fetched template.
+    """
+
+    assert template_id is not None, "template_id cannot be None"
+    template_db = await engine.find_one(
+        TemplateDB, TemplateDB.id == ObjectId(template_id)
+    )
+    return template_db
+
+
+async def remove_old_template_from_db(tag_ids: list) -> None:
     """Deletes old templates that are no longer in docker hub.
 
     Arguments:
-        dockerhub_tag_ids -- list of template IDs you want to keep
+        tag_ids -- list of template IDs you want to keep
     """
 
     templates_to_delete = []
-    templates = await engine.find(TemplateDB)
-    for temp in templates:
-        if temp.dockerhub_tag_id not in dockerhub_tag_ids:
-            templates_to_delete.append(temp)
+    try:
+        templates: List[TemplateDB] = await engine.find(TemplateDB)
 
-    for template in templates_to_delete:
-        await engine.delete(template)
+        for temp in templates:
+            if temp.tag_id not in tag_ids:
+                templates_to_delete.append(temp)
+
+        for template in templates_to_delete:
+            await engine.delete(template)
+    except DocumentParsingError as exc:
+        remove_document_using_driver(str(exc.primary_value), "templates")
+
+
+def remove_document_using_driver(document_id: str, collection_name: str) -> None:
+    """Deletes document from using pymongo driver"""
+
+    import pymongo
+
+    client = pymongo.MongoClient(os.environ["MONGODB_URI"])
+    db = client.get_database("agenta_v2")
+
+    collection = db.get_collection(collection_name)
+    deleted = collection.delete_one({"_id": ObjectId(document_id)})
+    print(
+        f"Deleted documents in {collection_name} collection. Acknowledged: {deleted.acknowledged}"
+    )
 
 
 async def get_templates() -> List[Template]:
@@ -1160,7 +1306,7 @@ async def count_apps(**user_org_data: dict) -> int:
     """
 
     # Get user object
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
     if user is None:
         return 0
 

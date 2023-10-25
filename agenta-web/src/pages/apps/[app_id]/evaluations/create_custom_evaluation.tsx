@@ -46,5 +46,5 @@ export default function CreateCustomEvaluation() {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
 
-    return <CustomPythonCode classes={classes} appId={appId} appTheme={appTheme} />
+    return <CustomPythonCode classes={classes} appId={appId} appTheme={appTheme} editMode={false} />
 }

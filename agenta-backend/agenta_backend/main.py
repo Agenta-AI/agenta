@@ -1,25 +1,26 @@
-import json
 import os
 from contextlib import asynccontextmanager
 
 from agenta_backend.config import settings
 from agenta_backend.routers import (
     app_router,
-    user_profile,
     container_router,
     environment_router,
     evaluation_router,
     observability_router,
-    testset_router,
     organization_router,
+    testset_router,
+    user_profile,
     variants_router,
+    bases_router,
+    configs_router,
 )
-from agenta_backend.services.cache_manager import (
-    retrieve_templates_from_dockerhub_cached,
-    retrieve_templates_info_from_dockerhub_cached,
-)
-from agenta_backend.services.container_manager import pull_image_from_docker_hub
-from agenta_backend.services.db_manager import add_template, remove_old_template_from_db
+
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    from agenta_backend.ee.services import templates_manager
+else:
+    from agenta_backend.services import templates_manager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -39,51 +40,32 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
-    # Get docker hub config
-    repo_owner = settings.docker_hub_repo_owner
-    repo_name = settings.docker_hub_repo_name
-
-    tags_data = await retrieve_templates_from_dockerhub_cached(cache=cache)
-    templates_info_string = await retrieve_templates_info_from_dockerhub_cached(
-        cache=cache
-    )
-    templates_info = json.loads(templates_info_string)
-
-    templates_in_hub = []
-    for tag in tags_data:
-        # Append the template id in the list of templates_in_hub
-        # We do this to remove old templates from database
-        templates_in_hub.append(tag["id"])
-        for temp_info_key in templates_info:
-            temp_info = templates_info[temp_info_key]
-            if str(tag["name"]).startswith(temp_info_key):
-                await add_template(
-                    **{
-                        "dockerhub_tag_id": tag["id"],
-                        "name": tag["name"],
-                        "size": tag["images"][0]["size"],
-                        "architecture": tag["images"][0]["architecture"],
-                        "title": temp_info["name"],
-                        "description": temp_info["description"],
-                        "digest": tag["digest"],
-                        "status": tag["images"][0]["status"],
-                        "last_pushed": tag["images"][0]["last_pushed"],
-                        "repo_name": tag["last_updater_username"],
-                        "media_type": tag["media_type"],
-                    }
-                )
-                image_res = await pull_image_from_docker_hub(
-                    f"{repo_owner}/{repo_name}", tag["name"]
-                )
-                print(f"Template {tag['id']} added to the database.")
-                print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
-
-    # Remove old templates from database
-    await remove_old_template_from_db(templates_in_hub)
+    await templates_manager.update_and_sync_templates(cache=cache)
     yield
 
 
 app = FastAPI(lifespan=lifespan)
+
+allow_headers = ["Content-Type"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=allow_headers,
+)
+
+if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+    from agenta_backend.services.auth_helper import authentication_middleware
+
+    app.middleware("http")(authentication_middleware)
+
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+    import agenta_backend.ee.main as ee
+
+    app, allow_headers = ee.extend_main(app)
+
 app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps")
 app.include_router(variants_router.router, prefix="/variants")
@@ -93,19 +75,5 @@ app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")
 app.include_router(observability_router.router, prefix="/observability")
 app.include_router(organization_router.router, prefix="/organizations")
-
-allow_headers = ["Content-Type"]
-
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    import agenta_backend.ee.main as ee
-
-    app, allow_headers = ee.extend_main(app)
-# this is the prefix in which we are reverse proxying the api
-#
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=allow_headers,
-)
+app.include_router(bases_router.router, prefix="/bases")
+app.include_router(configs_router.router, prefix="/configs")

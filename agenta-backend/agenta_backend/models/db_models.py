@@ -6,6 +6,20 @@ from bson import ObjectId
 from odmantic import EmbeddedModel, Field, Model, Reference
 
 
+class APIKeyDB(Model):
+    prefix: str
+    hashed_key: str
+    user_id: str
+    rate_limit: int = Field(default=0)
+    hidden: Optional[bool] = Field(default=False)
+    expiration_date: Optional[datetime]
+    created_at: Optional[datetime] = datetime.utcnow()
+    updated_at: Optional[datetime]
+
+    class Config:
+        collection = "api_keys"
+
+
 class InvitationDB(EmbeddedModel):
     token: str = Field(unique=True)
     email: str
@@ -44,10 +58,12 @@ class ImageDB(Model):
 
     docker_id: str = Field(index=True)
     tags: str
+    deletable: bool = Field(default=True)
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    deletable: bool = Field(default=True)
 
     class Config:
         collection = "docker_images"
@@ -68,7 +84,6 @@ class DeploymentDB(Model):
     container_name: Optional[str]
     container_id: Optional[str]
     uri: Optional[str]
-    uri_path: Optional[str]
     status: str
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -148,16 +163,13 @@ class AppEnvironmentDB(Model):
 
 
 class TemplateDB(Model):
-    dockerhub_tag_id: int
-    name: str
+    tag_id: int
+    name: str  # tag name of image
     repo_name: str
-    architecture: str
     title: str
     description: str
     size: int
-    digest: str
-    status: str
-    media_type: str
+    digest: str  # sha256 hash of image digest
     last_pushed: datetime
 
     class Config:
@@ -274,10 +286,11 @@ class Feedback(EmbeddedModel):
 
 
 class TraceDB(Model):
+    app_id: Optional[str]
+    variant_id: str
     spans: List[ObjectId]
     start_time: datetime
     end_time: datetime = Field(default=datetime.utcnow())
-    variant_id: Optional[str]
     cost: Optional[float]
     latency: float
     status: str  # initiated, completed, stopped, cancelled, failed
