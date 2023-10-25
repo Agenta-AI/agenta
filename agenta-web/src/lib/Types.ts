@@ -62,6 +62,7 @@ export interface Evaluation {
         webhookUrl: string
         customCodeEvaluationId?: string
         llmAppPromptTemplate?: string
+        evaluationPromptTemplate?: string
     }
 }
 
