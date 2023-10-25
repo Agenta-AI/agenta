@@ -175,7 +175,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 vote: vote,
                 outputs: [
                     {variant_id: variants[0].variantId, variant_output: outputVariantX},
-                    {variant_id: variants[0].variantId, variant_output: outputVariantY},
+                    {variant_id: variants[1].variantId, variant_output: outputVariantY},
                 ],
             }
 

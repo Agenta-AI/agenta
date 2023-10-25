@@ -172,11 +172,11 @@ const Sidebar: React.FC = () => {
                             className={classes.menuContainer}
                         >
                             <Tooltip
+                                key="apps"
                                 placement="right"
                                 title="Create new applications or switch between your existing projects."
                             >
                                 <Menu.Item
-                                    key="apps"
                                     icon={<AppstoreOutlined className={classes.sideIcons} />}
                                 >
                                     <Link
@@ -196,7 +196,6 @@ const Sidebar: React.FC = () => {
                                         title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
                                     >
                                         <Menu.Item
-                                            key="playground"
                                             icon={
                                                 <RocketOutlined
                                                     className={classes.optionSideIcon}
@@ -216,9 +215,9 @@ const Sidebar: React.FC = () => {
                                     <Tooltip
                                         placement="right"
                                         title="Create and manage testsets for evaluation purposes."
+                                        key="testsets"
                                     >
                                         <Menu.Item
-                                            key="testsets"
                                             icon={
                                                 <DatabaseOutlined
                                                     className={classes.optionSideIcon}
@@ -238,9 +237,9 @@ const Sidebar: React.FC = () => {
                                     <Tooltip
                                         placement="right"
                                         title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                        key="evaluations"
                                     >
                                         <Menu.Item
-                                            key="evaluations"
                                             icon={
                                                 <LineChartOutlined
                                                     className={classes.optionSideIcon}
@@ -260,9 +259,9 @@ const Sidebar: React.FC = () => {
                                     <Tooltip
                                         placement="right"
                                         title="Monitor production logs to ensure seamless operations."
+                                        key="endpoints"
                                     >
                                         <Menu.Item
-                                            key="endpoints"
                                             icon={
                                                 <CloudUploadOutlined
                                                     className={classes.optionSideIcon}
@@ -305,7 +304,6 @@ const Sidebar: React.FC = () => {
 
                             {isDemo() && (
                                 <>
-                                    {" "}
                                     <Menu.Item key="expert" icon={<PhoneOutlined />}>
                                         <Link
                                             href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"
