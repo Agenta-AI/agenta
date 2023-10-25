@@ -54,7 +54,7 @@ async def build_image(
         Image: The Docker image that was built.
     """
     # Get user and org id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
     # Check app access
     app_db = await db_manager.fetch_app_and_check_access(
@@ -82,7 +82,7 @@ async def restart_docker_container(
     """
     logger.debug(f"Restarting container for variant {payload.variant_id}")
     # Get user and org id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     app_variant_db = await db_manager.fetch_app_variant_and_check_access(
         app_variant_id=payload.variant_id, user_org_data=user_org_data
     )
@@ -140,7 +140,7 @@ async def construct_app_container_url(
     Raises:
         HTTPException: If the base or variant cannot be found or the user does not have access.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     if base_id:
         base_db = await db_manager.fetch_base_and_check_access(
             base_id=base_id, user_org_data=user_org_data

@@ -57,7 +57,7 @@ async def add_variant_from_base_and_config(
     try:
         logger.debug("Initiating process to add a variant based on a previous one.")
         logger.debug(f"Received payload: {payload}")
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         base_db = await db_manager.fetch_base_and_check_access(
             payload.base_id, user_org_data
         )
@@ -93,7 +93,7 @@ async def remove_variant(
         HTTPException: If there is a problem removing the app variant
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
         # Check app access
 
@@ -143,7 +143,7 @@ async def update_variant_parameters(
         JSONResponse: A JSON response containing the updated app variant parameters.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         access_variant = await check_access_to_variant(
             user_org_data=user_org_data, variant_id=variant_id
         )
@@ -191,7 +191,7 @@ async def update_variant_image(
         JSONResponse: A JSON response indicating whether the update was successful or not.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         access_variant = await check_access_to_variant(
             user_org_data=user_org_data, variant_id=variant_id
         )
@@ -244,7 +244,7 @@ async def start_variant(
     """
 
     logger.debug("Starting variant %s", variant_id)
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
     # Inject env vars to docker container
     if os.environ["FEATURE_FLAG"] == "demo":

@@ -54,7 +54,7 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     access_app = await check_access_to_app(
         user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
@@ -127,7 +127,7 @@ async def import_testset(
     Returns:
         dict: The result of the import process.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     access_app = await check_access_to_app(
         user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
@@ -205,7 +205,7 @@ async def create_testset(
     str: The id of the test set created.
     """
 
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     user = await get_user(user_uid=user_org_data["uid"])
     access_app = await check_access_to_app(
         user_org_data=user_org_data, app_id=app_id, check_owner=False
@@ -262,7 +262,7 @@ async def update_testset(
         "csvdata": csvdata.csvdata,
         "updated_at": datetime.now().isoformat(),
     }
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
     test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
@@ -307,7 +307,7 @@ async def get_testsets(
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     access_app = await check_access_to_app(
         user_org_data=user_org_data, app_id=app_id, check_owner=False
     )
@@ -347,7 +347,7 @@ async def get_testset(
     Returns:
         The requested testset if found, else an HTTPException.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
     test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if test_set is None:
         raise HTTPException(status_code=404, detail="testset not found")
@@ -377,7 +377,7 @@ async def delete_testsets(
     Returns:
     A list of the deleted testsets' IDs.
     """
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
     deleted_ids = []
 

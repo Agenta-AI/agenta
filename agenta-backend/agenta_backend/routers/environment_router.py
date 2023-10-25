@@ -40,7 +40,7 @@ async def deploy_to_environment(
         HTTPException: If the deployment fails.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
         # Check if has app access
         access_app = await check_access_to_variant(

@@ -55,7 +55,7 @@ async def list_app_variants(
         List[AppVariantOutput]: A list of app variants for the given app ID.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
         access_app = await check_access_to_app(
             user_org_data=user_org_data, app_id=app_id
@@ -102,7 +102,7 @@ async def get_variant_by_env(
     """
     try:
         # Retrieve the user and organization ID based on the session token
-        user_org_data = await get_user_and_org_id(request.state.user_id)
+        user_org_data = await get_user_and_org_id(request.state.user_uid)
         await check_access_to_app(user_org_data, app_id=app_id)
 
         # Fetch the app variant using the provided app_id and environment
@@ -143,7 +143,7 @@ async def create_app(
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         if payload.organization_id:
             access = await check_user_org_access(user_org_data, payload.organization_id)
             if not access:
@@ -191,7 +191,7 @@ async def list_apps(
         HTTPException: If there was an error retrieving the list of apps.
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         apps = await db_manager.list_apps(app_name, org_id, **user_org_data)
         return apps
     except Exception as e:
@@ -230,7 +230,7 @@ async def add_variant_from_image(
             raise HTTPException(status_code=404, detail="Image not found")
 
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         access_app = await check_access_to_app(user_org_data, app_id=app_id)
         if not access_app:
             error_msg = f"You cannot access app: {app_id}"
@@ -264,7 +264,7 @@ async def remove_app(app_id: str, request: Request):
         app -- App to remove
     """
     try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
         access_app = await check_access_to_app(
             user_org_data, app_id=app_id, check_owner=True
         )
@@ -309,7 +309,7 @@ async def create_app_and_variant_from_template(
 
         # Get user and org id
         logger.debug("Step 1: Getting user and organization ID")
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
         # Check if the user has reached app limit
         logger.debug("Step 2: Checking user app limit")
@@ -415,7 +415,7 @@ async def list_environments(
     logger.debug(f"Listing environments for app: {app_id}")
     try:
         logger.debug("get user and org data")
-        user_and_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        user_and_org_data: dict = await get_user_and_org_id(request.state.user_uid)
 
         # Check if has app access
         logger.debug("check_access_to_app")
