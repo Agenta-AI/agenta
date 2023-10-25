@@ -1,4 +1,5 @@
 import os
+from agenta_backend.models.db_models import UserDB
 from fastapi import APIRouter, HTTPException, Request
 from agenta_backend.models.api.user_models import User
 from agenta_backend.services import db_manager
@@ -19,10 +20,7 @@ async def user_profile(
 ):
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-
-        print("user_org_data", user_org_data)
-
-        user = await db_manager.get_user(user_org_data["uid"])
+        user = await db_manager.get_user(user_uid=user_org_data["uid"])
         return User(
             id=str(user.id),
             uid=str(user.uid),
