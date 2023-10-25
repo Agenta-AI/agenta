@@ -524,7 +524,7 @@ async def list_variants_for_base(
 
 
 async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
-    """Get the user object from the database.
+    """Get the user object from the database. If both inputs are none, we create a new user.
 
     Arguments:
         user_uid (str): The user unique identifier (can be the user uid or email address)
@@ -544,10 +544,9 @@ async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
             UserDB,
             UserDB.uid == user_uid if "@" not in user_uid else UserDB.email == user_uid,
         )
-    else:
+    elif user_id:
         user = await engine.find_one(UserDB, UserDB.id == user_id)
-
-    if user is None:
+    elif user_id is None and user_uid is None:  # create a new user in case of oss
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
             create_user = UserDB(uid="0")
             await engine.save(create_user)
@@ -559,11 +558,11 @@ async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
             await engine.save(create_user)
             await engine.save(org)
 
-            return create_user
-        else:
-            return None
+            user = create_user
     else:
-        return user
+        raise Exception(f"The provided user {user_uid}/{user_id} does not exist in the database")
+
+    return user
 
 
 async def get_users_by_ids(user_ids: List) -> List:
