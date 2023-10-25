@@ -26,7 +26,7 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {getSingleLlmProviderKey} from "@/lib/helpers/utils"
+import {getLlmProviderKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
@@ -272,7 +272,7 @@ Answer ONLY with one of the given grading or evaluation options.
                 inputs: rows[rowNumber].inputs,
                 outputs: data.outputs,
                 evaluation_prompt_template: evaluationPromptTemplate,
-                open_ai_key: getSingleLlmProviderKey("OpenAI"),
+                open_ai_key: getLlmProviderKey("OpenAI"),
             })
 
             try {

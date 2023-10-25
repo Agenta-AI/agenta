@@ -8,11 +8,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {
-    getSingleLlmProviderKey,
-    isAppNameInputValid,
-    isDemo,
-} from "@/lib/helpers/utils"
+import {getLlmProviderKey, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getTemplates,
@@ -183,7 +179,7 @@ const AppSelector: React.FC = () => {
 
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
-        const openAIKey = getSingleLlmProviderKey("OpenAI")
+        const openAIKey = getLlmProviderKey("OpenAI")
         if (!openAIKey && !isDemo()) {
             notification.error({
                 message: "OpenAI API Key Missing",

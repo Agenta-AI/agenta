@@ -20,7 +20,7 @@ import {
     useLoadTestsetsList,
     fetchCustomEvaluations,
 } from "@/lib/services/api"
-import {dynamicComponent, getSingleLlmProviderKey, isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent, getLlmProviderKey, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
@@ -338,7 +338,7 @@ export default function Evaluations() {
             message.error("Please select a testset")
             return
         } else if (
-            !getSingleLlmProviderKey("OpenAI") &&
+            !getLlmProviderKey("OpenAI") &&
             selectedEvaluationType === EvaluationType.auto_ai_critique
         ) {
             setError({

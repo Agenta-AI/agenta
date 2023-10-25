@@ -1,9 +1,9 @@
 import {
-    getLlmProviderKeys,
+    getLlmProviderKey,
     saveLlmProviderKey,
-    llmAvailableProviders,
     removeSingleLlmProviderKey,
-    getSingleLlmProviderKey,
+    getAllProviderLlmKeys,
+    LlmProvider,
 } from "@/lib/helpers/utils"
 import {Button, Input, Space, Typography, message} from "antd"
 import {useState} from "react"
@@ -32,9 +32,7 @@ const useStyles = createUseStyles({
 
 export default function Secrets() {
     const classes = useStyles()
-    const [llmProviderKeys, setLlmProviderKeys] = useState<{[key: string]: string}>(
-        getLlmProviderKeys(),
-    )
+    const [llmProviderKeys, setLlmProviderKeys] = useState(getAllProviderLlmKeys())
     const [messageAPI, contextHolder] = message.useMessage()
 
     return (
@@ -50,32 +48,32 @@ export default function Secrets() {
             </Text>
 
             <div className={classes.container}>
-                <Title level={5}>Providers API Key</Title>
+                <Title level={5}>Available Providers</Title>
 
                 <div className={classes.apiContainer}>
-                    {llmAvailableProviders.map((provider, i) => (
-                        <Space direction="horizontal" key={`space-${i}`}>
+                    {llmProviderKeys.map(({title, key}: LlmProvider, i: number) => (
+                        <Space direction="horizontal" key={i}>
                             <Input.Password
                                 data-cy="openai-api-input"
-                                value={llmProviderKeys[provider]}
+                                value={key}
                                 onChange={(e) => {
-                                    const newLlmProviderKeys = {...llmProviderKeys}
-                                    newLlmProviderKeys[provider] = e.target.value
+                                    const newLlmProviderKeys = [...llmProviderKeys]
+                                    newLlmProviderKeys[i].key = e.target.value
                                     setLlmProviderKeys(newLlmProviderKeys)
                                 }}
-                                addonBefore={`${provider}`}
+                                addonBefore={`${title}`}
                                 visibilityToggle={false}
                                 className={classes.input}
                             />
                             <Button
                                 data-cy="openai-api-save"
                                 disabled={
-                                    llmProviderKeys[provider] ===
-                                        getSingleLlmProviderKey(provider) ||
-                                    !llmProviderKeys[provider]
+                                    llmProviderKeys[i].key ===
+                                        getLlmProviderKey(llmProviderKeys[i].key) ||
+                                    !llmProviderKeys[i].key
                                 }
                                 onClick={() => {
-                                    saveLlmProviderKey(provider, llmProviderKeys[provider])
+                                    saveLlmProviderKey(i, key)
                                     messageAPI.success("The secret is saved")
                                 }}
                             >
@@ -83,10 +81,10 @@ export default function Secrets() {
                             </Button>
                             <Button
                                 onClick={() => {
-                                    removeSingleLlmProviderKey(provider)
+                                    removeSingleLlmProviderKey(i)
 
-                                    const newLlmProviderKeys = {...llmProviderKeys}
-                                    newLlmProviderKeys[provider] = ""
+                                    const newLlmProviderKeys = [...llmProviderKeys]
+                                    newLlmProviderKeys[i].key = ""
                                     setLlmProviderKeys(newLlmProviderKeys)
 
                                     messageAPI.warning("The secret is deleted")
