@@ -68,7 +68,7 @@ async def add_testset_to_app_variant(
 
     app_db = await get_app_instance_by_id(app_id)
     org_db = await get_organization_object(org_id)
-    user_db = await get_user_object(kwargs["uid"])
+    user_db = await get_user(user_uid=kwargs["uid"])
 
     if template_name == "single_prompt":
         json_path = (
@@ -535,7 +535,7 @@ async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
     """
 
     if (user_uid is None) == (user_id is None):
-        raise Exception("Please provide either user_uid or user_id, but not both.")
+        raise Exception("Please provide either user_uid or user_id, not both or neither")
 
     if user_uid:
         user = await engine.find_one(
