@@ -282,7 +282,9 @@ async def remove_app(app_id: str, request: Request):
             try:
                 await app_manager.remove_app(app_id=app_id, **user_org_data)
             except db_manager.DocumentParsingError as exc:
-                await db_manager.remove_document_using_driver(str(exc.primary_value), "app_db")
+                await db_manager.remove_document_using_driver(
+                    str(exc.primary_value), "app_db"
+                )
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
