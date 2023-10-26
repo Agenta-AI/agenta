@@ -199,12 +199,13 @@ export interface InputParameter {
 }
 
 export interface Template {
-    id: number
+    id: string
     image: {
+        id: string
         name: string
+        digest: string
         title: string
         description: string
-        architecture: string
     }
 }
 
@@ -216,8 +217,7 @@ export interface TemplateImage {
 
 export interface AppTemplate {
     app_name: string
-    image_id: string
-    image_tag: string
+    template_id: string
     env_vars?: {
         OPENAI_API_KEY: string | null
     }
