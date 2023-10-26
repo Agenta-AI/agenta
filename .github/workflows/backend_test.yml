@@ -25,7 +25,7 @@ jobs:
       
 
       - name: Run tests
-        run: docker exec agenta_backend_1 pytest
+        run: docker exec agenta-backend-test pytest
 
       - name: Stop Docker Compose
         run: docker-compose down
