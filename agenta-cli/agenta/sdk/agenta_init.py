@@ -1,8 +1,12 @@
 import os
+import logging
 from typing import Any, Optional
 from agenta.client import client
 
 from .utils.globals import set_global
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class AgentaSingleton:
@@ -91,7 +95,7 @@ class Config:
         try:
             self.push(config_name="default", overwrite=overwrite, **kwargs)
         except Exception as ex:
-            raise
+            logger.warning("Unable to push the default configuration to the server." + str(ex))
 
     def push(self, config_name: str, overwrite=True, **kwargs):
         """Pushes the parameters for the app variant to the server
@@ -112,7 +116,7 @@ class Config:
                 api_key=self.api_key,
             )
         except Exception as ex:
-            raise Exception(
+            logger.warning(
                 "Failed to push the configuration to the server with error: " + str(ex)
             )
 
@@ -142,16 +146,16 @@ class Config:
                         config_name=config_name,
                     )
             except Exception as ex:
-                raise Exception(
+                logger.warning(
                     "Failed to pull the configuration from the server with error: "
                     + str(ex)
-                ) from ex
+                )
         try:
             self.set(**config["parameters"])
         except Exception as ex:
-            raise Exception(
+            logger.warning(
                 "Failed to set the configuration with error: " + str(ex)
-            ) from ex
+            )
 
     def all(self):
         """Returns all the parameters for the app variant"""
