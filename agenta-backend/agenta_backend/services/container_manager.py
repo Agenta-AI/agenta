@@ -104,9 +104,7 @@ def build_image_job(
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
-            buildargs={
-                "ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"
-            },
+            buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"},
             rm=True,
         )
         for line in build_log:
@@ -125,9 +123,7 @@ def build_image_job(
         raise HTTPException(status_code=500, detail=str(ex))
 
 
-@backoff.on_exception(
-    backoff.expo, (ConnectError, CancelledError), max_tries=5
-)
+@backoff.on_exception(backoff.expo, (ConnectError, CancelledError), max_tries=5)
 async def retrieve_templates_from_dockerhub(
     url: str, repo_owner: str, repo_name: str
 ) -> Union[List[dict], dict]:
