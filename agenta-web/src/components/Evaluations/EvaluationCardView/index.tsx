@@ -96,6 +96,9 @@ const useStyles = createUseStyles({
             padding: "0.1rem 0.3rem",
             borderRadius: 3,
         },
+        "& li": {
+            marginBottom: "0.5rem",
+        },
     },
     note: {
         marginTop: "1.25rem",
@@ -177,23 +180,31 @@ const EvaluationCardView: React.FC<Props> = ({
                         evaluations.
                     </li>
                     <li>
-                        Click the <b>Run</b> button on right or press <code>{`Enter (↵)`}</code> to
-                        generate the variants' outputs.
+                        Click the <b>Run</b>{" "}
+                        <PlayCircleOutlined style={{color: token.colorSuccessActive}} /> button on
+                        right or press <code>{`Enter (↵)`}</code> key to generate the variants'
+                        outputs.
                     </li>
                     <li>
-                        Vote by either clicking the evaluation buttons at the bottom or pressing the
-                        key <code>a</code> for 1st Variant, <code>b</code> for 2nd Variant and{" "}
-                        <code>x</code> if both are bad.
+                        <b>Vote</b> by either clicking the evaluation buttons at the bottom or
+                        pressing the key <code>a</code> for 1st Variant, <code>b</code> for 2nd
+                        Variant and <code>x</code> if both are bad.
                     </li>
                     <li>
-                        You can also jump to a specific evaluation by pressing the numeric keys{" "}
-                        <code>1</code> to <code>9</code>.
+                        Pin an evaluation to come back later by clicking the <b>Pin</b>{" "}
+                        <PushpinOutlined style={{color: token.colorError}} /> button on the right.
+                    </li>
+                    <li>
+                        Add a note to an evaluation by clicking the <b>Note</b>{" "}
+                        <EditOutlined style={{color: token.colorPrimary}} /> button on the right.
                     </li>
                 </ol>
             ),
             okText: "Ok",
             cancelText: null,
             width: 500,
+            onCancel: () => (opened.current = false),
+            onOk: () => (opened.current = false),
         })
     }, [])
 
@@ -241,11 +252,6 @@ const EvaluationCardView: React.FC<Props> = ({
             else if (e.key === "a") callbacks.current.onVote(scenarioId, variants[0].variantId)
             else if (e.key === "b") callbacks.current.onVote(scenarioId, variants[1].variantId)
             else if (e.key === "x") callbacks.current.onVote(scenarioId, "0")
-            else if (!isNaN(+e.key)) {
-                const num = +e.key
-                if (num >= 1 && num <= evaluationScenarios.length)
-                    setScenarioId(evaluationScenarios[num - 1].id)
-            }
         }
 
         document.addEventListener("keydown", listener)
