@@ -13,7 +13,7 @@ import {
 import {Alert, Button, Empty, Input, Space, Tooltip, Typography, theme} from "antd"
 import React, {useCallback, useEffect, useMemo, useRef} from "react"
 import {createUseStyles} from "react-jss"
-import EvaluationVoteRecorder from "./EvaluationVoteRecorder"
+import EvaluationVotePanel from "./EvaluationVotePanel"
 import EvaluationCard from "./EvaluationCard"
 import EvaluationInputs from "./EvaluationInputs"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
@@ -316,7 +316,7 @@ const EvaluationCardView: React.FC<Props> = ({
 
                         {scenario.outputs.some((item) => !!item.variant_output) && (
                             <>
-                                <EvaluationVoteRecorder
+                                <EvaluationVotePanel
                                     type="comparison"
                                     value={scenario.vote || ""}
                                     variants={variants}
