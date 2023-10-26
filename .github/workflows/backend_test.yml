@@ -12,7 +12,7 @@ jobs:
         run: docker-compose -f "docker-compose.test.yml" up -d --build
 
       - name: Install Curl
-        run: apt install curl -y
+        run: sudo apt install curl -y
 
       - name: Wait for Backend Service
         run: |
