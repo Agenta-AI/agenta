@@ -95,7 +95,9 @@ class Config:
         try:
             self.push(config_name="default", overwrite=overwrite, **kwargs)
         except Exception as ex:
-            logger.warning("Unable to push the default configuration to the server." + str(ex))
+            logger.warning(
+                "Unable to push the default configuration to the server." + str(ex)
+            )
 
     def push(self, config_name: str, overwrite=True, **kwargs):
         """Pushes the parameters for the app variant to the server
@@ -153,9 +155,7 @@ class Config:
         try:
             self.set(**config["parameters"])
         except Exception as ex:
-            logger.warning(
-                "Failed to set the configuration with error: " + str(ex)
-            )
+            logger.warning("Failed to set the configuration with error: " + str(ex))
 
     def all(self):
         """Returns all the parameters for the app variant"""
