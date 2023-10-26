@@ -1,14 +1,21 @@
 import {isDemo} from "../support/commands/utils"
 
 describe("App Navigation without errors", () => {
+    let app_id
+    before(() => {
+        cy.createVariant()
+        cy.get("@app_id").then((appId) => {
+            app_id = appId
+        })
+    })
+
     context("When the user navigates outside of the App views", () => {
         beforeEach(() => {
-            cy.visit("/apps")
-            cy.clickLinkAndWait('[data-cy="app-card-link"]')
+            cy.visit(`/apps/${app_id}/playground`)
+            cy.contains(/modify parameters/i)
         })
 
         it("should navigate to playground and check if it's successful", () => {
-            cy.clickLinkAndWait('[data-cy="app-playground-link"]')
             cy.location("pathname").should("include", "/playground")
             cy.get('[data-cy="playground-header"]').within(() => {
                 cy.get("h2").should("contain.text", "1. Modify Parameters")
@@ -55,5 +62,9 @@ describe("App Navigation without errors", () => {
                 cy.contains("LLM Keys")
             })
         })
+    })
+
+    after(() => {
+        cy.cleanupVariantAndTestset()
     })
 })
