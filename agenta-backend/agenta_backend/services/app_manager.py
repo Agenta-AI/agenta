@@ -290,7 +290,9 @@ async def remove_app(app_id: str, **kwargs: dict):
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(app_id=app_id, **kwargs)
     except db_manager.DocumentParsingError as exc:
-        await db_manager.remove_document_using_driver(str(exc.primary_value), "app_variants")
+        await db_manager.remove_document_using_driver(
+            str(exc.primary_value), "app_variants"
+        )
 
     except Exception as e:
         logger.error(
