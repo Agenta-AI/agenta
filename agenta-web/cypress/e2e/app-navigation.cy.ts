@@ -1,3 +1,5 @@
+import {isDemo} from "../support/commands/utils"
+
 describe("App Navigation without errors", () => {
     context("When the user navigates outside of the App views", () => {
         beforeEach(() => {
@@ -30,13 +32,15 @@ describe("App Navigation without errors", () => {
             })
         })
 
-        it("should navigate to endpoints and check if it's successful", () => {
-            cy.clickLinkAndWait('[data-cy="app-endpoints-link"]')
-            cy.location("pathname").should("include", "/endpoints")
-            cy.get('[data-cy="endpoints"]').within(() => {
-                cy.contains("API endpoint")
+        if (isDemo()) {
+            it("should navigate to endpoints and check if it's successful", () => {
+                cy.clickLinkAndWait('[data-cy="app-endpoints-link"]')
+                cy.location("pathname").should("include", "/endpoints")
+                cy.get('[data-cy="endpoints"]').within(() => {
+                    cy.contains("API endpoint")
+                })
             })
-        })
+        }
     })
 
     context("When the user navigates from Apps view", () => {
@@ -48,8 +52,7 @@ describe("App Navigation without errors", () => {
             cy.clickLinkAndWait('[data-cy="settings-link"]')
             cy.location("pathname").should("include", "/settings")
             cy.get('[data-cy="secrets"]').within(() => {
-                cy.contains("Secrets")
-                cy.contains("LLM providers")
+                cy.contains("LLM Keys")
             })
         })
     })
