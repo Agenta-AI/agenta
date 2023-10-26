@@ -211,7 +211,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         Promise.all(rows.map((row) => runEvaluation(row.id!, rows.length - 1, false)))
             .then(() => {
                 setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
-                message.success("Evaluation Updated!")
+                message.success("Evaluations Updated!")
             })
             .catch((err) => console.error("An error occurred:", err))
     }
@@ -259,14 +259,17 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             }),
         )
 
-        updateEvaluationScenarioData(id, {
-            outputs: Object.keys(outputs).map((key) => ({
-                variant_id: key,
-                variant_output: outputs[key as keyof typeof outputs],
-            })),
-            inputs: rows[rowIndex].inputs,
-        }),
-            showNotification
+        updateEvaluationScenarioData(
+            id,
+            {
+                outputs: Object.keys(outputs).map((key) => ({
+                    variant_id: key,
+                    variant_output: outputs[key as keyof typeof outputs],
+                })),
+                inputs: rows[rowIndex].inputs,
+            },
+            showNotification,
+        )
     }
 
     const setRowValue = (

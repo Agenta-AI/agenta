@@ -97,7 +97,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                 key={badId}
                 onClick={getOnClick(badId)}
             >
-                All are bad
+                Both are bad
             </Button>
         </div>
     )
