@@ -46,6 +46,7 @@ const useStyles = createUseStyles({
             margin: 0,
             marginBottom: "1rem",
         },
+        gap: "1rem",
     },
     heading: {
         width: "100%",
@@ -227,8 +228,7 @@ const EvaluationCardView: React.FC<Props> = ({
     }, [instructionsShown])
 
     useEffect(() => {
-        if (rootRef.current && scenarioIndex >= 0)
-            rootRef.current.scrollIntoView({behavior: "smooth"})
+        // if (rootRef.current && scenarioIndex >= 0) rootRef.current.scrollIntoView()
 
         const listener = (e: KeyboardEvent) => {
             if (document.activeElement !== rootRef.current) return
@@ -288,27 +288,30 @@ const EvaluationCardView: React.FC<Props> = ({
                         )}
 
                         <div className={classes.headingDivider}>
-                            <Divider />
+                            {/* <Divider /> */}
                             <div className={classes.helpIcon}>
                                 <Tooltip title="Instructions">
-                                    <QuestionCircleOutlined onClick={showInstructions} />
+                                    <QuestionCircleOutlined
+                                        onClick={showInstructions}
+                                        style={{color: token.colorPrimary}}
+                                    />
                                 </Tooltip>
                             </div>
                         </div>
-                        <Typography.Title level={5}>Inputs</Typography.Title>
+                        {/* <Typography.Title level={5}>Inputs</Typography.Title> */}
                         <EvaluationInputs
                             evaluationScenario={scenario}
                             onInputChange={onInputChange}
                         />
 
-                        <Divider />
-                        <Typography.Title level={5}>Variants</Typography.Title>
+                        {/* <Divider />
+                        <Typography.Title level={5}>Variants</Typography.Title> */}
                         <EvaluationCard variants={variants} evaluationScenario={scenario} />
 
                         {scenario.outputs.some((item) => !!item.variant_output) && (
                             <>
-                                <Divider />
-                                <Typography.Title level={5}>Evaluation</Typography.Title>
+                                {/* <Divider />
+                                <Typography.Title level={5}>Evaluation</Typography.Title> */}
                                 <EvaluationVoteRecorder
                                     type="comparison"
                                     value={scenario.vote || ""}

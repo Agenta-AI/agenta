@@ -176,7 +176,11 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         }
     }
 
-    const updateEvaluationScenarioData = async (id: string, data: Partial<EvaluationScenario>) => {
+    const updateEvaluationScenarioData = async (
+        id: string,
+        data: Partial<EvaluationScenario>,
+        showNotification: boolean = true,
+    ) => {
         await updateEvaluationScenario(
             evaluation.id,
             id,
@@ -197,21 +201,26 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         data[key as keyof EvaluationScenario],
                     )
                 })
-                message.success("Evaluation Updated!")
+                if (showNotification) message.success("Evaluation Updated!")
             })
             .catch(console.error)
     }
 
     const runAllEvaluations = async () => {
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
-        Promise.all(rows.map((row) => runEvaluation(row.id!, rows.length - 1)))
+        Promise.all(rows.map((row) => runEvaluation(row.id!, rows.length - 1, false)))
             .then(() => {
                 setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
+                message.success("Evaluation Updated!")
             })
             .catch((err) => console.error("An error occurred:", err))
     }
 
-    const runEvaluation = async (id: string, count: number = 1) => {
+    const runEvaluation = async (
+        id: string,
+        count: number = 1,
+        showNotification: boolean = true,
+    ) => {
         const rowIndex = rows.findIndex((row) => row.id === id)
         const inputParamsDict = rows[rowIndex].inputs.reduce((acc: {[key: string]: any}, item) => {
             acc[item.input_name] = item.input_value
@@ -256,7 +265,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 variant_output: outputs[key as keyof typeof outputs],
             })),
             inputs: rows[rowIndex].inputs,
-        })
+        }),
+            showNotification
     }
 
     const setRowValue = (
