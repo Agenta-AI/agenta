@@ -1,7 +1,8 @@
-import {Evaluation, EvaluationScenario} from "@/lib/Types"
+import {Variant} from "@/lib/Types"
 import React from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVariantCard from "./EvaluationVariantCard"
+import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestingEvaluationTable"
 
 const useStyles = createUseStyles({
     root: {
@@ -12,20 +13,25 @@ const useStyles = createUseStyles({
 })
 
 interface Props {
-    evaluation: Evaluation
-    evaluationScenario: EvaluationScenario
+    evaluationScenario: ABTestingEvaluationTableRow
+    variants: Variant[]
 }
 
-const EvaluationCard: React.FC<Props> = ({evaluationScenario, evaluation}) => {
+const EvaluationCard: React.FC<Props> = ({evaluationScenario, variants}) => {
     const classes = useStyles()
 
     return (
         <div className={classes.root}>
-            {evaluationScenario.outputs.map((op) => (
+            {variants.map((variant) => (
                 <EvaluationVariantCard
-                    key={op.variant_id}
-                    variant={evaluation.variants.find((item) => item.variantId === op.variant_id)!}
-                    outputText={op.variant_output}
+                    key={variant.variantId}
+                    variant={variant}
+                    outputText={
+                        evaluationScenario[variant.variantId] ||
+                        evaluationScenario.outputs.find((item) => item.variant_id)
+                            ?.variant_output ||
+                        ""
+                    }
                 />
             ))}
         </div>

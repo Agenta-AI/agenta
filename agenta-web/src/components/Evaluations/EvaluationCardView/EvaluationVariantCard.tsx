@@ -34,7 +34,10 @@ const EvaluationVariantCard: React.FC<Props> = ({variant, outputText, outputImg}
 
     return (
         <Card className={classes.root} cover={outputImg && <img alt="output" src={outputImg} />}>
-            <Card.Meta title={variant.variantName} description={outputText} />
+            <Card.Meta
+                title={variant.variantName}
+                description={outputText || <em>Click the "Run" icon to get variant output</em>}
+            />
         </Card>
     )
 }

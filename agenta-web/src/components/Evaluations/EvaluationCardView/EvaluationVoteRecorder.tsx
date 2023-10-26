@@ -1,5 +1,5 @@
 import {Variant} from "@/lib/Types"
-import {Button, Typography} from "antd"
+import {Button, Spin, Typography} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
 
@@ -24,10 +24,12 @@ const useStyles = createUseStyles({
     },
 })
 
-interface BinaryVoteProps {
-    onChange: (isGood: boolean) => void
-    value?: boolean
+interface CommonProps<T> {
+    onChange: (value: T) => void
+    value?: T
 }
+
+type BinaryVoteProps = CommonProps<boolean>
 
 const BinaryVote: React.FC<BinaryVoteProps> = ({onChange, value}) => {
     const classes = useStyles()
@@ -52,11 +54,9 @@ const BinaryVote: React.FC<BinaryVoteProps> = ({onChange, value}) => {
     )
 }
 
-interface ComparisonVoteProps {
-    onChange: (variantId: string) => void
-    value?: string
+type ComparisonVoteProps = {
     variants: Variant[]
-}
+} & CommonProps<string>
 
 const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, value}) => {
     const classes = useStyles()
@@ -81,16 +81,15 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
     )
 }
 
-type VariantGradeValue = {
-    grade: number | null
-    variantId: string
-}
-interface GradingVoteProps {
-    onChange: (value: VariantGradeValue[]) => void
-    value?: VariantGradeValue[]
+type GradingVoteProps = {
     variants: Variant[]
     maxGrade?: number
-}
+} & CommonProps<
+    {
+        grade: number | null
+        variantId: string
+    }[]
+>
 
 const GradingVote: React.FC<GradingVoteProps> = ({
     variants,
@@ -149,18 +148,24 @@ type Props =
           type: "grading"
       } & GradingVoteProps)
 
-const EvaluationVoteRecorder: React.FC<Props> = ({type, ...props}) => {
+const EvaluationVoteRecorder: React.FC<Props & {loading?: boolean}> = ({
+    type,
+    loading,
+    ...props
+}) => {
     const classes = useStyles()
 
     return (
         <div className={classes.voteRecorder}>
-            {type === "binary" ? (
-                <BinaryVote {...(props as BinaryVoteProps)} />
-            ) : type === "comparison" ? (
-                <ComparisonVote {...(props as ComparisonVoteProps)} />
-            ) : (
-                <GradingVote {...(props as GradingVoteProps)} />
-            )}
+            <Spin spinning={loading}>
+                {type === "binary" ? (
+                    <BinaryVote {...(props as BinaryVoteProps)} />
+                ) : type === "comparison" ? (
+                    <ComparisonVote {...(props as ComparisonVoteProps)} />
+                ) : (
+                    <GradingVote {...(props as GradingVoteProps)} />
+                )}
+            </Spin>
         </div>
     )
 }
