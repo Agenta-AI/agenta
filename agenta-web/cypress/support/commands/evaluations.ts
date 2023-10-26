@@ -9,9 +9,7 @@ const countries = [
 ]
 
 Cypress.Commands.add("createVariantsAndTestsets", () => {
-    cy.visit("/settings")
-    cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
-    cy.get('[data-cy="openai-api-save"]').click()
+    cy.addingOpenaiKey()
     cy.visit("/apps")
     cy.get('[data-cy="create-new-app-button"]').click()
     cy.get('[data-cy="create-from-template"]').click()
@@ -74,4 +72,10 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
             app_id,
         },
     })
+})
+
+Cypress.Commands.add("addingOpenaiKey", () => {
+    cy.visit("/settings")
+    cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
+    cy.get('[data-cy="openai-api-save"]').click()
 })

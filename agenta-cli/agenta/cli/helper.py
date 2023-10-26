@@ -1,9 +1,45 @@
-from pathlib import Path
-from typing import Any, List, MutableMapping
-import click
+import sys
 import toml
+import click
+import questionary
+from pathlib import Path
 from agenta.client import client
+from typing import Any, List, MutableMapping
 from agenta.client.api_models import AppVariant
+
+
+def get_api_key():
+    agenta_dir = Path.home() / ".agenta"
+    agenta_dir.mkdir(exist_ok=True)
+    credentials_file = agenta_dir / "config.toml"
+
+    if credentials_file.exists():
+        config = toml.load(credentials_file)
+        api_key = config.get("api_key", None)
+
+        if api_key:
+            # API key exists in the config file, ask for confirmation
+            confirm_api_key = questionary.confirm(
+                f"API Key found: {api_key}\nDo you want to use this API Key?"
+            ).ask()
+
+            if confirm_api_key:
+                return api_key
+            elif confirm_api_key is None:  # User pressed Ctrl+C
+                sys.exit(0)
+
+    api_key = questionary.text(
+        "(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) Please provide your API key:"
+    ).ask()
+
+    if api_key:
+        config = {"api_key": api_key}
+        with open(credentials_file, "w") as config_file:
+            toml.dump(config, config_file)
+
+        return api_key
+    elif api_key is None:  # User pressed Ctrl+C
+        sys.exit(0)
 
 
 def update_variants_from_backend(

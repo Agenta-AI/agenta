@@ -17,7 +17,7 @@ class DBEngine(object):
     """
 
     def __init__(self) -> None:
-        self.mode = os.environ["DATABASE_MODE"]
+        self.mode = os.environ.get("DATABASE_MODE", "v2")
         self.db_url = os.environ["MONGODB_URI"]
 
     @property
@@ -48,6 +48,15 @@ class DBEngine(object):
         elif self.mode == "v2":
             aio_engine = AIOEngine(client=self.initialize_client, database="agenta_v2")
             logger.info("Using v2 database...")
+            return aio_engine
+        else:
+            # make sure that self.mode does only contain alphanumeric characters
+            if not self.mode.isalnum():
+                raise ValueError("Mode of database needs to be alphanumeric.")
+            aio_engine = AIOEngine(
+                client=self.initialize_client, database=f"agenta_{self.mode}"
+            )
+            logger.info(f"Using {self.mode} database...")
             return aio_engine
         raise ValueError(
             "Mode of database is unknown. Did you mean 'default' or 'test'?"
