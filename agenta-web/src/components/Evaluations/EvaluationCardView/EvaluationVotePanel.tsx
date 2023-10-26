@@ -5,7 +5,7 @@ import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
 
 const useStyles = createUseStyles({
-    voteRecorder: {
+    root: {
         display: "flex",
         justifyContent: "center",
         width: "100%",
@@ -170,15 +170,11 @@ type Props =
           type: "grading"
       } & GradingVoteProps)
 
-const EvaluationVoteRecorder: React.FC<Props & {loading?: boolean}> = ({
-    type,
-    loading,
-    ...props
-}) => {
+const EvaluationVotePanel: React.FC<Props & {loading?: boolean}> = ({type, loading, ...props}) => {
     const classes = useStyles()
 
     return (
-        <div className={classes.voteRecorder}>
+        <div className={classes.root}>
             <Spin spinning={loading}>
                 {type === "binary" ? (
                     <BinaryVote {...(props as BinaryVoteProps)} />
@@ -192,4 +188,4 @@ const EvaluationVoteRecorder: React.FC<Props & {loading?: boolean}> = ({
     )
 }
 
-export default EvaluationVoteRecorder
+export default EvaluationVotePanel
