@@ -23,6 +23,10 @@ if os.environ["FEATURE_FLAG"] in ["cloud"]:
 else:
     from agenta_backend.services import deployment_manager
 
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+    from agenta_backend.ee.services import (
+        api_key_service,
+    )  # noqa pylint: disable-all
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -64,11 +68,19 @@ async def start_variant(
         domain_name = os.environ.get("DOMAIN_NAME")
         if domain_name is None or domain_name == "http://localhost":
             # in the case of agenta running locally, the containers can access the host machine via this address
-            domain_name = "http://host.docker.internal"
+            domain_name = (
+                "http://host.docker.internal"  # unclear why this stopped working
+            )
+            # domain_name = "http://localhost"
         env_vars = {} if env_vars is None else env_vars
         env_vars.update(
             {"AGENTA_BASE_ID": str(db_app_variant.base.id), "AGENTA_HOST": domain_name}
         )
+        if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+            api_key = await api_key_service.create_api_key(
+                str(db_app_variant.user.uid), expiration_date=None, hidden=True
+            )
+            env_vars.update({"AGENTA_API_KEY": api_key})
         deployment = await deployment_manager.start_service(
             app_variant_db=db_app_variant, env_vars=env_vars
         )
@@ -277,6 +289,8 @@ async def remove_app(app_id: str, **kwargs: dict):
         if len(app_variants) == 0:  # Failsafe in case something went wrong before
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(app_id=app_id, **kwargs)
+    except db_manager.DocumentParsingError as exc:
+        await db_manager.remove_document_using_driver(str(exc.primary_value), "app_variants")
 
     except Exception as e:
         logger.error(
@@ -365,7 +379,7 @@ async def add_variant_based_on_image(
 
     # Retrieve user and image objects
     logger.debug("Step 3: Retrieving user and image objects")
-    user_instance = await db_manager.get_user_object(user_org_data["uid"])
+    user_instance = await db_manager.get_user(user_uid=user_org_data["uid"])
     db_image = await db_manager.get_orga_image_instance(
         organization_id=str(app.organization.id), docker_id=docker_id
     )

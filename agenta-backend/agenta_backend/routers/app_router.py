@@ -194,6 +194,8 @@ async def list_apps(
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         apps = await db_manager.list_apps(app_name, org_id, **user_org_data)
         return apps
+    except db_manager.DocumentParsingError as exc:
+        await db_manager.remove_document_using_driver(str(exc.primary_value), "app_db")
     except Exception as e:
         logger.error(f"list_apps exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -277,7 +279,10 @@ async def remove_app(app_id: str, request: Request):
                 status_code=400,
             )
         else:
-            await app_manager.remove_app(app_id=app_id, **user_org_data)
+            try:
+                await app_manager.remove_app(app_id=app_id, **user_org_data)
+            except db_manager.DocumentParsingError as exc:
+                await db_manager.remove_document_using_driver(str(exc.primary_value), "app_db")
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -362,7 +367,16 @@ async def create_app_and_variant_from_template(
             **user_org_data,
         )
 
-        logger.debug("Step 7: Starting variant and injecting environment variables")
+        logger.debug("Step 7: Creating testset for app variant")
+        await db_manager.add_testset_to_app_variant(
+            app_id=str(app.id),
+            org_id=organization_id,
+            template_name=template_db.name,
+            app_name=app.app_name,
+            **user_org_data,
+        )
+
+        logger.debug("Step 8: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] == "demo":
             if not os.environ["OPENAI_API_KEY"]:
                 raise HTTPException(
@@ -370,8 +384,10 @@ async def create_app_and_variant_from_template(
                     detail="Unable to start app container. Please file an issue by clicking on the button below.",
                 )
             envvars = {
-                "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
                 **(payload.env_vars or {}),
+                "OPENAI_API_KEY": os.environ[
+                    "OPENAI_API_KEY"
+                ],  # order is important here
             }
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars

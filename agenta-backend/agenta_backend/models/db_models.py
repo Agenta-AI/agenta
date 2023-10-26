@@ -11,6 +11,7 @@ class APIKeyDB(Model):
     hashed_key: str
     user_id: str
     rate_limit: int = Field(default=0)
+    hidden: Optional[bool] = Field(default=False)
     expiration_date: Optional[datetime]
     created_at: Optional[datetime] = datetime.utcnow()
     updated_at: Optional[datetime]
@@ -194,8 +195,8 @@ class EvaluationTypeSettings(EmbeddedModel):
     regex_should_match: Optional[bool]
     webhook_url: Optional[str]
     llm_app_prompt_template: Optional[str]
-    evaluation_prompt_template: Optional[str]
     custom_code_evaluation_id: Optional[str]
+    evaluation_prompt_template: Optional[str]
 
 
 class EvaluationScenarioInput(EmbeddedModel):
