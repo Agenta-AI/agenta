@@ -1,5 +1,7 @@
 import {defineConfig} from "cypress"
 
+const cypressApiKey="cypressApiKey";
+
 export default defineConfig({
     video: false,
     screenshotOnRunFailure: false,
@@ -12,5 +14,6 @@ export default defineConfig({
         OPENAI_API_KEY: "your_api_key_here",
         localBaseUrl: "http://localhost",
         NEXT_PUBLIC_FF: false,
+        CYPRESS_API_KEY: process.env[cypressApiKey] ?? "your_fallback_api_key_here",
     },
 })
