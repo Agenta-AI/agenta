@@ -43,7 +43,7 @@ const useStyles = createUseStyles({
         top: 10,
         left: 10,
         borderRadius: "50%",
-        border: `1px solid`,
+        border: `1.5px solid`,
         width: 32,
         aspectRatio: "1/1",
         display: "grid",
@@ -70,7 +70,9 @@ const EvaluationVariantCard: React.FC<Props> = ({variant, outputText, outputImg,
     return (
         <div className={classes.root}>
             <div className={classes.variantType} style={{borderColor: color}}>
-                <Typography.Text style={{color}}>{String.fromCharCode(65 + index)}</Typography.Text>
+                <Typography.Text style={{color}} strong>
+                    {String.fromCharCode(65 + index)}
+                </Typography.Text>
             </div>
 
             <Typography.Text className={classes.title}>{variant.variantName}</Typography.Text>
