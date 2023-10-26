@@ -22,7 +22,7 @@ const EvaluationCard: React.FC<Props> = ({evaluationScenario, variants}) => {
 
     return (
         <div className={classes.root}>
-            {variants.map((variant) => (
+            {variants.map((variant, ix) => (
                 <EvaluationVariantCard
                     key={variant.variantId}
                     variant={variant}
@@ -32,6 +32,9 @@ const EvaluationCard: React.FC<Props> = ({evaluationScenario, variants}) => {
                             ?.variant_output ||
                         ""
                     }
+                    index={ix}
+                    //random image from unsplash
+                    // outputImg={`https://source.unsplash.com/random/?sig=${ix}`}
                 />
             ))}
         </div>

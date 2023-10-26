@@ -1,12 +1,13 @@
 import {Variant} from "@/lib/Types"
-import {Button, Spin, Typography} from "antd"
+import {Button, ConfigProvider, Divider, Spin, Typography, theme} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
+import {VARIANT_COLORS} from "."
 
 const useStyles = createUseStyles({
     voteRecorder: {
         display: "flex",
-        justifyContent: "flex-end",
+        justifyContent: "center",
         width: "100%",
     },
     btnRow: {
@@ -21,6 +22,12 @@ const useStyles = createUseStyles({
     variantName: {
         display: "inline-block",
         marginBottom: "0.25rem",
+    },
+    btnsDivider: {
+        height: 30,
+        borderRight: "1.2px solid",
+        alignSelf: "center",
+        margin: "0 4px",
     },
 })
 
@@ -60,6 +67,8 @@ type ComparisonVoteProps = {
 
 const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, value}) => {
     const classes = useStyles()
+    const {token} = theme.useToken()
+    const badId = "0"
 
     const getOnClick = (variantId: string) => () => {
         onChange(variantId)
@@ -67,16 +76,28 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
 
     return (
         <div className={classes.btnRow}>
-            {[...variants, {variantId: "0", variantName: "All are bad"}].map((variant) => (
-                <Button
-                    key={variant.variantId}
-                    onClick={getOnClick(variant.variantId)}
-                    type={value === variant.variantId ? "primary" : undefined}
-                    danger={variant.variantId === "0"}
-                >
-                    {variant.variantName}
-                </Button>
+            {variants.map((variant, ix) => (
+                <ConfigProvider theme={{token: {colorError: VARIANT_COLORS[ix]}}}>
+                    <Button
+                        key={variant.variantId}
+                        onClick={getOnClick(variant.variantId)}
+                        type={value === variant.variantId ? "primary" : undefined}
+                        // danger={variant.variantId === "0"}
+                        danger
+                    >
+                        {String.fromCharCode(65 + ix)}: {variant.variantName}
+                    </Button>
+                </ConfigProvider>
             ))}
+            <div className={classes.btnsDivider} style={{borderRightColor: token.colorBorder}} />
+            <Button
+                danger
+                type={value === badId ? "primary" : undefined}
+                key={badId}
+                onClick={getOnClick(badId)}
+            >
+                All are bad
+            </Button>
         </div>
     )
 }
