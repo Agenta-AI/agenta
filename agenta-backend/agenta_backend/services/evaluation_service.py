@@ -20,7 +20,7 @@ from agenta_backend.models.api.evaluation_model import (
 )
 from agenta_backend.models import converters
 from agenta_backend.utils.common import engine, check_access_to_app
-from agenta_backend.services.db_manager import query, get_user_object
+from agenta_backend.services.db_manager import query, get_user
 from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
     AppVariantDB,
@@ -119,7 +119,7 @@ async def create_new_evaluation(
     Returns:
         EvaluationDB
     """
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
 
     # Initialize evaluation type settings
     settings = payload.evaluation_type_settings
@@ -683,7 +683,7 @@ async def update_custom_code_evaluation(
     """
 
     # Get user object
-    user = await get_user_object(kwargs["uid"])
+    user = await get_user(user_uid=kwargs["uid"])
 
     # Build query expression
     query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
@@ -738,7 +738,7 @@ async def execute_custom_code_evaluation(
         f"evaluation_id {evaluation_id} | app_id {app_id} | variant_id {variant_id} | inputs {inputs} | output {output} | correct_answer {correct_answer}"
     )
     # Get user object
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
 
     # Build query expression
     query_expression = query.eq(
@@ -844,7 +844,7 @@ async def fetch_custom_evaluation_detail(
     """
 
     # Get user object
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
 
     # Build query expression
     query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
@@ -879,7 +879,7 @@ async def fetch_custom_evaluation_names(
     """
 
     # Get user object
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
 
     # Check if user has app access
     access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)

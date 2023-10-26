@@ -1,1 +1,3371 @@
-{"openapi":"3.0.2","info":{"title":"FastAPI","version":"0.1.0"},"servers":[{"url":"/api"}],"paths":{"/app_variant/list_variants/":{"get":{"summary":"List App Variants","description":"Lists the app variants from our repository.\n\nArguments:\n    app_name -- If specified, only returns the app variants for the specified app\nRaises:\n    HTTPException: _description_\n\nReturns:\n    List[AppVariant]","operationId":"list_app_variants_app_variant_list_variants__get","parameters":[{"required":false,"schema":{"title":"App Name","type":"string"},"name":"app_name","in":"query"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"title":"Response List App Variants App Variant List Variants  Get","type":"array","items":{"$ref":"#/components/schemas/AppVariant"}}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/app_variant/list_apps/":{"get":{"summary":"List Apps","description":"Lists the apps from our repository.\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    List[App]","operationId":"list_apps_app_variant_list_apps__get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"title":"Response List Apps App Variant List Apps  Get","type":"array","items":{"$ref":"#/components/schemas/App"}}}}}}}},"/app_variant/add/from_image/":{"post":{"summary":"Add Variant From Image","description":"Add a variant to the server based on an image.\n\nArguments:\n    app_variant -- AppVariant to add\n    image -- The image tags should start with the registry name (agenta-server) and end with :latest\n\nRaises:\n    HTTPException: If image tag doesn't start with registry name\n    HTTPException: If image not found in docker utils list\n    HTTPException: If there is a problem adding the app variant","operationId":"add_variant_from_image_app_variant_add_from_image__post","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Body_add_variant_from_image_app_variant_add_from_image__post"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/app_variant/add/from_previous/":{"post":{"summary":"Add Variant From Previous","description":"Add a variant to the server based on a previous variant.\n\nArguments:\n    app_variant -- AppVariant to add\n    previous_app_variant -- Previous AppVariant to use as a base\n    parameters -- parameters for the variant\n\nRaises:\n    HTTPException: If there is a problem adding the app variant","operationId":"add_variant_from_previous_app_variant_add_from_previous__post","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Body_add_variant_from_previous_app_variant_add_from_previous__post"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/app_variant/start/":{"post":{"summary":"Start Variant","operationId":"start_variant_app_variant_start__post","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AppVariant"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/URI"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/app_variant/stop/":{"post":{"summary":"Stop Variant","operationId":"stop_variant_app_variant_stop__post","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AppVariant"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/app_variant/list_images/":{"get":{"summary":"List Images","description":"Lists the images from our repository\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    List[AppVariant]","operationId":"list_images_app_variant_list_images__get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"title":"Response List Images App Variant List Images  Get","type":"array","items":{"$ref":"#/components/schemas/Image"}}}}}}}},"/app_variant/remove_variant/":{"delete":{"summary":"Remove Variant","description":"Remove a variant from the server.\nIn the case it's the last variant using the image, stop the container and remove the image.\n\nArguments:\n    app_variant -- AppVariant to remove\n\nRaises:\n    HTTPException: If there is a problem removing the app variant","operationId":"remove_variant_app_variant_remove_variant__delete","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AppVariant"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/app_variant/remove_app/":{"delete":{"summary":"Remove App","description":"Remove app, all its variant, containers and images\n\nArguments:\n    app -- App to remove","operationId":"remove_app_app_variant_remove_app__delete","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/App"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/app_variant/update_variant_parameters/":{"put":{"summary":"Update Variant Parameters","description":"Updates the parameters for an app variant\n\nArguments:\n    app_variant -- Appvariant to update","operationId":"update_variant_parameters_app_variant_update_variant_parameters__put","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AppVariant"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/app_variant/update_variant_image/":{"put":{"summary":"Update Variant Image","description":"Updates the image used in an app variant\n\nArguments:\n    app_variant -- the app variant to update\n    image -- the image information","operationId":"update_variant_image_app_variant_update_variant_image__put","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/Body_update_variant_image_app_variant_update_variant_image__put"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/evaluations/":{"get":{"summary":"Fetch List Evaluations","description":"lists of all comparison tables\n\nReturns:\n    _description_","operationId":"fetch_list_evaluations_evaluations__get","parameters":[{"required":false,"schema":{"title":"App Name","type":"string"},"name":"app_name","in":"query"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"title":"Response Fetch List Evaluations Evaluations  Get","type":"array","items":{"$ref":"#/components/schemas/Evaluation"}}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"post":{"summary":"Create Evaluation","description":"Creates a new comparison table document\nRaises:\n    HTTPException: _description_\nReturns:\n    _description_","operationId":"create_evaluation_evaluations__post","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/NewEvaluation"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Evaluation"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"summary":"Delete Evaluations","description":"Delete specific comparison tables based on their unique IDs.\n\nArgs:\ndelete_evaluations (List[str]): The unique identifiers of the comparison tables to delete.\n\nReturns:\nA list of the deleted comparison tables' IDs.","operationId":"delete_evaluations_evaluations__delete","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/DeleteEvaluation"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"title":"Response Delete Evaluations Evaluations  Delete","type":"array","items":{"type":"string"}}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/evaluations/{evaluation_id}":{"get":{"summary":"Fetch Evaluation","description":"Fetch one comparison table\n\nReturns:\n    _description_","operationId":"fetch_evaluation_evaluations__evaluation_id__get","parameters":[{"required":true,"schema":{"title":"Evaluation Id","type":"string"},"name":"evaluation_id","in":"path"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Evaluation"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"put":{"summary":"Update Evaluation Status Router","description":"Updates an evaluation status\nRaises:\n    HTTPException: _description_\nReturns:\n    _description_","operationId":"update_evaluation_status_router_evaluations__evaluation_id__put","parameters":[{"required":true,"schema":{"title":"Evaluation Id","type":"string"},"name":"evaluation_id","in":"path"}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/EvaluationStatus"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Evaluation"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/evaluations/{evaluation_id}/evaluation_scenarios":{"get":{"summary":"Fetch Evaluation Scenarios","description":"Creates an empty evaluation row\n\nArguments:\n    evaluation_scenario -- _description_\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    _description_","operationId":"fetch_evaluation_scenarios_evaluations__evaluation_id__evaluation_scenarios_get","parameters":[{"required":true,"schema":{"title":"Evaluation Id","type":"string"},"name":"evaluation_id","in":"path"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"title":"Response Fetch Evaluation Scenarios Evaluations  Evaluation Id  Evaluation Scenarios Get","type":"array","items":{"$ref":"#/components/schemas/EvaluationScenario"}}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/evaluations/{evaluation_id}/evaluation_scenario":{"post":{"summary":"Create Evaluation Scenario","description":"Creates an empty evaluation row\n\nArguments:\n    evaluation_scenario -- _description_\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    _description_","operationId":"create_evaluation_scenario_evaluations__evaluation_id__evaluation_scenario_post","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/EvaluationScenario"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/EvaluationScenario"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/evaluations/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}":{"put":{"summary":"Update Evaluation Scenario Router","description":"Updates an evaluation row with a vote\n\nArguments:\n    evaluation_scenario_id -- _description_\n    evaluation_scenario -- _description_\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    _description_","operationId":"update_evaluation_scenario_router_evaluations__evaluation_id__evaluation_scenario__evaluation_scenario_id___evaluation_type__put","parameters":[{"required":true,"schema":{"title":"Evaluation Scenario Id","type":"string"},"name":"evaluation_scenario_id","in":"path"},{"required":true,"schema":{"$ref":"#/components/schemas/EvaluationType"},"name":"evaluation_type","in":"path"}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/EvaluationScenarioUpdate"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/evaluations/{evaluation_id}/results":{"get":{"summary":"Fetch Results","description":"Fetch all the results for one the comparison table\n\nArguments:\n    evaluation_id -- _description_\n\nReturns:\n    _description_","operationId":"fetch_results_evaluations__evaluation_id__results_get","parameters":[{"required":true,"schema":{"title":"Evaluation Id","type":"string"},"name":"evaluation_id","in":"path"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/testsets/upload":{"post":{"summary":"Upload File","description":"Uploads a CSV or JSON file and saves its data to MongoDB.\n\nArgs:\nupload_type : Either a json or csv file.\n    file (UploadFile): The CSV or JSON file to upload.\n    testset_name (Optional): the name of the testset if provided.\n\nReturns:\n    dict: The result of the upload process.","operationId":"upload_file_testsets_upload_post","requestBody":{"content":{"multipart/form-data":{"schema":{"$ref":"#/components/schemas/Body_upload_file_testsets_upload_post"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/UploadResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/testsets/{app_name}":{"post":{"summary":"Create Testset","description":"Create a testset with given name and app_name, save the testset to MongoDB.\n\nArgs:\nname (str): name of the test set.\napp_name (str): name of the application.\ntestset (Dict[str, str]): test set data.\n\nReturns:\nstr: The id of the test set created.","operationId":"create_testset_testsets__app_name__post","parameters":[{"required":true,"schema":{"title":"App Name","type":"string"},"name":"app_name","in":"path"}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/NewTestset"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/testsets/{testset_id}":{"get":{"tags":["testsets"],"summary":"Get Testset","description":"Fetch a specific testset in a MongoDB collection using its _id.\n\nArgs:\n    testset_id (str): The _id of the testset to fetch.\n\nReturns:\n    The requested testset if found, else an HTTPException.","operationId":"get_testset_testsets__testset_id__get","parameters":[{"required":true,"schema":{"title":"Testset Id","type":"string"},"name":"testset_id","in":"path"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"put":{"summary":"Update Testset","description":"Update a testset with given id, update the testset in MongoDB.\n\nArgs:\ntestset_id (str): id of the test set to be updated.\ncsvdata (NewTestset): New data to replace the old testset.\n\nReturns:\nstr: The id of the test set updated.","operationId":"update_testset_testsets__testset_id__put","parameters":[{"required":true,"schema":{"title":"Testset Id","type":"string"},"name":"testset_id","in":"path"}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/NewTestset"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/testsets/":{"get":{"summary":"Get Testsets","description":"Get all testsets.\n\nReturns:\n- A list of testset objects.\n\nRaises:\n- `HTTPException` with status code 404 if no testsets are found.","operationId":"get_testsets_testsets__get","parameters":[{"required":false,"schema":{"title":"App Name","type":"string"},"name":"app_name","in":"query"}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}},"delete":{"summary":"Delete Testsets","description":"Delete specific testsets based on their unique IDs.\n\nArgs:\ntestset_ids (List[str]): The unique identifiers of the testsets to delete.\n\nReturns:\nA list of the deleted testsets' IDs.","operationId":"delete_testsets_testsets__delete","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/DeleteTestsets"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"title":"Response Delete Testsets Testsets  Delete","type":"array","items":{"type":"string"}}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/containers/build_image/":{"post":{"summary":"Build Image","description":"Takes a tar file and builds a docker image from it\n\nArguments:\n    app_name -- The `app_name` parameter is a string that represents the name of             the application for which the docker image is being built\n    variant_name -- The `variant_name` parameter is a string that represents the             name or type of the variant for which the docker image is being built.\n    tar_file -- The `tar_file` parameter is of type `UploadFile`. It represents the             uploaded tar file that will be used to build the Docker image\n\nReturns:\n    an object of type `Image`.","operationId":"build_image_containers_build_image__post","parameters":[{"required":true,"schema":{"title":"App Name","type":"string"},"name":"app_name","in":"query"},{"required":true,"schema":{"title":"Variant Name","type":"string"},"name":"variant_name","in":"query"}],"requestBody":{"content":{"multipart/form-data":{"schema":{"$ref":"#/components/schemas/Body_build_image_containers_build_image__post"}}},"required":true},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Image"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}}},"components":{"schemas":{"App":{"title":"App","required":["app_name"],"type":"object","properties":{"app_name":{"title":"App Name","type":"string"}}},"AppVariant":{"title":"AppVariant","required":["app_name","variant_name"],"type":"object","properties":{"app_name":{"title":"App Name","type":"string"},"variant_name":{"title":"Variant Name","type":"string"},"parameters":{"title":"Parameters","type":"object"},"previous_variant_name":{"title":"Previous Variant Name","type":"string"}}},"Body_add_variant_from_image_app_variant_add_from_image__post":{"title":"Body_add_variant_from_image_app_variant_add_from_image__post","required":["app_variant","image"],"type":"object","properties":{"app_variant":{"$ref":"#/components/schemas/AppVariant"},"image":{"$ref":"#/components/schemas/Image"}}},"Body_add_variant_from_previous_app_variant_add_from_previous__post":{"title":"Body_add_variant_from_previous_app_variant_add_from_previous__post","required":["previous_app_variant","new_variant_name","parameters"],"type":"object","properties":{"previous_app_variant":{"$ref":"#/components/schemas/AppVariant"},"new_variant_name":{"title":"New Variant Name","type":"string"},"parameters":{"title":"Parameters","type":"object"}}},"Body_build_image_containers_build_image__post":{"title":"Body_build_image_containers_build_image__post","required":["tar_file"],"type":"object","properties":{"tar_file":{"title":"Tar File","type":"string","format":"binary"}}},"Body_update_variant_image_app_variant_update_variant_image__put":{"title":"Body_update_variant_image_app_variant_update_variant_image__put","required":["app_variant","image"],"type":"object","properties":{"app_variant":{"$ref":"#/components/schemas/AppVariant"},"image":{"$ref":"#/components/schemas/Image"}}},"Body_upload_file_testsets_upload_post":{"title":"Body_upload_file_testsets_upload_post","required":["file"],"type":"object","properties":{"upload_type":{"title":"Upload Type","type":"string"},"file":{"title":"File","type":"string","format":"binary"},"testset_name":{"title":"Testset Name","type":"string"},"app_name":{"title":"App Name","type":"string"}}},"DeleteEvaluation":{"title":"DeleteEvaluation","required":["evaluations_ids"],"type":"object","properties":{"evaluations_ids":{"title":"Evaluations Ids","type":"array","items":{"type":"string"}}}},"DeleteTestsets":{"title":"DeleteTestsets","required":["testset_ids"],"type":"object","properties":{"testset_ids":{"title":"Testset Ids","type":"array","items":{"type":"string"}}}},"Evaluation":{"title":"Evaluation","required":["id","status","evaluation_type","app_name","testset","created_at","updated_at"],"type":"object","properties":{"id":{"title":"Id","type":"string"},"status":{"title":"Status","type":"string"},"evaluation_type":{"$ref":"#/components/schemas/EvaluationType"},"evaluation_type_settings":{"$ref":"#/components/schemas/EvaluationTypeSettings"},"llm_app_prompt_template":{"title":"Llm App Prompt Template","type":"string"},"variants":{"title":"Variants","type":"array","items":{"type":"string"}},"app_name":{"title":"App Name","type":"string"},"testset":{"title":"Testset","type":"object","additionalProperties":{"type":"string"}},"created_at":{"title":"Created At","type":"string","format":"date-time"},"updated_at":{"title":"Updated At","type":"string","format":"date-time"}}},"EvaluationScenario":{"title":"EvaluationScenario","required":["evaluation_id","inputs","outputs"],"type":"object","properties":{"evaluation_id":{"title":"Evaluation Id","type":"string"},"inputs":{"title":"Inputs","type":"array","items":{"$ref":"#/components/schemas/EvaluationScenarioInput"}},"outputs":{"title":"Outputs","type":"array","items":{"$ref":"#/components/schemas/EvaluationScenarioOutput"}},"vote":{"title":"Vote","type":"string"},"score":{"title":"Score","type":"string"},"evaluation":{"title":"Evaluation","type":"string"},"correct_answer":{"title":"Correct Answer","type":"string"},"id":{"title":"Id","type":"string"}}},"EvaluationScenarioInput":{"title":"EvaluationScenarioInput","required":["input_name","input_value"],"type":"object","properties":{"input_name":{"title":"Input Name","type":"string"},"input_value":{"title":"Input Value","type":"string"}}},"EvaluationScenarioOutput":{"title":"EvaluationScenarioOutput","required":["variant_name","variant_output"],"type":"object","properties":{"variant_name":{"title":"Variant Name","type":"string"},"variant_output":{"title":"Variant Output","type":"string"}}},"EvaluationScenarioUpdate":{"title":"EvaluationScenarioUpdate","required":["outputs"],"type":"object","properties":{"vote":{"title":"Vote","type":"string"},"score":{"title":"Score","type":"string"},"outputs":{"title":"Outputs","type":"array","items":{"$ref":"#/components/schemas/EvaluationScenarioOutput"}},"evaluation_prompt_template":{"title":"Evaluation Prompt Template","type":"string"},"open_ai_key":{"title":"Open Ai Key","type":"string"}}},"EvaluationStatus":{"title":"EvaluationStatus","required":["status"],"type":"object","properties":{"status":{"$ref":"#/components/schemas/EvaluationStatusEnum"}}},"EvaluationStatusEnum":{"title":"EvaluationStatusEnum","enum":["EVALUATION_INITIALIZED","EVALUATION_STARTED","COMPARISON_RUN_STARTED","EVALUATION_FINISHED"],"type":"string","description":"An enumeration."},"EvaluationType":{"title":"EvaluationType","enum":["auto_exact_match","auto_similarity_match","auto_ai_critique","human_a_b_testing","human_scoring"],"type":"string","description":"An enumeration."},"EvaluationTypeSettings":{"title":"EvaluationTypeSettings","type":"object","properties":{"similarity_threshold":{"title":"Similarity Threshold","type":"number"}}},"HTTPValidationError":{"title":"HTTPValidationError","type":"object","properties":{"detail":{"title":"Detail","type":"array","items":{"$ref":"#/components/schemas/ValidationError"}}}},"Image":{"title":"Image","required":["docker_id","tags"],"type":"object","properties":{"docker_id":{"title":"Docker Id","type":"string"},"tags":{"title":"Tags","type":"string"}}},"NewEvaluation":{"title":"NewEvaluation","required":["evaluation_type","app_name","variants","inputs","testset","status"],"type":"object","properties":{"evaluation_type":{"$ref":"#/components/schemas/EvaluationType"},"evaluation_type_settings":{"$ref":"#/components/schemas/EvaluationTypeSettings"},"app_name":{"title":"App Name","type":"string"},"variants":{"title":"Variants","type":"array","items":{"type":"string"}},"inputs":{"title":"Inputs","type":"array","items":{"type":"string"}},"testset":{"title":"Testset","type":"object","additionalProperties":{"type":"string"}},"status":{"title":"Status","type":"string"},"llm_app_prompt_template":{"title":"Llm App Prompt Template","type":"string"}}},"NewTestset":{"title":"NewTestset","required":["name","csvdata"],"type":"object","properties":{"name":{"title":"Name","type":"string"},"csvdata":{"title":"Csvdata","type":"array","items":{"type":"object","additionalProperties":{"type":"string"}}}}},"URI":{"title":"URI","required":["uri"],"type":"object","properties":{"uri":{"title":"Uri","type":"string"}}},"UploadResponse":{"title":"UploadResponse","required":["id","name","created_at"],"type":"object","properties":{"id":{"title":"Id","type":"string"},"name":{"title":"Name","type":"string"},"created_at":{"title":"Created At","type":"string"}}},"ValidationError":{"title":"ValidationError","required":["loc","msg","type"],"type":"object","properties":{"loc":{"title":"Location","type":"array","items":{"anyOf":[{"type":"string"},{"type":"integer"}]}},"msg":{"title":"Message","type":"string"},"type":{"title":"Error Type","type":"string"}}}}}}
+{
+    "openapi": "3.0.2",
+    "info": {
+        "title": "FastAPI",
+        "version": "0.1.0"
+    },
+    "servers": [
+        {
+            "url": "/api"
+        }
+    ],
+    "paths": {
+        "/app_variant/variants/": {
+            "get": {
+                "tags": [
+                    "default"
+                ],
+                "summary": "List App Variants",
+                "description": "Lists the app variants from our repository.\n\nArguments:\n    app_name -- If specified, only returns the app variants for the specified app\nRaises:\n    HTTPException: _description_\n\nReturns:\n    List[AppVariant]",
+                "operationId": "list_app_variants_app_variant_variants__get",
+                "parameters": [
+                    {
+                        "required": false,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response List App Variants App Variant Variants  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/AppVariant"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/list_variants/": {
+            "get": {
+                "tags": [
+                    "depracated"
+                ],
+                "summary": "List App Variants",
+                "description": "Lists the app variants from our repository.\n\nArguments:\n    app_name -- If specified, only returns the app variants for the specified app\nRaises:\n    HTTPException: _description_\n\nReturns:\n    List[AppVariant]",
+                "operationId": "list_app_variants_app_variant_list_variants__get",
+                "parameters": [
+                    {
+                        "required": false,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response List App Variants App Variant List Variants  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/AppVariant"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/variant_by_name/": {
+            "get": {
+                "tags": [
+                    "default"
+                ],
+                "summary": "Get Variant By Name",
+                "description": "Fetches a specific app variant based on the given app_name and variant_name.\n\nArguments:\n    app_name (str): The name of the app to query.\n    variant_name (str): The name of the variant to query.\n\nRaises:\n    HTTPException: Raises 404 if no matching variant is found,\n                   400 for ValueError, or 500 for any other exceptions.\n\nReturns:\n    AppVariant: The fetched app variant.",
+                "operationId": "get_variant_by_name_app_variant_variant_by_name__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Variant Name",
+                            "type": "string"
+                        },
+                        "name": "variant_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AppVariant"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/get_variant_by_name/": {
+            "get": {
+                "tags": [
+                    "depracated"
+                ],
+                "summary": "Get Variant By Name",
+                "description": "Fetches a specific app variant based on the given app_name and variant_name.\n\nArguments:\n    app_name (str): The name of the app to query.\n    variant_name (str): The name of the variant to query.\n\nRaises:\n    HTTPException: Raises 404 if no matching variant is found,\n                   400 for ValueError, or 500 for any other exceptions.\n\nReturns:\n    AppVariant: The fetched app variant.",
+                "operationId": "get_variant_by_name_app_variant_get_variant_by_name__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Variant Name",
+                            "type": "string"
+                        },
+                        "name": "variant_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AppVariant"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/variant_by_env/": {
+            "get": {
+                "tags": [
+                    "default"
+                ],
+                "summary": "Get Variant By Env",
+                "description": "Fetches a specific app variant based on the given app_name and environment.",
+                "operationId": "get_variant_by_env_app_variant_variant_by_env__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Environment",
+                            "type": "string"
+                        },
+                        "name": "environment",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AppVariant"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/get_variant_by_env/": {
+            "get": {
+                "tags": [
+                    "depracated"
+                ],
+                "summary": "Get Variant By Env",
+                "description": "Fetches a specific app variant based on the given app_name and environment.",
+                "operationId": "get_variant_by_env_app_variant_get_variant_by_env__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Environment",
+                            "type": "string"
+                        },
+                        "name": "environment",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AppVariant"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/apps/": {
+            "get": {
+                "tags": [
+                    "default"
+                ],
+                "summary": "List Apps",
+                "description": "Lists the apps from our repository.\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    List[App]",
+                "operationId": "list_apps_app_variant_apps__get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response List Apps App Variant Apps  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/App"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/list_apps/": {
+            "get": {
+                "tags": [
+                    "depracated"
+                ],
+                "summary": "List Apps",
+                "description": "Lists the apps from our repository.\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    List[App]",
+                "operationId": "list_apps_app_variant_list_apps__get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response List Apps App Variant List Apps  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/App"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/add/from_image/": {
+            "post": {
+                "summary": "Add Variant From Image",
+                "description": "Add a variant to the server based on an image.\n\nArguments:\n    app_variant -- AppVariant to add\n    image -- The image tags should start with the registry name (agenta-server) and end with :latest\n\nRaises:\n    HTTPException: If image tag doesn't start with registry name\n    HTTPException: If image not found in docker utils list\n    HTTPException: If there is a problem adding the app variant",
+                "operationId": "add_variant_from_image_app_variant_add_from_image__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_add_variant_from_image_app_variant_add_from_image__post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/add/from_previous/": {
+            "post": {
+                "summary": "Add Variant From Previous",
+                "description": "Add a variant to the server based on a previous variant.\n\nArguments:\n    app_variant -- AppVariant to add\n    previous_app_variant -- Previous AppVariant to use as a base\n    parameters -- parameters for the variant\n\nRaises:\n    HTTPException: If there is a problem adding the app variant",
+                "operationId": "add_variant_from_previous_app_variant_add_from_previous__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_add_variant_from_previous_app_variant_add_from_previous__post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/start/": {
+            "post": {
+                "summary": "Start Variant",
+                "operationId": "start_variant_app_variant_start__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_start_variant_app_variant_start__post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/URI"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/stop/": {
+            "post": {
+                "summary": "Stop Variant",
+                "operationId": "stop_variant_app_variant_stop__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AppVariant"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/images/": {
+            "get": {
+                "tags": [
+                    "default"
+                ],
+                "summary": "List Images",
+                "description": "Lists the images from our repository\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    List[AppVariant]",
+                "operationId": "list_images_app_variant_images__get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response List Images App Variant Images  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Image"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/list_images/": {
+            "get": {
+                "tags": [
+                    "depracated"
+                ],
+                "summary": "List Images",
+                "description": "Lists the images from our repository\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    List[AppVariant]",
+                "operationId": "list_images_app_variant_list_images__get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response List Images App Variant List Images  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Image"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/variant/": {
+            "delete": {
+                "tags": [
+                    "default"
+                ],
+                "summary": "Remove Variant",
+                "description": "Remove a variant from the server.\nIn the case it's the last variant using the image, stop the container and remove the image.\n\nArguments:\n    app_variant -- AppVariant to remove\n\nRaises:\n    HTTPException: If there is a problem removing the app variant",
+                "operationId": "remove_variant_app_variant_variant__delete",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AppVariant"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/remove_variant/": {
+            "delete": {
+                "tags": [
+                    "depracated"
+                ],
+                "summary": "Remove Variant",
+                "description": "Remove a variant from the server.\nIn the case it's the last variant using the image, stop the container and remove the image.\n\nArguments:\n    app_variant -- AppVariant to remove\n\nRaises:\n    HTTPException: If there is a problem removing the app variant",
+                "operationId": "remove_variant_app_variant_remove_variant__delete",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AppVariant"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/app/": {
+            "delete": {
+                "tags": [
+                    "default"
+                ],
+                "summary": "Remove App",
+                "description": "Remove app, all its variant, containers and images\n\nArguments:\n    app -- App to remove",
+                "operationId": "remove_app_app_variant_app__delete",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/App"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/remove_app/": {
+            "delete": {
+                "tags": [
+                    "depracated"
+                ],
+                "summary": "Remove App",
+                "description": "Remove app, all its variant, containers and images\n\nArguments:\n    app -- App to remove",
+                "operationId": "remove_app_app_variant_remove_app__delete",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/App"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/config/": {
+            "get": {
+                "summary": "Fetch Variant Config",
+                "description": "Fetch a variant configuration from the server.\n\nArgs:\n    fetch_config (FetchVariantConfigPayload): The data needed to fetch the app variant.\n    stoken_session (SessionContainer, optional): Session information. Defaults to result of verify_session().\n\nRaises:\n    HTTPException: Raised if the app variant cannot be fetched.\n    HTTPException: Raised for unexpected errors.\n\nReturns:\n    dict: The requested variant configuration.",
+                "operationId": "fetch_variant_config_app_variant_config__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Variant Name",
+                            "type": "string"
+                        },
+                        "name": "variant_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Base Name",
+                            "type": "string"
+                        },
+                        "name": "base_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Config Name",
+                            "type": "string"
+                        },
+                        "name": "config_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Fetch Variant Config App Variant Config  Get",
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Save Variant Config",
+                "description": "Save or update a variant configuration to the server.\n\nThis function either creates a new variant or updates an existing one based on the provided configuration.\n\nArgs:\n    variant_config (VariantConfigPayload): Configuration for the app variant.\n    stoken_session (SessionContainer, optional): Session information. Defaults to result of verify_session().\n\nRaises:\n    HTTPException: Raised if the app variant cannot be updated.\n    HTTPException: Raised for unexpected errors.\n\nReturns:\n    dict: Success message indicating the operation was completed.",
+                "operationId": "save_variant_config_app_variant_config__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PostVariantConfigPayload"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/update_variant_parameters/": {
+            "put": {
+                "tags": [
+                    "depracated"
+                ],
+                "summary": "Update Variant Parameters",
+                "description": "Updates the parameters for an app variant\n\nArguments:\n    app_variant -- Appvariant to update",
+                "operationId": "update_variant_parameters_app_variant_update_variant_parameters__put",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AppVariant"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/variant_image/": {
+            "put": {
+                "tags": [
+                    "default"
+                ],
+                "summary": "Update Variant Image",
+                "description": "Updates the image used in an app variant\n\nArguments:\n    app_variant -- the app variant to update\n    image -- the image information",
+                "operationId": "update_variant_image_app_variant_variant_image__put",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_update_variant_image_app_variant_variant_image__put"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/update_variant_image/": {
+            "put": {
+                "tags": [
+                    "depracated"
+                ],
+                "summary": "Update Variant Image",
+                "description": "Updates the image used in an app variant\n\nArguments:\n    app_variant -- the app variant to update\n    image -- the image information",
+                "operationId": "update_variant_image_app_variant_update_variant_image__put",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_update_variant_image_app_variant_update_variant_image__put"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/app_variant/add/from_template/": {
+            "post": {
+                "summary": "Add App Variant From Template",
+                "description": "Creates or updates an app variant based on the provided image and starts the variant\n\nArguments:\n    payload -- a data model that contains the necessary information to create an app variant from an image\n\nReturns:\n    a JSON response with a message and data",
+                "operationId": "add_app_variant_from_template_app_variant_add_from_template__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateAppVariant"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/": {
+            "get": {
+                "summary": "Fetch List Evaluations",
+                "description": "lists of all comparison tables\n\nReturns:\n    _description_",
+                "operationId": "fetch_list_evaluations_evaluations__get",
+                "parameters": [
+                    {
+                        "required": false,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Fetch List Evaluations Evaluations  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Evaluation"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "summary": "Create Evaluation",
+                "description": "Creates a new comparison table document\nRaises:\n    HTTPException: _description_\nReturns:\n    _description_",
+                "operationId": "create_evaluation_evaluations__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NewEvaluation"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Evaluation"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete Evaluations",
+                "description": "Delete specific comparison tables based on their unique IDs.\n\nArgs:\ndelete_evaluations (List[str]): The unique identifiers of the comparison tables to delete.\n\nReturns:\nA list of the deleted comparison tables' IDs.",
+                "operationId": "delete_evaluations_evaluations__delete",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DeleteEvaluation"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Delete Evaluations Evaluations  Delete",
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/{evaluation_id}": {
+            "get": {
+                "summary": "Fetch Evaluation",
+                "description": "Fetch one comparison table\n\nReturns:\n    _description_",
+                "operationId": "fetch_evaluation_evaluations__evaluation_id__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Evaluation Id",
+                            "type": "string"
+                        },
+                        "name": "evaluation_id",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Evaluation"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update Evaluation Router",
+                "description": "Updates an evaluation status\nRaises:\n    HTTPException: _description_\nReturns:\n    _description_",
+                "operationId": "update_evaluation_router_evaluations__evaluation_id__put",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Evaluation Id",
+                            "type": "string"
+                        },
+                        "name": "evaluation_id",
+                        "in": "path"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EvaluationUpdate"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Evaluation"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/{evaluation_id}/evaluation_scenarios": {
+            "get": {
+                "summary": "Fetch Evaluation Scenarios",
+                "description": "Creates an empty evaluation row\n\nArguments:\n    evaluation_scenario -- _description_\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    _description_",
+                "operationId": "fetch_evaluation_scenarios_evaluations__evaluation_id__evaluation_scenarios_get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Evaluation Id",
+                            "type": "string"
+                        },
+                        "name": "evaluation_id",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Fetch Evaluation Scenarios Evaluations  Evaluation Id  Evaluation Scenarios Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/EvaluationScenario"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/{evaluation_id}/evaluation_scenario": {
+            "post": {
+                "summary": "Create Evaluation Scenario",
+                "description": "Creates an empty evaluation row\n\nArguments:\n    evaluation_scenario -- _description_\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    _description_",
+                "operationId": "create_evaluation_scenario_evaluations__evaluation_id__evaluation_scenario_post",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Evaluation Id",
+                            "type": "string"
+                        },
+                        "name": "evaluation_id",
+                        "in": "path"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EvaluationScenario"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EvaluationScenario"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}": {
+            "put": {
+                "summary": "Update Evaluation Scenario Router",
+                "description": "Updates an evaluation row with a vote\n\nArguments:\n    evaluation_scenario_id -- _description_\n    evaluation_scenario -- _description_\n\nRaises:\n    HTTPException: _description_\n\nReturns:\n    _description_",
+                "operationId": "update_evaluation_scenario_router_evaluations__evaluation_id__evaluation_scenario__evaluation_scenario_id___evaluation_type__put",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Evaluation Scenario Id",
+                            "type": "string"
+                        },
+                        "name": "evaluation_scenario_id",
+                        "in": "path"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/EvaluationType"
+                        },
+                        "name": "evaluation_type",
+                        "in": "path"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EvaluationScenarioUpdate"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/evaluation_scenario/{evaluation_scenario_id}/score": {
+            "get": {
+                "summary": "Get Evaluation Scenario Score Router",
+                "description": "Get the s\n\nArgs:\n    evaluation_scenario_id (str): _description_\n    stoken_session (SessionContainer, optional): _description_. Defaults to Depends(verify_session()).\n\nRaises:\n    HTTPException: _description_\n    HTTPException: _description_\n    HTTPException: _description_\n\nReturns:\n    _type_: _description_",
+                "operationId": "get_evaluation_scenario_score_router_evaluations_evaluation_scenario__evaluation_scenario_id__score_get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Evaluation Scenario Id",
+                            "type": "string"
+                        },
+                        "name": "evaluation_scenario_id",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update Evaluation Scenario Score Router",
+                "description": "Updates evaluation scenario score\n\nArgs:\n    evaluation_scenario_id (str): the evaluation scenario to update\n    score (float): the value to update\n\nRaises:\n    HTTPException: server error if evaluation update went wrong",
+                "operationId": "update_evaluation_scenario_score_router_evaluations_evaluation_scenario__evaluation_scenario_id__score_put",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Evaluation Scenario Id",
+                            "type": "string"
+                        },
+                        "name": "evaluation_scenario_id",
+                        "in": "path"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EvaluationScenarioScoreUpdate"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/{evaluation_id}/results": {
+            "get": {
+                "summary": "Fetch Results",
+                "description": "Fetch all the results for one the comparison table\n\nArguments:\n    evaluation_id -- _description_\n\nReturns:\n    _description_",
+                "operationId": "fetch_results_evaluations__evaluation_id__results_get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Evaluation Id",
+                            "type": "string"
+                        },
+                        "name": "evaluation_id",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/custom_evaluation/": {
+            "post": {
+                "summary": "Create Custom Evaluation",
+                "description": "Create evaluation with custom python code.\n\n   Args:\n       \ncustom_evaluation_payload (CreateCustomEvaluation): the required payload",
+                "operationId": "create_custom_evaluation_evaluations_custom_evaluation__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateCustomEvaluation"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/custom_evaluation/list/{app_name}": {
+            "get": {
+                "summary": "List Custom Evaluations",
+                "description": "List the custom code evaluations for a given app.\n\nArgs:\n    app_name (str): the name of the app\n\nReturns:\n    List[CustomEvaluationOutput]: a list of custom evaluation",
+                "operationId": "list_custom_evaluations_evaluations_custom_evaluation_list__app_name__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response List Custom Evaluations Evaluations Custom Evaluation List  App Name  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomEvaluationOutput"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/custom_evaluation/{id}": {
+            "get": {
+                "summary": "Get Custom Evaluation",
+                "description": "Get the custom code evaluation detail.\n\nArgs:\n    id (str): the id of the custom evaluation\n\nReturns:\n    CustomEvaluationDetail: Detail of the custom evaluation",
+                "operationId": "get_custom_evaluation_evaluations_custom_evaluation__id__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Id",
+                            "type": "string"
+                        },
+                        "name": "id",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CustomEvaluationDetail"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/custom_evaluation/{app_name}/names/": {
+            "get": {
+                "summary": "Get Custom Evaluation Names",
+                "description": "Get the names of custom evaluation for a given app.\n\nArgs:\n    app_name (str): the name of the app the evaluation belongs to\n\nReturns:\n    List[CustomEvaluationNames]: the list of name of custom evaluations",
+                "operationId": "get_custom_evaluation_names_evaluations_custom_evaluation__app_name__names__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Get Custom Evaluation Names Evaluations Custom Evaluation  App Name  Names  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CustomEvaluationNames"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/custom_evaluation/execute/{evaluation_id}/": {
+            "post": {
+                "summary": "Execute Custom Evaluation",
+                "description": "Execute a custom evaluation code.\n\nArgs:\n    evaluation_id (str): the custom evaluation id\n    payload (ExecuteCustomEvaluationCode): the required payload\n\nReturns:\n    float: the result of the evaluation custom code",
+                "operationId": "execute_custom_evaluation_evaluations_custom_evaluation_execute__evaluation_id___post",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Evaluation Id",
+                            "type": "string"
+                        },
+                        "name": "evaluation_id",
+                        "in": "path"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExecuteCustomEvaluationCode"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/evaluations/webhook_example_fake": {
+            "post": {
+                "summary": "Webhook Example Fake",
+                "description": "Returns a fake score response for example webhook evaluation\n\nReturns:\n    _description_",
+                "operationId": "webhook_example_fake_evaluations_webhook_example_fake_post",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EvaluationWebhook"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/testsets/upload": {
+            "post": {
+                "summary": "Upload File",
+                "description": "Uploads a CSV or JSON file and saves its data to MongoDB.\n\nArgs:\nupload_type : Either a json or csv file.\n    file (UploadFile): The CSV or JSON file to upload.\n    testset_name (Optional): the name of the testset if provided.\n\nReturns:\n    dict: The result of the upload process.",
+                "operationId": "upload_file_testsets_upload_post",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_upload_file_testsets_upload_post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UploadResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/testsets/endpoint": {
+            "post": {
+                "summary": "Import Testset",
+                "description": "Import JSON testset data from an endpoint and save it to MongoDB.\n\nArgs:\n    endpoint (str): An endpoint URL to import data from.\n    testset_name (str): the name of the testset if provided.\n\nReturns:\n    dict: The result of the import process.",
+                "operationId": "import_testset_testsets_endpoint_post",
+                "requestBody": {
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_import_testset_testsets_endpoint_post"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UploadResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/testsets/{app_name}": {
+            "post": {
+                "summary": "Create Testset",
+                "description": "Create a testset with given name and app_name, save the testset to MongoDB.\n\nArgs:\nname (str): name of the test set.\napp_name (str): name of the application.\ntestset (Dict[str, str]): test set data.\n\nReturns:\nstr: The id of the test set created.",
+                "operationId": "create_testset_testsets__app_name__post",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "path"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NewTestset"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/testsets/{testset_id}": {
+            "get": {
+                "tags": [
+                    "testsets"
+                ],
+                "summary": "Get Testset",
+                "description": "Fetch a specific testset in a MongoDB collection using its _id.\n\nArgs:\n    testset_id (str): The _id of the testset to fetch.\n\nReturns:\n    The requested testset if found, else an HTTPException.",
+                "operationId": "get_testset_testsets__testset_id__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Testset Id",
+                            "type": "string"
+                        },
+                        "name": "testset_id",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "summary": "Update Testset",
+                "description": "Update a testset with given id, update the testset in MongoDB.\n\nArgs:\ntestset_id (str): id of the test set to be updated.\ncsvdata (NewTestset): New data to replace the old testset.\n\nReturns:\nstr: The id of the test set updated.",
+                "operationId": "update_testset_testsets__testset_id__put",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Testset Id",
+                            "type": "string"
+                        },
+                        "name": "testset_id",
+                        "in": "path"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NewTestset"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/testsets/": {
+            "get": {
+                "summary": "Get Testsets",
+                "description": "Get all testsets.\n\nReturns:\n- A list of testset objects.\n\nRaises:\n- `HTTPException` with status code 404 if no testsets are found.",
+                "operationId": "get_testsets_testsets__get",
+                "parameters": [
+                    {
+                        "required": false,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Get Testsets Testsets  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/TestSetOutputResponse"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Delete Testsets",
+                "description": "Delete specific testsets based on their unique IDs.\n\nArgs:\ntestset_ids (List[str]): The unique identifiers of the testsets to delete.\n\nReturns:\nA list of the deleted testsets' IDs.",
+                "operationId": "delete_testsets_testsets__delete",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DeleteTestsets"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Delete Testsets Testsets  Delete",
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/containers/build_image/": {
+            "post": {
+                "summary": "Build Image",
+                "description": "Takes a tar file and builds a docker image from it\n\nArguments:\n    app_name -- The `app_name` parameter is a string that represents the name of             the application for which the docker image is being built\n    base_name -- The `base_name` parameter is a string that represents the             name of the codebase used in the variant. variantname is basename.configname.\n    tar_file -- The `tar_file` parameter is of type `UploadFile`. It represents the             uploaded tar file that will be used to build the Docker image\n\nReturns:\n    an object of type `Image`.",
+                "operationId": "build_image_containers_build_image__post",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Base Name",
+                            "type": "string"
+                        },
+                        "name": "base_name",
+                        "in": "query"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_build_image_containers_build_image__post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Image"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/containers/restart_container/": {
+            "post": {
+                "summary": "Restart Docker Container",
+                "description": "Restart docker container.\n\nArgs:\n    payload (RestartAppContainer) -- the required data (app_name and variant_name)",
+                "operationId": "restart_docker_container_containers_restart_container__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RestartAppContainer"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Restart Docker Container Containers Restart Container  Post",
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/containers/templates/": {
+            "get": {
+                "summary": "Container Templates",
+                "description": "Returns a list of container templates.\n\nReturns:\n    a list of `Template` objects.",
+                "operationId": "container_templates_containers_templates__get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Container Templates Containers Templates  Get",
+                                    "anyOf": [
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Template"
+                                            }
+                                        },
+                                        {
+                                            "type": "string"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/containers/templates/{image_name}/images/": {
+            "get": {
+                "summary": "Pull Image",
+                "description": "Pulls an image from Docker Hub using the provided configuration\n\nArguments:\n    image_name -- The name of the image to be pulled\n\nReturns:\n    -- a JSON response with the image tag name and image ID\n    -- a JSON response with the pull_image exception error",
+                "operationId": "pull_image_containers_templates__image_name__images__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Image Name",
+                            "type": "string"
+                        },
+                        "name": "image_name",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Pull Image Containers Templates  Image Name  Images  Get",
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/containers/container_url/": {
+            "get": {
+                "summary": "Construct App Container Url",
+                "description": "Construct and return the app container url path.\n\nArguments:\n    app_name -- The name of app to construct the container url path\n    variant_name -- The  variant name of the app to construct the container url path\n    stoken_session (SessionContainer) -- the user session.\n\nReturns:\n    URI -- the url path of the container",
+                "operationId": "construct_app_container_url_containers_container_url__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Variant Name",
+                            "type": "string"
+                        },
+                        "name": "variant_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/URI"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/": {
+            "get": {
+                "summary": "List Environments",
+                "description": "Lists the environments for the given app.",
+                "operationId": "list_environments_environments__get",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response List Environments Environments  Get",
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Environment"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/environments/deploy/": {
+            "post": {
+                "summary": "Deploy To Environment",
+                "description": "Deploys a given variant to an environment.\n\nArgs:\n    environment_name: Name of the environment to deploy to.\n    app_name: Name of the app to deploy.\n    variant_name: Name of the variant to deploy.\n    stoken_session: . Defaults to Depends(verify_session()).\n\nRaises:\n    HTTPException: If the deployment fails.",
+                "operationId": "deploy_to_environment_environments_deploy__post",
+                "parameters": [
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Environment Name",
+                            "type": "string"
+                        },
+                        "name": "environment_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "App Name",
+                            "type": "string"
+                        },
+                        "name": "app_name",
+                        "in": "query"
+                    },
+                    {
+                        "required": true,
+                        "schema": {
+                            "title": "Variant Name",
+                            "type": "string"
+                        },
+                        "name": "variant_name",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "App": {
+                "title": "App",
+                "required": [
+                    "app_name"
+                ],
+                "type": "object",
+                "properties": {
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    }
+                }
+            },
+            "AppVariant": {
+                "title": "AppVariant",
+                "required": [
+                    "app_name",
+                    "variant_name"
+                ],
+                "type": "object",
+                "properties": {
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "variant_name": {
+                        "title": "Variant Name",
+                        "type": "string"
+                    },
+                    "parameters": {
+                        "title": "Parameters",
+                        "type": "object"
+                    },
+                    "previous_variant_name": {
+                        "title": "Previous Variant Name",
+                        "type": "string"
+                    },
+                    "base_name": {
+                        "title": "Base Name",
+                        "type": "string"
+                    },
+                    "config_name": {
+                        "title": "Config Name",
+                        "type": "string"
+                    }
+                }
+            },
+            "Body_add_variant_from_image_app_variant_add_from_image__post": {
+                "title": "Body_add_variant_from_image_app_variant_add_from_image__post",
+                "required": [
+                    "app_variant",
+                    "image"
+                ],
+                "type": "object",
+                "properties": {
+                    "app_variant": {
+                        "$ref": "#/components/schemas/AppVariant"
+                    },
+                    "image": {
+                        "$ref": "#/components/schemas/Image"
+                    }
+                }
+            },
+            "Body_add_variant_from_previous_app_variant_add_from_previous__post": {
+                "title": "Body_add_variant_from_previous_app_variant_add_from_previous__post",
+                "required": [
+                    "previous_app_variant",
+                    "new_variant_name",
+                    "new_variant_config_name",
+                    "parameters"
+                ],
+                "type": "object",
+                "properties": {
+                    "previous_app_variant": {
+                        "$ref": "#/components/schemas/AppVariant"
+                    },
+                    "new_variant_name": {
+                        "title": "New Variant Name",
+                        "type": "string"
+                    },
+                    "new_variant_config_name": {
+                        "title": "New Variant Config Name",
+                        "type": "string"
+                    },
+                    "parameters": {
+                        "title": "Parameters",
+                        "type": "object"
+                    }
+                }
+            },
+            "Body_build_image_containers_build_image__post": {
+                "title": "Body_build_image_containers_build_image__post",
+                "required": [
+                    "tar_file"
+                ],
+                "type": "object",
+                "properties": {
+                    "tar_file": {
+                        "title": "Tar File",
+                        "type": "string",
+                        "format": "binary"
+                    }
+                }
+            },
+            "Body_import_testset_testsets_endpoint_post": {
+                "title": "Body_import_testset_testsets_endpoint_post",
+                "type": "object",
+                "properties": {
+                    "endpoint": {
+                        "title": "Endpoint",
+                        "type": "string"
+                    },
+                    "testset_name": {
+                        "title": "Testset Name",
+                        "type": "string"
+                    },
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    }
+                }
+            },
+            "Body_start_variant_app_variant_start__post": {
+                "title": "Body_start_variant_app_variant_start__post",
+                "required": [
+                    "app_variant"
+                ],
+                "type": "object",
+                "properties": {
+                    "app_variant": {
+                        "$ref": "#/components/schemas/AppVariant"
+                    },
+                    "env_vars": {
+                        "$ref": "#/components/schemas/DockerEnvVars"
+                    }
+                }
+            },
+            "Body_update_variant_image_app_variant_update_variant_image__put": {
+                "title": "Body_update_variant_image_app_variant_update_variant_image__put",
+                "required": [
+                    "app_variant",
+                    "image"
+                ],
+                "type": "object",
+                "properties": {
+                    "app_variant": {
+                        "$ref": "#/components/schemas/AppVariant"
+                    },
+                    "image": {
+                        "$ref": "#/components/schemas/Image"
+                    }
+                }
+            },
+            "Body_update_variant_image_app_variant_variant_image__put": {
+                "title": "Body_update_variant_image_app_variant_variant_image__put",
+                "required": [
+                    "app_variant",
+                    "image"
+                ],
+                "type": "object",
+                "properties": {
+                    "app_variant": {
+                        "$ref": "#/components/schemas/AppVariant"
+                    },
+                    "image": {
+                        "$ref": "#/components/schemas/Image"
+                    }
+                }
+            },
+            "Body_upload_file_testsets_upload_post": {
+                "title": "Body_upload_file_testsets_upload_post",
+                "required": [
+                    "file"
+                ],
+                "type": "object",
+                "properties": {
+                    "upload_type": {
+                        "title": "Upload Type",
+                        "type": "string"
+                    },
+                    "file": {
+                        "title": "File",
+                        "type": "string",
+                        "format": "binary"
+                    },
+                    "testset_name": {
+                        "title": "Testset Name",
+                        "type": "string"
+                    },
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    }
+                }
+            },
+            "CreateAppVariant": {
+                "title": "CreateAppVariant",
+                "required": [
+                    "app_name",
+                    "image_id",
+                    "image_tag",
+                    "env_vars"
+                ],
+                "type": "object",
+                "properties": {
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "image_id": {
+                        "title": "Image Id",
+                        "type": "string"
+                    },
+                    "image_tag": {
+                        "title": "Image Tag",
+                        "type": "string"
+                    },
+                    "env_vars": {
+                        "title": "Env Vars",
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "CreateCustomEvaluation": {
+                "title": "CreateCustomEvaluation",
+                "required": [
+                    "evaluation_name",
+                    "python_code",
+                    "app_name"
+                ],
+                "type": "object",
+                "properties": {
+                    "evaluation_name": {
+                        "title": "Evaluation Name",
+                        "type": "string"
+                    },
+                    "python_code": {
+                        "title": "Python Code",
+                        "type": "string"
+                    },
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    }
+                }
+            },
+            "CustomEvaluationDetail": {
+                "title": "CustomEvaluationDetail",
+                "required": [
+                    "id",
+                    "app_name",
+                    "evaluation_name",
+                    "python_code",
+                    "created_at",
+                    "updated_at"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "evaluation_name": {
+                        "title": "Evaluation Name",
+                        "type": "string"
+                    },
+                    "python_code": {
+                        "title": "Python Code",
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "title": "Created At",
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "title": "Updated At",
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "CustomEvaluationNames": {
+                "title": "CustomEvaluationNames",
+                "required": [
+                    "id",
+                    "evaluation_name"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "evaluation_name": {
+                        "title": "Evaluation Name",
+                        "type": "string"
+                    }
+                }
+            },
+            "CustomEvaluationOutput": {
+                "title": "CustomEvaluationOutput",
+                "required": [
+                    "id",
+                    "app_name",
+                    "evaluation_name",
+                    "created_at"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "evaluation_name": {
+                        "title": "Evaluation Name",
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "title": "Created At",
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "DeleteEvaluation": {
+                "title": "DeleteEvaluation",
+                "required": [
+                    "evaluations_ids"
+                ],
+                "type": "object",
+                "properties": {
+                    "evaluations_ids": {
+                        "title": "Evaluations Ids",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "DeleteTestsets": {
+                "title": "DeleteTestsets",
+                "required": [
+                    "testset_ids"
+                ],
+                "type": "object",
+                "properties": {
+                    "testset_ids": {
+                        "title": "Testset Ids",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "DockerEnvVars": {
+                "title": "DockerEnvVars",
+                "required": [
+                    "env_vars"
+                ],
+                "type": "object",
+                "properties": {
+                    "env_vars": {
+                        "title": "Env Vars",
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "Environment": {
+                "title": "Environment",
+                "required": [
+                    "name"
+                ],
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "deployed_app_variant": {
+                        "title": "Deployed App Variant",
+                        "type": "string"
+                    }
+                }
+            },
+            "Evaluation": {
+                "title": "Evaluation",
+                "required": [
+                    "id",
+                    "status",
+                    "evaluation_type",
+                    "app_name",
+                    "testset",
+                    "created_at",
+                    "updated_at"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "status": {
+                        "title": "Status",
+                        "type": "string"
+                    },
+                    "evaluation_type": {
+                        "$ref": "#/components/schemas/EvaluationType"
+                    },
+                    "evaluation_type_settings": {
+                        "$ref": "#/components/schemas/EvaluationTypeSettings"
+                    },
+                    "custom_code_evaluation_id": {
+                        "title": "Custom Code Evaluation Id",
+                        "type": "string"
+                    },
+                    "llm_app_prompt_template": {
+                        "title": "Llm App Prompt Template",
+                        "type": "string"
+                    },
+                    "variants": {
+                        "title": "Variants",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "testset": {
+                        "title": "Testset",
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "created_at": {
+                        "title": "Created At",
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "title": "Updated At",
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "EvaluationScenario": {
+                "title": "EvaluationScenario",
+                "required": [
+                    "evaluation_id",
+                    "inputs",
+                    "outputs"
+                ],
+                "type": "object",
+                "properties": {
+                    "evaluation_id": {
+                        "title": "Evaluation Id",
+                        "type": "string"
+                    },
+                    "inputs": {
+                        "title": "Inputs",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EvaluationScenarioInput"
+                        }
+                    },
+                    "outputs": {
+                        "title": "Outputs",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EvaluationScenarioOutput"
+                        }
+                    },
+                    "vote": {
+                        "title": "Vote",
+                        "type": "string"
+                    },
+                    "score": {
+                        "title": "Score",
+                        "type": "string"
+                    },
+                    "evaluation": {
+                        "title": "Evaluation",
+                        "type": "string"
+                    },
+                    "correct_answer": {
+                        "title": "Correct Answer",
+                        "type": "string"
+                    },
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    }
+                }
+            },
+            "EvaluationScenarioInput": {
+                "title": "EvaluationScenarioInput",
+                "required": [
+                    "input_name",
+                    "input_value"
+                ],
+                "type": "object",
+                "properties": {
+                    "input_name": {
+                        "title": "Input Name",
+                        "type": "string"
+                    },
+                    "input_value": {
+                        "title": "Input Value",
+                        "type": "string"
+                    }
+                }
+            },
+            "EvaluationScenarioOutput": {
+                "title": "EvaluationScenarioOutput",
+                "required": [
+                    "variant_name",
+                    "variant_output"
+                ],
+                "type": "object",
+                "properties": {
+                    "variant_name": {
+                        "title": "Variant Name",
+                        "type": "string"
+                    },
+                    "variant_output": {
+                        "title": "Variant Output",
+                        "type": "string"
+                    }
+                }
+            },
+            "EvaluationScenarioScoreUpdate": {
+                "title": "EvaluationScenarioScoreUpdate",
+                "required": [
+                    "score"
+                ],
+                "type": "object",
+                "properties": {
+                    "score": {
+                        "title": "Score",
+                        "type": "number"
+                    }
+                }
+            },
+            "EvaluationScenarioUpdate": {
+                "title": "EvaluationScenarioUpdate",
+                "required": [
+                    "outputs"
+                ],
+                "type": "object",
+                "properties": {
+                    "vote": {
+                        "title": "Vote",
+                        "type": "string"
+                    },
+                    "score": {
+                        "title": "Score",
+                        "type": "string"
+                    },
+                    "correct_answer": {
+                        "title": "Correct Answer",
+                        "type": "string"
+                    },
+                    "outputs": {
+                        "title": "Outputs",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/EvaluationScenarioOutput"
+                        }
+                    },
+                    "evaluation_prompt_template": {
+                        "title": "Evaluation Prompt Template",
+                        "type": "string"
+                    },
+                    "open_ai_key": {
+                        "title": "Open Ai Key",
+                        "type": "string"
+                    }
+                }
+            },
+            "EvaluationStatusEnum": {
+                "title": "EvaluationStatusEnum",
+                "enum": [
+                    "EVALUATION_INITIALIZED",
+                    "EVALUATION_STARTED",
+                    "COMPARISON_RUN_STARTED",
+                    "EVALUATION_FINISHED"
+                ],
+                "type": "string",
+                "description": "An enumeration."
+            },
+            "EvaluationType": {
+                "title": "EvaluationType",
+                "enum": [
+                    "auto_exact_match",
+                    "auto_similarity_match",
+                    "auto_regex_test",
+                    "auto_webhook_test",
+                    "auto_ai_critique",
+                    "human_a_b_testing",
+                    "human_scoring",
+                    "custom_code_run"
+                ],
+                "type": "string",
+                "description": "An enumeration."
+            },
+            "EvaluationTypeSettings": {
+                "title": "EvaluationTypeSettings",
+                "type": "object",
+                "properties": {
+                    "similarity_threshold": {
+                        "title": "Similarity Threshold",
+                        "type": "number"
+                    },
+                    "regex_pattern": {
+                        "title": "Regex Pattern",
+                        "type": "string"
+                    },
+                    "regex_should_match": {
+                        "title": "Regex Should Match",
+                        "type": "boolean"
+                    },
+                    "webhook_url": {
+                        "title": "Webhook Url",
+                        "type": "string"
+                    }
+                }
+            },
+            "EvaluationUpdate": {
+                "title": "EvaluationUpdate",
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "$ref": "#/components/schemas/EvaluationStatusEnum"
+                    },
+                    "evaluation_type_settings": {
+                        "$ref": "#/components/schemas/EvaluationTypeSettings"
+                    }
+                }
+            },
+            "EvaluationWebhook": {
+                "title": "EvaluationWebhook",
+                "required": [
+                    "score"
+                ],
+                "type": "object",
+                "properties": {
+                    "score": {
+                        "title": "Score",
+                        "type": "number"
+                    }
+                }
+            },
+            "ExecuteCustomEvaluationCode": {
+                "title": "ExecuteCustomEvaluationCode",
+                "required": [
+                    "inputs",
+                    "app_name",
+                    "variant_name",
+                    "correct_answer",
+                    "outputs"
+                ],
+                "type": "object",
+                "properties": {
+                    "inputs": {
+                        "title": "Inputs",
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "variant_name": {
+                        "title": "Variant Name",
+                        "type": "string"
+                    },
+                    "correct_answer": {
+                        "title": "Correct Answer",
+                        "type": "string"
+                    },
+                    "outputs": {
+                        "title": "Outputs",
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "HTTPValidationError": {
+                "title": "HTTPValidationError",
+                "type": "object",
+                "properties": {
+                    "detail": {
+                        "title": "Detail",
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        }
+                    }
+                }
+            },
+            "Image": {
+                "title": "Image",
+                "required": [
+                    "docker_id",
+                    "tags"
+                ],
+                "type": "object",
+                "properties": {
+                    "docker_id": {
+                        "title": "Docker Id",
+                        "type": "string"
+                    },
+                    "tags": {
+                        "title": "Tags",
+                        "type": "string"
+                    }
+                }
+            },
+            "NewEvaluation": {
+                "title": "NewEvaluation",
+                "required": [
+                    "evaluation_type",
+                    "app_name",
+                    "variants",
+                    "inputs",
+                    "testset",
+                    "status"
+                ],
+                "type": "object",
+                "properties": {
+                    "evaluation_type": {
+                        "$ref": "#/components/schemas/EvaluationType"
+                    },
+                    "custom_code_evaluation_id": {
+                        "title": "Custom Code Evaluation Id",
+                        "type": "string"
+                    },
+                    "evaluation_type_settings": {
+                        "$ref": "#/components/schemas/EvaluationTypeSettings"
+                    },
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "variants": {
+                        "title": "Variants",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "inputs": {
+                        "title": "Inputs",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "testset": {
+                        "title": "Testset",
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "status": {
+                        "title": "Status",
+                        "type": "string"
+                    },
+                    "llm_app_prompt_template": {
+                        "title": "Llm App Prompt Template",
+                        "type": "string"
+                    }
+                }
+            },
+            "NewTestset": {
+                "title": "NewTestset",
+                "required": [
+                    "name",
+                    "csvdata"
+                ],
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "csvdata": {
+                        "title": "Csvdata",
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "PostVariantConfigPayload": {
+                "title": "PostVariantConfigPayload",
+                "required": [
+                    "app_name",
+                    "base_name",
+                    "config_name",
+                    "parameters",
+                    "overwrite"
+                ],
+                "type": "object",
+                "properties": {
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "base_name": {
+                        "title": "Base Name",
+                        "type": "string"
+                    },
+                    "config_name": {
+                        "title": "Config Name",
+                        "type": "string"
+                    },
+                    "parameters": {
+                        "title": "Parameters",
+                        "type": "object"
+                    },
+                    "overwrite": {
+                        "title": "Overwrite",
+                        "type": "boolean"
+                    }
+                }
+            },
+            "RestartAppContainer": {
+                "title": "RestartAppContainer",
+                "required": [
+                    "app_name",
+                    "variant_name"
+                ],
+                "type": "object",
+                "properties": {
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "variant_name": {
+                        "title": "Variant Name",
+                        "type": "string"
+                    }
+                }
+            },
+            "Template": {
+                "title": "Template",
+                "required": [
+                    "id",
+                    "image"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "type": "integer"
+                    },
+                    "image": {
+                        "$ref": "#/components/schemas/TemplateImageInfo"
+                    }
+                }
+            },
+            "TemplateImageInfo": {
+                "title": "TemplateImageInfo",
+                "required": [
+                    "name",
+                    "size",
+                    "digest",
+                    "status",
+                    "architecture",
+                    "title",
+                    "description",
+                    "last_pushed",
+                    "repo_name",
+                    "media_type"
+                ],
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "size": {
+                        "title": "Size",
+                        "type": "integer"
+                    },
+                    "digest": {
+                        "title": "Digest",
+                        "type": "string"
+                    },
+                    "status": {
+                        "title": "Status",
+                        "type": "string"
+                    },
+                    "architecture": {
+                        "title": "Architecture",
+                        "type": "string"
+                    },
+                    "title": {
+                        "title": "Title",
+                        "type": "string"
+                    },
+                    "description": {
+                        "title": "Description",
+                        "type": "string"
+                    },
+                    "last_pushed": {
+                        "title": "Last Pushed",
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "repo_name": {
+                        "title": "Repo Name",
+                        "type": "string"
+                    },
+                    "media_type": {
+                        "title": "Media Type",
+                        "type": "string"
+                    }
+                }
+            },
+            "TestSetOutputResponse": {
+                "title": "TestSetOutputResponse",
+                "required": [
+                    "_id",
+                    "name",
+                    "app_name",
+                    "created_at"
+                ],
+                "type": "object",
+                "properties": {
+                    "_id": {
+                        "title": " Id",
+                        "type": "string"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "app_name": {
+                        "title": "App Name",
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "title": "Created At",
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "URI": {
+                "title": "URI",
+                "required": [
+                    "uri"
+                ],
+                "type": "object",
+                "properties": {
+                    "uri": {
+                        "title": "Uri",
+                        "type": "string"
+                    }
+                }
+            },
+            "UploadResponse": {
+                "title": "UploadResponse",
+                "required": [
+                    "id",
+                    "name",
+                    "created_at"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "title": "Id",
+                        "type": "string"
+                    },
+                    "name": {
+                        "title": "Name",
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "title": "Created At",
+                        "type": "string"
+                    }
+                }
+            },
+            "ValidationError": {
+                "title": "ValidationError",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "type": "object",
+                "properties": {
+                    "loc": {
+                        "title": "Location",
+                        "type": "array",
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        }
+                    },
+                    "msg": {
+                        "title": "Message",
+                        "type": "string"
+                    },
+                    "type": {
+                        "title": "Error Type",
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}

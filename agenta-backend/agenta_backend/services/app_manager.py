@@ -23,6 +23,10 @@ if os.environ["FEATURE_FLAG"] in ["cloud"]:
 else:
     from agenta_backend.services import deployment_manager
 
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+    from agenta_backend.ee.services import (
+        api_key_service,
+    )  # noqa pylint: disable-all
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -60,6 +64,23 @@ async def start_variant(
             db_app_variant.organization,
         )
         logger.debug("App name is %s", db_app_variant.app.app_name)
+        # update the env variables
+        domain_name = os.environ.get("DOMAIN_NAME")
+        if domain_name is None or domain_name == "http://localhost":
+            # in the case of agenta running locally, the containers can access the host machine via this address
+            domain_name = (
+                "http://host.docker.internal"  # unclear why this stopped working
+            )
+            # domain_name = "http://localhost"
+        env_vars = {} if env_vars is None else env_vars
+        env_vars.update(
+            {"AGENTA_BASE_ID": str(db_app_variant.base.id), "AGENTA_HOST": domain_name}
+        )
+        if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+            api_key = await api_key_service.create_api_key(
+                str(db_app_variant.user.uid), expiration_date=None, hidden=True
+            )
+            env_vars.update({"AGENTA_API_KEY": api_key})
         deployment = await deployment_manager.start_service(
             app_variant_db=db_app_variant, env_vars=env_vars
         )
@@ -73,7 +94,7 @@ async def start_variant(
         )
         raise Exception(
             f"Failed to start Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name} \n {str(e)}"
-        )
+        ) from e
 
     return URI(uri=deployment.uri)
 
@@ -95,15 +116,17 @@ async def update_variant_image(
         app_variant_db.base.deployment
     )
 
-    await deployment_manager.stop_service(deployment)
+    await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(deployment)
 
     await deployment_manager.remove_image(app_variant_db.base.image)
     await db_manager.remove_image(app_variant_db.base.image)
     # Create a new image instance
     db_image = await db_manager.create_image(
-        **image.dict(),
+        tags=image.tags,
+        docker_id=image.docker_id,
         user=app_variant_db.user,
+        deletable=True,
         organization=app_variant_db.organization,
     )
     # Update base with new image
@@ -162,13 +185,27 @@ async def terminate_and_remove_app_variant(
                 deployment = await db_manager.get_deployment_by_objectid(
                     app_variant_db.base.deployment
                 )
-                await deployment_manager.stop_and_delete_service(deployment)
-                await deployment_manager.remove_image(image)
+                if deployment:
+                    try:
+                        await deployment_manager.stop_and_delete_service(deployment)
+                    except RuntimeError as e:
+                        logger.error(
+                            f"Failed to stop and delete service {deployment} {e}"
+                        )
+
+                # If image deletable is True, remove docker image and image db
+                if image.deletable:
+                    try:
+                        await deployment_manager.remove_image(image)
+                    except RuntimeError as e:
+                        logger.error(f"Failed to remove image {image} {e}")
+                    await db_manager.remove_image(image, **kwargs)
+
                 logger.debug("remove base")
                 await db_manager.remove_app_variant_from_db(app_variant_db, **kwargs)
                 logger.debug("Remove image object from db")
-                await db_manager.remove_image(image, **kwargs)
-                await db_manager.remove_deployment(deployment)
+                if deployment:
+                    await db_manager.remove_deployment(deployment)
                 await db_manager.remove_base_from_db(app_variant_db.base, **kwargs)
                 logger.debug("remove_app_variant_from_db")
 
@@ -293,6 +330,7 @@ async def add_variant_based_on_image(
     tags: str,
     base_name: str = None,
     config_name: str = "default",
+    is_template_image: bool = False,
     **user_org_data: dict,
 ) -> AppVariantDB:
     """
@@ -305,6 +343,7 @@ async def add_variant_based_on_image(
         tags (str): The tags associated with the Docker image.
         base_name (str, optional): The name of the base to use for the new variant. Defaults to None.
         config_name (str, optional): The name of the configuration to use for the new variant. Defaults to "default".
+        is_template_image (bool, optional): Whether or not the image used is for a template (in this case we won't delete it in the future).
         **user_org_data (dict): Additional user and organization data.
 
     Returns:
@@ -338,7 +377,7 @@ async def add_variant_based_on_image(
 
     # Retrieve user and image objects
     logger.debug("Step 3: Retrieving user and image objects")
-    user_instance = await db_manager.get_user_object(user_org_data["uid"])
+    user_instance = await db_manager.get_user(user_uid=user_org_data["uid"])
     db_image = await db_manager.get_orga_image_instance(
         organization_id=str(app.organization.id), docker_id=docker_id
     )
@@ -349,6 +388,7 @@ async def add_variant_based_on_image(
         db_image = await db_manager.create_image(
             docker_id=docker_id,
             tags=tags,
+            deletable=not (is_template_image),
             user=user_instance,
             organization=app.organization,
         )
