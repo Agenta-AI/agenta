@@ -201,7 +201,7 @@ def generate(
 
 <img width="650" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
 
-**3. Go to agenta at localhost:3000**
+**3. Go to agenta at http://localhost**
 
 Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different versions of your app (with your code!) in the web platform.</summary>
 <br/>
@@ -280,3 +280,4 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
 
 Attribution: Testing icons created by [Freepik - Flaticon](https://www.flaticon.com/free-icons/testing)
+
