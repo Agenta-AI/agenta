@@ -194,8 +194,6 @@ async def list_apps(
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
         apps = await db_manager.list_apps(app_name, org_id, **user_org_data)
         return apps
-    except db_manager.DocumentParsingError as exc:
-        await db_manager.remove_document_using_driver(str(exc.primary_value), "app_db")
     except Exception as e:
         logger.error(f"list_apps exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -279,12 +277,7 @@ async def remove_app(app_id: str, request: Request):
                 status_code=400,
             )
         else:
-            try:
-                await app_manager.remove_app(app_id=app_id, **user_org_data)
-            except db_manager.DocumentParsingError as exc:
-                await db_manager.remove_document_using_driver(
-                    str(exc.primary_value), "app_db"
-                )
+            await app_manager.remove_app(app_id=app_id, **user_org_data)
     except DockerException as e:
         detail = f"Docker error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
