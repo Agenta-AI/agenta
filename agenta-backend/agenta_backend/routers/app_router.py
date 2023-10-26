@@ -195,9 +195,7 @@ async def list_apps(
         apps = await db_manager.list_apps(app_name, org_id, **user_org_data)
         return apps
     except db_manager.DocumentParsingError as exc:
-        await db_manager.remove_document_using_driver(
-            str(exc.primary_value), "app_db"
-        )
+        await db_manager.remove_document_using_driver(str(exc.primary_value), "app_db")
     except Exception as e:
         logger.error(f"list_apps exception ===> {e}")
         raise HTTPException(status_code=500, detail=str(e))
