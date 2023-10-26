@@ -354,7 +354,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                 />
                             </Tooltip>
                         )}
-                        <Tooltip title="Run">
+                        <Tooltip title="Run (Enter ↵)">
                             <PlayCircleOutlined
                                 style={{color: token.colorSuccessActive}}
                                 onClick={() => onRun(scenarioId)}
