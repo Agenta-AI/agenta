@@ -96,6 +96,9 @@ export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
 export const snakeToCamel = (str: string) =>
     str.replace(/([-_][a-z])/g, (group) => group.toUpperCase().replace("-", "").replace("_", ""))
 
+export const camelToSnake = (str: string) =>
+    str.replace(/([A-Z])/g, (group) => `_${group.toLowerCase()}`)
+
 export const stringToNumberInRange = (text: string, min: number, max: number) => {
     // Calculate a hash value from the input string
     let hash = 0

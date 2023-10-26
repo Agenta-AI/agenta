@@ -24,17 +24,22 @@ const useStyles = createUseStyles({
 
 interface Props {
     evaluationScenario: EvaluationScenario
+    onInputChange: Function
 }
 
-const EvaluationInputs: React.FC<Props> = ({evaluationScenario}) => {
+const EvaluationInputs: React.FC<Props> = ({evaluationScenario, onInputChange}) => {
     const classes = useStyles()
 
     return (
         <div className={classes.root} key={evaluationScenario.id}>
-            {evaluationScenario.inputs.map((ip) => (
+            {evaluationScenario.inputs.map((ip, ix) => (
                 <div key={ip.input_name} className={classes.inputRow}>
                     <Typography.Text>{ip.input_name}:</Typography.Text>
-                    <Input placeholder={ip.input_name} defaultValue={ip.input_value} />
+                    <Input
+                        placeholder={ip.input_name}
+                        defaultValue={ip.input_value}
+                        onChange={(e) => onInputChange(e, evaluationScenario.id, ix)}
+                    />
                 </div>
             ))}
         </div>

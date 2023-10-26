@@ -73,6 +73,8 @@ export interface EvaluationScenario {
     correctAnswer: string | null
     vote: string | null
     score: string | null
+    isPinned: boolean
+    note: string
 }
 
 //TODO: modify this to accomodate results of other evaluation types
