@@ -77,12 +77,13 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
     return (
         <div className={classes.btnRow}>
             {variants.map((variant, ix) => (
-                <ConfigProvider theme={{token: {colorError: VARIANT_COLORS[ix]}}}>
+                <ConfigProvider
+                    key={variant.variantId}
+                    theme={{token: {colorError: VARIANT_COLORS[ix]}}}
+                >
                     <Button
-                        key={variant.variantId}
                         onClick={getOnClick(variant.variantId)}
                         type={value === variant.variantId ? "primary" : undefined}
-                        // danger={variant.variantId === "0"}
                         danger
                     >
                         {String.fromCharCode(65 + ix)}: {variant.variantName}
