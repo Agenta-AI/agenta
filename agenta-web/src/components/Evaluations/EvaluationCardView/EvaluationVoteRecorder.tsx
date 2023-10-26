@@ -1,5 +1,5 @@
 import {Variant} from "@/lib/Types"
-import {Button, ConfigProvider, Divider, Spin, Typography, theme} from "antd"
+import {Button, ConfigProvider, Spin, Typography, theme} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
