@@ -16,11 +16,16 @@ import {createUseStyles} from "react-jss"
 import EvaluationVoteRecorder from "./EvaluationVoteRecorder"
 import EvaluationCard from "./EvaluationCard"
 import EvaluationInputs from "./EvaluationInputs"
-import {EvaluationFlow} from "@/lib/enums"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestingEvaluationTable"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useLocalStorage} from "usehooks-ts"
+
+export const VARIANT_COLORS = [
+    // "#f759ab",
+    "#9254de",
+    "#13c2c2",
+]
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -56,6 +61,7 @@ const useStyles = createUseStyles({
         gap: "0.75rem",
         "& .ant-typography": {
             margin: 0,
+            fontWeight: 400,
         },
     },
     headingDivider: {
