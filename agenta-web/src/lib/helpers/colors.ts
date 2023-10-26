@@ -47,3 +47,17 @@ export const getGradientFromStr = (value: string) => {
 export const getColorFromStr = (value: string) => {
     return colors[stringToNumberInRange(value, 0, colors.length - 1)]
 }
+
+export const fadeColor = (hex: string, opacity: number) => {
+    // Remove the '#' character if present
+    hex = hex.replace(/^#/, "")
+
+    // Parse the hex value into individual RGB components
+    const bigint = parseInt(hex, 16)
+    const r = (bigint >> 16) & 255
+    const g = (bigint >> 8) & 255
+    const b = bigint & 255
+
+    // Create the faded color in RGBA format
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`
+}

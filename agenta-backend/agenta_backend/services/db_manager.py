@@ -1285,12 +1285,12 @@ async def remove_old_template_from_db(tag_ids: list) -> None:
 
 async def remove_document_using_driver(document_id: str, collection_name: str) -> None:
     """Deletes document from using pymongo driver"""
-
+    
     import motor.motor_asyncio
 
     client = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGODB_URI"])
     db = client.get_database("agenta_v2")
-
+    
     collection = db.get_collection(collection_name)
     await collection.delete_one({"_id": ObjectId(document_id)})
     print(f"Deleted document {document_id} in {collection_name} collection.")
