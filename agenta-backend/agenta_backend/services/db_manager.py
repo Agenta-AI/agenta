@@ -1,5 +1,6 @@
-import logging
 import os
+import logging
+from pathlib import Path
 from bson import ObjectId
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -15,6 +16,7 @@ from agenta_backend.models.converters import (
     image_db_to_pydantic,
     templates_db_to_pydantic,
 )
+from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
     AppDB,
     AppVariantDB,
@@ -40,13 +42,47 @@ else:
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-
 from odmantic import query
 from odmantic.exceptions import DocumentParsingError
 
 
+# Define logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+# Define parent directory
+PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
+
+
+async def add_testset_to_app_variant(
+    app_id: str, org_id: str, template_name: str, app_name: str, **kwargs: dict
+):
+    """Add testset to app variant.
+    Args:
+        app_id (str): The id of the app
+        org_id (str): The id of the organization
+        template_name (str): The name of the app template image
+        app_name (str): The name of the app
+        **kwargs (dict): Additional keyword arguments
+    """
+
+    app_db = await get_app_instance_by_id(app_id)
+    org_db = await get_organization_object(org_id)
+    user_db = await get_user(user_uid=kwargs["uid"])
+
+    if template_name == "single_prompt":
+        json_path = (
+            f"{PARENT_DIRECTORY}/resources/default_testsets/single_prompt_testsets.json"
+        )
+        csvdata = get_json(json_path)
+        testset = {
+            "name": f"{app_name}_testset",
+            "app_name": app_name,
+            "created_at": datetime.now().isoformat(),
+            "csvdata": csvdata,
+        }
+        testset = TestSetDB(**testset, app=app_db, user=user_db, organization=org_db)
+        await engine.save(testset)
 
 
 async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
@@ -99,7 +135,7 @@ async def fetch_app_by_name(
         AppDB: the instance of the app
     """
     if not organization_id:
-        user = await get_user_object(user_org_data["uid"])
+        user = await get_user(user_uid=user_org_data["uid"])
         query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id)
         app = await engine.find_one(AppDB, query_expression)
     else:
@@ -345,7 +381,7 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    user_instance = await get_user_object(user_org_data["uid"])
+    user_instance = await get_user(user_uid=user_org_data["uid"])
     app = await fetch_app_by_name(app_name, organization_id, **user_org_data)
     if app is not None:
         raise ValueError("App with the same name already exists")
@@ -449,7 +485,24 @@ async def list_app_variants_for_app_id(
     return app_variants_db
 
 
-async def list_app_variant_for_base(
+async def list_bases_for_app_id(
+    app_id: str, base_name: Optional[str] = None, **kwargs: dict
+) -> List[VariantBaseDB]:
+    assert app_id is not None, "app_id cannot be None"
+    query_expression = VariantBaseDB.app == ObjectId(app_id)
+    if base_name:
+        query_expression = query_expression & query.eq(
+            VariantBaseDB.base_name, base_name
+        )
+    bases_db: List[VariantBaseDB] = await engine.find(
+        VariantBaseDB,
+        query_expression,
+        sort=(VariantBaseDB.base_name),
+    )
+    return bases_db
+
+
+async def list_variants_for_base(
     base: VariantBaseDB, **kwargs: dict
 ) -> List[AppVariantDB]:
     """
@@ -470,18 +523,30 @@ async def list_app_variant_for_base(
     return app_variants_db
 
 
-async def get_user_object(user_uid: str) -> UserDB:
-    """Get the user object from the database.
+async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
+    """Get the user object from the database. If both inputs are none, we create a new user.
 
     Arguments:
-        user_id (str): The user unique identifier
+        user_uid (str): The user unique identifier (can be the user uid or email address)
+        user_id (ObjectId): The user ObjectId (user id)
 
     Returns:
         UserDB: instance of user
     """
 
-    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
-    if user is None:
+    if user_uid and user_id:
+        raise Exception(
+            "Please provide either user_uid or user_id, not both or neither"
+        )
+
+    if user_uid:
+        user = await engine.find_one(
+            UserDB,
+            UserDB.uid == user_uid if "@" not in user_uid else UserDB.email == user_uid,
+        )
+    elif user_id:
+        user = await engine.find_one(UserDB, UserDB.id == user_id)
+    elif user_id is None and user_uid is None:  # create a new user in case of oss
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
             create_user = UserDB(uid="0")
             await engine.save(create_user)
@@ -493,11 +558,42 @@ async def get_user_object(user_uid: str) -> UserDB:
             await engine.save(create_user)
             await engine.save(org)
 
-            return create_user
-        else:
-            raise Exception("Please login or signup")
+            user = create_user
     else:
-        return user
+        raise Exception(
+            f"The provided user {user_uid}/{user_id} does not exist in the database"
+        )
+
+    return user
+
+
+async def get_users_by_ids(user_ids: List) -> List:
+    """
+    Retrieve users from the database by their IDs.
+
+    Args:
+        user_ids (List): A list of user IDs to retrieve.
+
+    Returns:
+        List: A list of dictionaries representing the retrieved users.
+    """
+
+    users_db: List[UserDB] = await engine.find(UserDB, UserDB.id.in_(user_ids))
+
+    return users_db
+
+
+async def save_object_to_db(object_to_save: Any) -> Any:
+    """Save an object to the database.
+
+    Arguments:
+        object_to_save (Any): The object to save
+
+    Returns:
+        Any: instance of saved object
+    """
+    await engine.save(object_to_save)
+    return object_to_save
 
 
 async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
@@ -556,14 +652,14 @@ async def add_variant_from_base_and_config(
         logger.error("Failed to find the previous app variant in the database.")
         raise HTTPException(status_code=500, detail="Previous app variant not found")
     logger.debug(f"Located previous variant: {previous_app_variant_db}")
-    app_variant_for_base = await list_app_variant_for_base(base_db)
+    app_variant_for_base = await list_variants_for_base(base_db)
 
     already_exists = any(
         [av for av in app_variant_for_base if av.config_name == new_config_name]
     )
     if already_exists:
         raise ValueError("App variant with the same name already exists")
-    user_db = await get_user_object(user_org_data["uid"])
+    user_db = await get_user(user_uid=user_org_data["uid"])
     config_db = ConfigDB(
         config_name=new_config_name,
         parameters=parameters,
@@ -606,7 +702,7 @@ async def list_apps(
         List[App]
     """
 
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
     assert user is not None, "User is None"
 
     if app_name is not None:
@@ -1213,7 +1309,7 @@ async def count_apps(**user_org_data: dict) -> int:
     """
 
     # Get user object
-    user = await get_user_object(user_org_data["uid"])
+    user = await get_user(user_uid=user_org_data["uid"])
     if user is None:
         return 0
 
