@@ -93,6 +93,8 @@ def evaluation_scenario_db_to_pydantic(
         vote=evaluation_scenario_db.vote,
         score=evaluation_scenario_db.score,
         correct_answer=evaluation_scenario_db.correct_answer,
+        is_pinned=evaluation_scenario_db.is_pinned or False,
+        note=evaluation_scenario_db.note or "",
     )
 
 
