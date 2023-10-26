@@ -1,6 +1,6 @@
 import {defineConfig} from "cypress"
 
-const cypressApiKey="cypressApiKey";
+const cypressApiKey = "cypressApiKey"
 
 export default defineConfig({
     video: false,
