@@ -30,7 +30,7 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
         cy.wrap(interception.response.body.app_id).as("app_id")
     })
     cy.url({timeout: 15000}).should("include", "/playground")
-    cy.wait(1000)
+    cy.contains(/modify parameters/i)
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
     const testsetName = randString(5)

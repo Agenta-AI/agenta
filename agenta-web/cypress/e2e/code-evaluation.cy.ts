@@ -16,7 +16,7 @@ describe("Code Evaluation workflow", () => {
     context("When navigating to Evaluation Page", () => {
         it("Should reach the Evaluation Page", () => {
             cy.visit(`/apps/${app_id}/playground`)
-            cy.wait(1000)
+            cy.contains(/modify parameters/i)
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
             cy.url().should("include", "/evaluations")
         })
@@ -58,7 +58,7 @@ describe("Code Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.url().should("include", "/custom_code_run")
-            cy.wait(1000)
+            cy.wait(1500)
             cy.clickLinkAndWait('[data-cy="code-evaluation-run"]')
 
             cy.get('[data-cy="code-evaluation-result"]', {timeout: 15000}).should(
