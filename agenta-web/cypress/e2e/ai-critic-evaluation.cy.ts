@@ -1,9 +1,13 @@
 describe("AI Critics Evaluation workflow", () => {
     let app_id
+    let testset_name
     before(() => {
         cy.createVariantsAndTestsets()
         cy.get("@app_id").then((appId) => {
             app_id = appId
+        })
+        cy.get("@testsetName").then((testsetName) => {
+            testset_name = testsetName
         })
     })
 
@@ -20,7 +24,7 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
 
             cy.get('[data-cy="selected-testset"]').trigger("mouseover")
-            cy.get('[data-cy="testset-0"]').click()
+            cy.get('[data-cy^="testset"]').contains(testset_name).click()
             cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
@@ -49,7 +53,7 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
 
             cy.get('[data-cy="selected-testset"]').trigger("mouseover")
-            cy.get('[data-cy="testset-0"]').click()
+            cy.get('[data-cy^="testset"]').contains(testset_name).click()
             cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
