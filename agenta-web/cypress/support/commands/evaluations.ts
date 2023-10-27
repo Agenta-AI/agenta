@@ -36,6 +36,7 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     const testsetName = randString(5)
 
     cy.get('[data-cy="testset-name-input"]').type(testsetName)
+    cy.wrap(testsetName).as("testsetName")
 
     cy.get(".ag-row").should("have.length", 3)
     countries.forEach((country, index) => {
