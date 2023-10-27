@@ -6,10 +6,14 @@ Cypress.on("uncaught:exception", () => false)
 describe("Code Evaluation workflow", () => {
     const eval_name = randString(5)
     let app_id
+    let testset_name
     before(() => {
         cy.createVariantsAndTestsets()
         cy.get("@app_id").then((appId) => {
             app_id = appId
+        })
+        cy.get("@testsetName").then((testsetName) => {
+            testset_name = testsetName
         })
     })
 
@@ -22,7 +26,7 @@ describe("Code Evaluation workflow", () => {
         })
     })
 
-    context("Should add a new Code Evaluation", () => {
+    context("When creating a new evaluation", () => {
         beforeEach(() => {
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.clickLinkAndWait('[data-cy="code-evaluation-button"]')
@@ -30,7 +34,7 @@ describe("Code Evaluation workflow", () => {
             cy.url().should("include", "/create_custom_evaluation")
         })
 
-        it("When creating a new evaluation", () => {
+        it("Should add a new Code Evaluation successfully", () => {
             cy.get('[data-cy="code-evaluation-save-button"]').should("be.disabled")
             cy.get('[data-cy="code-evaluation-input"]').type(eval_name)
             cy.get(".monaco-editor", {timeout: 15000}).type(".")
@@ -40,8 +44,8 @@ describe("Code Evaluation workflow", () => {
         })
     })
 
-    context("Should Execute the Evaluation Workflow", () => {
-        it("When executing the evaluation, it should run successfully", () => {
+    context("When executing the evaluation", () => {
+        it("Should execute evaluation workflow successfully", () => {
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.clickLinkAndWait('[data-cy="code-evaluation-button"]')
             cy.get('[data-cy^="code-evaluation-option"]').contains(eval_name).click()
@@ -51,7 +55,7 @@ describe("Code Evaluation workflow", () => {
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
 
             cy.get('[data-cy="selected-testset"]').trigger("mouseover")
-            cy.get('[data-cy="testset-0"]').click()
+            cy.get('[data-cy^="testset"]').contains(testset_name).click()
             cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
@@ -70,8 +74,8 @@ describe("Code Evaluation workflow", () => {
         })
     })
 
-    context("Should display Code Evaluation result", () => {
-        it("When displaying Code Evaluation result", () => {
+    context("When displaying Code Evaluation result", () => {
+        it("Should display Code Evaluation result", () => {
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.url().should("include", "/evaluations")
             cy.get('[data-cy="automatic-evaluation-result"]').within(() => {
