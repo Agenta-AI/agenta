@@ -15,7 +15,7 @@
   </h4>
 <div align="center">
   <strong>Quickly iterate, debug, and evaluate your LLM apps</strong><br />
-  The open-source LLMOps platform for prompt-engineering, evaluation, and deployment of complex LLM apps.
+  The open-source LLMOps platform for prompt-engineering, evaluation, human feedback, and deployment of complex LLM apps.
 </div>
 </br>
 <p align="center">
@@ -82,9 +82,6 @@
 </h3>
 
 ---
-# ⚠ Breaking Changes Notice
-
-> **Important**: In version 0.3, we had to do a large refactoring that introduced breaking changes. This means that version 0.3 cannot be used with data from versions 0.2 and below. You should manually save your data before pulling version 0.3. Feel free to contact us on Slack if you need help with the migration.
 
 # ℹ️ About
 
@@ -178,19 +175,19 @@ from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 
 default_prompt = "Give me five cool names for a baby from {country} with this gender {gender}!!!!"
+ag.init()
+ag.config(prompt_template=ag.TextParam(default_prompt),
+          temperature=ag.FloatParam(0.9))
 
-
-@ag.post
+@ag.entrypoint
 def generate(
     country: str,
     gender: str,
-    temperature: ag.FloatParam = 0.9,
-    prompt_template: ag.TextParam = default_prompt,
 ) -> str:
-    llm = OpenAI(temperature=temperature)
+    llm = OpenAI(temperature=ag.config.temperature)
     prompt = PromptTemplate(
         input_variables=["country", "gender"],
-        template=prompt_template,
+        template=ag.config.prompt_template,
     )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(country=country, gender=gender)
