@@ -157,7 +157,7 @@ When you are ready, deploy your LLM applications as APIs in one click.<br/>
 ## Why choose Agenta for building LLM-apps?
 
 - 🔨 **Build quickly**: You need to iterate many times on different architectures and prompts to bring apps to production. We streamline this process and allow you to do this in days instead of weeks.
-- 🏗️ **Build robust apps and reduce hallucination**: We provide you with the tools to systematically and easily evaluate your application to make sure you only serve robust apps to production
+- 🏗️ **Build robust apps and reduce hallucination**: We provide you with the tools to systematically and easily evaluate your application to make sure you only serve robust apps to production.
 - 👨‍💻 **Developer-centric**: We cater to complex LLM-apps and pipelines that require more than one simple prompt. We allow you to experiment and iterate on apps that have complex integration, business logic, and many prompts.
 - 🌐 **Solution-Agnostic**: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
 - 🔒 **Privacy-First**: We respect your privacy and do not proxy your data through third-party services. The platform and the data are hosted on your infrastructure.
@@ -168,7 +168,7 @@ When you are ready, deploy your LLM applications as APIs in one click.<br/>
 
 Write the code using any framework, library, or model you want. Add the `agenta.post` decorator and put the inputs and parameters in the function call just like in this example:
 
-_Example simple application that generates baby names_
+_Example simple application that generates baby names:_
 
 ```python
 import agenta as ag
@@ -197,7 +197,7 @@ def generate(
     return output
 ```
 
-**2.Deploy your app using the Agenta CLI.**
+**2.Deploy your app using the Agenta CLI**
 
 <img width="650" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
 
@@ -280,4 +280,4 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
 
-Attribution: Testing icons created by [Freepik - Flaticon](https://www.flaticon.com/free-icons/testing)
+**Attribution**: Testing icons created by [Freepik - Flaticon](https://www.flaticon.com/free-icons/testing)
