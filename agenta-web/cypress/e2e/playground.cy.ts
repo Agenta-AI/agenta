@@ -1,4 +1,4 @@
-describe("Playground | Simple prompt", function () {
+describe("Playground Prompt Test", function () {
     let app_id
     before(() => {
         cy.createVariantsAndTestsets()
@@ -7,8 +7,8 @@ describe("Playground | Simple prompt", function () {
         })
     })
 
-    context("when an api key is provided", function () {
-        it("should run the prompt without error", () => {
+    context("When testing prompt functionality", () => {
+        it("Should test prompt functionality in the Playground", () => {
             cy.visit(`/apps/${app_id}/playground`)
             cy.contains(/modify parameters/i)
             cy.get('[data-cy="testview-input-parameters-0"]').type("Germany")
