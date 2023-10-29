@@ -10,6 +10,7 @@ declare global {
             createVariantsAndTestsets(): Chainable<void>
             cleanupVariantAndTestset(): Chainable<void>
             addingOpenaiKey(): Chainable<void>
+            createVariant(): Chainable<void>
         }
     }
 }
