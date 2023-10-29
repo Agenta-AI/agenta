@@ -217,6 +217,7 @@ const AppSelector: React.FC = () => {
                                 app_id: appId,
                                 environment: "UI",
                                 deployed_by: res?.data?.id,
+                                version: process.env.NEXT_PUBLIC_FF === "oss" ? "oss" : "cloud"
                             },
                         })
                     })
