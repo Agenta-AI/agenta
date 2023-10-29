@@ -1,4 +1,14 @@
+# Stdlib Imports
+import toml
+from pathlib import Path
+
+# Third party Imports
 from posthog import Posthog
+
+
+# Load global toml file
+parent_directory = Path(__file__).parent.parent
+global_toml_file = toml.load(parent_directory / "config.toml")
 
 
 class EventTracking(Posthog):
@@ -32,6 +42,5 @@ class EventTracking(Posthog):
 
 # Initialize event tracking
 event_track = EventTracking(
-    "phc_qH8GezjMAeToR9ygdsnTH0C9c2njhO7CFqf66pTUX7H",
-    "https://app.posthog.com",
+    global_toml_file["telemetry_api_key"], "https://app.posthog.com"
 )
