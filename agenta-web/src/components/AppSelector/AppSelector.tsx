@@ -11,6 +11,7 @@ import Welcome from "./Welcome"
 import {getOpenAIKey, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
+    getProfile,
     getTemplates,
     removeApp,
     waitForAppToStart,
@@ -23,6 +24,7 @@ import {createUseStyles} from "react-jss"
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
+import {eventTracking} from "@/lib/modules/telemetry"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -205,6 +207,19 @@ const AppSelector: React.FC = () => {
                     setFetchingTemplate(false)
                 if (status === "success") {
                     mutate()
+
+                    // Get user profile
+                    getProfile().then((res) => {
+                        // Update distinct_id and track successfully app variant deployment
+                        eventTracking.identify(res?.data?.id)
+                        eventTracking.capture("app_deployment", {
+                            properties: {
+                                app_id: appId,
+                                environment: "UI",
+                                deployed_by: res?.data?.id,
+                            },
+                        })
+                    })
                 }
             },
         })
