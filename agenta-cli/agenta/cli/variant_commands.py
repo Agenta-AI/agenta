@@ -41,16 +41,16 @@ def add_variant(
     app_path = Path(app_folder)
     config_file = app_path / "config.toml"
     config = toml.load(config_file)
-    
+
     app_name = config["app_name"]
     app_id = config["app_id"]
     api_key = config.get("api_key", None)
     tracking_enabled: bool = config["tracking_enabled"]
-    
+
     config_name = "default"
     base_name = file_name.removesuffix(".py")
     variant_name = f"{base_name}.{config_name}"
-    
+
     # check files in folder
     app_file = app_path / file_name
     if not app_file.exists():
@@ -109,9 +109,7 @@ def add_variant(
                 fg="bright_black",
             )
         )
-        tar_path = build_tar_docker_container(
-            folder=app_path, file_name=file_name
-        )
+        tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
 
         click.echo(
             click.style(
@@ -135,16 +133,12 @@ def add_variant(
                     fg="bright_black",
                 )
             )
-            variant_id = config["variant_ids"][
-                config["variants"].index(variant_name)
-            ]
+            variant_id = config["variant_ids"][config["variants"].index(variant_name)]
             client.update_variant_image(
                 variant_id, image, host, api_key
             )  # this automatically restarts
         else:
-            click.echo(
-                click.style(f"Adding {variant_name} to server...", fg="yellow")
-            )
+            click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
             response = client.add_variant_to_server(
                 app_id, base_name, image, host, api_key
             )
@@ -153,19 +147,14 @@ def add_variant(
             config["variant_ids"].append(variant_id)
     except Exception as ex:
         if overwrite:
-            click.echo(
-                click.style(f"Error while updating variant: {ex}", fg="red")
-            )
+            click.echo(click.style(f"Error while updating variant: {ex}", fg="red"))
         else:
-            click.echo(
-                click.style(f"Error while adding variant: {ex}", fg="red")
-            )
+            click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
         return None
 
     # Get user profile
     user_id = client.retrieve_user_id(host, api_key)
     if overwrite:
-        
         # Track a deployment event
         if tracking_enabled:
             event_track.capture_event(
@@ -177,7 +166,7 @@ def add_variant(
                     "environment": "CLI",
                 },
             )
-        
+
         click.echo(
             click.style(
                 f"Variant {variant_name} for App {app_name} updated successfully 🎉",
@@ -186,7 +175,6 @@ def add_variant(
             )
         )
     else:
-        
         # Track a deployment event
         if tracking_enabled:
             event_track.capture_event(
@@ -196,9 +184,9 @@ def add_variant(
                     "app_id": app_id,
                     "deployed_by": user_id,
                     "environment": "CLI",
-                }
+                },
             )
-    
+
         click.echo(
             click.style(
                 f"Variant {variant_name} for App {app_name} added successfully to Agenta!",
@@ -245,18 +233,12 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         variant_name = questionary.select(
             "Please choose a variant", choices=config["variants"]
         ).ask()
-        variant_id = config["variant_ids"][
-            config["variants"].index(variant_name)
-        ]
+        variant_id = config["variant_ids"][config["variants"].index(variant_name)]
 
-    endpoint = client.start_variant(
-        variant_id=variant_id, host=host, api_key=api_key
-    )
+    endpoint = client.start_variant(variant_id=variant_id, host=host, api_key=api_key)
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
-        click.style(
-            "Your app has been deployed locally as an API. 🚀", fg="cyan"
-        )
+        click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
         + click.style(" You can access it here: ", fg="white")
         + click.style(f"{endpoint}/", bold=True, fg="yellow")
     )
@@ -274,9 +256,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
             fg="cyan",
         )
         + click.style(" Go to: ", fg="white")
-        + click.style(
-            f"{webui_host}/apps/{app_id}/playground", bold=True, fg="yellow"
-        )
+        + click.style(f"{webui_host}/apps/{app_id}/playground", bold=True, fg="yellow")
         + "\n"
     )
 
@@ -350,9 +330,7 @@ def list_variants(app_folder: str, host: str):
     variants = []
 
     try:
-        variants: List[AppVariant] = client.list_variants(
-            app_id, host, api_key
-        )
+        variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
     except Exception as ex:
         raise ex
 
@@ -360,9 +338,7 @@ def list_variants(app_folder: str, host: str):
         for variant in variants:
             helper.display_app_variant(variant)
     else:
-        click.echo(
-            click.style(f"No variants found for app {app_name}", fg="red")
-        )
+        click.echo(click.style(f"No variants found for app {app_name}", fg="red"))
 
 
 def config_check(app_folder: str):
@@ -372,11 +348,7 @@ def config_check(app_folder: str):
         app_folder -- the app folder
     """
 
-    click.echo(
-        click.style(
-            "\nChecking and updating config file...", fg="bright_black"
-        )
-    )
+    click.echo(click.style("\nChecking and updating config file...", fg="bright_black"))
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     if not config_file.exists():
@@ -417,9 +389,7 @@ def remove_variant_cli(variant_name: str, app_folder: str):
             host=get_host(app_folder),
         )
     except Exception as ex:
-        click.echo(
-            click.style(f"Error while removing variant: {ex}", fg="red")
-        )
+        click.echo(click.style(f"Error while removing variant: {ex}", fg="red"))
 
 
 @variant.command(
@@ -439,9 +409,7 @@ def serve_cli(ctx, app_folder: str, file_name: str):
         if ctx.args:
             file_name = ctx.args[0]
         else:
-            error_msg = (
-                "To serve variant, kindly provide the filename and run:\n"
-            )
+            error_msg = "To serve variant, kindly provide the filename and run:\n"
             error_msg += ">>> agenta variant serve --file_name <filename>.py\n"
             error_msg += "or\n"
             error_msg += ">>> agenta variant serve <filename>.py"
@@ -463,9 +431,7 @@ def serve_cli(ctx, app_folder: str, file_name: str):
         return
 
     try:
-        variant_id = add_variant(
-            app_folder=app_folder, file_name=file_name, host=host
-        )
+        variant_id = add_variant(app_folder=app_folder, file_name=file_name, host=host)
     except Exception as e:
         click.echo(click.style("Failed to add variant.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
@@ -473,20 +439,16 @@ def serve_cli(ctx, app_folder: str, file_name: str):
 
     if variant_id:
         try:
-            start_variant(
-                variant_id=variant_id, app_folder=app_folder, host=host
-            )
+            start_variant(variant_id=variant_id, app_folder=app_folder, host=host)
         except ConnectionError:
             error_msg = "Failed to connect to Agenta backend. Here's how you can solve the issue:\n"
             error_msg += "- First, please ensure that the backend service is running and accessible.\n"
-            error_msg += "- Second, try restarting the containers (if using Docker Compose)."
+            error_msg += (
+                "- Second, try restarting the containers (if using Docker Compose)."
+            )
             click.echo(click.style(f"{error_msg}", fg="red"))
         except Exception as e:
-            click.echo(
-                click.style(
-                    "Failed to start container with LLM app.", fg="red"
-                )
-            )
+            click.echo(click.style("Failed to start container with LLM app.", fg="red"))
             click.echo(click.style(f"Error message: {str(e)}", fg="red"))
 
 
@@ -498,6 +460,4 @@ def list_variants_cli(app_folder: str):
         config_check(app_folder)
         list_variants(app_folder=app_folder, host=get_host(app_folder))
     except Exception as ex:
-        click.echo(
-            click.style(f"Error while listing variants: {ex}", fg="red")
-        )
+        click.echo(click.style(f"Error while listing variants: {ex}", fg="red"))

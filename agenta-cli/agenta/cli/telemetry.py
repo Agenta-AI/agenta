@@ -26,7 +26,7 @@ class EventTracking(Posthog):
             event_name (str): The name of the event being captured.
             body (dict): Contains the data associated with the event being captured.
         """
-        
+
         self.capture(distinct_id, event_name, body)
 
 
