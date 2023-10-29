@@ -8,7 +8,7 @@ const countries = [
     {country: "Sweden", capital: "Stockholm"},
 ]
 
-Cypress.Commands.add("createVariantsAndTestsets", () => {
+Cypress.Commands.add("createVariant", () => {
     cy.addingOpenaiKey()
     cy.visit("/apps")
 
@@ -45,12 +45,18 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
         cy.wrap(interception.response.body.app_id).as("app_id")
     })
     cy.url({timeout: 15000}).should("include", "/playground")
-    cy.wait(1000)
+    cy.contains(/modify parameters/i)
+})
+
+Cypress.Commands.add("createVariantsAndTestsets", () => {
+    cy.createVariant()
+
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
     const testsetName = randString(5)
 
     cy.get('[data-cy="testset-name-input"]').type(testsetName)
+    cy.wrap(testsetName).as("testsetName")
 
     cy.get(".ag-row").should("have.length", 3)
     countries.forEach((country, index) => {
