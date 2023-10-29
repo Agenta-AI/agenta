@@ -1,7 +1,7 @@
 import "@/styles/globals.css"
 import posthog from "posthog-js"
 import type {AppProps} from "next/app"
-import { PostHogProvider } from 'posthog-js/react'
+import {PostHogProvider} from "posthog-js/react"
 import Layout from "@/components/Layout/Layout"
 import ThemeContextProvider from "@/components/Layout/ThemeContextProvider"
 import AppContextProvider from "@/contexts/app.context"
@@ -15,7 +15,7 @@ if (typeof window !== "undefined") {
         loaded: (posthog) => {
             if (process.env.NODE_ENV === "development") posthog.debug()
         },
-        capture_pageview: false
+        capture_pageview: false,
     })
 }
 
