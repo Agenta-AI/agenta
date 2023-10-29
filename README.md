@@ -216,7 +216,7 @@ Talk with the founders for any commercial inquiries. <br/><br/>
 To disable anonymized telemetry, set the following environment variable:
 
 - For web: Set `TELEMETRY_TRACKING_ENABLED` to `false` in your `agenta-web/.env` file.
-- For CLI: Set `telemetry_tracking_enabled` to `false` in your `agenta-cli/agenta/config.toml` file.
+- For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
 
 After making this change, restart agenta compose.
 
