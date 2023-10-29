@@ -11,6 +11,7 @@ class EvaluationTypeSettings(BaseModel):
     webhook_url: Optional[str]
     custom_code_evaluation_id: Optional[str]
     llm_app_prompt_template: Optional[str]
+    evaluation_prompt_template: Optional[str]
 
 
 class EvaluationType(str, Enum):
@@ -79,6 +80,8 @@ class EvaluationScenario(BaseModel):
     score: Optional[str]
     evaluation: Optional[str]
     correct_answer: Optional[str]
+    is_pinned: Optional[bool]
+    note: Optional[str]
 
 
 class AICritiqueCreate(BaseModel):
@@ -94,7 +97,10 @@ class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
     score: Optional[str]
     correct_answer: Optional[str]  # will be used when running custom code evaluation
-    outputs: List[EvaluationScenarioOutput]
+    outputs: Optional[List[EvaluationScenarioOutput]]
+    inputs: Optional[List[EvaluationScenarioInput]]
+    is_pinned: Optional[bool]
+    note: Optional[str]
 
 
 class EvaluationScenarioScoreUpdate(BaseModel):
