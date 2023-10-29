@@ -22,7 +22,7 @@ const Logo: React.FC<Partial<React.ComponentProps<typeof Image>> & {isOnlyIconLo
     const logoSrc = useMemo(() => LOGOS[appTheme], [appTheme])
     return isOnlyIconLogo ? (
         <Image
-            width={45}
+            width={40}
             height={51}
             {...imageProps}
             src={logoSrc.onlyIcon}
