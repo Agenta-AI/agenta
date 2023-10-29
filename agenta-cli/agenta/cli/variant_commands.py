@@ -153,7 +153,7 @@ def add_variant(
 
     parent_directory = Path(__file__).parent.parent
     global_toml_file = toml.load(parent_directory / "config.toml")
-    tracking_enabled: bool = global_toml_file["tracking_enabled"]
+    tracking_enabled: bool = global_toml_file["telemetry_tracking_enabled"]
     if overwrite:
         # Track a deployment event
         if tracking_enabled:
