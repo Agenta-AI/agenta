@@ -1,7 +1,7 @@
 import re
 import sys
-from pathlib import Path
 from typing import List
+from pathlib import Path
 
 from requests.exceptions import ConnectionError
 
@@ -45,7 +45,6 @@ def add_variant(
     app_name = config["app_name"]
     app_id = config["app_id"]
     api_key = config.get("api_key", None)
-    tracking_enabled: bool = config["tracking_enabled"]
 
     config_name = "default"
     base_name = file_name.removesuffix(".py")
@@ -152,11 +151,13 @@ def add_variant(
             click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
         return None
 
-    # Get user profile
-    user_id = client.retrieve_user_id(host, api_key)
+    parent_directory = Path(__file__).parent.parent
+    global_toml_file = toml.load(parent_directory / "config.toml")
+    tracking_enabled: bool = global_toml_file["tracking_enabled"]
     if overwrite:
         # Track a deployment event
         if tracking_enabled:
+            user_id = client.retrieve_user_id(host, api_key)
             event_track.capture_event(
                 user_id,
                 "app_deployment",
@@ -164,6 +165,7 @@ def add_variant(
                     "app_id": app_id,
                     "deployed_by": user_id,
                     "environment": "CLI",
+                    "version": "cloud" if api_key else "oss"
                 },
             )
 
@@ -177,6 +179,7 @@ def add_variant(
     else:
         # Track a deployment event
         if tracking_enabled:
+            user_id = client.retrieve_user_id(host, api_key)
             event_track.capture_event(
                 user_id,
                 "app_deployment",
@@ -184,6 +187,7 @@ def add_variant(
                     "app_id": app_id,
                     "deployed_by": user_id,
                     "environment": "CLI",
+                    "version": "cloud" if api_key else "oss"
                 },
             )
 
