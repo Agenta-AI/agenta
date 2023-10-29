@@ -6,7 +6,7 @@ export enum ThemeMode {
     Dark = "dark",
     System = "system",
 }
-type ThemeType = ThemeMode.Light | ThemeMode.Dark;
+type ThemeType = ThemeMode.Light | ThemeMode.Dark
 type ThemeModeType = `${ThemeMode}`
 
 export const ThemeContext = createContext<{
