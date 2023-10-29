@@ -2,6 +2,4 @@ docker_registry_url="127.0.0.1:5001"
 database_url="localhost:5432"
 registry="agenta-server"
 backend_url_suffix="api"
-telemetry_tracking_enabled=true
-telemetry_api_key="phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
 allow_origins="http://localhost:3000,http://localhost:3001,http://demo.agenta.ai"
