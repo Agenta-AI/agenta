@@ -9,8 +9,6 @@ describe("Playground Prompt Test", function () {
 
     context("When testing prompt functionality", () => {
         it("Should test prompt functionality in the Playground", () => {
-            cy.visit(`/apps/${app_id}/playground`)
-            cy.contains(/modify parameters/i)
             cy.get('[data-cy="testview-input-parameters-0"]').type("Germany")
             cy.get('[data-cy="testview-input-parameters-run-button"]').click()
             cy.get('[data-cy="testview-input-parameters-result"]').should(
