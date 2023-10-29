@@ -1,0 +1,38 @@
+---
+title: Disabling Anonymized Tracking
+---
+
+To disable anonymized telemetry running agenta on your local machine, kindly do the following:
+
+## Web
+
+To disable anonymized telemetry while running agenta on your local machine, set the following line to your `.env` file:
+
+```env
+TELEMETRY_TRACKING_ENABLED=false
+```
+
+**Note:** You need to re-build the docker image of agenta-web and restart compose after making this change.
+
+## CLI
+
+To disable anonymized telemetry when using the CLI, set the following environment variable in your `config.toml` file:
+
+```toml
+tracking_enabled=false
+```
+
+## Implications of disabling anonymized telemetry
+
+Disabling anonymized telemetry has the following implications:
+
+* We will not be able to collect any data about how you are interacting with Agenta.
+* We will not be able to track your actions and identify areas for improvement.
+
+## How to re-enable anonymized telemetry
+
+To re-enable anonymized telemetry, kindly do the following:
+
+**Web & CLI application**
+
+To re-enable anonymized telemetry, simply set the `TELEMETRY_TRACKING_ENABLED` environment variable to `true in the `.env` file for the web application or the `tracking_enabled` environment variable to `true` in the `config.toml` file for the CLI.
