@@ -1,6 +1,6 @@
 import {useState, useEffect, useMemo} from "react"
 import {useRouter} from "next/router"
-import { usePostHog } from 'posthog-js/react'
+import {usePostHog} from "posthog-js/react"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
