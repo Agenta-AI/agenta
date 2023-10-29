@@ -282,6 +282,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "VenkataRavitejaGullapudi",
+      "name": "Raviteja",
+      "avatar_url": "https://avatars.githubusercontent.com/u/70102577?v=4",
+      "profile": "https://venkataravitejagullapudi.github.io/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
