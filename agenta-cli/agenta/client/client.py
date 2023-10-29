@@ -71,13 +71,9 @@ def get_app_by_name(app_name: str, host: str, api_key: str = None) -> str:
             f"Request to get app failed with status code {response.status_code} and error message: {error_message}."
         )
     if len(response.json()) == 0:
-        raise APIRequestError(
-            f"App with name {app_name} does not exist on the server."
-        )
+        raise APIRequestError(f"App with name {app_name} does not exist on the server.")
     else:
-        return response.json()[0][
-            "app_id"
-        ]  # only one app should exist for that name
+        return response.json()[0]["app_id"]  # only one app should exist for that name
 
 
 def create_new_app(app_name: str, host: str, api_key: str = None) -> str:
@@ -172,9 +168,7 @@ def start_variant(
         response = requests.put(
             f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/",
             json=payload,
-            headers={"Authorization": api_key}
-            if api_key is not None
-            else None,
+            headers={"Authorization": api_key} if api_key is not None else None,
             timeout=600,
         )
         if response.status_code == 404:
@@ -189,14 +183,10 @@ def start_variant(
         return response.json().get("uri", "")
 
     except RequestException as e:
-        raise APIRequestError(
-            f"An error occurred while making the request: {e}"
-        )
+        raise APIRequestError(f"An error occurred while making the request: {e}")
 
 
-def list_variants(
-    app_id: str, host: str, api_key: str = None
-) -> List[AppVariant]:
+def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVariant]:
     """
     Returns a list of AppVariant objects for a given app_id and host.
 
@@ -260,9 +250,7 @@ def remove_variant(variant_id: str, host: str, api_key: str = None):
         )
 
 
-def update_variant_image(
-    variant_id: str, image: Image, host: str, api_key: str = None
-):
+def update_variant_image(variant_id: str, image: Image, host: str, api_key: str = None):
     """
     Update the image of a variant with the given ID.
 
@@ -316,9 +304,7 @@ def send_docker_tar(
             files={
                 "tar_file": tar_file,
             },
-            headers={"Authorization": api_key}
-            if api_key is not None
-            else None,
+            headers={"Authorization": api_key} if api_key is not None else None,
             timeout=1200,
         )
 
@@ -377,9 +363,7 @@ def save_variant_config(
         response = requests.post(
             f"{host}/{BACKEND_URL_SUFFIX}/configs/",
             json=variant_config.dict(),
-            headers={"Authorization": api_key}
-            if api_key is not None
-            else None,
+            headers={"Authorization": api_key} if api_key is not None else None,
             timeout=600,
         )
         request = f"POST {host}/{BACKEND_URL_SUFFIX}/configs/ {variant_config.dict()}"
@@ -422,9 +406,7 @@ def fetch_variant_config(
 
     try:
         if environment_name:
-            endpoint_params = (
-                f"?base_id={base_id}&environment_name={environment_name}"
-            )
+            endpoint_params = f"?base_id={base_id}&environment_name={environment_name}"
         elif config_name:
             endpoint_params = f"?base_id={base_id}&config_name={config_name}"
         else:
@@ -433,9 +415,7 @@ def fetch_variant_config(
             )
         response = requests.get(
             f"{host}/{BACKEND_URL_SUFFIX}/configs/{endpoint_params}",
-            headers={"Authorization": api_key}
-            if api_key is not None
-            else None,
+            headers={"Authorization": api_key} if api_key is not None else None,
             timeout=600,
         )
 
@@ -482,9 +462,7 @@ def validate_api_key(api_key: str, host: str) -> bool:
             )
         return True
     except RequestException as e:
-        raise APIRequestError(
-            f"An error occurred while making the request: {e}"
-        )
+        raise APIRequestError(f"An error occurred while making the request: {e}")
 
 
 def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
@@ -501,9 +479,7 @@ def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
     try:
         response = requests.get(
             f"{host}/{BACKEND_URL_SUFFIX}/profile/",
-            headers={"Authorization": api_key}
-            if api_key is not None
-            else None,
+            headers={"Authorization": api_key} if api_key is not None else None,
             timeout=600,
         )
         if response.status_code != 200:
