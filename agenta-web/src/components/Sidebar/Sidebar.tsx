@@ -40,6 +40,10 @@ const useStyles = createUseStyles({
         position: "sticky !important",
         bottom: "0px",
         top: "0px",
+
+        "&>div:nth-of-type(2)": {
+            background: `${colorBgContainer} !important`,
+        },
     }),
     siderWrapper: ({themeMode}: StyleProps) => ({
         border: `0.01px solid ${themeMode === "dark" ? "#222" : "#ddd"}`,
