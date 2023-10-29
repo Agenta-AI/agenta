@@ -11,7 +11,22 @@ const countries = [
 Cypress.Commands.add("createVariant", () => {
     cy.addingOpenaiKey()
     cy.visit("/apps")
-    cy.get('[data-cy="create-new-app-button"]').click()
+
+    // Check if there are app variants present
+    cy.request({
+        url: `${Cypress.env().baseApiURL}/organizations/`,
+        method: "GET",
+    }).then((res) => {
+        cy.request({
+            url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0].id}`,
+            method: "GET",
+        }).then((resp) => {
+            if (resp.body.length) {
+                cy.get('[data-cy="create-new-app-button"]').click()
+            }
+        })
+    })
+
     cy.get('[data-cy="create-from-template"]').click()
     cy.get('[data-cy="create-app-button"]').click()
     const appName = randString(5)
