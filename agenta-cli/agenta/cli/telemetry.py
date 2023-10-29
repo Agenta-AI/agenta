@@ -2,13 +2,19 @@
 import toml
 from pathlib import Path
 
+# Own Imports
+from agenta.cli import helper
+
 # Third party Imports
 from posthog import Posthog
 
 
+# Load telemetry configuration
+helper.load_telemetry_config()
+
 # Load global toml file
-parent_directory = Path(__file__).parent.parent
-global_toml_file = toml.load(parent_directory / "config.toml")
+agenta_dir = Path.home() / ".agenta"
+global_toml_file = toml.load(agenta_dir / "config.toml")
 
 
 class EventTracking(Posthog):

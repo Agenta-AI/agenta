@@ -151,8 +151,8 @@ def add_variant(
             click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
         return None
 
-    parent_directory = Path(__file__).parent.parent
-    global_toml_file = toml.load(parent_directory / "config.toml")
+    agenta_dir = Path.home() / ".agenta"
+    global_toml_file = toml.load(agenta_dir / "config.toml")
     tracking_enabled: bool = global_toml_file["telemetry_tracking_enabled"]
     if overwrite:
         # Track a deployment event
