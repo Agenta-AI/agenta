@@ -12,18 +12,6 @@ jobs:
       - name: Start Docker Compose
         run: docker-compose -f "docker-compose.yml" up -d --build
 
-      - name: Install Curl
-        run: sudo apt install curl -y
-
-      - name: Wait for Backend Service
-        run: |
-          while true; do
-            if curl -s http://localhost:8000/openapi.json; then
-              break
-            fi
-            sleep 5
-          done
-
       - name: Install dependencies
         run: |
           cd ${{ github.workspace }}/agenta-web/
