@@ -6,7 +6,7 @@ export enum ThemeMode {
     Dark = "dark",
     System = "system",
 }
-type ThemeType = `${ThemeMode}`
+type ThemeType = ThemeMode.Light | ThemeMode.Dark;
 
 export const ThemeContext = createContext<{
     appTheme: ThemeType
