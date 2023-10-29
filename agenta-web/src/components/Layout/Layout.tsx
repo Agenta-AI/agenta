@@ -36,7 +36,7 @@ const useStyles = createUseStyles({
         height: `calc(100% - ${footerHeight ?? 0}px)`,
         paddingLeft: "1.5rem",
         paddingRight: "1.5rem",
-        marginLeft: 225,
+        // marginLeft: 225,
         marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
         flex: 1,
     }),

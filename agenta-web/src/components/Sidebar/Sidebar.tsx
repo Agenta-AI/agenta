@@ -32,12 +32,15 @@ const {Sider} = Layout
 
 const useStyles = createUseStyles({
     sidebar: ({themeMode, colorBgContainer}: StyleProps) => ({
-        paddingLeft: "10px",
-        paddingRight: "10px",
+        // paddingLeft: "10px",
+        // paddingRight: "10px",
         background: `${colorBgContainer} !important`,
         border: `0.01px solid ${themeMode === "dark" ? "#222" : "#ddd"}`,
         height: "100vh",
-        position: "fixed !important",
+        // position: "fixed !important",
+        position: "sticky !important",
+        bottom: "0px",
+        top: "0px",
     }),
     sliderContainer: {
         display: "flex",
@@ -68,12 +71,8 @@ const useStyles = createUseStyles({
     menuLinks: {
         width: "100%",
     },
-    sideIcons: {
-        paddingLeft: "20px",
-    },
-    optionSideIcon: {
-        paddingLeft: "20px",
-    },
+    sideIcons: {},
+    optionSideIcon: {},
     menuItemNoBg: {
         textOverflow: "unset !important",
         "& .ant-select-selector": {
@@ -135,6 +134,7 @@ const Sidebar: React.FC = () => {
     }
     const [selectedKeys, setSelectedKeys] = useState(initialSelectedKeys)
     const {user, orgs, selectedOrg, changeSelectedOrg, reset} = useProfileData()
+    const [collapsed, setCollapsed] = useState(false)
 
     useEffect(() => {
         setSelectedKeys(initialSelectedKeys)
@@ -157,17 +157,24 @@ const Sidebar: React.FC = () => {
     }
 
     return (
-        <Sider theme="light" className={classes.sidebar} width={225}>
+        <Sider
+            theme={appTheme}
+            className={classes.sidebar}
+            width={225}
+            collapsible
+            collapsed={collapsed}
+            onCollapse={(value) => setCollapsed(value)}
+        >
             <div className={classes.sliderContainer}>
                 <div>
                     <Link data-cy="app-management-link" href={getNavigationPath("apps")}>
-                        <Logo />
+                        <Logo isOnlyIconLogo={collapsed} />
                     </Link>
                 </div>
                 <ErrorBoundary fallback={<div />}>
                     <div>
                         <Menu
-                            mode="inline"
+                            mode="vertical"
                             selectedKeys={initialSelectedKeys}
                             className={classes.menuContainer}
                         >
