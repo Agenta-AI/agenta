@@ -1,7 +1,7 @@
 describe("Playground Prompt Test", function () {
     let app_id
     before(() => {
-        cy.createVariantsAndTestsets()
+        cy.createVariant()
         cy.get("@app_id").then((appId) => {
             app_id = appId
         })
