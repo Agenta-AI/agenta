@@ -46,11 +46,11 @@ def load_telemetry_config() -> None:
     """
     Load telemetry configuration into config.toml
     """
-    
+
     agenta_dir = Path.home() / ".agenta"
     agenta_dir.mkdir(exist_ok=True)
     credentials_file = agenta_dir / "config.toml"
-    
+
     if not credentials_file.exists():
         config = {
             "telemetry_tracking_enabled": True,
@@ -58,7 +58,7 @@ def load_telemetry_config() -> None:
         }
         with open(credentials_file, "w") as config_file:
             toml.dump(config, config_file)
-    
+
 
 def update_variants_from_backend(
     app_id: str,
@@ -78,9 +78,7 @@ def update_variants_from_backend(
     """
 
     try:
-        variants: List[AppVariant] = client.list_variants(
-            app_id, host, api_key
-        )
+        variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
     except Exception as ex:
         raise ex
 
