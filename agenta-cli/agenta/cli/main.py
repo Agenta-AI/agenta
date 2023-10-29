@@ -126,7 +126,6 @@ def init(app_name: str):
             "app_name": app_name,
             "app_id": app_id,
             "backend_host": backend_host,
-            "tracking_enabled": True,
             "api_key": api_key if where_question == "On agenta cloud" else None,
         }
         with open("config.toml", "w") as config_file:
