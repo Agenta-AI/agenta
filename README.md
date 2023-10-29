@@ -211,6 +211,15 @@ Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different v
 Talk with the founders for any commercial inquiries. <br/><br/>
 <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"><img src="https://cal.com/book-with-cal-dark.svg" alt="Book us"></a>
 
+# Disabling Anonymized Tracking
+
+To disable anonymized telemetry, set the following environment variable:
+
+- For web: Set `TELEMETRY_TRACKING_ENABLED` to `false` in your `agenta-web/.env` file.
+- For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
+
+After making this change, restart agenta compose.
+
 # Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.5.2"
+version = "0.5.3"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = ["Mahmoud Mabrouk <mahmoud@agenta.ai>"]
@@ -26,6 +26,7 @@ ipdb = "^0.13.13"
 python-dotenv = "^1.0.0"
 python-multipart = "^0.0.6"
 importlib-metadata = "^6.7.0"
+posthog = "^3.0.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
