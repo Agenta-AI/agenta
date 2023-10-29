@@ -165,7 +165,7 @@ def add_variant(
                     "app_id": app_id,
                     "deployed_by": user_id,
                     "environment": "CLI",
-                    "version": "cloud" if api_key else "oss"
+                    "version": "cloud" if api_key else "oss",
                 },
             )
 
@@ -187,7 +187,7 @@ def add_variant(
                     "app_id": app_id,
                     "deployed_by": user_id,
                     "environment": "CLI",
-                    "version": "cloud" if api_key else "oss"
+                    "version": "cloud" if api_key else "oss",
                 },
             )
 
