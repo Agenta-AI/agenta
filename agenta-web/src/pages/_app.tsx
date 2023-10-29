@@ -9,7 +9,7 @@ import ProfileContextProvider from "@/contexts/profile.context"
 
 // Initialize the Posthog client
 if (typeof window !== "undefined") {
-    posthog.init(process.env.NEXT_PUBLIC_POSTHOG_SECRET_KEY as string, {
+    posthog.init("phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7", {
         api_host: "https://app.posthog.com",
         // Enable debug mode in development
         loaded: (posthog) => {
