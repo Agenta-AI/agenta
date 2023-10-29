@@ -14,11 +14,11 @@ Cypress.Commands.add("createVariant", () => {
 
     // Check if there are app variants present
     cy.request({
-        url: `http://localhost/api/organizations/`,
+        url: `${Cypress.env().baseApiURL}/organizations/`,
         method: "GET",
     }).then((res) => {
         cy.request({
-            url: `http://localhost/api/apps/?org_id=${res.body[0].id}`,
+            url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0].id}`,
             method: "GET",
         }).then((resp) => {
             if (resp.body.length) {
