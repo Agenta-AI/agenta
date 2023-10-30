@@ -17,6 +17,10 @@ jobs:
           cd ${{ github.workspace }}/agenta-web/
           npm install
 
+      - name: Set OpenAI API key to Github ENV
+        run: |
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
+
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
