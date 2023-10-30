@@ -8,10 +8,25 @@ const countries = [
     {country: "Sweden", capital: "Stockholm"},
 ]
 
-Cypress.Commands.add("createVariantsAndTestsets", () => {
+Cypress.Commands.add("createVariant", () => {
     cy.addingOpenaiKey()
     cy.visit("/apps")
-    cy.get('[data-cy="create-new-app-button"]').click()
+
+    // Check if there are app variants present
+    cy.request({
+        url: `${Cypress.env().baseApiURL}/organizations/`,
+        method: "GET",
+    }).then((res) => {
+        cy.request({
+            url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0].id}`,
+            method: "GET",
+        }).then((resp) => {
+            if (resp.body.length) {
+                cy.get('[data-cy="create-new-app-button"]').click()
+            }
+        })
+    })
+
     cy.get('[data-cy="create-from-template"]').click()
     cy.get('[data-cy="create-app-button"]').click()
     const appName = randString(5)
@@ -30,7 +45,12 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
         cy.wrap(interception.response.body.app_id).as("app_id")
     })
     cy.url({timeout: 15000}).should("include", "/playground")
-    cy.wait(1000)
+    cy.contains(/modify parameters/i)
+})
+
+Cypress.Commands.add("createVariantsAndTestsets", () => {
+    cy.createVariant()
+
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
     const testsetName = randString(5)
