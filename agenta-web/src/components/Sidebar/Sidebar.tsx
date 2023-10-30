@@ -9,6 +9,8 @@ import {
     QuestionOutlined,
     PhoneOutlined,
     SettingOutlined,
+    LogoutOutlined,
+    UserOutlined,
 } from "@ant-design/icons"
 import {Layout, Menu, Space, Tooltip, theme, Dropdown, Select, Avatar} from "antd"
 
@@ -32,11 +34,8 @@ const {Sider} = Layout
 
 const useStyles = createUseStyles({
     sidebar: ({colorBgContainer}: StyleProps) => ({
-        // paddingLeft: "10px",
-        // paddingRight: "10px",
         background: `${colorBgContainer} !important`,
         height: "100vh",
-        // position: "fixed !important",
         position: "sticky !important",
         bottom: "0px",
         top: "0px",
@@ -52,7 +51,7 @@ const useStyles = createUseStyles({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-
+        padding: "0 10px",
         "& > div:nth-of-type(1)": {
             marginTop: "20px",
             marginBottom: "20px",
@@ -71,14 +70,11 @@ const useStyles = createUseStyles({
         borderRight: "0 !important",
     },
     menuContainer2: {
-        paddingBottom: 24,
         borderRight: "0 !important",
     },
     menuLinks: {
         width: "100%",
     },
-    sideIcons: {},
-    optionSideIcon: {},
     menuItemNoBg: {
         textOverflow: "unset !important",
         "& .ant-select-selector": {
@@ -188,17 +184,21 @@ const Sidebar: React.FC = () => {
                                 <Tooltip
                                     key="apps"
                                     placement="right"
-                                    title="Create new applications or switch between your existing projects."
+                                    title={
+                                        !collapsed
+                                            ? "Create new applications or switch between your existing projects."
+                                            : ""
+                                    }
                                 >
-                                    <Menu.Item
-                                        icon={<AppstoreOutlined className={classes.sideIcons} />}
-                                    >
+                                    <Menu.Item icon={<AppstoreOutlined />}>
                                         <Link
                                             data-cy="app-management-link"
                                             href={getNavigationPath("apps")}
                                             className={classes.menuLinks}
                                         >
-                                            App Management
+                                            {collapsed
+                                                ? "Create new applications or switch between your existing projects."
+                                                : "App Management"}
                                         </Link>
                                     </Menu.Item>
                                 </Tooltip>
@@ -207,88 +207,90 @@ const Sidebar: React.FC = () => {
                                         <Tooltip
                                             placement="right"
                                             key="playground"
-                                            title="Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
+                                            title={
+                                                !collapsed
+                                                    ? "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
+                                                    : ""
+                                            }
                                         >
-                                            <Menu.Item
-                                                icon={
-                                                    <RocketOutlined
-                                                        className={classes.optionSideIcon}
-                                                    />
-                                                }
-                                            >
+                                            <Menu.Item icon={<RocketOutlined />}>
                                                 <Link
                                                     data-cy="app-playground-link"
                                                     href={getNavigationPath("playground")}
                                                     className={classes.menuLinks}
                                                 >
-                                                    Playground
+                                                    {collapsed
+                                                        ? "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings."
+                                                        : "Playground"}
                                                 </Link>
                                             </Menu.Item>
                                         </Tooltip>
 
                                         <Tooltip
                                             placement="right"
-                                            title="Create and manage testsets for evaluation purposes."
+                                            title={
+                                                !collapsed
+                                                    ? "Create and manage testsets for evaluation purposes."
+                                                    : ""
+                                            }
                                             key="testsets"
                                         >
-                                            <Menu.Item
-                                                icon={
-                                                    <DatabaseOutlined
-                                                        className={classes.optionSideIcon}
-                                                    />
-                                                }
-                                            >
+                                            <Menu.Item icon={<DatabaseOutlined />}>
                                                 <Link
                                                     data-cy="app-testsets-link"
                                                     href={getNavigationPath("testsets")}
                                                     className={classes.menuLinks}
                                                 >
-                                                    Test Sets
+                                                    {collapsed
+                                                        ? "Create and manage testsets for evaluation purposes."
+                                                        : "Test Sets"}
                                                 </Link>
                                             </Menu.Item>
                                         </Tooltip>
 
                                         <Tooltip
                                             placement="right"
-                                            title="Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                            title={
+                                                !collapsed
+                                                    ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                    : ""
+                                            }
                                             key="evaluations"
                                         >
-                                            <Menu.Item
-                                                icon={
-                                                    <LineChartOutlined
-                                                        className={classes.optionSideIcon}
-                                                    />
-                                                }
-                                            >
+                                            <Menu.Item icon={<LineChartOutlined />}>
                                                 <Link
                                                     data-cy="app-evaluations-link"
                                                     href={getNavigationPath("evaluations")}
                                                     className={classes.menuLinks}
                                                 >
-                                                    Evaluate
+                                                    {collapsed
+                                                        ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                        : "Evaluate"}
                                                 </Link>
                                             </Menu.Item>
                                         </Tooltip>
 
                                         <Tooltip
                                             placement="right"
-                                            title="Monitor production logs to ensure seamless operations."
+                                            title={
+                                                !collapsed
+                                                    ? "Monitor production logs to ensure seamless operations."
+                                                    : ""
+                                            }
                                             key="endpoints"
                                         >
-                                            <Menu.Item
-                                                icon={
-                                                    <CloudUploadOutlined
-                                                        className={classes.optionSideIcon}
-                                                    />
-                                                }
-                                            >
+                                            <Menu.Item icon={<CloudUploadOutlined />}>
                                                 <Link
                                                     data-cy="app-endpoints-link"
                                                     href={getNavigationPath("endpoints")}
                                                     className={classes.menuLinks}
                                                 >
                                                     <Space>
-                                                        <span>Endpoints</span>
+                                                        <span>
+                                                            {collapsed
+                                                                ? "Monitor production logs to ensure seamless operations."
+                                                                : "Endpoints"}
+                                                        </span>
                                                     </Space>
                                                 </Link>
                                             </Menu.Item>
@@ -327,13 +329,19 @@ const Sidebar: React.FC = () => {
                                             </Link>
                                         </Menu.Item>
                                         {selectedOrg && (
-                                            <Menu.Item key="org" className={classes.menuItemNoBg}>
+                                            <Menu.Item
+                                                key="org"
+                                                className={classes.menuItemNoBg}
+                                                title=""
+                                            >
                                                 <Select
                                                     bordered={false}
                                                     value={selectedOrg.id}
                                                     options={orgs.map((org) => ({
                                                         label: (
-                                                            <Tooltip title={org.name}>
+                                                            <Tooltip
+                                                                title={!collapsed ? org.name : ""}
+                                                            >
                                                                 <span className={classes.orgLabel}>
                                                                     <div
                                                                         style={{
@@ -354,15 +362,25 @@ const Sidebar: React.FC = () => {
                                             </Menu.Item>
                                         )}
                                         {user?.username && (
-                                            <Menu.Item key="user">
+                                            <Menu.Item
+                                                key="user"
+                                                title={collapsed && user?.username}
+                                            >
                                                 <Dropdown
                                                     menu={{
                                                         items: [
-                                                            {key: "email", label: user.email},
+                                                            {
+                                                                key: "email",
+                                                                label: user.email,
+                                                                icon: <UserOutlined />,
+                                                                title: "",
+                                                            },
                                                             {
                                                                 key: "logout",
                                                                 label: "Logout",
                                                                 onClick: handleLogout,
+                                                                icon: <LogoutOutlined />,
+                                                                title: "",
                                                             },
                                                         ],
                                                     }}
@@ -379,7 +397,9 @@ const Sidebar: React.FC = () => {
                                                             >
                                                                 {getInitials(user.email)}
                                                             </Avatar>
-                                                            <span>{user.username}</span>
+                                                            <span>
+                                                                {collapsed || user.username}
+                                                            </span>
                                                         </Space>
                                                     </a>
                                                 </Dropdown>
