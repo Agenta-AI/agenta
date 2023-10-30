@@ -42,8 +42,29 @@ def get_api_key():
         sys.exit(0)
 
 
+def load_telemetry_config() -> None:
+    """
+    Load telemetry configuration into config.toml
+    """
+
+    agenta_dir = Path.home() / ".agenta"
+    agenta_dir.mkdir(exist_ok=True)
+    credentials_file = agenta_dir / "config.toml"
+
+    if not credentials_file.exists():
+        config = {
+            "telemetry_tracking_enabled": True,
+            "telemetry_api_key": "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7",
+        }
+        with open(credentials_file, "w") as config_file:
+            toml.dump(config, config_file)
+
+
 def update_variants_from_backend(
-    app_id: str, config: MutableMapping[str, Any], host: str, api_key: str = None
+    app_id: str,
+    config: MutableMapping[str, Any],
+    host: str,
+    api_key: str = None,
 ) -> MutableMapping[str, Any]:
     """Reads the list of variants from the backend and updates the config accordingly
 
