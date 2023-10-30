@@ -102,7 +102,122 @@ Agenta provides you with the tools to quickly do prompt engineering and 🧪 **e
 https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-67475e4ce9ed
 
 # Quick Start
+## Building and Deploying an LLM App with Langchain via the CLI
+### Create and deploy your first LLM app in under 4 minutes
 
+<Note>This tutorial guides users through creating LLM apps via the command line interface. For simple applications that can be created from the UI, refer to [Getting Started](/quickstart/getting-started-code) </Note>
+
+Prefer video tutorial? Watch our 4-minute video [here](https://youtu.be/nggaRwDZM-0).
+
+## Introduction
+
+This guide outlines building a basic LLM app with **langchain** and **agenta**. By the end, you'll have a functional LLM app and knowledge of how to use the agenta CLI.
+
+To learn more about creating an LLM app from scratch, please visit our [advanced tutorial](/tutorials/your-first-llm-app).
+
+## Prerequisites
+
+Before beginning, install the Agenta CLI and SDK, and set up the web platform using docker-compose. Follow our [installation guide](/installation) if needed.
+
+## Step 1: Initialize a New Project
+
+Create a new folder and initialize it with the following commands:
+
+```bash
+mkdir example_app; cd example_app
+agenta init
+```
+
+Start a new project using the simple_prompt template:
+
+````
+? Please enter the app name company_name_generator
+? Are you running agenta locally? Yes
+? How do you want to initialize your app? Start from template
+? Which template do you want to use? simple_prompt - Simple app that uses one prompt using langchain
+App initialized successfully
+Please check the README.md for further instructions to setup the template.
+````
+
+The initialization creates several files, including app.py. For a detailed explanation, proceed to the next step or continue with the tutorial.
+
+<Accordion title="Understand the Generated Code">
+
+The files generated include:
+
+```bash
+.
+├── README.md
+├── app.py
+├── config.toml
+└── requirements.txt
+```
+
+Let's take a closer look at the code in app.py:
+
+### README.md
+An overview of your application.
+
+### requirements.txt
+A list of the required dependencies.
+
+### config.toml
+Configuration details, currently only the app name.
+
+### app.py
+The main application file, containing code to set up a simple LLM-application using OpenAI's Python library.
+</Accordion>
+
+## Step 2: Set up the OpenAI API Key
+
+You'll need to configure the OpenAI API key. Here's how:
+
+1. Visit the [OpenAI API keys page](https://platform.openai.com/account/api-keys), and create a new key. 
+
+2. Create a file `.env` in your project folder and add the line:
+```bash
+OPENAI_API_KEY=sk-xxxxxxx
+```
+
+<Accordion title="(Optional Step) Run the application from the CLI">
+
+To test your application via the command line, optionally create a virtual environment, install dependencies, and run the application:
+
+```bash
+python -m venv myenv
+source myenv/bin/activate
+pip install -r requirements.txt
+python app.py "LLMOps developer platform"
+
+    CypressOps Platform.
+```
+
+</Accordion>
+
+## Step 3: Run the Application in the Playground
+
+To run your app in the playground, serve it locally using `agenta variant serve`. This command:
+
+1. Creates a Docker image and starts a container.
+2. Starts a server exposing the endpoint /generate at `localhost/{app_name}/{variant_name}/openapi.json`.
+3. Adds the application to the Agenta's web UI.
+
+```bash
+agenta variant serve --file_name app.py
+```
+
+This will do two things:
+1. It will create a docker image of the application, and start a container based on this image.
+2. The container will start a server exposing an endpoint /generate with the same parameters we specified in the application at `localhost/{app_name}/{variant_name}/openapi.json`.
+3. It will add the application to the web ui Agenta
+
+## Step 4: Start Experimenting
+
+Visit [http://localhost](http://localhost), select your app, and experiment with different parameters in the playground.
+
+The playground lets you create new app variants and tweak application parameters.
+
+We hope you find this guide helpful. Happy coding!
 
 <div  align="center" >
 <a href="https://demo.agenta.ai">
