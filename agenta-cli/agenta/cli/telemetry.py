@@ -10,11 +10,7 @@ from posthog import Posthog
 
 
 # Load telemetry configuration
-helper.load_telemetry_config()
-
-# Load global toml file
-agenta_dir = Path.home() / ".agenta"
-global_toml_file = toml.load(agenta_dir / "config.toml")
+helper.init_telemetry_config()
 
 
 class EventTracking(Posthog):
@@ -48,5 +44,5 @@ class EventTracking(Posthog):
 
 # Initialize event tracking
 event_track = EventTracking(
-    global_toml_file["telemetry_api_key"], "https://app.posthog.com"
+    helper.get_global_config("telemetry_api_key"), "https://app.posthog.com"
 )
