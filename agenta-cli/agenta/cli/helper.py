@@ -96,8 +96,9 @@ def get_api_key() -> str:
 
 
 def init_telemetry_config() -> None:
-    if not get_global_config("telemetry_tracking_enabled") or not get_global_config(
-        "telemetry_api_key"
+    if (
+        get_global_config("telemetry_tracking_enabled") is None
+        or get_global_config("telemetry_api_key") is None
     ):
         set_global_config("telemetry_tracking_enabled", True)
         set_global_config(
