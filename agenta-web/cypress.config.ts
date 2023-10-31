@@ -1,7 +1,5 @@
 import {defineConfig} from "cypress"
-import {config} from "dotenv"
-
-config({path: ".env.local"})
+import process from "process"
 
 export default defineConfig({
     video: false,
