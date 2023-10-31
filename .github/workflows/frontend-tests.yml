@@ -17,6 +17,7 @@ jobs:
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
+          wait-on: "http://localhost"
           config-file: ${{ github.workspace }}/agenta-web/cypress.config.ts
           working-directory: agenta-web
         env:
