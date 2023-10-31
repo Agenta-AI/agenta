@@ -203,9 +203,12 @@ def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVarian
         headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
-
     # Check for successful request
     if response.status_code == 403:
+        raise APIRequestError(
+            f"No app by id {app_id} exists or you do not have access to it."
+        )
+    elif response.status_code == 404:
         raise APIRequestError(
             f"No app by id {app_id} exists or you do not have access to it."
         )
@@ -214,6 +217,7 @@ def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVarian
         raise APIRequestError(
             f"Request to apps endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
+
     app_variants = response.json()
     return [AppVariant(**variant) for variant in app_variants]
 
