@@ -350,7 +350,8 @@ async def create_app_and_variant_from_template(
         logger.debug(
             "Step 6: Creating image instance and adding variant based on image"
         )
-        image_name = f"agentaai/templates_v2:{template_db.name}"
+        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/lambda_templates")
+        image_name = f"{repo_name}:{template_db.name}"
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
