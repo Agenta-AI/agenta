@@ -1,5 +1,6 @@
 import {useState, useEffect, useMemo} from "react"
 import {useRouter} from "next/router"
+import {usePostHog} from "posthog-js/react"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
@@ -11,6 +12,7 @@ import Welcome from "./Welcome"
 import {getOpenAIKey, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
+    getProfile,
     getTemplates,
     removeApp,
     waitForAppToStart,
@@ -95,6 +97,7 @@ const timeout = isDemo() ? 60000 : 30000
 
 const AppSelector: React.FC = () => {
     const router = useRouter()
+    const posthog = usePostHog()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
@@ -104,7 +107,7 @@ const AppSelector: React.FC = () => {
     const [templates, setTemplates] = useState<Template[]>([])
 
     const [templateMessage, setTemplateMessage] = useState("")
-    const [templateName, setTemplateName] = useState<string | undefined>(undefined)
+    const [templateId, setTemplateId] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
@@ -117,6 +120,7 @@ const AppSelector: React.FC = () => {
         appId: undefined,
     })
 
+    const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
@@ -125,7 +129,7 @@ const AppSelector: React.FC = () => {
         setIsMaxAppModalOpen(true)
     }
     const showCreateAppFromTemplateModal = () => {
-        setTemplateName(undefined)
+        setTemplateId(undefined)
         setNewApp("")
         setIsCreateAppModalOpen(false)
         setIsCreateAppFromTemplateModalOpen(true)
@@ -172,7 +176,7 @@ const AppSelector: React.FC = () => {
         fetchTemplates()
     }, [])
 
-    const handleTemplateCardClick = async (image_name: string) => {
+    const handleTemplateCardClick = async (template_id: string) => {
         handleInputTemplateModalCancel()
         handleCreateAppFromTemplateModalCancel()
         handleCreateAppModalCancel()
@@ -195,7 +199,7 @@ const AppSelector: React.FC = () => {
         // attempt to create and start the template, notify user of the progress
         await createAndStartTemplate({
             appName: newApp,
-            imageName: image_name,
+            templateId: template_id,
             orgId: selectedOrg?.id!,
             openAIKey: isDemo() ? "" : (openAIKey as string),
             timeout,
@@ -205,6 +209,21 @@ const AppSelector: React.FC = () => {
                     setFetchingTemplate(false)
                 if (status === "success") {
                     mutate()
+
+                    if (trackingEnabled) {
+                        // Get user profile
+                        getProfile().then((res) => {
+                            // Update distinct_id and track successfully app variant deployment
+                            posthog?.identify(res?.data?.id)
+                            posthog?.capture("app_deployment", {
+                                properties: {
+                                    app_id: appId,
+                                    environment: "UI",
+                                    deployed_by: res?.data?.id,
+                                },
+                            })
+                        })
+                    }
                 }
             },
         })
@@ -216,7 +235,7 @@ const AppSelector: React.FC = () => {
             await removeApp(statusData.appId).catch(console.error)
             mutate()
         }
-        handleTemplateCardClick(templateName as string)
+        handleTemplateCardClick(templateId as string)
     }
 
     const onTimeoutRetry = async () => {
@@ -314,7 +333,7 @@ const AppSelector: React.FC = () => {
                 noTemplateMessage={templateMessage}
                 onCardClick={(template) => {
                     showInputTemplateModal()
-                    setTemplateName(template.image.name)
+                    setTemplateId(template.id)
                 }}
             />
             <MaxAppModal
@@ -375,7 +394,7 @@ const AppSelector: React.FC = () => {
                             newApp.length > 0 &&
                             isAppNameInputValid(newApp)
                         ) {
-                            handleTemplateCardClick(templateName as string)
+                            handleTemplateCardClick(templateId as string)
                         } else {
                             notification.warning({
                                 message: "Template Selection",

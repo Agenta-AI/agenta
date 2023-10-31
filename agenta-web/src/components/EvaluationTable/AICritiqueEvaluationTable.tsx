@@ -156,8 +156,9 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<AICritiqueEvaluationTableRow[]>([])
-    const [evaluationPromptTemplate, setEvaluationPromptTemplate] =
-        useState<string>(`We have an LLM App that we want to evaluate its outputs.
+    const [evaluationPromptTemplate, setEvaluationPromptTemplate] = useState<string>(
+        evaluation.evaluationTypeSettings.evaluationPromptTemplate ||
+            `We have an LLM App that we want to evaluate its outputs.
 Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:
 
 Evaluation strategy: 0 to 10 0 is very bad and 10 is very good.
@@ -168,7 +169,8 @@ Correct Answer:{correct_answer}
 Evaluate this: {app_variant_output}
 
 Answer ONLY with one of the given grading or evaluation options.
-`)
+`,
+    )
 
     const [shouldFetchResults, setShouldFetchResults] = useState(false)
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
@@ -200,7 +202,12 @@ Answer ONLY with one of the given grading or evaluation options.
                 .then((data) => setEvaluationResults(data))
                 .catch((err) => console.error("Failed to fetch results:", err))
                 .then(() => {
-                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
+                    updateEvaluation(evaluation.id, {
+                        status: EvaluationFlow.EVALUATION_FINISHED,
+                        evaluation_type_settings: {
+                            evaluation_prompt_template: evaluationPromptTemplate,
+                        },
+                    })
                 })
                 .catch((err) => console.error("Failed to fetch results:", err))
         }
@@ -224,6 +231,7 @@ Answer ONLY with one of the given grading or evaluation options.
             console.log("All evaluations finished.")
         } catch (err) {
             console.error("An error occurred:", err)
+            setEvaluationStatus(EvaluationFlow.EVALUATION_FAILED)
         }
     }
 
@@ -317,12 +325,21 @@ Answer ONLY with one of the given grading or evaluation options.
                 key: columnKey,
                 width: "30%",
                 render: (text: any, record: AICritiqueEvaluationTableRow, rowIndex: number) => {
-                    if (record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED) {
+                    if (
+                        record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
+                        evaluationStatus === EvaluationFlow.EVALUATION_STARTED
+                    ) {
                         return (
                             <center>
                                 <Spin />
                             </center>
                         )
+                    }
+                    if (
+                        record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
+                        evaluationStatus === EvaluationFlow.EVALUATION_FAILED
+                    ) {
+                        return
                     }
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
@@ -383,8 +400,17 @@ Answer ONLY with one of the given grading or evaluation options.
             width: 200,
             align: "center" as "left" | "right" | "center",
             render: (score: string, record: any) => {
-                if (record.evaluationFlow === "COMPARISON_RUN_STARTED") {
+                if (
+                    record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
+                    evaluationStatus === EvaluationFlow.EVALUATION_STARTED
+                ) {
                     return <Spin></Spin>
+                }
+                if (
+                    record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED &&
+                    evaluationStatus === EvaluationFlow.EVALUATION_FAILED
+                ) {
+                    return
                 }
                 let tagColor = ""
 
@@ -429,6 +455,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     <Col span={12}>
                         <Space>
                             <Button
+                                data-cy="ai-critic-run-evaluation"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}
@@ -446,19 +473,26 @@ Answer ONLY with one of the given grading or evaluation options.
                     </Col>
                 </Row>
             </div>
-            <div className={classes.evaluationResult}>
+            <div className={classes.evaluationResult} data-cy="ai-critic-evaluation-result">
                 <center>
+                    {evaluationStatus === EvaluationFlow.EVALUATION_FAILED && (
+                        <div>Failed to run evaluation</div>
+                    )}
+
                     {evaluationStatus === EvaluationFlow.EVALUATION_INITIALIZED && (
                         <div>Run evaluation to see results!</div>
                     )}
+
                     {evaluationStatus === EvaluationFlow.EVALUATION_STARTED && <Spin />}
-                    {evaluationResults && evaluationResults.results_data && (
-                        <div>
-                            <h3 className={classes.h3}>Results Data:</h3>
-                            <Row gutter={8} justify="center" className={classes.resultDataRow}>
-                                {Object.entries(evaluationResults.results_data).map(
-                                    ([key, value], index) => {
-                                        return (
+
+                    {evaluationStatus === EvaluationFlow.EVALUATION_FINISHED &&
+                        evaluationResults &&
+                        evaluationResults.results_data && (
+                            <div>
+                                <h3 className={classes.h3}>Results Data:</h3>
+                                <Row gutter={8} justify="center" className={classes.resultDataRow}>
+                                    {Object.entries(evaluationResults.results_data).map(
+                                        ([key, value], index) => (
                                             <Col key={index} className={classes.resultDataCol}>
                                                 <Card
                                                     bordered={false}
@@ -471,12 +505,11 @@ Answer ONLY with one of the given grading or evaluation options.
                                                     />
                                                 </Card>
                                             </Col>
-                                        )
-                                    },
-                                )}
-                            </Row>
-                        </div>
-                    )}
+                                        ),
+                                    )}
+                                </Row>
+                            </div>
+                        )}
                 </center>
             </div>
             <div>
