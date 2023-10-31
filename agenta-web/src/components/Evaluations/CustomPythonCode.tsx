@@ -165,6 +165,7 @@ def evaluate(
                                 disabled={submitting}
                                 onChange={checkForEvaluationName}
                                 placeholder="Input name of evaluation"
+                                data-cy="code-evaluation-input"
                             />
                         </Form.Item>
                         <div className={classes.exampleContainer}>
@@ -205,6 +206,7 @@ def evaluate(
                         <Form.Item shouldUpdate>
                             {() => (
                                 <Button
+                                    data-cy="code-evaluation-save-button"
                                     htmlType="submit"
                                     type="primary"
                                     loading={submitting}
