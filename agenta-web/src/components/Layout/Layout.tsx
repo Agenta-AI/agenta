@@ -142,6 +142,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [])
 
     useEffect(() => {
+        if (typeof window === "undefined") return () => {}
+
         const body = document.body
         body.classList.remove("dark-mode", "light-mode")
         if (isDarkTheme) {

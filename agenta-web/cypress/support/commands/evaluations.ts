@@ -1,4 +1,4 @@
-import {randString} from "../../../src/lib/helpers/utils"
+import {randString, removeOpenAIKey, saveOpenAIKey} from "../../../src/lib/helpers/utils"
 
 let app_id
 
@@ -9,7 +9,7 @@ const countries = [
 ]
 
 Cypress.Commands.add("createVariant", () => {
-    cy.addingOpenaiKey()
+    cy.saveOpenAiKey()
     cy.visit("/apps")
 
     // Check if there are app variants present
@@ -23,12 +23,14 @@ Cypress.Commands.add("createVariant", () => {
         }).then((resp) => {
             if (resp.body.length) {
                 cy.get('[data-cy="create-new-app-button"]').click()
+                cy.get('[data-cy="create-from-template"]').click()
+            } else {
+                cy.get('[data-cy="create-from-template__no-app"]').click()
             }
         })
     })
 
-    cy.get('[data-cy="create-from-template"]').click()
-    cy.get('[data-cy="create-app-button"]').click()
+    cy.get('[data-cy="create-app-button"]').first().click()
     const appName = randString(5)
 
     cy.get('[data-cy="enter-app-name-modal"]')
@@ -46,6 +48,7 @@ Cypress.Commands.add("createVariant", () => {
     })
     cy.url({timeout: 15000}).should("include", "/playground")
     cy.contains(/modify parameters/i)
+    cy.removeOpenAiKey()
 })
 
 Cypress.Commands.add("createVariantsAndTestsets", () => {
@@ -84,8 +87,6 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
 })
 
 Cypress.Commands.add("cleanupVariantAndTestset", () => {
-    cy.visit("/apps")
-
     cy.request({
         url: `${Cypress.env().baseApiURL}/apps/${app_id}/`,
         method: "DELETE",
@@ -93,10 +94,14 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
             app_id,
         },
     })
+
+    cy.removeOpenAiKey()
 })
 
-Cypress.Commands.add("addingOpenaiKey", () => {
-    cy.visit("/settings")
-    cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
-    cy.get('[data-cy="openai-api-save"]').click()
+Cypress.Commands.add("saveOpenAiKey", () => {
+    saveOpenAIKey(Cypress.env("OPENAI_API_KEY"))
+})
+
+Cypress.Commands.add("removeOpenAiKey", () => {
+    removeOpenAIKey()
 })
