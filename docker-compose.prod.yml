@@ -17,6 +17,7 @@ services:
       - ALLOW_ORIGINS=${ALLOW_ORIGINS}
       - ENVIRONMENT=production
       - FEATURE_FLAG=oss
+      - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
     volumes:
       - ./agenta-backend/agenta_backend:/app/agenta_backend
       - ./agenta-backend/tests:/app/tests
