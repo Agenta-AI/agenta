@@ -15,6 +15,7 @@ export default defineConfig({
         execTimeout: 8000,
         pageLoadTimeout: 8000,
         responseTimeout: 8000,
+        specPattern: ["*/e2e/testset.cy.ts"],
     },
     env: {
         baseApiURL: "http://localhost/api",
