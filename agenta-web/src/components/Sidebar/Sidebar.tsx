@@ -12,7 +12,7 @@ import {
     LogoutOutlined,
     ApartmentOutlined,
 } from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme, Dropdown, Select} from "antd"
+import {Layout, Menu, Space, Tooltip, theme, Avatar} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
@@ -21,7 +21,7 @@ import {ErrorBoundary} from "react-error-boundary"
 import {createUseStyles} from "react-jss"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import {useProfileData} from "@/contexts/profile.context"
-import {getColorFromStr, getGradientFromStr} from "@/lib/helpers/colors"
+import {getColorFromStr} from "@/lib/helpers/colors"
 import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {useSession} from "@/hooks/useSession"
 
@@ -77,6 +77,7 @@ const useStyles = createUseStyles({
     },
     menuItemNoBg: {
         textOverflow: "unset !important",
+        "& .ant-menu-submenu-title": {display: "flex", alignItems: "center"},
         "& .ant-select-selector": {
             padding: "0 !important",
         },
@@ -329,37 +330,36 @@ const Sidebar: React.FC = () => {
                                             </Link>
                                         </Menu.Item>
                                         {selectedOrg && (
-                                            <Menu.Item
+                                            <Menu.SubMenu
+                                                title={selectedOrg.name}
                                                 key="workspaces"
                                                 className={classes.menuItemNoBg}
                                                 icon={<ApartmentOutlined />}
                                             >
-                                                <Select
-                                                    bordered={false}
-                                                    value={selectedOrg.id}
-                                                    options={orgs.map((org) => ({
-                                                        label: (
-                                                            <Tooltip
-                                                                title={!collapsed ? org.name : ""}
+                                                {orgs.map((org) => (
+                                                    <Menu.Item
+                                                        style={{
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                        }}
+                                                        icon={
+                                                            <Avatar
+                                                                size={"small"}
+                                                                style={{
+                                                                    backgroundColor:
+                                                                        getColorFromStr(org.id),
+                                                                    color: "#fff",
+                                                                }}
                                                             >
-                                                                <span className={classes.orgLabel}>
-                                                                    <div
-                                                                        style={{
-                                                                            backgroundImage:
-                                                                                getGradientFromStr(
-                                                                                    org.id,
-                                                                                ),
-                                                                        }}
-                                                                    />
-                                                                    <span>{org.name}</span>
-                                                                </span>
-                                                            </Tooltip>
-                                                        ),
-                                                        value: org.id,
-                                                    }))}
-                                                    onChange={(value) => changeSelectedOrg(value)}
-                                                />
-                                            </Menu.Item>
+                                                                {getInitials(org.name)}
+                                                            </Avatar>
+                                                        }
+                                                        onClick={() => changeSelectedOrg(org.id)}
+                                                    >
+                                                        <span>{org.name}</span>
+                                                    </Menu.Item>
+                                                ))}
+                                            </Menu.SubMenu>
                                         )}
                                         {user?.username && (
                                             <Menu.Item
