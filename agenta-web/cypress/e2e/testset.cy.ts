@@ -2,17 +2,25 @@ import {randString} from "../../src/lib/helpers/utils"
 
 const testsetName = randString(8)
 const countries = [
-    {country: "USA", capital: "Washington DC", dummy: "Stuff"},
-    {country: "Nigeria", capital: "Abuja", dummy: "Thing"},
-    {country: "Egypt", capital: "Cairo", dummy: "Nothing"},
-    {country: "Ethopia", capital: "Addis Ababa", dummy: "Infinity"},
+    {country: "USA", capital: "Washington DC", continent: "North America"},
+    {country: "Nigeria", capital: "Abuja", continent: "Africa"},
+    {country: "Egypt", capital: "Cairo", continent: "Africa"},
+    {country: "Ethopia", capital: "Addis Ababa", continent: "Africa"},
 ]
 
 describe("create a new testset", () => {
+    let app_id
+    before(() => {
+        cy.createVariant()
+        cy.get("@app_id").then((appId) => {
+            app_id = appId
+        })
+    })
+
     beforeEach(() => {
         // navigate to the new testset page
-        cy.visit("/apps")
-        cy.clickLinkAndWait('[data-cy="app-card-link"]')
+        cy.visit(`/apps/${app_id}/playground`)
+        cy.contains(/modify parameters/i)
         cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     })
 
@@ -37,10 +45,10 @@ describe("create a new testset", () => {
         cy.get('[data-cy="testset-save-button"]').as("saveButton").click()
         cy.get(".ant-message-success").should("be.visible")
 
-        cy.get('[data-cy="app-testsets-link"]').as("testsetsLink")
-        cy.clickLinkAndWait("@testsetsLink")
+        cy.get('[data-cy="app-testsets-link"]').click()
         cy.url().should("include", "/testsets")
     })
+
     it("should validate that the new testset is in the list", () => {
         cy.get('[data-cy="app-testset-list"]').as("table")
 
@@ -111,10 +119,12 @@ describe("create a new testset", () => {
 
     it("should add a new row", () => {
         // add a new row
-        cy.get('[data-cy="app-testset-list"]').contains(testsetName).as("tempTestSet")
+        cy.get('[data-cy="app-testset-list"]').as("table")
+        cy.get("@table").contains(testsetName).as("tempTestSet")
         cy.get("@tempTestSet").click()
 
         cy.get(".ag-root-wrapper").as("grid")
+        cy.get("@grid").find('[row-id="0"]')
 
         cy.get('[data-cy="testset-addrow-button"]').click()
         cy.get("@grid").find('[row-id="3"]').as("row3")
@@ -137,10 +147,10 @@ describe("create a new testset", () => {
     it("should add a new column", () => {
         cy.get('[data-cy="app-testset-list"]').as("table")
         cy.get("@table").contains(testsetName).as("tempTestSet")
+        cy.get("@tempTestSet").click()
         cy.get(".ag-root-wrapper").as("grid")
         cy.get('[data-cy="testset-save-button"]').as("saveButton")
 
-        cy.get("@tempTestSet").click()
         cy.get('[aria-colindex="4"] button').click()
         cy.get('[aria-colindex="4"]').find("button").first().click()
 
@@ -157,8 +167,7 @@ describe("create a new testset", () => {
         })
         cy.get("@saveButton").click()
         cy.get(".ant-message-success").should("be.visible")
-
-        cy.clickLinkAndWait("@testsetsLink")
+        cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
         cy.get('[data-cy="app-testset-list"]').as("table")
         cy.get("@table").get(".ant-table-pagination li a").last().as("last-tesetset-page").click()
         cy.get("@tempTestSet").click()
@@ -176,9 +185,9 @@ describe("create a new testset", () => {
 
     it("should delete the last row", () => {
         cy.get('[data-cy="app-testset-list"]').as("table")
-        cy.get(".ag-root-wrapper").find('[row-id="3"]').as("row3")
         cy.get("@table").contains(testsetName).as("tempTestSet")
         cy.get("@tempTestSet").click()
+        cy.get(".ag-root-wrapper").find('[row-id="3"]').as("row3")
         cy.get("@row3").find('input[type="checkbox"]').click()
         cy.get('[data-cy="testset-deleterow-button"]').click()
         cy.get('[data-cy="testset-save-button"]').as("saveButton").click()
@@ -229,5 +238,9 @@ describe("create a new testset", () => {
                     testset_ids: [id],
                 })
             })
+    })
+
+    after(() => {
+        cy.cleanupVariantAndTestset()
     })
 })
