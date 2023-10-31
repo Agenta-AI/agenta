@@ -15,7 +15,7 @@
   </h4>
 <div align="center">
   <strong>Quickly iterate, debug, and evaluate your LLM apps</strong><br />
-  The open-source LLMOps platform for prompt-engineering, evaluation, and deployment of complex LLM apps.
+  The open-source LLMOps platform for prompt-engineering, evaluation, human feedback, and deployment of complex LLM apps.
 </div>
 </br>
 <p align="center">
@@ -82,9 +82,6 @@
 </h3>
 
 ---
-# ⚠ Breaking Changes Notice
-
-> **Important**: In version 0.3, we had to do a large refactoring that introduced breaking changes. This means that version 0.3 cannot be used with data from versions 0.2 and below. You should manually save your data before pulling version 0.3. Feel free to contact us on Slack if you need help with the migration.
 
 # ℹ️ About
 
@@ -178,19 +175,19 @@ from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 
 default_prompt = "Give me five cool names for a baby from {country} with this gender {gender}!!!!"
+ag.init()
+ag.config(prompt_template=ag.TextParam(default_prompt),
+          temperature=ag.FloatParam(0.9))
 
-
-@ag.post
+@ag.entrypoint
 def generate(
     country: str,
     gender: str,
-    temperature: ag.FloatParam = 0.9,
-    prompt_template: ag.TextParam = default_prompt,
 ) -> str:
-    llm = OpenAI(temperature=temperature)
+    llm = OpenAI(temperature=ag.config.temperature)
     prompt = PromptTemplate(
         input_variables=["country", "gender"],
-        template=prompt_template,
+        template=ag.config.prompt_template,
     )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(country=country, gender=gender)
@@ -214,6 +211,15 @@ Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different v
 Talk with the founders for any commercial inquiries. <br/><br/>
 <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"><img src="https://cal.com/book-with-cal-dark.svg" alt="Book us"></a>
 
+# Disabling Anonymized Tracking
+
+To disable anonymized telemetry, set the following environment variable:
+
+- For web: Set `TELEMETRY_TRACKING_ENABLED` to `false` in your `agenta-web/.env` file.
+- For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
+
+After making this change, restart agenta compose.
+
 # Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
@@ -225,7 +231,7 @@ Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-s
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-29-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-30-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -273,6 +279,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/PentesterPriyanshu"><img src="https://avatars.githubusercontent.com/u/98478305?v=4?s=100" width="100px;" alt="Priyanshu Prajapati"/><br /><sub><b>Priyanshu Prajapati</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=PentesterPriyanshu" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://venkataravitejagullapudi.github.io/"><img src="https://avatars.githubusercontent.com/u/70102577?v=4?s=100" width="100px;" alt="Raviteja"/><br /><sub><b>Raviteja</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=VenkataRavitejaGullapudi" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
