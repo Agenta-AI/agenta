@@ -1,9 +1,8 @@
-from agenta import post, TextParam, FloatParam
+import agenta as ag
 from dotenv import load_dotenv
-from langchain.chains import LLMChain
 from langchain.llms import OpenAI
+from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-import os
 
 
 default_prompt = """
@@ -16,16 +15,22 @@ ANSWER IN ONE SINGLE WORD WITHOUT ANY POSSIBLE INVISIBLE CHARACTER!!!.
 REMOVE ALL NEWLINE CHARACTER, LINE BREAK, ENDOF LINE (EOL) OR "\n"
 """
 
+ag.init()
+ag.config.default(
+    temperature=ag.FloatParam(0.5),
+    prompt_template=ag.TextParam(default_prompt),
+)
 
-@post
+
+@ag.entrypoint
 def generate(
     recipe_name: str,
-    prompt_template: TextParam = default_prompt,
-    temperature: FloatParam = 0.5,
 ) -> str:
     load_dotenv()
-    llm = OpenAI(temperature=temperature)
-    prompt = PromptTemplate(input_variables=["recipe_name"], template=prompt_template)
+    llm = OpenAI(temperature=ag.config.temperature)
+    prompt = PromptTemplate(
+        input_variables=["recipe_name"], template=ag.config.prompt_template
+    )
 
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(recipe_name=recipe_name)

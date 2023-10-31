@@ -11,6 +11,7 @@ class APIKeyDB(Model):
     hashed_key: str
     user_id: str
     rate_limit: int = Field(default=0)
+    hidden: Optional[bool] = Field(default=False)
     expiration_date: Optional[datetime]
     created_at: Optional[datetime] = datetime.utcnow()
     updated_at: Optional[datetime]
@@ -57,10 +58,12 @@ class ImageDB(Model):
 
     docker_id: str = Field(index=True)
     tags: str
+    deletable: bool = Field(default=True)
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    deletable: bool = Field(default=True)
 
     class Config:
         collection = "docker_images"
@@ -160,16 +163,13 @@ class AppEnvironmentDB(Model):
 
 
 class TemplateDB(Model):
-    dockerhub_tag_id: int
-    name: str
+    tag_id: int
+    name: str  # tag name of image
     repo_name: str
-    architecture: str
     title: str
     description: str
     size: int
-    digest: str
-    status: str
-    media_type: str
+    digest: str  # sha256 hash of image digest
     last_pushed: datetime
 
     class Config:
@@ -196,6 +196,7 @@ class EvaluationTypeSettings(EmbeddedModel):
     webhook_url: Optional[str]
     llm_app_prompt_template: Optional[str]
     custom_code_evaluation_id: Optional[str]
+    evaluation_prompt_template: Optional[str]
 
 
 class EvaluationScenarioInput(EmbeddedModel):
@@ -235,6 +236,8 @@ class EvaluationScenarioDB(Model):
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    is_pinned: Optional[bool]
+    note: Optional[str]
 
     class Config:
         collection = "evaluation_scenarios"

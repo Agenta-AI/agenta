@@ -1,9 +1,11 @@
+import Link from "next/link"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {Modal, Typography} from "antd"
 import React, {useEffect, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import YouTube, {YouTubeProps} from "react-youtube"
+import {isDemo} from "@/lib/helpers/utils"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -105,7 +107,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
             footer={null}
             title={
                 <Title level={4} className={classes.title}>
-                    Write your own app
+                    Write Your Own App
                 </Title>
             }
             {...props}
@@ -117,6 +119,13 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
         >
             <div className={classes.wrapper}>
                 <ol>
+                    {isDemo() && (
+                        <div className={classes.container}>
+                            <li>
+                                0. <Link href="/settings?tab=apiKeys">Get an API key</Link>
+                            </li>
+                        </div>
+                    )}
                     <div className={classes.container}>
                         <li>1. Install agenta</li>
                         <div className={classes.command}>
@@ -133,9 +142,12 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                     <div className={classes.container}>
                         <li>2. Clone the example application</li>
                         <div className={classes.command}>
-                            <span>git clone https://github.com/Agenta-AI/simple_prompt</span>
+                            <span>
+                                git clone https://github.com/Agenta-AI/simple_prompt && cd
+                                simple_prompt
+                            </span>
                             <CopyButton
-                                text="git clone https://github.com/Agenta-AI/simple_prompt"
+                                text="git clone https://github.com/Agenta-AI/simple_prompt && cd simple_prompt"
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
@@ -145,9 +157,9 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                     <div className={classes.container}>
                         <li>3. Set up environement variable</li>
                         <div className={classes.command}>
-                            <span>echo "OPENAI_API_KEY=sk-xxx" `{">"}` .env</span>
+                            <span>echo -e "OPENAI_API_KEY=sk-xxx" {">"} .env</span>
                             <CopyButton
-                                text={"echo 'OPENAI_API_KEY=sk-xxx' `{'>'}` .env<"}
+                                text={"echo -e 'OPENAI_API_KEY=sk-xxx' > .env"}
                                 icon={true}
                                 buttonText={""}
                                 className={classes.copyBtn}
@@ -155,7 +167,7 @@ const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
                         </div>
                     </div>
                     <div className={classes.container}>
-                        <li>4. Setup agenta (start from blank)</li>
+                        <li>4. Setup agenta (select start from blank)</li>
                         <div className={classes.command}>
                             <span>agenta init</span>
                             <CopyButton

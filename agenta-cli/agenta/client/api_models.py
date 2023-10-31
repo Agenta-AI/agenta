@@ -9,6 +9,8 @@ class AppVariant(BaseModel):
     variant_id: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
+    base_name: Optional[str]
+    config_name: Optional[str]
 
 
 class Variant(BaseModel):
@@ -22,3 +24,10 @@ class Image(BaseModel):
 
 class URI(BaseModel):
     uri: str
+
+
+class VariantConfigPayload(BaseModel):
+    base_id: str
+    config_name: str
+    parameters: Dict[str, Any]
+    overwrite: bool

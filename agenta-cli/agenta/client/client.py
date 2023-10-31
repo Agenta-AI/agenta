@@ -1,16 +1,54 @@
+from typing import Dict, Any, Optional
 import os
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 import requests
-from agenta.client.api_models import AppVariant, Image
+from agenta.client.api_models import AppVariant, Image, VariantConfigPayload
+from docker.models.images import Image as DockerImage
 from requests.exceptions import RequestException
 
-BACKEND_URL_SUFFIX = os.environ["BACKEND_URL_SUFFIX"]
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
 
 class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
+
+
+def get_base_by_app_id_and_name(
+    app_id: str, base_name: str, host: str, api_key: str = None
+) -> str:
+    """
+    Get the base ID for a given app ID and base name.
+
+    Args:
+        app_id (str): The ID of the app.
+        base_name (str): The name of the base.
+        host (str): The URL of the server.
+        api_key (str, optional): The API key to use for authentication. Defaults to None.
+
+    Returns:
+        str: The ID of the base.
+
+    Raises:
+        APIRequestError: If the request to get the base fails or the base does not exist on the server.
+    """
+    response = requests.get(
+        f"{host}/{BACKEND_URL_SUFFIX}/bases/?app_id={app_id}&base_name={base_name}",
+        headers={"Authorization": api_key} if api_key is not None else None,
+        timeout=600,
+    )
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to get base failed with status code {response.status_code} and error message: {error_message}."
+        )
+    if len(response.json()) == 0:
+        raise APIRequestError(
+            f"Base with name {base_name} does not exist on the server."
+        )
+    else:
+        return response.json()[0]["base_id"]
 
 
 def get_app_by_name(app_name: str, host: str, api_key: str = None) -> str:
@@ -23,7 +61,7 @@ def get_app_by_name(app_name: str, host: str, api_key: str = None) -> str:
     """
 
     response = requests.get(
-        f"{host}/{BACKEND_URL_SUFFIX}/apps/?app_name={app_name}/",
+        f"{host}/{BACKEND_URL_SUFFIX}/apps/?app_name={app_name}",
         headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
@@ -32,7 +70,10 @@ def get_app_by_name(app_name: str, host: str, api_key: str = None) -> str:
         raise APIRequestError(
             f"Request to get app failed with status code {response.status_code} and error message: {error_message}."
         )
-    return response.json()["app_id"]
+    if len(response.json()) == 0:
+        raise APIRequestError(f"App with name {app_name} does not exist on the server.")
+    else:
+        return response.json()[0]["app_id"]  # only one app should exist for that name
 
 
 def create_new_app(app_name: str, host: str, api_key: str = None) -> str:
@@ -122,8 +163,7 @@ def start_variant(
     payload = {}
     payload["action"] = {"action": "START"}
     if env_vars:
-        payload["env_vars"] = {"env_vars": env_vars}
-
+        payload["env_vars"] = env_vars
     try:
         response = requests.put(
             f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/",
@@ -163,9 +203,12 @@ def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVarian
         headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
-
     # Check for successful request
     if response.status_code == 403:
+        raise APIRequestError(
+            f"No app by id {app_id} exists or you do not have access to it."
+        )
+    elif response.status_code == 404:
         raise APIRequestError(
             f"No app by id {app_id} exists or you do not have access to it."
         )
@@ -174,6 +217,7 @@ def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVarian
         raise APIRequestError(
             f"Request to apps endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
+
     app_variants = response.json()
     return [AppVariant(**variant) for variant in app_variants]
 
@@ -282,6 +326,118 @@ def send_docker_tar(
     return image
 
 
+def save_variant_config(
+    base_id: str,
+    config_name: str,
+    parameters: Dict[str, Any],
+    overwrite: bool,
+    host: str,
+    api_key: Optional[str] = None,
+) -> None:
+    """
+    Saves a variant configuration to the Agenta backend.
+    If the config already exists, it will be overwritten if the overwrite argument is set to True.
+    If the config does does not exist, a new variant will be created.
+
+    Args:
+        base_id (str): The ID of the base configuration.
+        config_name (str): The name of the variant configuration.
+        parameters (Dict[str, Any]): The parameters of the variant configuration.
+        overwrite (bool): Whether to overwrite an existing variant configuration with the same name.
+        host (str): The URL of the Agenta backend.
+        api_key (Optional[str], optional): The API key to use for authentication. Defaults to None.
+
+    Raises:
+        ValueError: If the 'host' argument is not specified.
+        APIRequestError: If the request to the Agenta backend fails.
+
+    Returns:
+        None
+    """
+    if host is None:
+        raise ValueError("The 'host' is not specified in save_variant_config")
+
+    variant_config = VariantConfigPayload(
+        base_id=base_id,
+        config_name=config_name,
+        parameters=parameters,
+        overwrite=overwrite,
+    )
+    try:
+        response = requests.post(
+            f"{host}/{BACKEND_URL_SUFFIX}/configs/",
+            json=variant_config.dict(),
+            headers={"Authorization": api_key} if api_key is not None else None,
+            timeout=600,
+        )
+        request = f"POST {host}/{BACKEND_URL_SUFFIX}/configs/ {variant_config.dict()}"
+        # Check for successful request
+        if response.status_code != 200:
+            error_message = response.json().get("detail", "Unknown error")
+            raise APIRequestError(
+                f"Request {request} to save_variant_config endpoint failed with status code {response.status_code}. Error message: {error_message}"
+            )
+    except RequestException as e:
+        raise APIRequestError(f"Request failed: {str(e)}")
+
+
+def fetch_variant_config(
+    base_id: str,
+    host: str,
+    config_name: Optional[str] = None,
+    environment_name: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Fetch a variant configuration from the server.
+
+    Args:
+        base_id (str): ID of the base configuration.
+        config_name (str): Configuration name.
+        environment_name (str): Name of the environment.
+        host (str): The server host URL.
+        api_key (Optional[str], optional): The API key to use for authentication. Defaults to None.
+
+    Raises:
+        APIRequestError: If the API request fails.
+
+    Returns:
+        dict: The requested variant configuration.
+    """
+
+    if host is None:
+        raise ValueError("The 'host' is not specified in fetch_variant_config")
+
+    try:
+        if environment_name:
+            endpoint_params = f"?base_id={base_id}&environment_name={environment_name}"
+        elif config_name:
+            endpoint_params = f"?base_id={base_id}&config_name={config_name}"
+        else:
+            raise ValueError(
+                "Either 'config_name' or 'environment_name' must be specified in fetch_variant_config"
+            )
+        response = requests.get(
+            f"{host}/{BACKEND_URL_SUFFIX}/configs/{endpoint_params}",
+            headers={"Authorization": api_key} if api_key is not None else None,
+            timeout=600,
+        )
+
+        request = f"GET {host}/{BACKEND_URL_SUFFIX}/configs/ {base_id} {config_name} {environment_name}"
+
+        # Check for successful request
+        if response.status_code != 200:
+            error_message = response.json().get("detail", "Unknown error")
+            raise APIRequestError(
+                f"Request {request} to fetch_variant_config endpoint failed with status code {response.status_code}. Error message: {error_message}"
+            )
+
+        return response.json()
+
+    except RequestException as e:
+        raise APIRequestError(f"Request failed: {str(e)}")
+
+
 def validate_api_key(api_key: str, host: str) -> bool:
     """
     Validates an API key with the Agenta backend.
@@ -311,3 +467,30 @@ def validate_api_key(api_key: str, host: str) -> bool:
         return True
     except RequestException as e:
         raise APIRequestError(f"An error occurred while making the request: {e}")
+
+
+def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
+    """Retrieve user ID from the server.
+
+    Args:
+        host (str): The URL of the Agenta backend
+        api_key (str): The API key to validate with.
+
+    Returns:
+        str: the user ID
+    """
+
+    try:
+        response = requests.get(
+            f"{host}/{BACKEND_URL_SUFFIX}/profile/",
+            headers={"Authorization": api_key} if api_key is not None else None,
+            timeout=600,
+        )
+        if response.status_code != 200:
+            error_message = response.json().get("detail", "Unknown error")
+            raise APIRequestError(
+                f"Request to fetch_user_profile endpoint failed with status code {response.status_code}. Error message: {error_message}"
+            )
+        return response.json()["id"]
+    except RequestException as e:
+        raise APIRequestError(f"Request failed: {str(e)}")

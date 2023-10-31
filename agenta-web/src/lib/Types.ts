@@ -62,6 +62,39 @@ export interface Evaluation {
         webhookUrl: string
         customCodeEvaluationId?: string
         llmAppPromptTemplate?: string
+        evaluationPromptTemplate?: string
+    }
+}
+
+export interface EvaluationScenario {
+    id: string
+    evaluation_id: string
+    inputs: {input_name: string; input_value: string}[]
+    outputs: {variant_id: string; variant_output: string}[]
+    correctAnswer: string | null
+    vote: string | null
+    score: string | null
+    isPinned: boolean
+    note: string
+}
+
+//TODO: modify this to accomodate results of other evaluation types
+// currently only used for human_a_b_testing
+export interface EvaluationResult {
+    votes_data: {
+        nb_of_rows: number
+        flag_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        variants: string[]
+        variant_names: string[]
+        variants_votes_data: {
+            [id: string]: {
+                number_of_votes: number
+                percentage: number
+            }
+        }
     }
 }
 
@@ -167,12 +200,13 @@ export interface InputParameter {
 }
 
 export interface Template {
-    id: number
+    id: string
     image: {
+        id: string
         name: string
+        digest: string
         title: string
         description: string
-        architecture: string
     }
 }
 
@@ -184,8 +218,7 @@ export interface TemplateImage {
 
 export interface AppTemplate {
     app_name: string
-    image_id: string
-    image_tag: string
+    template_id: string
     env_vars?: {
         OPENAI_API_KEY: string | null
     }
