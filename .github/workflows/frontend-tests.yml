@@ -14,16 +14,13 @@ jobs:
       - name: Start Docker Compose
         run: docker-compose -f "docker-compose.yml" up -d --build
 
-      - name: Install dependencies
-        run: |
-          cd ${{ github.workspace }}/agenta-web/
-          npm install
-
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
           config-file: ${{ github.workspace }}/agenta-web/cypress.config.ts
           working-directory: agenta-web
+        env:
+          NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
 
       - name: Stop server and database
         run: docker-compose -f "docker-compose.yml" down

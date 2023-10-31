@@ -1,5 +1,8 @@
 import {defineConfig} from "cypress"
-import process from "process"
+import {config} from "dotenv"
+
+// read in the environment variables from .env.local file
+config({path: ".env.local"})
 
 export default defineConfig({
     video: false,
@@ -10,7 +13,7 @@ export default defineConfig({
     },
     env: {
         baseApiURL: "http://localhost/api",
-        OPENAI_API_KEY: process.env.NEXT_PUBLIC_OPENAI_API_KEY || "your_api_key_here",
+        OPENAI_API_KEY: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
         localBaseUrl: "http://localhost",
         NEXT_PUBLIC_FF: false,
     },
