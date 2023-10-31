@@ -372,7 +372,7 @@ async def create_app_and_variant_from_template(
         )
 
         logger.debug("Step 8: Starting variant and injecting environment variables")
-        if os.environ["FEATURE_FLAG"] == "demo":
+        if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
             if not os.environ["OPENAI_API_KEY"]:
                 raise HTTPException(
                     status_code=400,
