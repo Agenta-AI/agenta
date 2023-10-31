@@ -247,7 +247,7 @@ async def start_variant(
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     # Inject env vars to docker container
-    if os.environ["FEATURE_FLAG"] == "demo":
+    if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
         if not os.environ["OPENAI_API_KEY"]:
             raise HTTPException(
                 status_code=400,
