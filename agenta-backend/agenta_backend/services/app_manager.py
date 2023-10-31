@@ -182,9 +182,13 @@ async def terminate_and_remove_app_variant(
             logger.debug("is_last_variant_for_image {image}")
             if image:
                 logger.debug("_stop_and_delete_app_container")
-                deployment = await db_manager.get_deployment_by_objectid(
-                    app_variant_db.base.deployment
-                )
+                try:
+                    deployment = await db_manager.get_deployment_by_objectid(
+                        app_variant_db.base.deployment
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to get deployment {e}")
+                    deployment = None
                 if deployment:
                     try:
                         await deployment_manager.stop_and_delete_service(deployment)
