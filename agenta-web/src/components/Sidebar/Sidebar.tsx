@@ -10,9 +10,9 @@ import {
     PhoneOutlined,
     SettingOutlined,
     LogoutOutlined,
-    UserOutlined,
+    ApartmentOutlined,
 } from "@ant-design/icons"
-import {Layout, Menu, Space, Tooltip, theme, Dropdown, Select, Avatar} from "antd"
+import {Layout, Menu, Space, Tooltip, theme, Dropdown, Select} from "antd"
 
 import Logo from "../Logo/Logo"
 import Link from "next/link"
@@ -330,9 +330,9 @@ const Sidebar: React.FC = () => {
                                         </Menu.Item>
                                         {selectedOrg && (
                                             <Menu.Item
-                                                key="org"
+                                                key="workspaces"
                                                 className={classes.menuItemNoBg}
-                                                title=""
+                                                icon={<ApartmentOutlined />}
                                             >
                                                 <Select
                                                     bordered={false}
@@ -363,46 +363,11 @@ const Sidebar: React.FC = () => {
                                         )}
                                         {user?.username && (
                                             <Menu.Item
-                                                key="user"
-                                                title={collapsed && user?.username}
+                                                key="logout"
+                                                icon={<LogoutOutlined />}
+                                                onClick={handleLogout}
                                             >
-                                                <Dropdown
-                                                    menu={{
-                                                        items: [
-                                                            {
-                                                                key: "email",
-                                                                label: user.email,
-                                                                icon: <UserOutlined />,
-                                                                title: "",
-                                                            },
-                                                            {
-                                                                key: "logout",
-                                                                label: "Logout",
-                                                                onClick: handleLogout,
-                                                                icon: <LogoutOutlined />,
-                                                                title: "",
-                                                            },
-                                                        ],
-                                                    }}
-                                                    trigger={["click"]}
-                                                >
-                                                    <a onClick={(e) => e.preventDefault()}>
-                                                        <Space>
-                                                            <Avatar
-                                                                style={{
-                                                                    backgroundColor:
-                                                                        getColorFromStr(user.email),
-                                                                }}
-                                                                size="small"
-                                                            >
-                                                                {getInitials(user.email)}
-                                                            </Avatar>
-                                                            <span>
-                                                                {collapsed || user.username}
-                                                            </span>
-                                                        </Space>
-                                                    </a>
-                                                </Dropdown>
+                                                Logout
                                             </Menu.Item>
                                         )}
                                     </>
