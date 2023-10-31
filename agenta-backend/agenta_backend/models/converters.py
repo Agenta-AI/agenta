@@ -15,6 +15,7 @@ from agenta_backend.models.db_models import (
     EvaluationDB,
     EvaluationScenarioDB,
     VariantBaseDB,
+    UserDB,
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
@@ -26,6 +27,7 @@ from agenta_backend.models.api.api_models import (
     EnvironmentOutput,
     TestSetOutput,
     BaseOutput,
+    User,
 )
 from agenta_backend.models.api.observability_models import (
     Span,
@@ -275,4 +277,13 @@ def trace_db_to_pydantic(trace_db: TraceDB) -> Trace:
         end_time=trace_db.end_time,
         feedbacks=result,
         spans=[str(span) for span in trace_db.spans],
+    ).dict(exclude_unset=True)
+
+
+def user_db_to_pydantic(user_db: UserDB) -> User:
+    return User(
+        id=str(user_db.id),
+        uid=user_db.uid,
+        username=user_db.username,
+        email=user_db.email,
     ).dict(exclude_unset=True)
