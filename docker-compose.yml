@@ -18,6 +18,7 @@ services:
             - BARE_DOMAIN_NAME=localhost
             - DOMAIN_NAME=http://localhost
             - FEATURE_FLAG=oss
+            - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
