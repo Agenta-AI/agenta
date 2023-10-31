@@ -83,16 +83,18 @@ def get_api_key() -> str:
             return api_key
         elif confirm_api_key is None:  # User pressed Ctrl+C
             sys.exit(0)
-    else:
-        api_key = questionary.text(
-            "(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) "
-            "Please provide your API key:"
-        ).ask()
 
-        if api_key:
-            set_global_config("api_key", api_key)
-        elif api_key is None:  # User pressed Ctrl+C
-            sys.exit(0)
+    api_key = questionary.text(
+        "(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) "
+        "Please provide your API key:"
+    ).ask()
+
+    if api_key:
+        set_global_config("api_key", api_key)
+
+        return api_key
+    elif api_key is None:  # User pressed Ctrl+C
+        sys.exit(0)
 
 
 def init_telemetry_config() -> None:
