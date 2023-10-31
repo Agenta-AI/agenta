@@ -56,7 +56,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     return (
         <ThemeContext.Provider
             value={{
-                appTheme,
+                appTheme: appTheme || ThemeMode.Light,
                 toggleAppTheme: (themeType) => setThemeMode(themeType as ThemeMode),
                 themeMode,
             }}

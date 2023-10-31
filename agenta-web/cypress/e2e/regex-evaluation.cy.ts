@@ -14,6 +14,7 @@ describe("Regex Evaluation workflow", () => {
     context("When navigating to Evaluation Page", () => {
         it("Should reach the Evaluation Page", () => {
             cy.visit(`/apps/${app_id}/playground`)
+            cy.contains(/modify parameters/i)
             cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
             cy.url().should("include", "/evaluations")
         })
