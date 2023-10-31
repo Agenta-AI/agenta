@@ -100,15 +100,15 @@ def build_image_job(
 
     try:
         if os.environ["FEATURE_FLAG"] in ["cloud"]:
-            target = "Dockerfile.cloud"
+            dockerfile = "Dockerfile.cloud"
         else:
-            target = "Dockerfile"
+            dockerfile = "Dockerfile"
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
             buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"},
             rm=True,
-            target=target,
+            dockerfile=dockerfile,
         )
         for line in build_log:
             logger.info(line)
