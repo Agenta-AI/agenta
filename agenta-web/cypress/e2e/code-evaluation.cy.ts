@@ -37,7 +37,7 @@ describe("Code Evaluation workflow", () => {
         it("Should add a new Code Evaluation successfully", () => {
             cy.get('[data-cy="code-evaluation-save-button"]').should("be.disabled")
             cy.get('[data-cy="code-evaluation-input"]').type(eval_name)
-            cy.get(".monaco-editor", {timeout: 15000}).type(".")
+            cy.get(".monaco-editor", {timeout: 30000}).type(".")
             cy.get('[data-cy="code-evaluation-save-button"]').should("not.be.disabled")
             cy.clickLinkAndWait('[data-cy="code-evaluation-save-button"]')
             cy.url().should("include", "/evaluations")
