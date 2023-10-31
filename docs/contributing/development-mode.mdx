@@ -12,7 +12,8 @@ If you are making changes to the CLI or SDK, you certainly want to use **your** 
 1. Navigate to the `agenta-cli` folder.
 2. Activate the virtual environment by running `poetry shell` in your terminal.
 
-Now, you should be using your own version of agenta. To make sure that is true, run `which agenta` and check that the folder that you get is the one from `agenta-cli`. 
+Now, you should be using your own version of agenta. To make sure that is true, run `which agenta` and check that the folder that you get is the one from `agenta-cli`.
+
 <Accordion title="If running agenta in your terminal still doesn't work after following the above steps, try the following:
 ">
 ** Solution 1: **
@@ -23,17 +24,19 @@ Now, you should be using your own version of agenta. To make sure that is true, 
 Don't forget to reinstall agenta after you finish development.
 
 ** Solution 2: **
+
 - In the terminal where the poetry virtual environment is activated, run `which agenta`.
 - Copy the path where `agenta` is located, and add `export agenta=/replace/path/to/agenta` at the last line in your shell configuration file. If you're running Ubuntu, your shell configuration file will be `~/.bashrc`.
 - Go to the terminal where you tried running `agenta`, and apply the changes you've made by running `source ~/.bashrc`. Proceed to run `export` to confirm `agenta` has been exported.
 - If you see `agenta` along with its path, proceed to initialize your application by running `$agenta init` and follow through the steps.
 - When you're ready to serve your app, run `$agenta variant serve`.
-</Accordion>
-
+  </Accordion>
 
 ### How to streamline working on the SDK
+
 Let's say you want to add a new type of parameters to the SDK, let's say IntParam, how can you work and test that quickly?
 Here is how I do it:
+
 - Create a new application, a new variant, and serve it. This will copy the agenta folder into the application folder
 - Go to `main.py`, it should look like this:
 
@@ -45,6 +48,7 @@ if __name__ == "__main__":
 ```
 
 Change the `main.py` to this
+
 ```python
 if __name__ == "__main__":
     run("agenta:app", host="0.0.0.0", port=801, auto_reload=True)
@@ -63,6 +67,8 @@ No special steps are required for working on the backend code. Docker Compose au
 ### Working on Frontend Code
 
 Similar to the backend, Docker Compose mounts the volume containing the frontend code. Consequently, any changes you make will be directly applied to the frontend.
+
+It was noticed that sometimes when agenta-web is run as a standalone NextJS app and not as a Docker container, it takes lesser CPU usage. To run agenta-web as a standalone app in parallel with docker-compose, execute the `start_web_standalone.sh` script present in the project's root.
 
 ### Debugging Backend
 
