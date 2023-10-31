@@ -336,8 +336,9 @@ const Sidebar: React.FC = () => {
                                                 className={classes.menuItemNoBg}
                                                 icon={<ApartmentOutlined />}
                                             >
-                                                {orgs.map((org) => (
+                                                {orgs.map((org, index) => (
                                                     <Menu.Item
+                                                        key={index}
                                                         style={{
                                                             display: "flex",
                                                             alignItems: "center",
