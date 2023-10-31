@@ -142,7 +142,7 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95efc69134c
 
 <h3>Version Evaluation 📊 <br/></h3>
-Define test sets, the evaluate manually or programmatically your different variants.<br/>
+Define test sets, then evaluate manually or programmatically your different variants.<br/>
 
 ![](https://github.com/Agenta-AI/agenta/assets/4510758/b1de455d-7e0a-48d6-8497-39ba641600f0)
 
