@@ -8,42 +8,109 @@ from typing import Any, List, MutableMapping
 from agenta.client.api_models import AppVariant
 
 
-def get_api_key():
-    agenta_dir = Path.home() / ".agenta"
-    agenta_dir.mkdir(exist_ok=True)
-    credentials_file = agenta_dir / "config.toml"
+from typing import Any, Optional
+from pathlib import Path
+import toml
 
-    if credentials_file.exists():
-        config = toml.load(credentials_file)
-        api_key = config.get("api_key", None)
+
+def get_global_config(var_name: str) -> Optional[Any]:
+    """
+    Get the value of a global configuration variable.
+
+    Args:
+        var_name: the name of the variable to get
+
+    Returns:
+        the value of the variable, or None if it doesn't exist
+    """
+    agenta_dir = Path.home() / ".agenta"
+    if not agenta_dir.exists():
+        return None
+    agenta_config_file = agenta_dir / "config.toml"
+    if not agenta_config_file.exists():
+        return None
+    global_config = toml.load(agenta_config_file)
+    if var_name not in global_config:
+        return None
+    return global_config[var_name]
+
+
+def set_global_config(var_name: str, var_value: Any) -> None:
+    """
+    Set the value of a global configuration variable.
+
+    Args:
+        var_name: the name of the variable to set
+        var_value: the value to set the variable to
+    """
+    agenta_dir = Path.home() / ".agenta"
+    if not agenta_dir.exists():
+        agenta_dir.mkdir(exist_ok=True)
+    agenta_config_file = agenta_dir / "config.toml"
+    if not agenta_config_file.exists():
+        config = {}
+        with agenta_config_file.open("w") as config_file:
+            toml.dump(config, config_file)
+    global_config = toml.load(agenta_config_file)
+    global_config[var_name] = var_value
+    with open(agenta_config_file, "w") as config_file:
+        toml.dump(global_config, config_file)
+
+
+def get_api_key() -> str:
+    """
+    Retrieve or request the API key for accessing the Agenta platform.
+
+    This function first looks for an existing API key in the global config file.
+    If found, it prompts the user to confirm whether they'd like to use that key.
+    If not found, it asks the user to input a new key.
+
+    Returns:
+        str: The API key to be used for accessing the Agenta platform.
+
+    Raises:
+        SystemExit: If the user cancels the input by pressing Ctrl+C.
+    """
+
+    api_key = get_global_config("api_key")
+    if api_key:
+        # API key exists in the config file, ask for confirmation
+        confirm_api_key = questionary.confirm(
+            f"API Key found: {api_key}\nDo you want to use this API Key?"
+        ).ask()
+
+        if confirm_api_key:
+            return api_key
+        elif confirm_api_key is None:  # User pressed Ctrl+C
+            sys.exit(0)
+    else:
+        api_key = questionary.text(
+            "(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) "
+            "Please provide your API key:"
+        ).ask()
 
         if api_key:
-            # API key exists in the config file, ask for confirmation
-            confirm_api_key = questionary.confirm(
-                f"API Key found: {api_key}\nDo you want to use this API Key?"
-            ).ask()
+            set_global_config("api_key", api_key)
+        elif api_key is None:  # User pressed Ctrl+C
+            sys.exit(0)
 
-            if confirm_api_key:
-                return api_key
-            elif confirm_api_key is None:  # User pressed Ctrl+C
-                sys.exit(0)
 
-    api_key = questionary.text(
-        "(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) Please provide your API key:"
-    ).ask()
-
-    if api_key:
-        config = {"api_key": api_key}
-        with open(credentials_file, "w") as config_file:
-            toml.dump(config, config_file)
-
-        return api_key
-    elif api_key is None:  # User pressed Ctrl+C
-        sys.exit(0)
+def init_telemetry_config() -> None:
+    if (
+        get_global_config("telemetry_tracking_enabled") is None
+        or get_global_config("telemetry_api_key") is None
+    ):
+        set_global_config("telemetry_tracking_enabled", True)
+        set_global_config(
+            "telemetry_api_key", "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+        )
 
 
 def update_variants_from_backend(
-    app_id: str, config: MutableMapping[str, Any], host: str, api_key: str = None
+    app_id: str,
+    config: MutableMapping[str, Any],
+    host: str,
+    api_key: str = None,
 ) -> MutableMapping[str, Any]:
     """Reads the list of variants from the backend and updates the config accordingly
 
