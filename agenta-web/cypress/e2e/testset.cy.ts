@@ -28,6 +28,7 @@ describe("create a new testset", () => {
         cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
 
         cy.get(".ag-root-wrapper").as("grid")
+        cy.get(".ag-row").should("have.length", 3)
 
         // set values for the cells
         cy.get("@grid").find('[row-id="0"]').as("row0")
@@ -124,6 +125,7 @@ describe("create a new testset", () => {
         cy.get("@tempTestSet").click()
 
         cy.get(".ag-root-wrapper").as("grid")
+        cy.get(".ag-row").should("have.length", 3)
         cy.get("@grid").find('[row-id="0"]')
 
         cy.get('[data-cy="testset-addrow-button"]').click()
