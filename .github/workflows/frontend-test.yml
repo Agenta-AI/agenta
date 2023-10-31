@@ -5,6 +5,8 @@ on: [pull_request]
 jobs:
   cypress:
     runs-on: ubuntu-latest
+    environment: oss
+
     steps:
       - name: Check out code
         uses: actions/checkout@v4
