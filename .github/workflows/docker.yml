@@ -36,12 +36,14 @@ jobs:
       - name: Build, tag and push Backend image to Github Container Registry
         id: build-backend-image
         run: |
-          cd agenta-backend && docker build -t ${{ env.BACKEND_IMAGE_NAME }} .
-          cd agenta-backend && docker push ghcr.io/${{ env.REPOSITORY_USERNAME }}/${{ env.BACKEND_IMAGE_NAME }}
+          cd agenta-backend
+          docker build -t ${{ env.BACKEND_IMAGE_NAME }} .
+          docker push ghcr.io/${{ env.REPOSITORY_USERNAME }}/${{ env.BACKEND_IMAGE_NAME }}
 
       - name: Build, tag and push Web image to Github Container Registry
         id: build-web-image
         run: |
-          cd agenta-web && docker build --no-cache -t ${{ env.WEB_IMAGE_NAME }} -f prod.Dockerfile .
-          cd agenta-web && docker push ghcr.io/${{ env.REPOSITORY_USERNAME }}/${{ env.WEB_IMAGE_NAME }}
+          cd agenta-web
+          docker build --no-cache -t ${{ env.WEB_IMAGE_NAME }} -f prod.Dockerfile .
+          docker push ghcr.io/${{ env.REPOSITORY_USERNAME }}/${{ env.WEB_IMAGE_NAME }}
 
