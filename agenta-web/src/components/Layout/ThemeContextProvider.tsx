@@ -6,12 +6,13 @@ export enum ThemeMode {
     Dark = "dark",
     System = "system",
 }
-type ThemeType = `${ThemeMode}`
+type ThemeType = ThemeMode.Light | ThemeMode.Dark
+type ThemeModeType = `${ThemeMode}`
 
 export const ThemeContext = createContext<{
     appTheme: ThemeType
     themeMode: ThemeMode
-    toggleAppTheme: (themeName: ThemeType) => void
+    toggleAppTheme: (themeName: ThemeModeType) => void
 }>({
     appTheme: ThemeMode.Light,
     themeMode: ThemeMode.Light,
@@ -55,7 +56,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     return (
         <ThemeContext.Provider
             value={{
-                appTheme,
+                appTheme: appTheme || ThemeMode.Light,
                 toggleAppTheme: (themeType) => setThemeMode(themeType as ThemeMode),
                 themeMode,
             }}
