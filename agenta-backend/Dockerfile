@@ -8,7 +8,7 @@ RUN pip install --upgrade pip \
     && pip install poetry
 
 # Copy only requirements to cache them in docker layer
-COPY pyproject.toml poetry.lock* README.md sleep.py /app/
+COPY pyproject.toml poetry.lock* README.md /app/
 
 # This is a hack to create a dummy module so that poetry install doesn't fail 
 RUN mkdir -p /app/agenta_backend
