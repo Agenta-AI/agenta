@@ -480,14 +480,17 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_exact_match}
                                 className={classes.radioBtn}
                             >
-                                <div className={classes.evaluationType}>
+                                <div
+                                    className={classes.evaluationType}
+                                    data-cy="exact-match-button"
+                                >
                                     <Image
                                         src={exactMatch}
                                         alt="Exact match"
                                         className={classes.evaluationImg}
                                     />
 
-                                    <span data-cy="automatic-radio-button-exact-match">
+                                    <span>
                                         {EvaluationTypeLabels[EvaluationType.auto_exact_match]}
                                     </span>
                                 </div>
@@ -620,10 +623,7 @@ export default function Evaluations() {
                                     }}
                                     data-cy={`variants-dropdown-${index}`}
                                 >
-                                    <div
-                                        data-cy={`variant-select-${index}`}
-                                        className={classes.dropdownStyles}
-                                    >
+                                    <div className={classes.dropdownStyles}>
                                         {selectedVariants[index]?.variantName || "Select a variant"}
                                         <DownOutlined />
                                     </div>
@@ -639,7 +639,7 @@ export default function Evaluations() {
 
                         <Dropdown menu={getTestsetDropdownMenu()}>
                             <Button className={classes.dropdownBtn} data-cy="selected-testset">
-                                <div data-cy="testset-select" className={classes.dropdownStyles}>
+                                <div className={classes.dropdownStyles}>
                                     {selectedTestset.name}
 
                                     <DownOutlined />
