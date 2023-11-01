@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/python:3.11
+FROM public.ecr.aws/s2t9a1r1/agentaai/lambda_templates_public:main
 
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir agenta openai python-dotenv fastapi uvicorn mangum
