@@ -70,7 +70,7 @@ describe("AI Critics Evaluation workflow", () => {
                 "Run evaluation to see results!",
             )
             cy.get(".ant-message-notice-content").should("not.exist")
-            cy.wait(1000)
+            cy.wait(1500)
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
             cy.get(".ant-spin").should("exist")
 

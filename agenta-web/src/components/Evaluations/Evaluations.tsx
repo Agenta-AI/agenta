@@ -480,7 +480,10 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_exact_match}
                                 className={classes.radioBtn}
                             >
-                                <div className={classes.evaluationType}>
+                                <div
+                                    className={classes.evaluationType}
+                                    data-cy="exact-match-button"
+                                >
                                     <Image
                                         src={exactMatch}
                                         alt="Exact match"
