@@ -17,7 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .
 
       - name: Clear Docker build cache
         run: docker builder prune --all --force --filter type=exec.cachemount --filter unused-for=24h
