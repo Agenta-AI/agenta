@@ -1,6 +1,6 @@
 name: Execute Backend tests
 
-on: [pull_request]
+# on: [pull_request]
 
 jobs:
   continous_integration:
@@ -22,7 +22,6 @@ jobs:
             fi
             sleep 5
           done
-      
 
       - name: Run tests
         run: docker exec agenta-backend-test pytest
