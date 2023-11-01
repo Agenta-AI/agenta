@@ -10,7 +10,7 @@ env:
   BACKEND_DOCKERFILE_PATH: ./agenta-backend/Dockerfile
   WEB_IMAGE_NAME: agenta-web
   WEB_DOCKERFILE_PATH: ./agenta-web/prod.Dockerfile
-  REPOSITORY_USERNAME: israelabraham
+  REPOSITORY_USERNAME: ${{ github.actor }}
 
 jobs:
   build-and-publish:
@@ -23,20 +23,10 @@ jobs:
         run: docker builder prune --all --force --filter type=exec.cachemount --filter unused-for=24h
 
       - name: Build and push backend Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ${{ env.BACKEND_DOCKERFILE_PATH }}
-          push: true
-          tags: ${{ env.BACKEND_IMAGE_NAME }}:latest
+        run: docker build --no-cache -t ${{ env.BACKEND_IMAGE_NAME }} ${{ env.BACKEND_DOCKERFILE_PATH }}
 
       - name: Build and push web Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ${{ env.WEB_DOCKERFILE_PATH }}
-          push: true
-          tags: ${{ env.WEB_IMAGE_NAME }}:latest
+        run: docker build --no-cache -t ${{ env.WEB_IMAGE_NAME }} ${{ env.WEB_DOCKERFILE_PATH }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1
@@ -46,17 +36,7 @@ jobs:
           password: ${{ secrets.DOCKER_GITHUB_SECRETS }}
 
       - name: Push backend Docker image to GitHub Container Registry
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ${{ env.BACKEND_DOCKERFILE_PATH }}
-          push: true
-          tags: ghcr.io/${{ github.repository }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
-
+        run: docker push ghcr.io/${{ github.repository }}/${{ env.BACKEND_IMAGE_NAME }}
+  
       - name: Push web Docker image to GitHub Container Registry
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ${{ env.WEB_DOCKERFILE_PATH }}
-          push: true
-          tags: ghcr.io/${{ env.REPOSITORY_USERNAME }}/${{ env.WEB_IMAGE_NAME }}:${{ github.sha }}
+        run: docker push ghcr.io/${{ env.REPOSITORY_USERNAME }}/${{ env.WEB_IMAGE_NAME }}
