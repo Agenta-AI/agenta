@@ -8,7 +8,7 @@ export default defineConfig({
     video: false,
     screenshotOnRunFailure: false,
     e2e: {
-        baseUrl: "http://localhost",
+        baseUrl: "http://localhost:3000",
         defaultCommandTimeout: 8000,
         requestTimeout: 8000,
         taskTimeout: 8000,
@@ -18,9 +18,8 @@ export default defineConfig({
         specPattern: ["*/e2e/testset.cy.ts"],
     },
     env: {
-        baseApiURL: "http://localhost/api",
+        baseApiURL: "http://localhost:8000/api",
         OPENAI_API_KEY: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-        localBaseUrl: "http://localhost",
         NEXT_PUBLIC_FF: false,
     },
 })
