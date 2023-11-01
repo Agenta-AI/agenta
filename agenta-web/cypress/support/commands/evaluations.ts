@@ -17,8 +17,9 @@ Cypress.Commands.add("createVariant", () => {
         url: `${Cypress.env().baseApiURL}/organizations/`,
         method: "GET",
     }).then((res) => {
+        console.log("body:", res.body)
         cy.request({
-            url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0].id}`,
+            url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0]?.id}`,
             method: "GET",
         }).then((resp) => {
             if (resp.body.length) {
