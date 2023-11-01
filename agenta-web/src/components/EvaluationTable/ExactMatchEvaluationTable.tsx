@@ -350,7 +350,11 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                         <Space>
                             <div>
                                 {rows[rowIndex].score !== "" && (
-                                    <Tag color={tagColor} className={classes.tag}>
+                                    <Tag
+                                        data-cy="exact-match-evaluation-score"
+                                        color={tagColor}
+                                        className={classes.tag}
+                                    >
                                         {record.score}
                                     </Tag>
                                 )}
@@ -370,6 +374,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                     <Col span={12}>
                         <Space>
                             <Button
+                                data-cy="exact-match-evaluation-button"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}
