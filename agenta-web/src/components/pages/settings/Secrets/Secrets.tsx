@@ -67,11 +67,7 @@ export default function Secrets() {
                             />
                             <Button
                                 data-cy="openai-api-save"
-                                disabled={
-                                    llmProviderKeys[i].key ===
-                                        getLlmProviderKey(llmProviderKeys[i].key) ||
-                                    !llmProviderKeys[i].key
-                                }
+                                disabled={key === getLlmProviderKey(key) || !key}
                                 onClick={() => {
                                     saveLlmProviderKey(i, key)
                                     messageAPI.success("The secret is saved")
