@@ -1,10 +1,11 @@
 FROM public.ecr.aws/s2t9a1r1/agentaai/lambda_templates_public:main
 
-RUN pip install --upgrade pip \
-    && pip install --no-cache-dir agenta openai python-dotenv fastapi uvicorn mangum
+ARG ROOT_PATH=/
+ENV ROOT_PATH=${ROOT_PATH}
 
-# Copy function code
+COPY requirements.txt ${LAMBDA_TASK_ROOT}
+RUN pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
+
 COPY . ${LAMBDA_TASK_ROOT}
 
-# Set the CMD to your handler (could also be done as a parameter override outside of the Dockerfile)
 CMD [ "lambda_function.handler" ]
