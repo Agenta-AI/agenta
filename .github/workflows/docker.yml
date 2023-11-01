@@ -1,9 +1,9 @@
 name: Build and Publish Docker Images
 
-on:
-  push:
-    branches:
-      - main
+on: [pull_request]
+  # push:
+  #   branches:
+  #     - main
 
 env:
   BACKEND_IMAGE_NAME: agenta-backend:latest
