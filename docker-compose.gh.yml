@@ -1,0 +1,111 @@
+services:
+    reverse-proxy:
+        image: traefik:v2.10
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
+        ports:
+            - "80:80"
+            - "8080:8080"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+        networks:
+            - agenta-network
+
+    agenta-backend:
+        container_name: agenta-backend-1
+        image: ghcr.io/agentaai/agenta-backend
+        environment:
+            - MONGODB_URI=mongodb://username:password@mongo:27017
+            - ENVIRONMENT=development
+            - BARE_DOMAIN_NAME=localhost
+            - DOMAIN_NAME=http://localhost
+            - FEATURE_FLAG=oss
+        command:
+          [
+              "uvicorn",
+              "agenta_backend.main:app",
+              "--host",
+              "0.0.0.0",
+              "--port",
+              "8000",
+              "--reload",
+              "--log-level",
+              "info",
+              "--root-path",
+              "/api"
+          ]
+        volumes:
+          - ./agenta-backend/agenta_backend:/app/agenta_backend
+          - ./agenta-backend/tests:/app/tests
+          - /var/run/docker.sock:/var/run/docker.sock
+          - ./agenta-backend/db:/db
+        labels:
+          - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
+          - "traefik.http.routers.backend.entrypoints=web"
+          - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+          - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+          - "traefik.http.routers.backend.middlewares=backend-strip"
+          - "traefik.http.services.backend.loadbalancer.server.port=8000"
+          - "traefik.http.routers.backend.service=backend"
+        networks:
+            - agenta-network
+        depends_on:
+            mongo:
+                condition: service_healthy
+
+    agenta-web:
+        container_name: agenta-web-1
+        image: ghcr.io/agentaai/agenta-web
+        ports:
+            - "3000:3000"
+        networks:
+            - agenta-network
+        labels:
+            - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
+            - "traefik.http.routers.agenta-web.entrypoints=web"
+            - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
+
+    mongo:
+        image: mongo:5.0
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: username
+            MONGO_INITDB_ROOT_PASSWORD: password
+        volumes:
+            - mongodb_data:/data/db
+        ports:
+            - "27017:27017"
+        networks:
+            - agenta-network
+        healthcheck:
+            test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
+            interval: 10s
+            timeout: 10s
+            retries: 20
+
+    mongo_express:
+        image: mongo-express
+        environment:
+            ME_CONFIG_MONGODB_ADMINUSERNAME: username
+            ME_CONFIG_MONGODB_ADMINPASSWORD: password
+            ME_CONFIG_MONGODB_SERVER: mongo
+        ports:
+            - "8081:8081"
+        networks:
+            - agenta-network
+        depends_on:
+            mongo:
+                condition: service_healthy
+
+    redis:
+        image: redis:latest
+        networks:
+            - agenta-network
+        volumes:
+            - redis_data:/data
+
+networks:
+    agenta-network:
+        name: agenta-network
+
+volumes:
+    mongodb_data:
+    redis_data:
