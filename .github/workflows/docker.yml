@@ -7,9 +7,9 @@ on: [pull_request]
 
 env:
   BACKEND_IMAGE_NAME: agenta-backend
-  BACKEND_DOCKERFILE_PATH: ./agenta-backend/Dockerfile
+  BACKEND_DOCKERFILE_PATH: agenta-backend/Dockerfile
   WEB_IMAGE_NAME: agenta-web
-  WEB_DOCKERFILE_PATH: ./agenta-web/prod.Dockerfile
+  WEB_DOCKERFILE_PATH: agenta-web/prod.Dockerfile
   REPOSITORY_USERNAME: ${{ github.actor }}
 
 jobs:
