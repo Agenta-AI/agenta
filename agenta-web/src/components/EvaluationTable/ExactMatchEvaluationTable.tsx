@@ -350,7 +350,11 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                         <Space>
                             <div>
                                 {rows[rowIndex].score !== "" && (
-                                    <Tag color={tagColor} className={classes.tag}>
+                                    <Tag
+                                        data-cy="exact-match-evaluation-score"
+                                        color={tagColor}
+                                        className={classes.tag}
+                                    >
                                         {record.score}
                                     </Tag>
                                 )}
