@@ -20,7 +20,7 @@ jobs:
       - name: Wait for Backend Service
         run: |
           while true; do
-            if curl -s http://localhost/openapi.json; then
+            if curl -s http://localhost/api/openapi.json; then
               break
             fi
             sleep 5
