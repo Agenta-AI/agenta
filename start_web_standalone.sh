@@ -29,7 +29,7 @@ compose_file="docker-compose.${suffix}yml"
 echo "compose_file: $compose_file"
 
 # run docker compose without agenta-web service
-docker compose -f $compose_file up -d --build
+docker compose -f $compose_file up -d --build --scale agenta-web=0
 
 if [[ $env == "prod" ]]; then
     # run next js app in prod mode
