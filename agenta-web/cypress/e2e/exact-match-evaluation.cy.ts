@@ -1,74 +1,69 @@
-import {randString} from "../../src/lib/helpers/utils"
-
-describe("create a new testset", () => {
-    beforeEach(() => {
-        // navigate to the new testset page
-        cy.visit("/apps")
-        cy.clickLinkAndWait('[data-cy="app-card-link"]')
-        cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
-        cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
+describe("Exact Match Evaluation workflow", () => {
+    let app_id
+    let testset_name
+    before(() => {
+        cy.createVariantsAndTestsets()
+        cy.get("@app_id").then((appId) => {
+            app_id = appId
+        })
+        cy.get("@testsetName").then((testsetName) => {
+            testset_name = testsetName
+        })
     })
 
-    it.only("successfully tests test-set exact match evaluation", () => {
-        const testsetName = randString(8)
-        const countriesAndCapitals = [
-            {country: "Portugal", capital: "Lisbon"},
-            {country: "Brazil", capital: "Brasília"},
-            {country: "Spain", capital: "Madrid"},
-        ]
+    context("When navigating to Evaluation Page", () => {
+        it("Should reach the Evaluation Page", () => {
+            cy.visit(`/apps/${app_id}/playground`)
+            cy.contains(/modify parameters/i)
+            cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
+            cy.url().should("include", "/evaluations")
+        })
+    })
 
-        cy.get('[data-cy="testset-name-input"]').type(testsetName)
-
-        countriesAndCapitals.forEach((row, index) => {
-            cy.get('[col-id="country"]')
-                .eq(index + 1)
-                .as("countryColumn") // get the first column after the header
-            cy.get("@countryColumn").click()
-            cy.get("@countryColumn").find("input").type(row.country)
-
-            cy.get('[col-id="correct_answer"]')
-                .eq(index + 1)
-                .as("answerColumn") // get the first row after the header
-            cy.get("@answerColumn").click()
-            cy.get("@answerColumn")
-                .find("input")
-                .type(`The capital of ${row.country} is ${row.capital}.`)
+    context("When executing the evaluation", () => {
+        beforeEach(() => {
+            cy.visit(`/apps/${app_id}/evaluations`)
+            cy.url().should("include", "/evaluations")
         })
 
-        cy.get('[data-cy="testset-save-button"]').click()
-        cy.wait(500) // Avoid 'Unsaved changes' modal
+        it("Should execute evaluation workflow successfully", () => {
+            cy.get('[data-cy="exact-match-button"]').click()
 
-        cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
-        cy.url().should("include", "/evaluations")
+            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
+            cy.get('[data-cy="variant-0"]').click()
+            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
 
-        cy.get('[data-cy="automatic-radio-button-exact-match"]').click()
+            cy.get('[data-cy="selected-testset"]').trigger("mouseover")
+            cy.get('[data-cy^="testset"]').contains(testset_name).click()
+            cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
-        cy.get('[data-cy="variant-select-0"]').click()
-        cy.get(".ant-dropdown-menu").first().find("li").first().click()
+            cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
 
-        cy.get('[data-cy="testset-select"]').click()
-        cy.get(".ant-dropdown-menu").last().contains("span", testsetName).click()
+            cy.url().should("include", "/auto_exact_match")
+            cy.wait(1500)
+            cy.get('[data-cy="exact-match-evaluation-button"]').click()
 
-        cy.get('[data-cy="start-new-evaluation-button"]').click()
+            cy.get('[data-cy="exact-match-evaluation-score"]', {timeout: 15000})
+                .invoke("text")
+                .then((text) => {
+                    // Check if the text contains either "correct" or "wrong"
+                    expect(text.includes("correct") || text.includes("wrong")).to.be.true
+                })
 
-        cy.wait(1000)
+            cy.get(".ant-statistic-content-value", {timeout: 15000})
+                .first()
+                .should("contain", "3 out of 3")
+            cy.get(".ant-message-notice-content").should("exist")
+        })
 
-        cy.url().should("include", "/auto_exact_match")
+        it("Should display Exact Match Evaluation result", () => {
+            cy.get('[data-cy="automatic-evaluation-result"]').within(() => {
+                cy.get("tr", {timeout: 15000}).last().should("contain.text", "Exact Match")
+            })
+        })
+    })
 
-        cy.get('[data-cy="exact-match-evaluation-button"]').click()
-
-        cy.wait(5000)
-
-        cy.get(".ant-statistic-content-value").first().should("contain", "3 out of 3")
-
-        cy.clickLinkAndWait('[data-cy="app-evaluations-link"]')
-        cy.url().should("include", "/evaluations")
-
-        cy.wait(1000)
-
-        cy.get(".ant-table-row").last().as("evaluationRow")
-
-        cy.get("@evaluationRow").contains("span", testsetName)
-        cy.get("@evaluationRow").find(".ant-statistic").contains("100")
+    after(() => {
+        cy.cleanupVariantAndTestset()
     })
 })
