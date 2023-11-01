@@ -15,6 +15,7 @@ services:
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
+            - DATABASE_MODE=v2
             - BARE_DOMAIN_NAME=localhost
             - DOMAIN_NAME=http://localhost
             - FEATURE_FLAG=oss

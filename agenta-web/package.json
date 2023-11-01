@@ -59,7 +59,7 @@
     },
     "devDependencies": {
         "@types/node": "^20.8.10",
-        "cypress": "^12.11.0",
+        "cypress": "^13.4.0",
         "node-mocks-http": "^1.12.2",
         "prettier": "^3.0.0"
     }

@@ -12,6 +12,8 @@ while true; do
     startsWith="$2*"
 
     echo "Check if response starts with: $2"
+    echo "Response is: $response"
+    
     if [[ $response == $startsWith ]]; then
         echo "API is up!"
         break
