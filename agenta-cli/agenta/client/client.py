@@ -203,9 +203,12 @@ def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVarian
         headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,
     )
-
     # Check for successful request
     if response.status_code == 403:
+        raise APIRequestError(
+            f"No app by id {app_id} exists or you do not have access to it."
+        )
+    elif response.status_code == 404:
         raise APIRequestError(
             f"No app by id {app_id} exists or you do not have access to it."
         )
@@ -214,6 +217,7 @@ def list_variants(app_id: str, host: str, api_key: str = None) -> List[AppVarian
         raise APIRequestError(
             f"Request to apps endpoint failed with status code {response.status_code} and error message: {error_message}."
         )
+
     app_variants = response.json()
     return [AppVariant(**variant) for variant in app_variants]
 
@@ -463,3 +467,30 @@ def validate_api_key(api_key: str, host: str) -> bool:
         return True
     except RequestException as e:
         raise APIRequestError(f"An error occurred while making the request: {e}")
+
+
+def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
+    """Retrieve user ID from the server.
+
+    Args:
+        host (str): The URL of the Agenta backend
+        api_key (str): The API key to validate with.
+
+    Returns:
+        str: the user ID
+    """
+
+    try:
+        response = requests.get(
+            f"{host}/{BACKEND_URL_SUFFIX}/profile/",
+            headers={"Authorization": api_key} if api_key is not None else None,
+            timeout=600,
+        )
+        if response.status_code != 200:
+            error_message = response.json().get("detail", "Unknown error")
+            raise APIRequestError(
+                f"Request to fetch_user_profile endpoint failed with status code {response.status_code}. Error message: {error_message}"
+            )
+        return response.json()["id"]
+    except RequestException as e:
+        raise APIRequestError(f"Request failed: {str(e)}")

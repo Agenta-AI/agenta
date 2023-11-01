@@ -480,7 +480,10 @@ export default function Evaluations() {
                                 value={EvaluationType.auto_exact_match}
                                 className={classes.radioBtn}
                             >
-                                <div className={classes.evaluationType}>
+                                <div
+                                    className={classes.evaluationType}
+                                    data-cy="exact-match-button"
+                                >
                                     <Image
                                         src={exactMatch}
                                         alt="Exact match"
@@ -555,6 +558,7 @@ export default function Evaluations() {
 
                             <div className={classes.customCodeSelectContainer}>
                                 <Select
+                                    data-cy="code-evaluation-button"
                                     className={`${classes.selectGroup} ${
                                         selectedCustomEvaluationID ? classes.optionSelected : ""
                                     }`}
@@ -562,7 +566,11 @@ export default function Evaluations() {
                                     onChange={handleCustomEvaluationOptionChange}
                                     optionLabelProp="label"
                                 >
-                                    <Option value="new" label="New code evaluation">
+                                    <Option
+                                        value="new"
+                                        label="New code evaluation"
+                                        data-cy="new-code-evaluation-button"
+                                    >
                                         <div className={classes.newCodeEval}>
                                             <PlusOutlined />
                                             New code evaluation
@@ -574,6 +582,7 @@ export default function Evaluations() {
                                                 key={item.id}
                                                 value={item.id}
                                                 label={item.evaluation_name}
+                                                data-cy="code-evaluation-option"
                                             >
                                                 <div className={classes.newCodeEvalList}>
                                                     <p>{item.evaluation_name}</p>
