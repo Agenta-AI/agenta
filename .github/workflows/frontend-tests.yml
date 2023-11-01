@@ -14,26 +14,26 @@ jobs:
       - name: Start Docker Compose
         run: docker-compose -f "docker-compose.test.yml" up -d --build
 
-      - name: Install Curl
-        run: sudo apt install curl -y
+      # - name: Install Curl
+      #   run: sudo apt install curl -y
 
-      - name: Wait for Backend Service
-        run: |
-          while true; do
-              curl -s -o response.txt -w "%{http_code}" http://localhost:8000/openapi.json -H "Accept: application/json" -H "Content-Type: application/json" > /dev/null
-              response=$(head -c 10 response.txt)
-              echo "response: $response"
-              if [[ $response == "{\"openapi\"" ]]; then
-                  echo "Backend service is up!"
-                  break
-              fi
-              sleep 5
-          done
+      # - name: Wait for Backend Service
+      #   run: |
+      #     while true; do
+      #         curl -s -o response.txt -w "%{http_code}" http://localhost:8000/openapi.json -H "Accept: application/json" -H "Content-Type: application/json" > /dev/null
+      #         response=$(head -c 10 response.txt)
+      #         echo "response: $response"
+      #         if [[ $response == "{\"openapi\"" ]]; then
+      #             echo "Backend service is up!"
+      #             break
+      #         fi
+      #         sleep 5
+      #     done
 
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
-          wait-on: "http://localhost:3000"
+          wait-on: "http://localhost:3000/apps"
           config-file: ${{ github.workspace }}/agenta-web/cypress.config.ts
           working-directory: agenta-web
         env:
