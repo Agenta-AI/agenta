@@ -22,7 +22,7 @@ jobs:
           sparse-checkout: .
 
       - name: Clear Docker build cache
-        run: ls && docker builder prune --all --force --filter type=exec.cachemount --filter unused-for=24h
+        run: ls
 
       - name: Build and push backend Docker image
         run: docker build --no-cache -t ${{ env.BACKEND_IMAGE_NAME }} -f ${{ env.BACKEND_DOCKERFILE_PATH }} .
