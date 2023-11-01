@@ -12,7 +12,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Start Docker Compose
-        run: docker-compose -f "docker-compose.yml" up -d --build
+        run: bash ./start_web_standalone.sh dev test
+        # run: docker-compose -f "docker-compose.yml" up -d --build
 
       - name: Install Curl
         run: sudo apt install curl -y
