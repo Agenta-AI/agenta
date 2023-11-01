@@ -1,22 +1,59 @@
-name: docker build and push
+name: Build and Publish Docker Images
+
 on:
-  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  BACKEND_IMAGE_NAME: agenta-backend:latest
+  BACKEND_DOCKERFILE_PATH: ./agenta-backend/Dockerfile
+  WEB_IMAGE_NAME: agenta-web:latest
+  WEB_DOCKERFILE_PATH: ./agenta-web/prod.Dockerfile
+  REPOSITORY_USERNAME: israelabraham
 
 jobs:
-  linter_name:
-    name: 
+  build-and-publish:
     runs-on: ubuntu-latest
     steps:
-        - name: Checkout code
-          uses: actions/checkout@v2
-    
-        - name: Login to GitHub Container Registry
-          run: echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u israelabraham --password-stdin docker.io/israelabraham:agentaai
-    
-        - name: Build and push Docker images
-          run: |
-            docker build -t israelabraham/agentaai/agenta-web:latest agenta-web/
-            docker build -t israelabraham/agentaai/agenta-backend:latest agenta-backend/
-            docker push israelabraham/agentaai/agenta-web:latest
-            docker push israelabraham/agentaai/agenta-backend:latest
-          
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build and push backend Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ${{ env.BACKEND_DOCKERFILE_PATH }}
+          push: true
+          tags: ${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Build and push web Docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ${{ env.WEB_DOCKERFILE_PATH }}
+          push: true
+          tags: ${{ env.WEB_IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ env.REPOSITORY_USERNAME }}
+          password: ${{ secrets.DOCKER_GITHUB_SECRETS }}
+
+      - name: Push backend Docker image to GitHub Container Registry
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ${{ env.BACKEND_DOCKERFILE_PATH }}
+          push: true
+          tags: ghcr.io/${{ github.repository }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Push web Docker image to GitHub Container Registry
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ${{ env.WEB_DOCKERFILE_PATH }}
+          push: true
+          tags: ghcr.io/${{ env.REPOSITORY_USERNAME }}/${{ env.WEB_IMAGE_NAME }}:${{ github.sha }}
