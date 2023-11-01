@@ -9,17 +9,14 @@ export type LlmProvider = {
 }
 
 export const llmAvailableProviders: LlmProvider[] = [
-    "OpenAI",
-    "Replicate",
-    "Hugging Face",
-    "Cohere",
-    "Anthropic",
-    "Azure",
-    "TogetherAI",
-].map((provider) => ({
-    title: provider,
-    key: "",
-}))
+    {title: "OpenAI", key: ""},
+    {title: "Replicate", key: ""},
+    {title: "Hugging Face", key: ""},
+    {title: "Cohere", key: ""},
+    {title: "Anthropic", key: ""},
+    {title: "Azure", key: ""},
+    {title: "TogetherAI", key: ""},
+]
 
 export const renameVariables = (name: string) => {
     return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
@@ -53,18 +50,8 @@ export const saveLlmProviderKey = (providerIdx: number, keyValue: string) => {
     }
 }
 
-export const getLlmProviderKey = (providerName: string) => {
-    // precedence order: local storage, env variable, empty string
-    if (typeof window !== "undefined") {
-        const inStorage = localStorage.getItem(llmAvailableProvidersToken)
-        if (inStorage) {
-            return JSON.parse(inStorage).find((prov: LlmProvider) => prov.title == providerName)
-        }
-    }
-    // the "NEXT_PUBLIC_OPENIA_API_KEY logic here must be rethought
-    // return key ?? process.env.NEXT_PUBLIC_OPENAI_API_KEY ?? ""
-    return ""
-}
+export const getLlmProviderKey = (providerKey: string) =>
+    getAllProviderLlmKeys().find((item: LlmProvider) => item.key === providerKey)
 
 export const getAllProviderLlmKeys = () => {
     if (typeof window !== "undefined") {
