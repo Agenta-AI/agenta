@@ -18,7 +18,7 @@ jobs:
         run: sudo apt install curl -y
 
       - name: Wait for Backend Service
-        run: sudo bash ./wait_on_api.sh "openapi.json" "{\"openapi\"" 3
+        run: sudo bash ./wait_on_api.sh "organizations/" "[{\"id\":\"" 3
 
       - name: Set Node.js 18
         uses: actions/setup-node@v3
@@ -28,13 +28,14 @@ jobs:
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
+          browser: firefox
+          headed: false
           wait-on: "http://localhost/apps"
           config-file: ${{ github.workspace }}/agenta-web/cypress.config.ts
-          working-directory: agenta-web
-          browser: chrome
+          # working-directory: agenta-web
         env:
           NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
-          DEBUG: "@cypress/github-action"
+          # DEBUG: cypress:*
 
       - name: Stop Docker Compose
         run: docker-compose down
