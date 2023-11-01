@@ -196,6 +196,7 @@ class EvaluationTypeSettings(EmbeddedModel):
     webhook_url: Optional[str]
     llm_app_prompt_template: Optional[str]
     custom_code_evaluation_id: Optional[str]
+    evaluation_prompt_template: Optional[str]
 
 
 class EvaluationScenarioInput(EmbeddedModel):
@@ -235,6 +236,8 @@ class EvaluationScenarioDB(Model):
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    is_pinned: Optional[bool]
+    note: Optional[str]
 
     class Config:
         collection = "evaluation_scenarios"

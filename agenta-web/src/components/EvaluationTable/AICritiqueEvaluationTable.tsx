@@ -156,8 +156,9 @@ const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
     const variantData = useVariants(appId, variants)
 
     const [rows, setRows] = useState<AICritiqueEvaluationTableRow[]>([])
-    const [evaluationPromptTemplate, setEvaluationPromptTemplate] =
-        useState<string>(`We have an LLM App that we want to evaluate its outputs.
+    const [evaluationPromptTemplate, setEvaluationPromptTemplate] = useState<string>(
+        evaluation.evaluationTypeSettings.evaluationPromptTemplate ||
+            `We have an LLM App that we want to evaluate its outputs.
 Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:
 
 Evaluation strategy: 0 to 10 0 is very bad and 10 is very good.
@@ -168,7 +169,8 @@ Correct Answer:{correct_answer}
 Evaluate this: {app_variant_output}
 
 Answer ONLY with one of the given grading or evaluation options.
-`)
+`,
+    )
 
     const [shouldFetchResults, setShouldFetchResults] = useState(false)
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
@@ -200,7 +202,12 @@ Answer ONLY with one of the given grading or evaluation options.
                 .then((data) => setEvaluationResults(data))
                 .catch((err) => console.error("Failed to fetch results:", err))
                 .then(() => {
-                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
+                    updateEvaluation(evaluation.id, {
+                        status: EvaluationFlow.EVALUATION_FINISHED,
+                        evaluation_type_settings: {
+                            evaluation_prompt_template: evaluationPromptTemplate,
+                        },
+                    })
                 })
                 .catch((err) => console.error("Failed to fetch results:", err))
         }
