@@ -45,7 +45,7 @@
 
 </br>
 
-<a href="https://demo.agenta.ai">
+<a href="https://cloud.agenta.ai">
   <picture>
   <img src="https://github.com/Agenta-AI/agenta/assets/4510758/a3024fac-2945-4208-ae12-4cc51ecfc970" />
   </picture>
@@ -105,7 +105,7 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 
 
 <div  align="center" >
-<a href="https://demo.agenta.ai">
+<a href="https://cloud.agenta.ai">
   <picture>
   <img src="https://github.com/Agenta-AI/agenta/assets/4510758/a3024fac-2945-4208-ae12-4cc51ecfc970" />
   </picture>
