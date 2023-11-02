@@ -40,7 +40,7 @@ jobs:
         continue-on-error: true  # This allows the workflow to continue even if this step fails
       - name: Docker logs
         if: always()  #
-        run: docker logs core-backend-1
+        run: docker ps -q | xargs -I {} docker logs {}
         
       - name: Stop Docker Compose
         run: docker-compose down
