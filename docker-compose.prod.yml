@@ -17,6 +17,7 @@ services:
       - ALLOW_ORIGINS=${ALLOW_ORIGINS}
       - ENVIRONMENT=production
       - FEATURE_FLAG=oss
+      - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
     volumes:
       - ./agenta-backend/agenta_backend:/app/agenta_backend
       - ./agenta-backend/tests:/app/tests
