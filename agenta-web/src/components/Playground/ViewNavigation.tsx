@@ -1,5 +1,5 @@
-import React from "react"
-import {Col, Row, Divider, Button, Tooltip, Spin, notification} from "antd"
+import React, {useEffect, useRef} from "react"
+import {Col, Row, Divider, Button, Tooltip, Spin, notification, Result} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
 import {useVariant} from "@/lib/hooks/useVariant"
@@ -15,6 +15,7 @@ import {
     waitForAppToStart,
 } from "@/lib/services/api"
 import {useAppsData} from "@/contexts/app.context"
+import {isDemo} from "@/lib/helpers/utils"
 
 interface Props {
     variant: Variant
@@ -50,24 +51,57 @@ const ViewNavigation: React.FC<Props> = ({
     const {
         inputParams,
         optParams,
-        URIPath,
+        refetch,
         isError,
         error,
         isParamSaveLoading,
         saveOptParams,
         isLoading,
     } = useVariant(appId, variant)
-
+    const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
     const [containerURI, setContainerURI] = useState("")
     const [restarting, setRestarting] = useState<boolean>(false)
     const {currentApp} = useAppsData()
+    const retriedOnce = useRef(false)
+    const netWorkError = (error as any)?.code === "ERR_NETWORK"
 
     let prevKey = ""
     const showNotification = (config: Parameters<typeof notification.open>[0]) => {
         if (prevKey) notification.destroy(prevKey)
         prevKey = (config.key || "") as string
         notification.open(config)
+    }
+
+    useEffect(() => {
+        if (netWorkError) {
+            retriedOnce.current = true
+            setRetrying(true)
+            waitForAppToStart({appId, variant, timeout: isDemo() ? 40000 : 6000})
+                .then(() => {
+                    refetch()
+                })
+                .catch(() => {
+                    showNotification({
+                        type: "error",
+                        message: "Variant unreachable",
+                        description: `Unable to connect to the variant.`,
+                    })
+                })
+                .finally(() => {
+                    setRetrying(false)
+                })
+        }
+    }, [netWorkError])
+
+    if (retrying || (!retriedOnce.current && netWorkError)) {
+        return (
+            <Result
+                status="info"
+                title="Waiting for the variant to start"
+                extra={<Spin spinning={retrying} />}
+            />
+        )
     }
 
     if (isError) {
@@ -104,7 +138,7 @@ const ViewNavigation: React.FC<Props> = ({
                     })
 
                     // Set restarting to false
-                    await waitForAppToStart(appId)
+                    await waitForAppToStart({appId, variant})
                     router.reload()
                     setRestarting(false)
                 }

@@ -576,21 +576,27 @@ export const fetchData = async (url: string): Promise<any> => {
     return response.json()
 }
 
-export const waitForAppToStart = async (
-    appId: string,
-    timeout: number = 20000,
-    interval: number = 2000,
-) => {
-    const variant = await fetchVariants(appId, true)
-    if (variant.length) {
+export const waitForAppToStart = async ({
+    appId,
+    variant,
+    timeout = 20000,
+    interval = 2000,
+}: {
+    appId: string
+    variant?: Variant
+    timeout?: number
+    interval?: number
+}) => {
+    const _variant = variant || (await fetchVariants(appId, true))[0]
+    if (_variant) {
         const shortPoll = async () => {
             let started = false
             while (!started) {
                 try {
                     await getVariantParametersFromOpenAPI(
                         appId,
-                        variant[0].variantId,
-                        variant[0].baseId,
+                        _variant.variantId,
+                        _variant.baseId,
                         true,
                     )
                     started = true
@@ -649,7 +655,7 @@ export const createAndStartTemplate = async ({
 
         onStatusChange?.("starting_app", "", app?.data?.app_id)
         try {
-            await waitForAppToStart(app?.data?.app_id, timeout)
+            await waitForAppToStart({appId: app?.data?.app_id, timeout})
         } catch (error: any) {
             if (error.message === "timeout") {
                 onStatusChange?.("timeout", "", app?.data?.app_id)
