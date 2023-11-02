@@ -1,14 +1,14 @@
 name: Build and Publish Docker Images
 
-on: [pull_request]
-  # push:
-  #   branches:
-  #     - main
+on: 
+  push:
+    branches:
+      - main
 
 env:
   BACKEND_IMAGE_NAME: agenta-backend
   WEB_IMAGE_NAME: agenta-web
-  IMAGE_OWNER_NAME: aybruhm
+  IMAGE_OWNER_NAME: agentaai
   REPOSITORY_USERNAME: ${{ github.actor }}
 
 jobs:
