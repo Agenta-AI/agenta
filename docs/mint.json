@@ -28,8 +28,8 @@
     }
   ],
   "topbarCtaButton": {
-    "name": "Try the demo",
-    "url": "https://demo.agenta.ai"
+    "name": "Start for Free",
+    "url": "https://cloud.agenta.ai"
   },
   "anchors": [
     {
@@ -43,12 +43,12 @@
       "url": "https://github.com/agenta-ai/agenta"
     },
     {
-      "name": "Try the demo",
+      "name": "Start for Free",
       "icon": "play",
-      "url": "https://demo.agenta.ai"
+      "url": "https://cloud.agenta.ai"
     },
     {
-      "name": "Book a 1:1 with the Founders",
+      "name": "Book a Free Consulation",
       "icon": "phone",
       "url": "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
     }

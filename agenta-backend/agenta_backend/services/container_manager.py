@@ -1,23 +1,21 @@
-import shutil
-import logging
-from pathlib import Path
-from typing import List, Union, Dict, Any
-from asyncio.exceptions import CancelledError
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+import logging
+import os
+import shutil
 import uuid
+from asyncio.exceptions import CancelledError
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any, Dict, List, Union
 
-from fastapi import HTTPException
-
-from agenta_backend.models.api.api_models import Image
-
-import httpx
-import docker
 import backoff
+import docker
+import httpx
 from aiodocker import Docker, exceptions
+from fastapi import HTTPException, UploadFile
 from httpx import ConnectError, TimeoutException
 
-from fastapi import UploadFile
+from agenta_backend.models.api.api_models import Image
 from agenta_backend.models.db_models import (
     AppDB,
 )
@@ -101,11 +99,16 @@ def build_image_job(
     shutil.unpack_archive(tar_path, temp_dir)
 
     try:
+        if os.environ["FEATURE_FLAG"] in ["cloud"]:
+            dockerfile = "Dockerfile.cloud"
+        else:
+            dockerfile = "Dockerfile"
         image, build_log = client.images.build(
             path=str(temp_dir),
             tag=image_name,
             buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"},
             rm=True,
+            dockerfile=dockerfile,
         )
         for line in build_log:
             logger.info(line)
