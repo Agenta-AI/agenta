@@ -17,9 +17,13 @@ This guide outlines building a basic LLM app with **langchain** and **agenta**. 
 
 To learn more about creating an LLM app from scratch, please visit our [advanced tutorial](/tutorials/your-first-llm-app).
 
-## Prerequisites
+## Step 0: Installation
 
-Before beginning, install the Agenta CLI and SDK, and set up the web platform using docker-compose. Follow our [installation guide](/installation) if needed.
+Before beginning, you need to install (or update) the agenta CLI.
+
+```bash
+pip install -U agenta
+```
 
 ## Step 1: Initialize a New Project
 
@@ -105,7 +109,7 @@ To run your app in the playground, serve it locally using `agenta variant serve`
 3. Adds the application to the Agenta's web UI.
 
 ```bash
-agenta variant serve --file_name app.py
+agenta variant serve app.py
 ```
 
 This will do two things:
