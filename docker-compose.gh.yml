@@ -34,10 +34,7 @@ services:
               "/api"
           ]
         volumes:
-          - ./agenta-backend/agenta_backend:/app/agenta_backend
-          - ./agenta-backend/tests:/app/tests
-          - /var/run/docker.sock:/var/run/docker.sock
-          - ./agenta-backend/db:/db
+            - /var/run/docker.sock:/var/run/docker.sock
         labels:
           - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
           - "traefik.http.routers.backend.entrypoints=web"
