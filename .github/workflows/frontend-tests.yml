@@ -18,7 +18,7 @@ jobs:
         run: sudo apt install curl -y
 
       - name: Wait for Backend Service
-        run: sudo bash ./wait_on_api.sh "organizations/" "[{\"id\":\"" 3
+        run: sudo bash ./wait_on_api.sh "profile/" "[{\"id\":\"" 3
 
       - name: Set Node.js 18
         uses: actions/setup-node@v3
