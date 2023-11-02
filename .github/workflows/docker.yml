@@ -38,7 +38,7 @@ jobs:
         id: build-backend-image
         run: |
           cd agenta-backend
-          docker build -t ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.BACKEND_IMAGE_NAME }} .
+          docker build -t ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.BACKEND_IMAGE_NAME }} -f Dockerfile.gh .
           docker push ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.BACKEND_IMAGE_NAME }}
 
       - name: Build, tag and push Web image to Github Container Registry
