@@ -78,6 +78,7 @@
     {
       "group": "Conceptual Guides",
       "pages": [
+        "conceptual/evaluating_llm_apps",
         "conceptual/concepts",
         "conceptual/architecture"
       ]

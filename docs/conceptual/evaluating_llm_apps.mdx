@@ -1,0 +1,70 @@
+---
+title: Evaluating LLM Applications
+---
+
+## Why You Should Evaluate LLM Applications
+
+Large Language Models (LLMs) have unique characteristics: they're stochastic and their outputs are hard to predict. For instance, if you're building an app for text editing, changing the prompt can significantly alter the model's output. How much it changes and whether it improves are questions that require evaluation.
+
+The fastest way to develop LLM applications is through **iterative experimentation** with a **tight feedback loop**. You should make small changes to your application, evaluate the results, and repeat. This process allows you to quickly find the best parameters for your application. For this you will need a test set.
+
+
+## Creating a Test Set
+
+A test set comprises a collection of inputs and, optionally, the expected outputs for an LLM application. Having a test set enables you to consistently evaluate and compare different application versions. In Agenta, you can create a test set by:
+
+- Uploading a CSV file
+- Using the API
+- Using the UI
+- Using the Playground
+
+Typically, the Playground is a useful tool for quickly adding promising or interesting test cases to your test set.
+
+## Human Feedback
+
+The most reliable evaluation comes from human annotators. In Agenta, this can be done through the "A/B testing" evaluation type, where annotators compare the outputs from two different LLM application variants to determine the better one.
+
+
+## Methods to Automatically Evaluate LLM Applications
+
+Evaluating an LLM application depends on the type of task it performs. Metrics can differ based on whether the task has a single correct answer, allows for variations, or has multiple correct solutions.
+
+### Classification Metrics
+
+For tasks like classification, sentiment analysis, and named entity recognition, where there is only one correct answer, use classification metrics like accuracy. In Agenta, the "Exact Match" evaluation type compares each output to the correct answer. The percentage of correct answers indicates the model's accuracy.
+
+### Similarity Metrics
+
+For tasks that allow some variance in the correct answer, use similarity metrics. In Agenta, this is known as "Similarity Match." For example, if the task is to extract citations from text, slight differences in the citation's length are usually acceptable.
+
+### Formatting Checks
+
+If your application needs to produce outputs in a specific format, such as JSON, you can use regular expressions for format verification. Agenta's "Regex Test" evaluation type allows for this.
+
+### AI Critic Evaluation
+
+For tasks like text generation or complex question-answering, where multiple answers may be correct, you can employ an AI critic for evaluation. This is essentially using another LLM to evaluate your application's output.
+
+The default prompt in Agenta for this is:
+
+```markdown
+Evaluation strategy: 0 to 10 (where 0 is very bad and 10 is very good).
+Prompt: {llm_app_prompt_template}
+Inputs: country: {country}
+Correct Answer: {correct_answer}
+Evaluate this: {app_variant_output}
+Answer ONLY with one of the given grading or evaluation options.
+```
+
+### Custom Evaluations
+
+If Agenta's built-in evaluations don't meet your needs, you can implement custom evaluations using "Webhook Evaluation" or "Code Evaluation." For webhooks, the POST request will contain a JSON payload with input variables, output, and the correct answer. Your server should return a score between 0 and 1.
+
+For code-based evaluations, implement a function called `evaluate` that takes the following parameters:
+
+- Variant parameters (prompt, etc.) as a `Dict[str, str]`
+- A list of inputs as `List[str]`
+- The LLM app's output as a `string`
+- The correct answer as a `string`
+
+The function should return a float value indicating the evaluation score.
