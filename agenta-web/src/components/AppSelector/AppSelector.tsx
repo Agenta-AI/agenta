@@ -291,7 +291,7 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo() && apps.length > 1) {
+                                            if (isDemo() && apps.length > 2) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()
