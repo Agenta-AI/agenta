@@ -12,7 +12,7 @@ services:
 
     agenta-backend:
         container_name: agenta-backend-1
-        image: ghcr.io/agentaai/agenta-backend
+        image: ghcr.io/agenta-ai/agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
@@ -51,7 +51,7 @@ services:
 
     agenta-web:
         container_name: agenta-web-1
-        image: ghcr.io/agentaai/agenta-web
+        image: ghcr.io/agenta-ai/agenta-web
         ports:
             - "3000:3000"
         networks:
