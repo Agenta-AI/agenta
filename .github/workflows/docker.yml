@@ -25,7 +25,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Clear Docker build cache
-        run: docker builder prune --all --force --filter type=exec.cachemount --filter unused-for=24h
+        run: docker builder prune --all --force
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
