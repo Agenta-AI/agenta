@@ -242,7 +242,7 @@ const AppSelector: React.FC = () => {
         if (!statusData.appId) return
         setStatusData((prev) => ({...prev, status: "starting_app", details: undefined}))
         try {
-            await waitForAppToStart(statusData.appId, timeout)
+            await waitForAppToStart({appId: statusData.appId, timeout})
         } catch (error: any) {
             if (error.message === "timeout") {
                 setStatusData((prev) => ({...prev, status: "timeout", details: undefined}))
