@@ -1,5 +1,11 @@
 import {randString} from "../../src/lib/helpers/utils"
 
+const countries = [
+    {country: "France", capital: "Paris"},
+    {country: "Germany", capital: "Berlin"},
+    {country: "Sweden", capital: "Stockholm"},
+]
+
 describe("Testsets crud and UI functionality", () => {
     let app_id
     before(() => {
@@ -27,6 +33,27 @@ describe("Testsets crud and UI functionality", () => {
         it("successfully creates the testset and navigates to the list", () => {
             const testsetName = randString(8)
             cy.get('[data-cy="testset-name-input"]').type(testsetName)
+            cy.get(".ag-row").should("have.length", 3)
+            countries.forEach((country, index) => {
+                cy.get(".ag-row")
+                    .eq(index)
+                    .within(() => {
+                        cy.get("div.ag-cell")
+                            .eq(1)
+                            .within(() => {
+                                cy.get("span").eq(0).dblclick()
+                                cy.get(".ag-input-field-input").type(country.country)
+                            })
+                        cy.get("div.ag-cell")
+                            .eq(2)
+                            .within(() => {
+                                cy.get("span").eq(0).dblclick()
+                                cy.get(".ag-input-field-input").type(
+                                    `The capital of ${country.country} is ${country.capital}.`,
+                                )
+                            })
+                    })
+            })
             cy.intercept("/api/testsets/*").as("saveTestsetRequest")
             cy.get('[data-cy="testset-save-button"]').click()
             //wait for the save api to complete
@@ -38,16 +65,10 @@ describe("Testsets crud and UI functionality", () => {
             cy.get('[data-cy="app-testset-list"]').as("table")
             cy.get("@table").get(".ant-table-pagination li a").last().click()
             cy.get("@table").contains(testsetName).as("tempTestSet").should("be.visible")
-
-            //cleanup
-            cy.get("@tempTestSet")
-                .parent()
-                .invoke("attr", "data-row-key")
-                .then((id) => {
-                    cy.request("DELETE", `${Cypress.env().baseApiURL}/testsets/`, {
-                        testset_ids: [id],
-                    })
-                })
         })
+    })
+
+    after(() => {
+        cy.cleanupVariantAndTestset()
     })
 })
