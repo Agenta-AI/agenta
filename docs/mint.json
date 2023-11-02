@@ -59,15 +59,7 @@
       "pages": [
         "quickstart/introduction",
         "quickstart/getting-started-ui",
-        "quickstart/getting-started-code",
-        {
-          "group": "Installation",
-          "pages": [
-            "installation/local-installation/local-installation",
-            "installation/self-hosting/self-hosted-installation-aws",
-            "installation/self-hosting/self-hosted-installation-gcp"
-          ]
-        }
+        "quickstart/getting-started-code"
       ]
     },
     {
@@ -88,6 +80,14 @@
       "pages": [
         "conceptual/concepts",
         "conceptual/architecture"
+      ]
+    },
+    {
+      "group": "Self-host agenta",
+      "pages": [
+        "self-host/host-locally",
+        "self-host/host-on-aws",
+        "self-host/host-on-gcp"
       ]
     },
     {
