@@ -11,7 +11,9 @@ services:
             - agenta-network
 
     backend:
-        build: ./agenta-backend
+        build:
+            context: ./agenta-backend
+            dockerfile: Dockerfile.gh
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
