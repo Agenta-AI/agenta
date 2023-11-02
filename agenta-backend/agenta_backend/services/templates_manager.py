@@ -19,49 +19,46 @@ async def update_and_sync_templates(cache: bool = True) -> None:
     """
     templates = await retrieve_templates_from_dockerhub_cached(cache)
 
-    templates_ids = []
+    templates_ids_not_to_remove = []
     templates_info = await retrieve_templates_info_from_s3(cache)
     for temp in templates:
-        # Append the template id in the list of templates_ids
-        # We do this to remove old templates from database
-        templates_ids.append(int(temp["id"]))
-        for temp_info_key in templates_info:
-            temp_info = templates_info[temp_info_key]
-            if str(temp["name"]).startswith(temp_info_key):
-                template_id = await db_manager.add_template(
-                    **{
-                        "tag_id": int(temp["id"]),
-                        "name": temp["name"],
-                        "repo_name": temp.get("last_updater_username", "repo_name"),
-                        "title": temp_info["name"],
-                        "description": temp_info["description"],
-                        "size": (
-                            temp["images"][0]["size"]
-                            if not temp.get("size", None)
-                            else temp["size"]
-                        ),
-                        "digest": temp["digest"],
-                        "last_pushed": (
-                            temp["images"][0]["last_pushed"]
-                            if not temp.get("last_pushed", None)
-                            else temp["last_pushed"]
-                        ),
-                    }
-                )
-                print(f"Template {template_id} added to the database.")
+        if temp["name"] in list(templates_info.keys()):
+            templates_ids_not_to_remove.append(int(temp["id"]))
+            temp_info = templates_info[temp["name"]]
+            template_id = await db_manager.add_template(
+                **{
+                    "tag_id": int(temp["id"]),
+                    "name": temp["name"],
+                    "repo_name": temp.get("last_updater_username", "repo_name"),
+                    "title": temp_info["name"],
+                    "description": temp_info["description"],
+                    "size": (
+                        temp["images"][0]["size"]
+                        if not temp.get("size", None)
+                        else temp["size"]
+                    ),
+                    "digest": temp["digest"],
+                    "last_pushed": (
+                        temp["images"][0]["last_pushed"]
+                        if not temp.get("last_pushed", None)
+                        else temp["last_pushed"]
+                    ),
+                }
+            )
+            print(f"Template {template_id} added to the database.")
 
-                # Get docker hub config
-                repo_owner = settings.docker_hub_repo_owner
-                repo_name = settings.docker_hub_repo_name
+            # Get docker hub config
+            repo_owner = settings.docker_hub_repo_owner
+            repo_name = settings.docker_hub_repo_name
 
-                # Pull image from DockerHub
-                image_res = await container_manager.pull_docker_image(
-                    repo_name=f"{repo_owner}/{repo_name}", tag=temp["name"]
-                )
-                print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
+            # Pull image from DockerHub
+            image_res = await container_manager.pull_docker_image(
+                repo_name=f"{repo_owner}/{repo_name}", tag=temp["name"]
+            )
+            print(f"Template Image {image_res[0]['id']} pulled from DockerHub.")
 
     # Remove old templates from database
-    await db_manager.remove_old_template_from_db(templates_ids)
+    await db_manager.remove_old_template_from_db(templates_ids_not_to_remove)
 
 
 async def retrieve_templates_from_dockerhub_cached(cache: bool) -> List[dict]:
