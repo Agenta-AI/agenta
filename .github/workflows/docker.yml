@@ -8,7 +8,7 @@ on: [pull_request]
 env:
   BACKEND_IMAGE_NAME: agenta-backend
   WEB_IMAGE_NAME: agenta-web
-  IMAGE_OWNER_NAME: agentaai
+  IMAGE_OWNER_NAME: aybruhm
   REPOSITORY_USERNAME: ${{ github.actor }}
 
 jobs:
