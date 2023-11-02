@@ -1,7 +1,7 @@
 import re
 import sys
-from pathlib import Path
 from typing import List
+from pathlib import Path
 
 from requests.exceptions import ConnectionError
 
@@ -10,12 +10,9 @@ import questionary
 import toml
 from agenta.cli import helper
 from agenta.client import client
+from agenta.cli.telemetry import event_track
 from agenta.client.api_models import AppVariant, Image
-from agenta.docker.docker_utils import (
-    build_and_upload_docker_image,
-    build_tar_docker_container,
-)
-from docker.models.images import Image as DockerImage
+from agenta.docker.docker_utils import build_tar_docker_container
 
 
 @click.group()
@@ -44,12 +41,15 @@ def add_variant(
     app_path = Path(app_folder)
     config_file = app_path / "config.toml"
     config = toml.load(config_file)
+
     app_name = config["app_name"]
     app_id = config["app_id"]
     api_key = config.get("api_key", None)
-    base_name = file_name.removesuffix(".py")
+
     config_name = "default"
+    base_name = file_name.removesuffix(".py")
     variant_name = f"{base_name}.{config_name}"
+
     # check files in folder
     app_file = app_path / file_name
     if not app_file.exists():
@@ -104,7 +104,8 @@ def add_variant(
     try:
         click.echo(
             click.style(
-                f"Preparing code base {base_name} into a tar file...", fg="bright_black"
+                f"Preparing code base {base_name} into a tar file...",
+                fg="bright_black",
             )
         )
         tar_path = build_tar_docker_container(folder=app_path, file_name=file_name)
@@ -149,7 +150,25 @@ def add_variant(
         else:
             click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
         return None
+
+    agenta_dir = Path.home() / ".agenta"
+    global_toml_file = toml.load(agenta_dir / "config.toml")
+    tracking_enabled: bool = global_toml_file["telemetry_tracking_enabled"]
     if overwrite:
+        # Track a deployment event
+        if tracking_enabled:
+            user_id = client.retrieve_user_id(host, api_key)
+            event_track.capture_event(
+                user_id,
+                "app_deployment",
+                body={
+                    "app_id": app_id,
+                    "deployed_by": user_id,
+                    "environment": "CLI",
+                    "version": "cloud" if api_key else "oss",
+                },
+            )
+
         click.echo(
             click.style(
                 f"Variant {variant_name} for App {app_name} updated successfully 🎉",
@@ -158,6 +177,20 @@ def add_variant(
             )
         )
     else:
+        # Track a deployment event
+        if tracking_enabled:
+            user_id = client.retrieve_user_id(host, api_key)
+            event_track.capture_event(
+                user_id,
+                "app_deployment",
+                body={
+                    "app_id": app_id,
+                    "deployed_by": user_id,
+                    "environment": "CLI",
+                    "version": "cloud" if api_key else "oss",
+                },
+            )
+
         click.echo(
             click.style(
                 f"Variant {variant_name} for App {app_name} added successfully to Agenta!",
@@ -184,7 +217,6 @@ def start_variant(variant_id: str, app_folder: str, host: str):
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     config = toml.load(config_file)
-    app_name = config["app_name"]
     api_key = config.get("api_key", None)
     app_id = config["app_id"]
 
