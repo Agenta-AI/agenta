@@ -14,10 +14,7 @@ COPY tsconfig.json .
 COPY postcss.config.js .
 COPY .env .
 # used in cloud 
-RUN if [ -f sentry.client.config.ts ]; then cp sentry.client.config.ts .; fi
-RUN if [ -f sentry.edge.config.ts ]; then cp sentry.edge.config.ts .; fi
-RUN if [ -f sentry.server.config.ts ]; then cp sentry.server.config.ts .; fi
-
+COPY sentry.* .
 # Build the Next.js app for production
 RUN npm run build
 
