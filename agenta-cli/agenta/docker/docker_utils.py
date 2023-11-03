@@ -25,6 +25,12 @@ def create_dockerfile(out_folder: Path):
     )
     dockerfile_path = out_folder / "Dockerfile"
     shutil.copy(dockerfile_template, dockerfile_path)
+    dockerfile_template = (
+        Path(__file__).parent / "docker-assets" / "Dockerfile.cloud.template"
+    )
+    dockerfile_path = out_folder / "Dockerfile.cloud"
+    shutil.copy(dockerfile_template, dockerfile_path)
+
     return dockerfile_path
 
 
@@ -44,6 +50,7 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
     dockerfile_path = create_dockerfile(folder)
     shutil.copytree(Path(__file__).parent.parent, folder / "agenta", dirs_exist_ok=True)
     shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", folder)
+    shutil.copy(Path(__file__).parent / "docker-assets" / "lambda_function.py", folder)
     shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", folder)
 
     # Read the contents of .gitignore file

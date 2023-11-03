@@ -19,24 +19,24 @@ export function useVariant(appId: string, variant: Variant) {
     const [error, setError] = useState<Error | null>(null)
     const [isParamSaveLoading, setIsParamSaveLoading] = useState(false)
 
-    useEffect(() => {
-        const fetchParameters = async () => {
-            setIsLoading(true)
-            setIsError(false)
-            try {
-                const {parameters, inputs, URIPath} = await getAllVariantParameters(appId, variant)
-                setOptParams(parameters)
-                setInputParams(inputs)
-                setURIPath(URIPath)
-            } catch (error: any) {
-                console.log(error)
-                setIsError(true)
-                setError(error)
-            } finally {
-                setIsLoading(false)
-            }
+    const fetchParameters = async () => {
+        setIsLoading(true)
+        setIsError(false)
+        try {
+            const {parameters, inputs, URIPath} = await getAllVariantParameters(appId, variant)
+            setOptParams(parameters)
+            setInputParams(inputs)
+            setURIPath(URIPath)
+        } catch (error: any) {
+            console.log(error)
+            setIsError(true)
+            setError(error)
+        } finally {
+            setIsLoading(false)
         }
+    }
 
+    useEffect(() => {
         if (variant?.variantName && appId) fetchParameters()
     }, [variant?.variantName])
 
@@ -92,6 +92,7 @@ export function useVariant(appId: string, variant: Variant) {
         error,
         isParamSaveLoading,
         saveOptParams,
+        refetch: fetchParameters,
     }
 }
 

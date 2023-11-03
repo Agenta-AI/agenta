@@ -242,7 +242,7 @@ const AppSelector: React.FC = () => {
         if (!statusData.appId) return
         setStatusData((prev) => ({...prev, status: "starting_app", details: undefined}))
         try {
-            await waitForAppToStart(statusData.appId, timeout)
+            await waitForAppToStart({appId: statusData.appId, timeout})
         } catch (error: any) {
             if (error.message === "timeout") {
                 setStatusData((prev) => ({...prev, status: "timeout", details: undefined}))
@@ -291,7 +291,7 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo() && apps.length > 1) {
+                                            if (isDemo() && apps.length > 2) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()
