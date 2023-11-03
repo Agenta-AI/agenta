@@ -10,57 +10,49 @@ services:
         networks:
             - agenta-network
 
-    backend:
-        build: ./agenta-backend
+    agenta-backend:
+        container_name: agenta-backend-1
+        image: ghcr.io/agenta-ai/agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
             - BARE_DOMAIN_NAME=localhost
             - DOMAIN_NAME=http://localhost
             - FEATURE_FLAG=oss
-            - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
+        command:
+          [
+              "uvicorn",
+              "agenta_backend.main:app",
+              "--host",
+              "0.0.0.0",
+              "--port",
+              "8000",
+              "--reload",
+              "--log-level",
+              "info",
+              "--root-path",
+              "/api"
+          ]
         volumes:
-            - ./agenta-backend/agenta_backend:/app/agenta_backend
-            - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
-            - ./agenta-backend/db:/db
         labels:
-            - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
-            - "traefik.http.routers.backend.entrypoints=web"
-            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
-            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.backend.middlewares=backend-strip"
-            - "traefik.http.services.backend.loadbalancer.server.port=8000"
-            - "traefik.http.routers.backend.service=backend"
+          - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
+          - "traefik.http.routers.backend.entrypoints=web"
+          - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+          - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+          - "traefik.http.routers.backend.middlewares=backend-strip"
+          - "traefik.http.services.backend.loadbalancer.server.port=8000"
+          - "traefik.http.routers.backend.service=backend"
         networks:
             - agenta-network
-        command:
-            [
-                "uvicorn",
-                "agenta_backend.main:app",
-                "--host",
-                "0.0.0.0",
-                "--port",
-                "8000",
-                "--reload",
-                "--log-level",
-                "info",
-                "--root-path",
-                "/api"
-            ]
         depends_on:
             mongo:
                 condition: service_healthy
 
     agenta-web:
-        build:
-            context: ./agenta-web
-            dockerfile: dev.Dockerfile
-        volumes:
-            - ./agenta-web/src:/app/src
-            - ./agenta-web/public:/app/public
-            - .nextjs_cache:/app/.next
+        container_name: agenta-web-1
+        image: ghcr.io/agenta-ai/agenta-web
         ports:
             - "3000:3000"
         networks:

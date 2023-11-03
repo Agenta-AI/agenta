@@ -34,10 +34,7 @@ from agenta_backend.models.db_models import (
 )
 from agenta_backend.utils.common import check_user_org_access, engine
 
-if os.environ["FEATURE_FLAG"] in ["cloud"]:
-    from agenta_backend.ee.models.db_models import DeploymentDB
-else:
-    from agenta_backend.models.db_models import DeploymentDB
+from agenta_backend.models.db_models import DeploymentDB
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
