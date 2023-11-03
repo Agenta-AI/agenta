@@ -40,6 +40,7 @@ describe("Regex Evaluation workflow", () => {
     context("When Variant and Testset are Selected", () => {
         it("Should", () => {
             cy.visit(`/apps/${app_id}/evaluations`)
+            cy.url().should("include", "/evaluations")
             cy.clickLinkAndWait('[data-cy="abTesting-button"]')
 
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
