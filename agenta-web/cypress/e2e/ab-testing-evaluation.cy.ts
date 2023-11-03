@@ -10,12 +10,12 @@ describe("Regex Evaluation workflow", () => {
         })
     })
 
-    context("SHould create second variant", () => {
+    context("When", () => {
         beforeEach(() => {
             cy.visit(`/apps/${app_id}/playground`)
         })
 
-        it("When", () => {
+        it("Should", () => {
             cy.clickLinkAndWait("button.ant-tabs-nav-add")
             cy.get('[data-cy="new-variant-modal"]').should("exist")
             cy.get('[data-cy="new-variant-modal-select"]').click()
@@ -30,7 +30,7 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-message-notice-content").should("exist")
         })
 
-        it("check if user has more than one variant", () => {
+        it("Should check if user has more than one variant", () => {
             cy.get(".ant-tabs-nav-list").within(() => {
                 cy.get(".ant-tabs-tab").should("have.length.gt", 1)
             })
@@ -38,20 +38,32 @@ describe("Regex Evaluation workflow", () => {
     })
 
     context("When Variant and Testset are Selected", () => {
-        it("RUN", () => {
+        it("Should", () => {
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.clickLinkAndWait('[data-cy="abTesting-button"]')
 
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
-            cy.get('[data-cy="variant-0"]').contains("app.default").click()
+            cy.get(".ant-dropdown")
+                .eq(0)
+                .within(() => {
+                    cy.get('[data-cy="variant-0"]').contains("app.default").click()
+                })
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
 
             cy.get('[data-cy="variants-dropdown-1"]').trigger("mouseover")
-            cy.get('[data-cy="variant-1"]').contains(`app.${app_v2}`).click()
+            cy.get(".ant-dropdown")
+                .eq(1)
+                .within(() => {
+                    cy.get('[data-cy="variant-1"]').contains(`app.${app_v2}`).click()
+                })
             cy.get('[data-cy="variants-dropdown-1"]').trigger("mouseout")
 
             cy.get('[data-cy="selected-testset"]').trigger("mouseover")
-            cy.get('[data-cy="testset-0"]').click()
+            cy.get(".ant-dropdown")
+                .eq(2)
+                .within(() => {
+                    cy.get('[data-cy="testset-0"]').click()
+                })
             cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
