@@ -549,6 +549,7 @@ async def get_user(user_uid: str) -> UserDB:
     else:
         return user
 
+
 async def get_user_with_id(user_id: ObjectId):
     """
     Retrieves a user from a database based on their ID.
@@ -567,9 +568,7 @@ async def get_user_with_id(user_id: ObjectId):
         return user
     except Exception as e:
         logger.error(f"Failed to get user with id: {e}")
-        raise Exception(
-            f"Error while getting user: {e}"
-        )
+        raise Exception(f"Error while getting user: {e}")
 
 
 async def get_user_with_email(email: str):
@@ -589,7 +588,7 @@ async def get_user_with_email(email: str):
     Example Usage:
         user = await get_user_with_email('example@example.com')
     """
-    if '@' not in email:
+    if "@" not in email:
         raise Exception("Please provide a valid email address")
 
     try:
