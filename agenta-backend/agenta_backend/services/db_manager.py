@@ -580,19 +580,6 @@ async def get_users_by_ids(user_ids: List) -> List:
     return users_db
 
 
-async def save_object_to_db(object_to_save: Any) -> Any:
-    """Save an object to the database.
-
-    Arguments:
-        object_to_save (Any): The object to save
-
-    Returns:
-        Any: instance of saved object
-    """
-    await engine.save(object_to_save)
-    return object_to_save
-
-
 async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
     """Get the image object from the database with the provided id.
 
