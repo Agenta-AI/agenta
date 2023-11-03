@@ -20,10 +20,7 @@ COPY postcss.config.js .
 COPY .env .
 RUN if [ -f .env.local ]; then cp .env.local .; fi
 # used in cloud 
-RUN if [ -f sentry.client.config.ts ]; then cp sentry.client.config.ts .; fi
-RUN if [ -f sentry.edge.config.ts ]; then cp sentry.edge.config.ts .; fi
-RUN if [ -f sentry.server.config.ts ]; then cp sentry.server.config.ts .; fi
-
+COPY sentry.* .
 # Next.js collects completely anonymous telemetry data about general usage. Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line to disable telemetry at run time
 # ENV NEXT_TELEMETRY_DISABLED 1
