@@ -3,7 +3,7 @@ import {Breadcrumb, Button, ConfigProvider, Dropdown, Layout, Space, Tooltip, th
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
-import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {isDemo, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {useAppTheme} from "./ThemeContextProvider"
 import {useElementSize} from "usehooks-ts"
 import {createUseStyles} from "react-jss"
@@ -16,6 +16,7 @@ import {useRouter} from "next/router"
 import Image from "next/image"
 import moonIcon from "@/media/night.png"
 import sunIcon from "@/media/sun.png"
+import {useProfileData} from "@/contexts/profile.context"
 
 const {Content, Footer} = Layout
 
@@ -113,6 +114,7 @@ type LayoutProps = {
 }
 
 const App: React.FC<LayoutProps> = ({children}) => {
+    const {user} = useProfileData()
     const {appTheme, themeMode, toggleAppTheme} = useAppTheme()
     const {currentApp} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
@@ -122,6 +124,55 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const router = useRouter()
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
+
+    useEffect(() => {
+        if (user && isDemo()) {
+            window.intercomSettings = {
+                api_base: "https://api-iam.intercom.io",
+                app_id: "t228v7ci",
+                name: user.username,
+                email: user.email,
+            }
+            ;(function () {
+                var w = window
+                var ic = w.Intercom
+                if (typeof ic === "function") {
+                    ic("reattach_activator")
+                    ic("update", window.intercomSettings)
+                } else {
+                    var d = document
+                    var i = function () {
+                        i.c(arguments)
+                    }
+                    i.q = []
+                    i.c = function (args) {
+                        i.q.push(args)
+                    }
+                    w.Intercom = i
+                    var l = function () {
+                        var s = d.createElement("script")
+                        s.type = "text/javascript"
+                        s.async = true
+                        s.src = "https://widget.intercom.io/widget/cqi6rnwr"
+                        var x = d.getElementsByTagName("script")[0]
+                        x.parentNode.insertBefore(s, x)
+                    }
+                    if (document.readyState === "complete") {
+                        l()
+                    } else if (w.attachEvent) {
+                        w.attachEvent("onload", l)
+                    } else {
+                        w.addEventListener("load", l, false)
+                    }
+                }
+            })()
+        } else {
+            if (window.Intercom) {
+                window.Intercom("shutdown")
+                delete window.intercomSettings
+            }
+        }
+    }, [user])
 
     const isAppRoute = useMemo(
         () => router.pathname.startsWith("/apps/[app_id]"),
