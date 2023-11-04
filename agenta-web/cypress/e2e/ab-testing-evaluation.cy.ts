@@ -10,12 +10,12 @@ describe("Regex Evaluation workflow", () => {
         })
     })
 
-    context("When", () => {
+    context("When creating an app variant", () => {
         beforeEach(() => {
             cy.visit(`/apps/${app_id}/playground`)
         })
 
-        it("Should", () => {
+        it("Should successfully create a new app variant", () => {
             cy.clickLinkAndWait("button.ant-tabs-nav-add")
             cy.get('[data-cy="new-variant-modal"]').should("exist")
             cy.get('[data-cy="new-variant-modal-select"]').click()
@@ -30,15 +30,15 @@ describe("Regex Evaluation workflow", () => {
             cy.get(".ant-message-notice-content").should("exist")
         })
 
-        it("Should check if user has more than one variant", () => {
+        it("Should verify user has more than one app variant", () => {
             cy.get(".ant-tabs-nav-list").within(() => {
                 cy.get(".ant-tabs-tab").should("have.length.gt", 1)
             })
         })
     })
 
-    context("When Variant and Testset are Selected", () => {
-        it("Should", () => {
+    context("When executing the evaluation", () => {
+        it("Should successfully execute the evaluation process", () => {
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.url().should("include", "/evaluations")
             cy.clickLinkAndWait('[data-cy="abTesting-button"]')
