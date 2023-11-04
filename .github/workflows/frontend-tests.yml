@@ -11,14 +11,19 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Start Docker Compose
-        run: docker-compose -f "docker-compose.yml" up -d --build
+      - name: Install Curl & Start Docker Compose
+        run: |
+          sudo apt install curl -y
+          docker-compose -f "docker-compose.yml" up -d --build
 
-      - name: Install Curl
-        run: sudo apt install curl -y
-
+      - name: Restart Backend Service To Fetch Template(s)
+        run: docker container restart agenta-backend-1
+        
       - name: Wait for Backend Service
         run: sudo bash ./wait_on_api.sh "profile/" "{\"id\":" 3
+
+      - name: Know the Response of Container Templates
+        run: curl http://localhost/api/containers/templates/
 
       - name: Set Node.js 18
         uses: actions/setup-node@v3
