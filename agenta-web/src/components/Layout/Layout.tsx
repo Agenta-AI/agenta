@@ -129,7 +129,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
         if (user && isDemo()) {
             ;(window as any).intercomSettings = {
                 api_base: "https://api-iam.intercom.io",
-                app_id: process.env.INTERCOM_APP_ID,
+                app_id: process.env.NEXT_PUBLIC_INTERCOM_APP_ID,
                 name: user.username,
                 email: user.email,
             }
@@ -153,7 +153,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         var s = d.createElement("script")
                         s.type = "text/javascript"
                         s.async = true
-                        s.src = `https://widget.intercom.io/widget/${process.env.INTERCOM_APP_ID}`
+                        s.src = `https://widget.intercom.io/widget/${process.env.NEXT_PUBLIC_INTERCOM_APP_ID}`
                         var x: any = d.getElementsByTagName("script")[0]
                         x.parentNode.insertBefore(s, x)
                     }
