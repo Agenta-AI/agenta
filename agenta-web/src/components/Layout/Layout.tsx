@@ -152,7 +152,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
             } else {
                 const d = document
                 const i: WindowWithIntercom["Intercom"] = {
-                    reattach_activator: () => {}, // Empty implementations for fallback
+                    reattach_activator: () => {},
                     update: (settings: Record<string, any>) => {},
                     shutdown: () => {},
                 }
