@@ -19,31 +19,30 @@ services:
             - BARE_DOMAIN_NAME=localhost
             - DOMAIN_NAME=http://localhost
             - FEATURE_FLAG=oss
-            - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
         command:
-          [
-              "uvicorn",
-              "agenta_backend.main:app",
-              "--host",
-              "0.0.0.0",
-              "--port",
-              "8000",
-              "--reload",
-              "--log-level",
-              "info",
-              "--root-path",
-              "/api"
-          ]
+            [
+                "uvicorn",
+                "agenta_backend.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
+                "--reload",
+                "--log-level",
+                "info",
+                "--root-path",
+                "/api"
+            ]
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         labels:
-          - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
-          - "traefik.http.routers.backend.entrypoints=web"
-          - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
-          - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
-          - "traefik.http.routers.backend.middlewares=backend-strip"
-          - "traefik.http.services.backend.loadbalancer.server.port=8000"
-          - "traefik.http.routers.backend.service=backend"
+            - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
+            - "traefik.http.routers.backend.entrypoints=web"
+            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.backend.middlewares=backend-strip"
+            - "traefik.http.services.backend.loadbalancer.server.port=8000"
+            - "traefik.http.routers.backend.service=backend"
         networks:
             - agenta-network
         depends_on:
@@ -61,6 +60,8 @@ services:
             - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
+        environment:
+            - NEXT_PUBLIC_POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
 
     mongo:
         image: mongo:5.0
