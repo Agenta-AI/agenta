@@ -153,7 +153,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         var s = d.createElement("script")
                         s.type = "text/javascript"
                         s.async = true
-                        s.src = "https://widget.intercom.io/widget/cqi6rnwr"
+                        s.src = `https://widget.intercom.io/widget/${process.env.INTERCOM_APP_ID}`
                         var x: any = d.getElementsByTagName("script")[0]
                         x.parentNode.insertBefore(s, x)
                     }
