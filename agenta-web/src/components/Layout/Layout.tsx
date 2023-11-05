@@ -129,7 +129,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
         if (user && isDemo()) {
             ;(window as any).intercomSettings = {
                 api_base: "https://api-iam.intercom.io",
-                app_id: "t228v7ci",
+                app_id: process.env.INTERCOM_APP_ID,
                 name: user.username,
                 email: user.email,
             }
