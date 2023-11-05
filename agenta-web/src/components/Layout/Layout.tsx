@@ -20,16 +20,6 @@ import {useProfileData} from "@/contexts/profile.context"
 
 const {Content, Footer} = Layout
 
-interface WindowWithIntercom extends Window {
-    attachEvent: any
-    Intercom: {
-        reattach_activator: () => void
-        update: (settings: Record<string, any>) => void
-        shutdown: () => void
-    }
-    intercomSettings?: Record<string, any>
-}
-
 type StyleProps = {
     themeMode: "dark" | "light"
     footerHeight: number
@@ -137,49 +127,49 @@ const App: React.FC<LayoutProps> = ({children}) => {
 
     useEffect(() => {
         if (user && isDemo()) {
-            const windowWithIntercom = window as unknown as WindowWithIntercom
-
-            windowWithIntercom.intercomSettings = {
+            ;(window as any).intercomSettings = {
                 api_base: "https://api-iam.intercom.io",
                 app_id: "t228v7ci",
                 name: user.username,
                 email: user.email,
             }
-
-            if (windowWithIntercom.Intercom) {
-                windowWithIntercom.Intercom.reattach_activator()
-                windowWithIntercom.Intercom.update(windowWithIntercom.intercomSettings)
-            } else {
-                const d = document
-                const i: WindowWithIntercom["Intercom"] = {
-                    reattach_activator: () => {},
-                    update: (settings: Record<string, any>) => {},
-                    shutdown: () => {},
-                }
-                windowWithIntercom.Intercom = i
-
-                const l = () => {
-                    const s = d.createElement("script")
-                    s.type = "text/javascript"
-                    s.async = true
-                    s.src = "https://widget.intercom.io/widget/cqi6rnwr"
-                    const x = d.getElementsByTagName("script")[0]
-                    x.parentNode?.insertBefore(s, x)
-                }
-
-                if (document.readyState === "complete") {
-                    l()
-                } else if (windowWithIntercom.attachEvent) {
-                    windowWithIntercom.attachEvent("onload", l)
+            ;(function () {
+                var w: any = window
+                var ic = w.Intercom
+                if (typeof ic === "function") {
+                    ic("reattach_activator")
+                    ic("update", (window as any).intercomSettings)
                 } else {
-                    windowWithIntercom.addEventListener("load", l, false)
+                    var d = document
+                    var i: any = function () {
+                        i.c(arguments)
+                    }
+                    i.q = []
+                    i.c = function (args: any) {
+                        i.q.push(args)
+                    }
+                    w.Intercom = i
+                    var l = function () {
+                        var s = d.createElement("script")
+                        s.type = "text/javascript"
+                        s.async = true
+                        s.src = "https://widget.intercom.io/widget/cqi6rnwr"
+                        var x: any = d.getElementsByTagName("script")[0]
+                        x.parentNode.insertBefore(s, x)
+                    }
+                    if (document.readyState === "complete") {
+                        l()
+                    } else if (w.attachEvent) {
+                        w.attachEvent("onload", l)
+                    } else {
+                        w.addEventListener("load", l, false)
+                    }
                 }
-            }
+            })()
         } else {
-            const windowWithIntercom = window as unknown as WindowWithIntercom
-            if (windowWithIntercom.Intercom) {
-                windowWithIntercom.Intercom.shutdown()
-                delete windowWithIntercom.intercomSettings
+            if ((window as any).Intercom) {
+                ;(window as any).Intercom("shutdown")
+                delete (window as any).intercomSettings
             }
         }
     }, [user])
