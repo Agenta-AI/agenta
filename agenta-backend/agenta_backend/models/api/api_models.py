@@ -187,6 +187,11 @@ class DeployToEnvironmentPayload(BaseModel):
     variant_id: str
 
 
+class PublishToEnvironmentPayload(BaseModel):
+    environment_name: str
+    variant_id: str
+
+
 class TestSetOutput(BaseModel):
     id: str
     name: str
