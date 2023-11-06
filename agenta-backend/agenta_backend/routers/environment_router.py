@@ -56,7 +56,6 @@ async def deploy_to_environment(
                 status_code=400,
             )
         else:
-            print(payload)
             await app_manager.publish_variant(
                 payload.variant_id,
                 environment_name=payload.environment_name,
