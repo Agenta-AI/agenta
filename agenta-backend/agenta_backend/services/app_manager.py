@@ -433,3 +433,23 @@ async def add_variant_based_on_image(
     )
     logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
     return db_app_variant
+
+
+async def publish_variant(
+    variant_id: str,
+    environment_name: str,
+    **kwargs: dict,
+):
+    """ """
+    try:
+        app_variant = await db_manager.get_app_variant_instance_by_id(variant_id)
+        deployment_id = app_variant.base.deployment
+        deployment = await db_manager.get_deployment_by_objectid(deployment_id)
+
+        if deployment:
+            uri = deployment.uri.replace("https://", "")
+            await deployment_manager.publish_service(variant_id, uri, environment_name)
+
+    except Exception as e:
+        logger.error(f"Error publishing a variant {str(e)}")
+        raise Exception(f"Error publishing a variant {str(e)}") from e

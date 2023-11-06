@@ -18,6 +18,8 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 import logging
 
+from agenta_backend.services import app_manager
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -54,10 +56,15 @@ async def deploy_to_environment(
                 status_code=400,
             )
         else:
-            await db_manager.deploy_to_environment(
+            print(payload)
+            await app_manager.publish_variant(
+                payload.variant_id,
                 environment_name=payload.environment_name,
-                variant_id=payload.variant_id,
                 **user_org_data,
             )
+            return JSONResponse(
+                {"detail": "Deployment successful"}, status_code=200
+            )
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
