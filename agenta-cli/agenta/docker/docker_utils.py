@@ -48,21 +48,24 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         tarfile_path.unlink()
 
     dockerfile_path = create_dockerfile(folder)
-    shutil.copytree(Path(__file__).parent.parent, folder / "agenta", dirs_exist_ok=True)
-    shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", folder)
-    shutil.copy(Path(__file__).parent / "docker-assets" / "lambda_function.py", folder)
-    shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", folder)
-
-    # Read the contents of .gitignore file
-    gitignore_content = ""
-    gitignore_file_path = folder / ".gitignore"
-    if gitignore_file_path.exists():
-        with open(gitignore_file_path, "r") as gitignore_file:
-            gitignore_content = gitignore_file.read()
-
-    # Create a temporary directory
+    
+    # Create a temporary directory for 'agenta'
     with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
+        temp_path = Path(temp_dir) / "agenta"
+        temp_path.mkdir(parents=True)
+
+        # Copy files to 'agenta'
+        shutil.copytree(Path(__file__).parent.parent, temp_path, dirs_exist_ok=True)
+        shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", temp_path)
+        shutil.copy(Path(__file__).parent / "docker-assets" / "lambda_function.py", temp_path)
+        shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", temp_path)
+
+        # Read the contents of .gitignore file
+        gitignore_content = ""
+        gitignore_file_path = folder / ".gitignore"
+        if gitignore_file_path.exists():
+            with open(gitignore_file_path, "r") as gitignore_file:
+                gitignore_content = gitignore_file.read()
 
         # Clean - remove '/' from every files and folders in the gitignore contents
         sanitized_patterns = [
@@ -83,9 +86,7 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         with tarfile.open(tarfile_path, "w:gz") as tar:
             tar.add(temp_path, arcname=folder.name)
 
-    # dockerfile_path.unlink()
     return tarfile_path
-
 
 def build_and_upload_docker_image(
     folder: Path, variant_name: str, app_name: str
