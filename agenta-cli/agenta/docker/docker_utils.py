@@ -48,7 +48,7 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         tarfile_path.unlink()
 
     dockerfile_path = create_dockerfile(folder)
-    
+
     # Create a temporary directory for 'agenta'
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir) / "agenta"
@@ -57,8 +57,12 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         # Copy files to 'agenta'
         shutil.copytree(Path(__file__).parent.parent, temp_path, dirs_exist_ok=True)
         shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", temp_path)
-        shutil.copy(Path(__file__).parent / "docker-assets" / "lambda_function.py", temp_path)
-        shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", temp_path)
+        shutil.copy(
+            Path(__file__).parent / "docker-assets" / "lambda_function.py", temp_path
+        )
+        shutil.copy(
+            Path(__file__).parent / "docker-assets" / "entrypoint.sh", temp_path
+        )
 
         # Read the contents of .gitignore file
         gitignore_content = ""
@@ -87,6 +91,7 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
             tar.add(temp_path, arcname=folder.name)
 
     return tarfile_path
+
 
 def build_and_upload_docker_image(
     folder: Path, variant_name: str, app_name: str
