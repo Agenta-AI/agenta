@@ -61,9 +61,7 @@ async def deploy_to_environment(
                 environment_name=payload.environment_name,
                 **user_org_data,
             )
-            return JSONResponse(
-                {"detail": "Deployment successful"}, status_code=200
-            )
+            return JSONResponse({"detail": "Deployment successful"}, status_code=200)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
