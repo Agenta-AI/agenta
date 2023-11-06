@@ -12,6 +12,8 @@ from docker.models.images import Image
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+DEBUG = False  # Set this to True to keep temporary files for debugging
+
 
 def create_dockerfile(out_folder: Path):
     """Creates a dockerfile based on the template in the out_folder.
@@ -48,28 +50,23 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         tarfile_path.unlink()
 
     dockerfile_path = create_dockerfile(folder)
+    agenta_folder = folder / "agenta"
 
-    # Create a temporary directory for 'agenta'
+    shutil.copytree(Path(__file__).parent.parent, agenta_folder, dirs_exist_ok=True)
+    shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", folder)
+    shutil.copy(Path(__file__).parent / "docker-assets" / "lambda_function.py", folder)
+    shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", folder)
+
+    # Read the contents of .gitignore file
+    gitignore_content = ""
+    gitignore_file_path = folder / ".gitignore"
+    if gitignore_file_path.exists():
+        with open(gitignore_file_path, "r") as gitignore_file:
+            gitignore_content = gitignore_file.read()
+
+    # Create a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir) / "agenta"
-        temp_path.mkdir(parents=True)
-
-        # Copy files to 'agenta'
-        shutil.copytree(Path(__file__).parent.parent, temp_path, dirs_exist_ok=True)
-        shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", temp_path)
-        shutil.copy(
-            Path(__file__).parent / "docker-assets" / "lambda_function.py", temp_path
-        )
-        shutil.copy(
-            Path(__file__).parent / "docker-assets" / "entrypoint.sh", temp_path
-        )
-
-        # Read the contents of .gitignore file
-        gitignore_content = ""
-        gitignore_file_path = folder / ".gitignore"
-        if gitignore_file_path.exists():
-            with open(gitignore_file_path, "r") as gitignore_file:
-                gitignore_content = gitignore_file.read()
+        temp_path = Path(temp_dir)
 
         # Clean - remove '/' from every files and folders in the gitignore contents
         sanitized_patterns = [
@@ -90,6 +87,10 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         with tarfile.open(tarfile_path, "w:gz") as tar:
             tar.add(temp_path, arcname=folder.name)
 
+    if not DEBUG:
+        shutil.rmtree(agenta_folder)
+
+    # dockerfile_path.unlink()
     return tarfile_path
 
 
