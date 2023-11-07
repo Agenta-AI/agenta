@@ -56,7 +56,7 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         with tempfile.TemporaryDirectory() as temp_dir:
             agenta_temp_path = Path(temp_dir) / "agenta"
             agenta_temp_path.mkdir(parents=True)
-            
+
             # Copy all contents from the source folder to agenta_temp_path
             for item in folder.iterdir():
                 if item.is_dir():
@@ -66,15 +66,20 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
 
             # Copy files to 'agenta'
             shutil.copytree(
-                Path(__file__).parent.parent, agenta_temp_path / "agenta", dirs_exist_ok=True
+                Path(__file__).parent.parent,
+                agenta_temp_path / "agenta",
+                dirs_exist_ok=True,
             )
-            shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", agenta_temp_path)
+            shutil.copy(
+                Path(__file__).parent / "docker-assets" / "main.py", agenta_temp_path
+            )
             shutil.copy(
                 Path(__file__).parent / "docker-assets" / "lambda_function.py",
                 agenta_temp_path,
             )
             shutil.copy(
-                Path(__file__).parent / "docker-assets" / "entrypoint.sh", agenta_temp_path
+                Path(__file__).parent / "docker-assets" / "entrypoint.sh",
+                agenta_temp_path,
             )
 
             # Move the temporary folder to persist it
@@ -123,7 +128,9 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
             return set(sanitized_patterns)
 
         # Use a single copytree call with ignore_patterns
-        shutil.copytree(updated_folder, temp_path, ignore=ignore_patterns, dirs_exist_ok=True)
+        shutil.copytree(
+            updated_folder, temp_path, ignore=ignore_patterns, dirs_exist_ok=True
+        )
 
         # Rename the specified file to _app.py in the temporary directory
         shutil.copy(temp_path / file_name, temp_path / "_app.py")
