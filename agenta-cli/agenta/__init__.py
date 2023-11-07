@@ -7,6 +7,7 @@ from .sdk.types import (
     InFile,
     IntParam,
     MultipleChoiceParam,
+    MessagesParam,
     TextParam,
 )
 from .sdk.utils.preinit import PreInitObject

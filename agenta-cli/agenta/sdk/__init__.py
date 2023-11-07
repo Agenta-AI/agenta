@@ -10,6 +10,7 @@ from .types import (
     IntParam,
     MultipleChoiceParam,
     TextParam,
+    MessagesParam
 )
 from .agenta_init import Config, init
 
