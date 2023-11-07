@@ -25,6 +25,7 @@ from .types import (
     IntParam,
     MultipleChoiceParam,
     TextParam,
+    MessagesParam
 )
 
 app = FastAPI()
@@ -313,6 +314,7 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
     - The min and max values for each FloatParam instance
     - The min and max values for each IntParam instance
     - The default value for DictInput instance
+    - The default value for MessagesParam instance
     - ... [PLEASE ADD AT EACH CHANGE]
 
     Args:
@@ -374,3 +376,10 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
         if isinstance(param_val, TextParam):
             subschema = find_in_schema(schema_to_override, param_name, "text")
             subschema["default"] = param_val
+        if (
+            isinstance(param_val, inspect.Parameter)
+            and param_val.annotation is MessagesParam
+        ):
+            subschema = find_in_schema(schema_to_override, param_name, "messages")
+            del subschema["items"]
+            subschema["default"] = param_val.default
