@@ -50,66 +50,15 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
     if tarfile_path.exists():
         tarfile_path.unlink()
 
-    dockerfile_path = create_dockerfile(folder)
-
-    if DEBUG:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            agenta_temp_path = Path(temp_dir) / "agenta"
-            agenta_temp_path.mkdir(parents=True)
-
-            # Copy all contents from the source folder to agenta_temp_path
-            for item in folder.iterdir():
-                if item.is_dir():
-                    shutil.copytree(item, agenta_temp_path / item.name)
-                else:
-                    shutil.copy(item, agenta_temp_path)
-
-            # Copy files to 'agenta'
-            shutil.copytree(
-                Path(__file__).parent.parent,
-                agenta_temp_path / "agenta",
-                dirs_exist_ok=True,
-            )
-            shutil.copy(
-                Path(__file__).parent / "docker-assets" / "main.py", agenta_temp_path
-            )
-            shutil.copy(
-                Path(__file__).parent / "docker-assets" / "lambda_function.py",
-                agenta_temp_path,
-            )
-            shutil.copy(
-                Path(__file__).parent / "docker-assets" / "entrypoint.sh",
-                agenta_temp_path,
-            )
-
-            # Move the temporary folder to persist it
-            updated_folder = folder / "agenta"
-            updated_folder.mkdir(exist_ok=True)
-
-            for item in agenta_temp_path.iterdir():
-                if item.is_dir():
-                    shutil.copytree(item, updated_folder / item.name)
-                else:
-                    shutil.copy(item, updated_folder)
-
-    else:
-        updated_folder = folder
-
-        shutil.copytree(
-            Path(__file__).parent.parent, updated_folder / "agenta", dirs_exist_ok=True
-        )
-        shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", updated_folder)
-        shutil.copy(
-            Path(__file__).parent / "docker-assets" / "lambda_function.py",
-            updated_folder,
-        )
-        shutil.copy(
-            Path(__file__).parent / "docker-assets" / "entrypoint.sh", updated_folder
-        )
+    create_dockerfile(folder)
+    shutil.copytree(Path(__file__).parent.parent, folder / "agenta", dirs_exist_ok=True)
+    shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", folder)
+    shutil.copy(Path(__file__).parent / "docker-assets" / "lambda_function.py", folder)
+    shutil.copy(Path(__file__).parent / "docker-assets" / "entrypoint.sh", folder)
 
     # Read the contents of .gitignore file
     gitignore_content = ""
-    gitignore_file_path = updated_folder / ".gitignore"
+    gitignore_file_path = folder / ".gitignore"
     if gitignore_file_path.exists():
         with open(gitignore_file_path, "r") as gitignore_file:
             gitignore_content = gitignore_file.read()
@@ -128,9 +77,7 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
             return set(sanitized_patterns)
 
         # Use a single copytree call with ignore_patterns
-        shutil.copytree(
-            updated_folder, temp_path, ignore=ignore_patterns, dirs_exist_ok=True
-        )
+        shutil.copytree(folder, temp_path, ignore=ignore_patterns, dirs_exist_ok=True)
 
         # Rename the specified file to _app.py in the temporary directory
         shutil.copy(temp_path / file_name, temp_path / "_app.py")
@@ -138,10 +85,23 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         # Create the tar.gz file
         with tarfile.open(tarfile_path, "w:gz") as tar:
             tar.add(temp_path, arcname=folder.name)
+    if not DEBUG:
+        items_to_remove = [
+            'Dockerfile',
+            'Dockerfile.cloud',
+            'agenta',
+            'main.py',
+            'lambda_function.py',
+            'entrypoint.sh'
+        ]
 
-        if DEBUG:
-            shutil.rmtree(updated_folder)
-
+        for item_name in items_to_remove:
+            item_path = folder / item_name
+            if item_path.exists():
+                if item_path.is_dir():
+                    shutil.rmtree(item_path)  # Remove a directory and all its contents
+                else:
+                    item_path.unlink()  # Remove a file or symbolic link
     return tarfile_path
 
 
