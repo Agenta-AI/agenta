@@ -49,7 +49,9 @@ class IntParam(int):
 
 
 class FloatParam(float):
-    def __new__(cls, default: float = 0.5, minval: float = 0.0, maxval: float = 1.0):
+    def __new__(
+        cls, default: float = 0.5, minval: float = 0.0, maxval: float = 1.0
+    ):
         instance = super().__new__(cls, default)
         instance.minval = minval
         instance.maxval = maxval
@@ -80,7 +82,9 @@ class MultipleChoiceParam(str):
 
         if default is None and not choices:
             # raise error if no default value or choices is provided
-            raise ValueError("You must provide either a default value or choices")
+            raise ValueError(
+                "You must provide either a default value or choices"
+            )
 
         instance = super().__new__(cls, default)
         instance.choices = choices
@@ -96,6 +100,32 @@ class MultipleChoiceParam(str):
                 "enum": [],
             }
         )
+
+
+class MessagesParam(list):
+    def __new__(
+        cls,
+        default: List[Dict[str, Any]] = None,
+        inputs: List[Dict[str, Any]] = None,
+    ):
+        if default is None:
+            default = [{"role": "system", "content": "You are a helpful assistant."}]
+
+        for input_ in default:
+            if not isinstance(input_, dict):
+                raise ValueError("Data type of input in default must be a dict")
+
+        if inputs is not None and not isinstance(inputs, list):
+            raise ValueError("Inputs cannot be None")
+
+        instance = super().__new__(cls, default)
+        instance.inputs = inputs
+        instance.default = default
+        return instance
+
+    @classmethod
+    def __modify_schema__(cls, field_schema: dict[str, Any]):
+        field_schema.update({"x-parameter": "messages"})
 
 
 class Context(BaseModel):
