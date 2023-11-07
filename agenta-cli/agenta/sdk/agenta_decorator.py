@@ -25,7 +25,7 @@ from .types import (
     IntParam,
     MultipleChoiceParam,
     TextParam,
-    MessagesParam
+    MessagesParam,
 )
 
 app = FastAPI()
