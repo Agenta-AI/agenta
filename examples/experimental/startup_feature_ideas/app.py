@@ -15,9 +15,9 @@ ag.config.default(
 @ag.entrypoint
 def chat(
     inputs: MessagesInput = MessagesInput([{"role": "string", "content": "string"}])
-) -> str:    
+) -> str:
     messages = [
-        {git s
+        {
             "role": message["role"],
             "content": message["content"],
         }
