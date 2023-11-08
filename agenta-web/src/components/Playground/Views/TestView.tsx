@@ -12,6 +12,7 @@ import {createUseStyles} from "react-jss"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {TestContext} from "../TestsetContextProvider"
 import {useRouter} from "next/router"
+import ChatInputs from "@/components/ChatInputs/ChatInputs"
 
 const useStylesBox = createUseStyles({
     card: {
@@ -97,6 +98,7 @@ interface BoxComponentProps {
     onRun: () => void
     onAddToTestset: (params: Record<string, string>) => void
     onDelete?: () => void
+    isChatVariant?: boolean
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -107,6 +109,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     onRun,
     onAddToTestset,
     onDelete,
+    isChatVariant = false,
 }) => {
     const classes = useStylesBox()
     const {TextArea} = Input
@@ -136,15 +139,19 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             </Row>
 
             <Row className={classes.row1}>
-                {inputParamsNames.map((key, index) => (
-                    <TextArea
-                        data-cy={`testview-input-parameters-${index}`}
-                        key={index}
-                        value={testData[key]}
-                        placeholder={renameVariables(key)}
-                        onChange={(e) => onInputParamChange(key, e.target.value)}
-                    />
-                ))}
+                {isChatVariant ? (
+                    <ChatInputs onChange={(val) => console.log("new chat state:", val)} />
+                ) : (
+                    inputParamsNames.map((key, index) => (
+                        <TextArea
+                            data-cy={`testview-input-parameters-${index}`}
+                            key={index}
+                            value={testData[key]}
+                            placeholder={renameVariables(key)}
+                            onChange={(e) => onInputParamChange(key, e.target.value)}
+                        />
+                    ))
+                )}
             </Row>
             <Row className={classes.row2}>
                 <Col span={24} className={classes.row2Col}>
@@ -293,6 +300,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant}) => {
                     onRun={() => handleRun(index)}
                     onAddToTestset={setParams}
                     onDelete={testList.length >= 2 ? () => handleDeleteRow(index) : undefined}
+                    isChatVariant
                 />
             ))}
             <Button
