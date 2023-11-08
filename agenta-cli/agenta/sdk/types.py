@@ -101,7 +101,7 @@ class MultipleChoiceParam(str):
 class Message(BaseModel):
     role: str
     content: str
-    
+
 
 class MessagesInput(BaseModel):
     messages: List[Message]
