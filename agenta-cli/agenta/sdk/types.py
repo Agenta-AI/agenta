@@ -98,26 +98,13 @@ class MultipleChoiceParam(str):
         )
 
 
-class MessagesParam(list):
-    def __new__(
-        cls,
-        default: List[Dict[str, Any]] = None,
-        inputs: List[Dict[str, Any]] = None,
-    ):
-        if default is None:
-            default = [{"role": "system", "content": "You are a helpful assistant."}]
+class Message(BaseModel):
+    role: str
+    content: str
+    
 
-        for input_ in default:
-            if not isinstance(input_, dict):
-                raise ValueError("Data type of input in default must be a dict")
-
-        if inputs is not None and not isinstance(inputs, list):
-            raise ValueError("Inputs cannot be None")
-
-        instance = super().__new__(cls, default)
-        instance.inputs = inputs
-        instance.default = default
-        return instance
+class MessagesInput(BaseModel):
+    messages: List[Message]
 
     @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any]):
