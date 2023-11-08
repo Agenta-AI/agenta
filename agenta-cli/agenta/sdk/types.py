@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Self
 
 from pydantic import BaseModel, Extra
 
@@ -103,12 +103,28 @@ class Message(BaseModel):
     content: str
 
 
-class MessagesInput(BaseModel):
-    messages: List[Message]
+class MessagesInput(list):
+    """Messages Input for Chat-completion.
+
+    Parameters:
+        messages (List[Dict[str, str]]): The list of messages inputs. 
+        Required. Each message should be a dictionary with "role" and "content" keys.
+
+    Raises:
+        ValueError: If `messages` is not specified or empty.
+    """
+    
+    def __new__(cls, messages: List[Dict[str, str]] = None) -> Self:
+        if not messages:
+            raise ValueError("Missing required parameter in MessagesInput")
+            
+        instance = super().__new__(cls, messages)
+        instance.messages = messages
+        return instance
 
     @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any]):
-        field_schema.update({"x-parameter": "messages"})
+        field_schema.update({"x-parameter": "messages", "type": "array"})
 
 
 class Context(BaseModel):
