@@ -29,6 +29,7 @@
         "@types/react-dom": "18.2.1",
         "@types/react-highlight-words": "^0.16.4",
         "@types/react-syntax-highlighter": "^15.5.7",
+        "@types/uuid": "^9.0.7",
         "ag-grid-community": "^30.0.6",
         "ag-grid-react": "^30.0.3",
         "antd": "^5.4.7",
@@ -60,7 +61,6 @@
         "uuid": "^9.0.1"
     },
     "devDependencies": {
-        "@types/uuid": "^9.0.7",
         "cypress": "^12.11.0",
         "node-mocks-http": "^1.12.2",
         "prettier": "^3.0.0"
