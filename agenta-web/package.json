@@ -56,9 +56,11 @@
         "supertokens-node": "^15.0.4",
         "swr": "^2.1.5",
         "typescript": "5.0.4",
-        "usehooks-ts": "^2.9.1"
+        "usehooks-ts": "^2.9.1",
+        "uuid": "^9.0.1"
     },
     "devDependencies": {
+        "@types/uuid": "^9.0.7",
         "cypress": "^12.11.0",
         "node-mocks-http": "^1.12.2",
         "prettier": "^3.0.0"

@@ -257,3 +257,16 @@ export interface Org {
     description?: string
     owner: string
 }
+
+export enum ChatRole {
+    System = "system",
+    User = "user",
+    Assistant = "assistant",
+    Function = "function",
+}
+
+export type ChatMessage = {
+    role: ChatRole
+    content: string
+    id?: string
+}
