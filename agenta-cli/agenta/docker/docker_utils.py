@@ -13,7 +13,7 @@ from docker.models.images import Image
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-DEBUG = True  # Set this to True to keep temporary files for debugging
+DEBUG = False  # Set this to True to keep temporary files for debugging
 
 
 def create_dockerfile(out_folder: Path):
