@@ -38,7 +38,7 @@ def create_dockerfile(out_folder: Path):
 
 
 def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
-    """Builds the tar file container the files needed for the docker container
+    """Builds the tar file containing the files needed for the docker container
 
     Arguments:
         folder -- the path containing the code for the app
@@ -53,37 +53,32 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
     create_dockerfile(folder)
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        agenta_temp_path = Path(temp_dir) / "agenta"
-        if agenta_temp_path.exists():
-            shutil.rmtree(agenta_temp_path)
-        agenta_temp_path.mkdir(parents=True)
+        input_folder = Path(temp_dir)
 
-        # Copy all contents from the source folder to agenta_temp_path
+        # Copy all contents from the source folder to the temporary path
         for item in folder.iterdir():
             if item.is_dir():
                 if item.name == "docker_tar_content":
                     shutil.rmtree(item)
                 else:
-                    shutil.copytree(item, agenta_temp_path / item.name)
+                    shutil.copytree(item, input_folder / item.name)
             else:
-                shutil.copy(item, agenta_temp_path)
+                shutil.copy(item, input_folder)
 
-        # Copy files to 'agenta'
+        # Copy additional files to 'input_folder'
         shutil.copytree(
             Path(__file__).parent.parent,
-            agenta_temp_path / "agenta",
+            input_folder / "agenta",
             dirs_exist_ok=True,
         )
-        shutil.copy(
-            Path(__file__).parent / "docker-assets" / "main.py", agenta_temp_path
-        )
+        shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", input_folder)
         shutil.copy(
             Path(__file__).parent / "docker-assets" / "lambda_function.py",
-            agenta_temp_path,
+            input_folder,
         )
         shutil.copy(
             Path(__file__).parent / "docker-assets" / "entrypoint.sh",
-            agenta_temp_path,
+            input_folder,
         )
 
         # Move the temporary folder to persist it
@@ -92,22 +87,18 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
             shutil.rmtree(updated_folder)
         updated_folder.mkdir(exist_ok=True)
 
-        for item in agenta_temp_path.iterdir():
+        for item in input_folder.iterdir():
             if item.is_dir():
                 shutil.copytree(item, updated_folder / item.name)
             else:
                 shutil.copy(item, updated_folder)
 
-    # Read the contents of .gitignore file
-    gitignore_content = ""
-    gitignore_file_path = updated_folder / ".gitignore"
-    if gitignore_file_path.exists():
-        with open(gitignore_file_path, "r") as gitignore_file:
-            gitignore_content = gitignore_file.read()
-
-    # Create a temporary directory
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
+        # Read the contents of .gitignore file
+        gitignore_content = ""
+        gitignore_file_path = updated_folder / ".gitignore"
+        if gitignore_file_path.exists():
+            with open(gitignore_file_path, "r") as gitignore_file:
+                gitignore_content = gitignore_file.read()
 
         # Clean - remove '/' from every files and folders in the gitignore contents
         sanitized_patterns = [
@@ -120,15 +111,15 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
 
         # Use a single copytree call with ignore_patterns
         shutil.copytree(
-            updated_folder, temp_path, ignore=ignore_patterns, dirs_exist_ok=True
+            updated_folder, input_folder, ignore=ignore_patterns, dirs_exist_ok=True
         )
 
         # Rename the specified file to _app.py in the temporary directory
-        shutil.copy(temp_path / file_name, temp_path / "_app.py")
+        shutil.copy(input_folder / file_name, input_folder / "_app.py")
 
         # Create the tar.gz file
         with tarfile.open(tarfile_path, "w:gz") as tar:
-            tar.add(temp_path, arcname=folder.name)
+            tar.add(input_folder, arcname=folder.name)
 
         if not DEBUG:
             shutil.rmtree(updated_folder)
