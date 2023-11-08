@@ -25,7 +25,7 @@ from .types import (
     IntParam,
     MultipleChoiceParam,
     TextParam,
-    MessagesParam,
+    MessagesInput,
 )
 
 app = FastAPI()
@@ -378,8 +378,6 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
             subschema["default"] = param_val
         if (
             isinstance(param_val, inspect.Parameter)
-            and param_val.annotation is MessagesParam
+            and param_val.annotation is MessagesInput
         ):
             subschema = find_in_schema(schema_to_override, param_name, "messages")
-            del subschema["items"]
-            subschema["default"] = param_val.default
