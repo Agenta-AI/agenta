@@ -20,32 +20,31 @@ jobs:
         run: docker container restart agenta_backend_1
         
       - name: Wait for Backend Service
-        run: sudo bash ./wait_on_api.sh "profile/" "{\"id\":" 3
+        run: curl http://localhost/api/health/
 
-      - name: Know the Response of Container Templates
-        run: curl http://localhost/api/containers/templates/
+      - name: Know the Response of Organization & Container Templates
+        run: |
+          curl http://localhost/api/organizations/own/
+          curl http://localhost/api/containers/templates/
 
       - name: Set Node.js 18
         uses: actions/setup-node@v3
         with:
           node-version: 18
 
-      - name: Cypress run
-        uses: cypress-io/github-action@v6
-        with:
-          browser: firefox
-          headed: false
-          wait-on: "http://localhost/apps"
-          config-file: ${{ github.workspace }}/agenta-web/cypress.config.ts
-          working-directory: agenta-web
-        
+      - name: Install Frontend Depedencies
+        run: |
+          cd agenta-web/ && npm install
+      
+      - name: Run Cypress
+        run: cd agenta-web/ && npm run cypress:run
         env:
           NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
-          # DEBUG: cypress:*
-        continue-on-error: true  # This allows the workflow to continue even if this step fails
+      
       - name: Docker logs
         if: always()  #
         run: docker ps -q | xargs -I {} docker logs {}
         
       - name: Stop Docker Compose
-        run: docker-compose down
+        run: |
+          cd .. && docker-compose down
