@@ -14,7 +14,7 @@ from agenta_backend.routers import (
     variants_router,
     bases_router,
     configs_router,
-    health_router
+    health_router,
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
