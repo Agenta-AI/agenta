@@ -1,5 +1,4 @@
 import agenta as ag
-import openai
 import replicate
 from langchain.chains import LLMChain
 from langchain.chat_models import ChatOpenAI

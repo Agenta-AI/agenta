@@ -28,6 +28,7 @@ def generate(country: str, gender: str) -> str:
     """
     prompt = ag.config.prompt_template.format(country=country, gender=gender)
 
-    chat_completion = client.chat.completions.create(model="gpt-3.5-turbo",
-    messages=[{"role": "user", "content": prompt}])
+    chat_completion = client.chat.completions.create(
+        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
+    )
     return chat_completion.choices[0].message.content
