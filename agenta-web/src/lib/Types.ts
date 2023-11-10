@@ -183,12 +183,20 @@ export interface TemplateImage {
     message?: string
 }
 
+export interface LlmProvidersKeys {
+    OPENAI_API_KEY: string | null
+    REPLICATE_API_KEY: string | null
+    HUGGING_FACE_API_KEY: string | null
+    COHERE_API_KEY: string | null
+    ANTHROPIC_API_KEY: string | null
+    AZURE_API_KEY: string | null
+    TOGETHERAI_API_KEY: string | null
+}
+
 export interface AppTemplate {
     app_name: string
     template_id: string
-    env_vars?: {
-        OPENAI_API_KEY: string | null
-    }
+    env_vars?: LlmProvidersKeys
     organization_id?: string
 }
 

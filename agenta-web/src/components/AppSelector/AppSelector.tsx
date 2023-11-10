@@ -3,12 +3,12 @@ import {useRouter} from "next/router"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject} from "@/lib/Types"
+import {Template, GenericObject, LlmProvidersKeys} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {getLlmProviderKey, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
+import {getAllLlmProviderKeysAsEnvVariable, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getTemplates,
@@ -179,8 +179,8 @@ const AppSelector: React.FC = () => {
 
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
-        const openAIKey = getLlmProviderKey("OpenAI")
-        if (!openAIKey && !isDemo()) {
+        const providerKeys = getAllLlmProviderKeysAsEnvVariable()
+        if (!providerKeys && !isDemo()) {
             notification.error({
                 message: "OpenAI API Key Missing",
                 description: "Please provide your OpenAI API key to access this feature.",
@@ -198,7 +198,9 @@ const AppSelector: React.FC = () => {
             appName: newApp,
             templateId: template_id,
             orgId: selectedOrg?.id!,
-            openAIKey: isDemo() ? "" : (openAIKey as string),
+            env_vars: isDemo()
+                ? getAllLlmProviderKeysAsEnvVariable()
+                : (providerKeys as LlmProvidersKeys),
             timeout,
             onStatusChange: (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
