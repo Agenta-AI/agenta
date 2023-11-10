@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Self
+from typing import Any, Dict, List
 
 from pydantic import BaseModel, Extra
 
@@ -112,9 +112,9 @@ class MessagesInput(list):
 
     Raises:
         ValueError: If `messages` is not specified or empty.
-    """
 
-    def __new__(cls, messages: List[Dict[str, str]] = None) -> Self:
+    """
+    def __new__(cls, messages: List[Dict[str, str]] = None):
         if not messages:
             raise ValueError("Missing required parameter in MessagesInput")
 
