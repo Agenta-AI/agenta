@@ -114,6 +114,7 @@ class MessagesInput(list):
         ValueError: If `messages` is not specified or empty.
 
     """
+
     def __new__(cls, messages: List[Dict[str, str]] = None):
         if not messages:
             raise ValueError("Missing required parameter in MessagesInput")
