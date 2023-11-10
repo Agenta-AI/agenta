@@ -18,6 +18,18 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "TogetherAI", key: ""},
 ]
 
+export const getAllLlmProviderKeysAsEnvVariable = () => {
+    return {
+        OPENAI_API_KEY: getLlmProviderKey("OpenAI"),
+        REPLICATE_API_KEY: getLlmProviderKey("Replicate"),
+        HUGGING_FACE_API_KEY: getLlmProviderKey("Hugging Face"),
+        COHERE_API_KEY: getLlmProviderKey("Cohere"),
+        ANTHROPIC_API_KEY: getLlmProviderKey("Anthropic"),
+        AZURE_API_KEY: getLlmProviderKey("Azure"),
+        TOGETHERAI_API_KEY: getLlmProviderKey("TogetherAI"),
+    }
+}
+
 export const renameVariables = (name: string) => {
     return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
 }
@@ -50,8 +62,8 @@ export const saveLlmProviderKey = (providerIdx: number, keyValue: string) => {
     }
 }
 
-export const getLlmProviderKey = (providerKey: string) =>
-    getAllProviderLlmKeys().find((item: LlmProvider) => item.key === providerKey)
+export const getLlmProviderKey = (providerName: string) =>
+    getAllProviderLlmKeys().find((item: LlmProvider) => item.title === providerName)
 
 export const getAllProviderLlmKeys = () => {
     if (typeof window !== "undefined") {

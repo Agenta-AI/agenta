@@ -14,6 +14,7 @@ import {
     ExecuteCustomEvalCode,
     ListAppsItem,
     AICritiqueCreate,
+    LlmProvidersKeys,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
@@ -607,14 +608,14 @@ export const waitForAppToStart = async (
 
 export const createAndStartTemplate = async ({
     appName,
-    openAIKey,
+    env_vars,
     templateId,
     orgId,
     timeout,
     onStatusChange,
 }: {
     appName: string
-    openAIKey: string
+    env_vars: LlmProvidersKeys
     templateId: string
     orgId: string
     timeout?: number
@@ -632,9 +633,7 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
-                    env_vars: {
-                        OPENAI_API_KEY: openAIKey,
-                    },
+                    env_vars,
                     organization_id: orgId,
                 },
                 true,
