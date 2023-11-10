@@ -109,6 +109,7 @@ def build_image_job(
             buildargs={"ROOT_PATH": f"/{organization_id}/{app_name}/{base_name}"},
             rm=True,
             dockerfile=dockerfile,
+            pull=True,
         )
         for line in build_log:
             logger.info(line)
