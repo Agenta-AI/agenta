@@ -1,0 +1,70 @@
+---
+title: Deploy Mistral-7B from Hugging Face 
+---
+
+1. Create a [Hugging Face Account](https://huggingface.co/)
+
+2. Navigate to the [Mistral-7B-v0.1 model page](https://huggingface.co/mistralai/Mistral-7B-v0.1?text=My+name+is+Thomas+and+my+main)
+
+3. Click on the 'Deploy' option, and then select 'Interface API'
+
+4. Create an Access Token (If you haven't already)
+
+5. Initially, you might start with a simple Python script to interact with the model:
+
+```
+import requests
+
+API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1"
+headers = {"Authorization": "Bearer [Your_Token]"}
+
+def query(payload):
+    response = requests.post(API_URL, headers=headers, json=payload)
+    return response.json()
+
+output = query({"inputs": "Your query here"})
+```
+6. Modify the script and add the Agenta SDK
+
+```
+import agenta as ag
+import requests
+
+API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1"
+headers = {"Authorization": "Bearer [Your_Token]"}
+
+ag.init()
+ag.config.default(
+    prompt_template=ag.TextParam("Summarize the following text: {text}"),
+)
+
+@ag.entrypoint
+def generate(text: str) -> str:
+    prompt = ag.config.prompt_template.format(text=text)
+    payload = {"inputs": prompt}
+    response = requests.post(API_URL, headers=headers, json=payload)
+    return response.json()[0]["generated_text"]
+```
+
+7. Run these commands to deploy the app to agenta
+```
+agenta init
+agenta variant serve app.py
+```
+8. Now, Interact with your app either locally http://localhost or in cloud https://cloud.agenta.ai/apps
+
+<img height="600" src="/images/tutorial-deploy-mistral-model/playground_mistral.png" />
+
+9. You can create a test set and evaluate the model's performance using Agenta's evaluation techniques
+
+<img height="600" src="/images/tutorial-deploy-mistral-model/evaluation_mistral.png" />
+
+10. If you want to deploy the variant, navigate to the playground, Click on 'Publish' and choose the envirenment environment to which you wish to deploy
+
+<img height="600" src="/images/tutorial-deploy-mistral-model/deploy_dev_mistral.png" />
+
+11. Go to 'Endpoints' section, select the environment then use the provided endpoint to send requests to the LLM app
+
+<img height="600" src="/images/tutorial-deploy-mistral-model/endpoint_mistral.png" />
+
+
