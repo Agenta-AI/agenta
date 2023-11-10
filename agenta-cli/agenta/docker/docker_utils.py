@@ -12,6 +12,8 @@ from docker.models.images import Image
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+DEBUG = False
+
 
 def create_dockerfile(out_folder: Path):
     """Creates a dockerfile based on the template in the out_folder.
@@ -47,7 +49,7 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
     if tarfile_path.exists():
         tarfile_path.unlink()
 
-    dockerfile_path = create_dockerfile(folder)
+    create_dockerfile(folder)
     shutil.copytree(Path(__file__).parent.parent, folder / "agenta", dirs_exist_ok=True)
     shutil.copy(Path(__file__).parent / "docker-assets" / "main.py", folder)
     shutil.copy(Path(__file__).parent / "docker-assets" / "lambda_function.py", folder)
@@ -82,6 +84,18 @@ def build_tar_docker_container(folder: Path, file_name: Path) -> Path:
         # Create the tar.gz file
         with tarfile.open(tarfile_path, "w:gz") as tar:
             tar.add(temp_path, arcname=folder.name)
+    if not DEBUG:
+        # Clean up - remove specified files and folders
+        for item in ["agenta", "main.py", "lambda_function.py", "entrypoint.sh"]:
+            path = folder / item
+            if path.exists():
+                if path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
+
+        for dockerfile in folder.glob("Dockerfile*"):
+            dockerfile.unlink()
 
     # dockerfile_path.unlink()
     return tarfile_path
