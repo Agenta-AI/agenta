@@ -25,6 +25,7 @@ def chat(
         }
         for message in inputs
     ]
-    chat_completion = client.chat.completions.create(model="gpt-3.5-turbo",
-                                                     messages=messages)
+    chat_completion = client.chat.completions.create(
+        model="gpt-3.5-turbo", messages=messages
+    )
     return chat_completion.choices[0].message.content
