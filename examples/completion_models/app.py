@@ -1,8 +1,10 @@
-import os
-import openai
-import replicate
-import agenta as ag
 from langchain.prompts import PromptTemplate
+import agenta as ag
+import replicate
+import os
+from openai import OpenAI
+
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 prompts = {
     "chat": {
@@ -52,8 +54,8 @@ ag.config.default(
 def call_llm(model, temperature, prompt, **kwargs):
     if model in CHAT_LLM_GPT:
         prompt = prompts["chat"]["input_prompt"].format(text=kwargs["text"])
-        openai.api_key = os.environ.get("OPENAI_API_KEY")
-        chat_completion = openai.ChatCompletion.create(
+
+        chat_completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,  # Controls the creativity of the generated response
