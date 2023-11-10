@@ -42,10 +42,12 @@ def generate(
 
     function = json.loads(ag.config.function_json)
 
-    response = client.chat.completions.create(model="gpt-3.5-turbo-0613",
-    messages=messages,
-    temperature=ag.config.temperature,
-    functions=[function])
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo-0613",
+        messages=messages,
+        temperature=ag.config.temperature,
+        functions=[function],
+    )
 
     output = str(response["choices"][0]["message"]["function_call"])
     return output
