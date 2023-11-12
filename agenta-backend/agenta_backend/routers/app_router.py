@@ -8,8 +8,6 @@ from fastapi import APIRouter, HTTPException, Request
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
-    docker_utils,
-    container_manager,
     db_manager,
 )
 from agenta_backend.utils.common import (
@@ -26,6 +24,11 @@ from agenta_backend.models.api.api_models import (
     EnvironmentOutput,
 )
 from agenta_backend.models import converters
+
+if os.environ["FEATURE_FLAG"] not in ["ee"]:
+    from agenta_backend.services import (
+        docker_utils
+    )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.selectors import (

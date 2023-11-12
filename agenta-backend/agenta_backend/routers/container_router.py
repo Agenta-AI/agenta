@@ -7,7 +7,6 @@ from agenta_backend.models.api.api_models import (
     Template,
 )
 from agenta_backend.services import db_manager
-from agenta_backend.services.docker_utils import restart_container
 from fastapi import APIRouter, Request, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -18,11 +17,16 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.ee.services import container_manager
+if os.environ["FEATURE_FLAG"] in ["ee"]:
     from agenta_backend.ee.services import container_manager
 else:
     from agenta_backend.services import container_manager
 
+
+if os.environ["FEATURE_FLAG"] in ["oss", "cloud"]:
+    from agenta_backend.services.docker_utils import restart_container
 
 import logging
 
