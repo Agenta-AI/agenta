@@ -22,7 +22,7 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     AddVariantFromImagePayload,
     EnvironmentOutput,
-    Image
+    Image,
 )
 from agenta_backend.models import converters
 
@@ -39,7 +39,7 @@ if os.environ["FEATURE_FLAG"] in ["cloud"]:
     )  # noqa pylint: disable-all
 elif os.environ["FEATURE_FLAG"] in ["ee"]:
     from agenta_backend.ee.services import (
-        deployment_manager
+        deployment_manager,
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services import deployment_manager
