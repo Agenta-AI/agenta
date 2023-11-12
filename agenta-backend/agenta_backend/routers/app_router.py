@@ -26,9 +26,7 @@ from agenta_backend.models.api.api_models import (
 from agenta_backend.models import converters
 
 if os.environ["FEATURE_FLAG"] not in ["ee"]:
-    from agenta_backend.services import (
-        docker_utils
-    )
+    from agenta_backend.services import docker_utils
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     from agenta_backend.ee.services.selectors import (
