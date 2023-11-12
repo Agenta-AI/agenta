@@ -14,6 +14,7 @@ if os.environ["FEATURE_FLAG"] in ["oss", "cloud"]:
 
 from typing import Union
 
+
 async def update_and_sync_templates(cache: bool = True) -> None:
     """
     Updates and synchronizes templates by retrieving templates from DockerHub and S3, adding new templates to the database,
@@ -158,8 +159,6 @@ async def retrieve_templates_from_dockerhub(
 @backoff.on_exception(
     backoff.expo, (ConnectError, TimeoutException, CancelledError), max_tries=5
 )
-
-
 async def get_templates_info_from_s3(url: str) -> Dict[str, Dict[str, Any]]:
     """
     Business logic to retrieve templates information from S3.
