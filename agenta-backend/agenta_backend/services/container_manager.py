@@ -190,6 +190,7 @@ async def get_image_details_from_docker_hub(
         )
         return image_details["Id"]
 
+
 def restart_container(container_id: str):
     """Restart docker container.
 
