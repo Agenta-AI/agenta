@@ -135,11 +135,9 @@ const Playground: React.FC = () => {
             width: 500,
             okText: "Save",
             onOk: async () => {
-                const promises = Object.keys(unsavedVariants).map((name) => {
-                    return unsavedVariants[name]
-                        ? variantHelpers.current[name].save()
-                        : Promise.resolve()
-                })
+                const promises = Object.keys(unsavedVariants).map((name) =>
+                    unsavedVariants[name] ? variantHelpers.current[name].save() : Promise.resolve(),
+                )
                 await Promise.all(promises)
                 return true
             },
