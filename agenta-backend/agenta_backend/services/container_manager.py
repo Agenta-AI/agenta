@@ -19,6 +19,7 @@ from agenta_backend.models.api.api_models import Image
 from agenta_backend.models.db_models import (
     AppDB,
 )
+from agenta_backend.services import docker_utils
 
 client = docker.from_env()
 
@@ -188,3 +189,11 @@ async def get_image_details_from_docker_hub(
             f"{repo_owner}/{repo_name}:{image_name}"
         )
         return image_details["Id"]
+
+def restart_container(container_id: str):
+    """Restart docker container.
+
+    Args:
+        container_id (str): The id of the container to restart.
+    """
+    docker_utils.restart_container(container_id)
