@@ -24,10 +24,6 @@ if os.environ["FEATURE_FLAG"] in ["ee"]:
 else:
     from agenta_backend.services import container_manager
 
-
-if os.environ["FEATURE_FLAG"] in ["oss", "cloud"]:
-    from agenta_backend.services.docker_utils import restart_container
-
 import logging
 
 logger = logging.getLogger(__name__)
@@ -97,7 +93,7 @@ async def restart_docker_container(
         container_id = deployment.container_id
 
         logger.debug(f"Restarting container with id: {container_id}")
-        restart_container(container_id)
+        container_manager.restart_container(container_id)
         return {"message": "Please wait a moment. The container is now restarting."}
     except Exception as ex:
         return JSONResponse({"message": str(ex)}, status_code=500)
