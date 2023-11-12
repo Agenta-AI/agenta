@@ -127,61 +127,6 @@ def build_image_job(
         raise HTTPException(status_code=500, detail=str(ex))
 
 
-@backoff.on_exception(backoff.expo, (ConnectError, CancelledError), max_tries=5)
-async def retrieve_templates_from_dockerhub(
-    url: str, repo_owner: str, repo_name: str
-) -> Union[List[dict], dict]:
-    """
-    Business logic to retrieve templates from DockerHub.
-
-    Args:
-        url (str): The URL endpoint for retrieving templates. Should contain placeholders `{}`
-            for the `repo_owner` and `repo_name` values to be inserted. For example:
-            `https://hub.docker.com/v2/repositories/{}/{}/tags`.
-        repo_owner (str): The owner or organization of the repository from which templates are to be retrieved.
-        repo_name (str): The name of the repository where the templates are located.
-
-    Returns:
-        tuple: A tuple containing two values.
-    """
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{url.format(repo_owner, repo_name)}/tags", timeout=10
-        )
-        if response.status_code == 200:
-            response_data = response.json()
-            return response_data
-
-        response_data = response.json()
-        return response_data
-
-
-@backoff.on_exception(
-    backoff.expo, (ConnectError, TimeoutException, CancelledError), max_tries=5
-)
-async def get_templates_info_from_s3(url: str) -> Dict[str, Dict[str, Any]]:
-    """
-    Business logic to retrieve templates information from S3.
-
-    Args:
-        url (str): The URL endpoint for retrieving templates info.
-
-    Returns:
-        response_data (Dict[str, Dict[str, Any]]): A dictionary \
-            containing dictionaries of templates information.
-    """
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, timeout=10)
-        if response.status_code == 200:
-            response_data = response.json()
-            return response_data
-
-        response_data = response.json()
-        return response_data
-
-
 async def check_docker_arch() -> str:
     """Checks the architecture of the Docker system.
 
