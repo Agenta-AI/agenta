@@ -29,7 +29,7 @@ Cypress.Commands.add("createVariant", () => {
     //         }
     //     })
     // })
-    
+
     cy.get('[data-cy="create-from-template__no-app"]').click()
     cy.get('[data-cy="create-app-button"]').first().click()
     const appName = randString(5)
@@ -107,4 +107,3 @@ Cypress.Commands.add("saveOpenAiKey", () => {
 Cypress.Commands.add("removeOpenAiKey", () => {
     removeOpenAIKey()
 })
-
