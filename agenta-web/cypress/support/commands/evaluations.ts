@@ -8,35 +8,9 @@ const countries = [
     {country: "Sweden", capital: "Stockholm"},
 ]
 
-Cypress.Commands.add("addingOpenaiKey", () => {
-    cy.visit("/settings")
-    cy.get('[data-cy="openai-api-input"]').type(`${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`)
-    cy.get('[data-cy="openai-api-save"]').click()
-})
-
 Cypress.Commands.add("createVariant", () => {
-    cy.addingOpenaiKey()
+    cy.saveOpenAiKey()
     cy.visit("/apps")
-
-    // Check if there are app variants present
-    // cy.request({
-    //     url: `${Cypress.env().baseApiURL}/organizations/`,
-    //     method: "GET",
-    // }).then((res) => {
-    //     cy.log(`Body: ${JSON.stringify(res.body) || "No body"}`)
-    //     cy.request({
-    //         url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0]?.id}`,
-    //         method: "GET",
-    //     }).then((resp) => {
-    //         if (resp.body.length) {
-    //             cy.get('[data-cy="create-new-app-button"]').click()
-    //             cy.get('[data-cy="create-from-template"]').click()
-    //         } else {
-    //             cy.get('[data-cy="create-from-template__no-app"]').click()
-    //         }
-    //     })
-    // })
-
     cy.get('[data-cy="create-from-template__no-app"]').click()
     cy.get('[data-cy="create-app-button"]').first().click()
     const appName = randString(5)
@@ -48,7 +22,6 @@ Cypress.Commands.add("createVariant", () => {
         })
 
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
-    // cy.get('[data-cy="create-app-status-modal"]').should("exist")
 
     cy.url({timeout: 15000}).should("include", "/playground")
     cy.url().then((url) => {
@@ -57,7 +30,7 @@ Cypress.Commands.add("createVariant", () => {
         cy.wrap(app_id).as("app_id")
     })
     cy.contains(/modify parameters/i)
-    // cy.removeOpenAiKey()
+    cy.removeOpenAiKey()
 })
 
 Cypress.Commands.add("createVariantsAndTestsets", () => {
@@ -108,7 +81,7 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
 })
 
 Cypress.Commands.add("saveOpenAiKey", () => {
-    saveOpenAIKey(Cypress.env("OPENAI_API_KEY"))
+    saveOpenAIKey(process.env.NEXT_PUBLIC_OPENAI_API_KEY)
 })
 
 Cypress.Commands.add("removeOpenAiKey", () => {
