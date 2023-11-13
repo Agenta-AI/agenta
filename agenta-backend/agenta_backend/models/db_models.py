@@ -56,7 +56,7 @@ class UserDB(Model):
 class ImageDB(Model):
     """Defines the info needed to get an image and connect it to the app variant"""
 
-    docker_id: str = Field(index=True)
+    docker_id: Optional[str] = Field(index=True)
     tags: str
     deletable: bool = Field(default=True)
     user: UserDB = Reference(key_name="user")
