@@ -40,14 +40,15 @@ Cypress.Commands.add("createVariant", () => {
             cy.get("input").type(appName)
         })
 
-    cy.intercept("POST", "/api/apps/app_and_variant_from_template/").as("postRequest")
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
-    // cy.get('[data-cy="create-app-status-modal"]').should("exist")
-    cy.wait("@postRequest").then((interception) => {
-        app_id = interception.response.body.app_id
-        cy.wrap(interception.response.body.app_id).as("app_id")
-    })
+    cy.get('[data-cy="create-app-status-modal"]').should("exist")
+
     cy.url({timeout: 15000}).should("include", "/playground")
+    cy.url().then((url) => {
+        app_id = url.match(/\/apps\/([a-zA-Z0-9]+)\/playground/)[1]
+
+        cy.wrap(app_id).as("app_id")
+    })
     cy.contains(/modify parameters/i)
     cy.removeOpenAiKey()
 })
