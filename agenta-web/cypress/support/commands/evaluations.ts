@@ -45,7 +45,7 @@ Cypress.Commands.add("createVariant", () => {
     cy.get('[data-cy="enter-app-name-modal"]')
         .should("exist")
         .within(() => {
-            cy.get("input").type(appName)
+            cy.get("input").type("appName")
         })
 
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
