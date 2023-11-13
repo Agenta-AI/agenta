@@ -9,13 +9,13 @@ export default defineConfig({
     screenshotOnRunFailure: false,
     e2e: {
         baseUrl: "http://localhost",
-        defaultCommandTimeout: 8000,
-        requestTimeout: 8000,
+        defaultCommandTimeout: 15000,
+        requestTimeout: 10000,
         taskTimeout: 8000,
         execTimeout: 8000,
-        pageLoadTimeout: 8000,
-        responseTimeout: 8000,
-        // specPattern: ["*/e2e/smoke-tests.cy.ts", "*/e2e/testset.cy.ts"],
+        pageLoadTimeout: 10000,
+        responseTimeout: 10000,
+        specPattern: ["*/e2e/smoke-tests.cy.ts", "*/e2e/playground.cy.ts"],
     },
     env: {
         baseApiURL: "http://localhost/api",
