@@ -37,9 +37,9 @@ jobs:
           cd agenta-web/ && npm install
       
       - name: Run Cypress
-        run: cd agenta-web/ && npm run cypress:run
         env:
           NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
+        run: cd agenta-web/ && npm run cypress:run
       
       - name: Docker logs
         if: always()  #
