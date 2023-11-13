@@ -8,8 +8,14 @@ const countries = [
     {country: "Sweden", capital: "Stockholm"},
 ]
 
+Cypress.Commands.add("addingOpenaiKey", () => {
+    cy.visit("/settings")
+    cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
+    cy.get('[data-cy="openai-api-save"]').click()
+})
+
 Cypress.Commands.add("createVariant", () => {
-    cy.saveOpenAiKey()
+    cy.addingOpenaiKey()
     cy.visit("/apps")
 
     // Check if there are app variants present
@@ -51,7 +57,7 @@ Cypress.Commands.add("createVariant", () => {
         cy.wrap(app_id).as("app_id")
     })
     cy.contains(/modify parameters/i)
-    cy.removeOpenAiKey()
+    // cy.removeOpenAiKey()
 })
 
 Cypress.Commands.add("createVariantsAndTestsets", () => {
