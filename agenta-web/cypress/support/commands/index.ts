@@ -12,6 +12,7 @@ declare global {
             createVariant(): Chainable<void>
             saveOpenAiKey(): Chainable<void>
             removeOpenAiKey(): Chainable<void>
+            addingOpenaiKey(): Chainable<void>
         }
     }
 }
