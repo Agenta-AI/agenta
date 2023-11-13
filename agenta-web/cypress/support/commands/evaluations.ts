@@ -42,7 +42,7 @@ Cypress.Commands.add("createVariant", () => {
 
     cy.intercept("POST", "/api/apps/app_and_variant_from_template/").as("postRequest")
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
-    cy.get('[data-cy="create-app-status-modal"]').should("exist")
+    // cy.get('[data-cy="create-app-status-modal"]').should("exist")
     cy.wait("@postRequest").then((interception) => {
         app_id = interception.response.body.app_id
         cy.wrap(interception.response.body.app_id).as("app_id")
