@@ -60,4 +60,3 @@ describe("App Navigation without errors", () => {
         cy.cleanupVariantAndTestset()
     })
 })
-
