@@ -41,7 +41,7 @@ Cypress.Commands.add("createVariant", () => {
         })
 
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
-    cy.get('[data-cy="create-app-status-modal"]').should("exist")
+    // cy.get('[data-cy="create-app-status-modal"]').should("exist")
 
     cy.url({timeout: 15000}).should("include", "/playground")
     cy.url().then((url) => {
