@@ -19,7 +19,7 @@ export default defineConfig({
     },
     env: {
         baseApiURL: "http://localhost/api",
-        OPENAI_API_KEY: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+        NEXT_PUBLIC_OPENAI_API_KEY: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
         NEXT_PUBLIC_FF: false,
     },
 })
