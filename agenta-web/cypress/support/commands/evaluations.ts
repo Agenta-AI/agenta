@@ -1,6 +1,7 @@
 import {randString, removeOpenAIKey, saveOpenAIKey} from "../../../src/lib/helpers/utils"
 
 let app_id
+const testsetName = randString(5)
 
 const countries = [
     {country: "France", capital: "Paris"},
@@ -65,7 +66,6 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
 
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
-    const testsetName = randString(5)
 
     cy.get('[data-cy="testset-name-input"]').type(testsetName)
     cy.wrap(testsetName).as("testsetName")
