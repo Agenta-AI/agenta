@@ -1,10 +1,10 @@
 describe("Playground Prompt Test", function () {
-    let app_id
+    // let app_id
     before(() => {
         cy.createVariant()
-        cy.get("@app_id").then((appId) => {
-            app_id = appId
-        })
+        // cy.get("@app_id").then((appId) => {
+        //     app_id = appId
+        // })
     })
 
     it("Should test prompt functionality in the Playground", () => {
@@ -18,7 +18,7 @@ describe("Playground Prompt Test", function () {
         cy.get(".ant-message-notice-content").should("not.exist")
     })
 
-    after(() => {
-        cy.cleanupVariantAndTestset()
-    })
+    // after(() => {
+    //     cy.cleanupVariantAndTestset()
+    // })
 })
