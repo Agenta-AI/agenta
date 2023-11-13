@@ -119,6 +119,9 @@ def add_variant(
         image: Image = client.send_docker_tar(
             app_id, base_name, tar_path, host, api_key
         )
+        if tar_path.exists():
+            tar_path.unlink()
+
         # docker_image: DockerImage = build_and_upload_docker_image(
         #     folder=app_path, app_name=app_name, variant_name=variant_name)
     except Exception as ex:
