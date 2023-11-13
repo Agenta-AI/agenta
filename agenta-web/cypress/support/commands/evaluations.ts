@@ -81,7 +81,6 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
 })
 
 Cypress.Commands.add("saveOpenAiKey", () => {
-    cy.wait(3000)
     saveOpenAIKey(Cypress.env("NEXT_PUBLIC_OPENAI_API_KEY"))
 })
 
