@@ -1,9 +1,32 @@
+import {randString} from "../../src/lib/helpers/utils"
 import {isDemo} from "../support/commands/utils"
 
 describe("App Navigation without errors", () => {
     let app_id
     before(() => {
-        cy.createVariant()
+        cy.saveOpenAiKey()
+        cy.visit("/apps")
+
+        cy.get('[data-cy="create-from-template__no-app"]').click()
+        cy.get('[data-cy="create-app-button"]').first().click()
+        const appName = randString(5)
+
+        cy.get('[data-cy="enter-app-name-modal"]')
+            .should("exist")
+            .within(() => {
+                cy.get("input").type(appName)
+            })
+
+        cy.get('[data-cy="enter-app-name-modal-button"]').click()
+
+        cy.url({timeout: 15000}).should("include", "/playground")
+        cy.url().then((url) => {
+            app_id = url.match(/\/apps\/([a-zA-Z0-9]+)\/playground/)[1]
+
+            cy.wrap(app_id).as("app_id")
+        })
+        cy.contains(/modify parameters/i)
+        cy.removeOpenAiKey()
         cy.get("@app_id").then((appId) => {
             app_id = appId
         })
@@ -56,7 +79,7 @@ describe("App Navigation without errors", () => {
         })
     })
 
-    after(() => {
-        cy.cleanupVariantAndTestset()
-    })
+    // after(() => {
+    //     cy.cleanupVariantAndTestset()
+    // })
 })

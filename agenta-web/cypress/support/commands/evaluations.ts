@@ -12,24 +12,6 @@ Cypress.Commands.add("createVariant", () => {
     cy.saveOpenAiKey()
     cy.visit("/apps")
 
-    // Check if there are app variants present
-    // cy.request({
-    //     url: `${Cypress.env().baseApiURL}/organizations/`,
-    //     method: "GET",
-    // }).then((res) => {
-    //     cy.log(`Body: ${JSON.stringify(res.body) || "No body"}`)
-    //     cy.request({
-    //         url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0]?.id}`,
-    //         method: "GET",
-    //     }).then((resp) => {
-    //         if (resp.body.length) {
-    //             cy.get('[data-cy="create-new-app-button"]').click()
-    //             cy.get('[data-cy="create-from-template"]').click()
-    //         } else {
-    //         }
-    //     })
-    // })
-    
     cy.get('[data-cy="create-from-template__no-app"]').click()
     cy.get('[data-cy="create-app-button"]').first().click()
     const appName = randString(5)
@@ -41,7 +23,6 @@ Cypress.Commands.add("createVariant", () => {
         })
 
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
-    // cy.get('[data-cy="create-app-status-modal"]').should("exist")
 
     cy.url({timeout: 15000}).should("include", "/playground")
     cy.url().then((url) => {
