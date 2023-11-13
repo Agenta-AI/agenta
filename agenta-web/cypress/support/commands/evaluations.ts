@@ -1,7 +1,6 @@
 import {randString, removeOpenAIKey, saveOpenAIKey} from "../../../src/lib/helpers/utils"
 
 let app_id
-const testsetName = randString(5)
 
 const countries = [
     {country: "France", capital: "Paris"},
@@ -11,7 +10,7 @@ const countries = [
 
 Cypress.Commands.add("addingOpenaiKey", () => {
     cy.visit("/settings")
-    cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
+    cy.get('[data-cy="openai-api-input"]').type(`${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`)
     cy.get('[data-cy="openai-api-save"]').click()
 })
 
@@ -45,7 +44,7 @@ Cypress.Commands.add("createVariant", () => {
     cy.get('[data-cy="enter-app-name-modal"]')
         .should("exist")
         .within(() => {
-            cy.get("input").type("appName")
+            cy.get("input").type(appName)
         })
 
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
@@ -66,6 +65,7 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
 
     cy.clickLinkAndWait('[data-cy="app-testsets-link"]')
     cy.clickLinkAndWait('[data-cy="testset-new-manual-link"]')
+    const testsetName = randString(5)
 
     cy.get('[data-cy="testset-name-input"]').type(testsetName)
     cy.wrap(testsetName).as("testsetName")
