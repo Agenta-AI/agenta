@@ -32,6 +32,9 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     UserDB,
 )
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.ee.models.db_models import ImageDBEE, TemplateDBEE
+
 from agenta_backend.utils.common import check_user_org_access, engine
 
 from agenta_backend.models.db_models import DeploymentDB
@@ -298,14 +301,17 @@ async def create_new_app_variant(
 
 
 async def create_image(
-    docker_id: str,
-    tags: str,
+    image_type: str,
     user: UserDB,
     deletable: bool,
     organization: OrganizationDB,
+    tags: str = None,
+    docker_id: str = None,
+    template_uri: str  = None
 ) -> ImageDB:
     """Create a new image.
     Args:
+        image_type (str): The type of the image.
         docker_id (str): The ID of the image.
         tags (str): The tags of the image.
         user (UserDB): The user that the image belongs to.
@@ -314,16 +320,25 @@ async def create_image(
     Returns:
         ImageDB: The created image.
     """
+    
+    if image_type not in ["image", "zip"]:
+        raise Exception("Invalid Image type")
+    
+    if template_uri == None and docker_id == None:
+        raise Exception("Please provide either template_uri or docker_id")
 
     image = ImageDB(
-        docker_id=docker_id,
+        type=image_type,
+        templ=docker_id,
         tags=tags,
         deletable=deletable,
         user=user,
         organization=organization,
     )
     await engine.save(image)
-    return image
+    # return image
+    
+    if os.environ["FEATURE_FLAG"] in ["cloud"]:
 
 
 async def create_deployment(
