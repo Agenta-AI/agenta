@@ -103,7 +103,7 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
 
 Cypress.Commands.add("addingOpenaiKey", () => {
     cy.visit("/settings")
-    cy.get('[data-cy="openai-api-input"]').type(process.env.NEXT_PUBLIC_OPENAI_API_KEY)
+    cy.get('[data-cy="openai-api-input"]').type("key")
     cy.get('[data-cy="openai-api-save"]').click()
 })
 
