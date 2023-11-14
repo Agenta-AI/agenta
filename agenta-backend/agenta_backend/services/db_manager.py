@@ -301,17 +301,14 @@ async def create_new_app_variant(
 
 
 async def create_image(
-    image_type: str,
+    docker_id: str,
+    tags: str,
     user: UserDB,
     deletable: bool,
     organization: OrganizationDB,
-    tags: str = None,
-    docker_id: str = None,
-    template_uri: str  = None
 ) -> ImageDB:
     """Create a new image.
     Args:
-        image_type (str): The type of the image.
         docker_id (str): The ID of the image.
         tags (str): The tags of the image.
         user (UserDB): The user that the image belongs to.
@@ -320,26 +317,16 @@ async def create_image(
     Returns:
         ImageDB: The created image.
     """
-    
-    if image_type not in ["image", "zip"]:
-        raise Exception("Invalid Image type")
-    
-    if template_uri == None and docker_id == None:
-        raise Exception("Please provide either template_uri or docker_id")
 
     image = ImageDB(
-        type=image_type,
-        templ=docker_id,
+        docker_id=docker_id,
         tags=tags,
         deletable=deletable,
         user=user,
         organization=organization,
     )
     await engine.save(image)
-    # return image
-    
-    if os.environ["FEATURE_FLAG"] in ["cloud"]:
-
+    return image
 
 async def create_deployment(
     app: AppVariantDB,

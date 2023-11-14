@@ -19,6 +19,7 @@ from agenta_backend.services import db_manager
 if os.environ["FEATURE_FLAG"] in ["cloud"]:
     from agenta_backend.ee.services import (
         lambda_deployment_manager as deployment_manager,
+        db_manager_ee
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services import deployment_manager
@@ -123,6 +124,7 @@ async def update_variant_image(
     await db_manager.remove_image(app_variant_db.base.image)
     # Create a new image instance
     db_image = await db_manager.create_image(
+        image_type="image",
         tags=image.tags,
         docker_id=image.docker_id,
         user=app_variant_db.user,
@@ -330,8 +332,8 @@ async def update_variant_parameters(
 async def add_variant_based_on_image(
     app: AppDB,
     variant_name: str,
-    docker_id: str,
-    tags: str,
+    docker_id_or_template_url: str,
+    tags: str = None,
     base_name: str = None,
     config_name: str = "default",
     is_template_image: bool = False,
@@ -364,7 +366,7 @@ async def add_variant_based_on_image(
     if (
         app in [None, ""]
         or variant_name in [None, ""]
-        or docker_id in [None, ""]
+        or docker_id_or_template_url in [None, ""]
         or tags in [None, ""]
     ):
         raise ValueError("App variant or image is None")
@@ -382,31 +384,32 @@ async def add_variant_based_on_image(
     # Retrieve user and image objects
     logger.debug("Step 3: Retrieving user and image objects")
     user_instance = await db_manager.get_user(user_uid=user_org_data["uid"])
-    # db_image = await db_manager.get_orga_image_instance(
-    #     organization_id=str(app.organization.id), docker_id=docker_id
-    # )
+    db_image = await db_manager.get_orga_image_instance(
+        organization_id=str(app.organization.id), docker_id=docker_id
+    )
 
-    # # Create new image if not exists
-    # if db_image is None:
+    # Create new image if not exists
+    if db_image is None:
     
-    logger.debug("Step 4: Creating new image")
-    if os.environ["FEATURE_FLAG"] in ["cloud"]:
-        db_image = await db_manager.create_image(
-            image_type="zip",
-            template_uri="https://cloud-lambda-buckets.s3.eu-central-1.amazonaws.com/agenta.zip",
-            deletable=not (is_template_image),
-            user=user_instance,
-            organization=app.organization,
-        )
-    else:
-        db_image = await db_manager.create_image(
-            image_type="image",
-            docker_id=docker_id,
-            tags=tags,
-            deletable=not (is_template_image),
-            user=user_instance,
-            organization=app.organization,
-        )
+        logger.debug("Step 4: Creating new image")
+        if os.environ["FEATURE_FLAG"] in ["cloud"]:
+            db_image = await db_manager_ee.create_image(
+                image_type="zip",
+                template_uri=docker_id_or_template_url,
+                deletable=not (is_template_image),
+                user=user_instance,
+                organization=app.organization,
+            )
+        else:
+            docker_id = docker_id_or_template_url
+            db_image = await db_manager.create_image(
+                image_type="image",
+                docker_id=docker_id,
+                tags=tags,
+                deletable=not (is_template_image),
+                user=user_instance,
+                organization=app.organization,
+            )
 
     # Create config
     logger.debug("Step 5: Creating config")
