@@ -34,6 +34,7 @@ Create a new directory for Agenta, then download the docker-compose file and sta
 ```bash
 mkdir agenta && cd agenta
 curl -L https://raw.githubusercontent.com/Agenta-AI/agenta/main/docker-compose.gh.yml -o docker-compose.yml
+docker-compose -f docker-compose.yml pull
 docker compose -f docker-compose.yml up -d
 ```
 
