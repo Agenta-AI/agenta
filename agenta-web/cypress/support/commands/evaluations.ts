@@ -30,8 +30,6 @@ Cypress.Commands.add("createVariant", () => {
             }
         })
     })
-    // cy.get('[data-cy="create-from-template__no-app"]').click()
-    // cy.get('[data-cy="app-selector-container"]')
 
     cy.get('[data-cy="create-app-button"]').first().click()
     const appName = randString(5)
