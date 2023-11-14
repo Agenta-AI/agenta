@@ -43,7 +43,7 @@ describe("AI Critics Evaluation workflow", () => {
 
     context("When you select evaluation with an API key", () => {
         beforeEach(() => {
-            cy.saveOpenAiKey()
+            cy.addingOpenaiKey()
 
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.get('[data-cy="ai-critic-button"]').click()
