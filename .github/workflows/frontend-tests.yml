@@ -38,6 +38,7 @@ jobs:
       
       - name: Run Cypress
         env:
+          ENV_TYPE: oss 
           NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
         run: cd agenta-web/ && npm run cypress:run
 
