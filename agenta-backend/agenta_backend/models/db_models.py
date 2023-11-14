@@ -56,6 +56,8 @@ class UserDB(Model):
 class ImageDB(Model):
     """Defines the info needed to get an image and connect it to the app variant"""
 
+    type: Optional[str] = Field(default="image")
+    template_uri: Optional[str]
     docker_id: Optional[str] = Field(index=True)
     tags: Optional[str]
     deletable: bool = Field(default=True)
@@ -163,6 +165,8 @@ class AppEnvironmentDB(Model):
 
 
 class TemplateDB(Model):
+    type: Optional[str] = Field(default="image")
+    template_uri: Optional[str]
     tag_id: Optional[int]
     name: str  # tag name of image
     repo_name: Optional[str]
