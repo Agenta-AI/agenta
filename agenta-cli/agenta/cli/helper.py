@@ -85,7 +85,7 @@ def get_api_key() -> str:
             sys.exit(0)
 
     api_key = questionary.text(
-        "(You can get your API Key here: https://demo.agenta.ai/settings?tab=apiKeys) "
+        "(You can get your API Key here: https://cloud.agenta.ai/settings?tab=apiKeys) "
         "Please provide your API key:"
     ).ask()
 
@@ -124,7 +124,6 @@ def update_variants_from_backend(
     Returns:
         a new config object later to be saved using toml.dump(config, config_file.open('w'))
     """
-
     try:
         variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
     except Exception as ex:

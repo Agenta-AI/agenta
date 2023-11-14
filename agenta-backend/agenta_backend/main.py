@@ -14,6 +14,7 @@ from agenta_backend.routers import (
     variants_router,
     bases_router,
     configs_router,
+    health_router,
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
@@ -66,6 +67,7 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
 
     app, allow_headers = ee.extend_main(app)
 
+app.include_router(health_router.router, prefix="/health")
 app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps")
 app.include_router(variants_router.router, prefix="/variants")
