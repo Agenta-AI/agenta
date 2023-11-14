@@ -1,0 +1,45 @@
+---
+title: Self-hosting  Locally
+description: 'How to set up Agenta on your local computer'
+---
+
+## Prerequisites
+
+You'll need Docker installed on your machine. If you don't have it yet, download and install it from [here](https://docs.docker.com/get-docker/).
+
+<Warning> Before you start, make sure that the port 80 is not being used by other applications. To free up resources, you can run docker system prune. </Warning>
+
+## Starting Agenta in Production Mode 
+
+```bash
+mkdir agenta && cd agenta
+curl -L https://raw.githubusercontent.com/Agenta-AI/agenta/main/docker-compose.gh.yml -o docker-compose.yml && docker-compose -f docker-compose.yml up -d
+````
+
+
+## Starting agenta in Development Mode
+
+### 1. Clone the Repository and Navigate to the Folder
+
+```bash
+git clone https://github.com/Agenta-AI/agenta.git
+cd agenta
+```
+
+### 2. Launch the Agenta Server
+
+```bash
+docker compose -f "docker-compose.yml" up -d --build
+```
+
+
+## Verify the Installation
+
+Open your browser and go to [http://localhost](http://localhost). If you see the Agenta web interface, you're good to go.
+
+## What's next?
+You're all set to start using Agenta!
+
+<Card title="Well Done!" icon="check" iconType="duotone" color="#29B772" href="/usage/first-steps">
+Click here to build your first LLM app in just 1 minute.
+</Card>

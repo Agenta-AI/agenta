@@ -9,6 +9,8 @@ services:
             - ENVIRONMENT=development
             - DATABASE_MODE=test
             - FEATURE_FLAG=oss
+            - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
+            - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
@@ -52,7 +54,7 @@ services:
             MONGO_INITDB_ROOT_USERNAME: username
             MONGO_INITDB_ROOT_PASSWORD: password
         ports:
-        - "27017:27017"
+            - "27017:27017"
         healthcheck:
             test: [ "CMD", "mongo", "--eval", "db.adminCommand('ping')" ]
             interval: 10s

@@ -1,0 +1,96 @@
+---
+title: Self hosting on AWS
+description: 'Installing Agenta on AWS'
+---
+
+## AWS
+We provide a Terraform module to deploy Agenta on AWS. You can find it [here](https://github.com/Agenta-AI/agenta/tree/main/self-host/aws).
+The terraform module will simply create a t2.medium instance, a security group (with the open ports: 80, 8080), an elastic IP and an ebs volume all of them in eu-central-1.
+You can customize the module according to your needs.
+
+1. **Install Terraform**: First, install [Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli).
+2. **Configure AWS Credentials**: Follow the instructions [here](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) to set up your AWS credentials.
+3. **Initialize and Apply Terraform**: Navigate to the correct directory and run:
+   ```bash
+   cd self-host/aws
+   terraform init
+   terraform apply
+   ```
+
+Terraform will prompt you for a specific domain. You can specify a domain or leave it blank.
+
+Once Terraform finishes creating the resources, it will display the domain name or IP where Agenta can be accessed. Here's a sample output:
+```
+Open the link below in your browser to access Agenta, but wait a few minutes for the services to start.
+
+Important: If you provided a domain name, ensure that it points to this IP address: x.x.x.x
+
+Link: http://cloud.agenta.ai
+```
+
+Ensure that the domain name points to the IP address given by Terraform if you provided one.
+
+Please note, Agenta might take a few minutes to become accessible as it installs dependencies and initializes. Refer to this script for more details: [instance-setup.sh](https://github.com/Agenta-AI/agenta/blob/main/self-host/aws/instance-setup.sh)
+
+<Warning>There is no security mechanism in place yet. Exercise caution.</Warning>
+
+#### Serving a Variant to an Instance
+After hosting Agenta on an instance, you can serve a variant by running:
+
+```bash
+agenta init
+? Please enter the app name job_classifier
+? Where are you running agenta? On a remote machine
+? Please provide the IP or URL of your remote host cloud.agenta.ai
+? How do you want to initialize your app? Blank App
+App initialized successfully
+```
+<Warning>Provide the remote host without the protocol (http://)</Warning>
+
+#### SSH into the instance:
+In order to ssh into the instance you need to:
+
+1. Uncomment these lines in the [security group](https://github.com/Agenta-AI/agenta/blob/main/self-host/aws/agenta_instance_sg.tf)
+```bash
+ingress {
+  description = "SSH"
+  from_port   = 22
+  to_port     = 22
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]
+}
+```
+
+and also these line in the [instance](https://github.com/Agenta-AI/agenta/blob/main/self-host/aws/agenta_instance.tf) file:
+
+```bash
+resource "aws_key_pair" "agenta_key" {
+  key_name   = "agenta-key"
+  public_key = file("~/.ssh/id_rsa_agenta.pub")
+}
+
+
+key_name      = aws_key_pair.agenta_key.key_name
+```
+
+2. Create a key pair in the AWS console or via:
+   ```bash
+   ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa_agenta
+   ```
+
+3. Rerun 
+   ```bash
+   terraform apply.
+   ```
+
+4. Connect using:
+   ```bash
+   ssh -i ~/.ssh/id_rsa_agenta ubuntu@ec2-host-provided-by-aws
+   ```
+
+#### Removing All Resources:
+To delete all the resources created by Terraform, simply run:
+```bash
+cd self-host/aws
+terraform destroy
+```

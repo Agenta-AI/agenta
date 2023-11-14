@@ -21,17 +21,17 @@
     "suggestEdit": true,
     "raiseIssue": true
   },
-  "topbarLinks": [
-    {
-      "name": "Documentation",
-      "url": "https://docs.agenta.ai"
-    }
-  ],
+  "topbarLinks": [],
   "topbarCtaButton": {
-    "name": "Try the demo",
-    "url": "https://demo.agenta.ai"
+    "name": "Start for Free",
+    "url": "https://cloud.agenta.ai"
   },
   "anchors": [
+    {
+      "name": "Start for Free",
+      "icon": "rocket",
+      "url": "https://cloud.agenta.ai"
+    },
     {
       "name": "Join our Slack",
       "icon": "slack",
@@ -43,12 +43,7 @@
       "url": "https://github.com/agenta-ai/agenta"
     },
     {
-      "name": "Try the demo",
-      "icon": "play",
-      "url": "https://demo.agenta.ai"
-    },
-    {
-      "name": "Book a 1:1 with the Founders",
+      "name": "Book a Free Consulation",
       "icon": "phone",
       "url": "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
     }
@@ -59,15 +54,7 @@
       "pages": [
         "quickstart/introduction",
         "quickstart/getting-started-ui",
-        "quickstart/getting-started-code",
-        {
-          "group": "Installation",
-          "pages": [
-            "installation/local-installation/local-installation",
-            "installation/self-hosting/self-hosted-installation-aws",
-            "installation/self-hosting/self-hosted-installation-gcp"
-          ]
-        }
+        "quickstart/getting-started-code"
       ]
     },
     {
@@ -86,8 +73,17 @@
     {
       "group": "Conceptual Guides",
       "pages": [
+        "conceptual/evaluating_llm_apps",
         "conceptual/concepts",
         "conceptual/architecture"
+      ]
+    },
+    {
+      "group": "Self-host agenta",
+      "pages": [
+        "self-host/host-locally",
+        "self-host/host-on-aws",
+        "self-host/host-on-gcp"
       ]
     },
     {
@@ -105,35 +101,20 @@
         {
           "group": "Backend API",
           "pages": [
-            {
-              "group": "depracated",
-              "pages": [
-                "backend_api/depracated/list-app-variants",
-                "backend_api/depracated/get-variant-by-name",
-                "backend_api/depracated/get-variant-by-env",
-                "backend_api/depracated/list-apps",
-                "backend_api/depracated/list-images",
-                "backend_api/depracated/remove-variant",
-                "backend_api/depracated/remove-app",
-                "backend_api/depracated/update-variant-parameters",
-                "backend_api/depracated/update-variant-image"
-              ]
-            },
-            "backend_api/default/list-app-variants",
-            "backend_api/default/get-variant-by-name",
-            "backend_api/default/get-variant-by-env",
-            "backend_api/default/list-apps",
-            "backend_api/default/list-images",
-            "backend_api/default/remove-variant",
-            "backend_api/default/remove-app",
-            "backend_api/default/update-variant-image",
+            "backend_api/user-profile",
+            "backend_api/list-app-variants",
+            "backend_api/get-variant-by-env",
+            "backend_api/list-apps",
+            "backend_api/create-app",
             "backend_api/add-variant-from-image",
-            "backend_api/add-variant-from-previous",
+            "backend_api/remove-app",
+            "backend_api/create-app-and-variant-from-template",
+            "backend_api/list-environments",
+            "backend_api/add-variant-from-base-and-config",
             "backend_api/start-variant",
-            "backend_api/stop-variant",
-            "backend_api/fetch-variant-config",
-            "backend_api/save-variant-config",
-            "backend_api/add-app-variant-from-template",
+            "backend_api/remove-variant",
+            "backend_api/update-variant-parameters",
+            "backend_api/update-variant-image",
             "backend_api/fetch-list-evaluations",
             "backend_api/create-evaluation",
             "backend_api/delete-evaluations",
@@ -142,10 +123,12 @@
             "backend_api/fetch-evaluation-scenarios",
             "backend_api/create-evaluation-scenario",
             "backend_api/update-evaluation-scenario-router",
+            "backend_api/evaluate-ai-critique",
             "backend_api/get-evaluation-scenario-score-router",
             "backend_api/update-evaluation-scenario-score-router",
             "backend_api/fetch-results",
             "backend_api/create-custom-evaluation",
+            "backend_api/update-custom-evaluation",
             "backend_api/list-custom-evaluations",
             "backend_api/get-custom-evaluation",
             "backend_api/get-custom-evaluation-names",
@@ -157,19 +140,32 @@
             {
               "group": "testsets",
               "pages": [
-                "backend_api/testsets/get-testset"
+                "backend_api/testsets/get-testset",
+                "backend_api/testsets/get-testsets"
               ]
             },
             "backend_api/update-testset",
-            "backend_api/get-testsets",
             "backend_api/delete-testsets",
             "backend_api/build-image",
             "backend_api/restart-docker-container",
             "backend_api/container-templates",
-            "backend_api/pull-image",
             "backend_api/construct-app-container-url",
-            "backend_api/list-environments",
-            "backend_api/deploy-to-environment"
+            "backend_api/deploy-to-environment",
+            "backend_api/create-trace",
+            "backend_api/get-traces",
+            "backend_api/get-trace",
+            "backend_api/update-trace-status",
+            "backend_api/create-span",
+            "backend_api/get-spans-of-trace",
+            "backend_api/get-feedbacks",
+            "backend_api/create-feedback",
+            "backend_api/get-feedback",
+            "backend_api/update-feedback",
+            "backend_api/list-organizations",
+            "backend_api/get-user-organization",
+            "backend_api/list-bases",
+            "backend_api/get-config",
+            "backend_api/save-config"
           ]
         }
       ]

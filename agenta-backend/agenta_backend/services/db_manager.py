@@ -34,10 +34,7 @@ from agenta_backend.models.db_models import (
 )
 from agenta_backend.utils.common import check_user_org_access, engine
 
-if os.environ["FEATURE_FLAG"] in ["cloud"]:
-    from agenta_backend.ee.models.db_models import DeploymentDB
-else:
-    from agenta_backend.models.db_models import DeploymentDB
+from agenta_backend.models.db_models import DeploymentDB
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
@@ -523,30 +520,18 @@ async def list_variants_for_base(
     return app_variants_db
 
 
-async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
-    """Get the user object from the database. If both inputs are none, we create a new user.
+async def get_user(user_uid: str) -> UserDB:
+    """Get the user object from the database.
 
     Arguments:
-        user_uid (str): The user unique identifier (can be the user uid or email address)
-        user_id (ObjectId): The user ObjectId (user id)
+        user_id (str): The user unique identifier
 
     Returns:
         UserDB: instance of user
     """
 
-    if user_uid and user_id:
-        raise Exception(
-            "Please provide either user_uid or user_id, not both or neither"
-        )
-
-    if user_uid:
-        user = await engine.find_one(
-            UserDB,
-            UserDB.uid == user_uid if "@" not in user_uid else UserDB.email == user_uid,
-        )
-    elif user_id:
-        user = await engine.find_one(UserDB, UserDB.id == user_id)
-    elif user_id is None and user_uid is None:  # create a new user in case of oss
+    user = await engine.find_one(UserDB, UserDB.uid == user_uid)
+    if user is None:
         if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
             create_user = UserDB(uid="0")
             await engine.save(create_user)
@@ -558,13 +543,60 @@ async def get_user(user_uid: str = None, user_id: ObjectId = None) -> UserDB:
             await engine.save(create_user)
             await engine.save(org)
 
-            user = create_user
+            return create_user
+        else:
+            raise Exception("Please login or signup")
     else:
-        raise Exception(
-            f"The provided user {user_uid}/{user_id} does not exist in the database"
-        )
+        return user
 
-    return user
+
+async def get_user_with_id(user_id: ObjectId):
+    """
+    Retrieves a user from a database based on their ID.
+
+    Args:
+        user_id (ObjectId): The ID of the user to retrieve from the database.
+
+    Returns:
+        user: The user object retrieved from the database.
+
+    Raises:
+        Exception: If an error occurs while getting the user from the database.
+    """
+    try:
+        user = await engine.find_one(UserDB, UserDB.id == user_id)
+        return user
+    except Exception as e:
+        logger.error(f"Failed to get user with id: {e}")
+        raise Exception(f"Error while getting user: {e}")
+
+
+async def get_user_with_email(email: str):
+    """
+    Retrieves a user from the database based on their email address.
+
+    Args:
+        email (str): The email address of the user to retrieve.
+
+    Returns:
+        UserDB: The user object retrieved from the database.
+
+    Raises:
+        Exception: If a valid email address is not provided.
+        Exception: If an error occurs while retrieving the user.
+
+    Example Usage:
+        user = await get_user_with_email('example@example.com')
+    """
+    if "@" not in email:
+        raise Exception("Please provide a valid email address")
+
+    try:
+        user = await engine.find_one(UserDB, UserDB.email == email)
+        return user
+    except Exception as e:
+        logger.error(f"Failed to get user with email address: {e}")
+        raise Exception(f"Error while getting user: {e}")
 
 
 async def get_users_by_ids(user_ids: List) -> List:
@@ -581,19 +613,6 @@ async def get_users_by_ids(user_ids: List) -> List:
     users_db: List[UserDB] = await engine.find(UserDB, UserDB.id.in_(user_ids))
 
     return users_db
-
-
-async def save_object_to_db(object_to_save: Any) -> Any:
-    """Save an object to the database.
-
-    Arguments:
-        object_to_save (Any): The object to save
-
-    Returns:
-        Any: instance of saved object
-    """
-    await engine.save(object_to_save)
-    return object_to_save
 
 
 async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
