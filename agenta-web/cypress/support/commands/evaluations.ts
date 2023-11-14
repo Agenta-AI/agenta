@@ -1,4 +1,4 @@
-import {randString, removeOpenAIKey, saveOpenAIKey} from "../../../src/lib/helpers/utils"
+import {randString, removeOpenAIKey} from "../../../src/lib/helpers/utils"
 
 let app_id
 
