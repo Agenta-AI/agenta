@@ -1,0 +1,40 @@
+---
+title: Self-hosting  remotely
+description: 'How to set up Agenta on a remote computer'
+---
+
+This guide will walk you through the process of hosting Agenta on a remote server, such as an AWS EC2 instance, without utilizing Terraform.
+
+## Prerequisites
+
+Before starting, ensure you have Docker and Docker Compose installed on the remote server.
+
+1. Obtain the IP or Domain Name of the Remote Server
+
+First, identify the public IP or domain name of the remote server. When working with AWS, you can obtain the public IP of your EC2 instance by running the following command:
+```bash
+curl http://169.254.169.254/latest/meta-data/public-ipv4
+```
+
+For illustration purposes, let's assume the IP address of our remote server is 111.111.111.111.
+
+2. Set Environment Variables
+
+Set the following environment variables with the appropriate values:
+```bash
+export DOMAIN_NAME="http://111.111.111.111"
+export BARE_DOMAIN_NAME="111.111.111.111"
+````
+
+Note: We are using http instead of https!
+
+3. Launch the Agenta Server
+
+Create a new directory for Agenta, then download the docker-compose file and start the server using Docker Compose:
+```bash
+mkdir agenta && cd agenta
+curl -L https://raw.githubusercontent.com/Agenta-AI/agenta/main/docker-compose.gh.yml -o docker-compose.yml
+docker compose -f docker-compose.yml up -d
+```
+
+Your Agenta server should now be running on the remote server. To check please open the URL in your browser (in our case `http://111.111.111.111`).
