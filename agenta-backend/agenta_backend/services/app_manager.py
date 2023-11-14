@@ -19,7 +19,6 @@ from agenta_backend.services import db_manager
 if os.environ["FEATURE_FLAG"] in ["cloud"]:
     from agenta_backend.ee.services import (
         lambda_deployment_manager as deployment_manager,
-        db_manager_ee
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services import deployment_manager
@@ -367,9 +366,14 @@ async def add_variant_based_on_image(
         app in [None, ""]
         or variant_name in [None, ""]
         or docker_id_or_template_url in [None, ""]
-        or tags in [None, ""]
     ):
         raise ValueError("App variant or image is None")
+    
+    if os.environ["FEATURE_FLAG"] not in ["cloud"]:
+        if tags in [None, ""]:
+            raise ValueError("OSS: Tags is None")
+        
+    db_image = None
 
     # Check if app variant already exists
     logger.debug("Step 2: Checking if app variant already exists")
@@ -384,16 +388,16 @@ async def add_variant_based_on_image(
     # Retrieve user and image objects
     logger.debug("Step 3: Retrieving user and image objects")
     user_instance = await db_manager.get_user(user_uid=user_org_data["uid"])
-    db_image = await db_manager.get_orga_image_instance(
-        organization_id=str(app.organization.id), docker_id=docker_id
-    )
+    if os.environ["FEATURE_FLAG"] not in ["cloud"]:
+        db_image = await db_manager.get_orga_image_instance(
+            organization_id=str(app.organization.id), docker_id=docker_id_or_template_url
+        )
 
     # Create new image if not exists
     if db_image is None:
-    
         logger.debug("Step 4: Creating new image")
         if os.environ["FEATURE_FLAG"] in ["cloud"]:
-            db_image = await db_manager_ee.create_image(
+            db_image = await db_manager.create_image(
                 image_type="zip",
                 template_uri=docker_id_or_template_url,
                 deletable=not (is_template_image),

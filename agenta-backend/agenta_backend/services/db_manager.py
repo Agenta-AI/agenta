@@ -32,8 +32,6 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     UserDB,
 )
-if os.environ["FEATURE_FLAG"] in ["cloud"]:
-    from agenta_backend.ee.models.db_models import ImageDBEE, TemplateDBEE
 
 from agenta_backend.utils.common import check_user_org_access, engine
 
