@@ -11,15 +11,15 @@ from fastapi import APIRouter, Request, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.selectors import (
+    from agenta_backend.cloud.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 if os.environ["FEATURE_FLAG"] in ["cloud"]:
-    from agenta_backend.ee.services import container_manager
-if os.environ["FEATURE_FLAG"] in ["ee"]:
+    from agenta_backend.cloud.services import container_manager
+elif os.environ["FEATURE_FLAG"] in ["ee"]:
     from agenta_backend.ee.services import container_manager
 else:
     from agenta_backend.services import container_manager
