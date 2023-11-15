@@ -332,7 +332,7 @@ async def update_variant_parameters(
 async def add_variant_based_on_image(
     app: AppDB,
     variant_name: str,
-    docker_id_or_template_url: str,
+    docker_id_or_template_uri: str,
     tags: str = None,
     base_name: str = None,
     config_name: str = "default",
@@ -366,7 +366,7 @@ async def add_variant_based_on_image(
     if (
         app in [None, ""]
         or variant_name in [None, ""]
-        or docker_id_or_template_url in [None, ""]
+        or docker_id_or_template_uri in [None, ""]
     ):
         raise ValueError("App variant or image is None")
 
@@ -375,8 +375,8 @@ async def add_variant_based_on_image(
             raise ValueError("OSS: Tags is None")
 
     db_image = None
-    # Check if docker_id_or_template_url is a URL or not
-    parsed_url = urlparse(docker_id_or_template_url)
+    # Check if docker_id_or_template_uri is a URL or not
+    parsed_url = urlparse(docker_id_or_template_uri)
 
     # Check if app variant already exists
     logger.debug("Step 2: Checking if app variant already exists")
@@ -392,14 +392,14 @@ async def add_variant_based_on_image(
     logger.debug("Step 3: Retrieving user and image objects")
     user_instance = await db_manager.get_user(user_uid=user_org_data["uid"])
     if parsed_url.scheme and parsed_url.netloc:
-        db_image = await db_manager.get_orga_image_instance_by_url(
+        db_image = await db_manager.get_orga_image_instance_by_uri(
             organization_id=str(app.organization.id),
-            template_url=docker_id_or_template_url,
+            template_uri=docker_id_or_template_uri,
         )
     else:
         db_image = await db_manager.get_orga_image_instance_by_docker_id(
             organization_id=str(app.organization.id),
-            docker_id=docker_id_or_template_url,
+            docker_id=docker_id_or_template_uri,
         )
 
     # Create new image if not exists
@@ -408,13 +408,13 @@ async def add_variant_based_on_image(
         if parsed_url.scheme and parsed_url.netloc:
             db_image = await db_manager.create_image(
                 image_type="zip",
-                template_uri=docker_id_or_template_url,
+                template_uri=docker_id_or_template_uri,
                 deletable=not (is_template_image),
                 user=user_instance,
                 organization=app.organization,
             )
         else:
-            docker_id = docker_id_or_template_url
+            docker_id = docker_id_or_template_uri
             db_image = await db_manager.create_image(
                 image_type="image",
                 docker_id=docker_id,
