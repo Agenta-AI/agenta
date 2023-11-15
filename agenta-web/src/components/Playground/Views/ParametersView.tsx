@@ -136,7 +136,10 @@ const ParametersView: React.FC<Props> = ({
                         <Col span={12} className={classes.col}>
                             <Space>
                                 {isVariantExisting && (
-                                    <Button onClick={() => setPublishModalOpen(true)}>
+                                    <Button
+                                        onClick={() => setPublishModalOpen(true)}
+                                        data-cy="playground-publish-button"
+                                    >
                                         <Tooltip
                                             placement="bottom"
                                             title="Publish the variant to different environments"
@@ -149,6 +152,7 @@ const ParametersView: React.FC<Props> = ({
                                     type="primary"
                                     onClick={onSave}
                                     loading={isParamSaveLoading}
+                                    data-cy="playground-save-changes-button"
                                 >
                                     <Tooltip
                                         placement="bottom"
@@ -157,7 +161,12 @@ const ParametersView: React.FC<Props> = ({
                                         Save changes
                                     </Tooltip>
                                 </Button>
-                                <Button type="primary" danger onClick={handleDelete}>
+                                <Button
+                                    type="primary"
+                                    danger
+                                    onClick={handleDelete}
+                                    data-cy="playground-delete-variant-button"
+                                >
                                     <Tooltip
                                         placement="bottom"
                                         title="Delete the variant permanently"

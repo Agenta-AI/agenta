@@ -45,6 +45,6 @@ jobs:
         id: build-web-image
         run: |
           cd agenta-web
-          docker build --no-cache -t ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.WEB_IMAGE_NAME }} -f prod.Dockerfile .
+          docker build --no-cache -t ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.WEB_IMAGE_NAME }} -f prod.gh.Dockerfile .
           docker push ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.WEB_IMAGE_NAME }}
 
