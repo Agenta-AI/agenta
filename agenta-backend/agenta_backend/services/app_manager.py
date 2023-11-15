@@ -1,7 +1,8 @@
 """Main Business logic
 """
-import logging
 import os
+import logging
+from urllib.parse import urlparse
 from typing import List, Any, Dict
 
 from agenta_backend.models.api.api_models import (
@@ -374,6 +375,8 @@ async def add_variant_based_on_image(
             raise ValueError("OSS: Tags is None")
 
     db_image = None
+    # Check if docker_id_or_template_url is a URL or not
+    parsed_url = urlparse(docker_id_or_template_url)
 
     # Check if app variant already exists
     logger.debug("Step 2: Checking if app variant already exists")
@@ -388,8 +391,13 @@ async def add_variant_based_on_image(
     # Retrieve user and image objects
     logger.debug("Step 3: Retrieving user and image objects")
     user_instance = await db_manager.get_user(user_uid=user_org_data["uid"])
-    if os.environ["FEATURE_FLAG"] not in ["cloud"]:
-        db_image = await db_manager.get_orga_image_instance(
+    if parsed_url.scheme and parsed_url.netloc:
+        db_image = await db_manager.get_orga_image_instance_by_url(
+            organization_id=str(app.organization.id),
+            template_url=docker_id_or_template_url,
+        )
+    else:
+        db_image = await db_manager.get_orga_image_instance_by_docker_id(
             organization_id=str(app.organization.id),
             docker_id=docker_id_or_template_url,
         )
@@ -397,7 +405,7 @@ async def add_variant_based_on_image(
     # Create new image if not exists
     if db_image is None:
         logger.debug("Step 4: Creating new image")
-        if os.environ["FEATURE_FLAG"] in ["cloud"]:
+        if parsed_url.scheme and parsed_url.netloc:
             db_image = await db_manager.create_image(
                 image_type="zip",
                 template_uri=docker_id_or_template_url,
