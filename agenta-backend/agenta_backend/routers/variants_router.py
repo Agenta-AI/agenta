@@ -25,7 +25,7 @@ from agenta_backend.models.api.api_models import (
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.selectors import (
+    from agenta_backend.cloud.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
