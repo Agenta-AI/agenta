@@ -658,7 +658,9 @@ async def get_users_by_ids(user_ids: List) -> List:
     return users_db
 
 
-async def get_orga_image_instance_by_docker_id(organization_id: str, docker_id: str) -> ImageDB:
+async def get_orga_image_instance_by_docker_id(
+    organization_id: str, docker_id: str
+) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
@@ -676,7 +678,9 @@ async def get_orga_image_instance_by_docker_id(organization_id: str, docker_id: 
     return image
 
 
-async def get_orga_image_instance_by_url(organization_id: str, template_url: str) -> ImageDB:
+async def get_orga_image_instance_by_url(
+    organization_id: str, template_url: str
+) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
