@@ -8,6 +8,8 @@ const countries = [
     {country: "Sweden", capital: "Stockholm"},
 ]
 
+const apiKey = Cypress.env('NEXT_PUBLIC_OPENAI_API_KEY');
+
 Cypress.Commands.add("createVariant", () => {
     cy.addingOpenaiKey()
     cy.visit("/apps")
@@ -101,7 +103,7 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
 
 Cypress.Commands.add("addingOpenaiKey", () => {
     cy.visit("/settings")
-    cy.get('[data-cy="openai-api-input"]').type(Cypress.env("NEXT_PUBLIC_OPENAI_API_KEY"))
+    cy.get('[data-cy="openai-api-input"]').type(apiKey)
     cy.get('[data-cy="openai-api-save"]').click()
 })
 
