@@ -133,7 +133,7 @@ class TemplateImageInfo(BaseModel):
     digest: Optional[str] = None
     title: str
     description: str
-    last_pushed: Optional[str] = None
+    last_pushed: Optional[datetime] = None
     repo_name: Optional[str] = None
     template_uri: Optional[str] = None
 
