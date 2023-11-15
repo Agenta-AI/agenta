@@ -1,6 +1,10 @@
 ---
-title: Deploy Mistral-7B from Hugging Face 
+title: Deploy Mistral-7B from Hugging Face
+description: How to deploy an LLM application using Mistral-7B from Hugging Face'
 ---
+
+This tutorial guides you through deploying am LLM application in agenta using Mistral-7B from Hugging Face.
+
 
 1. Create a [Hugging Face Account](https://huggingface.co/)
 
@@ -24,6 +28,7 @@ def query(payload):
 
 output = query({"inputs": "Your query here"})
 ```
+
 6. Modify the script and add the Agenta SDK
 
 ```
@@ -46,11 +51,13 @@ def generate(text: str) -> str:
     return response.json()[0]["generated_text"]
 ```
 
-7. Run these commands to deploy the app to agenta
+7. Deploy to Agenta
+
 ```
 agenta init
 agenta variant serve app.py
 ```
+
 8. Now, Interact with your app either locally http://localhost or in cloud https://cloud.agenta.ai/apps
 
 <img height="600" src="/images/tutorial-deploy-mistral-model/playground_mistral.png" />
@@ -68,3 +75,84 @@ agenta variant serve app.py
 <img height="600" src="/images/tutorial-deploy-mistral-model/endpoint_mistral.png" />
 
 
+
+
+1. **Set up a Hugging Face Account**  
+   Sign up for an account at [Hugging Face](https://huggingface.co/).
+
+2. **Access Mistral-7B Model**  
+   Go to the [Mistral-7B-v0.1 model page](https://huggingface.co/mistralai/Mistral-7B-v0.1?text=My+name+is+Thomas+and+my+main).
+
+3. **Deploy the Model**  
+   Choose the 'Deploy' option and select 'Interface API'.
+
+4. **Generate an Access Token**  
+   If you haven't already, create an Access Token on Hugging Face.
+
+5. **Initial Python Script**  
+   Start with a basic script to interact with Mistral-7B:
+
+   ```python
+   import requests
+
+   API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1"
+   headers = {"Authorization": f"Bearer [Your_Token]"}
+
+   def query(payload):
+       response = requests.post(API_URL, headers=headers, json=payload)
+       return response.json()
+
+   output = query({"inputs": "Your query here"})
+   ```
+
+6. **Integrate Agenta SDK**  
+   Modify the script to include the Agenta SDK:
+
+   ```python
+   import agenta as ag
+   import requests
+
+   API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1"
+   headers = {"Authorization": f"Bearer [Your_Token]"}
+
+   ag.init()
+   ag.config.default(
+       prompt_template=ag.TextParam("Summarize the following text: {text}")
+   )
+
+   @ag.entrypoint
+   def generate(text: str) -> str:
+       prompt = ag.config.prompt_template.format(text=text)
+       payload = {"inputs": prompt}
+       response = requests.post(API_URL, headers=headers, json=payload)
+       return response.json()[0]["generated_text"]
+   ```
+
+7. **Deploy with Agenta**  
+   Execute these commands to deploy your application:
+   ```
+   agenta init
+   agenta variant serve app.py
+   ```
+
+8. **Interact with Your App**  
+   Access a playground for you app in agenta in https://cloud.agenta.ai/apps (or locally if you have self-hosted agenta).
+
+   ![Image of Mistral-7B Interface](/images/tutorial-deploy-mistral-model/playground_mistral.png)
+
+9. **Evaluate Model Performance**  
+   Use Agenta's tools to create a test set and evaluate your LLM application.
+
+   ![Image of Evaluation Interface](/images/tutorial-deploy-mistral-model/evaluation_mistral.png)
+
+10. **Publish Your Variant**  
+    To deploy, go to the playground, click 'Publish', and choose the deployment environment.
+
+    ![Image of Deployment Options](/images/tutorial-deploy-mistral-model/deploy_dev_mistral.png)
+
+11. **Access the Endpoints**  
+    In the 'Endpoints' section, select your environment and use the provided endpoint to interact with your LLM app.
+
+    ![Image of Endpoint Access](/images/tutorial-deploy-mistral-model/endpoint_mistral.png)
+
+Note that you can compare this model to other LLMs by serving other variants of the app. Just create a new `app_cohere.py` for instance using cohere model and serve it in the same app using `agenta variant serve app_cohere.py`.
