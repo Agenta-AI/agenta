@@ -347,7 +347,7 @@ async def create_image(
         raise Exception("Docker id must be provided for type image")
     elif image_type == "zip" and template_uri is None:
         raise Exception("template_uri must be provided for type zip")
-        
+
     if image_type == "zip":
         image = ImageDB(
             type="zip",
@@ -691,9 +691,9 @@ async def get_orga_image_instance_by_url(
         ImageDB: instance of image object
     """
     parsed_url = urlparse(template_url)
-    
+
     if not parsed_url.scheme and not parsed_url.netloc:
-        raise ValueError(f'Invalid URL: {template_url}')
+        raise ValueError(f"Invalid URL: {template_url}")
 
     query_expression = (ImageDB.organization == ObjectId(organization_id)) & query.eq(
         ImageDB.template_url, template_url
