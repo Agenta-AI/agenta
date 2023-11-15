@@ -18,7 +18,7 @@ from agenta_backend.routers import (
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.ee.services import templates_manager
+    from agenta_backend.cloud.services import templates_manager
 else:
     from agenta_backend.services import templates_manager
 
@@ -63,7 +63,7 @@ if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
     app.middleware("http")(authentication_middleware)
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    import agenta_backend.ee.main as ee
+    import agenta_backend.cloud.main as ee
 
     app, allow_headers = ee.extend_main(app)
 
