@@ -362,15 +362,19 @@ async def create_app_and_variant_from_template(
         template_db = await db_manager.get_template(payload.template_id)
         repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/lambda_templates")
         image_name = f"{repo_name}:{template_db.name}"
-        
+
         logger.debug(
             "Step 6: Creating image instance and adding variant based on image"
         )
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id_or_template_url=template_db.template_uri if os.environ["FEATURE_FLAG"] in ["cloud"] else template_db.digest,
-            tags=f"{image_name}" if os.environ["FEATURE_FLAG"] not in ["cloud"] else None,
+            docker_id_or_template_url=template_db.template_uri
+            if os.environ["FEATURE_FLAG"] in ["cloud"]
+            else template_db.digest,
+            tags=f"{image_name}"
+            if os.environ["FEATURE_FLAG"] not in ["cloud"]
+            else None,
             base_name="app",
             config_name="default",
             is_template_image=True,
