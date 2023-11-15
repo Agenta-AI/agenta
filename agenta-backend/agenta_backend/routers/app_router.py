@@ -232,6 +232,7 @@ async def add_variant_from_image(
 
     if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
         image = Image(
+            type="image",
             docker_id=payload.docker_id,
             tags=payload.tags,
         )

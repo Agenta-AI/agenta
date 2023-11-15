@@ -109,6 +109,7 @@ class RestartAppContainer(BaseModel):
 
 
 class Image(BaseModel):
+    type: Optional[str]
     docker_id: str
     tags: str
     organization_id: Optional[str] = None
