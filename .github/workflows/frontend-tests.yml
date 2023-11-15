@@ -47,7 +47,7 @@ jobs:
 
       - name: Run Cypress
         env:
-          NEXT_PUBLIC_OPENAI_API_KEY: "sk-test"
+          NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
         run: cd agenta-web/ && npm run cypress:run
 
       - name: Docker logs
