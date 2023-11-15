@@ -110,6 +110,20 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
         raise Exception("App variant not found")
 
 
+async def get_image_by_id(image_id: str) -> ImageDB:
+    """Get the image object from the database with the provided id.
+
+    Arguments:
+        image_id (str): The image unique identifier
+
+    Returns:
+        ImageDB: instance of image object
+    """
+
+    image = await engine.find_one(ImageDB, ImageDB.id == ObjectId(image_id))
+    return image
+
+
 async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
     """Fetches an app by its ID.
 
