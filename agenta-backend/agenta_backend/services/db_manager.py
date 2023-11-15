@@ -1319,7 +1319,7 @@ async def add_zip_template(key, value):
     existing_template = await engine.find_one(TemplateDB, TemplateDB.name == key)
     if existing_template:
         await engine.delete(existing_template)
-        
+
     template_name = key
     title = value.get("name")
     description = value.get("description")
