@@ -187,12 +187,13 @@ def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
             id=str(template.id),
             image=TemplateImageInfo(
                 name=template.name,
-                size=template.size,
-                digest=template.digest,
+                size=template.size if template.size else None,
+                digest=template.digest if template.digest else None,
                 title=template.title,
                 description=template.description,
-                last_pushed=template.last_pushed,
-                repo_name=template.repo_name,
+                last_pushed=template.last_pushed if template.last_pushed else None,
+                repo_name=template.repo_name if template.repo_name else None,
+                template_uri=template.template_uri if template.template_uri else None
             ),
         )
         for template in templates_db
