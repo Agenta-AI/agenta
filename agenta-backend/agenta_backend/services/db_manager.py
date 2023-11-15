@@ -317,7 +317,7 @@ async def create_image(
     Returns:
         ImageDB: The created image.
     """
-    
+
     # Validate image type
     valid_image_types = ["image", "zip"]
     if image_type not in valid_image_types:
@@ -331,7 +331,7 @@ async def create_image(
     if image_type == "image" and docker_id is None:
         raise Exception("Docker id must be provided for type image")
     elif image_type == "zip" and template_uri is None:
-        raise Exception("template_uri must be provided for type zip")  
+        raise Exception("template_uri must be provided for type zip")
 
     if os.environ["FEATURE_FLAG"] in ["cloud"]:
         image = ImageDB(
@@ -352,6 +352,7 @@ async def create_image(
         )
     await engine.save(image)
     return image
+
 
 async def create_deployment(
     app: AppVariantDB,
@@ -1288,33 +1289,32 @@ async def add_template(**kwargs: dict) -> str:
         db_template = TemplateDB(**kwargs)
         await engine.save(db_template)
         return str(db_template.id)
-    
+
+
 async def add_zip_template(key, value):
     """
     Adds a new s3 zip template to the database
-    
+
     Args:
         key: key of the json file
         value (dict): dictionary value of a key
-        
+
     Returns:
             template_id (Str): The Id of the created template.
     """
-    existing_template = await engine.find_one(
-        TemplateDB, TemplateDB.name == key
-    )
+    existing_template = await engine.find_one(TemplateDB, TemplateDB.name == key)
     if existing_template is None:
         template_name = key
-        title = value.get('name')
-        description = value.get('description')
-        template_uri = value.get('template_uri')
+        title = value.get("name")
+        description = value.get("description")
+        template_uri = value.get("template_uri")
 
         template_db_instance = TemplateDB(
             type="zip",
             name=template_name,
             title=title,
             description=description,
-            template_uri=template_uri
+            template_uri=template_uri,
         )
         await engine.save(template_db_instance)
         return str(template_db_instance.id)

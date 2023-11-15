@@ -368,11 +368,11 @@ async def add_variant_based_on_image(
         or docker_id_or_template_url in [None, ""]
     ):
         raise ValueError("App variant or image is None")
-    
+
     if os.environ["FEATURE_FLAG"] not in ["cloud"]:
         if tags in [None, ""]:
             raise ValueError("OSS: Tags is None")
-        
+
     db_image = None
 
     # Check if app variant already exists
@@ -390,7 +390,8 @@ async def add_variant_based_on_image(
     user_instance = await db_manager.get_user(user_uid=user_org_data["uid"])
     if os.environ["FEATURE_FLAG"] not in ["cloud"]:
         db_image = await db_manager.get_orga_image_instance(
-            organization_id=str(app.organization.id), docker_id=docker_id_or_template_url
+            organization_id=str(app.organization.id),
+            docker_id=docker_id_or_template_url,
         )
 
     # Create new image if not exists

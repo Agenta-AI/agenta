@@ -193,7 +193,7 @@ def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
                 description=template.description,
                 last_pushed=template.last_pushed if template.last_pushed else None,
                 repo_name=template.repo_name if template.repo_name else None,
-                template_uri=template.template_uri if template.template_uri else None
+                template_uri=template.template_uri if template.template_uri else None,
             ),
         )
         for template in templates_db
