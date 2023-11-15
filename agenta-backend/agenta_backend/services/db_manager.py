@@ -1341,12 +1341,24 @@ async def add_zip_template(key, value):
         value (dict): dictionary value of a key
 
     Returns:
-            template_id (Str): The Id of the created template.
+        template_id (Str): The Id of the created template.
     """
     existing_template = await engine.find_one(TemplateDB, TemplateDB.name == key)
-    if existing_template:
-        await engine.delete(existing_template)
 
+    if existing_template:
+        # Compare existing values with new values
+        if (
+            existing_template.title == value.get("name")
+            and existing_template.description == value.get("description")
+            and existing_template.template_uri == value.get("template_uri")
+        ):
+            # Values are unchanged, return existing template id
+            return str(existing_template.id)
+        else:
+            # Values are changed, delete existing template
+            await engine.delete(existing_template)
+
+    # Create a new template
     template_name = key
     title = value.get("name")
     description = value.get("description")
