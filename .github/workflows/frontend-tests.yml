@@ -7,7 +7,6 @@ env:
 jobs:
   cypress:
     runs-on: ubuntu-latest
-    environment: oss
 
     steps:
       - name: Check out code
