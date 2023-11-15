@@ -17,9 +17,7 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
-if os.environ["FEATURE_FLAG"] in ["cloud"]:
-    from agenta_backend.ee.services import container_manager
-if os.environ["FEATURE_FLAG"] in ["ee"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.ee.services import container_manager
 else:
     from agenta_backend.services import container_manager
