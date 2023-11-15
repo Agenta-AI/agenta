@@ -1,5 +1,7 @@
 import agenta as ag
-import openai
+from openai import OpenAI
+
+client = OpenAI()
 import json
 
 default_prompt = """You are a world class algorithm for extracting information in structured formats. Extract information and create a valid JSON from the following input: {text}"""
@@ -40,7 +42,7 @@ def generate(
 
     function = json.loads(ag.config.function_json)
 
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-3.5-turbo-0613",
         messages=messages,
         temperature=ag.config.temperature,

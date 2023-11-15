@@ -8,8 +8,6 @@ from fastapi import APIRouter, HTTPException, Request
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
-    docker_utils,
-    container_manager,
     db_manager,
 )
 from agenta_backend.utils.common import (
@@ -24,6 +22,7 @@ from agenta_backend.models.api.api_models import (
     AppVariantOutput,
     AddVariantFromImagePayload,
     EnvironmentOutput,
+    Image,
 )
 from agenta_backend.models import converters
 
@@ -33,6 +32,17 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
+
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.ee.services import (
+        lambda_deployment_manager as deployment_manager,
+    )  # noqa pylint: disable-all
+elif os.environ["FEATURE_FLAG"] in ["ee"]:
+    from agenta_backend.ee.services import (
+        deployment_manager,
+    )  # noqa pylint: disable-all
+else:
+    from agenta_backend.services import deployment_manager
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -221,12 +231,16 @@ async def add_variant_from_image(
     """
 
     if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
+        image = Image(
+            docker_id=payload.docker_id,
+            tags=payload.tags,
+        )
         if not payload.tags.startswith(settings.registry):
             raise HTTPException(
                 status_code=500,
                 detail="Image should have a tag starting with the registry name (agenta-server)",
             )
-        elif docker_utils.find_image_by_docker_id(payload.docker_id) is None:
+        elif deployment_manager.validate_image(image) is False:
             raise HTTPException(status_code=404, detail="Image not found")
 
     try:

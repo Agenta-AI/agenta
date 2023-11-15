@@ -82,6 +82,7 @@
       "group": "Self-host agenta",
       "pages": [
         "self-host/host-locally",
+        "self-host/host-remotely",
         "self-host/host-on-aws",
         "self-host/host-on-gcp"
       ]
