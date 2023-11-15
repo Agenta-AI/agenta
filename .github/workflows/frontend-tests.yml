@@ -7,10 +7,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: oss
 
-    env:
-      ENV_NAME: oss
-      NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
-
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -39,14 +35,11 @@ jobs:
       - name: Install Frontend Depedencies
         run: |
           cd agenta-web/ && npm install
-      
-      - name: Print API Key
-        run: "echo API Key: $NEXT_PUBLIC_OPENAI_API_KEY"
   
       - name: Run Cypress
-        run: cd agenta-web/ && npm run cypress:run
         env:
           NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
+        run: cd agenta-web/ && npm run cypress:run
 
       - name: Docker logs
         if: always()  #
