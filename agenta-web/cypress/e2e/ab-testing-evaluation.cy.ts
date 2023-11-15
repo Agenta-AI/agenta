@@ -1,6 +1,6 @@
 import {randString} from "../../src/lib/helpers/utils"
 
-describe("Regex Evaluation workflow", () => {
+describe("A/B Testing Evaluation workflow", () => {
     let app_v2 = randString(5)
     let app_id
     before(() => {
