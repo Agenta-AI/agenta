@@ -16,8 +16,8 @@ services:
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
-            - BARE_DOMAIN_NAME=localhost
-            - DOMAIN_NAME=http://localhost
+            - BARE_DOMAIN_NAME=${BARE_DOMAIN_NAME:-localhost}
+            - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
             - FEATURE_FLAG=oss
         command:
             [
@@ -62,7 +62,9 @@ services:
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
         environment:
             - NEXT_PUBLIC_POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
-
+            - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME:-http://localhost}
+            - NEXT_PUBLIC_FF=oss
+            - NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED=true
     mongo:
         image: mongo:5.0
         environment:
