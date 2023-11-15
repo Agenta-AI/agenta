@@ -42,6 +42,7 @@ jobs:
         run: |
           echo .env
           echo "NEXT_PUBLIC_OPENAI_API_KEY=${{ env.OPENAI_API_KEY }}" >> $GITHUB_ENV
+          echo "PYPI_API_TOKEN=${{ secrets.PYPI_API_TOKEN }}" >> $GITHUB_ENV
 
       - name: Run Cypress
         env:
