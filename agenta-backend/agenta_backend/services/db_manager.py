@@ -1317,21 +1317,23 @@ async def add_zip_template(key, value):
             template_id (Str): The Id of the created template.
     """
     existing_template = await engine.find_one(TemplateDB, TemplateDB.name == key)
-    if existing_template is None:
-        template_name = key
-        title = value.get("name")
-        description = value.get("description")
-        template_uri = value.get("template_uri")
+    if existing_template:
+        await engine.delete(existing_template)
+        
+    template_name = key
+    title = value.get("name")
+    description = value.get("description")
+    template_uri = value.get("template_uri")
 
-        template_db_instance = TemplateDB(
-            type="zip",
-            name=template_name,
-            title=title,
-            description=description,
-            template_uri=template_uri,
-        )
-        await engine.save(template_db_instance)
-        return str(template_db_instance.id)
+    template_db_instance = TemplateDB(
+        type="zip",
+        name=template_name,
+        title=title,
+        description=description,
+        template_uri=template_uri,
+    )
+    await engine.save(template_db_instance)
+    return str(template_db_instance.id)
 
 
 async def get_template(template_id: str) -> TemplateDB:
