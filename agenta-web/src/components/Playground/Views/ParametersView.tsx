@@ -1,11 +1,12 @@
 import {Environment, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
-import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
+import {Button, Col, Collapse, Radio, Row, Space, Tooltip, message} from "antd"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
 import {removeVariant} from "@/lib/services/api"
+import {useQueryParam} from "@/hooks/useQuery"
 
 interface Props {
     variant: Variant
@@ -69,6 +70,7 @@ const ParametersView: React.FC<Props> = ({
     const [messageApi, contextHolder] = message.useMessage()
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
+    const [interactionMode, setInteractionMode] = useQueryParam("interactionMode", "prompt")
 
     useEffect(() => {
         onStateChange(variant.persistent === false)
@@ -186,6 +188,15 @@ const ParametersView: React.FC<Props> = ({
 
     return (
         <div>
+            <Radio.Group
+                options={[
+                    {label: "Prompt Mode", value: "prompt"},
+                    {label: "Chat Mode", value: "chat"},
+                ]}
+                onChange={(e) => setInteractionMode(e.target.value)}
+                value={interactionMode}
+                optionType="button"
+            />
             {contextHolder}
             <Collapse
                 items={items}

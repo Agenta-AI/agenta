@@ -13,6 +13,7 @@ import CopyButton from "@/components/CopyButton/CopyButton"
 import {TestContext} from "../TestsetContextProvider"
 import {useRouter} from "next/router"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
+import {useQueryParam} from "@/hooks/useQuery"
 
 const useStylesBox = createUseStyles({
     card: {
@@ -202,6 +203,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant}) => {
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
+    const chatMode = useQueryParam("interactionMode")[0] === "chat"
 
     const setResultForIndex = (value: string, index: number) => {
         setResultsList((prevState) => {
@@ -300,7 +302,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant}) => {
                     onRun={() => handleRun(index)}
                     onAddToTestset={setParams}
                     onDelete={testList.length >= 2 ? () => handleDeleteRow(index) : undefined}
-                    isChatVariant
+                    isChatVariant={chatMode}
                 />
             ))}
             <Button
