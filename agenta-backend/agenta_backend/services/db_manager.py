@@ -658,7 +658,9 @@ async def get_users_by_ids(user_ids: List) -> List:
     return users_db
 
 
-async def get_orga_image_instance_by_docker_id(organization_id: str, docker_id: str) -> ImageDB:
+async def get_orga_image_instance_by_docker_id(
+    organization_id: str, docker_id: str
+) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
@@ -676,7 +678,9 @@ async def get_orga_image_instance_by_docker_id(organization_id: str, docker_id: 
     return image
 
 
-async def get_orga_image_instance_by_url(organization_id: str, template_url: str) -> ImageDB:
+async def get_orga_image_instance_by_url(
+    organization_id: str, template_url: str
+) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
@@ -687,9 +691,9 @@ async def get_orga_image_instance_by_url(organization_id: str, template_url: str
         ImageDB: instance of image object
     """
     parsed_url = urlparse(template_url)
-    
+
     if not parsed_url.scheme or not parsed_url.netloc:
-        raise ValueError(f'Invalid URL: {template_url}')
+        raise ValueError(f"Invalid URL: {template_url}")
 
     query_expression = (ImageDB.organization == ObjectId(organization_id)) & query.eq(
         ImageDB.template_url, template_url
