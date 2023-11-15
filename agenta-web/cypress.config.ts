@@ -11,7 +11,6 @@ export default defineConfig({
         baseUrl: "http://localhost",
         defaultCommandTimeout: 15000,
         requestTimeout: 10000,
-        // specPattern: ["*/e2e/smoke-tests.cy.ts", "*/e2e/playground.cy.ts"],
     },
     env: {
         baseApiURL: "http://localhost/api",
