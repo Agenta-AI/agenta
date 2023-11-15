@@ -168,7 +168,7 @@ class TemplateDB(Model):
     type: Optional[str] = Field(default="image")
     template_uri: Optional[str]
     tag_id: Optional[int]
-    name: str  # tag name of image
+    name: str = Field(unique=True)  # tag name of image
     repo_name: Optional[str]
     title: str
     description: str
