@@ -35,7 +35,11 @@ jobs:
       - name: Install Frontend Depedencies
         run: |
           cd agenta-web/ && npm install
-  
+
+      - name: Set Environment Variables
+        run: |
+          echo "NEXT_PUBLIC_OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}" >> $GITHUB_ENV
+
       - name: Run Cypress
         env:
           NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
