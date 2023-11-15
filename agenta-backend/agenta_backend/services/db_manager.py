@@ -678,25 +678,25 @@ async def get_orga_image_instance_by_docker_id(
     return image
 
 
-async def get_orga_image_instance_by_url(
-    organization_id: str, template_url: str
+async def get_orga_image_instance_by_uri(
+    organization_id: str, template_uri: str
 ) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
         organization_id (str): The orga unique identifier
-        template_url (url): The image template url
+        template_uri (url): The image template url
 
     Returns:
         ImageDB: instance of image object
     """
-    parsed_url = urlparse(template_url)
+    parsed_url = urlparse(template_uri)
 
     if not parsed_url.scheme and not parsed_url.netloc:
-        raise ValueError(f"Invalid URL: {template_url}")
+        raise ValueError(f"Invalid URL: {template_uri}")
 
     query_expression = (ImageDB.organization == ObjectId(organization_id)) & query.eq(
-        ImageDB.template_url, template_url
+        ImageDB.template_uri, template_uri
     )
     image = await engine.find_one(ImageDB, query_expression)
     return image

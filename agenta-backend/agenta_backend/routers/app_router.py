@@ -259,7 +259,7 @@ async def add_variant_from_image(
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
-            docker_id_or_template_url=payload.docker_id,
+            docker_id_or_template_uri=payload.docker_id,
             tags=payload.tags,
             base_name=payload.base_name,
             config_name=payload.config_name,
@@ -370,7 +370,7 @@ async def create_app_and_variant_from_template(
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id_or_template_url=template_db.template_uri
+            docker_id_or_template_uri=template_db.template_uri
             if os.environ["FEATURE_FLAG"] in ["cloud"]
             else template_db.digest,
             tags=f"{image_name}"
