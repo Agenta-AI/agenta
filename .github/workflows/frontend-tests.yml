@@ -1,6 +1,8 @@
 name: Execute Frontend tests
 
 on: [pull_request]
+env:
+  OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
 
 jobs:
   cypress:
@@ -38,11 +40,12 @@ jobs:
 
       - name: Set Environment Variables
         run: |
-          echo "NEXT_PUBLIC_OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}" >> $GITHUB_ENV
+          echo .env
+          echo "NEXT_PUBLIC_OPENAI_API_KEY=${{ env.OPENAI_API_KEY }}" >> $GITHUB_ENV
 
       - name: Run Cypress
         env:
-          NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
+          NEXT_PUBLIC_OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
         run: cd agenta-web/ && npm run cypress:run
 
       - name: Docker logs
@@ -50,5 +53,4 @@ jobs:
         run: docker ps -q | xargs -I {} docker logs {}
         
       - name: Stop Docker Compose
-        run: |
-          cd .. && docker-compose down
+        run: docker-compose down
