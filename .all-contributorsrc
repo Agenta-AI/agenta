@@ -309,6 +309,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "Dhoni77",
+      "name": "Aldrin",
+      "avatar_url": "https://avatars.githubusercontent.com/u/53973174?v=4",
+      "profile": "https://github.com/Dhoni77",
+      "contributions": [
+        "test"
+      ]
     }
   ],
   "contributorsPerLine": 7,
