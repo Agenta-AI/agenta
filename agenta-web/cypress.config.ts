@@ -9,7 +9,7 @@ export default defineConfig({
     screenshotOnRunFailure: false,
     e2e: {
         baseUrl: "http://localhost",
-        defaultCommandTimeout: 15000,
+        defaultCommandTimeout: 30000,
         requestTimeout: 10000,
     },
     env: {

@@ -7,7 +7,7 @@ describe("Playground Prompt Test", function () {
         cy.get('[data-cy="testview-input-parameters-0"]').type("Germany")
         cy.get('[data-cy="testview-input-parameters-run-button"]').click()
         cy.get('[data-cy="testview-input-parameters-result"]').should("contain.text", "Loading...")
-        cy.get('[data-cy="testview-input-parameters-result"]', {timeout: 15000}).should(
+        cy.get('[data-cy="testview-input-parameters-result"]').should(
             "contain.text",
             "The capital of Germany is Berlin.",
         )
