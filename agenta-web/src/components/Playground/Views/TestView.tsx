@@ -2,8 +2,8 @@ import React, {useContext, useState} from "react"
 import {Button, Input, Card, Row, Col, Space} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
-import {Parameter, Variant} from "@/lib/Types"
-import {randString, renameVariables} from "@/lib/helpers/utils"
+import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
+import {randString, removeKeys, renameVariables, safeParse} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -12,8 +12,10 @@ import {createUseStyles} from "react-jss"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {TestContext} from "../TestsetContextProvider"
 import {useRouter} from "next/router"
-import ChatInputs from "@/components/ChatInputs/ChatInputs"
-import {useQueryParam} from "@/hooks/useQuery"
+import ChatInputs, {getDefaultNewMessage} from "@/components/ChatInputs/ChatInputs"
+import {v4 as uuidv4} from "uuid"
+
+const LOADING_TEXT = "Loading..."
 
 const useStylesBox = createUseStyles({
     card: {
@@ -46,9 +48,6 @@ const useStylesBox = createUseStyles({
         justifyContent: "flex-end",
         display: "flex",
         gap: "0.75rem",
-        "& button:nth-of-type(2)": {
-            width: "100px",
-        },
     },
     row3: {
         margin: "16px 0",
@@ -56,9 +55,6 @@ const useStylesBox = createUseStyles({
             height: "100%",
             width: "100%",
         },
-    },
-    copyBtn: {
-        minWidth: "110px",
     },
 })
 
@@ -89,13 +85,14 @@ interface TestViewProps {
     variant: Variant
     inputParams: Parameter[] | null
     optParams: Parameter[] | null
+    isChatVariant?: boolean
 }
 
 interface BoxComponentProps {
     inputParams: Parameter[] | null
-    testData: Record<string, string>
+    testData: GenericObject
     result: string
-    onInputParamChange: (paramName: string, newValue: string) => void
+    onInputParamChange: (paramName: string, newValue: any) => void
     onRun: () => void
     onAddToTestset: (params: Record<string, string>) => void
     onDelete?: () => void
@@ -114,7 +111,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 }) => {
     const classes = useStylesBox()
     const {TextArea} = Input
-    const loading = result === "Loading..."
+    const loading = result === LOADING_TEXT
 
     if (!inputParams) {
         return <div>Loading...</div>
@@ -128,6 +125,11 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             params[name] = testData[name] || ""
         })
         params.correct_answer = result
+        if (isChatVariant) {
+            const messages = testData.chat.filter((item: ChatMessage) => !!item.content)
+            params.chat = messages.slice(0, -1)
+            params.correct_answer = messages.at(-1)
+        }
 
         onAddToTestset(params)
     }
@@ -135,13 +137,16 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     return (
         <Card className={classes.card}>
             <Row className={classes.rowHeader}>
-                <h4>Input parameters</h4>
+                <h4>{isChatVariant ? "Chat" : "Input parameters"}</h4>
                 {onDelete && <Button icon={<DeleteOutlined />} onClick={onDelete}></Button>}
             </Row>
 
             <Row className={classes.row1}>
                 {isChatVariant ? (
-                    <ChatInputs onChange={(val) => console.log("new chat state:", val)} />
+                    <ChatInputs
+                        value={testData.chat}
+                        onChange={(val) => onInputParamChange("chat", val)}
+                    />
                 ) : (
                     inputParamsNames.map((key, index) => (
                         <TextArea
@@ -154,7 +159,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     ))
                 )}
             </Row>
-            <Row className={classes.row2}>
+            <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
                 <Col span={24} className={classes.row2Col}>
                     <Button
                         shape="round"
@@ -163,13 +168,12 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         disabled={loading}
                     >
                         Add to Test Set
-                    </Button>{" "}
+                    </Button>
                     <CopyButton
-                        buttonText="Copy result"
+                        buttonText={isChatVariant ? "Copy last message" : "Copy result"}
                         text={result}
-                        disabled={result === "" || result === "Loading..."}
+                        disabled={loading || !result}
                         shape="round"
-                        className={classes.copyBtn}
                     />
                     <Button
                         data-cy="testview-input-parameters-run-button"
@@ -183,46 +187,77 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     </Button>
                 </Col>
             </Row>
-            <Row className={classes.row3}>
-                <TextArea
-                    data-cy="testview-input-parameters-result"
-                    value={result}
-                    rows={6}
-                    placeholder="Results will be shown here"
-                    disabled={result === "" || result === "Loading..."}
-                />
-            </Row>
+            {!isChatVariant && (
+                <Row className={classes.row3}>
+                    <TextArea
+                        data-cy="testview-input-parameters-result"
+                        value={result}
+                        rows={6}
+                        placeholder="Results will be shown here"
+                        disabled={result === "" || result === LOADING_TEXT}
+                    />
+                </Row>
+            )}
         </Card>
     )
 }
 
-const App: React.FC<TestViewProps> = ({inputParams, optParams, variant}) => {
+const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVariant}) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
     const {testList, setTestList} = useContext(TestContext)
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
-    const chatMode = useQueryParam("interactionMode")[0] === "chat"
 
     const setResultForIndex = (value: string, index: number) => {
-        setResultsList((prevState) => {
-            return prevState.map((prevResult, prevIndex) =>
-                prevIndex === index ? value : prevResult,
+        if (isChatVariant) {
+            setTestList((prevState) =>
+                prevState.map((prevItem, prevIndex) => {
+                    const chat = prevItem.chat || []
+                    const isLoading = value === LOADING_TEXT
+                    const isPrevLoading = chat.at(-1)?.content === LOADING_TEXT
+
+                    return prevIndex === index
+                        ? {
+                              ...prevItem,
+                              chat: (isPrevLoading ? chat.slice(0, -1) : chat).concat(
+                                  isLoading
+                                      ? [{id: uuidv4(), content: value, role: ChatRole.Assistant}]
+                                      : [
+                                            {
+                                                id: uuidv4(),
+                                                content: value,
+                                                role: ChatRole.Assistant,
+                                            },
+                                            getDefaultNewMessage(),
+                                        ],
+                              ),
+                          }
+                        : prevItem
+                }),
             )
-        })
+        } else {
+            setResultsList((prevState) => {
+                return prevState.map((prevResult, prevIndex) =>
+                    prevIndex === index ? value : prevResult,
+                )
+            })
+        }
     }
 
     const handleRun = async (index: number) => {
         try {
-            setResultForIndex("Loading...", index)
+            setResultForIndex(LOADING_TEXT, index)
 
+            const testItem = testList[index]
             const res = await callVariant(
-                testList[index],
+                isChatVariant ? removeKeys(testItem, ["chat"]) : testItem,
                 inputParams || [],
                 optParams || [],
                 appId || "",
                 variant.baseId || "",
+                isChatVariant ? testItem.chat : [],
             )
 
             setResultForIndex(res, index)
@@ -252,7 +287,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant}) => {
         )
     }
 
-    const handleInputParamChange = (paramName: string, value: string, index: number) => {
+    const handleInputParamChange = (paramName: string, value: any, index: number) => {
         setTestList((prevState) => {
             const newState = [...prevState]
             newState[index] = {...newState[index], [paramName]: value}
@@ -262,7 +297,17 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant}) => {
 
     const onLoadTests = (tests: Record<string, string>[], shouldReplace: boolean) => {
         const results = tests.map((test) => test?.correct_answer || "")
-        const testsList = tests.map((test) => ({...test, _id: randString(6)}))
+        const testsList = tests.map((test) => ({
+            ...test,
+            ...(isChatVariant
+                ? {
+                      chat: safeParse(test.chat, []).concat([
+                          safeParse(test.correct_answer, getDefaultNewMessage()),
+                      ]),
+                  }
+                : {}),
+            _id: randString(6),
+        }))
         if (shouldReplace) {
             setTestList(testsList)
             setResultsList(results)
@@ -295,14 +340,19 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant}) => {
                     key={testData._id}
                     inputParams={inputParams}
                     testData={testData}
-                    result={resultsList[index]}
+                    result={
+                        isChatVariant
+                            ? testData?.chat?.findLast?.((item: ChatMessage) => !!item.content)
+                                  ?.content
+                            : resultsList[index]
+                    }
                     onInputParamChange={(paramName, value) =>
                         handleInputParamChange(paramName, value, index)
                     }
                     onRun={() => handleRun(index)}
                     onAddToTestset={setParams}
                     onDelete={testList.length >= 2 ? () => handleDeleteRow(index) : undefined}
-                    isChatVariant={chatMode}
+                    isChatVariant={isChatVariant}
                 />
             ))}
             <Button
@@ -320,6 +370,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant}) => {
                 onClose={() => setParams(null)}
                 destroyOnClose
                 params={params || {}}
+                isChatVariant={!!isChatVariant}
             />
         </div>
     )

@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
+import {GenericObject} from "../Types"
 
 const openAItoken = "openAiToken"
 
@@ -143,4 +144,22 @@ export function dynamicComponent<T>(path: string, fallback: any = () => null) {
         loading: fallback,
         ssr: false,
     })
+}
+
+export const removeKeys = (obj: GenericObject, keys: string[]) => {
+    let newObj = Object.assign({}, obj)
+    for (let key of keys) {
+        delete newObj[key]
+    }
+    return newObj
+}
+
+export const safeParse = (str: string, fallback: any = "") => {
+    try {
+        return JSON.parse(str)
+    } catch (error) {
+        console.log("error parsing JSON:", error)
+        console.log("fallbacking to:", fallback)
+        return fallback
+    }
 }
