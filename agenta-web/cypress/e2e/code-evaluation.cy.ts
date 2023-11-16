@@ -65,7 +65,9 @@ describe("Code Evaluation workflow", () => {
             cy.wait(1500)
             cy.clickLinkAndWait('[data-cy="code-evaluation-run"]')
 
-            cy.get('[data-cy="code-evaluation-result"]').should("contain.text", "0.75")
+            cy.get('[data-cy="code-evaluation-result"]').each(($element) => {
+                cy.wrap($element).should("contain.text", "0.75")
+            })
         })
     })
 
