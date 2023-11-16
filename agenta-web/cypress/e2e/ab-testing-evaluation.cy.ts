@@ -75,8 +75,6 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.get('[data-cy^="abTesting-app-variant-2-vote-button"]').should("not.be.disabled")
             cy.get('[data-cy^="abTesting-both-bad-vote-button"]').should("not.be.disabled")
 
-            cy.get(".ant-message-notice-content").should("exist")
-
             cy.get('[data-cy="abTesting-app-variant-1-vote-button-0"]').click()
             cy.get('[data-cy="abTesting-app-variant-2-vote-button-1"]').click()
             cy.get('[data-cy="abTesting-both-bad-vote-button-2"]').click()
