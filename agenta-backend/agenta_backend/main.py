@@ -63,9 +63,9 @@ if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
     app.middleware("http")(authentication_middleware)
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    import agenta_backend.cloud.main as ee
+    import agenta_backend.cloud.main as cloud
 
-    app, allow_headers = ee.extend_main(app)
+    app, allow_headers = cloud.extend_main(app)
 
 app.include_router(health_router.router, prefix="/health")
 app.include_router(user_profile.router, prefix="/profile")
