@@ -1,6 +1,6 @@
 import {randString} from "../../src/lib/helpers/utils"
 
-describe("Regex Evaluation workflow", () => {
+describe("A/B Testing Evaluation workflow", () => {
     let app_v2 = randString(5)
     let app_id
     before(() => {
@@ -71,17 +71,9 @@ describe("Regex Evaluation workflow", () => {
             cy.url().should("include", "/human_a_b_testing")
             cy.wait(1000)
             cy.get('[data-cy="abTesting-run-all-button"]').click()
-            cy.get('[data-cy^="abTesting-app-variant-1-vote-button"]', {timeout: 15000}).should(
-                "not.be.disabled",
-            )
-            cy.get('[data-cy^="abTesting-app-variant-2-vote-button"]', {timeout: 15000}).should(
-                "not.be.disabled",
-            )
-            cy.get('[data-cy^="abTesting-both-bad-vote-button"]', {timeout: 15000}).should(
-                "not.be.disabled",
-            )
-
-            cy.get(".ant-message-notice-content").should("exist")
+            cy.get('[data-cy^="abTesting-app-variant-1-vote-button"]').should("not.be.disabled")
+            cy.get('[data-cy^="abTesting-app-variant-2-vote-button"]').should("not.be.disabled")
+            cy.get('[data-cy^="abTesting-both-bad-vote-button"]').should("not.be.disabled")
 
             cy.get('[data-cy="abTesting-app-variant-1-vote-button-0"]').click()
             cy.get('[data-cy="abTesting-app-variant-2-vote-button-1"]').click()

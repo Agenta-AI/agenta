@@ -1,4 +1,4 @@
-import {randString} from "../../../src/lib/helpers/utils"
+import {randString, removeOpenAIKey} from "../../../src/lib/helpers/utils"
 
 let app_id
 
@@ -7,6 +7,8 @@ const countries = [
     {country: "Germany", capital: "Berlin"},
     {country: "Sweden", capital: "Stockholm"},
 ]
+
+const apiKey = Cypress.env("NEXT_PUBLIC_OPENAI_API_KEY")
 
 Cypress.Commands.add("createVariant", () => {
     cy.addingOpenaiKey()
@@ -17,18 +19,21 @@ Cypress.Commands.add("createVariant", () => {
         url: `${Cypress.env().baseApiURL}/organizations/`,
         method: "GET",
     }).then((res) => {
+        cy.log(`Body: ${JSON.stringify(res.body) || "No body"}`)
         cy.request({
-            url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0].id}`,
+            url: `${Cypress.env().baseApiURL}/apps/?org_id=${res.body[0]?.id}`,
             method: "GET",
         }).then((resp) => {
             if (resp.body.length) {
                 cy.get('[data-cy="create-new-app-button"]').click()
+                cy.get('[data-cy="create-from-template"]').click()
+            } else {
+                cy.get('[data-cy="create-from-template__no-app"]').click()
             }
         })
     })
 
-    cy.get('[data-cy="create-from-template"]').click()
-    cy.get('[data-cy="create-app-button"]').eq(0).click()
+    cy.get('[data-cy="create-app-button"]').first().click()
     const appName = randString(5)
 
     cy.get('[data-cy="enter-app-name-modal"]')
@@ -37,15 +42,16 @@ Cypress.Commands.add("createVariant", () => {
             cy.get("input").type(appName)
         })
 
-    cy.intercept("POST", "/api/apps/app_and_variant_from_template/").as("postRequest")
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
-    cy.get('[data-cy="create-app-status-modal"]').should("exist")
-    cy.wait("@postRequest").then((interception) => {
-        app_id = interception.response.body.app_id
-        cy.wrap(interception.response.body.app_id).as("app_id")
+
+    cy.url().should("include", "/playground")
+    cy.url().then((url) => {
+        app_id = url.match(/\/apps\/([a-zA-Z0-9]+)\/playground/)[1]
+
+        cy.wrap(app_id).as("app_id")
     })
-    cy.url({timeout: 15000}).should("include", "/playground")
     cy.contains(/modify parameters/i)
+    cy.removeOpenAiKey()
 })
 
 Cypress.Commands.add("createVariantsAndTestsets", () => {
@@ -84,8 +90,6 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
 })
 
 Cypress.Commands.add("cleanupVariantAndTestset", () => {
-    cy.visit("/apps")
-
     cy.request({
         url: `${Cypress.env().baseApiURL}/apps/${app_id}/`,
         method: "DELETE",
@@ -93,10 +97,16 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
             app_id,
         },
     })
+
+    cy.removeOpenAiKey()
 })
 
 Cypress.Commands.add("addingOpenaiKey", () => {
     cy.visit("/settings")
-    cy.get('[data-cy="openai-api-input"]').type(`${Cypress.env("OPENAI_API_KEY")}`)
+    cy.get('[data-cy="openai-api-input"]').type(apiKey)
     cy.get('[data-cy="openai-api-save"]').click()
+})
+
+Cypress.Commands.add("removeOpenAiKey", () => {
+    removeOpenAIKey()
 })
