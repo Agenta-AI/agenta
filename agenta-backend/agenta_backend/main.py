@@ -12,10 +12,13 @@ from agenta_backend.routers import (
     testset_router,
     user_profile,
     variants_router,
+    bases_router,
+    configs_router,
+    health_router,
 )
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services import templates_manager
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    from agenta_backend.cloud.services import templates_manager
 else:
     from agenta_backend.services import templates_manager
 
@@ -60,10 +63,11 @@ if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
     app.middleware("http")(authentication_middleware)
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    import agenta_backend.ee.main as ee
+    import agenta_backend.cloud.main as cloud
 
-    app, allow_headers = ee.extend_main(app)
+    app, allow_headers = cloud.extend_main(app)
 
+app.include_router(health_router.router, prefix="/health")
 app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps")
 app.include_router(variants_router.router, prefix="/variants")
@@ -73,3 +77,5 @@ app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")
 app.include_router(observability_router.router, prefix="/observability")
 app.include_router(organization_router.router, prefix="/organizations")
+app.include_router(bases_router.router, prefix="/bases")
+app.include_router(configs_router.router, prefix="/configs")

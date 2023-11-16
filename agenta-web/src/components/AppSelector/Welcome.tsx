@@ -143,7 +143,11 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                     <h2>The developer-first open source LLMOps platform.</h2>
                 </section>
                 <section className={classes.wrapper}>
-                    <div className={classes.container} onClick={onCreateFromTemplate}>
+                    <div
+                        className={classes.container}
+                        onClick={onCreateFromTemplate}
+                        data-cy="create-from-template__no-app"
+                    >
                         <div className={classes.title}>
                             <h1>Quickstart From a Template</h1>
                         </div>

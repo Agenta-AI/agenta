@@ -7,7 +7,7 @@ from agenta_backend.services import db_manager
 router = APIRouter()
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.selectors import (
+    from agenta_backend.cloud.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
@@ -20,7 +20,7 @@ async def user_profile(
 ):
     try:
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        user = await db_manager.get_user_object(user_org_data["uid"])
+        user = await db_manager.get_user(user_uid=user_org_data["uid"])
         return User(
             id=str(user.id),
             uid=str(user.uid),

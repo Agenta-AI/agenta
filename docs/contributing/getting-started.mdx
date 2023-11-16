@@ -48,5 +48,18 @@ It is important that you run your tests locally and make sure they pass before y
 3. Run `pytest` to run the tests
 
 
+## Running the Frontend Tests
+
+Before submitting a pull request, it is important that you run your frontend tests to ensure your changes do not introduce new issues. This section guides you through the process.
+
+1. Open a terminal or command prompt
+2. Start the agenta platform locally by running `docker compose -f "docker-compose.yml" up -d --build`
+3. Update the `.env.local` file with your OpenAI API Key:
+To use your OpenAI API Key in the tests, you need to update the `.env.local` file with the key. Follow these steps:
+  - Open the `.env.local` file located at `/agenta/agenta-web/.env.local` in your code editor
+  - Add your OpenAI API Key using the variable `NEXT_PUBLIC_OPENAI_API_KEY`
+  - Save the `.env.local` file after adding the key
+4. Navigate to the frontend directory of the project `cd agenta-web`
+5. Run `npm run test` to run the frontend tests
 
 We look forward to seeing your contributions to Agenta!

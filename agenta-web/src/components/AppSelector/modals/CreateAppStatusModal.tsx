@@ -178,7 +178,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                 />
             )}
             <Typography.Text>
-                Creating your app <strong>"{appName}"</strong>. This can take upto a minute.
+                Creating your app <strong>"{appName}"</strong>. This takes around 30 seconds.
             </Typography.Text>
 
             <div className={classes.statusSteps}>
@@ -196,8 +196,8 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                                 type === "success"
                                     ? "success"
                                     : type === "error"
-                                    ? "danger"
-                                    : "secondary"
+                                      ? "danger"
+                                      : "secondary"
                             }
                             strong={Object.keys(messages)[ix] === "success"}
                         >

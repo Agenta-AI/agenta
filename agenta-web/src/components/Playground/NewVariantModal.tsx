@@ -49,6 +49,7 @@ const NewVariantModal: React.FC<Props> = ({
 
     return (
         <Modal
+            data-cy="new-variant-modal"
             title="Create a New Variant"
             open={isModalOpen}
             onOk={() => {
@@ -66,18 +67,25 @@ const NewVariantModal: React.FC<Props> = ({
                     <Text>Select an existing variant to use as a template:</Text>
                     <Select
                         className={classes.select}
+                        data-cy="new-variant-modal-select"
                         placeholder="Select a variant"
                         onChange={handleTemplateVariantChange}
                         options={variants.map((variant) => ({
                             value: variant.variantName,
-                            label: variant.variantName,
+                            label: (
+                                <div data-cy="new-variant-modal-label">{variant.variantName}</div>
+                            ),
                         }))}
                     />
                 </div>
 
                 <div>
                     <Text>Enter a unique name for the new variant:</Text>
-                    <Input addonBefore={variantPlaceHolder} onChange={handleVariantNameChange} />
+                    <Input
+                        addonBefore={variantPlaceHolder}
+                        onChange={handleVariantNameChange}
+                        data-cy="new-variant-modal-input"
+                    />
                 </div>
             </Space>
         </Modal>

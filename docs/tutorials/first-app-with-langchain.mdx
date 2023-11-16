@@ -1,0 +1,172 @@
+---
+title: Simple App with Langchain
+---
+
+This tutorial guides you through writing of your first LLM app using Langchain and Agenta. The objective is to create an app that can produce a persuasive startup pitch, using the startup's name and core idea. By the end of this tutorial, your app will be set up locally and ready for testing and refinement in the playground.
+
+## Prerequisites
+
+This guide assumes you have completed the installation process. If not, please follow our [installation guide](/installation).
+
+## 1. Project Initialization
+
+First, create an empty project in a new directory.
+
+```bash
+mkdir my-first-app; cd my-first-app
+agenta init
+```
+
+Follow the prompts to initialize your project. Make sure to select `start with an empty project` when prompted.
+
+Now create a virtual environment:
+
+```bash
+python3 -m venv env
+source env/bin/activate
+```
+
+Create a `requirements.txt` file and list the dependencies:
+
+```
+langchain
+agenta
+openai
+```
+
+Then install them:
+```bash
+pip install -r requirements.txt
+```
+
+Your project is now ready for development.
+
+## 2. Write a Simple LLM App
+
+Create a file named `app.py`. This will house a simple script that uses the langchain library to generate a startup pitch:
+
+```python
+
+from langchain.chains import LLMChain
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
+
+
+default_prompt = """
+Write a short message to an investor pitching this startup:
+startup name: {startup_name}
+startup idea: {startup_idea}"""
+
+temperature = 0.5
+
+def generate(
+    startup_name: str,
+    startup_idea: str) -> str:
+    llm = OpenAI(temperature=temperature)
+    prompt = PromptTemplate(
+        input_variables=["startup_name", "startup_idea"],
+        template=prompt_template)
+
+    chain = LLMChain(llm=llm, prompt=prompt)
+    output = chain.run(startup_name=startup_name,
+                       startup_idea=startup_idea)
+    return output
+
+print(generate("agenta",
+               "the open-source developer-first llmops platform"))
+```
+
+## 3. Add the Agenta SDK
+
+The Agenta SDK transforms your code into an LLM app deployable in Agenta. The resulting code below illustrates how to integrate the SDK:
+
+```python
+import agenta as ag
+from langchain.chains import LLMChain
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
+
+default_prompt = """
+    please write a short linkedin message (2 SENTENCES MAX) to an investor pitching the following startup:
+    startup name: {startup_name}
+    startup idea: {startup_idea}"""
+
+ag.init()
+ag.config.default(prompt_template=default_prompt, temperature=0.5)
+
+@ag.entrypoint
+def generate(
+    startup_name: str,
+    startup_idea: str,
+) -> str:
+    llm = OpenAI(temperature=ag.config.temperature)
+    prompt = PromptTemplate(
+        input_variables=["startup_name", "startup_idea"],
+        template=ag.config.prompt_template)
+
+    chain = LLMChain(llm=llm, prompt=prompt)
+    output = chain.run(startup_name=startup_name, startup_idea=startup_idea)
+    return output
+```
+
+Let's examine how we modified the original code.
+
+```python
+ag.init()
+ag.config.default(prompt_template=ag.TextParam(default_prompt), temperature=ag.FloatParam(0.5))
+```
+
+These two lines initialize agenta, then set a default configuration for the app. 
+
+```python
+@ag.entrypoint
+def generate(
+    startup_name: str,
+    startup_idea: str,
+) -> str:
+```
+
+The decorator @ag.entrypoint signals to agenta that this function is the app's entrypoint. This function will be the one that will be made into an api endpoint, and the one that will be called in the playground.
+
+```python
+ag.config.temperature
+```
+
+All parameters for the app can be accessed using `ag.config.paramname`
+
+Note that later when we modify the configuration in the playground, we will see the parameters modified in the code. 
+
+## 4. API Key Integration
+
+For using OpenAI or other APIs, store your keys in a .env file:
+```bash
+OPENAI_API_KEY=sk-xxxxxxx
+```
+
+
+## 5. Run the app in CLI
+
+Use the following command to execute the app via Command Line Interface (CLI):
+
+```bash
+python app.py agenta "the open-source developer-first llmops platform"
+
+Hi there, I'm excited to tell you about Agenta, the open source Dev First LLMOPS Platform. It's a revolutionary way to simplify and streamline the development process, and I'm confident it will be a game changer in the industry. Let's chat soon!
+```
+
+## 6. Deploying to Agenta
+
+Our app is still local. To make it available in the playground, add it to Agenta by running:
+
+```bash
+agenta variant serve app.py
+```
+
+Now you can interact with the app through the API or experiment in the playground.
+
+## 7. Iterative Improvement in the Playground
+
+Your app is now accessible in the Agenta UI at [http://localhost](http://localhost). Interact with your app, experiment with different parameters, and fine-tune your app's behavior to achieve desired results.
+
+
+<Check> Well done! You've created and deployed your first LLM app with Agenta. Continue to experiment and refine your app as needed in the playground. </Check>

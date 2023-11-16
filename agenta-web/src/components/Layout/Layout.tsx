@@ -3,7 +3,7 @@ import {Breadcrumb, Button, ConfigProvider, Dropdown, Layout, Space, Tooltip, th
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
-import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {isDemo, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {useAppTheme} from "./ThemeContextProvider"
 import {useElementSize} from "usehooks-ts"
 import {createUseStyles} from "react-jss"
@@ -16,6 +16,7 @@ import {useRouter} from "next/router"
 import Image from "next/image"
 import moonIcon from "@/media/night.png"
 import sunIcon from "@/media/sun.png"
+import {useProfileData} from "@/contexts/profile.context"
 
 const {Content, Footer} = Layout
 
@@ -36,7 +37,7 @@ const useStyles = createUseStyles({
         height: `calc(100% - ${footerHeight ?? 0}px)`,
         paddingLeft: "1.5rem",
         paddingRight: "1.5rem",
-        marginLeft: 225,
+        // marginLeft: 225,
         marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
         flex: 1,
     }),
@@ -83,7 +84,7 @@ const useStyles = createUseStyles({
     footer: {
         position: "absolute",
         bottom: 0,
-        left: 225,
+        left: 0,
         right: 0,
         textAlign: "center",
         padding: "5px 20px",
@@ -113,6 +114,7 @@ type LayoutProps = {
 }
 
 const App: React.FC<LayoutProps> = ({children}) => {
+    const {user} = useProfileData()
     const {appTheme, themeMode, toggleAppTheme} = useAppTheme()
     const {currentApp} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
@@ -122,6 +124,55 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const router = useRouter()
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
+
+    useEffect(() => {
+        if (user && isDemo()) {
+            ;(window as any).intercomSettings = {
+                api_base: "https://api-iam.intercom.io",
+                app_id: process.env.NEXT_PUBLIC_INTERCOM_APP_ID,
+                name: user.username,
+                email: user.email,
+            }
+            ;(function () {
+                var w: any = window
+                var ic = w.Intercom
+                if (typeof ic === "function") {
+                    ic("reattach_activator")
+                    ic("update", (window as any).intercomSettings)
+                } else {
+                    var d = document
+                    var i: any = function () {
+                        i.c(arguments)
+                    }
+                    i.q = []
+                    i.c = function (args: any) {
+                        i.q.push(args)
+                    }
+                    w.Intercom = i
+                    var l = function () {
+                        var s = d.createElement("script")
+                        s.type = "text/javascript"
+                        s.async = true
+                        s.src = `https://widget.intercom.io/widget/${process.env.NEXT_PUBLIC_INTERCOM_APP_ID}`
+                        var x: any = d.getElementsByTagName("script")[0]
+                        x.parentNode.insertBefore(s, x)
+                    }
+                    if (document.readyState === "complete") {
+                        l()
+                    } else if (w.attachEvent) {
+                        w.attachEvent("onload", l)
+                    } else {
+                        w.addEventListener("load", l, false)
+                    }
+                }
+            })()
+        } else {
+            if ((window as any).Intercom) {
+                ;(window as any).Intercom("shutdown")
+                delete (window as any).intercomSettings
+            }
+        }
+    }, [user])
 
     const isAppRoute = useMemo(
         () => router.pathname.startsWith("/apps/[app_id]"),
@@ -142,6 +193,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [])
 
     useEffect(() => {
+        if (typeof window === "undefined") return () => {}
+
         const body = document.body
         body.classList.remove("dark-mode", "light-mode")
         if (isDarkTheme) {
@@ -164,93 +217,98 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 >
                     <Layout hasSider className={classes.layout}>
                         <Sidebar />
-                        <Content className={classes.content}>
-                            <Space className={classes.breadcrumbContainer}>
-                                <Breadcrumb
-                                    className={classes.breadcrumb}
-                                    items={[
-                                        {title: <Link href="/apps">Apps</Link>},
-                                        {title: capitalizedAppName},
-                                    ]}
-                                />
-                                <div className={classes.topRightBar}>
-                                    <Dropdown
-                                        trigger={["click"]}
-                                        menu={{
-                                            items: [
-                                                {
-                                                    key: "system",
-                                                    label: "System",
-                                                    onClick: () => toggleAppTheme("system"),
-                                                },
-                                                {
-                                                    key: "light",
-                                                    label: "Light",
-                                                    onClick: () => toggleAppTheme("light"),
-                                                },
-                                                {
-                                                    key: "dark",
-                                                    label: "Dark",
-                                                    onClick: () => toggleAppTheme("dark"),
-                                                },
-                                            ],
-                                            selectedKeys: [themeMode],
-                                        }}
-                                    >
-                                        <a onClick={(e) => e.preventDefault()}>
-                                            <Tooltip title="Change theme">
-                                                <Image
-                                                    alt={`Curren Theme: ${
-                                                        isDarkTheme ? "dark" : "light"
-                                                    }`}
-                                                    src={isDarkTheme ? sunIcon : moonIcon}
-                                                    width={24}
-                                                    height={24}
-                                                />
-                                            </Tooltip>
-                                        </a>
-                                    </Dropdown>
-                                    <Button
-                                        href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
+                        <Layout className={classes.layout}>
+                            <Content className={classes.content}>
+                                <Space className={classes.breadcrumbContainer}>
+                                    <Breadcrumb
+                                        className={classes.breadcrumb}
+                                        items={[
+                                            {title: <Link href="/apps">Apps</Link>},
+                                            {title: capitalizedAppName},
+                                        ]}
+                                    />
+                                    <div className={classes.topRightBar}>
+                                        <Dropdown
+                                            trigger={["click"]}
+                                            menu={{
+                                                items: [
+                                                    {
+                                                        key: "system",
+                                                        label: "System",
+                                                        onClick: () => toggleAppTheme("system"),
+                                                    },
+                                                    {
+                                                        key: "light",
+                                                        label: "Light",
+                                                        onClick: () => toggleAppTheme("light"),
+                                                    },
+                                                    {
+                                                        key: "dark",
+                                                        label: "Dark",
+                                                        onClick: () => toggleAppTheme("dark"),
+                                                    },
+                                                ],
+                                                selectedKeys: [themeMode],
+                                            }}
+                                        >
+                                            <a onClick={(e) => e.preventDefault()}>
+                                                <Tooltip title="Change theme">
+                                                    <Image
+                                                        alt={`Curren Theme: ${
+                                                            isDarkTheme ? "dark" : "light"
+                                                        }`}
+                                                        src={isDarkTheme ? sunIcon : moonIcon}
+                                                        width={24}
+                                                        height={24}
+                                                    />
+                                                </Tooltip>
+                                            </a>
+                                        </Dropdown>
+                                        <Button
+                                            href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
+                                            target="_blank"
+                                            className={classes.joinBtn}
+                                        >
+                                            <img src="/assets/slack.png" alt="Slack Image" />
+                                            <span>Join us</span>
+                                        </Button>
+                                        <Button
+                                            className={classes.star}
+                                            href="https://github.com/Agenta-AI/agenta"
+                                        >
+                                            <div>
+                                                <GithubFilled style={{fontSize: 18}} />
+                                                <p>Star</p>
+                                            </div>
+                                            <div>{starCount || 0}</div>
+                                        </Button>
+                                    </div>
+                                </Space>
+                                <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                    {children}
+                                </ErrorBoundary>
+                            </Content>
+                            <Footer ref={footerRef} className={classes.footer}>
+                                <Space className={classes.footerLeft} size={10}>
+                                    <Link
+                                        href={"https://github.com/Agenta-AI/agenta"}
                                         target="_blank"
-                                        className={classes.joinBtn}
                                     >
-                                        <img src="/assets/slack.png" alt="Slack Image" />
-                                        <span>Join us</span>
-                                    </Button>
-                                    <Button
-                                        className={classes.star}
-                                        href="https://github.com/Agenta-AI/agenta"
+                                        <GithubFilled className={classes.footerLinkIcon} />
+                                    </Link>
+                                    <Link
+                                        href={"https://www.linkedin.com/company/agenta-ai/"}
+                                        target="_blank"
                                     >
-                                        <div>
-                                            <GithubFilled style={{fontSize: 18}} />
-                                            <p>Star</p>
-                                        </div>
-                                        <div>{starCount || 0}</div>
-                                    </Button>
-                                </div>
-                            </Space>
-                            <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                {children}
-                            </ErrorBoundary>
-                        </Content>
-                        <Footer ref={footerRef} className={classes.footer}>
-                            <Space className={classes.footerLeft} size={10}>
-                                <Link href={"https://github.com/Agenta-AI/agenta"} target="_blank">
-                                    <GithubFilled className={classes.footerLinkIcon} />
-                                </Link>
-                                <Link
-                                    href={"https://www.linkedin.com/company/agenta-ai/"}
-                                    target="_blank"
-                                >
-                                    <LinkedinFilled className={classes.footerLinkIcon} />
-                                </Link>
-                                <Link href={"https://twitter.com/agenta_ai"} target="_blank">
-                                    <TwitterOutlined className={classes.footerLinkIcon} />
-                                </Link>
-                            </Space>
-                            <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
-                        </Footer>
+                                        <LinkedinFilled className={classes.footerLinkIcon} />
+                                    </Link>
+                                    <Link href={"https://twitter.com/agenta_ai"} target="_blank">
+                                        <TwitterOutlined className={classes.footerLinkIcon} />
+                                    </Link>
+                                </Space>
+                                <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
+                            </Footer>
+                        </Layout>
                     </Layout>
                 </ConfigProvider>
             )}

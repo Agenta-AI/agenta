@@ -74,6 +74,7 @@ export const getAllProviderLlmKeys = () => {
         // if doesn't have the localStorage variable
         localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(llmAvailableProviders))
     }
+
     return llmAvailableProviders
 }
 
@@ -119,6 +120,8 @@ export const convertToCsv = (rows: RowType[], header: (string | undefined)[]): s
 }
 
 export const downloadCsv = (csvContent: string, filename: string): void => {
+    if (typeof window === "undefined") return
+
     const blob = new Blob([csvContent], {type: "text/csv"})
     const link = document.createElement("a")
     link.href = URL.createObjectURL(blob)
@@ -132,6 +135,9 @@ export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
 export const snakeToCamel = (str: string) =>
     str.replace(/([-_][a-z])/g, (group) => group.toUpperCase().replace("-", "").replace("_", ""))
+
+export const camelToSnake = (str: string) =>
+    str.replace(/([A-Z])/g, (group) => `_${group.toLowerCase()}`)
 
 export const stringToNumberInRange = (text: string, min: number, max: number) => {
     // Calculate a hash value from the input string

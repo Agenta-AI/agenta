@@ -15,7 +15,7 @@
   </h4>
 <div align="center">
   <strong>Quickly iterate, debug, and evaluate your LLM apps</strong><br />
-  The open-source LLMOps platform for prompt-engineering, evaluation, and deployment of complex LLM apps.
+  The open-source LLMOps platform for prompt-engineering, evaluation, human feedback, and deployment of complex LLM apps.
 </div>
 </br>
 <p align="center">
@@ -30,21 +30,22 @@
 </p>
 
 
-
 <p align="center">
-<a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
-<img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
-</a>
-<a href="https://www.linkedin.com/company/agenta-ai/">
-<img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" />
-</a>
-<a  href="https://twitter.com/agenta_ai">
-<img src="https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white" />
-</a>
+    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
+        <img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
+    </a>
+    <a href="https://www.linkedin.com/company/agenta-ai/">
+        <img src="https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white" />
+    </a>
+    <a  href="https://twitter.com/agenta_ai">
+        <img src="https://img.shields.io/twitter/follow/agenta_ai?style=social" height="28" />
+    </a>
 </p>
+
+
 </br>
 
-<a href="https://demo.agenta.ai">
+<a href="https://cloud.agenta.ai">
   <picture>
   <img src="https://github.com/Agenta-AI/agenta/assets/4510758/a3024fac-2945-4208-ae12-4cc51ecfc970" />
   </picture>
@@ -81,9 +82,6 @@
 </h3>
 
 ---
-# ⚠ Breaking Changes Notice
-
-> **Important**: In version 0.3, we had to do a large refactoring that introduced breaking changes. This means that version 0.3 cannot be used with data from versions 0.2 and below. You should manually save your data before pulling version 0.3. Feel free to contact us on Slack if you need help with the migration.
 
 # ℹ️ About
 
@@ -107,7 +105,7 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 
 
 <div  align="center" >
-<a href="https://demo.agenta.ai">
+<a href="https://cloud.agenta.ai">
   <picture>
   <img src="https://github.com/Agenta-AI/agenta/assets/4510758/a3024fac-2945-4208-ae12-4cc51ecfc970" />
   </picture>
@@ -144,7 +142,7 @@ https://github.com/Agenta-AI/agenta/assets/57623556/99733147-2b78-4b95-852f-6747
 https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95efc69134c
 
 <h3>Version Evaluation 📊 <br/></h3>
-Define test sets, the evaluate manually or programmatically your different variants.<br/>
+Define test sets, then evaluate manually or programmatically your different variants.<br/>
 
 ![](https://github.com/Agenta-AI/agenta/assets/4510758/b1de455d-7e0a-48d6-8497-39ba641600f0)
 
@@ -157,9 +155,9 @@ When you are ready, deploy your LLM applications as APIs in one click.<br/>
 ## Why choose Agenta for building LLM-apps?
 
 - 🔨 **Build quickly**: You need to iterate many times on different architectures and prompts to bring apps to production. We streamline this process and allow you to do this in days instead of weeks.
-- 🏗️ **Build robust apps and reduce hallucination**: We provide you with the tools to systematically and easily evaluate your application to make sure you only serve robust apps to production
+- 🏗️ **Build robust apps and reduce hallucination**: We provide you with the tools to systematically and easily evaluate your application to make sure you only serve robust apps to production.
 - 👨‍💻 **Developer-centric**: We cater to complex LLM-apps and pipelines that require more than one simple prompt. We allow you to experiment and iterate on apps that have complex integration, business logic, and many prompts.
-- 🌐 **Solution-Agnostic**: You have the freedom to use any library and models, be it Langchain, llma_index, or a custom-written alternative.
+- 🌐 **Solution-Agnostic**: You have the freedom to use any libraries and models, be it Langchain, llma_index, or a custom-written alternative.
 - 🔒 **Privacy-First**: We respect your privacy and do not proxy your data through third-party services. The platform and the data are hosted on your infrastructure.
 
 ## How Agenta works:
@@ -168,7 +166,7 @@ When you are ready, deploy your LLM applications as APIs in one click.<br/>
 
 Write the code using any framework, library, or model you want. Add the `agenta.post` decorator and put the inputs and parameters in the function call just like in this example:
 
-_Example simple application that generates baby names_
+_Example simple application that generates baby names:_
 
 ```python
 import agenta as ag
@@ -177,19 +175,19 @@ from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 
 default_prompt = "Give me five cool names for a baby from {country} with this gender {gender}!!!!"
+ag.init()
+ag.config(prompt_template=ag.TextParam(default_prompt),
+          temperature=ag.FloatParam(0.9))
 
-
-@ag.post
+@ag.entrypoint
 def generate(
     country: str,
     gender: str,
-    temperature: ag.FloatParam = 0.9,
-    prompt_template: ag.TextParam = default_prompt,
 ) -> str:
-    llm = OpenAI(temperature=temperature)
+    llm = OpenAI(temperature=ag.config.temperature)
     prompt = PromptTemplate(
         input_variables=["country", "gender"],
-        template=prompt_template,
+        template=ag.config.prompt_template,
     )
     chain = LLMChain(llm=llm, prompt=prompt)
     output = chain.run(country=country, gender=gender)
@@ -197,7 +195,7 @@ def generate(
     return output
 ```
 
-**2.Deploy your app using the Agenta CLI.**
+**2.Deploy your app using the Agenta CLI**
 
 <img width="650" alt="Screenshot 2023-06-19 at 15 58 34" src="https://github.com/Agenta-AI/agenta/assets/4510758/eede3e78-0fe1-42a0-ad4e-d880ddb10bf0">
 
@@ -213,18 +211,27 @@ Now your team can 🔄 iterate, 🧪 experiment, and ⚖️ evaluate different v
 Talk with the founders for any commercial inquiries. <br/><br/>
 <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"><img src="https://cal.com/book-with-cal-dark.svg" alt="Book us"></a>
 
+# Disabling Anonymized Tracking
+
+To disable anonymized telemetry, set the following environment variable:
+
+- For web: Set `TELEMETRY_TRACKING_ENABLED` to `false` in your `agenta-web/.env` file.
+- For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
+
+After making this change, restart agenta compose.
+
 # Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
 
-We are usually hanging in our Slack. Feel free to [join our slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA)
+We are usually hanging in our Slack. Feel free to [join our Slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA)
 
 Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-started) for more information.
 
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-27-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-33-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -268,6 +275,14 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://liduos.com/"><img src="https://avatars.githubusercontent.com/u/47264881?v=4?s=100" width="100px;" alt="莫尔索"/><br /><sub><b>莫尔索</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=morsoli" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://luccithedev.com"><img src="https://avatars.githubusercontent.com/u/22600781?v=4?s=100" width="100px;" alt="Agunbiade Adedeji"/><br /><sub><b>Agunbiade Adedeji</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=dejongbaba" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://techemmy.github.io/"><img src="https://avatars.githubusercontent.com/u/43725109?v=4?s=100" width="100px;" alt="Emmanuel Oloyede"/><br /><sub><b>Emmanuel Oloyede</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=techemmy" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=techemmy" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Dhaneshwarguiyan"><img src="https://avatars.githubusercontent.com/u/116065351?v=4?s=100" width="100px;" alt="Dhaneshwarguiyan"/><br /><sub><b>Dhaneshwarguiyan</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Dhaneshwarguiyan" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/PentesterPriyanshu"><img src="https://avatars.githubusercontent.com/u/98478305?v=4?s=100" width="100px;" alt="Priyanshu Prajapati"/><br /><sub><b>Priyanshu Prajapati</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=PentesterPriyanshu" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://venkataravitejagullapudi.github.io/"><img src="https://avatars.githubusercontent.com/u/70102577?v=4?s=100" width="100px;" alt="Raviteja"/><br /><sub><b>Raviteja</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=VenkataRavitejaGullapudi" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ArijitCloud"><img src="https://avatars.githubusercontent.com/u/81144422?v=4?s=100" width="100px;" alt="Arijit"/><br /><sub><b>Arijit</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=ArijitCloud" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Yachika9925"><img src="https://avatars.githubusercontent.com/u/147185379?v=4?s=100" width="100px;" alt="Yachika9925"/><br /><sub><b>Yachika9925</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Yachika9925" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Dhoni77"><img src="https://avatars.githubusercontent.com/u/53973174?v=4?s=100" width="100px;" alt="Aldrin"/><br /><sub><b>Aldrin</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Dhoni77" title="Tests">⚠️</a></td>
     </tr>
   </tbody>
 </table>
@@ -277,6 +292,6 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind are welcome!
 
-Attribution: Testing icons created by [Freepik - Flaticon](https://www.flaticon.com/free-icons/testing)
+**Attribution**: Testing icons created by [Freepik - Flaticon](https://www.flaticon.com/free-icons/testing)

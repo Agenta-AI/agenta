@@ -13,7 +13,8 @@ COPY next.config.js .
 COPY tsconfig.json .
 COPY postcss.config.js .
 COPY .env .
-
+# used in cloud 
+COPY sentry.* .
 # Build the Next.js app for production
 RUN npm run build
 
