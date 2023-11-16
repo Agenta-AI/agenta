@@ -34,7 +34,7 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 if os.environ["FEATURE_FLAG"] in ["cloud"]:
-    from agenta_backend.ee.services import (
+    from agenta_backend.cloud.services import (
         lambda_deployment_manager as deployment_manager,
     )  # noqa pylint: disable-all
 elif os.environ["FEATURE_FLAG"] in ["ee"]:
