@@ -43,22 +43,20 @@ describe("Exact Match Evaluation workflow", () => {
             cy.wait(1500)
             cy.get('[data-cy="exact-match-evaluation-button"]').click()
 
-            cy.get('[data-cy="exact-match-evaluation-score"]', {timeout: 15000})
+            cy.get('[data-cy="exact-match-evaluation-score"]')
                 .invoke("text")
                 .then((text) => {
                     // Check if the text contains either "correct" or "wrong"
                     expect(text.includes("correct") || text.includes("wrong")).to.be.true
                 })
 
-            cy.get(".ant-statistic-content-value", {timeout: 15000})
-                .first()
-                .should("contain", "3 out of 3")
+            cy.get(".ant-statistic-content-value").first().should("contain", "3 out of 3")
             cy.get(".ant-message-notice-content").should("exist")
         })
 
         it("Should display Exact Match Evaluation result", () => {
             cy.get('[data-cy="automatic-evaluation-result"]').within(() => {
-                cy.get("tr", {timeout: 15000}).last().should("contain.text", "Exact Match")
+                cy.get("tr").last().should("contain.text", "Exact Match")
             })
         })
     })
