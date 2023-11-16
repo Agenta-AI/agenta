@@ -1,9 +1,9 @@
 name: Prettier
 
-# on:
-#   pull_request:
-#     paths:
-#       - "agenta-web/**"
+on:
+  pull_request:
+    paths:
+      - "agenta-web/**"
 
 jobs:
   prettier:
