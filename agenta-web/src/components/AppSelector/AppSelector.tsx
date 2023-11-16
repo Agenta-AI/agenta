@@ -1,5 +1,6 @@
 import {useState, useEffect, useMemo} from "react"
 import {useRouter} from "next/router"
+import {usePostHog} from "posthog-js/react"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
@@ -11,6 +12,7 @@ import Welcome from "./Welcome"
 import {getAllLlmProviderKeysAsEnvVariable, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
+    getProfile,
     getTemplates,
     removeApp,
     waitForAppToStart,
@@ -95,6 +97,7 @@ const timeout = isDemo() ? 60000 : 30000
 
 const AppSelector: React.FC = () => {
     const router = useRouter()
+    const posthog = usePostHog()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
@@ -117,6 +120,7 @@ const AppSelector: React.FC = () => {
         appId: undefined,
     })
 
+    const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
@@ -208,6 +212,21 @@ const AppSelector: React.FC = () => {
                     setFetchingTemplate(false)
                 if (status === "success") {
                     mutate()
+
+                    if (trackingEnabled) {
+                        // Get user profile
+                        getProfile().then((res) => {
+                            // Update distinct_id and track successfully app variant deployment
+                            posthog?.identify(res?.data?.id)
+                            posthog?.capture("app_deployment", {
+                                properties: {
+                                    app_id: appId,
+                                    environment: "UI",
+                                    deployed_by: res?.data?.id,
+                                },
+                            })
+                        })
+                    }
                 }
             },
         })
@@ -226,7 +245,7 @@ const AppSelector: React.FC = () => {
         if (!statusData.appId) return
         setStatusData((prev) => ({...prev, status: "starting_app", details: undefined}))
         try {
-            await waitForAppToStart(statusData.appId, timeout)
+            await waitForAppToStart({appId: statusData.appId, timeout})
         } catch (error: any) {
             if (error.message === "timeout") {
                 setStatusData((prev) => ({...prev, status: "timeout", details: undefined}))
@@ -275,7 +294,7 @@ const AppSelector: React.FC = () => {
                                     <Card
                                         className={classes.createCard}
                                         onClick={() => {
-                                            if (isDemo() && apps.length > 1) {
+                                            if (isDemo() && apps.length > 2) {
                                                 showMaxAppError()
                                             } else {
                                                 showCreateAppModal()

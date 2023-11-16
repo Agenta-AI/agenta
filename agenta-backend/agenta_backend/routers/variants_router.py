@@ -25,7 +25,7 @@ from agenta_backend.models.api.api_models import (
 )
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.selectors import (
+    from agenta_backend.cloud.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
@@ -247,7 +247,7 @@ async def start_variant(
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
     # Inject env vars to docker container
-    if os.environ["FEATURE_FLAG"] == "demo":
+    if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
         if not os.environ["OPENAI_API_KEY"]:
             raise HTTPException(
                 status_code=400,

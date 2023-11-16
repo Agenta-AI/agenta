@@ -1,14 +1,17 @@
-from . import init  # import should always come first
-from . import context
-from . import agenta
-from .agenta import post, ingest, app
+from .utils.preinit import PreInitObject  # always the first import!
+from . import agenta_decorator, context, types, utils  # noqa: F401
+from .agenta_decorator import app, entrypoint
+from .context import get_contexts, save_context
 from .types import (
-    TextParam,
+    Context,
+    DictInput,
     FloatParam,
     InFile,
-    Context,
-    MultipleChoiceParam,
-    DictInput,
     IntParam,
+    MultipleChoiceParam,
+    TextParam,
+    MessagesInput,
 )
-from .context import save_context, get_contexts
+from .agenta_init import Config, init
+
+config = PreInitObject("agenta.config", Config)

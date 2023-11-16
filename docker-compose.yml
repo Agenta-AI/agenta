@@ -15,9 +15,12 @@ services:
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - ENVIRONMENT=development
+            - DATABASE_MODE=v2
             - BARE_DOMAIN_NAME=localhost
             - DOMAIN_NAME=http://localhost
             - FEATURE_FLAG=oss
+            - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
+            - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
@@ -67,6 +70,8 @@ services:
             - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
+        environment:
+            - NEXT_PUBLIC_POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
 
     mongo:
         image: mongo:5.0

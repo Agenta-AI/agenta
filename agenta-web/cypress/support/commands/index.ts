@@ -9,6 +9,10 @@ declare global {
             clickLinkAndWait(selector: string): Chainable<void>
             createVariantsAndTestsets(): Chainable<void>
             cleanupVariantAndTestset(): Chainable<void>
+            createVariant(): Chainable<void>
+            saveOpenAiKey(): Chainable<void>
+            removeOpenAiKey(): Chainable<void>
+            addingOpenaiKey(): Chainable<void>
         }
     }
 }

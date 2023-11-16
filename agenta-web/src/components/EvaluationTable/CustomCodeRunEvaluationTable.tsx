@@ -448,7 +448,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                                 : false
                         }
                     >
-                        <Space>{calcScenarioScore(ix)}</Space>
+                        <Space data-cy="code-evaluation-result">{calcScenarioScore(ix)}</Space>
                     </Spin>
                 )
             },
@@ -463,6 +463,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                     <Col span={12}>
                         <Space>
                             <Button
+                                data-cy="code-evaluation-run"
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 icon={<LineChartOutlined />}

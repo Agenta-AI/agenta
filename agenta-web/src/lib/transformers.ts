@@ -53,6 +53,8 @@ export const fromEvaluationScenarioResponseToEvaluationScenario = (
         inputs: item.inputs,
         outputs: item.outputs,
         correctAnswer: item.correct_answer,
+        isPinned: item.is_pinned,
+        note: item.note,
     }
 
     if (evaluation.evaluationType === EvaluationType.human_a_b_testing) {

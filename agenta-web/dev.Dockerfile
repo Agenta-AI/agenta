@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 RUN \
     if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then npm ci; \
+    elif [ -f package-lock.json ]; then npm i; \
     elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i; \
     # Allow install without lockfile, so example works even without Node.js installed locally
     else echo "Warning: Lockfile not found. It is recommended to commit lockfiles to version control." && yarn install; \
@@ -19,6 +19,8 @@ COPY tsconfig.json .
 COPY postcss.config.js .
 COPY .env .
 RUN if [ -f .env.local ]; then cp .env.local .; fi
+# used in cloud 
+COPY sentry.* .
 # Next.js collects completely anonymous telemetry data about general usage. Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line to disable telemetry at run time
 # ENV NEXT_TELEMETRY_DISABLED 1

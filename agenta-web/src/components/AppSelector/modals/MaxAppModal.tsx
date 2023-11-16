@@ -65,20 +65,17 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
             footer={null}
             title={
                 <Title level={4} className={classes.title}>
-                    Demo Limit Reached
+                    Free Limit Reached
                 </Title>
             }
             width={600}
             {...props}
         >
-            <div>You've reached the maximum number of apps for the demo. To create more apps:</div>
+            <div>You've reached the maximum number of apps for the free version.</div>
             <div>
-                - Explore our{" "}
-                <a href="https://github.com/agenta-ai/agenta">open-source, self-hosted version</a>.
-            </div>
-            <div>
-                - Or, <a href="https://cal.com/mahmoud-mabrouk-ogzgey/30min">schedule a call</a> for
-                early access to our cloud solution.
+                To create more apps{" "}
+                <a href="https://cal.com/mahmoud-mabrouk-ogzgey/30min">schedule a call</a> to get
+                full access to the platform.
             </div>
             <div>
                 Questions? Feel free to reach out to our support in{" "}

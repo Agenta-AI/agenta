@@ -1,0 +1,30 @@
+name: Execute Backend tests
+
+on: [pull_request]
+
+jobs:
+  continous_integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Start Docker Compose
+        run: docker-compose -f "docker-compose.test.yml" up -d --build
+
+      - name: Install Curl
+        run: sudo apt install curl -y
+
+      - name: Wait for Backend Service
+        run: |
+          while true; do
+            if curl -s http://localhost:8000/openapi.json; then
+              break
+            fi
+            sleep 5
+          done
+
+      - name: Run tests
+        run: docker exec agenta-backend-test pytest
+
+      - name: Stop Docker Compose
+        run: docker-compose down
