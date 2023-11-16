@@ -1,6 +1,6 @@
 name: Execute Backend tests
 
-# on: [pull_request]
+on: [pull_request]
 
 jobs:
   continous_integration:

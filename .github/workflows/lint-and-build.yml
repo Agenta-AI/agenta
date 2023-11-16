@@ -1,9 +1,9 @@
 name: Lint and Build
 
-# on:
-#   pull_request:
-#     paths:
-#       - "agenta-web/**"
+on:
+  pull_request:
+    paths:
+      - "agenta-web/**"
 
 jobs:
   lint_and_build:
