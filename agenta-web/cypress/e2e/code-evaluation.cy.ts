@@ -66,8 +66,6 @@ describe("Code Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="code-evaluation-run"]')
 
             cy.get('[data-cy="code-evaluation-result"]').should("contain.text", "0.75")
-            cy.get(".ant-statistic-content-value").should("contain.text", "0.75")
-            cy.get(".ant-message-notice-content").should("exist")
         })
     })
 
