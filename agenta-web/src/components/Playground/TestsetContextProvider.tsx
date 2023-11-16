@@ -1,12 +1,13 @@
+import {GenericObject} from "@/lib/Types"
 import React, {Dispatch, PropsWithChildren, SetStateAction, createContext, useState} from "react"
 
 export const TestContext = createContext<{
-    testList: Record<string, string>[]
-    setTestList: Dispatch<SetStateAction<Record<string, string>[]>>
+    testList: GenericObject[]
+    setTestList: Dispatch<SetStateAction<GenericObject[]>>
 }>({testList: [{}], setTestList: () => {}})
 
 const TestsetContextProvider: React.FC<PropsWithChildren> = (props) => {
-    const [testList, setTestList] = useState<Record<string, string>[]>([{}])
+    const [testList, setTestList] = useState<GenericObject[]>([{}])
 
     return (
         <TestContext.Provider value={{testList, setTestList}}>

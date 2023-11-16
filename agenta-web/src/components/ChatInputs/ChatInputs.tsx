@@ -3,6 +3,7 @@ import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Select, Tooltip} from "antd"
 import React, {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {useUpdateEffect} from "usehooks-ts"
 import {v4 as uuidv4} from "uuid"
 
 const useStyles = createUseStyles({
@@ -10,6 +11,7 @@ const useStyles = createUseStyles({
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
+        width: "100%",
     },
     row: {
         display: "flex",
@@ -18,32 +20,48 @@ const useStyles = createUseStyles({
 
         "& .ant-select": {
             width: 110,
+            alignSelf: "flex-start",
         },
 
         "& textarea": {
             marginTop: "0 !important",
             flex: 1,
             minWidth: 240,
+            maxWidth: 800,
         },
     },
 })
 
-const getDefaultNewMessage = () => ({
+export const getDefaultNewMessage = () => ({
+    id: uuidv4(),
     role: ChatRole.User,
     content: "",
-    id: uuidv4(),
 })
 
 interface Props {
     defaultValue?: ChatMessage[]
     value?: ChatMessage[]
     onChange?: (value: ChatMessage[]) => void
+    maxRows?: number
+    disableAdd?: boolean
+    disableRemove?: boolean
+    disableEditRole?: boolean
+    disableEditContent?: boolean
 }
 
-const ChatInputs: React.FC<Props> = ({defaultValue, value, onChange}) => {
+const ChatInputs: React.FC<Props> = ({
+    defaultValue,
+    value,
+    onChange,
+    maxRows = 12,
+    disableAdd,
+    disableRemove,
+    disableEditRole,
+    disableEditContent,
+}) => {
     const classes = useStyles()
     const [messages, setMessages] = useState<ChatMessage[]>(
-        defaultValue || [getDefaultNewMessage()],
+        value || defaultValue || [getDefaultNewMessage()],
     )
     const onChangeRef = useRef(onChange)
 
@@ -72,19 +90,22 @@ const ChatInputs: React.FC<Props> = ({defaultValue, value, onChange}) => {
         onChangeRef.current = onChange
     }, [onChange])
 
-    useEffect(() => {
+    useUpdateEffect(() => {
         if (onChangeRef.current) {
             onChangeRef.current(messages)
         }
     }, [messages])
 
-    const list = value || messages
+    useUpdateEffect(() => {
+        if (Array.isArray(value)) setMessages(value)
+    }, [JSON.stringify(value)])
 
     return (
         <div className={classes.root}>
-            {list.map((msg, ix) => (
+            {messages.map((msg, ix) => (
                 <div className={classes.row} key={msg.id || msg.role + msg.content + ix}>
                     <Select
+                        disabled={disableEditRole}
                         options={Object.keys(ChatRole).map((role) => ({
                             label: role,
                             value: ChatRole[role as keyof typeof ChatRole],
@@ -93,30 +114,35 @@ const ChatInputs: React.FC<Props> = ({defaultValue, value, onChange}) => {
                         onChange={(newRole) => handleRoleChange(ix, newRole)}
                     />
                     <Input.TextArea
-                        autoSize={{maxRows: 5}}
+                        disabled={disableEditContent}
+                        autoSize={{maxRows}}
                         value={msg.content}
                         onChange={(e) => handleInputChange(ix, e)}
                     />
-                    <Tooltip title="Remove">
+                    {messages.length > 1 && !disableRemove && (
+                        <Tooltip title="Remove">
+                            <Button
+                                shape="circle"
+                                size="small"
+                                icon={<MinusOutlined />}
+                                onClick={() => handleDelete(ix)}
+                            />
+                        </Tooltip>
+                    )}
+                </div>
+            ))}
+            {!disableAdd && (
+                <div>
+                    <Tooltip title="Add input">
                         <Button
                             shape="circle"
+                            icon={<PlusOutlined />}
+                            onClick={handleAdd}
                             size="small"
-                            icon={<MinusOutlined />}
-                            onClick={() => handleDelete(ix)}
                         />
                     </Tooltip>
                 </div>
-            ))}
-            <div>
-                <Tooltip title="Add input">
-                    <Button
-                        shape="circle"
-                        icon={<PlusOutlined />}
-                        onClick={handleAdd}
-                        size="small"
-                    />
-                </Tooltip>
-            </div>
+            )}
         </div>
     )
 }

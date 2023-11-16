@@ -1,13 +1,15 @@
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useAppTheme} from "../../Layout/ThemeContextProvider"
-import {testset} from "@/lib/Types"
+import {GenericObject, testset} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
 import {createNewTestset, loadTestset, updateTestset, useLoadTestsetsList} from "@/lib/services/api"
-import {Button, Drawer, Form, Input, Modal, Select, Typography, message} from "antd"
+import {Button, Divider, Drawer, Form, Input, Modal, Select, Space, Typography, message} from "antd"
 import {useRouter} from "next/router"
 import React, {useCallback, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
+import ChatInputs from "@/components/ChatInputs/ChatInputs"
+import _ from "lodash"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -29,10 +31,11 @@ const useStyles = createUseStyles({
 })
 
 type Props = React.ComponentProps<typeof Drawer> & {
-    params: Record<string, string>
+    params: GenericObject
+    isChatVariant: boolean
 }
 
-const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
+const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [form] = Form.useForm()
@@ -45,12 +48,20 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
     const isNew = selectedTestset === "-1"
 
     const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appId)
+    const chatParams = useRef({
+        chat: params.chat || [],
+        correct_answer: params.correct_answer || "",
+    }).current
 
     // reset the form to load latest initialValues on drawer open
     useUpdateEffect(() => {
         if (props.open) {
             mutate()
+
+            //reset to defaults
             form.resetFields()
+            chatParams.chat = params.chat || []
+            chatParams.correct_answer = params.correct_answer || ""
         } else dirty.current = false
     }, [props.open])
 
@@ -68,7 +79,14 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
     }, [props.onClose])
 
     const addToTestSet = useCallback(
-        (name: string, csvdata: Record<string, string>[], rowData: Record<string, string>) => {
+        (name: string, csvdata: Record<string, string>[], rowData: GenericObject) => {
+            rowData = {...rowData}
+            Object.keys(rowData).forEach((key) => {
+                if (rowData[key] && typeof rowData[key] !== "string") {
+                    rowData[key] = JSON.stringify(rowData[key])
+                }
+            })
+
             setLoading(true)
 
             const newRow: (typeof csvdata)[0] = {}
@@ -184,7 +202,13 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
                         type="primary"
                         disabled={!selectedTestset}
                         loading={loading}
-                        onClick={form.submit}
+                        onClick={
+                            isChatVariant
+                                ? () => {
+                                      onFinish(chatParams)
+                                  }
+                                : form.submit
+                        }
                     >
                         Add
                     </Button>
@@ -193,24 +217,62 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, ...props}) => {
             {...props}
             onClose={onClose}
         >
-            <Form
-                onValuesChange={() => (dirty.current = true)}
-                form={form}
-                initialValues={params}
-                layout="vertical"
-                onFinish={onFinish}
-            >
-                {Object.keys(params).map((name) => (
-                    <Form.Item key={name} label={renameVariables(name)} name={name}>
-                        <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
-                    </Form.Item>
-                ))}
-            </Form>
+            {isChatVariant ? (
+                <div>
+                    <Space direction="vertical" size="middle">
+                        <Typography.Text strong>Chat</Typography.Text>
+                        <ChatInputs
+                            defaultValue={
+                                params.chat?.length ? _.cloneDeep(params.chat) : undefined
+                            }
+                            onChange={(val) => {
+                                chatParams.chat = val
+                                dirty.current = true
+                            }}
+                        />
+                    </Space>
+
+                    <Divider />
+
+                    <Space direction="vertical" size="middle">
+                        <Typography.Text strong>Correct Answer</Typography.Text>
+                        <ChatInputs
+                            defaultValue={
+                                params.correct_answer
+                                    ? [_.cloneDeep(params.correct_answer)]
+                                    : undefined
+                            }
+                            onChange={(val) => {
+                                chatParams.correct_answer = val[0]
+                                dirty.current = true
+                            }}
+                            disableAdd
+                            disableRemove
+                        />
+                    </Space>
+                </div>
+            ) : (
+                <Form
+                    onValuesChange={() => (dirty.current = true)}
+                    form={form}
+                    initialValues={params}
+                    layout="vertical"
+                    onFinish={onFinish}
+                >
+                    {Object.keys(params).map((name) => (
+                        <Form.Item key={name} label={renameVariables(name)} name={name}>
+                            <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
+                        </Form.Item>
+                    ))}
+                </Form>
+            )}
             <AddNewTestsetModal
                 open={newTesetModalOpen}
                 onCancel={() => setNewTestsetModalOpen(false)}
                 destroyOnClose
-                onSubmit={(name) => addToTestSet(name, [], form.getFieldsValue())}
+                onSubmit={(name) =>
+                    addToTestSet(name, [], isChatVariant ? chatParams : form.getFieldsValue())
+                }
             />
         </Drawer>
     )
