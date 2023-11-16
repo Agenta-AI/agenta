@@ -20,7 +20,7 @@ else:
 if os.environ["FEATURE_FLAG"] in ["cloud"]:
     from agenta_backend.cloud.services import container_manager
 elif os.environ["FEATURE_FLAG"] in ["ee"]:
-    from agenta_backend.ee.services import container_manager
+    from agenta_backend.cloud.services import container_manager
 else:
     from agenta_backend.services import container_manager
 
