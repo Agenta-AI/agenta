@@ -10,7 +10,7 @@
         "cypress:open": "cypress open",
         "cypress:run": "cypress run",
         "test": "cypress run",
-        "format": "prettier --check",
+        "format": "prettier --check .",
         "format-fix": "prettier --write .",
         "types:check": "tsc",
         "types:watch": "tsc -w"
