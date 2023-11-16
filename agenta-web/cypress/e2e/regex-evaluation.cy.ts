@@ -82,13 +82,13 @@ describe("Regex Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="regex-evaluation-run"]')
 
-            cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 15000})
+            cy.get('[data-cy="regex-evaluation-regex-match"]')
                 .invoke("text")
                 .then((text) => {
                     // Check if the text contains either "Match" or "Mismatch"
                     expect(text.includes("Match") || text.includes("Mismatch")).to.be.true
                 })
-            cy.get('[data-cy="regex-evaluation-score"]', {timeout: 15000})
+            cy.get('[data-cy="regex-evaluation-score"]')
                 .invoke("text")
                 .then((text) => {
                     // Check if the text contains either "correct" or "wrong"
@@ -107,13 +107,13 @@ describe("Regex Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="regex-evaluation-run"]')
 
-            cy.get('[data-cy="regex-evaluation-regex-match"]', {timeout: 15000})
+            cy.get('[data-cy="regex-evaluation-regex-match"]')
                 .invoke("text")
                 .then((text) => {
                     // Check if the text contains either "Match" or "Mismatch"
                     expect(text.includes("Match") || text.includes("Mismatch")).to.be.true
                 })
-            cy.get('[data-cy="regex-evaluation-score"]', {timeout: 15000})
+            cy.get('[data-cy="regex-evaluation-score"]')
                 .invoke("text")
                 .then((text) => {
                     // Check if the text contains either "correct" or "wrong"

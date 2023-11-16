@@ -8,7 +8,7 @@ const countries = [
     {country: "Sweden", capital: "Stockholm"},
 ]
 
-const apiKey = Cypress.env('NEXT_PUBLIC_OPENAI_API_KEY');
+const apiKey = Cypress.env("NEXT_PUBLIC_OPENAI_API_KEY")
 
 Cypress.Commands.add("createVariant", () => {
     cy.addingOpenaiKey()
@@ -44,7 +44,7 @@ Cypress.Commands.add("createVariant", () => {
 
     cy.get('[data-cy="enter-app-name-modal-button"]').click()
 
-    cy.url({timeout: 15000}).should("include", "/playground")
+    cy.url().should("include", "/playground")
     cy.url().then((url) => {
         app_id = url.match(/\/apps\/([a-zA-Z0-9]+)\/playground/)[1]
 

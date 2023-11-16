@@ -37,7 +37,7 @@ describe("Code Evaluation workflow", () => {
         it("Should add a new Code Evaluation successfully", () => {
             cy.get('[data-cy="code-evaluation-save-button"]').should("be.disabled")
             cy.get('[data-cy="code-evaluation-input"]').type(eval_name)
-            cy.get(".monaco-editor", {timeout: 15000}).type(".")
+            cy.get(".monaco-editor").type(".")
             cy.get('[data-cy="code-evaluation-save-button"]').should("not.be.disabled")
             cy.clickLinkAndWait('[data-cy="code-evaluation-save-button"]')
             cy.url().should("include", "/evaluations")
@@ -65,11 +65,8 @@ describe("Code Evaluation workflow", () => {
             cy.wait(1500)
             cy.clickLinkAndWait('[data-cy="code-evaluation-run"]')
 
-            cy.get('[data-cy="code-evaluation-result"]', {timeout: 15000}).should(
-                "contain.text",
-                "0.75",
-            )
-            cy.get(".ant-statistic-content-value", {timeout: 15000}).should("contain.text", "0.75")
+            cy.get('[data-cy="code-evaluation-result"]').should("contain.text", "0.75")
+            cy.get(".ant-statistic-content-value").should("contain.text", "0.75")
             cy.get(".ant-message-notice-content").should("exist")
         })
     })
@@ -79,7 +76,7 @@ describe("Code Evaluation workflow", () => {
             cy.visit(`/apps/${app_id}/evaluations`)
             cy.url().should("include", "/evaluations")
             cy.get('[data-cy="automatic-evaluation-result"]').within(() => {
-                cy.get("tr", {timeout: 15000}).last().should("contain.text", "Custom Code Run")
+                cy.get("tr").last().should("contain.text", "Custom Code Run")
             })
         })
     })

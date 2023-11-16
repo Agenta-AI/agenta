@@ -71,15 +71,9 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.url().should("include", "/human_a_b_testing")
             cy.wait(1000)
             cy.get('[data-cy="abTesting-run-all-button"]').click()
-            cy.get('[data-cy^="abTesting-app-variant-1-vote-button"]', {timeout: 15000}).should(
-                "not.be.disabled",
-            )
-            cy.get('[data-cy^="abTesting-app-variant-2-vote-button"]', {timeout: 15000}).should(
-                "not.be.disabled",
-            )
-            cy.get('[data-cy^="abTesting-both-bad-vote-button"]', {timeout: 15000}).should(
-                "not.be.disabled",
-            )
+            cy.get('[data-cy^="abTesting-app-variant-1-vote-button"]').should("not.be.disabled")
+            cy.get('[data-cy^="abTesting-app-variant-2-vote-button"]').should("not.be.disabled")
+            cy.get('[data-cy^="abTesting-both-bad-vote-button"]').should("not.be.disabled")
 
             cy.get(".ant-message-notice-content").should("exist")
 
