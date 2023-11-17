@@ -1103,7 +1103,7 @@ async def update_variant_parameters(
             # Save updated ConfigDB
             await engine.save(config_db)
 
-        # Create asynchronous task to run independently from the second coroutine
+        # Creates and schedule an instance of the save_variant_config() coroutine task
         config_task = asyncio.create_task(save_variant_config())
         while True:
             # check if the task is done -> resolves to True
@@ -1116,7 +1116,7 @@ async def update_variant_parameters(
                 break
 
             # otherwise block for a moment
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)
 
     except Exception as e:
         logging.error(f"Issue updating variant parameters: {e}")
