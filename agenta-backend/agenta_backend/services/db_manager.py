@@ -1116,7 +1116,7 @@ async def update_variant_parameters(
                 break
 
             # otherwise block for a moment
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.5)
 
     except Exception as e:
         logging.error(f"Issue updating variant parameters: {e}")
