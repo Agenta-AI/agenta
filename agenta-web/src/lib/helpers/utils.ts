@@ -136,7 +136,7 @@ export const getInitials = (str: string, limit = 2) => {
 
 export const isDemo = () => {
     if (process.env.NEXT_PUBLIC_FF) {
-        return ["demo", "cloud", "ee"].includes(process.env.NEXT_PUBLIC_FF)
+        return ["cloud", "ee"].includes(process.env.NEXT_PUBLIC_FF)
     }
     return false
 }
