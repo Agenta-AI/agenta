@@ -57,12 +57,12 @@ app.add_middleware(
     allow_headers=allow_headers,
 )
 
-if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
     from agenta_backend.services.auth_helper import authentication_middleware
 
     app.middleware("http")(authentication_middleware)
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     import agenta_backend.cloud.main as cloud
 
     app, allow_headers = cloud.extend_main(app)
