@@ -575,7 +575,7 @@ async def get_user(user_uid: str) -> UserDB:
 
     user = await engine.find_one(UserDB, UserDB.uid == user_uid)
     if user is None:
-        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
             create_user = UserDB(uid="0")
             await engine.save(create_user)
 
