@@ -64,6 +64,7 @@ export default function Secrets() {
                             Save
                         </Button>
                         <Button
+                            data-cy="openai-api-delete"
                             onClick={() => {
                                 removeOpenAIKey()
                                 setOpenAiKey("")

@@ -74,10 +74,7 @@ describe("AI Critics Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
             cy.get(".ant-spin").should("exist")
 
-            cy.get('[data-cy="ai-critic-evaluation-result"]', {timeout: 15000}).should(
-                "contain.text",
-                "Results Data",
-            )
+            cy.get('[data-cy="ai-critic-evaluation-result"]').should("contain.text", "Results Data")
 
             cy.get(".ant-spin").should("not.exist")
             cy.get(".ant-message-notice-content").should("contain.text", "Evaluation Results Saved")
@@ -89,7 +86,7 @@ describe("AI Critics Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
 
             cy.get(".ant-spin").should("exist")
-            cy.get('[data-cy="ai-critic-evaluation-result"]', {timeout: 15000}).should(
+            cy.get('[data-cy="ai-critic-evaluation-result"]').should(
                 "contain.text",
                 "Failed to run evaluation",
             )

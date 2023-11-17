@@ -1,0 +1,58 @@
+name: Execute Frontend tests
+
+on: [pull_request]
+env:
+  OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
+
+jobs:
+  cypress:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        
+      - name: Set Environment Variables
+        run: |
+          echo "NEXT_PUBLIC_OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}" >> $GITHUB_ENV
+    
+      - name: Install Curl & Start Docker Compose
+        env:
+          NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
+        run: |
+          sudo apt install curl -y
+          docker-compose -f "docker-compose.yml" up -d --build
+
+      - name: Restart Backend Service To Fetch Template(s)
+        run: docker container restart agenta_backend_1
+        
+      - name: Wait for Backend Service
+        run: curl http://localhost/api/health/
+
+      - name: Know the Response of Organization & Container Templates
+        run: |
+          curl http://localhost/api/organizations/own/
+          curl http://localhost/api/containers/templates/
+
+      - name: Set Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Frontend Depedencies
+        env:
+          NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
+        run: |
+          cd agenta-web/ && npm install
+
+      - name: Run Cypress
+        env:
+          NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
+        run: cd agenta-web/ && npm run cypress:run
+
+      - name: Docker logs
+        if: always()  #
+        run: docker ps -q | xargs -I {} docker logs {}
+        
+      - name: Stop Docker Compose
+        run: docker-compose down

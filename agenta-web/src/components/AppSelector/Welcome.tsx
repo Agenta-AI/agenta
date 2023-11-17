@@ -146,7 +146,7 @@ const Welcome: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
                     <div
                         className={classes.container}
                         onClick={onCreateFromTemplate}
-                        data-cy="create-from-template"
+                        data-cy="create-from-template__no-app"
                     >
                         <div className={classes.title}>
                             <h1>Quickstart From a Template</h1>
