@@ -621,7 +621,9 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    env_vars: LlmProvidersKeys
+    env_vars: {
+        [key in keyof LlmProvidersKeys]: {title: string; key: string}
+    }
     templateId: string
     orgId: string
     timeout?: number
@@ -639,7 +641,15 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
-                    env_vars,
+                    env_vars: {
+                        OPENAI_API_KEY: env_vars.OPENAI_API_KEY.key,
+                        COHERE_API_KEY: env_vars.COHERE_API_KEY.key,
+                        ANTHROPIC_API_KEY: env_vars.ANTHROPIC_API_KEY.key,
+                        AZURE_API_KEY: env_vars.AZURE_API_KEY.key,
+                        REPLICATE_API_KEY: env_vars.REPLICATE_API_KEY.key,
+                        TOGETHERAI_API_KEY: env_vars.TOGETHERAI_API_KEY.key,
+                        HUGGING_FACE_API_KEY: env_vars.HUGGING_FACE_API_KEY.key,
+                    },
                     organization_id: orgId,
                 },
                 true,
