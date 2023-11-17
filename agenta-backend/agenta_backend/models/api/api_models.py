@@ -109,6 +109,7 @@ class RestartAppContainer(BaseModel):
 
 
 class Image(BaseModel):
+    type: Optional[str]
     docker_id: str
     tags: str
     organization_id: Optional[str] = None
@@ -129,12 +130,13 @@ class ImageExtended(Image):
 
 class TemplateImageInfo(BaseModel):
     name: str
-    size: int
-    digest: str
+    size: Optional[int] = None
+    digest: Optional[str] = None
     title: str
     description: str
-    last_pushed: datetime
-    repo_name: str
+    last_pushed: Optional[datetime] = None
+    repo_name: Optional[str] = None
+    template_uri: Optional[str] = None
 
 
 class Template(BaseModel):
