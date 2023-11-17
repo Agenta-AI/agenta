@@ -1153,9 +1153,6 @@ async def update_variant_parameters(
     try:
         logging.debug("Updating variant parameters")
 
-        # Update AppVariantDB parameters
-        app_variant_db.parameters = parameters
-
         # Update associated ConfigDB parameters and versioning
         config_db = app_variant_db.config
         new_version = config_db.current_version + 1
@@ -1168,9 +1165,9 @@ async def update_variant_parameters(
         )
         config_db.current_version = new_version
         config_db.parameters = parameters
-        # Save updated ConfigDB and AppVariantDB
+
+        # Save updated ConfigDB
         await engine.save(config_db)
-        await engine.save(app_variant_db)
 
     except Exception as e:
         logging.error(f"Issue updating variant parameters: {e}")
