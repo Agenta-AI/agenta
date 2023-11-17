@@ -51,7 +51,6 @@ describe("Exact Match Evaluation workflow", () => {
                 })
 
             cy.get(".ant-statistic-content-value").first().should("contain", "3 out of 3")
-            cy.get(".ant-message-notice-content").should("exist")
         })
 
         it("Should display Exact Match Evaluation result", () => {

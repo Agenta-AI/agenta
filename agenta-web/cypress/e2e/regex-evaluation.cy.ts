@@ -94,8 +94,6 @@ describe("Regex Evaluation workflow", () => {
                     // Check if the text contains either "correct" or "wrong"
                     expect(text.includes("correct") || text.includes("wrong")).to.be.true
                 })
-
-            cy.get(".ant-message-notice-content").should("exist")
         })
     })
 

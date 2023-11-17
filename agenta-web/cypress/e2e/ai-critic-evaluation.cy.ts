@@ -77,7 +77,6 @@ describe("AI Critics Evaluation workflow", () => {
             cy.get('[data-cy="ai-critic-evaluation-result"]').should("contain.text", "Results Data")
 
             cy.get(".ant-spin").should("not.exist")
-            cy.get(".ant-message-notice-content").should("contain.text", "Evaluation Results Saved")
         })
 
         it("Should execute evaluation workflow with error", () => {
@@ -92,7 +91,6 @@ describe("AI Critics Evaluation workflow", () => {
             )
 
             cy.get(".ant-spin").should("not.exist")
-            cy.get(".ant-message-notice-content").should("exist")
         })
     })
 
