@@ -26,7 +26,7 @@ from agenta_backend.models.api.api_models import (
 )
 from agenta_backend.models import converters
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.cloud.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
@@ -325,23 +325,14 @@ async def create_app_and_variant_from_template(
         logger.debug("Step 1: Getting user and organization ID")
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
 
-        # Check if the user has reached app limit
-        logger.debug("Step 2: Checking user app limit")
-        if os.environ["FEATURE_FLAG"] == "demo":
-            if await db_manager.count_apps(**user_org_data) > 2:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Sorry, you can only create two Apps at this time.",
-                )
-
-        logger.debug("Step 3: Setting organization ID")
+        logger.debug("Step 2: Setting organization ID")
         if payload.organization_id is None:
             organization = await get_user_own_org(user_org_data["uid"])
             organization_id = organization.id
         else:
             organization_id = payload.organization_id
 
-        logger.debug(f"Step 4: Checking if app {payload.app_name} already exists")
+        logger.debug(f"Step 3 Checking if app {payload.app_name} already exists")
         app_name = payload.app_name.lower()
         app = await db_manager.fetch_app_by_name_and_organization(
             app_name, organization_id, **user_org_data
@@ -352,13 +343,13 @@ async def create_app_and_variant_from_template(
                 detail=f"App with name {app_name} already exists",
             )
 
-        logger.debug("Step 5: Creating new app and initializing environments")
+        logger.debug("Step 4: Creating new app and initializing environments")
         if app is None:
             app = await db_manager.create_app_and_envs(
                 app_name, organization_id, **user_org_data
             )
 
-        logger.debug("Step 5 (extra): Retrieve template from db")
+        logger.debug("Step 5: Retrieve template from db")
         template_db = await db_manager.get_template(payload.template_id)
 
         logger.debug(
@@ -387,7 +378,7 @@ async def create_app_and_variant_from_template(
         )
 
         logger.debug("Step 8: Starting variant and injecting environment variables")
-        if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+        if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
             if not os.environ["OPENAI_API_KEY"]:
                 raise HTTPException(
                     status_code=400,
