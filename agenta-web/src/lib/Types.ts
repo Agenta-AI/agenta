@@ -217,13 +217,13 @@ export interface TemplateImage {
 }
 
 export interface LlmProvidersKeys {
-    OPENAI_API_KEY: string | null
-    REPLICATE_API_KEY: string | null
-    HUGGING_FACE_API_KEY: string | null
-    COHERE_API_KEY: string | null
-    ANTHROPIC_API_KEY: string | null
-    AZURE_API_KEY: string | null
-    TOGETHERAI_API_KEY: string | null
+    OPENAI_API_KEY: string
+    REPLICATE_API_KEY: string
+    HUGGING_FACE_API_KEY: string
+    COHERE_API_KEY: string
+    ANTHROPIC_API_KEY: string
+    AZURE_API_KEY: string
+    TOGETHERAI_API_KEY: string
 }
 
 export interface AppTemplate {
