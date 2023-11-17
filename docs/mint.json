@@ -60,7 +60,8 @@
     {
       "group": "Tutorials",
       "pages": [
-        "tutorials/first-app-with-langchain"
+        "tutorials/first-app-with-langchain",
+        "tutorials/deploy-mistral-model"
       ]
     },
     {
@@ -82,6 +83,7 @@
       "group": "Self-host agenta",
       "pages": [
         "self-host/host-locally",
+        "self-host/host-remotely",
         "self-host/host-on-aws",
         "self-host/host-on-gcp"
       ]

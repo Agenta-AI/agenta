@@ -244,6 +244,8 @@ const EvaluationCardView: React.FC<Props> = ({
     }, [instructionsShown])
 
     useEffect(() => {
+        if (typeof window === "undefined") return () => {}
+
         const listener = (e: KeyboardEvent) => {
             if (document.activeElement !== rootRef.current) return
             if (e.key === "ArrowLeft") loadPrevious()

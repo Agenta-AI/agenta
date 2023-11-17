@@ -35,6 +35,19 @@ services:
         networks:
             - agenta-test-network
 
+    agenta-web:
+        build:
+            context: ./agenta-web
+            dockerfile: dev.Dockerfile
+        volumes:
+            - ./agenta-web/src:/app/src
+            - ./agenta-web/public:/app/public
+            - .nextjs_cache:/app/.next
+        ports:
+            - "3000:3000"
+        networks:
+            - agenta-test-network
+
     mongo:
         image: mongo:5.0
         environment:

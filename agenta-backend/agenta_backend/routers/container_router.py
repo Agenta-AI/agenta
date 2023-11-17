@@ -7,22 +7,22 @@ from agenta_backend.models.api.api_models import (
     Template,
 )
 from agenta_backend.services import db_manager
-from agenta_backend.services.docker_utils import restart_container
 from fastapi import APIRouter, Request, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
-    from agenta_backend.ee.services.selectors import (
+    from agenta_backend.cloud.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+if os.environ["FEATURE_FLAG"] in ["cloud"]:
+    from agenta_backend.cloud.services import container_manager
+elif os.environ["FEATURE_FLAG"] in ["ee"]:
     from agenta_backend.ee.services import container_manager
 else:
     from agenta_backend.services import container_manager
-
 
 import logging
 
@@ -93,7 +93,7 @@ async def restart_docker_container(
         container_id = deployment.container_id
 
         logger.debug(f"Restarting container with id: {container_id}")
-        restart_container(container_id)
+        container_manager.restart_container(container_id)
         return {"message": "Please wait a moment. The container is now restarting."}
     except Exception as ex:
         return JSONResponse({"message": str(ex)}, status_code=500)
