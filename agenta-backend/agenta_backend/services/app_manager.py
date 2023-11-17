@@ -27,7 +27,7 @@ elif os.environ["FEATURE_FLAG"] in ["ee"]:
 else:
     from agenta_backend.services import deployment_manager
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.cloud.services import (
         api_key_service,
     )  # noqa pylint: disable-all
@@ -80,7 +80,7 @@ async def start_variant(
         env_vars.update(
             {"AGENTA_BASE_ID": str(db_app_variant.base.id), "AGENTA_HOST": domain_name}
         )
-        if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+        if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
             api_key = await api_key_service.create_api_key(
                 str(db_app_variant.user.uid), expiration_date=None, hidden=True
             )
