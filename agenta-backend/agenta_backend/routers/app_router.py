@@ -232,6 +232,7 @@ async def add_variant_from_image(
 
     if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
         image = Image(
+            type="image",
             docker_id=payload.docker_id,
             tags=payload.tags,
         )
@@ -258,7 +259,7 @@ async def add_variant_from_image(
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
-            docker_id=payload.docker_id,
+            docker_id_or_template_uri=payload.docker_id,
             tags=payload.tags,
             base_name=payload.base_name,
             config_name=payload.config_name,
@@ -360,17 +361,21 @@ async def create_app_and_variant_from_template(
 
         logger.debug("Step 5 (extra): Retrieve template from db")
         template_db = await db_manager.get_template(payload.template_id)
+        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/lambda_templates")
+        image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
             "Step 6: Creating image instance and adding variant based on image"
         )
-        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/lambda_templates")
-        image_name = f"{repo_name}:{template_db.name}"
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name="app.default",
-            docker_id=template_db.digest,
-            tags=f"{image_name}",
+            docker_id_or_template_uri=template_db.template_uri
+            if os.environ["FEATURE_FLAG"] in ["cloud"]
+            else template_db.digest,
+            tags=f"{image_name}"
+            if os.environ["FEATURE_FLAG"] not in ["cloud"]
+            else None,
             base_name="app",
             config_name="default",
             is_template_image=True,
