@@ -1082,41 +1082,23 @@ async def update_variant_parameters(
     assert parameters is not None, "parameters is missing"
 
     try:
-        import asyncio
-
         logging.debug("Updating variant parameters")
 
-        async def save_variant_config():
-            # Update associated ConfigDB parameters and versioning
-            config_db = app_variant_db.config
-            new_version = config_db.current_version + 1
-            config_db.version_history.append(
-                ConfigVersionDB(
-                    version=new_version,
-                    parameters=config_db.parameters,
-                    created_at=datetime.utcnow(),
-                )
+        # Update associated ConfigDB parameters and versioning
+        config_db = app_variant_db.config
+        new_version = config_db.current_version + 1
+        config_db.version_history.append(
+            ConfigVersionDB(
+                version=new_version,
+                parameters=config_db.parameters,
+                created_at=datetime.utcnow(),
             )
-            config_db.current_version = new_version
-            config_db.parameters = parameters
+        )
+        config_db.current_version = new_version
+        config_db.parameters = parameters
 
-            # Save updated ConfigDB
-            await engine.save(config_db)
-
-        # Creates and schedule an instance of the save_variant_config() coroutine task
-        config_task = asyncio.create_task(save_variant_config())
-        while True:
-            # check if the task is done -> resolves to True
-            if config_task.done():
-                # Update AppVariantDB parameters
-                app_variant_db.parameters = parameters
-
-                # Save updated ConfigDB and AppVariantDB
-                await engine.save(app_variant_db)
-                break
-
-            # otherwise block for a moment
-            await asyncio.sleep(0.3)
+        # Save updated ConfigDB
+        await engine.save(config_db)
 
     except Exception as e:
         logging.error(f"Issue updating variant parameters: {e}")
