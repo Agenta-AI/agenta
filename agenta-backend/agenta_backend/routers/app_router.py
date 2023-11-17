@@ -240,7 +240,7 @@ async def add_variant_from_image(
                 status_code=500,
                 detail="Image should have a tag starting with the registry name (agenta-server)",
             )
-        elif deployment_manager.validate_image(image) is False:
+        elif await deployment_manager.validate_image(image) is False:
             raise HTTPException(status_code=404, detail="Image not found")
 
     try:
