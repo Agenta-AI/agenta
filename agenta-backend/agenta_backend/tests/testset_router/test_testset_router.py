@@ -5,7 +5,7 @@ from agenta_backend.models.db_models import (
     AppDB,
     TestSetDB,
 )
-import json
+
 import httpx
 
 
@@ -160,6 +160,6 @@ async def test_delete_testsets():
     response = await test_client.request(
         method="DELETE", url=f"{BACKEND_API_HOST}/testsets/", json=payload
     )
-
+    
     assert response.status_code == 200
     assert response.json() == testset_ids
