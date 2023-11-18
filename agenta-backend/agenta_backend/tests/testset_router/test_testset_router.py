@@ -1,12 +1,11 @@
 import pytest
 from pathlib import Path
-
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppDB,
     TestSetDB,
 )
-
+import json
 import httpx
 
 
@@ -24,6 +23,46 @@ TESTSET_SUBMODULE_DIR = Path(__file__).parent
 
 # TODO: test_csv_upload_file
 # TODO: test_json_upload_file
+@pytest.mark.asyncio
+async def test_csv_upload_file():
+    app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
+
+    # CSV Payload
+    csv_payload = {
+        "name": "csv_testset",
+        "csvdata": [
+            {"country": "Canada", "correct_answer": "Ottawa"},
+            {"country": "Germany", "correct_answer": "Berlin"},
+        ],
+    }
+
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/testsets/{str(app.id)}/", json=csv_payload
+    )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == csv_payload["name"]
+
+
+@pytest.mark.asyncio
+async def test_json_upload_file():
+    app = await engine.find_one(AppDB, AppDB.app_name == "test_app")
+
+    # JSON Payload
+    json_payload = {
+        "name": "json_testset",
+        "jsondata": [
+            {"country": "France", "correct_answer": "Paris"},
+            {"country": "Japan", "correct_answer": "Tokyo"},
+        ],
+    }
+
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/testsets/{str(app.id)}/", json=json_payload
+    )
+
+    assert response.status_code == 422
+    assert response.json()["name"] == json_payload["name"]
 
 
 @pytest.mark.asyncio
@@ -95,7 +134,7 @@ async def test_get_testsets():
     )
 
     assert response.status_code == 200
-    assert len(response.json()) == 1
+    assert len(response.json()) == 2
 
 
 @pytest.mark.asyncio()
