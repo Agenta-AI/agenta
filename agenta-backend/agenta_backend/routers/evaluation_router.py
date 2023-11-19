@@ -45,7 +45,7 @@ from agenta_backend.models import converters
 from agenta_backend.services import results_service
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.commons.selectors import (  # noqa pylint: disable-all
+    from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
         get_user_and_org_id,
     )
 else:
