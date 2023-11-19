@@ -29,7 +29,7 @@ else:
     from agenta_backend.services import deployment_manage
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.cloud.services import (
+    from agenta_backend.commons.services import (
         api_key_service,
     )  # noqa pylint: disable-all
 
