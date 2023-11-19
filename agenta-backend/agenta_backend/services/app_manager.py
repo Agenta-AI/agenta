@@ -28,6 +28,11 @@ elif os.environ["FEATURE_FLAG"] in ["ee"]:
 else:
     from agenta_backend.services import deployment_manage
 
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    from agenta_backend.cloud.services import (
+        api_key_service,
+    )  # noqa pylint: disable-all
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
