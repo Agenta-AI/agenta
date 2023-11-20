@@ -41,7 +41,7 @@ self-host/*/*.tfstate.backup
 
 todo.md
 agenta-web/cypress/videos/
-agenta-backend/agenta_backend/ee/**
+agenta-backend/agenta_backend/cloud/**
 agenta-web/src/ee/**
 agenta-web/src/config/frontendConfig.ts
 agenta-web/src/config/appInfo.ts
