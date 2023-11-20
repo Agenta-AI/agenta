@@ -74,10 +74,7 @@ async def remove_image(image: Image):
         None
     """
     try:
-        if (
-            os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]
-            and image.deletable
-        ):
+        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"] and image.deletable:
             docker_utils.delete_image(image.docker_id)
         logger.info(f"Image {image.docker_id} deleted")
     except RuntimeError as e:

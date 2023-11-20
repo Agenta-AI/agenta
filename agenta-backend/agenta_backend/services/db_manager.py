@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from bson import ObjectId
 from datetime import datetime
+from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional
 
 from agenta_backend.models.api.api_models import (
@@ -32,6 +33,7 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     UserDB,
 )
+
 from agenta_backend.utils.common import check_user_org_access, engine
 
 from agenta_backend.models.db_models import DeploymentDB
@@ -107,6 +109,20 @@ async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
         return image_db_to_pydantic(image_db)
     else:
         raise Exception("App variant not found")
+
+
+async def get_image_by_id(image_id: str) -> ImageDB:
+    """Get the image object from the database with the provided id.
+
+    Arguments:
+        image_id (str): The image unique identifier
+
+    Returns:
+        ImageDB: instance of image object
+    """
+
+    image = await engine.find_one(ImageDB, ImageDB.id == ObjectId(image_id))
+    return image
 
 
 async def fetch_app_by_id(app_id: str, **kwargs: dict) -> AppDB:
@@ -298,11 +314,13 @@ async def create_new_app_variant(
 
 
 async def create_image(
-    docker_id: str,
-    tags: str,
+    image_type: str,
     user: UserDB,
     deletable: bool,
     organization: OrganizationDB,
+    template_uri: str = None,
+    docker_id: str = None,
+    tags: str = None,
 ) -> ImageDB:
     """Create a new image.
     Args:
@@ -315,13 +333,38 @@ async def create_image(
         ImageDB: The created image.
     """
 
-    image = ImageDB(
-        docker_id=docker_id,
-        tags=tags,
-        deletable=deletable,
-        user=user,
-        organization=organization,
-    )
+    # Validate image type
+    valid_image_types = ["image", "zip"]
+    if image_type not in valid_image_types:
+        raise Exception("Invalid image type")
+
+    # Validate either docker_id or template_uri, but not both
+    if (docker_id is None) == (template_uri is None):
+        raise Exception("Provide either docker_id or template_uri, but not both")
+
+    # Validate docker_id or template_uri based on image_type
+    if image_type == "image" and docker_id is None:
+        raise Exception("Docker id must be provided for type image")
+    elif image_type == "zip" and template_uri is None:
+        raise Exception("template_uri must be provided for type zip")
+
+    if image_type == "zip":
+        image = ImageDB(
+            type="zip",
+            template_uri=template_uri,
+            deletable=deletable,
+            user=user,
+            organization=organization,
+        )
+    elif image_type == "image":
+        image = ImageDB(
+            type="image",
+            docker_id=docker_id,
+            tags=tags,
+            deletable=deletable,
+            user=user,
+            organization=organization,
+        )
     await engine.save(image)
     return image
 
@@ -532,7 +575,7 @@ async def get_user(user_uid: str) -> UserDB:
 
     user = await engine.find_one(UserDB, UserDB.uid == user_uid)
     if user is None:
-        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee", "demo"]:
+        if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
             create_user = UserDB(uid="0")
             await engine.save(create_user)
 
@@ -615,7 +658,9 @@ async def get_users_by_ids(user_ids: List) -> List:
     return users_db
 
 
-async def get_orga_image_instance(organization_id: str, docker_id: str) -> ImageDB:
+async def get_orga_image_instance_by_docker_id(
+    organization_id: str, docker_id: str
+) -> ImageDB:
     """Get the image object from the database with the provided id.
 
     Arguments:
@@ -628,6 +673,30 @@ async def get_orga_image_instance(organization_id: str, docker_id: str) -> Image
 
     query_expression = (ImageDB.organization == ObjectId(organization_id)) & query.eq(
         ImageDB.docker_id, docker_id
+    )
+    image = await engine.find_one(ImageDB, query_expression)
+    return image
+
+
+async def get_orga_image_instance_by_uri(
+    organization_id: str, template_uri: str
+) -> ImageDB:
+    """Get the image object from the database with the provided id.
+
+    Arguments:
+        organization_id (str): The orga unique identifier
+        template_uri (url): The image template url
+
+    Returns:
+        ImageDB: instance of image object
+    """
+    parsed_url = urlparse(template_uri)
+
+    if not parsed_url.scheme and not parsed_url.netloc:
+        raise ValueError(f"Invalid URL: {template_uri}")
+
+    query_expression = (ImageDB.organization == ObjectId(organization_id)) & query.eq(
+        ImageDB.template_uri, template_uri
     )
     image = await engine.find_one(ImageDB, query_expression)
     return image
@@ -1084,9 +1153,6 @@ async def update_variant_parameters(
     try:
         logging.debug("Updating variant parameters")
 
-        # Update AppVariantDB parameters
-        app_variant_db.parameters = parameters
-
         # Update associated ConfigDB parameters and versioning
         config_db = app_variant_db.config
         new_version = config_db.current_version + 1
@@ -1099,9 +1165,9 @@ async def update_variant_parameters(
         )
         config_db.current_version = new_version
         config_db.parameters = parameters
-        # Save updated ConfigDB and AppVariantDB
+
+        # Save updated ConfigDB
         await engine.save(config_db)
-        await engine.save(app_variant_db)
 
     except Exception as e:
         logging.error(f"Issue updating variant parameters: {e}")
@@ -1261,6 +1327,49 @@ async def add_template(**kwargs: dict) -> str:
         db_template = TemplateDB(**kwargs)
         await engine.save(db_template)
         return str(db_template.id)
+
+
+async def add_zip_template(key, value):
+    """
+    Adds a new s3 zip template to the database
+
+    Args:
+        key: key of the json file
+        value (dict): dictionary value of a key
+
+    Returns:
+        template_id (Str): The Id of the created template.
+    """
+    existing_template = await engine.find_one(TemplateDB, TemplateDB.name == key)
+
+    if existing_template:
+        # Compare existing values with new values
+        if (
+            existing_template.title == value.get("name")
+            and existing_template.description == value.get("description")
+            and existing_template.template_uri == value.get("template_uri")
+        ):
+            # Values are unchanged, return existing template id
+            return str(existing_template.id)
+        else:
+            # Values are changed, delete existing template
+            await engine.delete(existing_template)
+
+    # Create a new template
+    template_name = key
+    title = value.get("name")
+    description = value.get("description")
+    template_uri = value.get("template_uri")
+
+    template_db_instance = TemplateDB(
+        type="zip",
+        name=template_name,
+        title=title,
+        description=description,
+        template_uri=template_uri,
+    )
+    await engine.save(template_db_instance)
+    return str(template_db_instance.id)
 
 
 async def get_template(template_id: str) -> TemplateDB:

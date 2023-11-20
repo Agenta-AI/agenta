@@ -1,7 +1,8 @@
 """Main Business logic
 """
-import logging
 import os
+import logging
+from urllib.parse import urlparse
 from typing import List, Any, Dict
 
 from agenta_backend.models.api.api_models import (
@@ -25,9 +26,9 @@ elif os.environ["FEATURE_FLAG"] in ["ee"]:
         deployment_manager,
     )  # noqa pylint: disable-all
 else:
-    from agenta_backend.services import deployment_manager
+    from agenta_backend.services import deployment_manage
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.cloud.services import (
         api_key_service,
     )  # noqa pylint: disable-all
@@ -80,7 +81,7 @@ async def start_variant(
         env_vars.update(
             {"AGENTA_BASE_ID": str(db_app_variant.base.id), "AGENTA_HOST": domain_name}
         )
-        if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+        if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
             api_key = await api_key_service.create_api_key(
                 str(db_app_variant.user.uid), expiration_date=None, hidden=True
             )
@@ -127,6 +128,7 @@ async def update_variant_image(
     await db_manager.remove_image(app_variant_db.base.image)
     # Create a new image instance
     db_image = await db_manager.create_image(
+        image_type="image",
         tags=image.tags,
         docker_id=image.docker_id,
         user=app_variant_db.user,
@@ -334,8 +336,8 @@ async def update_variant_parameters(
 async def add_variant_based_on_image(
     app: AppDB,
     variant_name: str,
-    docker_id: str,
-    tags: str,
+    docker_id_or_template_uri: str,
+    tags: str = None,
     base_name: str = None,
     config_name: str = "default",
     is_template_image: bool = False,
@@ -368,10 +370,17 @@ async def add_variant_based_on_image(
     if (
         app in [None, ""]
         or variant_name in [None, ""]
-        or docker_id in [None, ""]
-        or tags in [None, ""]
+        or docker_id_or_template_uri in [None, ""]
     ):
         raise ValueError("App variant or image is None")
+
+    if os.environ["FEATURE_FLAG"] not in ["cloud"]:
+        if tags in [None, ""]:
+            raise ValueError("OSS: Tags is None")
+
+    db_image = None
+    # Check if docker_id_or_template_uri is a URL or not
+    parsed_url = urlparse(docker_id_or_template_uri)
 
     # Check if app variant already exists
     logger.debug("Step 2: Checking if app variant already exists")
@@ -386,20 +395,38 @@ async def add_variant_based_on_image(
     # Retrieve user and image objects
     logger.debug("Step 3: Retrieving user and image objects")
     user_instance = await db_manager.get_user(user_uid=user_org_data["uid"])
-    db_image = await db_manager.get_orga_image_instance(
-        organization_id=str(app.organization.id), docker_id=docker_id
-    )
+    if parsed_url.scheme and parsed_url.netloc:
+        db_image = await db_manager.get_orga_image_instance_by_uri(
+            organization_id=str(app.organization.id),
+            template_uri=docker_id_or_template_uri,
+        )
+    else:
+        db_image = await db_manager.get_orga_image_instance_by_docker_id(
+            organization_id=str(app.organization.id),
+            docker_id=docker_id_or_template_uri,
+        )
 
     # Create new image if not exists
     if db_image is None:
         logger.debug("Step 4: Creating new image")
-        db_image = await db_manager.create_image(
-            docker_id=docker_id,
-            tags=tags,
-            deletable=not (is_template_image),
-            user=user_instance,
-            organization=app.organization,
-        )
+        if parsed_url.scheme and parsed_url.netloc:
+            db_image = await db_manager.create_image(
+                image_type="zip",
+                template_uri=docker_id_or_template_uri,
+                deletable=not (is_template_image),
+                user=user_instance,
+                organization=app.organization,
+            )
+        else:
+            docker_id = docker_id_or_template_uri
+            db_image = await db_manager.create_image(
+                image_type="image",
+                docker_id=docker_id,
+                tags=tags,
+                deletable=not (is_template_image),
+                user=user_instance,
+                organization=app.organization,
+            )
 
     # Create config
     logger.debug("Step 5: Creating config")
