@@ -20,7 +20,6 @@ os.environ["DATABASE_MODE"] = os.environ.get("DATABASE_MODE", "v2")
 class Settings(BaseSettings):
     docker_registry_url: str
     registry: str
-    redis_url: str
     database_url: str
     docker_hub_url: str
     docker_hub_repo_owner: str
