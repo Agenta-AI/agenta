@@ -105,6 +105,7 @@ const ChatInputs: React.FC<Props> = ({
             {messages.map((msg, ix) => (
                 <div className={classes.row} key={msg.id || msg.role + msg.content + ix}>
                     <Select
+                        style={{width: 150}}
                         disabled={disableEditRole}
                         options={Object.keys(ChatRole).map((role) => ({
                             label: role,
@@ -114,6 +115,7 @@ const ChatInputs: React.FC<Props> = ({
                         onChange={(newRole) => handleRoleChange(ix, newRole)}
                     />
                     <Input.TextArea
+                        style={{maxWidth: "none"}}
                         disabled={disableEditContent}
                         autoSize={{maxRows}}
                         value={msg.content}
