@@ -74,12 +74,19 @@ export const isAppNameInputValid = (input: string) => {
 type RowType = Record<string, any>
 
 export const convertToCsv = (rows: RowType[], header: (string | undefined)[]): string => {
-    const validHeaders = header.filter((h) => h !== undefined && h in rows[0]) as string[]
-    const headerRow = validHeaders.join(",")
+    const validHeaders = header.filter((h) => h !== undefined && h in rows[0]) as string[];
+    const headerRow = validHeaders.join(",");
+
+    const escapeField = (field: string) => {
+        field = field.trim()
+        return field.includes(",") ? `"${field.replace(/"/g, '""')}"` : field;
+    }
+
     const remainingRows = rows
-        .map((row) => validHeaders.map((colName) => row[colName]).join(","))
-        .join("\n")
-    return `${headerRow}\n${remainingRows}`
+        .map((row) => validHeaders.map((colName) => escapeField(row[colName])).join(","))
+        .join("\n");
+
+    return `${headerRow}\n${remainingRows}`;
 }
 
 export const downloadCsv = (csvContent: string, filename: string): void => {
