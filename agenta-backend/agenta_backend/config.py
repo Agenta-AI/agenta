@@ -14,7 +14,7 @@ os.environ["DATABASE_URL"] = toml_config["database_url"]
 os.environ["DOCKER_HUB_URL"] = toml_config["docker_hub_url"]
 os.environ["DOCKER_HUB_REPO_OWNER"] = toml_config["docker_hub_repo_owner"]
 os.environ["DOCKER_HUB_REPO_NAME"] = toml_config["docker_hub_repo_name"]
-os.environ["REDIS_URL"] = toml_config["redis_url"]
+os.environ["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 os.environ["DATABASE_MODE"] = os.environ.get("DATABASE_MODE", "v2")
 
 
