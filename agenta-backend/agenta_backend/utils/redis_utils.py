@@ -6,7 +6,7 @@ from redis.exceptions import ConnectionError
 def redis_connection() -> redis.Redis:
     """Returns a client object for connecting to a Redis service specified \
         by the REDIS_URL environment variable.
-    
+
     :return: a Redis client object.
     """
 
