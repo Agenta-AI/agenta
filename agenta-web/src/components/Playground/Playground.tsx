@@ -8,7 +8,6 @@ import {SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
 import {useQueryParam} from "@/hooks/useQuery"
 import AlertPopup from "../AlertPopup/AlertPopup"
-import TestContextProvider from "./TestsetContextProvider"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
 
 const Playground: React.FC = () => {
@@ -221,33 +220,31 @@ const Playground: React.FC = () => {
         <div>
             {contextHolder}
 
-            <TestContextProvider>
-                <div style={{position: "relative"}}>
-                    <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
-                        <SyncOutlined
-                            spin={isLoading}
-                            style={{color: "#1677ff", fontSize: "17px"}}
-                            onClick={() => {
-                                setIsLoading(true)
-                                fetchData()
-                            }}
-                        />
-                    </div>
-                    <Tabs
-                        type="editable-card"
-                        activeKey={activeKey}
-                        onChange={setActiveKey}
-                        onEdit={(_, action) => {
-                            if (action === "add") {
-                                setIsModalOpen(true)
-                            } else if (action === "remove") {
-                                deleteVariant()
-                            }
+            <div style={{position: "relative"}}>
+                <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
+                    <SyncOutlined
+                        spin={isLoading}
+                        style={{color: "#1677ff", fontSize: "17px"}}
+                        onClick={() => {
+                            setIsLoading(true)
+                            fetchData()
                         }}
-                        items={tabItems}
                     />
                 </div>
-            </TestContextProvider>
+                <Tabs
+                    type="editable-card"
+                    activeKey={activeKey}
+                    onChange={setActiveKey}
+                    onEdit={(_, action) => {
+                        if (action === "add") {
+                            setIsModalOpen(true)
+                        } else if (action === "remove") {
+                            deleteVariant()
+                        }
+                    }}
+                    items={tabItems}
+                />
+            </div>
 
             <NewVariantModal
                 isModalOpen={isModalOpen}

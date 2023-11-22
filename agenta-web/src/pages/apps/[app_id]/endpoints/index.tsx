@@ -96,7 +96,7 @@ export default function VariantEndpoint() {
         }
     }, [variants, appId])
 
-    const {inputParams, optParams, isLoading, isError, error} = useVariant(appId, variant!)
+    const {inputParams, isChatVariant, isLoading, isError, error} = useVariant(appId, variant!)
     const createParams = (
         inputParams: Parameter[] | null,
         environmentName: string,
@@ -112,7 +112,14 @@ export default function VariantEndpoint() {
                 secondaryParams[item.name] = item.default || value
             }
         })
-        if (Object.keys(secondaryParams).length > 0) {
+        if (isChatVariant) {
+            mainParams["inputs"] = [
+                {
+                    role: "user",
+                    content: "Example message",
+                },
+            ]
+        } else if (Object.keys(secondaryParams).length > 0) {
             mainParams["inputs"] = secondaryParams
         }
 
