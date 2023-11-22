@@ -1,7 +1,7 @@
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useAppTheme} from "../../Layout/ThemeContextProvider"
-import {GenericObject, testset} from "@/lib/Types"
-import {renameVariables} from "@/lib/helpers/utils"
+import {ChatMessage, GenericObject, testset} from "@/lib/Types"
+import {removeKeys, renameVariables} from "@/lib/helpers/utils"
 import {createNewTestset, loadTestset, updateTestset, useLoadTestsetsList} from "@/lib/services/api"
 import {Button, Divider, Drawer, Form, Input, Modal, Select, Space, Typography, message} from "antd"
 import {useRouter} from "next/router"
@@ -28,6 +28,11 @@ const useStyles = createUseStyles({
             color: themeMode === "dark" ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
         },
     }),
+    chatContainer: {
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.75rem",
+    },
 })
 
 type Props = React.ComponentProps<typeof Drawer> & {
@@ -81,11 +86,12 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
     const addToTestSet = useCallback(
         (name: string, csvdata: Record<string, string>[], rowData: GenericObject) => {
             rowData = {...rowData}
-            Object.keys(rowData).forEach((key) => {
-                if (rowData[key] && typeof rowData[key] !== "string") {
-                    rowData[key] = JSON.stringify(rowData[key])
-                }
-            })
+            if (isChatVariant) {
+                rowData.chat = JSON.stringify(
+                    rowData.chat.map((item: ChatMessage) => removeKeys(item, ["id"])),
+                )
+                rowData.correct_answer = JSON.stringify(removeKeys(rowData.correct_answer, ["id"]))
+            }
 
             setLoading(true)
 
@@ -106,7 +112,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
                 })
                 .finally(() => setLoading(false))
         },
-        [selectedTestset, props.onClose],
+        [selectedTestset, props.onClose, isChatVariant],
     )
 
     const onFinish = useCallback(
@@ -219,7 +225,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
         >
             {isChatVariant ? (
                 <div>
-                    <Space direction="vertical" size="middle">
+                    <div className={classes.chatContainer}>
                         <Typography.Text strong>Chat</Typography.Text>
                         <ChatInputs
                             defaultValue={
@@ -230,11 +236,11 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
                                 dirty.current = true
                             }}
                         />
-                    </Space>
+                    </div>
 
                     <Divider />
 
-                    <Space direction="vertical" size="middle">
+                    <div className={classes.chatContainer}>
                         <Typography.Text strong>Correct Answer</Typography.Text>
                         <ChatInputs
                             defaultValue={
@@ -249,7 +255,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
                             disableAdd
                             disableRemove
                         />
-                    </Space>
+                    </div>
                 </div>
             ) : (
                 <Form

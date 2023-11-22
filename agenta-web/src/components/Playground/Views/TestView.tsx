@@ -1,4 +1,4 @@
-import React, {useContext, useState} from "react"
+import React, {useState} from "react"
 import {Button, Input, Card, Row, Col, Space} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
@@ -10,7 +10,6 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {createUseStyles} from "react-jss"
 import CopyButton from "@/components/CopyButton/CopyButton"
-import {TestContext} from "../TestsetContextProvider"
 import {useRouter} from "next/router"
 import ChatInputs, {getDefaultNewMessage} from "@/components/ChatInputs/ChatInputs"
 import {v4 as uuidv4} from "uuid"
@@ -205,7 +204,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVariant}) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
-    const {testList, setTestList} = useContext(TestContext)
+    const [testList, setTestList] = useState<GenericObject[]>([{}])
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
@@ -301,9 +300,9 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
             ...test,
             ...(isChatVariant
                 ? {
-                      chat: safeParse(test.chat, []).concat([
-                          safeParse(test.correct_answer, getDefaultNewMessage()),
-                      ]),
+                      chat: safeParse(test.chat, [])
+                          .concat([safeParse(test.correct_answer, getDefaultNewMessage())])
+                          .map((item: Partial<ChatMessage>) => ({...item, id: uuidv4()})),
                   }
                 : {}),
             _id: randString(6),
