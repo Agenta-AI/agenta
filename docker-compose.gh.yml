@@ -15,6 +15,7 @@ services:
         image: ghcr.io/agenta-ai/agenta-backend
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
+            - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=development
             - BARE_DOMAIN_NAME=${BARE_DOMAIN_NAME:-localhost}
             - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
