@@ -1,5 +1,5 @@
 import {useQueryParam} from "@/hooks/useQuery"
-import {EvaluationScenario, Variant} from "@/lib/Types"
+import {Evaluation, EvaluationScenario, Variant} from "@/lib/Types"
 import {
     EditFilled,
     EditOutlined,
@@ -20,6 +20,9 @@ import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestingEvaluationTable"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useLocalStorage} from "usehooks-ts"
+import ChatInputs from "@/components/ChatInputs/ChatInputs"
+import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {safeParse} from "@/lib/helpers/utils"
 
 export const VARIANT_COLORS = [
     "#297F87", // "#722ed1",
@@ -111,6 +114,12 @@ const useStyles = createUseStyles({
             marginTop: 4,
         },
     },
+    chatInputsCon: {
+        marginTop: "0.5rem",
+    },
+    correctAnswerCon: {
+        marginBottom: "0.5rem",
+    },
 })
 
 interface Props {
@@ -120,6 +129,7 @@ interface Props {
     onVote: (id: string, vote: string) => void
     onInputChange: Function
     updateEvaluationScenarioData: (id: string, data: Partial<EvaluationScenario>) => void
+    evaluation: Evaluation
 }
 
 const EvaluationCardView: React.FC<Props> = ({
@@ -129,6 +139,7 @@ const EvaluationCardView: React.FC<Props> = ({
     onVote,
     onInputChange,
     updateEvaluationScenarioData,
+    evaluation,
 }) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -147,6 +158,7 @@ const EvaluationCardView: React.FC<Props> = ({
         )
         return {scenario: evaluationScenarios[scenarioIndex], scenarioIndex}
     }, [scenarioId, evaluationScenarios])
+
     const rootRef = useRef<HTMLDivElement>(null)
     const opened = useRef(false)
     const callbacks = useRef({
@@ -154,6 +166,7 @@ const EvaluationCardView: React.FC<Props> = ({
         onRun,
         onInputChange,
     })
+    const isChat = !!evaluation.testset.testsetChatColumn
 
     const loadPrevious = () => {
         if (scenarioIndex === 0) return
@@ -258,6 +271,13 @@ const EvaluationCardView: React.FC<Props> = ({
         return () => document.removeEventListener("keydown", listener)
     }, [scenarioIndex])
 
+    const _correctAnswer = evaluation.testset.csvdata[scenarioIndex]?.correct_answer
+    const correctAnswer = useMemo(() => {
+        let res = _correctAnswer
+        if (isChat) res = safeParse(res)?.content
+        return res || ""
+    }, [_correctAnswer])
+
     return (
         <div className={classes.root} tabIndex={1} ref={rootRef}>
             {scenario ? (
@@ -296,21 +316,34 @@ const EvaluationCardView: React.FC<Props> = ({
                             />
                         )}
 
-                        <div className={classes.headingDivider}>
-                            <div className={classes.helpIcon}>
-                                <Tooltip title="Instructions">
-                                    <QuestionCircleOutlined
-                                        onClick={showInstructions}
-                                        style={{color: token.colorPrimary}}
-                                    />
-                                </Tooltip>
-                            </div>
-                        </div>
+                        {isChat ? (
+                            <div className={classes.chatInputsCon}>
+                                <ChatInputs
+                                    defaultValue={testsetRowToChatMessages(
+                                        evaluation.testset.csvdata[scenarioIndex],
+                                        false,
+                                    )}
+                                    onChange={(val) => {
+                                        evaluation.testset.csvdata[scenarioIndex][
+                                            evaluation.testset.testsetChatColumn
+                                        ] = JSON.stringify(val)
+                                    }}
+                                    // onRun={(messages) => {
 
-                        <EvaluationInputs
-                            evaluationScenario={scenario}
-                            onInputChange={onInputChange}
-                        />
+                                    // }}
+                                />
+                            </div>
+                        ) : (
+                            <EvaluationInputs
+                                evaluationScenario={scenario}
+                                onInputChange={onInputChange}
+                            />
+                        )}
+
+                        <Space direction="vertical" className={classes.correctAnswerCon}>
+                            <Typography.Text>Correct Answer:</Typography.Text>
+                            <Input.TextArea defaultValue={correctAnswer} autoSize={{maxRows: 5}} />
+                        </Space>
 
                         <EvaluationCard variants={variants} evaluationScenario={scenario} />
 
@@ -365,6 +398,12 @@ const EvaluationCardView: React.FC<Props> = ({
                             <PlayCircleOutlined
                                 style={{color: token.colorSuccessActive}}
                                 onClick={() => onRun(scenarioId)}
+                            />
+                        </Tooltip>
+                        <Tooltip title="Instructions">
+                            <QuestionCircleOutlined
+                                onClick={showInstructions}
+                                style={{color: token.colorPrimary}}
                             />
                         </Tooltip>
                     </div>

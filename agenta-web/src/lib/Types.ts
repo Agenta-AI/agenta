@@ -6,6 +6,14 @@ export interface testset {
     created_at: string
 }
 
+export interface TestSet {
+    id: string
+    name: string
+    created_at: string
+    updated_at: string
+    csvdata: KeyValuePair[]
+}
+
 export interface ListAppsItem {
     app_id: string
     app_name: string
@@ -51,8 +59,8 @@ export interface Evaluation {
     status: EvaluationFlow
     testset: {
         _id: string
-        name: string
-    }
+        testsetChatColumn: string
+    } & TestSet
     appName: string
     llmAppPromptTemplate?: string
     evaluationTypeSettings: {
