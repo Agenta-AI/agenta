@@ -29,13 +29,14 @@ import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
 import EvaluationCardView from "../Evaluations/EvaluationCardView"
-import {EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types"
+import {Evaluation, EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types"
 import {camelToSnake} from "@/lib/helpers/utils"
+import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const {Title} = Typography
 
 interface EvaluationTableProps {
-    evaluation: any
+    evaluation: Evaluation
     columnsCount: number
     evaluationScenarios: ABTestingEvaluationTableRow[]
 }
@@ -242,6 +243,9 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         variantData[idx].optParams!,
                         appId || "",
                         variants[idx].baseId || "",
+                        variantData[idx].isChatVariant
+                            ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
+                            : [],
                     )
 
                     setRowValue(rowIndex, variant.variantId, result)
@@ -327,18 +331,22 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             dataIndex: "inputs",
             render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => (
                 <div>
-                    {record &&
-                        record.inputs &&
-                        record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                        record.inputs.map((input: any, index: number) => (
-                            <div className={classes.recordInput} key={index}>
-                                <Input
-                                    placeholder={input.input_name}
-                                    value={input.input_value}
-                                    onChange={(e) => handleInputChange(e, record.id, index)}
-                                />
-                            </div>
-                        ))}
+                    {evaluation.testset.testsetChatColumn
+                        ? evaluation.testset.csvdata[rowIndex][
+                              evaluation.testset.testsetChatColumn
+                          ] || " - "
+                        : record &&
+                          record.inputs &&
+                          record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
+                          record.inputs.map((input: any, index: number) => (
+                              <div className={classes.recordInput} key={index}>
+                                  <Input
+                                      placeholder={input.input_name}
+                                      value={input.input_value}
+                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                  />
+                              </div>
+                          ))}
 
                     <div className={classes.inputTestBtn}>
                         <Button
@@ -489,6 +497,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     onVote={handleVoteClick}
                     onInputChange={handleInputChange}
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
+                    evaluation={evaluation}
                 />
             )}
         </div>

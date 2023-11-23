@@ -1,6 +1,6 @@
 import {ChatMessage, ChatRole} from "@/lib/Types"
-import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Select, Tooltip} from "antd"
+import {MinusOutlined, PlusOutlined, RightOutlined} from "@ant-design/icons"
+import {Button, Input, Select, Space, Tooltip} from "antd"
 import React, {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
@@ -47,6 +47,7 @@ interface Props {
     disableRemove?: boolean
     disableEditRole?: boolean
     disableEditContent?: boolean
+    onRun?: (value: ChatMessage[]) => void
 }
 
 const ChatInputs: React.FC<Props> = ({
@@ -58,6 +59,7 @@ const ChatInputs: React.FC<Props> = ({
     disableRemove,
     disableEditRole,
     disableEditContent,
+    onRun,
 }) => {
     const classes = useStyles()
     const [messages, setMessages] = useState<ChatMessage[]>(
@@ -133,8 +135,9 @@ const ChatInputs: React.FC<Props> = ({
                     )}
                 </div>
             ))}
-            {!disableAdd && (
-                <div>
+
+            <Space>
+                {!disableAdd && (
                     <Tooltip title="Add input">
                         <Button
                             shape="circle"
@@ -143,8 +146,18 @@ const ChatInputs: React.FC<Props> = ({
                             size="small"
                         />
                     </Tooltip>
-                </div>
-            )}
+                )}
+                {onRun && (
+                    <Tooltip title="Run">
+                        <Button
+                            shape="circle"
+                            icon={<RightOutlined />}
+                            onClick={() => onRun(messages)}
+                            size="small"
+                        />
+                    </Tooltip>
+                )}
+            </Space>
         </div>
     )
 }

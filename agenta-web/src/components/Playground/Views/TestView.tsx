@@ -13,6 +13,7 @@ import CopyButton from "@/components/CopyButton/CopyButton"
 import {useRouter} from "next/router"
 import ChatInputs, {getDefaultNewMessage} from "@/components/ChatInputs/ChatInputs"
 import {v4 as uuidv4} from "uuid"
+import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const LOADING_TEXT = "Loading..."
 
@@ -298,13 +299,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
         const results = tests.map((test) => test?.correct_answer || "")
         const testsList = tests.map((test) => ({
             ...test,
-            ...(isChatVariant
-                ? {
-                      chat: safeParse(test.chat, [])
-                          .concat([safeParse(test.correct_answer, getDefaultNewMessage())])
-                          .map((item: Partial<ChatMessage>) => ({...item, id: uuidv4()})),
-                  }
-                : {}),
+            ...(isChatVariant ? {chat: testsetRowToChatMessages(test)} : {}),
             _id: randString(6),
         }))
         if (shouldReplace) {
