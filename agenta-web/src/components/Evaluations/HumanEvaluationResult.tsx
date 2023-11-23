@@ -305,6 +305,7 @@ export default function HumanEvaluationResult() {
                             type: selectionType,
                             ...rowSelection,
                         }}
+                        className="ph-no-capture"
                         columns={columns}
                         dataSource={evaluationsList}
                     />
