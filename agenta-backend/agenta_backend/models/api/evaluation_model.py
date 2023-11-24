@@ -1,7 +1,7 @@
 from enum import Enum
 from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 
 
 class EvaluationTypeSettings(BaseModel):
@@ -23,6 +23,7 @@ class EvaluationType(str, Enum):
     human_a_b_testing = "human_a_b_testing"
     human_scoring = "human_scoring"
     custom_code_run = "custom_code_run"
+    single_model_test = "single_model_test"
 
 
 class EvaluationStatusEnum(str, Enum):
@@ -77,7 +78,7 @@ class EvaluationScenario(BaseModel):
     inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]
     vote: Optional[str]
-    score: Optional[str]
+    score: Optional[Union[str, int]]
     evaluation: Optional[str]
     correct_answer: Optional[str]
     is_pinned: Optional[bool]
@@ -95,7 +96,7 @@ class AICritiqueCreate(BaseModel):
 
 class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
-    score: Optional[str]
+    score: Optional[Union[str, int]]
     correct_answer: Optional[str]  # will be used when running custom code evaluation
     outputs: Optional[List[EvaluationScenarioOutput]]
     inputs: Optional[List[EvaluationScenarioInput]]
