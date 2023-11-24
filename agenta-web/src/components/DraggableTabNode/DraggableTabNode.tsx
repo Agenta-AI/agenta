@@ -21,7 +21,7 @@ const DraggableTabNode: React.FC<DraggableTabNodeProps> = ({
         ...props.style,
         transform: CSS.Transform.toString(transform ? {...transform, scaleX: 1} : null),
         transition,
-        cursor: "move", // Changes cursor to indicate draggability.
+        cursor: "pointer", // Changes cursor to indicate draggability.
     }
 
     // Clones the children element to add refs and drag-and-drop related properties.
