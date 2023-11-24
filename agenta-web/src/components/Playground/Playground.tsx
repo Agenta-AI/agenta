@@ -265,6 +265,7 @@ const Playground: React.FC = () => {
                         />
                     </div>
                     <Tabs
+                        className="editable-card"
                         type="editable-card"
                         activeKey={activeKey}
                         onChange={setActiveKey}
