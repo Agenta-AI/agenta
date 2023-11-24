@@ -427,6 +427,9 @@ async def update_evaluation_scenario(
     if updated_data["note"] is not None:
         new_eval_set["note"] = updated_data["note"]
 
+    if updated_data["correct_answer"] is not None:
+        new_eval_set["correct_answer"] = updated_data["correct_answer"]
+
     eval_scenario.update(new_eval_set)
     await engine.save(eval_scenario)
 

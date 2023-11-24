@@ -23,22 +23,29 @@ const useStyles = createUseStyles({
         display: "inline-block",
         marginBottom: "0.25rem",
     },
-    btnsDivider: {
+    btnsDividerHorizontal: {
         height: 30,
         borderRight: "1.2px solid",
         alignSelf: "center",
         margin: "0 4px",
+    },
+    btnsDividerVertical: {
+        width: 120,
+        borderBottom: "1.2px solid",
+        alignSelf: "center",
+        margin: "4px 0",
     },
 })
 
 interface CommonProps<T> {
     onChange: (value: T) => void
     value?: T
+    vertical?: boolean
 }
 
 type BinaryVoteProps = CommonProps<boolean>
 
-const BinaryVote: React.FC<BinaryVoteProps> = ({onChange, value}) => {
+const BinaryVote: React.FC<BinaryVoteProps> = ({onChange, value, vertical}) => {
     const classes = useStyles()
 
     const getOnClick = (isGood: boolean) => () => {
@@ -46,7 +53,7 @@ const BinaryVote: React.FC<BinaryVoteProps> = ({onChange, value}) => {
     }
 
     return (
-        <div className={classes.btnRow}>
+        <div className={classes.btnRow} style={{flexDirection: vertical ? "column" : undefined}}>
             <Button onClick={getOnClick(true)} type={value === true ? "primary" : undefined}>
                 Good
             </Button>
@@ -65,7 +72,7 @@ type ComparisonVoteProps = {
     variants: Variant[]
 } & CommonProps<string>
 
-const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, value}) => {
+const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, value, vertical}) => {
     const classes = useStyles()
     const {token} = theme.useToken()
     const badId = "0"
@@ -75,7 +82,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
     }
 
     return (
-        <div className={classes.btnRow}>
+        <div className={classes.btnRow} style={{flexDirection: vertical ? "column" : undefined}}>
             {variants.map((variant, ix) => (
                 <ConfigProvider
                     key={variant.variantId}
@@ -90,7 +97,10 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                     </Button>
                 </ConfigProvider>
             ))}
-            <div className={classes.btnsDivider} style={{borderRightColor: token.colorBorder}} />
+            <div
+                className={vertical ? classes.btnsDividerVertical : classes.btnsDividerHorizontal}
+                style={{borderColor: token.colorBorder}}
+            />
             <Button
                 danger
                 type={value === badId ? "primary" : undefined}
@@ -118,6 +128,7 @@ const GradingVote: React.FC<GradingVoteProps> = ({
     onChange,
     value = [],
     maxGrade = 5,
+    vertical,
 }) => {
     const classes = useStyles()
 
@@ -137,7 +148,10 @@ const GradingVote: React.FC<GradingVoteProps> = ({
                     <Typography.Text className={classes.variantName} strong>
                         {variant.variantName}
                     </Typography.Text>
-                    <div className={classes.btnRow}>
+                    <div
+                        className={classes.btnRow}
+                        style={{flexDirection: vertical ? "column" : undefined}}
+                    >
                         {Array.from({length: maxGrade}, (_, i) => i + 1).map((grade) => (
                             <Button
                                 key={grade + ""}
