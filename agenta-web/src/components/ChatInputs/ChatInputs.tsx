@@ -1,5 +1,5 @@
 import {ChatMessage, ChatRole} from "@/lib/Types"
-import {MinusOutlined, PlusOutlined, RightOutlined} from "@ant-design/icons"
+import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Select, Space, Tooltip} from "antd"
 import React, {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -47,7 +47,7 @@ interface Props {
     disableRemove?: boolean
     disableEditRole?: boolean
     disableEditContent?: boolean
-    onRun?: (value: ChatMessage[]) => void
+    readonly?: boolean
 }
 
 const ChatInputs: React.FC<Props> = ({
@@ -59,13 +59,19 @@ const ChatInputs: React.FC<Props> = ({
     disableRemove,
     disableEditRole,
     disableEditContent,
-    onRun,
+    readonly,
 }) => {
     const classes = useStyles()
     const [messages, setMessages] = useState<ChatMessage[]>(
         value || defaultValue || [getDefaultNewMessage()],
     )
     const onChangeRef = useRef(onChange)
+
+    if (readonly) {
+        disableAdd = true
+        disableRemove = true
+        disableEditRole = true
+    }
 
     const handleRoleChange = (index: number, role: ChatRole) => {
         const newMessages = [...messages]
@@ -122,6 +128,7 @@ const ChatInputs: React.FC<Props> = ({
                         autoSize={{maxRows}}
                         value={msg.content}
                         onChange={(e) => handleInputChange(ix, e)}
+                        readOnly={readonly}
                     />
                     {messages.length > 1 && !disableRemove && (
                         <Tooltip title="Remove">
@@ -143,16 +150,6 @@ const ChatInputs: React.FC<Props> = ({
                             shape="circle"
                             icon={<PlusOutlined />}
                             onClick={handleAdd}
-                            size="small"
-                        />
-                    </Tooltip>
-                )}
-                {onRun && (
-                    <Tooltip title="Run">
-                        <Button
-                            shape="circle"
-                            icon={<RightOutlined />}
-                            onClick={() => onRun(messages)}
                             size="small"
                         />
                     </Tooltip>
