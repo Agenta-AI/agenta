@@ -21,6 +21,7 @@ const DraggableTabNode: React.FC<DraggableTabNodeProps> = ({
         ...props.style,
         transform: CSS.Transform.toString(transform ? {...transform, scaleX: 1} : null),
         transition,
+        userSelect: "none",
         cursor: "pointer", // Changes cursor to indicate draggability.
     }
 
