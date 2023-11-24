@@ -23,6 +23,7 @@ class EvaluationType(str, Enum):
     human_a_b_testing = "human_a_b_testing"
     human_scoring = "human_scoring"
     custom_code_run = "custom_code_run"
+    single_model_test = "single_model_test"
 
 
 class EvaluationStatusEnum(str, Enum):
