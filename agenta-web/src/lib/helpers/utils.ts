@@ -73,27 +73,28 @@ export const isAppNameInputValid = (input: string) => {
 
 type RowType = Record<string, any>
 
-export const convertToCsv = (rows: RowType[], header: (string | undefined)[]): string => {
-    if (rows.length === 0) return '';
+const escapeFieldForCsv = (field: any) => {
+    if (field === null || field === undefined) return ''
+    let strField = String(field)
+    if (strField.includes(',') || strField.includes('"') || strField.includes('\n')) {
+        strField = `"${strField.replace(/"/g, '""')}"`
+    }
+    return strField
+}
+export const convertToCsv = (rows: RowType[], header: (string | undefined)[], chunkSize: number = 1000): string => {
+    if (rows.length === 0) return ''
 
-    const validHeaders = header.filter((h) => h !== undefined && h in rows[0]) as string[];
+    const validHeaders = header.filter((h) => h !== undefined && h in rows[0]) as string[]
+    let csvContent = validHeaders.join(",") + '\n'
 
-    const escapeField = (field: any) => {
-        if (field === null || field === undefined) return '';
-        let strField = String(field);
-        if (strField.includes(',') || strField.includes('"') || strField.includes('\n')) {
-            strField = `"${strField.replace(/"/g, '""')}"`;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+        const chunk = rows.slice(i, i + chunkSize)
+        for (const row of chunk) {
+            const rowContent = validHeaders.map(key => escapeFieldForCsv(row[key])).join(',');
+            csvContent += rowContent + '\n'
         }
-        return strField;
-    };
-
-    const headerRow = validHeaders.join(",");
-
-    const dataRows = rows.map(row =>
-        validHeaders.map(key => escapeField(row[key])).join(',')
-    ).join('\n');
-
-    return `${headerRow}\n${dataRows}`;
+    }
+    return csvContent
 }
 
 export const downloadCsv = (csvContent: string, filename: string): void => {
