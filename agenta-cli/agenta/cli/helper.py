@@ -57,16 +57,13 @@ def set_global_config(var_name: str, var_value: Any) -> None:
         toml.dump(global_config, config_file)
 
 
-def get_api_key(backend_host: str) -> str:
+def get_api_key() -> str:
     """
     Retrieve or request the API key for accessing the Agenta platform.
 
     This function first looks for an existing API key in the global config file.
     If found, it prompts the user to confirm whether they'd like to use that key.
     If not found, it asks the user to input a new key.
-
-    Args:
-        backend_host (str): The hostname of the backend
 
     Returns:
         str: The API key to be used for accessing the Agenta platform.
@@ -88,7 +85,7 @@ def get_api_key(backend_host: str) -> str:
             sys.exit(0)
 
     api_key = questionary.text(
-        f"(You can get your API Key here: {backend_host}/settings?tab=apiKeys) "
+        "(You can get your API Key here: https://cloud.agenta.ai/settings?tab=apiKeys) "
         "Please provide your API key:"
     ).ask()
 
