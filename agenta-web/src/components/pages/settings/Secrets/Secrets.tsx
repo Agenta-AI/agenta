@@ -52,43 +52,45 @@ export default function Secrets() {
 
                 <div className={classes.apiContainer}>
                     {llmProviderKeys.map(({title, key}: LlmProvider, i: number) => (
-                        <Space direction="horizontal" key={i}>
-                            <Input.Password
-                                data-cy="openai-api-input"
-                                value={key}
-                                onChange={(e) => {
-                                    const newLlmProviderKeys = [...llmProviderKeys]
-                                    newLlmProviderKeys[i].key = e.target.value
-                                    setLlmProviderKeys(newLlmProviderKeys)
-                                }}
-                                addonBefore={`${title}`}
-                                visibilityToggle={false}
-                                className={classes.input}
-                            />
-                            <Button
-                                data-cy="openai-api-save"
-                                disabled={key === getLlmProviderKey(key) || !key}
-                                onClick={() => {
-                                    saveLlmProviderKey(i, key)
-                                    messageAPI.success("The secret is saved")
-                                }}
-                            >
-                                Save
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    removeSingleLlmProviderKey(i)
+                        <div>
+                            <Space direction="horizontal" key={i}>
+                                <Input.Password
+                                    data-cy="openai-api-input"
+                                    value={key}
+                                    onChange={(e) => {
+                                        const newLlmProviderKeys = [...llmProviderKeys]
+                                        newLlmProviderKeys[i].key = e.target.value
+                                        setLlmProviderKeys(newLlmProviderKeys)
+                                    }}
+                                    addonBefore={`${title}`}
+                                    visibilityToggle={false}
+                                    className={classes.input}
+                                />
+                                <Button
+                                    data-cy="openai-api-save"
+                                    disabled={key === getLlmProviderKey(key) || !key}
+                                    onClick={() => {
+                                        saveLlmProviderKey(i, key)
+                                        messageAPI.success("The secret is saved")
+                                    }}
+                                >
+                                    Save
+                                </Button>
+                                <Button
+                                    onClick={() => {
+                                        removeSingleLlmProviderKey(i)
 
-                                    const newLlmProviderKeys = [...llmProviderKeys]
-                                    newLlmProviderKeys[i].key = ""
-                                    setLlmProviderKeys(newLlmProviderKeys)
+                                        const newLlmProviderKeys = [...llmProviderKeys]
+                                        newLlmProviderKeys[i].key = ""
+                                        setLlmProviderKeys(newLlmProviderKeys)
 
-                                    messageAPI.warning("The secret is deleted")
-                                }}
-                            >
-                                Delete
-                            </Button>
-                        </Space>
+                                        messageAPI.warning("The secret is deleted")
+                                    }}
+                                >
+                                    Delete
+                                </Button>
+                            </Space>
+                        </div>
                     ))}
                 </div>
             </div>
