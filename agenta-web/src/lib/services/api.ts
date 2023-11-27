@@ -8,7 +8,6 @@ import {
     Evaluation,
     AppTemplate,
     GenericObject,
-    TemplateImage,
     Environment,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
@@ -613,14 +612,14 @@ export const waitForAppToStart = async ({
 
 export const createAndStartTemplate = async ({
     appName,
-    openAIKey,
+    providerKey,
     templateId,
     orgId,
     timeout,
     onStatusChange,
 }: {
     appName: string
-    openAIKey: string
+    providerKey: string
     templateId: string
     orgId: string
     timeout?: number
@@ -639,7 +638,7 @@ export const createAndStartTemplate = async ({
                     app_name: appName,
                     template_id: templateId,
                     env_vars: {
-                        OPENAI_API_KEY: openAIKey,
+                        OPENAI_API_KEY: providerKey,
                     },
                     organization_id: orgId,
                 },
