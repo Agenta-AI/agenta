@@ -1,4 +1,4 @@
-import {randString, removeOpenAIKey} from "../../../src/lib/helpers/utils"
+import {randString, removeLlmProviderKey} from "../../../src/lib/helpers/utils"
 
 let app_id
 
@@ -51,7 +51,7 @@ Cypress.Commands.add("createVariant", () => {
         cy.wrap(app_id).as("app_id")
     })
     cy.contains(/modify parameters/i)
-    cy.removeOpenAiKey()
+    cy.removeLlmProviderKey()
 })
 
 Cypress.Commands.add("createVariantsAndTestsets", () => {
@@ -98,7 +98,7 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
         },
     })
 
-    cy.removeOpenAiKey()
+    cy.removeLlmProviderKey()
 })
 
 Cypress.Commands.add("addingOpenaiKey", () => {
@@ -107,6 +107,6 @@ Cypress.Commands.add("addingOpenaiKey", () => {
     cy.get('[data-cy="openai-api-save"]').eq(0).click()
 })
 
-Cypress.Commands.add("removeOpenAiKey", () => {
-    removeOpenAIKey()
+Cypress.Commands.add("removeLlmProviderKey", () => {
+    removeLlmProviderKey()
 })

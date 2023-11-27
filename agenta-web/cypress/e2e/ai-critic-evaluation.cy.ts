@@ -14,7 +14,7 @@ describe("AI Critics Evaluation workflow", () => {
     context("When you select evaluation without an API key", () => {
         beforeEach(() => {
             cy.visit(`/apps/${app_id}/evaluations`)
-            cy.clearLocalStorage("openAiToken")
+            cy.clearLocalStorage("llmAvailableProvidersToken")
 
             cy.get('[data-cy="evaluation-error-modal"]').should("not.exist")
             cy.get('[data-cy="ai-critic-button"]').click()
@@ -81,7 +81,7 @@ describe("AI Critics Evaluation workflow", () => {
         })
 
         it("Should execute evaluation workflow with error", () => {
-            cy.clearLocalStorage("openAiToken")
+            cy.clearLocalStorage("llmAvailableProvidersToken")
             cy.wait(1000)
             cy.clickLinkAndWait('[data-cy="ai-critic-run-evaluation"]')
 
