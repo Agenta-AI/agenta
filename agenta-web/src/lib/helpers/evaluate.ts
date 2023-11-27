@@ -47,7 +47,7 @@ export const exportAICritiqueEvaluationData = (evaluation: any, rows: any[]) => 
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Correct answer"]: data.correctAnswer,
-            ["Score"]: data.evaluation,
+            ["Score"]: data.score,
         }
     })
     const exportCol = Object.keys(exportRow[0])
