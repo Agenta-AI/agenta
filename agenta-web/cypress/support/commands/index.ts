@@ -11,7 +11,7 @@ declare global {
             cleanupVariantAndTestset(): Chainable<void>
             createVariant(): Chainable<void>
             saveOpenAiKey(): Chainable<void>
-            removeOpenAiKey(): Chainable<void>
+            removeLlmProviderKey(): Chainable<void>
             addingOpenaiKey(): Chainable<void>
         }
     }

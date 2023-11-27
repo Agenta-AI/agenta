@@ -53,6 +53,28 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.auto_webhook_test]: "Webhook Test",
 }
 
+export const getApikeys = () => {
+    if (typeof window !== "undefined") {
+        const llmAvailableProvidersTokenString = localStorage.getItem(llmAvailableProvidersToken)
+
+        if (llmAvailableProvidersTokenString !== null) {
+            const llmAvailableProvidersTokenArray = JSON.parse(llmAvailableProvidersTokenString)
+
+            if (
+                Array.isArray(llmAvailableProvidersTokenArray) &&
+                llmAvailableProvidersTokenArray.length > 0
+            ) {
+                for (let i = 0; i < llmAvailableProvidersTokenArray.length; i++) {
+                    if (llmAvailableProvidersTokenArray[i].key !== "") {
+                        return llmAvailableProvidersTokenArray[i].key
+                    }
+                }
+            }
+        }
+        return ""
+    }
+}
+
 export const saveLlmProviderKey = (providerIdx: number, keyValue: string) => {
     if (typeof window !== "undefined") {
         // TODO: add encryption here
@@ -83,6 +105,12 @@ export const removeSingleLlmProviderKey = (providerIdx: number) => {
         const keys = JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? "[{}]")
         keys[providerIdx].key = ""
         localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
+    }
+}
+
+export const removeLlmProviderKey = () => {
+    if (typeof window !== "undefined") {
+        localStorage.removeItem(llmAvailableProvidersToken)
     }
 }
 

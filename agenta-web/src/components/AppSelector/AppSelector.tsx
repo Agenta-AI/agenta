@@ -4,12 +4,12 @@ import {usePostHog} from "posthog-js/react"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject, LlmProvidersKeys} from "@/lib/Types"
+import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {getAllLlmProviderKeysAsEnvVariable, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
+import {getApikeys, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getProfile,
@@ -183,7 +183,7 @@ const AppSelector: React.FC = () => {
 
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
-        const providerKeys = getAllLlmProviderKeysAsEnvVariable()
+        const providerKeys = getApikeys()
         if (!providerKeys && !isDemo()) {
             notification.error({
                 message: "OpenAI API Key Missing",
@@ -202,9 +202,7 @@ const AppSelector: React.FC = () => {
             appName: newApp,
             templateId: template_id,
             orgId: selectedOrg?.id!,
-            env_vars: isDemo()
-                ? getAllLlmProviderKeysAsEnvVariable()
-                : (providerKeys as LlmProvidersKeys),
+            providerKey: isDemo() ? "" : (providerKeys as string),
             timeout,
             onStatusChange: (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
