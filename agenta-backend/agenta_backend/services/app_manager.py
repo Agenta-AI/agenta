@@ -208,7 +208,10 @@ async def terminate_and_remove_app_variant(
                 # If image deletable is True, remove docker image and image db
                 if image.deletable:
                     try:
-                        await deployment_manager.remove_image(image)
+                        if os.environ["FEATURE_FLAG"] == "cloud":
+                            await deployment_manager.remove_repository(image.tags)
+                        else:
+                            await deployment_manager.remove_image(image)
                     except RuntimeError as e:
                         logger.error(f"Failed to remove image {image} {e}")
                     await db_manager.remove_image(image, **kwargs)
