@@ -291,6 +291,7 @@ export default function AutomaticEvaluationResult() {
                             type: selectionType,
                             ...rowSelection,
                         }}
+                        className="ph-no-capture"
                         data-cy="automatic-evaluation-result"
                         columns={columns}
                         dataSource={evaluationsList}
