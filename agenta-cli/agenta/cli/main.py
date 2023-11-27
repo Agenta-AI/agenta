@@ -73,8 +73,9 @@ def cli():
 
 
 @click.command()
+@click.option("--working_dir", default=".")
 @click.option("--app_name", default="")
-def init(app_name: str):
+def init(working_dir: str, app_name: str):
     """Initialize a new Agenta app with the template files."""
     if not app_name:
         while True:
@@ -89,6 +90,11 @@ def init(app_name: str):
                         "Invalid input. Please use only alphanumeric characters without spaces."
                     )
 
+    # Get config.toml from current working directory
+    app_folder = Path(working_dir)
+    config_file = app_folder / "config.toml"
+    loaded_config = toml.load(config_file)
+
     try:
         where_question = questionary.select(
             "Where are you running agenta?",
@@ -102,7 +108,10 @@ def init(app_name: str):
                 "Please provide the IP or URL of your remote host"
             ).ask()
         elif where_question == "On agenta cloud":
-            backend_host = "https://cloud.agenta.ai"
+            if loaded_config:
+                backend_host = loaded_config["backend_host"]
+            else:
+                backend_host = "https://cloud.agenta.ai"
 
             api_key = helper.get_api_key()
             client.validate_api_key(api_key, backend_host)
