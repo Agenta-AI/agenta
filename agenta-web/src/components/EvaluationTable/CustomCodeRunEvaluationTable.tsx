@@ -30,7 +30,7 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {getApikeys, getLlmProviderKey} from "@/lib/helpers/utils"
+import {getApikeys} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportCustomCodeEvaluationData} from "@/lib/helpers/evaluate"

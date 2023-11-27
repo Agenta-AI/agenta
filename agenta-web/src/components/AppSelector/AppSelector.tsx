@@ -4,19 +4,12 @@ import {usePostHog} from "posthog-js/react"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
-import {Template, GenericObject, LlmProvidersKeys} from "@/lib/Types"
+import {Template, GenericObject} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {
-    getAllLlmProviderKeysAsEnvVariable,
-    getAllProviderLlmKeys,
-    getApikeys,
-    getLlmProviderKey,
-    isAppNameInputValid,
-    isDemo,
-} from "@/lib/helpers/utils"
+import {getApikeys, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getProfile,
