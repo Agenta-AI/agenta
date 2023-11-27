@@ -327,6 +327,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "andreiwebdev",
+      "name": "Andrei Dragomir",
+      "avatar_url": "https://avatars.githubusercontent.com/u/59015981?v=4",
+      "profile": "https://dandrei.com/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
