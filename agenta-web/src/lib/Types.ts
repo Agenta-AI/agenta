@@ -229,7 +229,9 @@ export interface LlmProvidersKeys {
 export interface AppTemplate {
     app_name: string
     template_id: string
-    env_vars?: LlmProvidersKeys
+    env_vars?: {
+        OPENAI_API_KEY: string | null
+    }
     organization_id?: string
 }
 
