@@ -20,7 +20,7 @@ import {
     useLoadTestsetsList,
     fetchCustomEvaluations,
 } from "@/lib/services/api"
-import {dynamicComponent, getApikeys, getLlmProviderKey, isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent, getApikeys, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"

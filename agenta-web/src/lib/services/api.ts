@@ -8,13 +8,11 @@ import {
     Evaluation,
     AppTemplate,
     GenericObject,
-    TemplateImage,
     Environment,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
     ListAppsItem,
     AICritiqueCreate,
-    LlmProvidersKeys,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
