@@ -20,7 +20,7 @@ import {
     useLoadTestsetsList,
     fetchCustomEvaluations,
 } from "@/lib/services/api"
-import {dynamicComponent, getLlmProviderKey, isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent, getApikeys, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
@@ -337,10 +337,7 @@ export default function Evaluations() {
         } else if (selectedTestset?.name === "Select a Test set") {
             message.error("Please select a testset")
             return
-        } else if (
-            !getLlmProviderKey("OpenAI") &&
-            selectedEvaluationType === EvaluationType.auto_ai_critique
-        ) {
+        } else if (!getApikeys() && selectedEvaluationType === EvaluationType.auto_ai_critique) {
             setError({
                 message:
                     "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
