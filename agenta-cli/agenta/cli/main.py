@@ -101,8 +101,14 @@ def init(app_name: str):
                 "Please provide the IP or URL of your remote host"
             ).ask()
         elif where_question == "On agenta cloud":
-            backend_host = "https://cloud.agenta.ai"
-            api_key = helper.get_api_key()
+            backend_host = questionary.text(
+                "Please provide the URL for the backend host. Defaults to: https://cloud.agenta.ai",
+            ).ask()
+            backend_host = (
+                "https://cloud.agenta.ai" if not backend_host else backend_host
+            )
+
+            api_key = helper.get_api_key(backend_host)
             client.validate_api_key(api_key, backend_host)
 
         elif where_question is None:  # User pressed Ctrl+C
