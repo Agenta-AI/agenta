@@ -318,6 +318,15 @@
       "contributions": [
         "test"
       ]
+    },
+    {
+      "login": "seungduk-yanolja",
+      "name": "seungduk.kim.2304",
+      "avatar_url": "https://avatars.githubusercontent.com/u/115020208?v=4",
+      "profile": "https://github.com/seungduk-yanolja",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

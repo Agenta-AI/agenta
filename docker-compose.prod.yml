@@ -14,6 +14,7 @@ services:
     build: ./agenta-backend
     environment:
       - MONGODB_URI=mongodb://username:password@mongo:27017
+      - REDIS_URL=redis://redis:6379/0
       - ALLOW_ORIGINS=${ALLOW_ORIGINS}
       - ENVIRONMENT=production
       - FEATURE_FLAG=oss
