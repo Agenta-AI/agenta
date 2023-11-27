@@ -1,3 +1,4 @@
+import io
 import os
 import csv
 import json
@@ -26,7 +27,7 @@ upload_folder = "./path/to/upload/folder"
 router = APIRouter()
 
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.cloud.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
@@ -88,15 +89,14 @@ async def upload_file(
         # Read and parse the CSV file
         csv_data = await file.read()
         csv_text = csv_data.decode("utf-8")
-        csv_reader = csv.reader(csv_text.splitlines())
-        columns = next(csv_reader)  # Get the column names
 
-        # Populate the document with column names and values
+        # Use StringIO to create a file-like object from the string
+        csv_file_like_object = io.StringIO(csv_text)
+        csv_reader = csv.DictReader(csv_file_like_object)
+
+        # Populate the document with rows from the CSV reader
         for row in csv_reader:
-            row_data = {}
-            for i, value in enumerate(row):
-                row_data[columns[i]] = value
-            document["csvdata"].append(row_data)
+            document["csvdata"].append(row)
 
     user = await get_user(user_uid=user_org_data["uid"])
     testset_instance = TestSetDB(**document, user=user)

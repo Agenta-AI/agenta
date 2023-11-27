@@ -26,7 +26,7 @@ from agenta_backend.models.api.observability_models import (
     UpdateTrace,
 )
 
-if os.environ["FEATURE_FLAG"] in ["cloud", "ee", "demo"]:
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.cloud.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all

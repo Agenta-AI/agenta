@@ -120,7 +120,7 @@ const ParametersView: React.FC<Props> = ({
             save: onSave,
             delete: handleDelete,
         })
-    }, [getHelpers])
+    }, [getHelpers, onSave, handleDelete])
 
     const items: CollapseProps["items"] = [
         {

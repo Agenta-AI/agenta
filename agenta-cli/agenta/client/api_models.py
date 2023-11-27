@@ -18,6 +18,7 @@ class Variant(BaseModel):
 
 
 class Image(BaseModel):
+    type: Optional[str]
     docker_id: str
     tags: str
 
