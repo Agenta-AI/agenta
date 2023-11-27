@@ -52,7 +52,7 @@ export default function Secrets() {
 
                 <div className={classes.apiContainer}>
                     {llmProviderKeys.map(({title, key}: LlmProvider, i: number) => (
-                        <div>
+                        <div key={i}>
                             <Space direction="horizontal" key={i}>
                                 <Input.Password
                                     data-cy="openai-api-input"
