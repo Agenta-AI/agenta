@@ -80,8 +80,8 @@ export interface EvaluationScenario {
     inputs: {input_name: string; input_value: string}[]
     outputs: {variant_id: string; variant_output: string}[]
     correctAnswer: string | null
-    vote: string | null
-    score: string | null
+    vote?: string | null
+    score?: string | number | null
     isPinned: boolean
     note: string
 }

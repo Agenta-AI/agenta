@@ -394,6 +394,7 @@ async def update_evaluation_scenario(
         EvaluationType.auto_regex_test,
         EvaluationType.auto_webhook_test,
         EvaluationType.auto_ai_critique,
+        EvaluationType.single_model_test,
     ]:
         new_eval_set["score"] = updated_data["score"]
     elif evaluation_type == EvaluationType.human_a_b_testing:
@@ -550,6 +551,7 @@ def _extend_with_evaluation(evaluation_type: EvaluationType):
         or evaluation_type == EvaluationType.auto_similarity_match
         or evaluation_type == EvaluationType.auto_regex_test
         or evaluation_type == EvaluationType.auto_webhook_test
+        or evaluation_type == EvaluationType.single_model_test
         or EvaluationType.auto_ai_critique
     ):
         evaluation["score"] = ""
