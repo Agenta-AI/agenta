@@ -116,7 +116,7 @@ async def update_variant_image(
 
     valid_image = await deployment_manager.validate_image(image)
     if not valid_image:
-        raise ValueError("Image could not be found in registery.")
+        raise ValueError("Image could not be found in registry.")
     deployment = await db_manager.get_deployment_by_objectid(
         app_variant_db.base.deployment
     )
@@ -124,7 +124,9 @@ async def update_variant_image(
     await deployment_manager.stop_and_delete_service(deployment)
     await db_manager.remove_deployment(deployment)
 
-    await deployment_manager.remove_image(app_variant_db.base.image)
+    if os.environ["FEATURE_FLAG"] in ["ee", "oss"]:
+        await deployment_manager.remove_image(app_variant_db.base.image)
+
     await db_manager.remove_image(app_variant_db.base.image)
     # Create a new image instance
     db_image = await db_manager.create_image(
@@ -206,7 +208,10 @@ async def terminate_and_remove_app_variant(
                 # If image deletable is True, remove docker image and image db
                 if image.deletable:
                     try:
-                        await deployment_manager.remove_image(image)
+                        if os.environ["FEATURE_FLAG"] == "cloud":
+                            await deployment_manager.remove_repository(image.tags)
+                        else:
+                            await deployment_manager.remove_image(image)
                     except RuntimeError as e:
                         logger.error(f"Failed to remove image {image} {e}")
                     await db_manager.remove_image(image, **kwargs)
