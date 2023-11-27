@@ -86,6 +86,12 @@ export const removeSingleLlmProviderKey = (providerIdx: number) => {
     }
 }
 
+export const removeLlmProviderKey = () => {
+    if (typeof window !== "undefined") {
+        localStorage.removeItem(llmAvailableProvidersToken)
+    }
+}
+
 export const capitalize = (s: string) => {
     if (typeof s !== "string") return ""
     return s
