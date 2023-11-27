@@ -24,12 +24,12 @@ def update_backend_host(app_folder: str, backend_host: str):
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     if not config_file.exists():
-        click.echo(
-            click.style(
-                f"Config file not found in {app_folder}. Make sure you are in the right folder and that you have run agenta init first.",
-                fg="red",
-            )
-        )
+        # Set app toml configuration
+        config = {
+            "backend_host": backend_host,
+        }
+        with open("config.toml", "w") as config_file:
+            toml.dump(config, config_file)
         return
 
     # Update the config file
@@ -39,7 +39,7 @@ def update_backend_host(app_folder: str, backend_host: str):
 
 
 @config.command(
-    name="url",
+    name="set-host",
     context_settings=dict(
         ignore_unknown_options=True,
         allow_extra_args=True,
