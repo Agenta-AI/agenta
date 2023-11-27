@@ -28,24 +28,32 @@ type Props = {
     variant: Variant
     outputText?: string
     index?: number
+    showVariantName?: boolean
 }
 
-const EvaluationChatResponse: React.FC<Props> = ({variant, outputText, index = 0}) => {
+const EvaluationChatResponse: React.FC<Props> = ({
+    variant,
+    outputText,
+    index = 0,
+    showVariantName = true,
+}) => {
     const classes = useStyles()
     const color = VARIANT_COLORS[index]
 
     return (
         <Space direction="vertical" size="middle">
-            <Space>
-                <div className={classes.variantType} style={{borderColor: color}}>
-                    <Typography.Text style={{color}} strong>
-                        {String.fromCharCode(65 + index)}
+            {showVariantName && (
+                <Space>
+                    <div className={classes.variantType} style={{borderColor: color}}>
+                        <Typography.Text style={{color}} strong>
+                            {String.fromCharCode(65 + index)}
+                        </Typography.Text>
+                    </div>
+                    <Typography.Text style={{color}} className={classes.title}>
+                        {variant.variantName}
                     </Typography.Text>
-                </div>
-                <Typography.Text style={{color}} className={classes.title}>
-                    {variant.variantName}
-                </Typography.Text>
-            </Space>
+                </Space>
+            )}
             <ChatInputs
                 value={[{role: ChatRole.Assistant, content: outputText || "", id: uuidv4()}]}
                 readonly

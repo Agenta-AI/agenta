@@ -1,5 +1,5 @@
 import {Variant} from "@/lib/Types"
-import {Button, ConfigProvider, Spin, Typography, theme} from "antd"
+import {Button, ConfigProvider, InputNumber, Spin, Typography, theme} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
@@ -173,6 +173,68 @@ const GradingVote: React.FC<GradingVoteProps> = ({
     )
 }
 
+type NumericScoreVoteProps = {
+    variants: Variant[]
+    min?: number
+    max?: number
+    showVariantName?: boolean
+} & CommonProps<
+    {
+        score: number | null
+        variantId: string
+    }[]
+>
+
+const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
+    variants,
+    onChange,
+    value = [],
+    min = 0,
+    max = 100,
+    vertical,
+    showVariantName = true,
+}) => {
+    const classes = useStyles()
+
+    const _onChange = (variantId: string, score: number | null) => {
+        onChange(
+            variants.map((variant) => ({
+                variantId: variant.variantId,
+                score: variant.variantId === variantId ? score : null,
+            })),
+        )
+    }
+
+    return (
+        <div className={classes.gradeRoot}>
+            {variants.map((variant) => (
+                <div key={variant.variantId}>
+                    {showVariantName && (
+                        <Typography.Text className={classes.variantName} strong>
+                            {variant.variantName}
+                        </Typography.Text>
+                    )}
+                    <div
+                        className={classes.btnRow}
+                        style={{flexDirection: vertical ? "column" : undefined}}
+                    >
+                        <InputNumber
+                            defaultValue={
+                                value.find((item) => item.variantId === variant.variantId)?.score ||
+                                undefined
+                            }
+                            min={min}
+                            max={max}
+                            onChange={(score) => _onChange(variant.variantId, score)}
+                        />{" "}
+                        / {max}
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
 type Props =
     | ({
           type: "binary"
@@ -183,6 +245,9 @@ type Props =
     | ({
           type: "grading"
       } & GradingVoteProps)
+    | ({
+          type: "numeric"
+      } & NumericScoreVoteProps)
 
 const EvaluationVotePanel: React.FC<Props & {loading?: boolean}> = ({type, loading, ...props}) => {
     const classes = useStyles()
@@ -194,8 +259,10 @@ const EvaluationVotePanel: React.FC<Props & {loading?: boolean}> = ({type, loadi
                     <BinaryVote {...(props as BinaryVoteProps)} />
                 ) : type === "comparison" ? (
                     <ComparisonVote {...(props as ComparisonVoteProps)} />
-                ) : (
+                ) : type === "grading" ? (
                     <GradingVote {...(props as GradingVoteProps)} />
+                ) : (
+                    <NumericScoreVote {...(props as NumericScoreVoteProps)} />
                 )}
             </Spin>
         </div>

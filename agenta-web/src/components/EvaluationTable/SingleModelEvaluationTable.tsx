@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useCallback} from "react"
 import type {ColumnType} from "antd/es/table"
 import {CaretRightOutlined} from "@ant-design/icons"
 import {
@@ -6,6 +6,7 @@ import {
     Card,
     Col,
     Input,
+    InputNumber,
     Radio,
     Row,
     Space,
@@ -15,12 +16,7 @@ import {
     Typography,
     message,
 } from "antd"
-import {
-    updateEvaluationScenario,
-    callVariant,
-    fetchEvaluationResults,
-    updateEvaluation,
-} from "@/lib/services/api"
+import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -32,16 +28,16 @@ import EvaluationCardView from "../Evaluations/EvaluationCardView"
 import {Evaluation, EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types"
 import {EvaluationTypeLabels, camelToSnake} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {debounce} from "lodash"
 
 const {Title} = Typography
 
 interface EvaluationTableProps {
     evaluation: Evaluation
-    columnsCount: number
-    evaluationScenarios: ABTestingEvaluationTableRow[]
+    evaluationScenarios: SingleModelEvaluationRow[]
 }
 
-export type ABTestingEvaluationTableRow = EvaluationScenario & {
+export type SingleModelEvaluationRow = EvaluationScenario & {
     evaluationFlow: EvaluationFlow
 } & {[variantId: string]: string}
 /**
@@ -103,7 +99,7 @@ const useStyles = createUseStyles({
     },
 })
 
-const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
+const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
 }) => {
@@ -114,19 +110,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     const variantData = useVariants(appId, variants)
 
-    const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
+    const [rows, setRows] = useState<SingleModelEvaluationRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
-    const [evaluationResults, setEvaluationResults] = useState<any>(null)
     const [viewMode, setViewMode] = useQueryParam("viewMode", "tabular")
-
-    let num_of_rows = evaluationResults?.votes_data.nb_of_rows || 0
-    let flag_votes = evaluationResults?.votes_data.flag_votes?.number_of_votes || 0
-    let appVariant1 =
-        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[0]?.variantId]
-            ?.number_of_votes || 0
-    let appVariant2 =
-        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[1]?.variantId]
-            ?.number_of_votes || 0
+    const [accuracy, setAccuracy] = useState<number>(0)
 
     useEffect(() => {
         if (evaluationScenarios) {
@@ -137,6 +124,13 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             setRows(obj)
         }
     }, [evaluationScenarios])
+
+    useEffect(() => {
+        const filtered = rows.filter((row) => row.score !== null)
+        const avg =
+            filtered.reduce((acc, val) => acc + (val.score as number), 0) / (filtered.length || 1)
+        setAccuracy(avg)
+    }, [rows])
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
@@ -149,26 +143,14 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         setRows(newRows)
     }
 
-    useEffect(() => {
-        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
-            fetchEvaluationResults(evaluation.id)
-                .then((data) => setEvaluationResults(data))
-                .catch((err) => console.error("Failed to fetch results:", err))
-                .then(() => {
-                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
-                })
-                .catch((err) => console.error("Failed to fetch results:", err))
-        }
-    }, [evaluationStatus, evaluation.id])
-
-    const handleVoteClick = (id: string, vote: string) => {
+    const handleScoreChange = (id: string, score: number) => {
         const rowIndex = rows.findIndex((row) => row.id === id)
         const evaluation_scenario_id = rows[rowIndex].id
 
         if (evaluation_scenario_id) {
-            setRowValue(rowIndex, "vote", "loading")
+            setRowValue(rowIndex, "score", "loading")
             const data = {
-                vote: vote,
+                score,
                 outputs: variants.map((v: Variant) => ({
                     variant_id: v.variantId,
                     variant_output: rows[rowIndex][v.variantId],
@@ -179,6 +161,13 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             updateEvaluationScenarioData(evaluation_scenario_id, data)
         }
     }
+
+    const depouncedHandleScoreChange = useCallback(
+        debounce((...args: Parameters<typeof handleScoreChange>) => {
+            handleScoreChange(...args)
+        }, 800),
+        [handleScoreChange],
+    )
 
     const updateEvaluationScenarioData = async (
         id: string,
@@ -281,7 +270,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     const setRowValue = (
         rowIndex: number,
-        columnKey: keyof ABTestingEvaluationTableRow,
+        columnKey: keyof SingleModelEvaluationRow,
         value: any,
     ) => {
         const newRows = [...rows]
@@ -289,7 +278,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         setRows(newRows)
     }
 
-    const dynamicColumns: ColumnType<ABTestingEvaluationTableRow>[] = variants.map(
+    const dynamicColumns: ColumnType<SingleModelEvaluationRow>[] = variants.map(
         (variant: Variant) => {
             const columnKey = variant.variantId
 
@@ -305,7 +294,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 dataIndex: columnKey,
                 key: columnKey,
                 width: "20%",
-                render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
+                render: (text: any, record: SingleModelEvaluationRow, rowIndex: number) => {
                     if (text) return text
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
@@ -332,7 +321,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 </div>
             ),
             dataIndex: "inputs",
-            render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => (
+            render: (text: any, record: SingleModelEvaluationRow, rowIndex: number) => (
                 <div>
                     {evaluation.testset.testsetChatColumn
                         ? evaluation.testset.csvdata[rowIndex][
@@ -369,58 +358,31 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             key: "evaluate",
             width: 200,
             // fixed: 'right',
-            render: (text: any, record: any, rowIndex: number) => (
-                <Spin spinning={rows[rowIndex].vote === "loading" ? true : false}>
-                    <Space>
-                        <Button
-                            data-cy={`abTesting-app-variant-1-vote-button-${rowIndex}`}
-                            type={record.vote === variants[0].variantId ? "primary" : "default"}
-                            disabled={
-                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
-                                record.vote !== ""
-                                    ? false
-                                    : true
-                            }
-                            onClick={() => handleVoteClick(record.id, variants[0].variantId)}
-                        >
-                            {`Variant: ${variants[0].variantName}`}
-                        </Button>
-                        <Button
-                            data-cy={`abTesting-app-variant-2-vote-button-${rowIndex}`}
-                            type={record.vote === variants[1].variantId ? "primary" : "default"}
-                            disabled={
-                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
-                                record.vote !== ""
-                                    ? false
-                                    : true
-                            }
-                            onClick={() => handleVoteClick(record.id, variants[1].variantId)}
-                        >
-                            {`Variant: ${variants[1].variantName}`}
-                        </Button>
-                        <Button
-                            data-cy={`abTesting-both-bad-vote-button-${rowIndex}`}
-                            type={record.vote === "0" ? "primary" : "default"}
-                            disabled={
-                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
-                                record.vote !== ""
-                                    ? false
-                                    : true
-                            }
-                            danger
-                            onClick={() => handleVoteClick(record.id, "0")}
-                        >
-                            Both are bad
-                        </Button>
-                    </Space>
-                </Spin>
-            ),
+            render: (text: any, record: any, rowIndex: number) => {
+                return (
+                    <Spin spinning={rows[rowIndex].score === "loading" ? true : false}>
+                        <Space>
+                            <InputNumber
+                                disabled={
+                                    !record.outputs?.length ||
+                                    !record.outputs.every((item: any) => !!item.variant_output)
+                                }
+                                defaultValue={record.score}
+                                min={0}
+                                max={100}
+                                onChange={(score) => depouncedHandleScoreChange(record.id, score)}
+                            />{" "}
+                            / 100
+                        </Space>
+                    </Spin>
+                )
+            },
         },
     ]
 
     return (
         <div>
-            <Title level={2}>{EvaluationTypeLabels.human_a_b_testing}</Title>
+            <Title level={2}>{EvaluationTypeLabels.single_model_test}</Title>
             <div>
                 <Row align="middle">
                     <Col span={12}>
@@ -443,35 +405,16 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     </Col>
 
                     <Col span={12}>
-                        <Card bordered={true} className={classes.card}>
-                            <Row justify="end">
-                                <Col span={10}>
-                                    <Statistic
-                                        title={`${
-                                            evaluation.variants[0]?.variantName || ""
-                                        } is better:`}
-                                        value={`${appVariant1} out of ${num_of_rows}`}
-                                        className={classes.statCorrect}
-                                    />
-                                </Col>
-                                <Col span={10}>
-                                    <Statistic
-                                        title={`${
-                                            evaluation.variants[1]?.variantName || ""
-                                        } is better:`}
-                                        value={`${appVariant2} out of ${num_of_rows}`}
-                                        className={classes.statCorrect}
-                                    />
-                                </Col>
-                                <Col span={4}>
-                                    <Statistic
-                                        title="Both are bad:"
-                                        value={`${flag_votes} out of ${num_of_rows}`}
-                                        className={classes.statWrong}
-                                    />
-                                </Col>
-                            </Row>
-                        </Card>
+                        <Row justify="end">
+                            <Card bordered={true} className={classes.card}>
+                                <Statistic
+                                    title="Accuracy:"
+                                    value={accuracy}
+                                    precision={2}
+                                    suffix="%"
+                                />
+                            </Card>
+                        </Row>
                     </Col>
                 </Row>
             </div>
@@ -501,7 +444,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     variants={variants}
                     evaluationScenarios={rows}
                     onRun={runEvaluation}
-                    onVote={(id, vote) => handleVoteClick(id, vote as string)}
+                    onVote={(id, score) => depouncedHandleScoreChange(id, score as number)}
                     onInputChange={handleInputChange}
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
@@ -511,4 +454,4 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     )
 }
 
-export default ABTestingEvaluationTable
+export default SingleModelEvaluationTable

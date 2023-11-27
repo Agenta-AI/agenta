@@ -136,13 +136,18 @@ export const exportCustomCodeEvaluationData = (evaluation: any, rows: any[]) => 
     downloadCsv(csvData, filename)
 }
 
-export const calculateResultsDataAvg = (resultsData: Record<string, number>) => {
-    const count = Object.values(resultsData).reduce((acc, value) => acc + +value, 0)
-    const sum = Object.keys(resultsData).reduce(
-        (acc, key) => acc + parseFloat(key) * +resultsData[key],
-        0,
-    )
-    return sum / count
+export const calculateResultsDataAvg = (
+    resultsData: Record<string, number>,
+    multiplier: number = 10,
+) => {
+    const obj = {...resultsData}
+    Object.keys(obj).forEach((key) => {
+        if (isNaN(+key)) delete obj[key]
+    })
+
+    const count = Object.values(obj).reduce((acc, value) => acc + +value, 0)
+    const sum = Object.keys(obj).reduce((acc, key) => acc + (parseFloat(key) || 0) * +obj[key], 0)
+    return (sum / count) * multiplier
 }
 
 export const getVotesPercentage = (record: HumanEvaluationListTableDataType, index: number) => {

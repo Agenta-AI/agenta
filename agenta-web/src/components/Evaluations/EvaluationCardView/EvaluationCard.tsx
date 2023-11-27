@@ -17,9 +17,15 @@ interface Props {
     evaluationScenario: ABTestingEvaluationTableRow
     variants: Variant[]
     isChat?: boolean
+    showVariantName?: boolean
 }
 
-const EvaluationCard: React.FC<Props> = ({evaluationScenario, variants, isChat}) => {
+const EvaluationCard: React.FC<Props> = ({
+    evaluationScenario,
+    variants,
+    isChat,
+    showVariantName = true,
+}) => {
     const classes = useStyles()
 
     return (
@@ -39,6 +45,7 @@ const EvaluationCard: React.FC<Props> = ({evaluationScenario, variants, isChat})
                             ""
                         }
                         index={ix}
+                        showVariantName={showVariantName}
                     />
                 ) : (
                     <EvaluationVariantCard
@@ -51,6 +58,7 @@ const EvaluationCard: React.FC<Props> = ({evaluationScenario, variants, isChat})
                             ""
                         }
                         index={ix}
+                        showVariantName={showVariantName}
                         //random image from unsplash
                         // outputImg={`https://source.unsplash.com/random/?sig=${ix}`}
                     />

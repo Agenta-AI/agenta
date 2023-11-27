@@ -21,6 +21,7 @@ import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {safeParse} from "@/lib/helpers/utils"
 import {debounce} from "lodash"
+import {EvaluationType} from "@/lib/enums"
 
 export const VARIANT_COLORS = [
     "#297F87", // "#722ed1",
@@ -124,7 +125,7 @@ interface Props {
     variants: Variant[]
     evaluationScenarios: ABTestingEvaluationTableRow[]
     onRun: (id: string) => void
-    onVote: (id: string, vote: string) => void
+    onVote: (id: string, vote: string | number | null) => void
     onInputChange: Function
     updateEvaluationScenarioData: (id: string, data: Partial<EvaluationScenario>) => void
     evaluation: Evaluation
@@ -165,6 +166,7 @@ const EvaluationCardView: React.FC<Props> = ({
     })
     const isChat = !!evaluation.testset.testsetChatColumn
     const testsetRow = evaluation.testset.csvdata[scenarioIndex]
+    const isAbTesting = evaluation.evaluationType === EvaluationType.human_a_b_testing
 
     const loadPrevious = () => {
         if (scenarioIndex === 0) return
@@ -196,11 +198,13 @@ const EvaluationCardView: React.FC<Props> = ({
                         right or press <code>{`Enter (↵)`}</code> key to generate the variants'
                         outputs.
                     </li>
-                    <li>
-                        <b>Vote</b> by either clicking the evaluation buttons at the right sidebar
-                        or pressing the key <code>a</code> for 1st Variant, <code>b</code> for 2nd
-                        Variant and <code>x</code> if both are bad.
-                    </li>
+                    {isAbTesting && (
+                        <li>
+                            <b>Vote</b> by either clicking the evaluation buttons at the right
+                            sidebar or pressing the key <code>a</code> for 1st Variant,{" "}
+                            <code>b</code> for 2nd Variant and <code>x</code> if both are bad.
+                        </li>
+                    )}
                     <li>
                         Pin an evaluation to come back later by clicking the <b>Pin</b>{" "}
                         <PushpinOutlined style={{color: token.colorError}} /> button on the right.
@@ -264,9 +268,12 @@ const EvaluationCardView: React.FC<Props> = ({
             if (e.key === "ArrowLeft") loadPrevious()
             else if (e.key === "ArrowRight") loadNext()
             else if (e.key === "Enter") callbacks.current.onRun(scenarioId)
-            else if (e.key === "a") callbacks.current.onVote(scenarioId, variants[0].variantId)
-            else if (e.key === "b") callbacks.current.onVote(scenarioId, variants[1].variantId)
-            else if (e.key === "x") callbacks.current.onVote(scenarioId, "0")
+
+            if (isAbTesting) {
+                if (e.key === "a") callbacks.current.onVote(scenarioId, variants[0].variantId)
+                else if (e.key === "b") callbacks.current.onVote(scenarioId, variants[1].variantId)
+                else if (e.key === "x") callbacks.current.onVote(scenarioId, "0")
+            }
         }
 
         document.addEventListener("keydown", listener)
@@ -328,7 +335,11 @@ const EvaluationCardView: React.FC<Props> = ({
 
                         {isChat ? (
                             <div className={classes.chatInputsCon}>
-                                <ChatInputs defaultValue={chat} onChange={onChatChange} />
+                                <ChatInputs
+                                    key={scenarioId}
+                                    defaultValue={chat}
+                                    onChange={onChatChange}
+                                />
                             </div>
                         ) : (
                             <EvaluationInputs
@@ -375,28 +386,60 @@ const EvaluationCardView: React.FC<Props> = ({
                             </Tooltip>
                         </div>
 
-                        <EvaluationCard
-                            isChat={isChat}
-                            variants={variants}
-                            evaluationScenario={scenario}
-                        />
+                        <div>
+                            {!isAbTesting && (
+                                <Typography.Text style={{fontSize: 20}}>
+                                    Model Response
+                                </Typography.Text>
+                            )}
+
+                            <EvaluationCard
+                                isChat={isChat}
+                                variants={variants}
+                                evaluationScenario={scenario}
+                                showVariantName={isAbTesting}
+                            />
+                        </div>
                     </div>
 
                     <div className={classes.sideBar}>
                         <Typography.Title level={4}>Submit your feedback</Typography.Title>
-                        {scenario.outputs.some((item) => !!item.variant_output) && (
-                            <Space direction="vertical">
-                                <Typography.Text strong>Which response is better?</Typography.Text>
-                                <EvaluationVotePanel
-                                    type="comparison"
-                                    value={scenario.vote || ""}
-                                    variants={variants}
-                                    onChange={(vote) => onVote(scenarioId, vote)}
-                                    loading={scenario.vote === "loading"}
-                                    vertical
-                                />
-                            </Space>
-                        )}
+                        {scenario.outputs.length > 0 &&
+                            scenario.outputs.every((item) => !!item.variant_output) && (
+                                <Space direction="vertical">
+                                    <Typography.Text strong>
+                                        {isAbTesting
+                                            ? "Which response is better?"
+                                            : "Rate the response"}
+                                    </Typography.Text>
+                                    {isAbTesting ? (
+                                        <EvaluationVotePanel
+                                            type="comparison"
+                                            value={scenario.vote || ""}
+                                            variants={variants}
+                                            onChange={(vote) => onVote(scenarioId, vote)}
+                                            loading={scenario.vote === "loading"}
+                                            vertical
+                                            key={scenarioId}
+                                        />
+                                    ) : (
+                                        <EvaluationVotePanel
+                                            type="numeric"
+                                            value={[
+                                                {
+                                                    variantId: variants[0].variantId,
+                                                    score: scenario.score as number,
+                                                },
+                                            ]}
+                                            variants={variants}
+                                            onChange={(val) => onVote(scenarioId, val[0].score)}
+                                            loading={scenario.score === "loading"}
+                                            showVariantName={false}
+                                            key={scenarioId}
+                                        />
+                                    )}
+                                </Space>
+                            )}
 
                         <Space direction="vertical">
                             <Typography.Text strong>Expected Answer</Typography.Text>
