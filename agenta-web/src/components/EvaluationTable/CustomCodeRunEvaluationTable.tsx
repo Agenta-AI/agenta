@@ -30,7 +30,7 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {getLlmProviderKey} from "@/lib/helpers/utils"
+import {getApikeys, getLlmProviderKey} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportCustomCodeEvaluationData} from "@/lib/helpers/evaluate"
@@ -292,7 +292,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                 outputs: [{variant_id: variants[0].variantId, variant_output: outputVariantX}],
                 inputs: rows[rowNumber].inputs,
                 correct_answer: correctAnswer(rows[rowNumber].inputs),
-                open_ai_key: getLlmProviderKey("OpenAI"),
+                open_ai_key: getApikeys(),
             }
 
             try {
