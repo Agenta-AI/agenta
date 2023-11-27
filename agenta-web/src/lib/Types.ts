@@ -216,6 +216,16 @@ export interface TemplateImage {
     message?: string
 }
 
+export interface LlmProvidersKeys {
+    OPENAI_API_KEY: string
+    REPLICATE_API_KEY: string
+    HUGGING_FACE_API_KEY: string
+    COHERE_API_KEY: string
+    ANTHROPIC_API_KEY: string
+    AZURE_API_KEY: string
+    TOGETHERAI_API_KEY: string
+}
+
 export interface AppTemplate {
     app_name: string
     template_id: string
