@@ -56,8 +56,10 @@ class UserDB(Model):
 class ImageDB(Model):
     """Defines the info needed to get an image and connect it to the app variant"""
 
-    docker_id: str = Field(index=True)
-    tags: str
+    type: Optional[str] = Field(default="image")
+    template_uri: Optional[str]
+    docker_id: Optional[str] = Field(index=True)
+    tags: Optional[str]
     deletable: bool = Field(default=True)
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
@@ -163,14 +165,16 @@ class AppEnvironmentDB(Model):
 
 
 class TemplateDB(Model):
-    tag_id: int
-    name: str  # tag name of image
-    repo_name: str
+    type: Optional[str] = Field(default="image")
+    template_uri: Optional[str]
+    tag_id: Optional[int]
+    name: str = Field(unique=True)  # tag name of image
+    repo_name: Optional[str]
     title: str
     description: str
-    size: int
-    digest: str  # sha256 hash of image digest
-    last_pushed: datetime
+    size: Optional[int]
+    digest: Optional[str]  # sha256 hash of image digest
+    last_pushed: Optional[datetime]
 
     class Config:
         collection = "templates"

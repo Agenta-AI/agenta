@@ -40,7 +40,7 @@ def find_image_by_docker_id(docker_id: str) -> Image:
     all_images = client.images.list()
     for image in all_images:
         if image.id == docker_id:
-            return Image(docker_id=image.id, tags=image.tags[0])
+            return Image(type="image", docker_id=image.id, tags=image.tags[0])
     return None
 
 
@@ -53,7 +53,7 @@ def list_images() -> List[Image]:
     """
     all_images = client.images.list()
     registry_images = [
-        Image(docker_id=image.id, tags=image.tags[0])
+        Image(type="image", docker_id=image.id, tags=image.tags[0])
         for image in all_images
         if len(image.tags) > 0 and image.tags[0].startswith(settings.registry)
     ]

@@ -6,6 +6,7 @@ services:
         container_name: agenta-backend-test
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017/
+            - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=development
             - DATABASE_MODE=test
             - FEATURE_FLAG=oss
@@ -32,6 +33,19 @@ services:
         depends_on:
             mongo:
                 condition: service_healthy
+        networks:
+            - agenta-test-network
+
+    agenta-web:
+        build:
+            context: ./agenta-web
+            dockerfile: dev.Dockerfile
+        volumes:
+            - ./agenta-web/src:/app/src
+            - ./agenta-web/public:/app/public
+            - .nextjs_cache:/app/.next
+        ports:
+            - "3000:3000"
         networks:
             - agenta-test-network
 

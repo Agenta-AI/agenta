@@ -5,7 +5,7 @@ Cypress.Commands.add("clickLinkAndWait", (selector) => {
 
 export const isDemo = () => {
     if (Cypress.env["NEXT_PUBLIC_FF"]) {
-        return ["demo", "cloud", "ee"].includes(Cypress.env["NEXT_PUBLIC_FF"])
+        return ["cloud", "ee"].includes(Cypress.env["NEXT_PUBLIC_FF"])
     }
     return false
 }

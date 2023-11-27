@@ -9,6 +9,10 @@ import {useRouter} from "next/router"
 import {useQueryParam} from "@/hooks/useQuery"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
+import type {DragEndEvent} from "@dnd-kit/core"
+import {DndContext, PointerSensor, useSensor} from "@dnd-kit/core"
+import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-kit/sortable"
+import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -23,6 +27,7 @@ const Playground: React.FC = () => {
     const [messageApi, contextHolder] = message.useMessage()
     const [unsavedVariants, setUnsavedVariants] = useState<{[name: string]: boolean}>({})
     const variantHelpers = useRef<{[name: string]: {save: Function; delete: Function}}>({})
+    const sensor = useSensor(PointerSensor, {activationConstraint: {distance: 50}}) // Initializes a PointerSensor with a specified activation distance.
 
     const addTab = () => {
         // Find the template variant
@@ -194,6 +199,32 @@ const Playground: React.FC = () => {
                 } catch {}
             },
         })
+    }
+
+    /**
+     * Handles the drag-and-drop event for tabs. It reorders the tabs in the `variants` array
+     * based on the drag result. The function checks if a tab is dropped over a different tab
+     * and updates the order accordingly.
+     *
+     * @param event The drag end event with active (dragged item) and over (drop target) properties.
+     */
+    const onDragEnd = (event: DragEndEvent) => {
+        const {active, over} = event
+
+        if (over && active.id !== over.id) {
+            const activeId = active.id as string
+            const overId = over.id as string
+
+            setVariants((prev) => {
+                const activeIndex = prev.findIndex((variant) => variant.variantName === activeId)
+                const overIndex = prev.findIndex((variant) => variant.variantName === overId)
+
+                if (activeIndex !== -1 && overIndex !== -1) {
+                    return arrayMove(prev, activeIndex, overIndex)
+                }
+                return prev
+            })
+        }
     }
 
     // Map the variants array to create the items array conforming to the Tab interface
