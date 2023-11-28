@@ -379,4 +379,3 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
         ):
             subschema = find_in_schema(schema_to_override, param_name, "messages")
             subschema["default"] = param_val.defaul
-
