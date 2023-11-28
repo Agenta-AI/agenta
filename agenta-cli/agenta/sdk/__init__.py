@@ -11,7 +11,7 @@ from .types import (
     MultipleChoiceParam,
     TextParam,
     MessagesInput,
-    FileInputURL
+    FileInputURL,
 )
 from .agenta_init import Config, init
 
