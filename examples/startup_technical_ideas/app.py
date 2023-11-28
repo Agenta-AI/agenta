@@ -6,7 +6,6 @@ client = OpenAI()
 
 SYSTEM_PROMPT = "You have expertise in offering technical ideas to startups."
 CHAT_LLM_GPT = [
-    "gpt-3.5-turbo",
     "gpt-3.5-turbo-16k",
     "gpt-3.5-turbo-0301",
     "gpt-3.5-turbo-0613",
@@ -17,12 +16,12 @@ CHAT_LLM_GPT = [
 ag.init(app_name="technical_ideas", base_name="app")
 ag.config.default(
     temperature=FloatParam(0.2),
+    model=MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT),
 )
 
 
 @ag.entrypoint
 def chat(
-    model: MultipleChoiceParam = MultipleChoiceParam(CHAT_LLM_GPT),
     inputs: MessagesInput = MessagesInput(
         [{"role": "system", "content": SYSTEM_PROMPT}]
     ),
@@ -35,6 +34,6 @@ def chat(
         for message in inputs
     ]
     chat_completion = client.chat.completions.create(
-        model=model, messages=messages, temperature=ag.config.temperature
+        model=ag.config.model, messages=messages, temperature=ag.config.temperature
     )
     return chat_completion.choices[0].message.content
