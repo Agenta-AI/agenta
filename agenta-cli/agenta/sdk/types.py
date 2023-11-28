@@ -67,24 +67,23 @@ class FloatParam(float):
         )
 
 
-class MultipleChoiceParam(str):
-    def __new__(cls, default: str = None, choices: List[str] = None):
-        if type(default) is list:
-            raise ValueError(
-                "The order of the parameters for MultipleChoiceParam is wrong! It's MultipleChoiceParam(default, choices) and not the opposite"
-            )
-        if default is None and choices:
-            # if a default value is not provided,
-            # uset the first value in the choices list
-            default = choices[0]
+class ChoiceMixin:
+    """
+    Provides a mixin for managing a list of choices.
+    It is used as a base class for the MultipleChoiceParam class to \
+        provide the functionality for handling the choices attribute.
+    """
 
-        if default is None and not choices:
-            # raise error if no default value or choices is provided
-            raise ValueError("You must provide either a default value or choices")
+    def __init__(self, choices: List[str] = None):
+        if not choices:
+            raise ValueError("You must provide either a list of choices")
+        self.choices = choices
 
-        instance = super().__new__(cls, default)
-        instance.choices = choices
-        instance.default = default
+
+class MultipleChoiceParam(str, ChoiceMixin):
+    def __new__(cls, choices: List[str] = None):
+        instance = super().__new__(cls, choices)
+        instance.default = choices[0]
         return instance
 
     @classmethod
