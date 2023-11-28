@@ -26,7 +26,6 @@ from .types import (
     MultipleChoiceParam,
     TextParam,
     MessagesInput,
-    FileInputURL,
 )
 
 app = FastAPI()
@@ -316,7 +315,6 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
     - The min and max values for each IntParam instance
     - The default value for DictInput instance
     - The default value for MessagesParam instance
-    - The default value for FileInputURL instance
     - ... [PLEASE ADD AT EACH CHANGE]
 
     Args:
@@ -380,10 +378,5 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
             and param_val.annotation is MessagesInput
         ):
             subschema = find_in_schema(schema_to_override, param_name, "messages")
-            subschema["default"] = param_val.default
-        if (
-            isinstance(param_val, inspect.Parameter)
-            and param_val.annotation is FileInputURL
-        ):
-            subschema = find_in_schema(schema_to_override, param_name, "file_url")
-            subschema["default"] = "https://example.com"
+            subschema["default"] = param_val.defaul
+

@@ -9,7 +9,6 @@ from .sdk.types import (
     MultipleChoiceParam,
     MessagesInput,
     TextParam,
-    FileInputURL,
 )
 from .sdk.utils.preinit import PreInitObject
 from .sdk.agenta_init import Config, init
