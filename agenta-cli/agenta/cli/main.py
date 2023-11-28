@@ -108,7 +108,7 @@ def init(app_name: str):
             else:
                 backend_host = "https://cloud.agenta.ai"
 
-            api_key = helper.get_api_key()
+            api_key = helper.get_api_key(backend_host)
             client.validate_api_key(api_key, backend_host)
 
         elif where_question is None:  # User pressed Ctrl+C
