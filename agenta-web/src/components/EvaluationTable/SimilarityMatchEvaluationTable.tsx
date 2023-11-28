@@ -25,7 +25,7 @@ import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import {exportSimilarityEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
-import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const {Title} = Typography
 
@@ -223,6 +223,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                         : [],
                 )
+                if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
                 const {similarityThreshold} = form.getFieldsValue()
                 const similarity = evaluateWithSimilarityMatch(result, rows[rowIndex].correctAnswer)

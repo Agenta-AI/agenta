@@ -29,7 +29,7 @@ import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportRegexEvaluationData} from "@/lib/helpers/evaluate"
 import {isValidRegex} from "@/lib/helpers/validators"
-import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const {Title} = Typography
 
@@ -227,6 +227,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                         : [],
                 )
+                if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
                 const {regexPattern, regexShouldMatch} = form.getFieldsValue()
                 const isCorrect = evaluateWithRegex(result, regexPattern, regexShouldMatch)
