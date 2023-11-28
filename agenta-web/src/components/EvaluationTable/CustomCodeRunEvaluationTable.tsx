@@ -35,7 +35,7 @@ import {createUseStyles} from "react-jss"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportCustomCodeEvaluationData} from "@/lib/helpers/evaluate"
 import CodeBlock from "../DynamicCodeBlock/CodeBlock"
-import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const {Title} = Typography
 
@@ -251,6 +251,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                     ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                     : [],
             )
+            if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
             setRowValue(rowIndex, columnName as any, result)
             await evaluate(rowIndex)
