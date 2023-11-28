@@ -57,6 +57,7 @@ const ViewNavigation: React.FC<Props> = ({
         isParamSaveLoading,
         saveOptParams,
         isLoading,
+        isChatVariant,
     } = useVariant(appId, variant)
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")
@@ -239,7 +240,12 @@ const ViewNavigation: React.FC<Props> = ({
 
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]} className={classes.row}>
                 <Col span={24}>
-                    <TestView inputParams={inputParams} optParams={optParams} variant={variant} />
+                    <TestView
+                        inputParams={inputParams}
+                        optParams={optParams}
+                        variant={variant}
+                        isChatVariant={!!isChatVariant}
+                    />
                 </Col>
             </Row>
         </Spin>

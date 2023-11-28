@@ -60,22 +60,35 @@ type Props = {
     outputText?: string
     outputImg?: string
     index?: number
+    showVariantName?: boolean
 }
 
-const EvaluationVariantCard: React.FC<Props> = ({variant, outputText, outputImg, index = 0}) => {
+const EvaluationVariantCard: React.FC<Props> = ({
+    variant,
+    outputText,
+    outputImg,
+    index = 0,
+    showVariantName = true,
+}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const color = VARIANT_COLORS[index]
 
     return (
         <div className={classes.root}>
-            <div className={classes.variantType} style={{borderColor: color}}>
-                <Typography.Text style={{color}} strong>
-                    {String.fromCharCode(65 + index)}
-                </Typography.Text>
-            </div>
-
-            <Typography.Text className={classes.title}>{variant.variantName}</Typography.Text>
+            {showVariantName && (
+                <>
+                    {" "}
+                    <div className={classes.variantType} style={{borderColor: color}}>
+                        <Typography.Text style={{color}} strong>
+                            {String.fromCharCode(65 + index)}
+                        </Typography.Text>
+                    </div>
+                    <Typography.Text className={classes.title}>
+                        {variant.variantName}
+                    </Typography.Text>{" "}
+                </>
+            )}
             {outputImg && <img alt="output" src={outputImg} />}
             <Typography.Text className={classes.output} type={outputText ? undefined : "secondary"}>
                 {outputText || <em>Click the "Run" icon to get variant output</em>}
