@@ -14,7 +14,7 @@ CHAT_LLM_GPT = [
     "gpt-4",
 ]
 
-ag.init(app_name="feature_ideas", base_name="app")
+ag.init(app_name="technical_ideas", base_name="app")
 ag.config.default(
     temperature=FloatParam(0.2),
 )
