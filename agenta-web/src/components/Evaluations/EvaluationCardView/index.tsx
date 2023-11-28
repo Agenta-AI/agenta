@@ -1,8 +1,6 @@
 import {useQueryParam} from "@/hooks/useQuery"
-import {EvaluationScenario, Variant} from "@/lib/Types"
+import {ChatMessage, Evaluation, EvaluationScenario, Variant} from "@/lib/Types"
 import {
-    EditFilled,
-    EditOutlined,
     LeftOutlined,
     PlayCircleOutlined,
     PushpinFilled,
@@ -10,32 +8,30 @@ import {
     QuestionCircleOutlined,
     RightOutlined,
 } from "@ant-design/icons"
-import {Alert, Button, Empty, Input, Space, Tooltip, Typography, theme} from "antd"
+import {Button, Empty, Input, Space, Tooltip, Typography, theme} from "antd"
 import React, {useCallback, useEffect, useMemo, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVotePanel from "./EvaluationVotePanel"
 import EvaluationCard from "./EvaluationCard"
 import EvaluationInputs from "./EvaluationInputs"
-import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestingEvaluationTable"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useLocalStorage} from "usehooks-ts"
+import ChatInputs from "@/components/ChatInputs/ChatInputs"
+import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {safeParse} from "@/lib/helpers/utils"
+import {debounce} from "lodash"
+import {EvaluationType} from "@/lib/enums"
 
 export const VARIANT_COLORS = [
     "#297F87", // "#722ed1",
     "#F6D167", //"#13c2c2",
 ]
 
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
-
 const useStyles = createUseStyles({
     root: {
         display: "flex",
-        alignItems: "center",
-        gap: "1.5rem",
-        paddingRight: "1rem",
+        gap: "1rem",
         outline: "none",
     },
     evaluation: {
@@ -72,25 +68,8 @@ const useStyles = createUseStyles({
         top: 42,
         fontSize: 16,
     },
-    buttonsBar: ({themeMode}: StyleProps) => ({
-        display: "flex",
-        flexDirection: "column",
-        gap: "1rem",
-        "& .anticon": {
-            fontSize: 20,
-            cursor: "pointer",
-        },
-        padding: "1rem",
-        boxShadow:
-            themeMode === "dark"
-                ? "0 0 10px 0 rgba(255, 255, 255, 0.15)"
-                : "0 0 8px rgba(0, 0, 0, 0.1)",
-        borderRadius: 6,
-        position: "sticky",
-        top: "calc(50vh - 130px)",
-    }),
     instructions: {
-        paddingInlineStart: "1.5rem",
+        paddingInlineStart: 0,
         "& code": {
             backgroundColor: "rgba(0, 0, 0, 0.05)",
             padding: "0.1rem 0.3rem",
@@ -111,15 +90,48 @@ const useStyles = createUseStyles({
             marginTop: 4,
         },
     },
+    chatInputsCon: {
+        marginTop: "0.5rem",
+    },
+    correctAnswerCon: {
+        marginBottom: "0.5rem",
+    },
+    toolBar: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        justifyContent: "flex-end",
+        "& .anticon": {
+            fontSize: 18,
+            cursor: "pointer",
+        },
+    },
+    sideBar: {
+        marginTop: "1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "2rem",
+        border: "1px solid #d9d9d9",
+        borderRadius: 6,
+        padding: "1rem",
+        alignSelf: "flex-start",
+        "&>h4.ant-typography": {
+            margin: 0,
+        },
+        flex: 0.35,
+        minWidth: 240,
+        maxWidth: 500,
+    },
 })
 
 interface Props {
     variants: Variant[]
     evaluationScenarios: ABTestingEvaluationTableRow[]
     onRun: (id: string) => void
-    onVote: (id: string, vote: string) => void
+    onVote: (id: string, vote: string | number | null) => void
     onInputChange: Function
     updateEvaluationScenarioData: (id: string, data: Partial<EvaluationScenario>) => void
+    evaluation: Evaluation
 }
 
 const EvaluationCardView: React.FC<Props> = ({
@@ -129,9 +141,9 @@ const EvaluationCardView: React.FC<Props> = ({
     onVote,
     onInputChange,
     updateEvaluationScenarioData,
+    evaluation,
 }) => {
-    const {appTheme} = useAppTheme()
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const classes = useStyles()
     const {token} = theme.useToken()
     const [scenarioId, setScenarioId] = useQueryParam(
         "evaluationScenario",
@@ -147,6 +159,7 @@ const EvaluationCardView: React.FC<Props> = ({
         )
         return {scenario: evaluationScenarios[scenarioIndex], scenarioIndex}
     }, [scenarioId, evaluationScenarios])
+
     const rootRef = useRef<HTMLDivElement>(null)
     const opened = useRef(false)
     const callbacks = useRef({
@@ -154,6 +167,9 @@ const EvaluationCardView: React.FC<Props> = ({
         onRun,
         onInputChange,
     })
+    const isChat = !!evaluation.testset.testsetChatColumn
+    const testsetRow = evaluation.testset.csvdata[scenarioIndex]
+    const isAbTesting = evaluation.evaluationType === EvaluationType.human_a_b_testing
 
     const loadPrevious = () => {
         if (scenarioIndex === 0) return
@@ -185,18 +201,20 @@ const EvaluationCardView: React.FC<Props> = ({
                         right or press <code>{`Enter (↵)`}</code> key to generate the variants'
                         outputs.
                     </li>
-                    <li>
-                        <b>Vote</b> by either clicking the evaluation buttons at the bottom or
-                        pressing the key <code>a</code> for 1st Variant, <code>b</code> for 2nd
-                        Variant and <code>x</code> if both are bad.
-                    </li>
+                    {isAbTesting && (
+                        <li>
+                            <b>Vote</b> by either clicking the evaluation buttons at the right
+                            sidebar or pressing the key <code>a</code> for 1st Variant,{" "}
+                            <code>b</code> for 2nd Variant and <code>x</code> if both are bad.
+                        </li>
+                    )}
                     <li>
                         Pin an evaluation to come back later by clicking the <b>Pin</b>{" "}
                         <PushpinOutlined style={{color: token.colorError}} /> button on the right.
                     </li>
                     <li>
-                        Add a note to an evaluation by clicking the <b>Note</b>{" "}
-                        <EditOutlined style={{color: token.colorPrimary}} /> button on the right.
+                        Add a note to an evaluation from the <b>Additional Notes</b> input section{" "}
+                        in the right sidebar.
                     </li>
                 </ol>
             ),
@@ -208,19 +226,23 @@ const EvaluationCardView: React.FC<Props> = ({
         })
     }, [])
 
-    const onEditNote = () => {
-        let note = scenario?.note || ""
-        AlertPopup({
-            title: note ? "Edit note" : "Add a note",
-            type: "info",
-            message: (
-                <div>
-                    <p>Enter a note for this evaluation:</p>
-                    <Input.TextArea defaultValue={note} onChange={(e) => (note = e.target.value)} />
-                </div>
-            ),
-            okText: "Save",
-            onOk: () => updateEvaluationScenarioData(scenarioId, {note}),
+    const depouncedUpdateEvaluationScenario = useCallback(
+        debounce((data: Partial<EvaluationScenario>) => {
+            updateEvaluationScenarioData(scenarioId, data)
+        }, 800),
+        [scenarioId],
+    )
+
+    const onChatChange = (chat: ChatMessage[]) => {
+        const stringified = JSON.stringify(chat)
+        testsetRow[evaluation.testset.testsetChatColumn] = stringified
+
+        depouncedUpdateEvaluationScenario({
+            inputs: [
+                {input_name: "chat", input_value: stringified},
+                ...scenario.inputs.filter((ip) => ip.input_name !== "chat"),
+            ],
+            [evaluation.testset.testsetChatColumn]: stringified,
         })
     }
 
@@ -251,13 +273,42 @@ const EvaluationCardView: React.FC<Props> = ({
             if (e.key === "ArrowLeft") loadPrevious()
             else if (e.key === "ArrowRight") loadNext()
             else if (e.key === "Enter") callbacks.current.onRun(scenarioId)
-            else if (e.key === "a") callbacks.current.onVote(scenarioId, variants[0].variantId)
-            else if (e.key === "b") callbacks.current.onVote(scenarioId, variants[1].variantId)
-            else if (e.key === "x") callbacks.current.onVote(scenarioId, "0")
+
+            if (isAbTesting) {
+                if (e.key === "a") callbacks.current.onVote(scenarioId, variants[0].variantId)
+                else if (e.key === "b") callbacks.current.onVote(scenarioId, variants[1].variantId)
+                else if (e.key === "x") callbacks.current.onVote(scenarioId, "0")
+            }
         }
 
         document.addEventListener("keydown", listener)
         return () => document.removeEventListener("keydown", listener)
+    }, [scenarioIndex])
+
+    useEffect(() => {
+        if (scenario) {
+            const chatStr = scenario?.inputs.find((ip) => ip.input_name === "chat")?.input_value
+            if (chatStr) testsetRow[evaluation.testset.testsetChatColumn] = chatStr
+        }
+    }, [scenario])
+
+    const correctAnswer = useMemo(() => {
+        if (scenario?.correctAnswer) return scenario.correctAnswer
+        let res = testsetRow?.correct_answer
+        if (isChat) res = safeParse(res)?.content
+        return res || ""
+    }, [testsetRow?.correct_answer, scenario?.correctAnswer])
+
+    const chat = useMemo(() => {
+        const fromInput = scenario?.inputs.find((ip) => ip.input_name === "chat")?.input_value
+        if (!isChat) return []
+
+        return testsetRowToChatMessages(
+            fromInput
+                ? {chat: fromInput, correct_answer: testsetRow?.correct_answer}
+                : testsetRow || {},
+            false,
+        )
     }, [scenarioIndex])
 
     return (
@@ -287,88 +338,139 @@ const EvaluationCardView: React.FC<Props> = ({
                             </Button>
                         </div>
 
-                        {scenario.note && (
-                            <Alert
-                                message={scenario.note}
-                                type="warning"
-                                showIcon
-                                closable
-                                onClose={() => updateEvaluationScenarioData(scenarioId, {note: ""})}
-                                className={classes.note}
+                        {isChat ? (
+                            <div className={classes.chatInputsCon}>
+                                <ChatInputs
+                                    key={scenarioId}
+                                    defaultValue={chat}
+                                    onChange={onChatChange}
+                                />
+                            </div>
+                        ) : (
+                            <EvaluationInputs
+                                evaluationScenario={scenario}
+                                onInputChange={onInputChange}
                             />
                         )}
 
-                        <div className={classes.headingDivider}>
-                            <div className={classes.helpIcon}>
-                                <Tooltip title="Instructions">
-                                    <QuestionCircleOutlined
-                                        onClick={showInstructions}
-                                        style={{color: token.colorPrimary}}
+                        <div className={classes.toolBar}>
+                            <Tooltip title="Instructions">
+                                <QuestionCircleOutlined
+                                    onClick={showInstructions}
+                                    style={{color: token.colorPrimary}}
+                                />
+                            </Tooltip>
+                            {scenario.isPinned ? (
+                                <Tooltip title="Unpin">
+                                    <PushpinFilled
+                                        style={{color: token.colorErrorActive}}
+                                        onClick={() =>
+                                            updateEvaluationScenarioData(scenarioId, {
+                                                isPinned: false,
+                                            })
+                                        }
                                     />
                                 </Tooltip>
-                            </div>
+                            ) : (
+                                <Tooltip title="Pin">
+                                    <PushpinOutlined
+                                        style={{color: token.colorError}}
+                                        onClick={() =>
+                                            updateEvaluationScenarioData(scenarioId, {
+                                                isPinned: true,
+                                            })
+                                        }
+                                    />
+                                </Tooltip>
+                            )}
+                            <Tooltip title="Run (Enter ↵)">
+                                <PlayCircleOutlined
+                                    style={{color: token.colorSuccessActive}}
+                                    onClick={() => onRun(scenarioId)}
+                                />
+                            </Tooltip>
                         </div>
 
-                        <EvaluationInputs
-                            evaluationScenario={scenario}
-                            onInputChange={onInputChange}
-                        />
+                        <div>
+                            {!isAbTesting && (
+                                <Typography.Text style={{fontSize: 20}}>
+                                    Model Response
+                                </Typography.Text>
+                            )}
 
-                        <EvaluationCard variants={variants} evaluationScenario={scenario} />
-
-                        {scenario.outputs.some((item) => !!item.variant_output) && (
-                            <>
-                                <EvaluationVotePanel
-                                    type="comparison"
-                                    value={scenario.vote || ""}
-                                    variants={variants}
-                                    onChange={(vote) => onVote(scenarioId, vote)}
-                                    loading={scenario.vote === "loading"}
-                                />
-                            </>
-                        )}
-                    </div>
-                    <div className={classes.buttonsBar}>
-                        {scenario.note ? (
-                            <Tooltip title="Edit note">
-                                <EditFilled
-                                    style={{color: token.colorPrimary}}
-                                    onClick={onEditNote}
-                                />
-                            </Tooltip>
-                        ) : (
-                            <Tooltip title="Add a note">
-                                <EditOutlined
-                                    style={{color: token.colorPrimary}}
-                                    onClick={onEditNote}
-                                />
-                            </Tooltip>
-                        )}
-                        {scenario.isPinned ? (
-                            <Tooltip title="Unpin">
-                                <PushpinFilled
-                                    style={{color: token.colorErrorActive}}
-                                    onClick={() =>
-                                        updateEvaluationScenarioData(scenarioId, {isPinned: false})
-                                    }
-                                />
-                            </Tooltip>
-                        ) : (
-                            <Tooltip title="Pin">
-                                <PushpinOutlined
-                                    style={{color: token.colorError}}
-                                    onClick={() =>
-                                        updateEvaluationScenarioData(scenarioId, {isPinned: true})
-                                    }
-                                />
-                            </Tooltip>
-                        )}
-                        <Tooltip title="Run (Enter ↵)">
-                            <PlayCircleOutlined
-                                style={{color: token.colorSuccessActive}}
-                                onClick={() => onRun(scenarioId)}
+                            <EvaluationCard
+                                isChat={isChat}
+                                variants={variants}
+                                evaluationScenario={scenario}
+                                showVariantName={isAbTesting}
                             />
-                        </Tooltip>
+                        </div>
+                    </div>
+
+                    <div className={classes.sideBar}>
+                        <Typography.Title level={4}>Submit your feedback</Typography.Title>
+                        {scenario.outputs.length > 0 &&
+                            scenario.outputs.every((item) => !!item.variant_output) && (
+                                <Space direction="vertical">
+                                    <Typography.Text strong>
+                                        {isAbTesting
+                                            ? "Which response is better?"
+                                            : "Rate the response"}
+                                    </Typography.Text>
+                                    {isAbTesting ? (
+                                        <EvaluationVotePanel
+                                            type="comparison"
+                                            value={scenario.vote || ""}
+                                            variants={variants}
+                                            onChange={(vote) => onVote(scenarioId, vote)}
+                                            loading={scenario.vote === "loading"}
+                                            vertical
+                                            key={scenarioId}
+                                        />
+                                    ) : (
+                                        <EvaluationVotePanel
+                                            type="numeric"
+                                            value={[
+                                                {
+                                                    variantId: variants[0].variantId,
+                                                    score: scenario.score as number,
+                                                },
+                                            ]}
+                                            variants={variants}
+                                            onChange={(val) => onVote(scenarioId, val[0].score)}
+                                            loading={scenario.score === "loading"}
+                                            showVariantName={false}
+                                            key={scenarioId}
+                                        />
+                                    )}
+                                </Space>
+                            )}
+
+                        <Space direction="vertical">
+                            <Typography.Text strong>Expected Answer</Typography.Text>
+                            <Input.TextArea
+                                defaultValue={correctAnswer}
+                                autoSize={{minRows: 3, maxRows: 5}}
+                                onChange={(e) =>
+                                    depouncedUpdateEvaluationScenario({
+                                        correctAnswer: e.target.value,
+                                    })
+                                }
+                                key={scenarioId}
+                            />
+                        </Space>
+
+                        <Space direction="vertical">
+                            <Typography.Text strong>Additional Notes</Typography.Text>
+                            <Input.TextArea
+                                defaultValue={scenario?.note || ""}
+                                autoSize={{minRows: 3, maxRows: 5}}
+                                onChange={(e) =>
+                                    depouncedUpdateEvaluationScenario({note: e.target.value})
+                                }
+                                key={scenarioId}
+                            />
+                        </Space>
                     </div>
                 </>
             ) : (

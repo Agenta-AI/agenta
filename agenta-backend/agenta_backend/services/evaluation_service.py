@@ -388,15 +388,19 @@ async def update_evaluation_scenario(
     updated_data["updated_at"] = datetime.utcnow()
     new_eval_set = {}
 
-    if evaluation_type in [
+    if updated_data["score"] is not None and evaluation_type in [
         EvaluationType.auto_exact_match,
         EvaluationType.auto_similarity_match,
         EvaluationType.auto_regex_test,
         EvaluationType.auto_webhook_test,
         EvaluationType.auto_ai_critique,
+        EvaluationType.single_model_test,
     ]:
         new_eval_set["score"] = updated_data["score"]
-    elif evaluation_type == EvaluationType.human_a_b_testing:
+    elif (
+        updated_data["vote"] is not None
+        and evaluation_type == EvaluationType.human_a_b_testing
+    ):
         new_eval_set["vote"] = updated_data["vote"]
     elif evaluation_type == EvaluationType.custom_code_run:
         new_eval_set["correct_answer"] = updated_data["correct_answer"]
@@ -426,6 +430,9 @@ async def update_evaluation_scenario(
 
     if updated_data["note"] is not None:
         new_eval_set["note"] = updated_data["note"]
+
+    if updated_data["correct_answer"] is not None:
+        new_eval_set["correct_answer"] = updated_data["correct_answer"]
 
     eval_scenario.update(new_eval_set)
     await engine.save(eval_scenario)
@@ -547,6 +554,7 @@ def _extend_with_evaluation(evaluation_type: EvaluationType):
         or evaluation_type == EvaluationType.auto_similarity_match
         or evaluation_type == EvaluationType.auto_regex_test
         or evaluation_type == EvaluationType.auto_webhook_test
+        or evaluation_type == EvaluationType.single_model_test
         or EvaluationType.auto_ai_critique
     ):
         evaluation["score"] = ""
