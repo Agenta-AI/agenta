@@ -31,7 +31,7 @@ import {createUseStyles} from "react-jss"
 import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const {Title} = Typography
 
@@ -257,6 +257,7 @@ Answer ONLY with one of the given grading or evaluation options.
                     ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                     : [],
             )
+            if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
             setRowValue(rowIndex, columnName as any, result)
             await evaluate(rowIndex)
