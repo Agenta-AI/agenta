@@ -28,10 +28,12 @@ import {createUseStyles} from "react-jss"
 import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
-import EvaluationCardView from "../Evaluations/EvaluationCardView"
+import EvaluationCardView, {VARIANT_COLORS} from "../Evaluations/EvaluationCardView"
 import {Evaluation, EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types"
 import {EvaluationTypeLabels, camelToSnake} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
+import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
 
 const {Title} = Typography
 
@@ -54,8 +56,6 @@ export type ABTestingEvaluationTableRow = EvaluationScenario & {
 
 const useStyles = createUseStyles({
     appVariant: {
-        backgroundColor: "rgb(201 255 216)",
-        color: "rgb(0 0 0)",
         padding: 4,
         borderRadius: 5,
     },
@@ -76,6 +76,7 @@ const useStyles = createUseStyles({
         "& button": {
             marginLeft: 10,
         },
+        marginTop: 10,
     },
     recordInput: {
         marginBottom: 10,
@@ -117,7 +118,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
     const [evaluationResults, setEvaluationResults] = useState<any>(null)
-    const [viewMode, setViewMode] = useQueryParam("viewMode", "tabular")
+    const [viewMode, setViewMode] = useQueryParam("viewMode", "card")
 
     let num_of_rows = evaluationResults?.votes_data.nb_of_rows || 0
     let flag_votes = evaluationResults?.votes_data.flag_votes?.number_of_votes || 0
@@ -290,14 +291,15 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     }
 
     const dynamicColumns: ColumnType<ABTestingEvaluationTableRow>[] = variants.map(
-        (variant: Variant) => {
+        (variant: Variant, ix) => {
             const columnKey = variant.variantId
 
             return {
                 title: (
                     <div>
-                        <span>App Variant: </span>
-                        <span className={classes.appVariant}>
+                        <span>Variant: </span>
+                        <VariantAlphabet index={ix} width={24} />
+                        <span className={classes.appVariant} style={{color: VARIANT_COLORS[ix]}}>
                             {variants ? variant.variantName : ""}
                         </span>
                     </div>
@@ -370,50 +372,15 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             width: 200,
             // fixed: 'right',
             render: (text: any, record: any, rowIndex: number) => (
-                <Spin spinning={rows[rowIndex].vote === "loading" ? true : false}>
-                    <Space>
-                        <Button
-                            data-cy={`abTesting-app-variant-1-vote-button-${rowIndex}`}
-                            type={record.vote === variants[0].variantId ? "primary" : "default"}
-                            disabled={
-                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
-                                record.vote !== ""
-                                    ? false
-                                    : true
-                            }
-                            onClick={() => handleVoteClick(record.id, variants[0].variantId)}
-                        >
-                            {`Variant: ${variants[0].variantName}`}
-                        </Button>
-                        <Button
-                            data-cy={`abTesting-app-variant-2-vote-button-${rowIndex}`}
-                            type={record.vote === variants[1].variantId ? "primary" : "default"}
-                            disabled={
-                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
-                                record.vote !== ""
-                                    ? false
-                                    : true
-                            }
-                            onClick={() => handleVoteClick(record.id, variants[1].variantId)}
-                        >
-                            {`Variant: ${variants[1].variantName}`}
-                        </Button>
-                        <Button
-                            data-cy={`abTesting-both-bad-vote-button-${rowIndex}`}
-                            type={record.vote === "0" ? "primary" : "default"}
-                            disabled={
-                                record.evaluationFlow === EvaluationFlow.COMPARISON_RUN_STARTED ||
-                                record.vote !== ""
-                                    ? false
-                                    : true
-                            }
-                            danger
-                            onClick={() => handleVoteClick(record.id, "0")}
-                        >
-                            Both are bad
-                        </Button>
-                    </Space>
-                </Spin>
+                <EvaluationVotePanel
+                    type="comparison"
+                    value={record.vote || ""}
+                    variants={variants}
+                    onChange={(vote) => handleVoteClick(record.id, vote)}
+                    loading={record.vote === "loading"}
+                    vertical
+                    key={record.id}
+                />
             ),
         },
     ]
@@ -479,8 +446,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             <div className={classes.viewModeRow}>
                 <Radio.Group
                     options={[
-                        {label: "Tabular View", value: "tabular"},
                         {label: "Card View", value: "card"},
+                        {label: "Tabular View", value: "tabular"},
                     ]}
                     onChange={(e) => setViewMode(e.target.value)}
                     value={viewMode}

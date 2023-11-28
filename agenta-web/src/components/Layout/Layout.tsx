@@ -205,7 +205,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [appTheme])
 
     // wait unitl we have the app id, if its an app route
-    if (isAppRoute && !appId) return null
+    if (isAppRoute && (!appId || !currentApp)) return null
 
     return (
         <NoSSRWrapper>

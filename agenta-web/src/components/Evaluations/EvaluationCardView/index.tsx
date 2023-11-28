@@ -118,6 +118,9 @@ const useStyles = createUseStyles({
         "&>h4.ant-typography": {
             margin: 0,
         },
+        flex: 0.35,
+        minWidth: 240,
+        maxWidth: 500,
     },
 })
 
@@ -453,6 +456,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                         correctAnswer: e.target.value,
                                     })
                                 }
+                                key={scenarioId}
                             />
                         </Space>
 
@@ -464,6 +468,7 @@ const EvaluationCardView: React.FC<Props> = ({
                                 onChange={(e) =>
                                     depouncedUpdateEvaluationScenario({note: e.target.value})
                                 }
+                                key={scenarioId}
                             />
                         </Space>
                     </div>

@@ -16,12 +16,17 @@ import {
     Typography,
     message,
 } from "antd"
-import {updateEvaluationScenario, callVariant} from "@/lib/services/api"
+import {
+    updateEvaluationScenario,
+    callVariant,
+    fetchEvaluationResults,
+    updateEvaluation,
+} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
 import {createUseStyles} from "react-jss"
-import {exportABTestingEvaluationData} from "@/lib/helpers/evaluate"
+import {exportSingleModelEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
 import EvaluationCardView from "../Evaluations/EvaluationCardView"
@@ -29,6 +34,7 @@ import {Evaluation, EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types
 import {EvaluationTypeLabels, camelToSnake} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {debounce} from "lodash"
+import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 
 const {Title} = Typography
 
@@ -112,7 +118,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     const [rows, setRows] = useState<SingleModelEvaluationRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
-    const [viewMode, setViewMode] = useQueryParam("viewMode", "tabular")
+    const [viewMode, setViewMode] = useQueryParam("viewMode", "card")
     const [accuracy, setAccuracy] = useState<number>(0)
 
     useEffect(() => {
@@ -132,6 +138,14 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
         setAccuracy(avg)
     }, [rows])
 
+    useEffect(() => {
+        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
+            updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED}).catch(
+                (err) => console.error("Failed to fetch results:", err),
+            )
+        }
+    }, [evaluationStatus, evaluation.id])
+
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
         id: string,
@@ -150,7 +164,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
         if (evaluation_scenario_id) {
             setRowValue(rowIndex, "score", "loading")
             const data = {
-                score,
+                score: score ?? "",
                 outputs: variants.map((v: Variant) => ({
                     variant_id: v.variantId,
                     variant_output: rows[rowIndex][v.variantId],
@@ -360,21 +374,22 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
             // fixed: 'right',
             render: (text: any, record: any, rowIndex: number) => {
                 return (
-                    <Spin spinning={rows[rowIndex].score === "loading" ? true : false}>
-                        <Space>
-                            <InputNumber
-                                disabled={
-                                    !record.outputs?.length ||
-                                    !record.outputs.every((item: any) => !!item.variant_output)
-                                }
-                                defaultValue={record.score}
-                                min={0}
-                                max={100}
-                                onChange={(score) => depouncedHandleScoreChange(record.id, score)}
-                            />{" "}
-                            / 100
-                        </Space>
-                    </Spin>
+                    <EvaluationVotePanel
+                        type="numeric"
+                        value={[
+                            {
+                                variantId: variants[0].variantId,
+                                score: record.score as number,
+                            },
+                        ]}
+                        variants={variants}
+                        onChange={(val) =>
+                            depouncedHandleScoreChange(record.id, val[0].score as number)
+                        }
+                        loading={record.score === "loading"}
+                        showVariantName={false}
+                        key={record.id}
+                    />
                 )
             },
         },
@@ -396,7 +411,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 Run All
                             </Button>
                             <SecondaryButton
-                                onClick={() => exportABTestingEvaluationData(evaluation, rows)}
+                                onClick={() => exportSingleModelEvaluationData(evaluation, rows)}
                                 disabled={evaluationStatus !== EvaluationFlow.EVALUATION_FINISHED}
                             >
                                 Export results
@@ -422,8 +437,8 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
             <div className={classes.viewModeRow}>
                 <Radio.Group
                     options={[
-                        {label: "Tabular View", value: "tabular"},
                         {label: "Card View", value: "card"},
+                        {label: "Tabular View", value: "tabular"},
                     ]}
                     onChange={(e) => setViewMode(e.target.value)}
                     value={viewMode}
