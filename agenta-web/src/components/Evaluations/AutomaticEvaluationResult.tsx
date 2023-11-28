@@ -98,6 +98,7 @@ export default function AutomaticEvaluationResult() {
                             EvaluationType.auto_ai_critique,
                             EvaluationType.custom_code_run,
                             EvaluationType.auto_webhook_test,
+                            EvaluationType.single_model_test,
                         ].includes(item.evaluationType)
                     ) {
                         return {
@@ -146,6 +147,8 @@ export default function AutomaticEvaluationResult() {
             router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_regex_test`)
         } else if (evaluationType === EvaluationType.auto_webhook_test) {
             router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_webhook_test`)
+        } else if (evaluationType === EvaluationType.single_model_test) {
+            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/single_model_test`)
         } else if (evaluationType === EvaluationType.auto_ai_critique) {
             router.push(`/apps/${app_id}/evaluations/${evaluation.key}/auto_ai_critique`)
         } else if (evaluationType === EvaluationType.custom_code_run) {
@@ -201,9 +204,14 @@ export default function AutomaticEvaluationResult() {
                             record.scoresData.nb_of_rows) *
                         100
                 } else if (record.resultsData) {
-                    score =
-                        calculateResultsDataAvg(record.resultsData) *
-                        (record.evaluationType === EvaluationType.auto_webhook_test ? 100 : 10)
+                    const multiplier = {
+                        [EvaluationType.auto_webhook_test]: 100,
+                        [EvaluationType.single_model_test]: 1,
+                    }
+                    score = calculateResultsDataAvg(
+                        record.resultsData,
+                        multiplier[record.evaluationType as keyof typeof multiplier],
+                    )
                     score = isNaN(score) ? 0 : score
                 } else if (record.avgScore) {
                     score = record.avgScore * 100
@@ -274,7 +282,7 @@ export default function AutomaticEvaluationResult() {
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Title level={3}>Automatic Evaluation Results</Title>
+                    <Title level={3}>Evaluation Results</Title>
                 </div>
             ),
             children: (

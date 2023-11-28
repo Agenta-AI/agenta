@@ -345,6 +345,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "brockWith",
+      "name": "brockWith",
+      "avatar_url": "https://avatars.githubusercontent.com/u/105627491?v=4",
+      "profile": "https://github.com/brockWith",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

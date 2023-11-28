@@ -18,15 +18,20 @@ export function useVariant(appId: string, variant: Variant) {
     const [isError, setIsError] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const [isParamSaveLoading, setIsParamSaveLoading] = useState(false)
+    const [isChatVariant, setIsChatVariant] = useState<boolean | null>(null)
 
     const fetchParameters = async () => {
         setIsLoading(true)
         setIsError(false)
         try {
-            const {parameters, inputs, URIPath} = await getAllVariantParameters(appId, variant)
+            const {parameters, inputs, URIPath, isChatVariant} = await getAllVariantParameters(
+                appId,
+                variant,
+            )
             setOptParams(parameters)
             setInputParams(inputs)
             setURIPath(URIPath)
+            setIsChatVariant(isChatVariant)
         } catch (error: any) {
             console.log(error)
             setIsError(true)
@@ -93,6 +98,7 @@ export function useVariant(appId: string, variant: Variant) {
         isParamSaveLoading,
         saveOptParams,
         refetch: fetchParameters,
+        isChatVariant,
     }
 }
 
@@ -107,6 +113,7 @@ export function useVariants(appId: string, variants: Variant[]) {
     const [isParamSaveLoading, setIsParamSaveLoading] = useState<boolean[]>(
         variants.map(() => false),
     )
+    const [isChatVariant, setIsChatVariant] = useState<(boolean | null)[]>(variants.map(() => null))
 
     useEffect(() => {
         setIsLoading(variants.map(() => true))
@@ -127,14 +134,16 @@ export function useVariants(appId: string, variants: Variant[]) {
             const optParamsArr: typeof optParams = []
             const inputParamsArr: typeof inputParams = []
             const uriPathArr: typeof URIPath = []
+            const isChatVariantArr: typeof isChatVariant = []
 
             res.forEach(({data, error}) => {
-                const {parameters, inputs, URIPath} = data || {}
+                const {parameters, inputs, URIPath, isChatVariant} = data || {}
                 errorArr.push(error as any)
                 isErrorArr.push(!!error)
                 optParamsArr.push(parameters || null)
                 inputParamsArr.push(inputs || null)
                 uriPathArr.push(URIPath || null)
+                isChatVariantArr.push(isChatVariant || null)
             })
 
             setError(errorArr)
@@ -142,6 +151,7 @@ export function useVariants(appId: string, variants: Variant[]) {
             setOptParams(optParamsArr)
             setInputParams(inputParamsArr)
             setURIPath(uriPathArr)
+            setIsChatVariant(isChatVariantArr)
             setIsLoading(res.map(() => false))
         })
     }, [appId, variants])
@@ -196,6 +206,7 @@ export function useVariants(appId: string, variants: Variant[]) {
             error: error[ix],
             isParamSaveLoading: isParamSaveLoading[ix],
             saveOptParams: getSaveOptParams(ix),
+            isChatVariant: isChatVariant[ix],
         }
     })
 }
