@@ -216,7 +216,10 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
                     )}
                     <div
                         className={classes.btnRow}
-                        style={{flexDirection: vertical ? "column" : undefined}}
+                        style={{
+                            flexDirection: vertical ? "column" : undefined,
+                            alignItems: "center",
+                        }}
                     >
                         <InputNumber
                             defaultValue={
@@ -226,8 +229,8 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
                             min={min}
                             max={max}
                             onChange={(score) => _onChange(variant.variantId, score)}
-                        />{" "}
-                        / {max}
+                        />
+                        <Typography.Text>/ {max}</Typography.Text>
                     </div>
                 </div>
             ))}

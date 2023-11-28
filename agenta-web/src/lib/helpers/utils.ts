@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
+import Papa from "papaparse"
 
 const openAItoken = "openAiToken"
 
@@ -75,13 +76,8 @@ export const isAppNameInputValid = (input: string) => {
 
 type RowType = Record<string, any>
 
-export const convertToCsv = (rows: RowType[], header: (string | undefined)[]): string => {
-    const validHeaders = header.filter((h) => h !== undefined && h in rows[0]) as string[]
-    const headerRow = validHeaders.join(",")
-    const remainingRows = rows
-        .map((row) => validHeaders.map((colName) => row[colName]).join(","))
-        .join("\n")
-    return `${headerRow}\n${remainingRows}`
+export const convertToCsv = (rows: RowType[], header: string[]) => {
+    return Papa.unparse({fields: header.filter((item) => !!item), data: rows})
 }
 
 export const downloadCsv = (csvContent: string, filename: string): void => {

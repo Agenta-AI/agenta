@@ -388,7 +388,7 @@ async def update_evaluation_scenario(
     updated_data["updated_at"] = datetime.utcnow()
     new_eval_set = {}
 
-    if evaluation_type in [
+    if updated_data["score"] is not None and evaluation_type in [
         EvaluationType.auto_exact_match,
         EvaluationType.auto_similarity_match,
         EvaluationType.auto_regex_test,
@@ -397,7 +397,10 @@ async def update_evaluation_scenario(
         EvaluationType.single_model_test,
     ]:
         new_eval_set["score"] = updated_data["score"]
-    elif evaluation_type == EvaluationType.human_a_b_testing:
+    elif (
+        updated_data["vote"] is not None
+        and evaluation_type == EvaluationType.human_a_b_testing
+    ):
         new_eval_set["vote"] = updated_data["vote"]
     elif evaluation_type == EvaluationType.custom_code_run:
         new_eval_set["correct_answer"] = updated_data["correct_answer"]

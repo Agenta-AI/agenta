@@ -194,7 +194,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         value={result}
                         rows={6}
                         placeholder="Results will be shown here"
-                        disabled={result === "" || result === LOADING_TEXT}
+                        disabled={!result || result === LOADING_TEXT}
                     />
                 </Row>
             )}
@@ -296,18 +296,15 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     }
 
     const onLoadTests = (tests: Record<string, string>[], shouldReplace: boolean) => {
-        const results = tests.map((test) => test?.correct_answer || "")
         const testsList = tests.map((test) => ({
             ...test,
-            ...(isChatVariant ? {chat: testsetRowToChatMessages(test)} : {}),
+            ...(isChatVariant ? {chat: testsetRowToChatMessages(test, false)} : {}),
             _id: randString(6),
         }))
         if (shouldReplace) {
             setTestList(testsList)
-            setResultsList(results)
         } else {
             setTestList((prev) => [...prev, ...testsList])
-            setResultsList((prev) => [...prev, ...results])
         }
     }
 
