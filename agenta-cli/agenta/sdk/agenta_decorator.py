@@ -344,15 +344,17 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
         f"Body_{func_name}_{endpoint}_post"
     ]["properties"]
     for param_name, param_val in params.items():
-        if (
-            isinstance(param_val, inspect.Parameter)
-            and param_val.annotation is MultipleChoiceParam
-        ):
+        if isinstance(param_val, MultipleChoiceParam):
             subschema = find_in_schema(schema_to_override, param_name, "choice")
-            default = param_val.default.choices[0]
-            param_choices = param_val.default.choices
-            subschema["enum"] = param_choices
-            subschema["default"] = default
+            default = str(param_val)
+            param_choices = param_val.choices
+            choices = (
+                [default] + param_choices
+                if param_val not in param_choices
+                else param_choices
+            )
+            subschema["enum"] = choices
+            subschema["default"] = default if default in param_choices else choices[0]
         if isinstance(param_val, FloatParam):
             subschema = find_in_schema(schema_to_override, param_name, "float")
             subschema["minimum"] = param_val.minval
