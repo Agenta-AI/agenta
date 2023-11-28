@@ -1,5 +1,7 @@
 import axiosApi from "axios"
 import {getErrorMessage, globalErrorHandler} from "./errorHandler"
+import {signOut} from "supertokens-auth-react/recipe/thirdpartypasswordless"
+import router from "next/router"
 
 const axios = axiosApi.create({
     headers: {
@@ -19,6 +21,14 @@ axios.interceptors.response.use(
                 error.message
             }`
         error.message = msg
+
+        if (error.response?.status === 401) {
+            signOut()
+                .then(() => {
+                    router.push("/auth")
+                })
+                .catch(console.error)
+        }
 
         globalErrorHandler(error)
 

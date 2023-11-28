@@ -28,7 +28,7 @@ import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {isValidUrl} from "@/lib/helpers/validators"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportWebhookEvaluationData} from "@/lib/helpers/evaluate"
-import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const {Title} = Typography
 
@@ -206,6 +206,7 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
                         ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                         : [],
                 )
+                if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
                 const {webhookUrl} = form.getFieldsValue()
                 const score = await evaluateWithWebhook(webhookUrl, {
