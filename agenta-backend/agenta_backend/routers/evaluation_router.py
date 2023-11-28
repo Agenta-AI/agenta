@@ -380,6 +380,12 @@ async def fetch_results(
         )
         return {"results_data": results}
 
+    elif evaluation.evaluation_type == EvaluationType.single_model_test:
+        results = await results_service.fetch_results_for_auto_ai_critique(
+            evaluation_id
+        )
+        return {"results_data": results}
+
     elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
         results = await results_service.fetch_results_for_auto_ai_critique(
             evaluation_id
