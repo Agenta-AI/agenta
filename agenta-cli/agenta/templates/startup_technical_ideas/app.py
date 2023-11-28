@@ -17,6 +17,7 @@ ag.init(app_name="technical_ideas", base_name="app")
 ag.config.default(
     temperature=FloatParam(0.2),
     model=MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT),
+    max_tokens=ag.IntParam(-1, -1, 4000),
 )
 
 
@@ -33,7 +34,11 @@ def chat(
         }
         for message in inputs
     ]
+    max_tokens = ag.config.max_tokens if ag.config.max_tokens != -1 else None
     chat_completion = client.chat.completions.create(
-        model=ag.config.model, messages=messages, temperature=ag.config.temperature
+        model=ag.config.model,
+        messages=messages,
+        temperature=ag.config.temperature,
+        max_tokens=max_tokens,
     )
     return chat_completion.choices[0].message.content
