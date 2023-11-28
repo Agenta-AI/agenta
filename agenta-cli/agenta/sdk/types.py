@@ -127,12 +127,6 @@ class MessagesInput(list):
         field_schema.update({"x-parameter": "messages", "type": "array"})
 
 
-class FileInputURL(HttpUrl):
-    @classmethod
-    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
-        field_schema.update({"x-parameter": "file_url", "type": "string"})
-
-
 class Context(BaseModel):
     class Config:
         extra = Extra.allow
