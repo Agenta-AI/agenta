@@ -265,6 +265,15 @@ const Playground: React.FC = () => {
                             margin: "10px 0",
                         }}
                     >
+                        {compareMode && (
+                            <Button
+                                onClick={() => {
+                                    setIsModalOpen(true)
+                                }}
+                            >
+                                Add Variant
+                            </Button>
+                        )}
                         <Button
                             onClick={() => setCompareMode(!compareMode)}
                             icon={<AppstoreOutlined />}
@@ -288,15 +297,8 @@ const Playground: React.FC = () => {
                                 <Tabs
                                     key={variant.variantName}
                                     className="editable-card"
-                                    type="editable-card"
+                                    type="card"
                                     style={{minWidth: 650, width: "100%"}}
-                                    onEdit={(_, action) => {
-                                        if (action === "add") {
-                                            setIsModalOpen(true)
-                                        } else if (action === "remove") {
-                                            deleteVariant()
-                                        }
-                                    }}
                                     items={[
                                         {
                                             key: variant.variantName,
