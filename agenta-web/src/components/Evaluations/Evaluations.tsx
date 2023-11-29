@@ -20,7 +20,7 @@ import {
     useLoadTestsetsList,
     fetchCustomEvaluations,
 } from "@/lib/services/api"
-import {dynamicComponent, getApikeys, isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent, getAgentaApiUrl, getApikeys, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
@@ -357,7 +357,7 @@ export default function Evaluations() {
             evaluationTypeSettings.regex_pattern = ""
             evaluationTypeSettings.regex_should_match = true
         } else if (selectedEvaluationType === EvaluationType.auto_webhook_test) {
-            evaluationTypeSettings.webhook_url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/webhook_example_fake`
+            evaluationTypeSettings.webhook_url = `${getAgentaApiUrl()}/api/evaluations/webhook_example_fake`
         }
 
         const evaluationTableId = await createNewEvaluation({
