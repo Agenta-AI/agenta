@@ -106,7 +106,7 @@ class Message(BaseModel):
 class MessagesInput(list):
     """Messages Input for Chat-completion.
 
-    Parameters:
+    Args:
         messages (List[Dict[str, str]]): The list of messages inputs.
         Required. Each message should be a dictionary with "role" and "content" keys.
 
