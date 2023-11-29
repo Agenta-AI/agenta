@@ -23,9 +23,9 @@ def replace_image_url(
                 for content in value:
                     if content["type"] == "image_url":
                         content["image_url"] = (
-                            image_two
+                            {"url": image_two}
                             if content["image_url"] == image_one
-                            else image_one
+                            else {"url": image_one}
                         )
                     new_content.append(content)
                 new_message[key] = new_content
