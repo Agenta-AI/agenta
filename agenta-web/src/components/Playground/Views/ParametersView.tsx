@@ -6,6 +6,7 @@ import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
 import {removeVariant} from "@/lib/services/api"
+import { CloudUploadOutlined, DeleteOutlined, SaveOutlined } from "@ant-design/icons"
 
 interface Props {
     variant: Variant
@@ -35,14 +36,13 @@ const useStyles = createUseStyles({
     row: {
         marginTop: 16,
         marginBottom: 8,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
     },
     h2: {
         padding: "0px",
         margin: "0px",
-    },
-    col: {
-        textAlign: "right",
-        paddingRight: "25px",
     },
     collapse: {
         padding: 0,
@@ -128,10 +128,10 @@ const ParametersView: React.FC<Props> = ({
             label: (
                 <div className={classes.container}>
                     <Row className={classes.row} data-cy="playground-header">
-                        <Col span={12}>
+                        <Col>
                             <h2 className={classes.h2}>1. Modify Parameters</h2>
                         </Col>
-                        <Col span={12} className={classes.col}>
+                        <Col>
                             <Space>
                                 {isVariantExisting && (
                                     <Button
