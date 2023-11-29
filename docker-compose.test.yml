@@ -6,6 +6,7 @@ services:
         container_name: agenta-backend-test
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017/
+            - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=development
             - DATABASE_MODE=test
             - FEATURE_FLAG=oss

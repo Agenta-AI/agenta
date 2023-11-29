@@ -6,6 +6,14 @@ export interface testset {
     created_at: string
 }
 
+export interface TestSet {
+    id: string
+    name: string
+    created_at: string
+    updated_at: string
+    csvdata: KeyValuePair[]
+}
+
 export interface ListAppsItem {
     app_id: string
     app_name: string
@@ -51,8 +59,8 @@ export interface Evaluation {
     status: EvaluationFlow
     testset: {
         _id: string
-        name: string
-    }
+        testsetChatColumn: string
+    } & TestSet
     appName: string
     llmAppPromptTemplate?: string
     evaluationTypeSettings: {
@@ -72,8 +80,8 @@ export interface EvaluationScenario {
     inputs: {input_name: string; input_value: string}[]
     outputs: {variant_id: string; variant_output: string}[]
     correctAnswer: string | null
-    vote: string | null
-    score: string | null
+    vote?: string | null
+    score?: string | number | null
     isPinned: boolean
     note: string
 }
@@ -216,6 +224,16 @@ export interface TemplateImage {
     message?: string
 }
 
+export interface LlmProvidersKeys {
+    OPENAI_API_KEY: string
+    REPLICATE_API_KEY: string
+    HUGGING_FACE_API_KEY: string
+    COHERE_API_KEY: string
+    ANTHROPIC_API_KEY: string
+    AZURE_API_KEY: string
+    TOGETHERAI_API_KEY: string
+}
+
 export interface AppTemplate {
     app_name: string
     template_id: string
@@ -256,4 +274,17 @@ export interface Org {
     name: string
     description?: string
     owner: string
+}
+
+export enum ChatRole {
+    System = "system",
+    User = "user",
+    Assistant = "assistant",
+    Function = "function",
+}
+
+export type ChatMessage = {
+    role: ChatRole
+    content: string
+    id?: string
 }

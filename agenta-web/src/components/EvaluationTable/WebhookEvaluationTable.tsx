@@ -28,6 +28,7 @@ import {globalErrorHandler} from "@/lib/helpers/errorHandler"
 import {isValidUrl} from "@/lib/helpers/validators"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportWebhookEvaluationData} from "@/lib/helpers/evaluate"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const {Title} = Typography
 
@@ -145,7 +146,7 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: number,
+        rowIndex: any,
         inputFieldKey: number,
     ) => {
         const newRows = [...rows]
@@ -201,7 +202,11 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
                     variantData[idx].optParams!,
                     appId || "",
                     variants[idx].baseId || "",
+                    variantData[idx].isChatVariant
+                        ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
+                        : [],
                 )
+                if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
                 const {webhookUrl} = form.getFieldsValue()
                 const score = await evaluateWithWebhook(webhookUrl, {
@@ -297,18 +302,22 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
             dataIndex: "inputs",
             render: (_: any, record: WebhookEvaluationTableRow, rowIndex: number) => (
                 <div>
-                    {record &&
-                        record.inputs &&
-                        record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                        record.inputs.map((input: any, index: number) => (
-                            <div className={classes.recordInput} key={index}>
-                                <Input
-                                    placeholder={input.input_name}
-                                    value={input.input_value}
-                                    onChange={(e) => handleInputChange(e, rowIndex, index)}
-                                />
-                            </div>
-                        ))}
+                    {evaluation.testset.testsetChatColumn
+                        ? evaluation.testset.csvdata[rowIndex][
+                              evaluation.testset.testsetChatColumn
+                          ] || " - "
+                        : record &&
+                          record.inputs &&
+                          record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
+                          record.inputs.map((input: any, index: number) => (
+                              <div className={classes.recordInput} key={index}>
+                                  <Input
+                                      placeholder={input.input_name}
+                                      value={input.input_value}
+                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                  />
+                              </div>
+                          ))}
                 </div>
             ),
         },

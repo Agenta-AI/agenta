@@ -318,6 +318,42 @@
       "contributions": [
         "test"
       ]
+    },
+    {
+      "login": "seungduk-yanolja",
+      "name": "seungduk.kim.2304",
+      "avatar_url": "https://avatars.githubusercontent.com/u/115020208?v=4",
+      "profile": "https://github.com/seungduk-yanolja",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "andreiwebdev",
+      "name": "Andrei Dragomir",
+      "avatar_url": "https://avatars.githubusercontent.com/u/59015981?v=4",
+      "profile": "https://dandrei.com/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "diegolikescode",
+      "name": "diego",
+      "avatar_url": "https://avatars.githubusercontent.com/u/57499868?v=4",
+      "profile": "https://diegolikescode.me/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "brockWith",
+      "name": "brockWith",
+      "avatar_url": "https://avatars.githubusercontent.com/u/105627491?v=4",
+      "profile": "https://github.com/brockWith",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

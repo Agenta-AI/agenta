@@ -1,11 +1,13 @@
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
-import {Variant} from "../Types"
+import {Evaluation, GenericObject, Variant} from "../Types"
 import {convertToCsv, downloadCsv} from "./utils"
 
-export const exportExactEvaluationData = (evaluation: any, rows: any[]) => {
-    const exportRow = rows.map((data) => {
+export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
         return {
-            ["Inputs"]: data.inputs[0].input_value,
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
             [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
@@ -20,10 +22,12 @@ export const exportExactEvaluationData = (evaluation: any, rows: any[]) => {
     downloadCsv(csvData, filename)
 }
 
-export const exportSimilarityEvaluationData = (evaluation: any, rows: any[]) => {
-    const exportRow = rows.map((data) => {
+export const exportSimilarityEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
         return {
-            ["Inputs"]: data.inputs[0].input_value,
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
             [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
@@ -39,15 +43,17 @@ export const exportSimilarityEvaluationData = (evaluation: any, rows: any[]) => 
     downloadCsv(csvData, filename)
 }
 
-export const exportAICritiqueEvaluationData = (evaluation: any, rows: any[]) => {
-    const exportRow = rows.map((data) => {
+export const exportAICritiqueEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
         return {
-            ["Inputs"]: data.inputs[0].input_value,
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
             [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
             ["Correct answer"]: data.correctAnswer,
-            ["Score"]: data.evaluation,
+            ["Score"]: data.score,
         }
     })
     const exportCol = Object.keys(exportRow[0])
@@ -57,10 +63,12 @@ export const exportAICritiqueEvaluationData = (evaluation: any, rows: any[]) => 
     downloadCsv(csvData, filename)
 }
 
-export const exportABTestingEvaluationData = (evaluation: any, rows: any[]) => {
-    const exportRow = rows.map((data) => {
+export const exportABTestingEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
         return {
-            ["Inputs"]: data.inputs[0].input_value,
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
             [`App Variant ${evaluation.variants[0].variantName} Output 0`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
@@ -79,13 +87,39 @@ export const exportABTestingEvaluationData = (evaluation: any, rows: any[]) => {
     downloadCsv(csvData, filename)
 }
 
-export const exportRegexEvaluationData = (evaluation: any, rows: any[], settings: any) => {
-    const exportRow = rows.map((data) => {
+export const exportSingleModelEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
+        const numericScore = parseInt(data.score)
+        return {
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
+            [`App Variant ${evaluation.variants[0].variantName} Output 0`]: data?.columnData0
+                ? data?.columnData0
+                : data.outputs[0]?.variant_output,
+            ["Score"]: isNaN(numericScore) ? "-" : numericScore,
+        }
+    })
+    const exportCol = Object.keys(exportRow[0])
+
+    const csvData = convertToCsv(exportRow, exportCol)
+    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
+    downloadCsv(csvData, filename)
+}
+
+export const exportRegexEvaluationData = (
+    evaluation: Evaluation,
+    rows: GenericObject[],
+    settings: GenericObject,
+) => {
+    const exportRow = rows.map((data, ix) => {
         const isCorrect = data.score === "correct"
         const isMatch = settings.regexShouldMatch ? isCorrect : !isCorrect
 
         return {
-            ["Inputs"]: data.inputs[0].input_value,
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
             [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
@@ -100,10 +134,12 @@ export const exportRegexEvaluationData = (evaluation: any, rows: any[], settings
     downloadCsv(csvData, filename)
 }
 
-export const exportWebhookEvaluationData = (evaluation: any, rows: any[]) => {
-    const exportRow = rows.map((data) => {
+export const exportWebhookEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
         return {
-            ["Inputs"]: data.inputs[0].input_value,
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
             [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
@@ -118,10 +154,12 @@ export const exportWebhookEvaluationData = (evaluation: any, rows: any[]) => {
     downloadCsv(csvData, filename)
 }
 
-export const exportCustomCodeEvaluationData = (evaluation: any, rows: any[]) => {
-    const exportRow = rows.map((data) => {
+export const exportCustomCodeEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
         return {
-            ["Inputs"]: data.inputs[0].input_value,
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
             [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
                 ? data?.columnData0
                 : data.outputs[0]?.variant_output,
@@ -136,13 +174,18 @@ export const exportCustomCodeEvaluationData = (evaluation: any, rows: any[]) => 
     downloadCsv(csvData, filename)
 }
 
-export const calculateResultsDataAvg = (resultsData: Record<string, number>) => {
-    const count = Object.values(resultsData).reduce((acc, value) => acc + +value, 0)
-    const sum = Object.keys(resultsData).reduce(
-        (acc, key) => acc + parseFloat(key) * +resultsData[key],
-        0,
-    )
-    return sum / count
+export const calculateResultsDataAvg = (
+    resultsData: Record<string, number>,
+    multiplier: number = 10,
+) => {
+    const obj = {...resultsData}
+    Object.keys(obj).forEach((key) => {
+        if (isNaN(+key)) delete obj[key]
+    })
+
+    const count = Object.values(obj).reduce((acc, value) => acc + +value, 0)
+    const sum = Object.keys(obj).reduce((acc, key) => acc + (parseFloat(key) || 0) * +obj[key], 0)
+    return (sum / count) * multiplier
 }
 
 export const getVotesPercentage = (record: HumanEvaluationListTableDataType, index: number) => {

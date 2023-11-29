@@ -28,11 +28,13 @@ import {evaluateWithExactMatch} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
 import {exportExactEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {Evaluation} from "@/lib/Types"
 
 const {Title} = Typography
 
 interface ExactMatchEvaluationTableProps {
-    evaluation: any
+    evaluation: Evaluation
     columnsCount: number
     evaluationScenarios: ExactMatchEvaluationTableRow[]
 }
@@ -152,7 +154,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: number,
+        rowIndex: any,
         inputFieldKey: number,
     ) => {
         const newRows = [...rows]
@@ -192,7 +194,11 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                     variantData[idx].optParams!,
                     appId || "",
                     variants[idx].baseId || "",
+                    variantData[idx].isChatVariant
+                        ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
+                        : [],
                 )
+                if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
@@ -308,18 +314,22 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             dataIndex: "inputs",
             render: (text: any, record: ExactMatchEvaluationTableRow, rowIndex: number) => (
                 <div>
-                    {record &&
-                        record.inputs &&
-                        record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                        record.inputs.map((input: any, index: number) => (
-                            <div className={classes.recordInput} key={index}>
-                                <Input
-                                    placeholder={input.input_name}
-                                    value={input.input_value}
-                                    onChange={(e) => handleInputChange(e, rowIndex, index)}
-                                />
-                            </div>
-                        ))}
+                    {evaluation.testset.testsetChatColumn
+                        ? evaluation.testset.csvdata[rowIndex][
+                              evaluation.testset.testsetChatColumn
+                          ] || " - "
+                        : record &&
+                          record.inputs &&
+                          record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
+                          record.inputs.map((input: any, index: number) => (
+                              <div className={classes.recordInput} key={index}>
+                                  <Input
+                                      placeholder={input.input_name}
+                                      value={input.input_value}
+                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                  />
+                              </div>
+                          ))}
                 </div>
             ),
         },

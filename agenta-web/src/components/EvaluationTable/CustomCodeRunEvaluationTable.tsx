@@ -30,11 +30,12 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {getOpenAIKey} from "@/lib/helpers/utils"
+import {getApikeys} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportCustomCodeEvaluationData} from "@/lib/helpers/evaluate"
 import CodeBlock from "../DynamicCodeBlock/CodeBlock"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const {Title} = Typography
 
@@ -210,7 +211,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: number,
+        rowIndex: any,
         inputFieldKey: number,
     ) => {
         const newRows = [...rows]
@@ -246,7 +247,11 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                 variantData[idx].optParams!,
                 appId || "",
                 variants[idx].baseId || "",
+                variantData[idx].isChatVariant
+                    ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
+                    : [],
             )
+            if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
             setRowValue(rowIndex, columnName as any, result)
             await evaluate(rowIndex)
@@ -292,7 +297,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
                 outputs: [{variant_id: variants[0].variantId, variant_output: outputVariantX}],
                 inputs: rows[rowNumber].inputs,
                 correct_answer: correctAnswer(rows[rowNumber].inputs),
-                open_ai_key: getOpenAIKey(),
+                open_ai_key: getApikeys(),
             }
 
             try {
@@ -407,18 +412,22 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
             dataIndex: "inputs",
             render: (text: any, record: CustomCodeEvaluationTableRow, rowIndex: number) => (
                 <div>
-                    {record &&
-                        record.inputs &&
-                        record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                        record.inputs.map((input: any, index: number) => (
-                            <div className={classes.recordInput} key={index}>
-                                <Input
-                                    placeholder={input.input_name}
-                                    value={input.input_value}
-                                    onChange={(e) => handleInputChange(e, rowIndex, index)}
-                                />
-                            </div>
-                        ))}
+                    {evaluation.testset.testsetChatColumn
+                        ? evaluation.testset.csvdata[rowIndex][
+                              evaluation.testset.testsetChatColumn
+                          ] || " - "
+                        : record &&
+                          record.inputs &&
+                          record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
+                          record.inputs.map((input: any, index: number) => (
+                              <div className={classes.recordInput} key={index}>
+                                  <Input
+                                      placeholder={input.input_name}
+                                      value={input.input_value}
+                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                  />
+                              </div>
+                          ))}
                 </div>
             ),
         },

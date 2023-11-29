@@ -1,6 +1,9 @@
 import useSWR from "swr"
 import axios from "@/lib//helpers/axiosConfig"
-import {parseOpenApiSchema} from "@/lib/helpers/openapi_parser"
+import {
+    detectChatVariantFromOpenAISchema,
+    openAISchemaToParameters,
+} from "@/lib/helpers/openapi_parser"
 import {
     Variant,
     Parameter,
@@ -8,19 +11,20 @@ import {
     Evaluation,
     AppTemplate,
     GenericObject,
-    TemplateImage,
     Environment,
     CreateCustomEvaluation,
     ExecuteCustomEvalCode,
     ListAppsItem,
     AICritiqueCreate,
+    ChatMessage,
+    KeyValuePair,
 } from "@/lib/Types"
 import {
     fromEvaluationResponseToEvaluation,
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
-import {delay} from "../helpers/utils"
+import {delay, removeKeys} from "../helpers/utils"
 import {useProfileData} from "@/contexts/profile.context"
 /**
  * Raw interface for the parameters parsed from the openapi.json
@@ -74,12 +78,14 @@ export function restartAppVariantContainer(variantId: string) {
  * @returns
  */
 export async function callVariant(
-    inputParametersDict: Record<string, string>,
+    inputParametersDict: KeyValuePair,
     inputParamDefinition: Parameter[],
     optionalParameters: Parameter[],
     appId: string,
     baseId: string,
+    chatMessages?: ChatMessage[],
 ) {
+    const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, string> = {} // Parameters with input = true
     const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
@@ -99,15 +105,17 @@ export async function callVariant(
 
     const optParams = optionalParameters
         .filter((param) => param.default)
-        .filter((param) => param.type !== "object") // remove dics from optional parameters
+        .filter((param) => param.type !== "object") // remove dicts from optional parameters
         .reduce((acc: any, param) => {
             acc[param.name] = param.default
             return acc
         }, {})
     const requestBody = {
-        ["inputs"]: secondaryInputParams,
         ...mainInputParams,
         ...optParams,
+        ["inputs"]: isChatVariant
+            ? chatMessages.filter((item) => item.content).map((item) => removeKeys(item, ["id"]))
+            : secondaryInputParams,
     }
 
     const appContainerURI = await getAppContainerURL(appId, undefined, baseId)
@@ -132,7 +140,8 @@ export const getVariantParametersFromOpenAPI = async (
     const appContainerURI = await getAppContainerURL(appId, variantId, baseId)
     const url = `${appContainerURI}/openapi.json`
     const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
-    let APIParams = parseOpenApiSchema(response.data)
+    const isChatVariant = detectChatVariantFromOpenAISchema(response.data)
+    let APIParams = openAISchemaToParameters(response.data)
     // we create a new param for DictInput that will contain the name of the inputs
     APIParams = APIParams.map((param) => {
         if (param.type === "object") {
@@ -147,9 +156,14 @@ export const getVariantParametersFromOpenAPI = async (
         }
         return param
     })
+    if (isChatVariant) APIParams = APIParams.filter((param) => param.name !== "inputs")
     const initOptParams = APIParams.filter((param) => !param.input) // contains the default values too!
     const inputParams = APIParams.filter((param) => param.input) // don't have input values
-    return {initOptParams, inputParams}
+    return {
+        initOptParams,
+        inputParams,
+        isChatVariant,
+    }
 }
 
 // Define a type for our cache
@@ -613,14 +627,14 @@ export const waitForAppToStart = async ({
 
 export const createAndStartTemplate = async ({
     appName,
-    openAIKey,
+    providerKey,
     templateId,
     orgId,
     timeout,
     onStatusChange,
 }: {
     appName: string
-    openAIKey: string
+    providerKey: string
     templateId: string
     orgId: string
     timeout?: number
@@ -639,7 +653,7 @@ export const createAndStartTemplate = async ({
                     app_name: appName,
                     template_id: templateId,
                     env_vars: {
-                        OPENAI_API_KEY: openAIKey,
+                        OPENAI_API_KEY: providerKey,
                     },
                     organization_id: orgId,
                 },

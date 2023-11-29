@@ -8,8 +8,11 @@ import {SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
 import {useQueryParam} from "@/hooks/useQuery"
 import AlertPopup from "../AlertPopup/AlertPopup"
-import TestContextProvider from "./TestsetContextProvider"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
+import type {DragEndEvent} from "@dnd-kit/core"
+import {DndContext, PointerSensor, useSensor} from "@dnd-kit/core"
+import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-kit/sortable"
+import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -24,6 +27,7 @@ const Playground: React.FC = () => {
     const [messageApi, contextHolder] = message.useMessage()
     const [unsavedVariants, setUnsavedVariants] = useState<{[name: string]: boolean}>({})
     const variantHelpers = useRef<{[name: string]: {save: Function; delete: Function}}>({})
+    const sensor = useSensor(PointerSensor, {activationConstraint: {distance: 50}}) // Initializes a PointerSensor with a specified activation distance.
 
     const addTab = () => {
         // Find the template variant
@@ -197,6 +201,32 @@ const Playground: React.FC = () => {
         })
     }
 
+    /**
+     * Handles the drag-and-drop event for tabs. It reorders the tabs in the `variants` array
+     * based on the drag result. The function checks if a tab is dropped over a different tab
+     * and updates the order accordingly.
+     *
+     * @param event The drag end event with active (dragged item) and over (drop target) properties.
+     */
+    const onDragEnd = (event: DragEndEvent) => {
+        const {active, over} = event
+
+        if (over && active.id !== over.id) {
+            const activeId = active.id as string
+            const overId = over.id as string
+
+            setVariants((prev) => {
+                const activeIndex = prev.findIndex((variant) => variant.variantName === activeId)
+                const overIndex = prev.findIndex((variant) => variant.variantName === overId)
+
+                if (activeIndex !== -1 && overIndex !== -1) {
+                    return arrayMove(prev, activeIndex, overIndex)
+                }
+                return prev
+            })
+        }
+    }
+
     // Map the variants array to create the items array conforming to the Tab interface
     const tabItems: PlaygroundTabsItem[] = variants.map((variant, index) => ({
         key: variant.variantName,
@@ -221,33 +251,31 @@ const Playground: React.FC = () => {
         <div>
             {contextHolder}
 
-            <TestContextProvider>
-                <div style={{position: "relative"}}>
-                    <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
-                        <SyncOutlined
-                            spin={isLoading}
-                            style={{color: "#1677ff", fontSize: "17px"}}
-                            onClick={() => {
-                                setIsLoading(true)
-                                fetchData()
-                            }}
-                        />
-                    </div>
-                    <Tabs
-                        type="editable-card"
-                        activeKey={activeKey}
-                        onChange={setActiveKey}
-                        onEdit={(_, action) => {
-                            if (action === "add") {
-                                setIsModalOpen(true)
-                            } else if (action === "remove") {
-                                deleteVariant()
-                            }
+            <div style={{position: "relative"}}>
+                <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
+                    <SyncOutlined
+                        spin={isLoading}
+                        style={{color: "#1677ff", fontSize: "17px"}}
+                        onClick={() => {
+                            setIsLoading(true)
+                            fetchData()
                         }}
-                        items={tabItems}
                     />
                 </div>
-            </TestContextProvider>
+                <Tabs
+                    type="editable-card"
+                    activeKey={activeKey}
+                    onChange={setActiveKey}
+                    onEdit={(_, action) => {
+                        if (action === "add") {
+                            setIsModalOpen(true)
+                        } else if (action === "remove") {
+                            deleteVariant()
+                        }
+                    }}
+                    items={tabItems}
+                />
+            </div>
 
             <NewVariantModal
                 isModalOpen={isModalOpen}

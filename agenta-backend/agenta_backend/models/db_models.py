@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
 
 from bson import ObjectId
@@ -236,7 +236,7 @@ class EvaluationScenarioDB(Model):
     inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]  # EvaluationScenarioOutput
     vote: Optional[str]
-    score: Optional[str]
+    score: Optional[Union[str, int]]
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
