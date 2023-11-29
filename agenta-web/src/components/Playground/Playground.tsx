@@ -235,6 +235,7 @@ const Playground: React.FC = () => {
         label: `Variant ${variant.variantName}`,
         children: (
             <ViewNavigation
+                compareMode={compareMode}
                 variant={variant}
                 handlePersistVariant={handlePersistVariant}
                 environments={environments}
@@ -303,6 +304,7 @@ const Playground: React.FC = () => {
                                         label: `Variant ${variant.variantName}`,
                                         children: (
                                             <ViewNavigation
+                                                compareMode={compareMode}
                                                 variant={variant}
                                                 handlePersistVariant={handlePersistVariant}
                                                 environments={environments}
