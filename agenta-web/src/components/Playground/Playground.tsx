@@ -1,10 +1,10 @@
-import React, {useState, useEffect, useRef, useCallback} from "react"
-import {Tabs, message} from "antd"
+import React, {useState, useEffect, useRef} from "react"
+import {Button, Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"
 import {fetchEnvironments, fetchVariants} from "@/lib/services/api"
 import {Variant, PlaygroundTabsItem, Environment} from "@/lib/Types"
-import {SyncOutlined} from "@ant-design/icons"
+import {AppstoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
 import {useQueryParam} from "@/hooks/useQuery"
 import AlertPopup from "../AlertPopup/AlertPopup"
@@ -13,6 +13,7 @@ import type {DragEndEvent} from "@dnd-kit/core"
 import {DndContext, PointerSensor, useSensor} from "@dnd-kit/core"
 import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-kit/sortable"
 import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
+import {useLocalStorage} from "usehooks-ts"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -28,6 +29,7 @@ const Playground: React.FC = () => {
     const [unsavedVariants, setUnsavedVariants] = useState<{[name: string]: boolean}>({})
     const variantHelpers = useRef<{[name: string]: {save: Function; delete: Function}}>({})
     const sensor = useSensor(PointerSensor, {activationConstraint: {distance: 50}}) // Initializes a PointerSensor with a specified activation distance.
+    const [compareMode, setCompareMode] = useLocalStorage("compareMode", false)
 
     const addTab = () => {
         // Find the template variant
@@ -251,30 +253,130 @@ const Playground: React.FC = () => {
         <div>
             {contextHolder}
 
-            <div style={{position: "relative"}}>
-                <div style={{position: "absolute", zIndex: 1000, right: 5, top: 10}}>
-                    <SyncOutlined
-                        spin={isLoading}
-                        style={{color: "#1677ff", fontSize: "17px"}}
+            <div>
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "right",
+                        gap: 10,
+                        margin: "10px 0",
+                    }}
+                >
+                    {compareMode && (
+                        <Button
+                            onClick={() => {
+                                setIsModalOpen(true)
+                            }}
+                        >
+                            Add Variant
+                        </Button>
+                    )}
+                    <Button
+                        onClick={() => setCompareMode(!compareMode)}
+                        icon={<AppstoreOutlined />}
+                    >
+                        {!compareMode ? "Side-by-Side View" : "Tab View"}
+                    </Button>
+                    <Button
+                        type="primary"
+                        icon={<SyncOutlined />}
                         onClick={() => {
                             setIsLoading(true)
                             fetchData()
                         }}
-                    />
+                    >
+                        Refresh
+                    </Button>
                 </div>
-                <Tabs
-                    type="editable-card"
-                    activeKey={activeKey}
-                    onChange={setActiveKey}
-                    onEdit={(_, action) => {
-                        if (action === "add") {
-                            setIsModalOpen(true)
-                        } else if (action === "remove") {
-                            deleteVariant()
-                        }
-                    }}
-                    items={tabItems}
-                />
+                {compareMode ? (
+                    <div style={{display: "flex", width: "100%", gap: 10, overflowX: "scroll"}}>
+                        {variants.map((variant) => (
+                            <Tabs
+                                key={variant.variantName}
+                                className="editable-card"
+                                type="card"
+                                style={{minWidth: 650, width: "100%"}}
+                                items={[
+                                    {
+                                        key: variant.variantName,
+                                        label: `Variant ${variant.variantName}`,
+                                        children: (
+                                            <ViewNavigation
+                                                variant={variant}
+                                                handlePersistVariant={handlePersistVariant}
+                                                environments={environments}
+                                                onAdd={fetchData}
+                                                deleteVariant={deleteVariant}
+                                                onStateChange={(isDirty) =>
+                                                    setUnsavedVariants((prev) => ({
+                                                        ...prev,
+                                                        [variant.variantName]: isDirty,
+                                                    }))
+                                                }
+                                                getHelpers={(helpers) =>
+                                                    (variantHelpers.current[variant.variantName] =
+                                                        helpers)
+                                                }
+                                            />
+                                        ),
+                                        closable: !variant.persistent,
+                                    },
+                                ]}
+                                renderTabBar={(tabBarProps, DefaultTabBar) => (
+                                    <DndContext sensors={[sensor]} onDragEnd={onDragEnd}>
+                                        <SortableContext
+                                            items={tabItems.map((i) => i.key)}
+                                            strategy={horizontalListSortingStrategy}
+                                        >
+                                            <DefaultTabBar {...tabBarProps}>
+                                                {(node) => (
+                                                    <DraggableTabNode
+                                                        {...node.props}
+                                                        key={node.key}
+                                                    >
+                                                        {node}
+                                                    </DraggableTabNode>
+                                                )}
+                                            </DefaultTabBar>
+                                        </SortableContext>
+                                    </DndContext>
+                                )}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <Tabs
+                        className="editable-card"
+                        type="editable-card"
+                        activeKey={activeKey}
+                        onChange={setActiveKey}
+                        onEdit={(_, action) => {
+                            if (action === "add") {
+                                setIsModalOpen(true)
+                            } else if (action === "remove") {
+                                deleteVariant()
+                            }
+                        }}
+                        items={tabItems}
+                        renderTabBar={(tabBarProps, DefaultTabBar) => (
+                            <DndContext sensors={[sensor]} onDragEnd={onDragEnd}>
+                                <SortableContext
+                                    items={tabItems.map((i) => i.key)}
+                                    strategy={horizontalListSortingStrategy}
+                                >
+                                    <DefaultTabBar {...tabBarProps}>
+                                        {(node) => (
+                                            <DraggableTabNode {...node.props} key={node.key}>
+                                                {node}
+                                            </DraggableTabNode>
+                                        )}
+                                    </DefaultTabBar>
+                                </SortableContext>
+                            </DndContext>
+                        )}
+                    />
+                )}
             </div>
 
             <NewVariantModal
