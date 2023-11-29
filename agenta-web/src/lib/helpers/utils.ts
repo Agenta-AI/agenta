@@ -1,5 +1,7 @@
 import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
+import {GenericObject} from "../Types"
+import Papa from "papaparse"
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -46,11 +48,12 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.auto_exact_match]: "Exact Match",
     [EvaluationType.auto_similarity_match]: "Similarity Match",
     [EvaluationType.auto_ai_critique]: "AI Critic",
-    [EvaluationType.human_a_b_testing]: "A/B testing",
+    [EvaluationType.human_a_b_testing]: "A/B Test",
     [EvaluationType.human_scoring]: "Scoring single variant",
     [EvaluationType.custom_code_run]: "Custom Code Run",
     [EvaluationType.auto_regex_test]: "Regex Test",
     [EvaluationType.auto_webhook_test]: "Webhook Test",
+    [EvaluationType.single_model_test]: "Single Model Test",
 }
 
 export const getApikeys = () => {
@@ -138,13 +141,8 @@ export const isAppNameInputValid = (input: string) => {
 
 type RowType = Record<string, any>
 
-export const convertToCsv = (rows: RowType[], header: (string | undefined)[]): string => {
-    const validHeaders = header.filter((h) => h !== undefined && h in rows[0]) as string[]
-    const headerRow = validHeaders.join(",")
-    const remainingRows = rows
-        .map((row) => validHeaders.map((colName) => row[colName]).join(","))
-        .join("\n")
-    return `${headerRow}\n${remainingRows}`
+export const convertToCsv = (rows: RowType[], header: string[]) => {
+    return Papa.unparse({fields: header.filter((item) => !!item), data: rows})
 }
 
 export const downloadCsv = (csvContent: string, filename: string): void => {
@@ -211,4 +209,22 @@ export function dynamicComponent<T>(path: string, fallback: any = () => null) {
         loading: fallback,
         ssr: false,
     })
+}
+
+export const removeKeys = (obj: GenericObject, keys: string[]) => {
+    let newObj = Object.assign({}, obj)
+    for (let key of keys) {
+        delete newObj[key]
+    }
+    return newObj
+}
+
+export const safeParse = (str: string, fallback: any = "") => {
+    try {
+        return JSON.parse(str)
+    } catch (error) {
+        console.log("error parsing JSON:", error)
+        console.log("fallbacking to:", fallback)
+        return fallback
+    }
 }
