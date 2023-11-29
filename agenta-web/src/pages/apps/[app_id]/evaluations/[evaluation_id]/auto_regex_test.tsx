@@ -1,9 +1,10 @@
 import {Evaluation} from "@/lib/Types"
-import {loadEvaluation, loadEvaluationsScenarios} from "@/lib/services/api"
+import {loadEvaluation, loadEvaluationsScenarios, loadTestset} from "@/lib/services/api"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {fetchVariants} from "@/lib/services/api"
 import RegexEvaluationTable from "@/components/EvaluationTable/RegexEvaluationTable"
+import {getTestsetChatColumn} from "@/lib/helpers/testset"
 
 export default function Evaluation() {
     const router = useRouter()
@@ -33,6 +34,7 @@ export default function Evaluation() {
         const init = async () => {
             const evaluation: Evaluation = await loadEvaluation(evaluationTableId)
             const backendVariants = await fetchVariants(appId)
+            const testset = await loadTestset(evaluation.testset._id)
             // Create a map for faster access to first array elements
             let backendVariantsMap = new Map()
             backendVariants.forEach((obj) => backendVariantsMap.set(obj.variantId, obj))
@@ -42,6 +44,11 @@ export default function Evaluation() {
                 let backendVariant = backendVariantsMap.get(variant.variantId)
                 return backendVariant ? backendVariant : variant
             })
+            evaluation.testset = {
+                ...evaluation.testset,
+                ...testset,
+                testsetChatColumn: getTestsetChatColumn(testset.csvdata),
+            }
             setEvaluation(evaluation)
         }
 

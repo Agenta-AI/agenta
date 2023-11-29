@@ -15,4 +15,5 @@ export enum EvaluationType {
     custom_code_run = "custom_code_run",
     auto_regex_test = "auto_regex_test",
     auto_webhook_test = "auto_webhook_test",
+    single_model_test = "single_model_test",
 }
