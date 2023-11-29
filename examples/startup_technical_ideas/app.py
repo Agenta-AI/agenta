@@ -18,22 +18,15 @@ ag.config.default(
     temperature=FloatParam(0.2),
     model=MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT),
     max_tokens=ag.IntParam(-1, -1, 4000),
+    prompt_system=ag.TextParam(SYSTEM_PROMPT),
 )
 
 
 @ag.entrypoint
 def chat(
-    inputs: MessagesInput = MessagesInput(
-        [{"role": "system", "content": SYSTEM_PROMPT}]
-    ),
+    messages: MessagesInput = MessagesInput(),
 ) -> str:
-    messages = [
-        {
-            "role": message["role"],
-            "content": message["content"],
-        }
-        for message in inputs
-    ]
+    messages = [{"role": "system", "content": ag.config.system_prompt}] + messages
     max_tokens = ag.config.max_tokens if ag.config.max_tokens != -1 else None
     chat_completion = client.chat.completions.create(
         model=ag.config.model,
