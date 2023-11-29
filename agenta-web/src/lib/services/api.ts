@@ -166,14 +166,6 @@ export const getVariantParametersFromOpenAPI = async (
     }
 }
 
-// Define a type for our cache
-interface Cache {
-    [key: string]: string
-}
-
-// Create the cache object
-const urlCache: Cache = {}
-
 /**
  * Retries the container url for an app
  * @param {string} appId - The id of the app
@@ -192,21 +184,10 @@ export const getAppContainerURL = async (
             throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
         }
 
-        let cacheKey = appId
-        if (variantId) cacheKey += `_${variantId}`
-        if (baseId) cacheKey += `_${baseId}`
-
-        // Check if the URL is already cached
-        if (urlCache[cacheKey]) {
-            return urlCache[cacheKey]
-        }
-
         // Retrieve container URL from backend
         const url = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/containers/container_url/`
         const response = await axios.get(url, {params: {variant_id: variantId, base_id: baseId}})
         if (response.status === 200 && response.data && response.data.uri) {
-            // Cache the URL before returning
-            urlCache[cacheKey] = response.data.uri
             return response.data.uri
         } else {
             return ""
