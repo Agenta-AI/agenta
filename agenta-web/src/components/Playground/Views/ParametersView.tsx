@@ -6,7 +6,7 @@ import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
 import {removeVariant} from "@/lib/services/api"
-import { CloudUploadOutlined, DeleteOutlined, SaveOutlined } from "@ant-design/icons"
+import {CloudUploadOutlined, DeleteOutlined, SaveOutlined} from "@ant-design/icons"
 
 interface Props {
     variant: Variant
@@ -27,6 +27,7 @@ interface Props {
     deleteVariant: (deleteAction?: Function) => void
     getHelpers: (helpers: {save: Function; delete: Function}) => void
     onStateChange: (isDirty: boolean) => void
+    compareMode: boolean
 }
 
 const useStyles = createUseStyles({
@@ -64,6 +65,7 @@ const ParametersView: React.FC<Props> = ({
     deleteVariant,
     getHelpers,
     onStateChange,
+    compareMode,
 }) => {
     const classes = useStyles()
     const [messageApi, contextHolder] = message.useMessage()
@@ -134,44 +136,46 @@ const ParametersView: React.FC<Props> = ({
                         <Col>
                             <Space>
                                 {isVariantExisting && (
-                                    <Button
-                                        onClick={() => setPublishModalOpen(true)}
-                                        data-cy="playground-publish-button"
+                                    <Tooltip
+                                        placement="bottom"
+                                        title="Publish the variant to different environments"
                                     >
-                                        <Tooltip
-                                            placement="bottom"
-                                            title="Publish the variant to different environments"
+                                        <Button
+                                            onClick={() => setPublishModalOpen(true)}
+                                            data-cy="playground-publish-button"
+                                            icon={compareMode && <CloudUploadOutlined />}
                                         >
-                                            Publish
-                                        </Tooltip>
-                                    </Button>
+                                            {compareMode ? null : "Publish"}
+                                        </Button>
+                                    </Tooltip>
                                 )}
-                                <Button
-                                    type="primary"
-                                    onClick={onSave}
-                                    loading={isParamSaveLoading}
-                                    data-cy="playground-save-changes-button"
+
+                                <Tooltip
+                                    placement="bottom"
+                                    title="Save the new parameters for the variant permanently"
                                 >
-                                    <Tooltip
-                                        placement="bottom"
-                                        title="Save the new parameters for the variant permanently"
+                                    <Button
+                                        type="primary"
+                                        onClick={onSave}
+                                        loading={isParamSaveLoading}
+                                        data-cy="playground-save-changes-button"
+                                        icon={compareMode && <SaveOutlined />}
                                     >
-                                        Save changes
-                                    </Tooltip>
-                                </Button>
-                                <Button
-                                    type="primary"
-                                    danger
-                                    onClick={handleDelete}
-                                    data-cy="playground-delete-variant-button"
-                                >
-                                    <Tooltip
-                                        placement="bottom"
-                                        title="Delete the variant permanently"
+                                        {compareMode ? null : "Save changes"}
+                                    </Button>
+                                </Tooltip>
+
+                                <Tooltip placement="bottom" title="Delete the variant permanently">
+                                    <Button
+                                        type="primary"
+                                        danger
+                                        onClick={handleDelete}
+                                        data-cy="playground-delete-variant-button"
+                                        icon={compareMode && <DeleteOutlined />}
                                     >
-                                        Delete Variant
-                                    </Tooltip>
-                                </Button>
+                                        {compareMode ? null : "Delete Variant"}
+                                    </Button>
+                                </Tooltip>
                             </Space>
                         </Col>
                     </Row>
