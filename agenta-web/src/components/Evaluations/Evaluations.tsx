@@ -20,7 +20,7 @@ import {
     useLoadTestsetsList,
     fetchCustomEvaluations,
 } from "@/lib/services/api"
-import {dynamicComponent, getOpenAIKey, isDemo} from "@/lib/helpers/utils"
+import {dynamicComponent, getApikeys, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {Variant, Parameter, GenericObject, SingleCustomEvaluation} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
@@ -30,6 +30,7 @@ import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
 
 import Image from "next/image"
 import abTesting from "@/media/testing.png"
+import singleModel from "@/media/score.png"
 import exactMatch from "@/media/target.png"
 import similarity from "@/media/transparency.png"
 import regexIcon from "@/media/programming.png"
@@ -337,7 +338,7 @@ export default function Evaluations() {
         } else if (selectedTestset?.name === "Select a Test set") {
             message.error("Please select a testset")
             return
-        } else if (!getOpenAIKey() && selectedEvaluationType === EvaluationType.auto_ai_critique) {
+        } else if (!getApikeys() && selectedEvaluationType === EvaluationType.auto_ai_critique) {
             setError({
                 message:
                     "In order to run an AI Critique evaluation, please set your OpenAI API key in the API Keys page.",
@@ -399,6 +400,8 @@ export default function Evaluations() {
             router.push(
                 `/apps/${appId}/evaluations/${evaluationTableId}/custom_code_run?custom_eval_id=${selectedCustomEvaluationID}`,
             )
+        } else if (selectedEvaluationType === EvaluationType.single_model_test) {
+            router.push(`/apps/${appId}/evaluations/${evaluationTableId}/single_model_test`)
         }
     }
 
@@ -465,11 +468,30 @@ export default function Evaluations() {
                                 <div className={classes.evaluationType} data-cy="abTesting-button">
                                     <Image
                                         src={abTesting}
-                                        alt="Picture of the author"
+                                        alt="A/B testing"
                                         className={classes.evaluationImg}
                                     />
                                     <span>
                                         {EvaluationTypeLabels[EvaluationType.human_a_b_testing]}
+                                    </span>
+                                </div>
+                            </Radio.Button>
+
+                            <Radio.Button
+                                value={EvaluationType.single_model_test}
+                                className={classes.radioBtn}
+                            >
+                                <div
+                                    className={classes.evaluationType}
+                                    data-cy="singleModel-button"
+                                >
+                                    <Image
+                                        src={singleModel}
+                                        alt="Single model test"
+                                        className={classes.evaluationImg}
+                                    />
+                                    <span>
+                                        {EvaluationTypeLabels[EvaluationType.single_model_test]}
                                     </span>
                                 </div>
                             </Radio.Button>

@@ -552,6 +552,7 @@ const TestsetTable: React.FC<testsetTableProps> = ({mode}) => {
                     stopEditingWhenCellsLoseFocus={true}
                     onRowSelected={onRowSelectedOrDeselected}
                     onRowDataUpdated={onRowSelectedOrDeselected}
+                    className="ph-no-capture"
                 />
             </div>
             {selectedRow && (

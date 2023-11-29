@@ -231,7 +231,7 @@ Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-s
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-33-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-37-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -283,6 +283,12 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ArijitCloud"><img src="https://avatars.githubusercontent.com/u/81144422?v=4?s=100" width="100px;" alt="Arijit"/><br /><sub><b>Arijit</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=ArijitCloud" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Yachika9925"><img src="https://avatars.githubusercontent.com/u/147185379?v=4?s=100" width="100px;" alt="Yachika9925"/><br /><sub><b>Yachika9925</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Yachika9925" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Dhoni77"><img src="https://avatars.githubusercontent.com/u/53973174?v=4?s=100" width="100px;" alt="Aldrin"/><br /><sub><b>Aldrin</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Dhoni77" title="Tests">⚠️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/seungduk-yanolja"><img src="https://avatars.githubusercontent.com/u/115020208?v=4?s=100" width="100px;" alt="seungduk.kim.2304"/><br /><sub><b>seungduk.kim.2304</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=seungduk-yanolja" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://dandrei.com/"><img src="https://avatars.githubusercontent.com/u/59015981?v=4?s=100" width="100px;" alt="Andrei Dragomir"/><br /><sub><b>Andrei Dragomir</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=andreiwebdev" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://diegolikescode.me/"><img src="https://avatars.githubusercontent.com/u/57499868?v=4?s=100" width="100px;" alt="diego"/><br /><sub><b>diego</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=diegolikescode" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/brockWith"><img src="https://avatars.githubusercontent.com/u/105627491?v=4?s=100" width="100px;" alt="brockWith"/><br /><sub><b>brockWith</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=brockWith" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

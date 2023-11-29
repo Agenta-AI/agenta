@@ -8,9 +8,10 @@ import click
 import questionary
 import toml
 
-from agenta.client import client
-from agenta.cli import variant_commands
 from agenta.cli import helper
+from agenta.client import client
+from agenta.cli import variant_configs
+from agenta.cli import variant_commands
 
 
 def print_version(ctx, param, value):
@@ -101,9 +102,13 @@ def init(app_name: str):
                 "Please provide the IP or URL of your remote host"
             ).ask()
         elif where_question == "On agenta cloud":
-            backend_host = "https://cloud.agenta.ai"
+            global_backend_host = helper.get_global_config("host")
+            if global_backend_host:
+                backend_host = global_backend_host
+            else:
+                backend_host = "https://cloud.agenta.ai"
 
-            api_key = helper.get_api_key()
+            api_key = helper.get_api_key(backend_host)
             client.validate_api_key(api_key, backend_host)
 
         elif where_question is None:  # User pressed Ctrl+C
@@ -187,6 +192,7 @@ def init(app_name: str):
 
 # Add the commands to the CLI group
 cli.add_command(init)
+cli.add_command(variant_configs.config)
 cli.add_command(variant_commands.variant)
 
 if __name__ == "__main__":

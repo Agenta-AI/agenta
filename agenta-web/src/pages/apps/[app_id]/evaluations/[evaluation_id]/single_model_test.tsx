@@ -1,22 +1,19 @@
-import ABTestingEvaluationTable from "@/components/EvaluationTable/ABTestingEvaluationTable"
-import {Evaluation} from "@/lib/Types"
+import {Evaluation, EvaluationScenario, GenericObject} from "@/lib/Types"
 import {loadEvaluation, loadEvaluationsScenarios, loadTestset} from "@/lib/services/api"
 import {useRouter} from "next/router"
-import {useEffect} from "react"
+import {useEffect, useState} from "react"
 import {fetchVariants} from "@/lib/services/api"
-import {useAtom} from "jotai"
-import {evaluationAtom, evaluationScenariosAtom} from "@/lib/atoms/evaluation"
 import {getTestsetChatColumn} from "@/lib/helpers/testset"
+import SingleModelEvaluationTable from "@/components/EvaluationTable/SingleModelEvaluationTable"
 
 export default function Evaluation() {
     const router = useRouter()
     const evaluationTableId = router.query.evaluation_id
         ? router.query.evaluation_id.toString()
         : ""
-    const [evaluationScenarios, setEvaluationScenarios] = useAtom(evaluationScenariosAtom)
-    const [evaluation, setEvaluation] = useAtom(evaluationAtom)
+    const [evaluationScenarios, setEvaluationScenarios] = useState<EvaluationScenario[]>([])
+    const [evaluation, setEvaluation] = useState<Evaluation>()
     const appId = router.query.app_id as string
-    const columnsCount = 2
 
     useEffect(() => {
         if (!evaluation) {
@@ -24,7 +21,12 @@ export default function Evaluation() {
         }
         const init = async () => {
             const data = await loadEvaluationsScenarios(evaluationTableId, evaluation)
-            setEvaluationScenarios(data)
+            setEvaluationScenarios(
+                data.map((item: GenericObject) => {
+                    const numericScore = parseInt(item.score)
+                    return {...item, score: isNaN(numericScore) ? null : numericScore}
+                }),
+            )
         }
         init()
     }, [evaluation])
@@ -60,8 +62,7 @@ export default function Evaluation() {
     return (
         <div className="evalautionContainer">
             {evaluationTableId && evaluationScenarios && evaluation && (
-                <ABTestingEvaluationTable
-                    columnsCount={columnsCount}
+                <SingleModelEvaluationTable
                     evaluationScenarios={evaluationScenarios as any[]}
                     evaluation={evaluation}
                 />

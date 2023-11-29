@@ -49,7 +49,7 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
     let parameters: Parameter[] = []
     let inputs: Parameter[] = []
     try {
-        const {initOptParams, inputParams} = await getVariantParametersFromOpenAPI(
+        const {initOptParams, inputParams, isChatVariant} = await getVariantParametersFromOpenAPI(
             appId,
             variant.variantId,
             variant.baseId,
@@ -67,7 +67,7 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
         }
         inputs = updateInputParams(parameters, inputParams)
         const URIPath = `${appId}/${variant.baseId}`
-        return {parameters, inputs, URIPath}
+        return {parameters, inputs, URIPath, isChatVariant}
     } catch (err) {
         console.log("getAllVariantParameters Error: ", err)
         throw err

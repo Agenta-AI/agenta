@@ -26,11 +26,12 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {getOpenAIKey} from "@/lib/helpers/utils"
+import {getApikeys} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 
 const {Title} = Typography
 
@@ -215,7 +216,7 @@ Answer ONLY with one of the given grading or evaluation options.
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: number,
+        rowIndex: any,
         inputFieldKey: number,
     ) => {
         const newRows = [...rows]
@@ -252,7 +253,11 @@ Answer ONLY with one of the given grading or evaluation options.
                 variantData[idx].optParams!,
                 appId || "",
                 variants[idx].baseId || "",
+                variantData[idx].isChatVariant
+                    ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
+                    : [],
             )
+            if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
             setRowValue(rowIndex, columnName as any, result)
             await evaluate(rowIndex)
@@ -279,7 +284,7 @@ Answer ONLY with one of the given grading or evaluation options.
                 inputs: rows[rowNumber].inputs,
                 outputs: data.outputs,
                 evaluation_prompt_template: evaluationPromptTemplate,
-                open_ai_key: getOpenAIKey(),
+                open_ai_key: getApikeys(),
             })
 
             try {
@@ -369,18 +374,22 @@ Answer ONLY with one of the given grading or evaluation options.
             dataIndex: "inputs",
             render: (text: any, record: AICritiqueEvaluationTableRow, rowIndex: number) => (
                 <div>
-                    {record &&
-                        record.inputs &&
-                        record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                        record.inputs.map((input: any, index: number) => (
-                            <div className={classes.recordInput} key={index}>
-                                <Input
-                                    placeholder={input.input_name}
-                                    value={input.input_value}
-                                    onChange={(e) => handleInputChange(e, rowIndex, index)}
-                                />
-                            </div>
-                        ))}
+                    {evaluation.testset.testsetChatColumn
+                        ? evaluation.testset.csvdata[rowIndex][
+                              evaluation.testset.testsetChatColumn
+                          ] || " - "
+                        : record &&
+                          record.inputs &&
+                          record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
+                          record.inputs.map((input: any, index: number) => (
+                              <div className={classes.recordInput} key={index}>
+                                  <Input
+                                      placeholder={input.input_name}
+                                      value={input.input_value}
+                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                  />
+                              </div>
+                          ))}
                 </div>
             ),
         },

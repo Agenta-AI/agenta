@@ -9,7 +9,7 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {CloseCircleFilled} from "@ant-design/icons"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import {getOpenAIKey, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
+import {getApikeys, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
     getProfile,
@@ -182,8 +182,9 @@ const AppSelector: React.FC = () => {
         handleCreateAppModalCancel()
 
         // warn the user and redirect if openAI key is not present
-        const openAIKey = getOpenAIKey()
-        if (!openAIKey && !isDemo()) {
+        // TODO: must be changed for multiples LLM keys
+        const providerKeys = getApikeys()
+        if (!providerKeys && !isDemo()) {
             notification.error({
                 message: "OpenAI API Key Missing",
                 description: "Please provide your OpenAI API key to access this feature.",
@@ -201,7 +202,7 @@ const AppSelector: React.FC = () => {
             appName: newApp,
             templateId: template_id,
             orgId: selectedOrg?.id!,
-            openAIKey: isDemo() ? "" : (openAIKey as string),
+            providerKey: isDemo() ? "" : (providerKeys as string),
             timeout,
             onStatusChange: (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
