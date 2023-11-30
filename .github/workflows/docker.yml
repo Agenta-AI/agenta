@@ -1,7 +1,6 @@
 name: Build and Publish Docker Images
 
-on:
-  workflow_dispatch:
+on: 
   push:
     branches:
       - main
@@ -34,7 +33,7 @@ jobs:
           registry: ghcr.io
           username: ${{ env.REPOSITORY_USERNAME }}
           password: ${{ secrets.DOCKER_GITHUB_SECRETS }}
-
+          
       - name: Build, tag and push Backend image to Github Container Registry
         id: build-backend-image
         run: |
