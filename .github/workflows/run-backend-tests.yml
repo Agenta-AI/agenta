@@ -1,4 +1,4 @@
-name: Execute Backend tests
+name: Run Backend tests
 
 on: [pull_request]
 
