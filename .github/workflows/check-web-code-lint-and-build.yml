@@ -1,4 +1,4 @@
-name: Prettier
+name: Check Web Code - Lint and Build
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
       - "agenta-web/**"
 
 jobs:
-  prettier:
+  lint_and_build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -17,6 +17,14 @@ jobs:
         with:
           node-version: 20
 
-      - name: Run Prettier
-        run: npx prettier --check .
+      - name: Install dependencies
+        run: npm ci --omit=dev
+        working-directory: agenta-web
+
+      - name: Run Lint
+        run: npm run lint
+        working-directory: agenta-web
+
+      - name: Run Build
+        run: npm run build
         working-directory: agenta-web
