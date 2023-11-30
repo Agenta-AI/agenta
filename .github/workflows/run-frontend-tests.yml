@@ -1,4 +1,4 @@
-name: Execute Frontend tests
+name: Run Frontend tests
 
 on: [pull_request]
 env:
@@ -11,11 +11,11 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-        
+
       - name: Set Environment Variables
         run: |
           echo "NEXT_PUBLIC_OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}" >> $GITHUB_ENV
-    
+
       - name: Install Curl & Start Docker Compose
         env:
           NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
@@ -25,7 +25,7 @@ jobs:
 
       - name: Restart Backend Service To Fetch Template(s)
         run: docker container restart agenta_backend_1
-        
+
       - name: Wait for Backend Service
         run: curl http://localhost/api/health/
 
@@ -53,6 +53,6 @@ jobs:
       - name: Docker logs
         if: always()  #
         run: docker ps -q | xargs -I {} docker logs {}
-        
+
       - name: Stop Docker Compose
         run: docker-compose down
