@@ -10,7 +10,7 @@ import {useQueryParam} from "@/hooks/useQuery"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
 import type {DragEndEvent} from "@dnd-kit/core"
-import {DndContext, PointerSensor, useSensor} from "@dnd-kit/core"
+import {DndContext, DragOverlay, PointerSensor, useSensor} from "@dnd-kit/core"
 import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-kit/sortable"
 import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 import {useLocalStorage} from "usehooks-ts"
@@ -292,45 +292,46 @@ const Playground: React.FC = () => {
                 </div>
                 {compareMode ? (
                     <div style={{display: "flex", width: "100%", gap: 10, overflowX: "scroll"}}>
-                        {variants.map((variant) => (
-                            <Tabs
-                                key={variant.variantName}
-                                className="editable-card"
-                                type="card"
-                                style={{minWidth: 650, width: "100%"}}
-                                items={[
-                                    {
-                                        key: variant.variantName,
-                                        label: `Variant ${variant.variantName}`,
-                                        children: (
-                                            <ViewNavigation
-                                                compareMode={compareMode}
-                                                variant={variant}
-                                                handlePersistVariant={handlePersistVariant}
-                                                environments={environments}
-                                                onAdd={fetchData}
-                                                deleteVariant={deleteVariant}
-                                                onStateChange={(isDirty) =>
-                                                    setUnsavedVariants((prev) => ({
-                                                        ...prev,
-                                                        [variant.variantName]: isDirty,
-                                                    }))
-                                                }
-                                                getHelpers={(helpers) =>
-                                                    (variantHelpers.current[variant.variantName] =
-                                                        helpers)
-                                                }
-                                            />
-                                        ),
-                                        closable: !variant.persistent,
-                                    },
-                                ]}
-                                renderTabBar={(tabBarProps, DefaultTabBar) => (
-                                    <DndContext sensors={[sensor]} onDragEnd={onDragEnd}>
-                                        <SortableContext
-                                            items={tabItems.map((i) => i.key)}
-                                            strategy={horizontalListSortingStrategy}
-                                        >
+                        <DndContext sensors={[sensor]} onDragEnd={onDragEnd}>
+                            <SortableContext
+                                items={variants.map((variant) => variant.variantName)}
+                                strategy={horizontalListSortingStrategy}
+                            >
+                                {variants.map((variant) => (
+                                    <Tabs
+                                        key={variant.variantName}
+                                        className="editable-card"
+                                        type="card"
+                                        style={{minWidth: 650, width: "100%"}}
+                                        items={[
+                                            {
+                                                key: variant.variantName,
+                                                label: `Variant ${variant.variantName}`,
+                                                children: (
+                                                    <ViewNavigation
+                                                        compareMode={compareMode}
+                                                        variant={variant}
+                                                        handlePersistVariant={handlePersistVariant}
+                                                        environments={environments}
+                                                        onAdd={fetchData}
+                                                        deleteVariant={deleteVariant}
+                                                        onStateChange={(isDirty) =>
+                                                            setUnsavedVariants((prev) => ({
+                                                                ...prev,
+                                                                [variant.variantName]: isDirty,
+                                                            }))
+                                                        }
+                                                        getHelpers={(helpers) =>
+                                                            (variantHelpers.current[
+                                                                variant.variantName
+                                                            ] = helpers)
+                                                        }
+                                                    />
+                                                ),
+                                                closable: !variant.persistent,
+                                            },
+                                        ]}
+                                        renderTabBar={(tabBarProps, DefaultTabBar) => (
                                             <DefaultTabBar {...tabBarProps}>
                                                 {(node) => (
                                                     <DraggableTabNode
@@ -341,11 +342,11 @@ const Playground: React.FC = () => {
                                                     </DraggableTabNode>
                                                 )}
                                             </DefaultTabBar>
-                                        </SortableContext>
-                                    </DndContext>
-                                )}
-                            />
-                        ))}
+                                        )}
+                                    />
+                                ))}
+                            </SortableContext>
+                        </DndContext>
                     </div>
                 ) : (
                     <Tabs
@@ -395,3 +396,4 @@ const Playground: React.FC = () => {
 }
 
 export default Playground
+
