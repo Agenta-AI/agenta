@@ -37,7 +37,7 @@ export const openAISchemaToParameters = (schema: GenericObject): Parameter[] => 
         ([name, param]: [string, any]) => {
             const parameter = {
                 name: name,
-                input: param["x-parameter"] ? false : true,
+                input: param["x-parameter"] ? false || param["x-parameter"] === "messages" : true,
                 type: param["x-parameter"] ? determineType(param["x-parameter"]) : "string",
                 default: param.default,
                 enum: param["enum"] ? param.enum : [],

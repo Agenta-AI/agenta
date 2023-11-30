@@ -179,7 +179,7 @@ export const StringParameters: React.FC<StringParametersProps> = ({
     return (
         <>
             {optParams
-                ?.filter((param) => param.type === "string" && !Array.isArray(param.default))
+                ?.filter((param) => param.type === "string")
                 .map((param, index) => (
                     <Row gutter={0} className={classes.row1} key={index}>
                         <Card className={classes.card} title={renameVariables(param.name)}>
