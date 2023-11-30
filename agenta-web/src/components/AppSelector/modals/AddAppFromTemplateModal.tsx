@@ -16,8 +16,8 @@ const useStyles = createUseStyles({
     body: {
         width: "100%",
         marginTop: 20,
-        display:"flex",
-        gap: 20
+        display: "flex",
+        gap: 20,
     },
     row: {
         marginTop: 20,
