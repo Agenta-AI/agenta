@@ -1,47 +1,32 @@
 ---
-title: "Agenta CLI Reference"
+title: "Command Line Interface"
+description: "Overview of the Agenta CLI"
 ---
 
 
-The Agenta CLI (Command Line Interface) is a tool designed to manage LLM app variants used in Agenta.
+The Agenta CLI is a tool used to manage LLM app variants used in Agenta. It allows you to create new apps and deploy variants to the Agenta platform.
 
 ## Commands
 
-The primary commands provided by the Agenta CLI are `init` and `variant`. 
-
-### 1. `init`
+### 1. `agenta init`
 
 ```bash
 agenta init
 ```
 
-The `init` command is used to initialize a new Agenta app in an empty folder. It allows the user to specify the name of the app. It creates either an empty app or an app based on the template. In both cases it creates a config.toml file. In the case of creating an app based on the template it also copies the code for the app (`app.py`) in addition to the `requirements.txt`. 
+The init command initializes a new Agenta app. Users can define the application's name and select the Agenta platform host (either local or cloud).
 
-Note that `agenta init` does not interact with the backend, i.e. the app cannot not be seen in the Agenta web UI until it is added using the `agenta variant add` command.
+This command creates a blank application in the backend and generates a config.toml file for configuration settings.
 
-### 2. `variant`
-
-```bash
-agenta variant COMMAND
-```
-
-The `variant` command is designed to manage different variants of your application. 
-
-#### `variant` Sub-Commands:
-
-##### `serve`
-
-The `serve` command allows you to add a new variant to the web UI and serve its API using the backend configuration during `agenta init`.
+### 2. `agenta variant serve`
 
 ```bash
-agenta variant serve --file_name variant_name.py
+agenta variant serve variant_name.py
 ```
 
-This command sends the specified `variant_name` as a new variant to the backend, where it is containerized, started, and integrated into the web UI. 
+The `serve` command deploys a new variant to the Agenta platform. It processes the code in the specified folder, with `variant_name.py` as the entrypoint. This command builds a Docker image and deploys a container based on it. As a result, the variant becomes accessible in the web UI, allowing for prediction generation and API calls. The variant is named as `variant_name.default` in the UI.
 
-**NOTE:** The `--file_name` flag is now required to provide the variant file name when using the serve command.
-
-##### `list`
+### 3. `agenta variant list`
 
 ```bash
 agenta variant list
@@ -49,7 +34,7 @@ agenta variant list
 
 The `list` command displays all the variants of your app that are currently available in the backend. 
 
-##### `remove`
+### 4. `agenta variant remove`
 
 ```bash
 agenta variant remove
