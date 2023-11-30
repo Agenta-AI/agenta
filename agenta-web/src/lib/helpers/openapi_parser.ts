@@ -22,8 +22,10 @@ const getBodySchemaName = (schema: GenericObject): string => {
 export const detectChatVariantFromOpenAISchema = (schema: GenericObject) => {
     const bodySchemaName = getBodySchemaName(schema)
     return (
-        schema.components.schemas[bodySchemaName].properties?.inputs?.["x-parameter"] === "messages" ||
-        schema.components.schemas[bodySchemaName].properties?.messages?.["x-parameter"] === "messages"
+        schema.components.schemas[bodySchemaName].properties?.inputs?.["x-parameter"] ===
+            "messages" ||
+        schema.components.schemas[bodySchemaName].properties?.messages?.["x-parameter"] ===
+            "messages"
     )
 }
 
