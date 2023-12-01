@@ -9,6 +9,7 @@ import {useState} from "react"
 import axios from "axios"
 import {createUseStyles} from "react-jss"
 import {
+    getProfile,
     getAppContainerURL,
     removeVariant,
     restartAppVariantContainer,
@@ -111,7 +112,8 @@ const ViewNavigation: React.FC<Props> = ({
 
     if (isError) {
         let variantDesignator = variant.templateVariantName
-        let imageName = `agentaai/${(currentApp?.app_name || "").toLowerCase()}_`
+        let appName = currentApp?.app_name || ""
+        let imageName = `agentaai/${(appName).toLowerCase()}_`
 
         if (!variantDesignator || variantDesignator === "") {
             variantDesignator = variant.variantName
@@ -119,6 +121,7 @@ const ViewNavigation: React.FC<Props> = ({
         } else {
             imageName += variantDesignator.toLowerCase()
         }
+        console.log("Variant: ", variant)
 
         const variantContainerPath = async () => {
             const url = await getAppContainerURL(appId, variant.variantId, variant.baseId)
@@ -154,6 +157,7 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const apiAddress = `${containerURI}/openapi.json`
+        const containerName = `${appName}-${variant.baseName}-${containerURI.split("/")[3]}` // [3] is the user organization id
         return (
             <div>
                 {error ? (
@@ -171,16 +175,17 @@ const ViewNavigation: React.FC<Props> = ({
                                 accessible.
                             </li>
                             <li>
-                                Check if the Docker container for the variant {variantDesignator} is
-                                running. The image should be called {imageName}.
+                                Check if the Docker container for the variant {variantDesignator} is active by running the following command in your terminal: 
+                                <pre>docker logs {containerName} --tail 50 -f</pre>
+                                Running the above command will enable you to continuously stream the container logs in real-time as they are generated.
                             </li>
                         </ul>
                         <p>
                             {" "}
-                            In case the docker container is not running. Please check the logs from
-                            docker to understand the issue. Most of the time it is a missing
-                            requirements. Also, please attempt restarting it (using cli or docker
-                            desktop)
+                            In case the docker container is not running, please check the Docker logs to understand the issue. 
+                            Most of the time, it is due to missing requirements. 
+                            Also, please attempt restarting it (using cli or docker
+                            desktop).
                         </p>
                         <p>
                             {" "}
