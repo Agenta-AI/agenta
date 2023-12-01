@@ -10,7 +10,7 @@ import {useQueryParam} from "@/hooks/useQuery"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
 import type {DragEndEvent} from "@dnd-kit/core"
-import {DndContext, DragOverlay, PointerSensor, useSensor} from "@dnd-kit/core"
+import {DndContext, PointerSensor, useSensor} from "@dnd-kit/core"
 import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-kit/sortable"
 import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 import {useLocalStorage} from "usehooks-ts"
@@ -30,6 +30,7 @@ const Playground: React.FC = () => {
     const variantHelpers = useRef<{[name: string]: {save: Function; delete: Function}}>({})
     const sensor = useSensor(PointerSensor, {activationConstraint: {distance: 50}}) // Initializes a PointerSensor with a specified activation distance.
     const [compareMode, setCompareMode] = useLocalStorage("compareMode", false)
+    const tabID = useRef("")
 
     const addTab = () => {
         // Find the template variant
@@ -88,7 +89,13 @@ const Playground: React.FC = () => {
         if (newVariants.length > 0) {
             newActiveKey = newVariants[newVariants.length - 1].variantName
         }
-        setVariants(newVariants)
+
+        compareMode
+            ? setVariants((prevState) =>
+                  prevState.filter((variant) => variant.variantId !== tabID.current),
+              )
+            : setVariants(newVariants)
+
         setActiveKey(newActiveKey)
         setUnsavedVariants((prev) => {
             const newUnsavedVariants = {...prev}
@@ -245,6 +252,7 @@ const Playground: React.FC = () => {
                     setUnsavedVariants((prev) => ({...prev, [variant.variantName]: isDirty}))
                 }
                 getHelpers={(helpers) => (variantHelpers.current[variant.variantName] = helpers)}
+                tabID={tabID}
             />
         ),
         closable: !variant.persistent,
@@ -309,6 +317,7 @@ const Playground: React.FC = () => {
                                                 label: `Variant ${variant.variantName}`,
                                                 children: (
                                                     <ViewNavigation
+                                                        tabID={tabID}
                                                         compareMode={compareMode}
                                                         variant={variant}
                                                         handlePersistVariant={handlePersistVariant}
@@ -396,4 +405,3 @@ const Playground: React.FC = () => {
 }
 
 export default Playground
-

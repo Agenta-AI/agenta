@@ -28,6 +28,7 @@ interface Props {
     getHelpers: (helpers: {save: Function; delete: Function}) => void
     onStateChange: (isDirty: boolean) => void
     compareMode: boolean
+    tabID: React.MutableRefObject<string>
 }
 
 const useStyles = createUseStyles({
@@ -66,6 +67,7 @@ const ParametersView: React.FC<Props> = ({
     getHelpers,
     onStateChange,
     compareMode,
+    tabID,
 }) => {
     const classes = useStyles()
     const [messageApi, contextHolder] = message.useMessage()
@@ -169,7 +171,10 @@ const ParametersView: React.FC<Props> = ({
                                     <Button
                                         type="primary"
                                         danger
-                                        onClick={handleDelete}
+                                        onClick={() => {
+                                            handleDelete()
+                                            tabID.current = variant.variantId
+                                        }}
                                         data-cy="playground-delete-variant-button"
                                         icon={compareMode && <DeleteOutlined />}
                                     >
