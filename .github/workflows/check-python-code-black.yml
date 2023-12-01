@@ -1,4 +1,4 @@
-name: black-check-action
+name: Check Python Code - Black
 on:
   pull_request:
     paths:
