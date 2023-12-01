@@ -80,7 +80,10 @@ const Playground: React.FC = () => {
     }
 
     const removeTab = () => {
-        const newVariants = variants.filter((variant) => variant.variantName !== activeKey)
+        const toDelete = compareMode
+            ? variants.find((item) => item.variantId === tabID.current)?.variantName || ""
+            : activeKey
+        const newVariants = variants.filter((variant) => variant.variantName !== toDelete)
         if (newVariants.length < 1) {
             router.push(`/apps`)
             return
@@ -90,18 +93,13 @@ const Playground: React.FC = () => {
             newActiveKey = newVariants[newVariants.length - 1].variantName
         }
 
-        compareMode
-            ? setVariants((prevState) =>
-                  prevState.filter((variant) => variant.variantId !== tabID.current),
-              )
-            : setVariants(newVariants)
-
-        setActiveKey(newActiveKey)
+        setVariants(newVariants)
         setUnsavedVariants((prev) => {
             const newUnsavedVariants = {...prev}
-            delete newUnsavedVariants[activeKey]
+            delete newUnsavedVariants[toDelete]
             return newUnsavedVariants
         })
+        setActiveKey(newActiveKey)
     }
 
     const fetchData = async () => {
@@ -299,63 +297,16 @@ const Playground: React.FC = () => {
                     </Button>
                 </div>
                 {compareMode ? (
-                    <div style={{display: "flex", width: "100%", gap: 10, overflowX: "scroll"}}>
-                        <DndContext sensors={[sensor]} onDragEnd={onDragEnd}>
-                            <SortableContext
-                                items={variants.map((variant) => variant.variantName)}
-                                strategy={horizontalListSortingStrategy}
-                            >
-                                {variants.map((variant) => (
-                                    <Tabs
-                                        key={variant.variantName}
-                                        className="editable-card"
-                                        type="card"
-                                        style={{minWidth: 650, width: "100%"}}
-                                        items={[
-                                            {
-                                                key: variant.variantName,
-                                                label: `Variant ${variant.variantName}`,
-                                                children: (
-                                                    <ViewNavigation
-                                                        tabID={tabID}
-                                                        compareMode={compareMode}
-                                                        variant={variant}
-                                                        handlePersistVariant={handlePersistVariant}
-                                                        environments={environments}
-                                                        onAdd={fetchData}
-                                                        deleteVariant={deleteVariant}
-                                                        onStateChange={(isDirty) =>
-                                                            setUnsavedVariants((prev) => ({
-                                                                ...prev,
-                                                                [variant.variantName]: isDirty,
-                                                            }))
-                                                        }
-                                                        getHelpers={(helpers) =>
-                                                            (variantHelpers.current[
-                                                                variant.variantName
-                                                            ] = helpers)
-                                                        }
-                                                    />
-                                                ),
-                                                closable: !variant.persistent,
-                                            },
-                                        ]}
-                                        renderTabBar={(tabBarProps, DefaultTabBar) => (
-                                            <DefaultTabBar {...tabBarProps}>
-                                                {(node) => (
-                                                    <DraggableTabNode
-                                                        {...node.props}
-                                                        key={node.key}
-                                                    >
-                                                        {node}
-                                                    </DraggableTabNode>
-                                                )}
-                                            </DefaultTabBar>
-                                        )}
-                                    />
-                                ))}
-                            </SortableContext>
-                        </DndContext>
+                    <div style={{display: "flex", width: "100%", gap: 10, overflowX: "auto"}}>
+                        {variants.map((variant, ix) => (
+                            <Tabs
+                                key={variant.variantName}
+                                className="editable-card"
+                                type="card"
+                                style={{minWidth: 650, width: "100%"}}
+                                items={[tabItems[ix]]}
+                            />
+                        ))}
                     </div>
                 ) : (
                     <Tabs
