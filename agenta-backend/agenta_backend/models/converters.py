@@ -107,7 +107,7 @@ def app_variant_db_to_pydantic(
         app_id=str(app_variant_db.app.id),
         app_name=app_variant_db.app.app_name,
         variant_name=app_variant_db.variant_name,
-        parameters=app_variant_db.parameters,
+        parameters=app_variant_db.config.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         organization_id=str(app_variant_db.organization.id),
         base_name=app_variant_db.base_name,
