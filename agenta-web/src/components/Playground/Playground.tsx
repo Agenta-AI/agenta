@@ -297,16 +297,35 @@ const Playground: React.FC = () => {
                     </Button>
                 </div>
                 {compareMode ? (
-                    <div style={{display: "flex", width: "100%", gap: 10, overflowX: "auto"}}>
-                        {variants.map((variant, ix) => (
-                            <Tabs
-                                key={variant.variantName}
-                                className="editable-card"
-                                type="card"
-                                style={{minWidth: 650, width: "100%"}}
-                                items={[tabItems[ix]]}
-                            />
-                        ))}
+                    <div style={{display: "flex", width: "100%", gap: 10, overflowX: "scroll"}}>
+                        <DndContext sensors={[sensor]} onDragEnd={onDragEnd}>
+                            <SortableContext
+                                items={variants.map((variant) => variant.variantName)}
+                                strategy={horizontalListSortingStrategy}
+                            >
+                                {variants.map((variant, ix) => (
+                                    <Tabs
+                                        key={variant.variantName}
+                                        className="editable-card"
+                                        type="card"
+                                        style={{minWidth: 650, width: "100%"}}
+                                        items={[tabItems[ix]]}
+                                        renderTabBar={(tabBarProps, DefaultTabBar) => (
+                                            <DefaultTabBar {...tabBarProps}>
+                                                {(node) => (
+                                                    <DraggableTabNode
+                                                        {...node.props}
+                                                        key={node.key}
+                                                    >
+                                                        {node}
+                                                    </DraggableTabNode>
+                                                )}
+                                            </DefaultTabBar>
+                                        )}
+                                    />
+                                ))}
+                            </SortableContext>
+                        </DndContext>
                     </div>
                 ) : (
                     <Tabs
