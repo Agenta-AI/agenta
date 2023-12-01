@@ -112,7 +112,7 @@ const ViewNavigation: React.FC<Props> = ({
     if (isError) {
         let variantDesignator = variant.templateVariantName
         let appName = currentApp?.app_name || ""
-        let imageName = `agentaai/${(appName).toLowerCase()}_`
+        let imageName = `agentaai/${appName.toLowerCase()}_`
 
         if (!variantDesignator || variantDesignator === "") {
             variantDesignator = variant.variantName
@@ -173,16 +173,18 @@ const ViewNavigation: React.FC<Props> = ({
                                 accessible.
                             </li>
                             <li>
-                                Check if the Docker container for the variant {variantDesignator} is active by running the following command in your terminal: 
+                                Check if the Docker container for the variant {variantDesignator} is
+                                active by running the following command in your terminal:
                                 <pre>docker logs {containerName} --tail 50 -f</pre>
-                                Running the above command will enable you to continuously stream the container logs in real-time as they are generated.
+                                Running the above command will enable you to continuously stream the
+                                container logs in real-time as they are generated.
                             </li>
                         </ul>
                         <p>
                             {" "}
-                            In case the docker container is not running, please check the Docker logs to understand the issue. 
-                            Most of the time, it is due to missing requirements. 
-                            Also, please attempt restarting it (using cli or docker
+                            In case the docker container is not running, please check the Docker
+                            logs to understand the issue. Most of the time, it is due to missing
+                            requirements. Also, please attempt restarting it (using cli or docker
                             desktop).
                         </p>
                         <p>
