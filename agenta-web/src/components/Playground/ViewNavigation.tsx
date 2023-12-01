@@ -26,6 +26,7 @@ interface Props {
     getHelpers: (helpers: {save: Function; delete: Function}) => void
     onStateChange: (isDirty: boolean) => void
     compareMode: boolean
+    tabID: React.MutableRefObject<string>
 }
 
 const useStyles = createUseStyles({
@@ -46,6 +47,7 @@ const ViewNavigation: React.FC<Props> = ({
     getHelpers,
     onStateChange,
     compareMode,
+    tabID,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -236,6 +238,7 @@ const ViewNavigation: React.FC<Props> = ({
                         onAdd={onAdd}
                         getHelpers={getHelpers}
                         onStateChange={onStateChange}
+                        tabID={tabID}
                     />
                 </Col>
             </Row>
