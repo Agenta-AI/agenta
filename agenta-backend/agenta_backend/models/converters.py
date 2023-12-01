@@ -132,7 +132,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         variant_id=str(app_variant_db.id),
         user_id=str(app_variant_db.user.id),
         organization_id=str(app_variant_db.organization.id),
-        parameters=app_variant_db.parameters,
+        parameters=app_variant_db.config.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         base_name=app_variant_db.base_name,
         base_id=str(app_variant_db.base.id),
