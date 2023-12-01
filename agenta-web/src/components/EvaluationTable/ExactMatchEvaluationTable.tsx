@@ -28,7 +28,7 @@ import {evaluateWithExactMatch} from "@/lib/services/evaluations"
 import {createUseStyles} from "react-jss"
 import {exportExactEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
-import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {Evaluation} from "@/lib/Types"
 
 const {Title} = Typography
@@ -198,6 +198,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                         ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                         : [],
                 )
+                if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
                 setRowValue(rowIndex, columnName, result)
                 setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)

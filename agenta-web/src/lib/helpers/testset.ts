@@ -52,3 +52,10 @@ export function testsetRowToChatMessages(rowData: KeyValuePair, includeCorrectAn
 
     return chat
 }
+
+export function contentToChatMessageString(content: string, role: ChatRole = ChatRole.Assistant) {
+    return JSON.stringify({
+        content,
+        role,
+    })
+}
