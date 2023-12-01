@@ -154,7 +154,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: any,
+        rowIndex: number,
         inputFieldKey: number,
     ) => {
         const newRows = [...rows]
@@ -236,6 +236,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
             const data = {
                 score: isCorrect ? "correct" : "wrong",
                 outputs: [{variant_id: variants[0].variantId, variant_output: outputVariantX}],
+                inputs: rows[rowNumber].inputs,
             }
 
             updateEvaluationScenario(
@@ -286,13 +287,14 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                 key: columnKey,
                 width: "25%",
                 render: (text: any, record: ExactMatchEvaluationTableRow, rowIndex: number) => {
+                    if (text) return text
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
                             (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }
-                    return text
+                    return ""
                 },
             }
         },
@@ -326,7 +328,7 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                                   <Input
                                       placeholder={input.input_name}
                                       value={input.input_value}
-                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                      onChange={(e) => handleInputChange(e, rowIndex, index)}
                                   />
                               </div>
                           ))}

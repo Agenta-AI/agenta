@@ -216,7 +216,7 @@ Answer ONLY with one of the given grading or evaluation options.
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: any,
+        rowIndex: number,
         inputFieldKey: number,
     ) => {
         const newRows = [...rows]
@@ -276,19 +276,20 @@ Answer ONLY with one of the given grading or evaluation options.
         if (evaluation_scenario_id) {
             const data = {
                 outputs: [{variant_id: variants[0].variantId, variant_output: outputVariantX}],
+                inputs: rows[rowNumber].inputs,
             }
 
             const aiCritiqueScoreResponse = await evaluateAICritiqueForEvalScenario({
                 correct_answer: rows[rowNumber].correctAnswer,
                 llm_app_prompt_template: evaluation.llmAppPromptTemplate,
-                inputs: rows[rowNumber].inputs,
+                inputs: data.inputs,
                 outputs: data.outputs,
                 evaluation_prompt_template: evaluationPromptTemplate,
                 open_ai_key: getApikeys(),
             })
 
             try {
-                const responseData = await updateEvaluationScenario(
+                await updateEvaluationScenario(
                     evaluation.id,
                     evaluation_scenario_id,
                     {...data, score: aiCritiqueScoreResponse.data},
@@ -346,13 +347,16 @@ Answer ONLY with one of the given grading or evaluation options.
                     ) {
                         return
                     }
+
+                    if (text) return text
+
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
                             (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }
-                    return text
+                    return ""
                 },
             }
         },
@@ -386,7 +390,7 @@ Answer ONLY with one of the given grading or evaluation options.
                                   <Input
                                       placeholder={input.input_name}
                                       value={input.input_value}
-                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                      onChange={(e) => handleInputChange(e, rowIndex, index)}
                                   />
                               </div>
                           ))}

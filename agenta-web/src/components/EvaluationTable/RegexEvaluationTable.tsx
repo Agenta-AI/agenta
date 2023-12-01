@@ -166,7 +166,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: any,
+        rowIndex: number,
         inputFieldKey: number,
     ) => {
         const newRows = [...rows]
@@ -241,6 +241,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         {
                             score,
                             outputs: [{variant_id: variants[0].variantId, variant_output: result}],
+                            inputs: rows[rowIndex].inputs,
                         },
                         evaluation.evaluationType,
                     )
@@ -296,7 +297,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                 render: (value: any, record: RegexEvaluationTableRow, ix: number) => {
                     if (loading[ix]) return "Loading..."
 
-                    let outputValue = value
+                    let outputValue
                     if (record.outputs && record.outputs.length > 0) {
                         outputValue = record.outputs.find(
                             (output: any) => output.variant_id === variants[i].variantId,
@@ -305,7 +306,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
 
                     return (
                         <Highlighter
-                            textToHighlight={outputValue}
+                            textToHighlight={value || outputValue || ""}
                             searchWords={[settings.regexPattern]}
                         />
                     )
@@ -342,7 +343,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                                   <Input
                                       placeholder={input.input_name}
                                       value={input.input_value}
-                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                      onChange={(e) => handleInputChange(e, rowIndex, index)}
                                   />
                               </div>
                           ))}

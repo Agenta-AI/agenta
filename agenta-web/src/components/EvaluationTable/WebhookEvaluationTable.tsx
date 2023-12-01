@@ -146,7 +146,7 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: any,
+        rowIndex: number,
         inputFieldKey: number,
     ) => {
         const newRows = [...rows]
@@ -223,6 +223,7 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
                         {
                             score,
                             outputs: [{variant_id: variants[0].variantId, variant_output: result}],
+                            inputs: rows[rowIndex].inputs,
                         },
                         evaluation.evaluationType,
                     )
@@ -273,14 +274,14 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
                 render: (value: any, record: WebhookEvaluationTableRow, ix: number) => {
                     if (loading[ix]) return "Loading..."
 
-                    let outputValue = value
+                    let outputValue
                     if (record.outputs && record.outputs.length > 0) {
                         outputValue = record.outputs.find(
                             (output: any) => output.variant_id === variants[i].variantId,
                         )?.variant_output
                     }
 
-                    return outputValue
+                    return value || outputValue || ""
                 },
             }
         },
@@ -314,7 +315,7 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
                                   <Input
                                       placeholder={input.input_name}
                                       value={input.input_value}
-                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                      onChange={(e) => handleInputChange(e, rowIndex, index)}
                                   />
                               </div>
                           ))}

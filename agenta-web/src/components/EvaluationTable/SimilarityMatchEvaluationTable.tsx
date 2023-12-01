@@ -168,7 +168,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: any,
+        rowIndex: number,
         inputFieldKey: number,
     ) => {
         const newRows = [...rows]
@@ -237,6 +237,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         {
                             score: isSimilar,
                             outputs: [{variant_id: variants[0].variantId, variant_output: result}],
+                            inputs: rows[rowIndex].inputs,
                         },
                         evaluation.evaluationType,
                     )
@@ -287,6 +288,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                 width: "25%",
                 render: (text: any, record: SimilarityMatchEvaluationTableRow, ix: number) => {
                     if (loading[ix]) return "Loading..."
+                    if (text) return text
 
                     if (record.outputs && record.outputs.length > 0) {
                         const outputValue = record.outputs.find(
@@ -294,7 +296,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         )?.variant_output
                         return <div>{outputValue}</div>
                     }
-                    return text
+                    return ""
                 },
             }
         },
@@ -328,7 +330,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                                   <Input
                                       placeholder={input.input_name}
                                       value={input.input_value}
-                                      onChange={(e) => handleInputChange(e, record.id, index)}
+                                      onChange={(e) => handleInputChange(e, rowIndex, index)}
                                   />
                               </div>
                           ))}
