@@ -106,7 +106,7 @@ class Message(BaseModel):
 class MessagesInput(list):
     """Messages Input for Chat-completion.
 
-    Parameters:
+    Args:
         messages (List[Dict[str, str]]): The list of messages inputs.
         Required. Each message should be a dictionary with "role" and "content" keys.
 
@@ -116,11 +116,8 @@ class MessagesInput(list):
     """
 
     def __new__(cls, messages: List[Dict[str, str]] = None):
-        if not messages:
-            raise ValueError("Missing required parameter in MessagesInput")
-
         instance = super().__new__(cls, messages)
-        instance.messages = messages
+        instance.default = messages
         return instance
 
     @classmethod
