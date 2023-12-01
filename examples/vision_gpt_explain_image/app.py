@@ -42,7 +42,6 @@ def explain(
             ],
         }
     ]
-    max_tokens = ag.config.max_tokens if ag.config.max_tokens != -1 else None
     chat_completion = client.chat.completions.create(
         model="gpt-4-vision-preview",
         messages=messages,
