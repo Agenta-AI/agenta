@@ -15,7 +15,7 @@ import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
 import {getVariantInputParameters} from "@/lib/helpers/variantHelper"
-import {convertToCsv, downloadCsv} from "@/lib/helpers/utils"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
 
