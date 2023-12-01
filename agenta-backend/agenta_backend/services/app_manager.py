@@ -29,7 +29,7 @@ else:
     from agenta_backend.services import deployment_manager
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.cloud.services import (
+    from agenta_backend.commons.services import (
         api_key_service,
     )  # noqa pylint: disable-all
 
@@ -208,7 +208,7 @@ async def terminate_and_remove_app_variant(
                 # If image deletable is True, remove docker image and image db
                 if image.deletable:
                     try:
-                        if os.environ["FEATURE_FLAG"] == "cloud":
+                        if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
                             await deployment_manager.remove_repository(image.tags)
                         else:
                             await deployment_manager.remove_image(image)
