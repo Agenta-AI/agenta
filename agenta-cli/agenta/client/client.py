@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 import os
 import time
+import click
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
@@ -136,7 +137,7 @@ def add_variant_to_server(
         "tags": image.tags,
     }
 
-    print(f"Waiting for the variant to be ready", end="", flush=True)
+    click.echo(click.style("Waiting for the variant to be ready", fg="yellow"), nl=False)
 
     for attempt in range(retries):
         try:
@@ -147,18 +148,18 @@ def add_variant_to_server(
                 timeout=600,
             )
             response.raise_for_status()
-            print("\nVariant added successfully.")
+            click.echo(click.style("\nVariant added successfully.", fg="green"))
             return response.json()
         except RequestException as e:
-            print(".", end="", flush=True)
             if attempt < retries - 1:
+                click.echo(click.style(".", fg="yellow"), nl=False)
                 time.sleep(backoff_factor * (2**attempt))
             else:
                 raise APIRequestError(
-                    f"Request to app_variant endpoint failed with status code {response.status_code} and error message: {e}."
+                    click.style(f"\nRequest to app_variant endpoint failed with status code {response.status_code} and error message: {e}.", fg="red")
                 )
         except Exception as e:
-            raise APIRequestError(f"\nAn unexpected error occurred: {e}")
+            raise APIRequestError(click.style(f"\nAn unexpected error occurred: {e}", fg="red"))
 
 
 def start_variant(
