@@ -12,10 +12,9 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import agenta
 from fastapi import Body, FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.models import Server
 from fastapi.responses import JSONResponse
 
-from .context import get_contexts, save_context
+from .context import save_context
 from .router import router as router
 from .types import (
     Context,
@@ -345,7 +344,6 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
         f"Body_{func_name}_{endpoint}_post"
     ]["properties"]
     for param_name, param_val in params.items():
-        # print(param_name, param_val)
         if isinstance(param_val, MultipleChoiceParam):
             subschema = find_in_schema(schema_to_override, param_name, "choice")
             default = str(param_val)
