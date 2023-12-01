@@ -137,7 +137,9 @@ def add_variant_to_server(
         "tags": image.tags,
     }
 
-    click.echo(click.style("Waiting for the variant to be ready", fg="yellow"), nl=False)
+    click.echo(
+        click.style("Waiting for the variant to be ready", fg="yellow"), nl=False
+    )
 
     for attempt in range(retries):
         try:
@@ -156,10 +158,15 @@ def add_variant_to_server(
                 time.sleep(backoff_factor * (2**attempt))
             else:
                 raise APIRequestError(
-                    click.style(f"\nRequest to app_variant endpoint failed with status code {response.status_code} and error message: {e}.", fg="red")
+                    click.style(
+                        f"\nRequest to app_variant endpoint failed with status code {response.status_code} and error message: {e}.",
+                        fg="red",
+                    )
                 )
         except Exception as e:
-            raise APIRequestError(click.style(f"\nAn unexpected error occurred: {e}", fg="red"))
+            raise APIRequestError(
+                click.style(f"\nAn unexpected error occurred: {e}", fg="red")
+            )
 
 
 def start_variant(
