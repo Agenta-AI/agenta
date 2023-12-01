@@ -100,7 +100,15 @@ def create_new_app(app_name: str, host: str, api_key: str = None) -> str:
     return response.json()["app_id"]
 
 
-def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str, api_key: str = None, retries=10, backoff_factor=1) -> Dict:
+def add_variant_to_server(
+    app_id: str,
+    base_name: str,
+    image: Image,
+    host: str,
+    api_key: str = None,
+    retries=10,
+    backoff_factor=1,
+) -> Dict:
     """
     Adds a variant to the server with a retry mechanism and a single-line loading state.
 
@@ -144,9 +152,11 @@ def add_variant_to_server(app_id: str, base_name: str, image: Image, host: str, 
         except RequestException as e:
             print(".", end="", flush=True)
             if attempt < retries - 1:
-                time.sleep(backoff_factor * (2 ** attempt))
+                time.sleep(backoff_factor * (2**attempt))
             else:
-                raise APIRequestError(f"Request to app_variant endpoint failed with status code {response.status_code} and error message: {e}.")
+                raise APIRequestError(
+                    f"Request to app_variant endpoint failed with status code {response.status_code} and error message: {e}."
+                )
         except Exception as e:
             raise APIRequestError(f"\nAn unexpected error occurred: {e}")
 
