@@ -10,6 +10,7 @@ import {deleteTestsets, useLoadTestsetsList} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
 import {testset} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
+import ConfirmTestsetDeleteModal from "@/components/TestSetTable/ConfirmTestsetDeleteModal"
 
 const useStyles = createUseStyles({
     container: {
@@ -41,6 +42,8 @@ export default function Testsets() {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
+    const [testsetIdsToDelete, setTestsetIds] = useState<Array<string>>([]);
+    const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
 
@@ -69,12 +72,9 @@ export default function Testsets() {
     }
 
     const onDelete = async () => {
-        const testsetsIds = selectedRowKeys.map((key) => key.toString())
-        try {
-            await deleteTestsets(testsetsIds)
-            mutate()
-            setSelectedRowKeys([])
-        } catch {}
+        const testsetIds = selectedRowKeys.map((key) => key.toString())
+        setTestsetIds(testsetIds)
+        setIsConfirmDeleteModalOpen(true)
     }
 
     return (
@@ -146,6 +146,14 @@ export default function Testsets() {
                     }}
                 />
             </div>
+
+            <ConfirmTestsetDeleteModal
+                isModalOpen={isConfirmDeleteModalOpen}
+                setIsModalOpen={setIsConfirmDeleteModalOpen}
+                testsetsIds={testsetIdsToDelete}
+                mutate={mutate}
+                setSelectedRowKeys={setSelectedRowKeys}
+            />
         </div>
     )
 }
