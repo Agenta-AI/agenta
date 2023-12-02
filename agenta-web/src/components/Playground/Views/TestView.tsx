@@ -150,7 +150,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                 ) : (
                     inputParamsNames.map((key, index) => (
                         <TextArea
-                            data-cy={`testview-input-parameters-${index}`}
+                            data-cy={"testview-input-parameters"}
                             key={index}
                             value={testData[key]}
                             placeholder={renameVariables(key)}
