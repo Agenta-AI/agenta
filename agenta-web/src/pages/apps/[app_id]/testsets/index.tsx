@@ -42,7 +42,7 @@ export default function Testsets() {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
-    const [testsetIdsToDelete, setTestsetIds] = useState<Array<string>>([]);
+    const [testsetIdsToDelete, setTestsetIds] = useState<Array<string>>([])
     const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
