@@ -86,6 +86,8 @@ async def start_variant(
                 str(db_app_variant.user.uid), expiration_date=None, hidden=True
             )
             env_vars.update({"AGENTA_API_KEY": api_key})
+        print("start_variant ---- db_app_variant")
+        print(db_app_variant)
         deployment = await deployment_manager.start_service(
             app_variant_db=db_app_variant, env_vars=env_vars
         )
@@ -379,7 +381,7 @@ async def add_variant_based_on_image(
     ):
         raise ValueError("App variant or image is None")
 
-    if os.environ["FEATURE_FLAG"] not in ["cloud"]:
+    if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
         if tags in [None, ""]:
             raise ValueError("OSS: Tags is None")
 
