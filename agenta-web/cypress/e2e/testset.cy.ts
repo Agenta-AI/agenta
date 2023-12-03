@@ -41,7 +41,7 @@ describe("Testsets crud and UI functionality", () => {
                         cy.get("div.ag-cell")
                             .eq(1)
                             .within(() => {
-                                cy.get("span").eq(0).dblclick()
+                                cy.get("span").should("be.visible").eq(0).dblclick()
                                 cy.get(".ag-input-field-input").type(country.country)
                             })
                         cy.get("div.ag-cell")

@@ -64,7 +64,7 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.get('[data-cy="testset-name-input"]').type(testsetName)
     cy.wrap(testsetName).as("testsetName")
 
-    cy.get(".ag-row").should("have.length", 3)
+    cy.get(".ag-row").should("be.visible").should("have.length", 3)
     countries.forEach((country, index) => {
         cy.get(".ag-row")
             .eq(index)
@@ -103,7 +103,7 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
 
 Cypress.Commands.add("addingOpenaiKey", () => {
     cy.visit("/settings")
-    cy.get('[data-cy="openai-api-input"]').eq(0).type("apiKey")
+    cy.get('[data-cy="openai-api-input"]').eq(0).type("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")
     cy.get('[data-cy="openai-api-save"]').eq(0).click()
 })
 
