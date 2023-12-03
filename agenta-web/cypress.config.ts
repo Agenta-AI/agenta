@@ -5,8 +5,8 @@ import {config} from "dotenv"
 config({path: ".env.local"})
 
 export default defineConfig({
-    // video: false,
-    // screenshotOnRunFailure: false,
+    video: false,
+    screenshotOnRunFailure: false,
     e2e: {
         baseUrl: "http://localhost",
         defaultCommandTimeout: 30000,
