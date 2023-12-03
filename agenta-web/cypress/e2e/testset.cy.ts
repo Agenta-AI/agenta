@@ -47,7 +47,7 @@ describe("Testsets crud and UI functionality", () => {
                         cy.get("div.ag-cell")
                             .eq(2)
                             .within(() => {
-                                cy.get("span").eq(0).dblclick()
+                                cy.get("span").should("be.visible").eq(0).dblclick()
                                 cy.get(".ag-input-field-input").type(
                                     `The capital of ${country.country} is ${country.capital}.`,
                                 )
