@@ -362,10 +362,10 @@ async def create_app_and_variant_from_template(
             app=app,
             variant_name="app.default",
             docker_id_or_template_uri=template_db.template_uri
-            if os.environ["FEATURE_FLAG"] in ["cloud"]
+            if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
             else template_db.digest,
             tags=f"{image_name}"
-            if os.environ["FEATURE_FLAG"] not in ["cloud"]
+            if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]
             else None,
             base_name="app",
             config_name="default",
