@@ -379,7 +379,7 @@ async def add_variant_based_on_image(
     ):
         raise ValueError("App variant or image is None")
 
-    if os.environ["FEATURE_FLAG"] not in ["cloud"]:
+    if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]:
         if tags in [None, ""]:
             raise ValueError("OSS: Tags is None")
 
