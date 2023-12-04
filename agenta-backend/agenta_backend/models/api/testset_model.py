@@ -30,6 +30,10 @@ class DeleteTestsets(BaseModel):
     testset_ids: List[str]
 
 
+class TestsetsToConvert(DeleteTestsets):
+    pass
+
+
 # The NewTestset class represents a new data set.
 # Each row is a dictionary with column names as keys and column values as values.
 # csvdata = [
