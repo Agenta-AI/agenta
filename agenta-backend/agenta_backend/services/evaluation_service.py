@@ -608,7 +608,9 @@ async def fetch_list_evaluations(
     ]
 
 
-async def assign_dummy_testset_to_evaluations(user_id: str, testsets: List[str]) -> None:
+async def assign_dummy_testset_to_evaluations(
+    user_id: str, testsets: List[str]
+) -> None:
     """Assigns a dummy testset to evaluations in use of testset(s).
 
     Args:

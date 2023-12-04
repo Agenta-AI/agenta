@@ -149,12 +149,18 @@ async def fetch_app_by_name(
     """
     if not organization_id:
         user = await get_user(user_uid=user_org_data["uid"])
-        query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id) & (AppDB.is_visible == True)
+        query_expression = (
+            (AppDB.app_name == app_name)
+            & (AppDB.user == user.id)
+            & (AppDB.is_visible == True)
+        )
         app = await engine.find_one(AppDB, query_expression)
     else:
-        query_expression = (AppDB.app_name == app_name) & (
-            AppDB.organization == ObjectId(organization_id)
-        ) & (AppDB.is_visible == True)
+        query_expression = (
+            (AppDB.app_name == app_name)
+            & (AppDB.organization == ObjectId(organization_id))
+            & (AppDB.is_visible == True)
+        )
         app = await engine.find_one(AppDB, query_expression)
     return app
 
@@ -814,7 +820,8 @@ async def list_apps(
         organization_access = await check_user_org_access(user_org_data, org_id)
         if organization_access:
             apps: List[AppDB] = await engine.find(
-                AppDB, *(AppDB.organization == ObjectId(org_id), AppDB.is_visible == True)
+                AppDB,
+                *(AppDB.organization == ObjectId(org_id), AppDB.is_visible == True),
             )
             return [app_db_to_pydantic(app) for app in apps]
 
@@ -825,7 +832,9 @@ async def list_apps(
             )
 
     else:
-        apps: List[AppVariantDB] = await engine.find(AppDB, *(AppDB.user == user.id, AppDB.is_visible == True))
+        apps: List[AppVariantDB] = await engine.find(
+            AppDB, *(AppDB.user == user.id, AppDB.is_visible == True)
+        )
         return [app_db_to_pydantic(app) for app in apps]
 
 
@@ -1474,8 +1483,7 @@ async def create_dummy_app() -> None:
 
 
 async def get_dummy_testset() -> TestSetDB:
-    """Fetch the dummy testset.
-    """
+    """Fetch the dummy testset."""
 
     testset = await engine.find_one(TestSetDB, TestSetDB.name == "dummy_testset")
     return testset
@@ -1499,10 +1507,11 @@ async def create_dummy_testset() -> None:
             "csvdata": [{}],
         }
         testset = TestSetDB(
-            **testset, app=app_db,
+            **testset,
+            app=app_db,
             is_visible=False,
             user=app_db.user,
-            organization=app_db.organization
+            organization=app_db.organization,
         )
         await engine.save(testset)
 
