@@ -33,31 +33,30 @@ const ConfirmTestsetDeleteModal: React.FC<Props> = ({
     setSelectedRowKeys,
 }) => {
     const classes = useStyles()
-    const [isLoading, setIsLoading] = useState<boolean>(false)
+    const [isLoading, setIsLoading] = useState(false)
     const handleCloseModal = () => setIsModalOpen(false)
-
+    const handleDismiss = () => handleCloseModal()
     const handleConfirmOK = async () => {
+        setIsLoading(true)
         try {
-            setIsLoading(true)
+            // make sure promise is completely fulfilled before deleting testsets
             await convertTestsetsToDummyIfInUse(testsetsIds).then(async () => {
                 await deleteTestsets(testsetsIds)
                 mutate()
                 setSelectedRowKeys([])
                 handleCloseModal()
             })
-            setIsLoading(false)
-        } catch {
+        } catch (err) {
+            console.log("Something went wrong with converting/deleting testsets: ", err)
+        } finally {
             setIsLoading(false)
         }
-    }
-    const handleDismiss = () => {
-        handleCloseModal()
     }
 
     return (
         <Modal
             title="Confirm Testset(s) Deletion"
-            open={isModalOpen}
+            visible={isModalOpen}
             onOk={handleConfirmOK}
             onCancel={handleDismiss}
             centered
