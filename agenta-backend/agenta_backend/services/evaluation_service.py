@@ -608,6 +608,25 @@ async def fetch_list_evaluations(
     ]
 
 
+async def assign_dummy_testset_to_evaluations(user_id: str, testsets: List[str]) -> None:
+    """Assigns a dummy testset to evaluations in use of testset(s).
+
+    Args:
+        user_id (str): The user Id
+        testsets (List[str]): The id of the testsets in use
+    """
+
+    evaluations = await db_manager.fetch_user_list_evaluations_db(user_id)
+    dummy_testset = await db_manager.get_dummy_testset()
+    for evaluation in evaluations:
+        evaluation_testset_id = str(evaluation.testset.id)
+        if evaluation_testset_id in testsets:
+            evaluation.testset = dummy_testset
+            await engine.save(evaluation)
+            logger.info("Updated evaluation in use of testset to dummy testset.")
+    logger.info("Completed assigning dummy testset to evaluations.")
+
+
 async def fetch_evaluation(evaluation_id: str, **user_org_data: dict) -> Evaluation:
     """
     Fetches a single evaluation based on its ID.
