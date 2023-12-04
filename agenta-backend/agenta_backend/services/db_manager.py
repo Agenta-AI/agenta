@@ -149,12 +149,12 @@ async def fetch_app_by_name(
     """
     if not organization_id:
         user = await get_user(user_uid=user_org_data["uid"])
-        query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id)
+        query_expression = (AppDB.app_name == app_name) & (AppDB.user == user.id) & (AppDB.is_visible == True)
         app = await engine.find_one(AppDB, query_expression)
     else:
         query_expression = (AppDB.app_name == app_name) & (
             AppDB.organization == ObjectId(organization_id)
-        )
+        ) & (AppDB.is_visible == True)
         app = await engine.find_one(AppDB, query_expression)
     return app
 
@@ -716,6 +716,20 @@ async def get_app_instance_by_id(app_id: str) -> AppDB:
     return app
 
 
+async def get_app_instance_by_name(app_name: str) -> AppDB:
+    """Get the app object from the database with the provided app name.
+
+    Arguments:
+        app_name (str): The app name
+
+    Returns:
+        AppDB: instance of app object
+    """
+
+    app = await engine.find_one(AppDB, AppDB.app_name == app_name)
+    return app
+
+
 async def add_variant_from_base_and_config(
     base_db: VariantBaseDB,
     new_config_name: str,
@@ -800,7 +814,7 @@ async def list_apps(
         organization_access = await check_user_org_access(user_org_data, org_id)
         if organization_access:
             apps: List[AppDB] = await engine.find(
-                AppDB, AppDB.organization == ObjectId(org_id)
+                AppDB, *(AppDB.organization == ObjectId(org_id), AppDB.is_visible == True)
             )
             return [app_db_to_pydantic(app) for app in apps]
 
@@ -811,7 +825,7 @@ async def list_apps(
             )
 
     else:
-        apps: List[AppVariantDB] = await engine.find(AppDB, AppDB.user == user.id)
+        apps: List[AppVariantDB] = await engine.find(AppDB, *(AppDB.user == user.id, AppDB.is_visible == True))
         return [app_db_to_pydantic(app) for app in apps]
 
 
@@ -1253,6 +1267,21 @@ async def fetch_testsets_by_app_id(app_id: str) -> List[TestSetDB]:
     return testsets
 
 
+async def fetch_user_list_evaluations_db(user_id: str) -> List[EvaluationDB]:
+    """Fetches a list of evaluations for the given user.
+
+    Args:
+        user_id (str): The user Id
+
+    Returns:
+        List[EvaluationDB]: A list of evaluations.
+    """
+
+    user = await get_user(user_id)
+    evaluations_db = await engine.find(EvaluationDB, EvaluationDB.user == user.id)
+    return evaluations_db
+
+
 async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
     """Fetches a evaluation by its ID.
     Args:
@@ -1429,6 +1458,53 @@ def remove_document_using_driver(document_id: str, collection_name: str) -> None
 async def get_templates() -> List[Template]:
     templates = await engine.find(TemplateDB)
     return templates_db_to_pydantic(templates)
+
+
+async def create_dummy_app() -> None:
+    """Creates a dummy app."""
+
+    # reason for this is because "0" will serve as the default
+    # user that the dummy app will belong to
+    user_db = await get_user(user_uid="0")
+    org_db = await get_organization_object(str(user_db.organizations[0]))
+    app_db = AppDB(
+        app_name="dummy_app", organization=org_db, user=user_db, is_visible=False
+    )
+    await engine.save(app_db)
+
+
+async def get_dummy_testset() -> TestSetDB:
+    """Fetch the dummy testset.
+    """
+
+    testset = await engine.find_one(TestSetDB, TestSetDB.name == "dummy_testset")
+    return testset
+
+
+async def create_dummy_testset() -> None:
+    """Creates a dummy testset."""
+
+    dummy_app = await get_app_instance_by_name("dummy_app")
+    if dummy_app is None:
+        print("============= Step 1: Create dummy app. =============")
+        await create_dummy_app()
+
+    testset = await engine.find_one(TestSetDB, TestSetDB.name == "dummy_testset")
+    if testset is None:
+        print("============= Step 2: Create dummy testset. =============")
+        app_db = await get_app_instance_by_name("dummy_app")
+        testset = {
+            "name": "dummy_testset",
+            "created_at": datetime.now().isoformat(),
+            "csvdata": [{}],
+        }
+        testset = TestSetDB(
+            **testset, app=app_db,
+            is_visible=False,
+            user=app_db.user,
+            organization=app_db.organization
+        )
+        await engine.save(testset)
 
 
 async def count_apps(**user_org_data: dict) -> int:
