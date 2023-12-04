@@ -75,6 +75,7 @@ class AppDB(Model):
     app_name: str
     organization: OrganizationDB = Reference(key_name="organization")
     user: UserDB = Reference(key_name="user")
+    is_visible: bool = Field(default=True)
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -184,6 +185,7 @@ class TestSetDB(Model):
     name: str
     app: AppDB = Reference(key_name="app")
     csvdata: List[Dict[str, str]]
+    is_visible: bool = Field(default=True)
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
