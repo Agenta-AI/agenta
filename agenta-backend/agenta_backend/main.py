@@ -1,7 +1,7 @@
 import os
 from contextlib import asynccontextmanager
 
-from agenta_backend.config import settings
+from agenta_backend.services import db_manager
 from agenta_backend.routers import (
     app_router,
     container_router,
@@ -41,6 +41,8 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
+
+    await db_manager.create_dummy_testset()
     await templates_manager.update_and_sync_templates(cache=cache)
     yield
 
