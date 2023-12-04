@@ -14,13 +14,14 @@ from pydantic import ValidationError
 from agenta_backend.models.api.testset_model import (
     TestSetSimpleResponse,
     DeleteTestsets,
+    TestsetsToConvert,
     NewTestset,
     TestSetOutputResponse,
 )
 from agenta_backend.utils.common import engine, check_access_to_app
 from agenta_backend.models.db_models import TestSetDB
 from agenta_backend.services.db_manager import get_user
-from agenta_backend.services import db_manager
+from agenta_backend.services import db_manager, evaluation_service
 from agenta_backend.models.converters import testset_db_to_pydantic
 
 upload_folder = "./path/to/upload/folder"
@@ -189,6 +190,16 @@ async def import_testset(
         raise HTTPException(
             status_code=500, detail="Failed to import testset from endpoint"
         ) from error
+
+
+@router.post("/to-dummy/", response_model=int, tags=["testsets"])
+async def convert_testsets_to_dummy(payload: TestsetsToConvert, request: Request):
+    """Converts evaluation using testsets to a dummy testset."""
+
+    await evaluation_service.assign_dummy_testset_to_evaluations(
+        request.state.user_id, payload.testset_ids
+    )
+    return 200
 
 
 @router.post("/{app_id}/")
