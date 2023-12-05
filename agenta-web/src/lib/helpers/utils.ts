@@ -209,3 +209,13 @@ export const safeParse = (str: string, fallback: any = "") => {
         return fallback
     }
 }
+
+export const getAgentaApiUrl = () => {
+    const apiUrl = process.env.NEXT_PUBLIC_AGENTA_API_URL
+
+    if (!apiUrl && typeof window !== "undefined") {
+        return `${window.location.protocol}//${window.location.hostname}`
+    }
+
+    return apiUrl
+}
