@@ -196,6 +196,8 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         user: The owner of the evaluation scenario
         app: The app the evaluation is going to belong to
     """
+    
+    print('payload_inputs', payload_inputs)
 
     for datum in csvdata:
         # Check whether the inputs in the test set match the inputs in the variant
