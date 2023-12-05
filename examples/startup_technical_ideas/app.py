@@ -23,8 +23,8 @@ ag.config.default(
 
 
 @ag.entrypoint
-def chat(messages: MessagesInput = MessagesInput()) -> str:
-    messages = [{"role": "system", "content": ag.config.prompt_system}] + messages
+def chat(inputs: MessagesInput = MessagesInput()) -> str:
+    messages = [{"role": "system", "content": ag.config.prompt_system}] + inputs
     max_tokens = ag.config.max_tokens if ag.config.max_tokens != -1 else None
     chat_completion = client.chat.completions.create(
         model=ag.config.model,
