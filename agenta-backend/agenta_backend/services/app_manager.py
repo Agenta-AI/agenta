@@ -71,7 +71,7 @@ async def start_variant(
         logger.debug("App name is %s", db_app_variant.app.app_name)
         # update the env variables
         domain_name = os.environ.get("DOMAIN_NAME")
-        if domain_name is None or domain_name == "http://localhost":
+        if os.environ["FEATURE_FLAG"] in ["oss"]:
             # in the case of agenta running locally, the containers can access the host machine via this address
             domain_name = (
                 "http://host.docker.internal"  # unclear why this stopped working
