@@ -6,6 +6,7 @@ import {createUseStyles} from "react-jss"
 import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersCards"
 import PublishVariantModal from "./PublishVariantModal"
 import {removeVariant} from "@/lib/services/api"
+import {CloudUploadOutlined, DeleteOutlined, SaveOutlined} from "@ant-design/icons"
 
 interface Props {
     variant: Variant
@@ -26,6 +27,8 @@ interface Props {
     deleteVariant: (deleteAction?: Function) => void
     getHelpers: (helpers: {save: Function; delete: Function}) => void
     onStateChange: (isDirty: boolean) => void
+    compareMode: boolean
+    tabID: React.MutableRefObject<string>
 }
 
 const useStyles = createUseStyles({
@@ -35,14 +38,13 @@ const useStyles = createUseStyles({
     row: {
         marginTop: 16,
         marginBottom: 8,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
     },
     h2: {
         padding: "0px",
         margin: "0px",
-    },
-    col: {
-        textAlign: "right",
-        paddingRight: "25px",
     },
     collapse: {
         padding: 0,
@@ -64,6 +66,8 @@ const ParametersView: React.FC<Props> = ({
     deleteVariant,
     getHelpers,
     onStateChange,
+    compareMode,
+    tabID,
 }) => {
     const classes = useStyles()
     const [messageApi, contextHolder] = message.useMessage()
@@ -128,50 +132,55 @@ const ParametersView: React.FC<Props> = ({
             label: (
                 <div className={classes.container}>
                     <Row className={classes.row} data-cy="playground-header">
-                        <Col span={12}>
+                        <Col>
                             <h2 className={classes.h2}>1. Modify Parameters</h2>
                         </Col>
-                        <Col span={12} className={classes.col}>
+                        <Col>
                             <Space>
                                 {isVariantExisting && (
-                                    <Button
-                                        onClick={() => setPublishModalOpen(true)}
-                                        data-cy="playground-publish-button"
+                                    <Tooltip
+                                        placement="bottom"
+                                        title="Publish the variant to different environments"
                                     >
-                                        <Tooltip
-                                            placement="bottom"
-                                            title="Publish the variant to different environments"
+                                        <Button
+                                            onClick={() => setPublishModalOpen(true)}
+                                            data-cy="playground-publish-button"
+                                            icon={compareMode && <CloudUploadOutlined />}
                                         >
-                                            Publish
-                                        </Tooltip>
-                                    </Button>
+                                            {compareMode ? null : "Publish"}
+                                        </Button>
+                                    </Tooltip>
                                 )}
-                                <Button
-                                    type="primary"
-                                    onClick={onSave}
-                                    loading={isParamSaveLoading}
-                                    data-cy="playground-save-changes-button"
+
+                                <Tooltip
+                                    placement="bottom"
+                                    title="Save the new parameters for the variant permanently"
                                 >
-                                    <Tooltip
-                                        placement="bottom"
-                                        title="Save the new parameters for the variant permanently"
+                                    <Button
+                                        type="primary"
+                                        onClick={onSave}
+                                        loading={isParamSaveLoading}
+                                        data-cy="playground-save-changes-button"
+                                        icon={compareMode && <SaveOutlined />}
                                     >
-                                        Save changes
-                                    </Tooltip>
-                                </Button>
-                                <Button
-                                    type="primary"
-                                    danger
-                                    onClick={handleDelete}
-                                    data-cy="playground-delete-variant-button"
-                                >
-                                    <Tooltip
-                                        placement="bottom"
-                                        title="Delete the variant permanently"
+                                        {compareMode ? null : "Save changes"}
+                                    </Button>
+                                </Tooltip>
+
+                                <Tooltip placement="bottom" title="Delete the variant permanently">
+                                    <Button
+                                        type="primary"
+                                        danger
+                                        onClick={() => {
+                                            handleDelete()
+                                            tabID.current = variant.variantId
+                                        }}
+                                        data-cy="playground-delete-variant-button"
+                                        icon={compareMode && <DeleteOutlined />}
                                     >
-                                        Delete Variant
-                                    </Tooltip>
-                                </Button>
+                                        {compareMode ? null : "Delete Variant"}
+                                    </Button>
+                                </Tooltip>
                             </Space>
                         </Col>
                     </Row>

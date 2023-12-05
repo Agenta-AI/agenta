@@ -1,6 +1,6 @@
 import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
 import {Evaluation, GenericObject, Variant} from "../Types"
-import {convertToCsv, downloadCsv} from "./utils"
+import {convertToCsv, downloadCsv} from "./fileManipulations"
 
 export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
     const exportRow = rows.map((data, ix) => {
