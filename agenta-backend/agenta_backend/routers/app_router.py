@@ -27,7 +27,7 @@ from agenta_backend.models.api.api_models import (
 from agenta_backend.models import converters
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.cloud.services.selectors import (
+    from agenta_backend.commons.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
@@ -352,7 +352,7 @@ async def create_app_and_variant_from_template(
 
         logger.debug("Step 5: Retrieve template from db")
         template_db = await db_manager.get_template(payload.template_id)
-        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/lambda_templates")
+        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
         image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
@@ -362,10 +362,10 @@ async def create_app_and_variant_from_template(
             app=app,
             variant_name="app.default",
             docker_id_or_template_uri=template_db.template_uri
-            if os.environ["FEATURE_FLAG"] in ["cloud"]
+            if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
             else template_db.digest,
             tags=f"{image_name}"
-            if os.environ["FEATURE_FLAG"] not in ["cloud"]
+            if os.environ["FEATURE_FLAG"] not in ["cloud", "ee"]
             else None,
             base_name="app",
             config_name="default",

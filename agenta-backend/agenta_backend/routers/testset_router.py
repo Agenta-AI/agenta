@@ -29,7 +29,7 @@ router = APIRouter()
 
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.cloud.services.selectors import (
+    from agenta_backend.commons.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
