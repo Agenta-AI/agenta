@@ -7,6 +7,7 @@ import {createUseStyles} from "react-jss"
 import {isValidCSVFile, isValidJSONFile} from "@/lib/helpers/fileManipulations"
 import {GenericObject} from "@/lib/Types"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles({
     fileFormatBtn: {
@@ -58,17 +59,13 @@ export default function AddANewTestset() {
             try {
                 setUploadLoading(true)
                 // TODO: move to api.ts
-                await axios.post(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/upload/`,
-                    formData,
-                    {
-                        headers: {
-                            "Content-Type": "multipart/form-data",
-                        },
-                        //@ts-ignore
-                        _ignoreError: true,
+                await axios.post(`${getAgentaApiUrl()}/api/testsets/upload/`, formData, {
+                    headers: {
+                        "Content-Type": "multipart/form-data",
                     },
-                )
+                    //@ts-ignore
+                    _ignoreError: true,
+                })
                 form.resetFields()
                 router.push(`/apps/${appId}/testsets`)
             } catch (e: any) {

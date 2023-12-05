@@ -190,7 +190,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
 
     Args:
         csvdata: A list of dictionaries representing the CSV data.
-        inputs: A list of strings representing the names of the inputs in the variant.
+        payload_inputs: A list of strings representing the names of the inputs in the variant.
         evaluation_type: The type of evaluation
         new_evaluation: The instance of EvaluationDB
         user: The owner of the evaluation scenario
@@ -208,7 +208,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             await engine.delete(new_evaluation)
             msg = f"""
             Columns in the test set should match the names of the inputs in the variant.
-            Inputs names in variant are: {inputs} while
+            Inputs names in variant are: {[variant_input for variant_input in payload_inputs]} while
             columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
             """
             raise HTTPException(
