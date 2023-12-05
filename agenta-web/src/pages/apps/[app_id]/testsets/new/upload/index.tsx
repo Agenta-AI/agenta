@@ -59,17 +59,13 @@ export default function AddANewTestset() {
             try {
                 setUploadLoading(true)
                 // TODO: move to api.ts
-                await axios.post(
-                    `${getAgentaApiUrl()}/api/testsets/upload/`,
-                    formData,
-                    {
-                        headers: {
-                            "Content-Type": "multipart/form-data",
-                        },
-                        //@ts-ignore
-                        _ignoreError: true,
+                await axios.post(`${getAgentaApiUrl()}/api/testsets/upload/`, formData, {
+                    headers: {
+                        "Content-Type": "multipart/form-data",
                     },
-                )
+                    //@ts-ignore
+                    _ignoreError: true,
+                })
                 form.resetFields()
                 router.push(`/apps/${appId}/testsets`)
             } catch (e: any) {
