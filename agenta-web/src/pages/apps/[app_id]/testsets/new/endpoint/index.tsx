@@ -1,4 +1,5 @@
 import axios from "@/lib/helpers/axiosConfig"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {Alert, Button, Form, Input, Spin, Typography, message} from "antd"
 import {useRouter} from "next/router"
 import {useState} from "react"
@@ -47,11 +48,9 @@ export default function ImportTestsetFromEndpoint() {
 
         try {
             // TODO: move to api.ts
-            await axios.post(
-                `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/endpoint/`,
-                formData,
-                {headers: {"Content-Type": "multipart/form-data"}},
-            )
+            await axios.post(`${getAgentaApiUrl()}/api/testsets/endpoint/`, formData, {
+                headers: {"Content-Type": "multipart/form-data"},
+            })
             router.push(`/apps/${appId}/testsets`)
         } catch (_) {
             // Errors will be handled by Axios interceptor

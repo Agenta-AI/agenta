@@ -4,6 +4,10 @@ import {useState} from "react"
 import axios from "@/lib/helpers/axiosConfig"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
+import {isValidCSVFile, isValidJSONFile} from "@/lib/helpers/fileManipulations"
+import {GenericObject} from "@/lib/Types"
+import {globalErrorHandler} from "@/lib/helpers/errorHandler"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles({
     fileFormatBtn: {
@@ -32,16 +36,21 @@ export default function AddANewTestset() {
 
     const onFinish = async (values: any) => {
         const {file} = values
-
-        if (!values.file) {
-            message.error("Please select a file to upload")
-            return
-        }
+        const fileObj = file[0].originFileObj
+        const malformedFileError = `The file you uploaded is either malformed or is not a valid ${uploadType} file`
 
         if (file && file.length > 0 && uploadType) {
+            const isValidFile = await (uploadType == "CSV"
+                ? isValidCSVFile(fileObj)
+                : isValidJSONFile(fileObj))
+            if (!isValidFile) {
+                message.error(malformedFileError)
+                return
+            }
+
             const formData = new FormData()
             formData.append("upload_type", uploadType)
-            formData.append("file", file[0].originFileObj)
+            formData.append("file", fileObj)
             if (values.testsetName && values.testsetName.trim() !== "") {
                 formData.append("testset_name", values.testsetName)
             }
@@ -50,17 +59,23 @@ export default function AddANewTestset() {
             try {
                 setUploadLoading(true)
                 // TODO: move to api.ts
-                await axios.post(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/upload/`,
-                    formData,
-                    {
-                        headers: {
-                            "Content-Type": "multipart/form-data",
-                        },
+                await axios.post(`${getAgentaApiUrl()}/api/testsets/upload/`, formData, {
+                    headers: {
+                        "Content-Type": "multipart/form-data",
                     },
-                )
+                    //@ts-ignore
+                    _ignoreError: true,
+                })
                 form.resetFields()
                 router.push(`/apps/${appId}/testsets`)
+            } catch (e: any) {
+                if (
+                    e?.response?.data?.detail?.find(
+                        (item: GenericObject) => item?.loc?.includes("csvdata"),
+                    )
+                )
+                    message.error(malformedFileError)
+                else globalErrorHandler(e)
             } finally {
                 setUploadLoading(false)
             }
@@ -156,6 +171,7 @@ export default function AddANewTestset() {
                         valuePropName="fileList"
                         getValueFromEvent={(e) => e.fileList}
                         label="Test set source"
+                        rules={[{required: true}]}
                     >
                         <Upload.Dragger
                             name="file"
@@ -173,7 +189,7 @@ export default function AddANewTestset() {
                     </Form.Item>
 
                     <Form.Item {...tailLayout}>
-                        <Button type="primary" htmlType="submit">
+                        <Button type="primary" htmlType="submit" disabled={uploadLoading}>
                             Add test set
                         </Button>
                     </Form.Item>
