@@ -9,6 +9,7 @@ from typing import Optional, List
 
 from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from agenta_backend.models.api.testset_model import (
     TestSetSimpleResponse,
@@ -28,7 +29,7 @@ router = APIRouter()
 
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
-    from agenta_backend.cloud.services.selectors import (
+    from agenta_backend.commons.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
 else:
@@ -99,7 +100,10 @@ async def upload_file(
             document["csvdata"].append(row)
 
     user = await get_user(user_uid=user_org_data["uid"])
-    testset_instance = TestSetDB(**document, user=user)
+    try:
+        testset_instance = TestSetDB(**document, user=user)
+    except ValidationError as e:
+        raise HTTPException(status_code=403, detail=e.errors())
     result = await engine.save(testset_instance)
 
     if isinstance(result.id, ObjectId):
