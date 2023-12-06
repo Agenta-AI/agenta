@@ -524,3 +524,28 @@ def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
         return response.json()["id"]
     except RequestException as e:
         raise APIRequestError(f"Request failed: {str(e)}")
+
+
+def retrieve_app_logs(app_name: str, api_key: Optional[str], host: str):
+    """Retrieve app logs from the server.
+
+    Args:
+        app_name (str): The required app name
+        host (str): The URL of the Agenta backend
+        api_key (str): The API key to validate with.
+    """
+
+    try:
+        response = requests.get(
+            f"{host}/{BACKEND_URL_SUFFIX}/apps/{app_name}/logs/",
+            headers={"Authorization": api_key} if api_key is not None else None,
+            timeout=600,
+        )
+        if response.status_code != 200:
+            error_message = response.json().get("detail", "Unknown error")
+            raise APIRequestError(
+                f"Request to retrieve_app_logs endpoint failed with status code {response.status_code}. Error message: {error_message}"
+            )
+        return response.json()["logs"]
+    except RequestException as e:
+        raise APIRequestError(f"Request failed: {str(e)}")
