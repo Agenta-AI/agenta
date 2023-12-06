@@ -352,7 +352,7 @@ async def create_app_and_variant_from_template(
 
         logger.debug("Step 5: Retrieve template from db")
         template_db = await db_manager.get_template(payload.template_id)
-        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/lambda_templates")
+        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
         image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
