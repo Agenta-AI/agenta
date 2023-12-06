@@ -16,3 +16,22 @@ As a result, building AI applications is an **iterative process**.
 
 <img className="dark:hidden" height="600" src="/images/learning/llmops_lifecycle_whitebg.png" />
 <img className="hidden dark:block" height="600" src="/images/learning/llmops_lifecycle_darkbg.png" />
+
+The LLMOps workflow is an iterative workflow with three main steps: experimentation, evaluation, and operation. The goal of the workflow is to iteratively improve the performance of the LLM application. The faster the iteration cycles and the number of experiments that can be run, the faster is the development process and the amount of use cases that the team can build. 
+
+### Experimentation
+The workflow start usually by a proof of concept or an MVP of the application to be built. This require determining the [architecture to be used](/learn/llm_app_architectures) and either [writing the code for the first application](quickstart/getting-started-code) or starting from a pre-built [template](/quickstart/getting-started-ui).
+
+After creating the first version, starts the [prompt engineering](/learn/prompt_engineering) part. The goal there is to find a set of prompts and parameters (temperature, model, etc.) that will give the best performance for the application. This is done by quickly experimenting with different prompts on a large set of inputs, visualizing the output, and understanding the effect of change. Another technique is to compare different configurations side-to-side to understand the effect of changes on the application.
+
+While prompt engineering, it is a good practice to start building a **golden dataset**. A **golden testset** or ground truth test set is a test set containing a variety of inputs and their expected correct answer. Having a such a set, allows to streamline evaluation in the next step and speed up the whole process.
+
+The last step of experimentation is experimenting with different architectures. In agenta, we believe that it makes sense to distinguish between the LLM application architecture and configuration. The architecture of the LLM app describes the flow logic in the app, whether it has one prompt or a chain or multiple prompts, whether it uses a retrieval step... The configuration on the other hand describes the configuration of the different step in the flow of the application. For a single prompt application, the configuration would describe the model and prompt, while for a chain the config would describe multiple prompts.
+
+While teams usually start with simple architecture, it makes sense sometimes to experiment with modifying the architecture of the LLM app, either by adding multiple LLM calls, a retrieval step, different retrieval architectures, or even custom logic (for instance a hard coded routing step or a post-processing guardrail). 
+
+To summarize, the goal of experimentation is to find multiple candidates of application variants that show potential good performance.
+
+### Evaluation
+
+The goal of the (offline-)evaluation step is to systematically assess the results of LLM application and compare different variants to find the best one. The second goal is to benchmark the application and assess any risks.
