@@ -301,6 +301,11 @@ async def remove_app(app_id: str, request: Request):
         raise HTTPException(status_code=500, detail=detail)
 
 
+@router.get("/{app_name}/")
+async def get_app_logs(app_name: str, request: Request):
+    pass
+
+
 @router.post("/app_and_variant_from_template/")
 async def create_app_and_variant_from_template(
     payload: CreateAppVariant,
