@@ -34,6 +34,7 @@ import {EvaluationTypeLabels, camelToSnake} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
+import ParamsForm from "../Playground/ParamsForm/ParamsForm"
 
 const {Title} = Typography
 
@@ -76,7 +77,7 @@ const useStyles = createUseStyles({
         "& button": {
             marginLeft: 10,
         },
-        marginTop: 10,
+        marginTop: "0.75rem",
     },
     recordInput: {
         marginBottom: 10,
@@ -336,22 +337,29 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             dataIndex: "inputs",
             render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => (
                 <div>
-                    {evaluation.testset.testsetChatColumn
-                        ? evaluation.testset.csvdata[rowIndex][
-                              evaluation.testset.testsetChatColumn
-                          ] || " - "
-                        : record &&
-                          record.inputs &&
-                          record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                          record.inputs.map((input: any, index: number) => (
-                              <div className={classes.recordInput} key={index}>
-                                  <Input
-                                      placeholder={input.input_name}
-                                      value={input.input_value}
-                                      onChange={(e) => handleInputChange(e, record.id, index)}
-                                  />
-                              </div>
-                          ))}
+                    {evaluation.testset.testsetChatColumn ? (
+                        evaluation.testset.csvdata[rowIndex][
+                            evaluation.testset.testsetChatColumn
+                        ] || " - "
+                    ) : (
+                        <ParamsForm
+                            isChatVariant={false}
+                            onParamChange={(name, value) =>
+                                handleInputChange(
+                                    {target: {value}} as any,
+                                    record.id,
+                                    record?.inputs.findIndex((ip) => ip.input_name === name),
+                                )
+                            }
+                            inputParams={
+                                variantData[0].inputParams?.map((item) => ({
+                                    ...item,
+                                    value: record.inputs.find((ip) => ip.input_name === item.name)
+                                        ?.input_value,
+                                })) || []
+                            }
+                        />
+                    )}
 
                     <div className={classes.inputTestBtn}>
                         <Button
@@ -460,7 +468,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     dataSource={rows}
                     columns={columns}
                     pagination={false}
-                    rowClassName={() => "editable-row"}
                     rowKey={(record) => record.id!}
                 />
             ) : (
@@ -472,6 +479,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     onInputChange={handleInputChange}
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
+                    variantData={variantData}
                 />
             )}
         </div>

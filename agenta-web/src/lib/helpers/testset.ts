@@ -1,6 +1,7 @@
 import {getDefaultNewMessage} from "@/components/ChatInputs/ChatInputs"
 import {ChatRole, GenericObject, KeyValuePair} from "../Types"
 import {safeParse} from "./utils"
+import {v4 as uuidv4} from "uuid"
 
 const isObjectChatMessage = (obj: GenericObject) => {
     return Object.values(ChatRole).includes(obj.role) && typeof obj.content === "string"
@@ -50,7 +51,7 @@ export function testsetRowToChatMessages(rowData: KeyValuePair, includeCorrectAn
         chat = chat.concat([safeParse(rowData.correct_answer, defaultNewMessage)])
     }
 
-    return chat
+    return chat.map((item: KeyValuePair) => ({...item, id: uuidv4()}))
 }
 
 export function contentToChatMessageString(content: string, role: ChatRole = ChatRole.Assistant) {
