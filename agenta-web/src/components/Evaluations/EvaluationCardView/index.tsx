@@ -22,6 +22,8 @@ import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {safeParse} from "@/lib/helpers/utils"
 import {debounce} from "lodash"
 import {EvaluationType} from "@/lib/enums"
+import ParamsForm from "@/components/Playground/ParamsForm/ParamsForm"
+import {useVariants} from "@/lib/hooks/useVariant"
 
 export const VARIANT_COLORS = [
     "#297F87", // "#722ed1",
@@ -132,6 +134,7 @@ interface Props {
     onInputChange: Function
     updateEvaluationScenarioData: (id: string, data: Partial<EvaluationScenario>) => void
     evaluation: Evaluation
+    variantData: ReturnType<typeof useVariants>
 }
 
 const EvaluationCardView: React.FC<Props> = ({
@@ -142,6 +145,7 @@ const EvaluationCardView: React.FC<Props> = ({
     onInputChange,
     updateEvaluationScenarioData,
     evaluation,
+    variantData,
 }) => {
     const classes = useStyles()
     const {token} = theme.useToken()
@@ -338,20 +342,30 @@ const EvaluationCardView: React.FC<Props> = ({
                             </Button>
                         </div>
 
-                        {isChat ? (
-                            <div className={classes.chatInputsCon}>
-                                <ChatInputs
-                                    key={scenarioId}
-                                    defaultValue={chat}
-                                    onChange={onChatChange}
-                                />
-                            </div>
-                        ) : (
-                            <EvaluationInputs
-                                evaluationScenario={scenario}
-                                onInputChange={onInputChange}
-                            />
-                        )}
+                        <ParamsForm
+                            isChatVariant={isChat}
+                            onParamChange={(name, value) =>
+                                isChat
+                                    ? onChatChange(value)
+                                    : onInputChange(
+                                          {target: {value}} as any,
+                                          scenarioId,
+                                          scenario.inputs.findIndex((ip) => ip.input_name === name),
+                                      )
+                            }
+                            inputParams={
+                                isChat
+                                    ? [{name: "chat", value: chat} as any]
+                                    : variantData[0].inputParams?.map((item) => ({
+                                          ...item,
+                                          value: scenario.inputs.find(
+                                              (ip) => ip.input_name === item.name,
+                                          )?.input_value,
+                                      })) || []
+                            }
+                            key={scenarioId}
+                            useChatDefaultValue
+                        />
 
                         <div className={classes.toolBar}>
                             <Tooltip title="Instructions">

@@ -26,6 +26,7 @@ import {createUseStyles} from "react-jss"
 import {exportSimilarityEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
+import ParamsForm from "../Playground/ParamsForm/ParamsForm"
 
 const {Title} = Typography
 
@@ -166,13 +167,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         setAccuracy(accuracy)
     }, [rows])
 
-    const handleInputChange = (
-        e: React.ChangeEvent<HTMLInputElement>,
-        rowIndex: any,
-        inputFieldKey: number,
-    ) => {
+    const handleInputChange = (value: any, name: string, rowIndex: any) => {
         const newRows = [...rows]
-        newRows[rowIndex].inputs[inputFieldKey].input_value = e.target.value
+        const ip = newRows[rowIndex].inputs.find((ip) => ip.input_name === name)
+        if (ip) ip.input_value = value
         setRows(newRows)
     }
 
@@ -316,22 +314,25 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             dataIndex: "inputs",
             render: (text: any, record: SimilarityMatchEvaluationTableRow, rowIndex: number) => (
                 <div>
-                    {evaluation.testset.testsetChatColumn
-                        ? evaluation.testset.csvdata[rowIndex][
-                              evaluation.testset.testsetChatColumn
-                          ] || " - "
-                        : record &&
-                          record.inputs &&
-                          record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                          record.inputs.map((input: any, index: number) => (
-                              <div className={classes.recordInput} key={index}>
-                                  <Input
-                                      placeholder={input.input_name}
-                                      value={input.input_value}
-                                      onChange={(e) => handleInputChange(e, record.id, index)}
-                                  />
-                              </div>
-                          ))}
+                    {evaluation.testset.testsetChatColumn ? (
+                        evaluation.testset.csvdata[rowIndex][
+                            evaluation.testset.testsetChatColumn
+                        ] || " - "
+                    ) : (
+                        <ParamsForm
+                            isChatVariant={false}
+                            onParamChange={(name, value) =>
+                                handleInputChange(value, name, rowIndex)
+                            }
+                            inputParams={
+                                variantData[0].inputParams?.map((item) => ({
+                                    ...item,
+                                    value: record.inputs.find((ip) => ip.input_name === item.name)
+                                        ?.input_value,
+                                })) || []
+                            }
+                        />
+                    )}
                 </div>
             ),
         },
@@ -467,12 +468,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
             )}
 
             <div>
-                <Table
-                    dataSource={rows}
-                    columns={columns}
-                    pagination={false}
-                    rowClassName={() => "editable-row"}
-                />
+                <Table dataSource={rows} columns={columns} pagination={false} />
             </div>
         </div>
     )
