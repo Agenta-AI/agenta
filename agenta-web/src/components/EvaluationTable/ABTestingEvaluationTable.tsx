@@ -141,7 +141,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
     }, [evaluationScenarios])
 
     const handleInputChange = (
-        e: React.ChangeEvent<HTMLInputElement>,
+        e: React.ChangeEvent<HTMLTextAreaElement>,
         id: string,
         inputIndex: number,
     ) => {
@@ -307,7 +307,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 ),
                 dataIndex: columnKey,
                 key: columnKey,
-                width: "20%",
+                width: "25%",
                 render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
                     if (text) return text
                     if (record.outputs && record.outputs.length > 0) {
