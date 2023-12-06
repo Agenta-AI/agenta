@@ -1,0 +1,22 @@
+---
+title: Use the SDK to Create Custom Application
+---
+
+Agenta enables to experiment with the prompts and parameters for any custom application independent from the framework (langchain, llama_index, griptape..), the LLM model provider (OpenAI, HuggingFace, Self-hoster model) or the application logic. 
+
+
+The Agenta SDK is a wrapper around FastAPI. It does two things:
+
+1. It allows you to create custom playgrounds connected to your data 
+
+2. It takes cares of setting and loading the configuration for your application. 
+
+
+The main idea about the SDK that an LLM application has two parts - the inputs and the configuration . The inputs are the inputs given by the user, these could be a message in the case of a chat application, a long text in the case of a summarization applicatoin.
+
+The configuration are all the parameters that you need to iterate on. For example, the prompt(s), the LLM model, the temperature. In the case of a RAG pipeline, these would include in addition the chunking strategy, the type of embedding.
+
+The idea behind agenta is that you specify in the code the configuration for your application. Then, you work in the playground on this configuration until finding a good one, which you save. At that point, you can use the configuration to run the application.
+
+# How to specify the configuration
+To specify the configuration you need to 
