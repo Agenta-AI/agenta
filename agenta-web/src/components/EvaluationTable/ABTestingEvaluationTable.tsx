@@ -216,14 +216,14 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         count: number = 1,
         showNotification: boolean = true,
         maxRetryCount: number,
-        retryDelay: number
+        retryDelay: number,
     ) => {
         let retryCount = 0
         while (retryCount <= maxRetryCount) {
             try {
                 await runEvaluation(id, count, showNotification)
                 // If the evaluation is successful, break out of the retry loop
-                break;
+                break
             } catch (error) {
                 console.error(`Error in evaluation for ID ${id}, retrying...`)
                 retryCount++
@@ -238,22 +238,28 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         }
     }
 
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
     const runAllEvaluations = async () => {
         const batchSize = 10 // Number of evaluations to make in each batch
         const maxRetryCount = 3 // Maximum number of times to retry a failed evaluation
         const retryDelay = 3000 // Delay before retrying a failed evaluation (in milliseconds)
         const delayBetweenBatches = 5000 // Delay between batches (in milliseconds)
-    
+
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
         const runBatch = async (startIdx) => {
             const endIdx = Math.min(startIdx + batchSize, rows.length)
             const batchPromises = []
-    
+
             for (let index = startIdx; index < endIdx; index++) {
                 batchPromises.push(
-                    runEvaluationWithRetry(rows[index].id!, rows.length - 1, false, maxRetryCount, retryDelay)
+                    runEvaluationWithRetry(
+                        rows[index].id!,
+                        rows.length - 1,
+                        false,
+                        maxRetryCount,
+                        retryDelay,
+                    ),
                 )
             }
 
@@ -263,7 +269,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 console.error("Error in batch:", err)
                 // Handle the failure of the entire batch (if needed)
             }
-    
+
             // Schedule the next batch with a delay
             const nextBatchStartIdx = endIdx
             if (nextBatchStartIdx < rows.length) {

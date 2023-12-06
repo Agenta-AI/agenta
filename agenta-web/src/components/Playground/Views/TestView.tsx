@@ -305,17 +305,17 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
                 } else {
                     console.error(`Max retry count reached for request ${index + 1}.`)
                     setResultForIndex(
-                        `Error in request ${index + 1} after ${maxRetryCount} retries: ${getErrorMessage(error)}`,
-                        index
+                        `Error in request ${
+                            index + 1
+                        } after ${maxRetryCount} retries: ${getErrorMessage(error)}`,
+                        index,
                     )
                 }
             }
         }
     }
 
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
     const handleAddRow = () => {
         setTestList([...testList, {_id: randString(6)}])
