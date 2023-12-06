@@ -149,7 +149,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     }, [evaluationStatus, evaluation.id])
 
     const handleInputChange = (
-        e: React.ChangeEvent<HTMLInputElement>,
+        e: React.ChangeEvent<HTMLTextAreaElement>,
         id: string,
         inputIndex: number,
     ) => {
@@ -309,7 +309,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                 ),
                 dataIndex: columnKey,
                 key: columnKey,
-                width: "20%",
+                width: "25%",
                 render: (text: any, record: SingleModelEvaluationRow, rowIndex: number) => {
                     if (text) return text
                     if (record.outputs && record.outputs.length > 0) {

@@ -1,7 +1,6 @@
 import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
-import Papa from "papaparse"
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -139,24 +138,6 @@ export const isAppNameInputValid = (input: string) => {
     return /^[a-zA-Z0-9_-]+$/.test(input)
 }
 
-type RowType = Record<string, any>
-
-export const convertToCsv = (rows: RowType[], header: string[]) => {
-    return Papa.unparse({fields: header.filter((item) => !!item), data: rows})
-}
-
-export const downloadCsv = (csvContent: string, filename: string): void => {
-    if (typeof window === "undefined") return
-
-    const blob = new Blob([csvContent], {type: "text/csv"})
-    const link = document.createElement("a")
-    link.href = URL.createObjectURL(blob)
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-}
-
 export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
 export const snakeToCamel = (str: string) =>
@@ -227,4 +208,14 @@ export const safeParse = (str: string, fallback: any = "") => {
         console.log("fallbacking to:", fallback)
         return fallback
     }
+}
+
+export const getAgentaApiUrl = () => {
+    const apiUrl = process.env.NEXT_PUBLIC_AGENTA_API_URL
+
+    if (!apiUrl && typeof window !== "undefined") {
+        return `${window.location.protocol}//${window.location.hostname}`
+    }
+
+    return apiUrl
 }

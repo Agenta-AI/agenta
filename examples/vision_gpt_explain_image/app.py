@@ -8,7 +8,7 @@ client = OpenAI()
 SYSTEM_PROMPT = "You are an expert in reading images you look into details, you answer in accurate language."
 HUMAN_PROMPT = "Please compare two images"
 
-ag.init(app_name="explain_image", base_name="app")
+ag.init()
 ag.config.default(
     temperature=ag.FloatParam(0.5, 0, 1),
     max_tokens=ag.IntParam(300, 1, 4000),

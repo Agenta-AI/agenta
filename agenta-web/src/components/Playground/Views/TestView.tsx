@@ -1,4 +1,4 @@
-import React, {useState} from "react"
+import React, {useEffect, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
@@ -203,6 +203,15 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
+
+    useEffect(() => {
+        setResultsList((prevResultsList) => {
+            const newResultsList = testList.map((_, index) => {
+                return index < prevResultsList.length ? prevResultsList[index] : ""
+            })
+            return newResultsList
+        })
+    }, [testList])
 
     const setResultForIndex = (value: string, index: number) => {
         if (isChatVariant) {

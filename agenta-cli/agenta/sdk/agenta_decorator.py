@@ -12,10 +12,9 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import agenta
 from fastapi import Body, FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.models import Server
 from fastapi.responses import JSONResponse
 
-from .context import get_contexts, save_context
+from .context import save_context
 from .router import router as router
 from .types import (
     Context,

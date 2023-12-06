@@ -25,6 +25,8 @@ interface Props {
     deleteVariant: (deleteAction?: Function) => void
     getHelpers: (helpers: {save: Function; delete: Function}) => void
     onStateChange: (isDirty: boolean) => void
+    compareMode: boolean
+    tabID: React.MutableRefObject<string>
 }
 
 const useStyles = createUseStyles({
@@ -44,6 +46,8 @@ const ViewNavigation: React.FC<Props> = ({
     deleteVariant,
     getHelpers,
     onStateChange,
+    compareMode,
+    tabID,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -220,6 +224,7 @@ const ViewNavigation: React.FC<Props> = ({
             <Row gutter={[{xs: 8, sm: 16, md: 24, lg: 32}, 20]}>
                 <Col span={24}>
                     <ParametersView
+                        compareMode={compareMode}
                         variant={variant}
                         optParams={optParams}
                         isParamSaveLoading={isParamSaveLoading}
@@ -233,6 +238,7 @@ const ViewNavigation: React.FC<Props> = ({
                         onAdd={onAdd}
                         getHelpers={getHelpers}
                         onStateChange={onStateChange}
+                        tabID={tabID}
                     />
                 </Col>
             </Row>

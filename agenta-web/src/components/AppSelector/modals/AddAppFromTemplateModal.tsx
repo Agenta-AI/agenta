@@ -16,8 +16,7 @@ const useStyles = createUseStyles({
     body: {
         width: "100%",
         marginTop: 20,
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(min(240px, 100%), 1fr))",
+        display: "flex",
         gap: 20,
     },
     row: {
@@ -54,7 +53,7 @@ const AddAppFromTemplatedModal: React.FC<Props> = ({
                     Choose template
                 </Title>
             }
-            width={templates.length <= 1 || !!noTemplateMessage ? 620 : 900}
+            width={templates.length <= 1 || !!noTemplateMessage ? 620 : 700}
             {...props}
         >
             <div className={classes.body}>
@@ -69,7 +68,7 @@ const AddAppFromTemplatedModal: React.FC<Props> = ({
                     </div>
                 ) : (
                     templates.map((template) => (
-                        <div key={template.id}>
+                        <div key={template.id} style={{flex: 1}}>
                             <AppTemplateCard
                                 title={template.image.title}
                                 body={template.image.description}
