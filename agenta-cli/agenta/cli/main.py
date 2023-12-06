@@ -9,6 +9,7 @@ import questionary
 import toml
 
 from agenta.cli import helper
+from agenta.cli import app_logs
 from agenta.client import client
 from agenta.cli import variant_configs
 from agenta.cli import variant_commands
@@ -192,6 +193,7 @@ def init(app_name: str):
 
 # Add the commands to the CLI group
 cli.add_command(init)
+cli.add_command(app_logs.get)
 cli.add_command(variant_configs.config)
 cli.add_command(variant_commands.variant)
 
