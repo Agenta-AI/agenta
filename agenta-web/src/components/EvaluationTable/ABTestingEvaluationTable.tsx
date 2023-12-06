@@ -238,7 +238,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         }
     }
 
-    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
     const runAllEvaluations = async () => {
         const batchSize = 10 // Number of evaluations to make in each batch
@@ -247,7 +247,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         const delayBetweenBatches = 5000 // Delay between batches (in milliseconds)
 
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
-        const runBatch = async (startIdx) => {
+        const runBatch = async (startIdx: number) => {
             const endIdx = Math.min(startIdx + batchSize, rows.length)
             const batchPromises = []
 
