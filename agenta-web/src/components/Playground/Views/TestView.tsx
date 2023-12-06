@@ -271,9 +271,51 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
         }
     }
 
-    const handleRunAll = () => {
-        testList.forEach((_, index) => handleRun(index))
+    const handleRunAll = async () => {
+        const batchSize = 10 // Number of requests to make in each batch
+        const maxRetryCount = 3 // Maximum number of times to retry a failed request
+        const retryDelay = 3000 // Delay before retrying a failed request (in milliseconds)
+
+        for (let startIdx = 0; startIdx < testList.length; startIdx += batchSize) {
+            const endIdx = Math.min(startIdx + batchSize, testList.length)
+            const batchPromises = []
+
+            for (let index = startIdx; index < endIdx; index++) {
+                batchPromises.push(runWithRetry(index, maxRetryCount, retryDelay))
+            }
+
+            await Promise.all(batchPromises)
+        }
     }
+
+    const runWithRetry = async (index: number, maxRetryCount: number, retryDelay: number) => {
+        let retryCount = 0
+
+        while (retryCount <= maxRetryCount) {
+            try {
+                await handleRun(index)
+                // If the request is successful, break out of the retry loop
+                break
+            } catch (error) {
+                console.error(`Error in request ${index + 1}, retrying...`)
+                retryCount++
+                if (retryCount <= maxRetryCount) {
+                    // Add a delay before retrying
+                    await delay(retryDelay)
+                } else {
+                    console.error(`Max retry count reached for request ${index + 1}.`)
+                    setResultForIndex(
+                        `Error in request ${index + 1} after ${maxRetryCount} retries: ${getErrorMessage(error)}`,
+                        index
+                    )
+                }
+            }
+        }
+    }
+
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+
 
     const handleAddRow = () => {
         setTestList([...testList, {_id: randString(6)}])
