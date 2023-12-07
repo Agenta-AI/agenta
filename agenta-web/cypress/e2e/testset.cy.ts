@@ -38,24 +38,15 @@ describe("Testsets crud and UI functionality", () => {
             cy.get(".ag-row").should("exist")
             cy.get(".ag-row").should("be.visible")
             cy.get(".ag-row").should("have.length", 3)
-            cy.get(`.ag-center-cols-container .ag-row[row-index="0"]`).should("be.visible")
-
-            cy.get(`.ag-center-cols-container .ag-row[row-index="0"]`).should("exist")
-            cy.get('.ag-cell[col-id="country"]').should("be.visible")
-
-            cy.get('.ag-cell[col-id="country"]').should("exist")
-            cy.get('.ag-cell[col-id="correct_answer"]').should("be.visible")
-
-            cy.get('.ag-cell[col-id="correct_answer"]').should("exist")
-            // countries.forEach((country, index) => {
-            //     cy.get(`.ag-center-cols-container .ag-row[row-index="${index}"]`)
-            //         .within(() => {
-            //             cy.get('.ag-cell[col-id="country"]').type(country.country)
-            //             cy.get('.ag-cell[col-id="correct_answer"]').type(
-            //                 `The capital of ${country.country} is ${country.capital}.`,
-            //             )
-            //         })
-            // })
+            countries.forEach((country, index) => {
+                cy.get(`.ag-center-cols-container .ag-row[row-index="${index}"]`)
+                    .within(() => {
+                        cy.get('.ag-cell').eq(1).type(country.country)
+                        cy.get('.ag-cell').eq(2).type(
+                            `The capital of ${country.country} is ${country.capital}.`,
+                        )
+                    })
+            })
             // cy.intercept("/api/testsets/*").as("saveTestsetRequest")
             // cy.get('[data-cy="testset-save-button"]').click()
             // //wait for the save api to complete
