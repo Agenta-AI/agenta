@@ -1,10 +1,11 @@
 import os
 import logging
-from docker.errors import DockerException
-from fastapi.responses import JSONResponse
-from agenta_backend.config import settings
 from typing import List, Optional
+
+from fastapi.responses import JSONResponse
 from fastapi import APIRouter, HTTPException, Request
+
+from agenta_backend.config import settings
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
@@ -25,6 +26,9 @@ from agenta_backend.models.api.api_models import (
     Image,
 )
 from agenta_backend.models import converters
+
+from docker.errors import DockerException
+
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (
@@ -299,11 +303,6 @@ async def remove_app(app_id: str, request: Request):
     except Exception as e:
         detail = f"Unexpected error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
-
-
-@router.get("/{app_name}/")
-async def get_app_logs(app_name: str, request: Request):
-    pass
 
 
 @router.post("/app_and_variant_from_template/")
