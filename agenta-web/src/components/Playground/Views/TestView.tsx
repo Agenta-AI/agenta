@@ -152,6 +152,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     onFinish={onRun}
                     onParamChange={onInputParamChange}
                     form={form}
+                    imageSize="large"
                 />
             </Row>
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>

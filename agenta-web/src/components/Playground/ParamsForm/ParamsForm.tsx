@@ -28,6 +28,8 @@ const useStyles = createUseStyles({
     },
 })
 
+const ASPECT_RATIO = 1.55
+
 interface Props {
     inputParams: (Parameter & {value: any})[]
     onFinish?: (values: GenericObject) => void
@@ -35,6 +37,7 @@ interface Props {
     isChatVariant?: boolean
     useChatDefaultValue?: boolean
     form?: FormInstance<GenericObject>
+    imageSize?: "small" | "large"
 }
 
 const ParamsForm: React.FC<Props> = ({
@@ -44,8 +47,10 @@ const ParamsForm: React.FC<Props> = ({
     isChatVariant,
     useChatDefaultValue,
     form,
+    imageSize = "small",
 }) => {
     const classes = useStyles()
+    const imgHeight = imageSize === "small" ? 90 : 120
 
     const chat = inputParams.find((param) => param.name === "chat")?.value
 
@@ -83,8 +88,8 @@ const ParamsForm: React.FC<Props> = ({
                                     formInstance.getFieldError(param.name).length === 0 && (
                                         <Image
                                             src={param.value}
-                                            width={140}
-                                            height={90}
+                                            width={imgHeight * ASPECT_RATIO}
+                                            height={imgHeight}
                                             className={classes.cover}
                                             fallback="/assets/fallback.png"
                                         />

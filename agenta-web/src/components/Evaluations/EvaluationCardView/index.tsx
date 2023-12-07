@@ -366,6 +366,7 @@ const EvaluationCardView: React.FC<Props> = ({
                             useChatDefaultValue
                             form={form}
                             onFinish={() => onRun(scenarioId)}
+                            imageSize="large"
                         />
 
                         <div className={classes.toolBar}>
