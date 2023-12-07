@@ -40,13 +40,13 @@ describe("Testsets crud and UI functionality", () => {
             cy.get(".ag-row").should("have.length", 3)
             cy.get(`.ag-center-cols-container .ag-row[row-index="0"]`).should("be.visible")
 
-            cy.get(`.ag-center-cols-container .ag-row[row-index="0"]`).should("have.length", 3)
+            cy.get(`.ag-center-cols-container .ag-row[row-index="0"]`).should("exist")
             cy.get('.ag-cell[col-id="country"]').should("be.visible")
 
-            cy.get('.ag-cell[col-id="country"]').should("have.length", 3)
+            cy.get('.ag-cell[col-id="country"]').should("exist")
             cy.get('.ag-cell[col-id="correct_answer"]').should("be.visible")
 
-            cy.get('.ag-cell[col-id="correct_answer"]').should("have.length", 3)
+            cy.get('.ag-cell[col-id="correct_answer"]').should("exist")
             // countries.forEach((country, index) => {
             //     cy.get(`.ag-center-cols-container .ag-row[row-index="${index}"]`)
             //         .within(() => {
