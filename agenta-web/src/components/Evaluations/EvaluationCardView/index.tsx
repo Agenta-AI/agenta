@@ -8,16 +8,14 @@ import {
     QuestionCircleOutlined,
     RightOutlined,
 } from "@ant-design/icons"
-import {Button, Empty, Input, Space, Tooltip, Typography, theme} from "antd"
+import {Button, Empty, Form, Input, Space, Tooltip, Typography, theme} from "antd"
 import React, {useCallback, useEffect, useMemo, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVotePanel from "./EvaluationVotePanel"
 import EvaluationCard from "./EvaluationCard"
-import EvaluationInputs from "./EvaluationInputs"
 import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestingEvaluationTable"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useLocalStorage} from "usehooks-ts"
-import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {safeParse} from "@/lib/helpers/utils"
 import {debounce} from "lodash"
@@ -174,6 +172,7 @@ const EvaluationCardView: React.FC<Props> = ({
     const isChat = !!evaluation.testset.testsetChatColumn
     const testsetRow = evaluation.testset.csvdata[scenarioIndex]
     const isAbTesting = evaluation.evaluationType === EvaluationType.human_a_b_testing
+    const [form] = Form.useForm()
 
     const loadPrevious = () => {
         if (scenarioIndex === 0) return
@@ -365,6 +364,8 @@ const EvaluationCardView: React.FC<Props> = ({
                             }
                             key={scenarioId}
                             useChatDefaultValue
+                            form={form}
+                            onFinish={() => onRun(scenarioId)}
                         />
 
                         <div className={classes.toolBar}>
@@ -400,7 +401,7 @@ const EvaluationCardView: React.FC<Props> = ({
                             <Tooltip title="Run (Enter ↵)">
                                 <PlayCircleOutlined
                                     style={{color: token.colorSuccessActive}}
-                                    onClick={() => onRun(scenarioId)}
+                                    onClick={form.submit}
                                 />
                             </Tooltip>
                         </div>

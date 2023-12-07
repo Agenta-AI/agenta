@@ -6,7 +6,6 @@ import {
     Card,
     Col,
     Form,
-    Input,
     Row,
     Slider,
     Space,

@@ -151,6 +151,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     }
                     onFinish={onRun}
                     onParamChange={onInputParamChange}
+                    form={form}
                 />
             </Row>
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
@@ -203,6 +204,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
+    const rootRef = React.useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         setResultsList((prevResultsList) => {
@@ -275,7 +277,9 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     }
 
     const handleRunAll = () => {
-        testList.forEach((_, index) => handleRun(index))
+        rootRef.current
+            ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
+            .forEach((btn) => (btn as HTMLButtonElement).click())
     }
 
     const handleAddRow = () => {
@@ -312,7 +316,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     }
 
     return (
-        <div>
+        <div ref={rootRef}>
             <div className={classes.testView}>
                 <h2>2. Preview and test</h2>
                 <Space size={10}>

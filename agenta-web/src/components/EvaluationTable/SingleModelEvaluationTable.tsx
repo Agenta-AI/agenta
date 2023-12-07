@@ -5,8 +5,7 @@ import {
     Button,
     Card,
     Col,
-    Input,
-    InputNumber,
+    Form,
     Radio,
     Row,
     Space,
@@ -16,12 +15,7 @@ import {
     Typography,
     message,
 } from "antd"
-import {
-    updateEvaluationScenario,
-    callVariant,
-    fetchEvaluationResults,
-    updateEvaluation,
-} from "@/lib/services/api"
+import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -106,6 +100,56 @@ const useStyles = createUseStyles({
         zIndex: 1,
     },
 })
+
+export const ParamsFormWithRun = ({
+    evaluation,
+    record,
+    rowIndex,
+    onRun,
+    onParamChange,
+    variantData,
+}: {
+    record: SingleModelEvaluationRow
+    rowIndex: number
+    evaluation: Evaluation
+    onRun: () => void
+    onParamChange: (name: string, value: any) => void
+    variantData: ReturnType<typeof useVariants>
+}) => {
+    const classes = useStyles()
+    const [form] = Form.useForm()
+
+    return (
+        <div>
+            {evaluation.testset.testsetChatColumn ? (
+                evaluation.testset.csvdata[rowIndex][evaluation.testset.testsetChatColumn] || " - "
+            ) : (
+                <ParamsForm
+                    isChatVariant={false}
+                    onParamChange={onParamChange}
+                    inputParams={
+                        variantData[0].inputParams?.map((item) => ({
+                            ...item,
+                            value: record.inputs.find((ip) => ip.input_name === item.name)
+                                ?.input_value,
+                        })) || []
+                    }
+                    onFinish={onRun}
+                    form={form}
+                />
+            )}
+
+            <div className={classes.inputTestBtn}>
+                <Button
+                    onClick={evaluation.testset.testsetChatColumn ? onRun : form.submit}
+                    icon={<CaretRightOutlined />}
+                >
+                    Run
+                </Button>
+            </div>
+        </div>
+    )
+}
 
 const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
@@ -337,42 +381,24 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                 </div>
             ),
             dataIndex: "inputs",
-            render: (text: any, record: SingleModelEvaluationRow, rowIndex: number) => (
-                <div>
-                    {evaluation.testset.testsetChatColumn ? (
-                        evaluation.testset.csvdata[rowIndex][
-                            evaluation.testset.testsetChatColumn
-                        ] || " - "
-                    ) : (
-                        <ParamsForm
-                            isChatVariant={false}
-                            onParamChange={(name, value) =>
-                                handleInputChange(
-                                    {target: {value}} as any,
-                                    record.id,
-                                    record?.inputs.findIndex((ip) => ip.input_name === name),
-                                )
-                            }
-                            inputParams={
-                                variantData[0].inputParams?.map((item) => ({
-                                    ...item,
-                                    value: record.inputs.find((ip) => ip.input_name === item.name)
-                                        ?.input_value,
-                                })) || []
-                            }
-                        />
-                    )}
-
-                    <div className={classes.inputTestBtn}>
-                        <Button
-                            onClick={() => runEvaluation(record.id!)}
-                            icon={<CaretRightOutlined />}
-                        >
-                            Run
-                        </Button>
-                    </div>
-                </div>
-            ),
+            render: (_: any, record: SingleModelEvaluationRow, rowIndex: number) => {
+                return (
+                    <ParamsFormWithRun
+                        evaluation={evaluation}
+                        record={record}
+                        rowIndex={rowIndex}
+                        onRun={() => runEvaluation(record.id!)}
+                        onParamChange={(name, value) =>
+                            handleInputChange(
+                                {target: {value}} as any,
+                                record.id,
+                                record?.inputs.findIndex((ip) => ip.input_name === name),
+                            )
+                        }
+                        variantData={variantData}
+                    />
+                )
+            },
         },
         ...dynamicColumns,
         {
