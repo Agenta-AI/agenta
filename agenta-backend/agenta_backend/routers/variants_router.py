@@ -1,18 +1,17 @@
 import os
 import logging
-from docker.errors import DockerException
-from fastapi.responses import JSONResponse
+import asyncio
 from typing import Any, Optional, Union
+from concurrent.futures import ThreadPoolExecutor
+
+from fastapi.responses import JSONResponse
 from fastapi import APIRouter, HTTPException, Request, Body
-from agenta_backend.services import (
-    app_manager,
-    db_manager,
-)
+
+from agenta_backend.services import app_manager, db_manager, logs_manager
 from agenta_backend.utils.common import (
     check_access_to_variant,
 )
 from agenta_backend.models import converters
-
 from agenta_backend.models.api.api_models import (
     Image,
     URI,
@@ -23,6 +22,9 @@ from agenta_backend.models.api.api_models import (
     VariantAction,
     VariantActionEnum,
 )
+
+from docker.errors import DockerException
+
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (
@@ -275,3 +277,26 @@ async def start_variant(
             app_variant_db, envvars, **user_org_data
         )
     return url
+
+
+@router.get("/{variant_id}/logs/")
+async def retrieve_variant_logs(variant_id: str, request: Request):
+    version = request.query_params.get("version")
+    app_variant = await db_manager.get_app_variant_instance_by_id(variant_id)
+
+    #  Get event loop and create a ThreadPoolExecutor for running threads
+    loop = asyncio.get_event_loop()
+    thread_pool = ThreadPoolExecutor(max_workers=4)
+    if version == "cloud":
+        future = loop.run_in_executor(
+            thread_pool,
+            logs_manager.retrieve_cloudwatch_logs,
+            *(str(app_variant.app.id)),
+        )
+        logs_result = await asyncio.wrap_future(future)
+        return logs_result
+
+    if version == "ee":
+        ...
+
+    return ""
