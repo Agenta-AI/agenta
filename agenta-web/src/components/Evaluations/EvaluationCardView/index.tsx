@@ -8,20 +8,20 @@ import {
     QuestionCircleOutlined,
     RightOutlined,
 } from "@ant-design/icons"
-import {Button, Empty, Input, Space, Tooltip, Typography, theme} from "antd"
+import {Button, Empty, Form, Input, Space, Tooltip, Typography, theme} from "antd"
 import React, {useCallback, useEffect, useMemo, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVotePanel from "./EvaluationVotePanel"
 import EvaluationCard from "./EvaluationCard"
-import EvaluationInputs from "./EvaluationInputs"
 import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestingEvaluationTable"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useLocalStorage} from "usehooks-ts"
-import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {safeParse} from "@/lib/helpers/utils"
 import {debounce} from "lodash"
 import {EvaluationType} from "@/lib/enums"
+import ParamsForm from "@/components/Playground/ParamsForm/ParamsForm"
+import {useVariants} from "@/lib/hooks/useVariant"
 
 export const VARIANT_COLORS = [
     "#297F87", // "#722ed1",
@@ -132,6 +132,7 @@ interface Props {
     onInputChange: Function
     updateEvaluationScenarioData: (id: string, data: Partial<EvaluationScenario>) => void
     evaluation: Evaluation
+    variantData: ReturnType<typeof useVariants>
 }
 
 const EvaluationCardView: React.FC<Props> = ({
@@ -142,6 +143,7 @@ const EvaluationCardView: React.FC<Props> = ({
     onInputChange,
     updateEvaluationScenarioData,
     evaluation,
+    variantData,
 }) => {
     const classes = useStyles()
     const {token} = theme.useToken()
@@ -170,6 +172,7 @@ const EvaluationCardView: React.FC<Props> = ({
     const isChat = !!evaluation.testset.testsetChatColumn
     const testsetRow = evaluation.testset.csvdata[scenarioIndex]
     const isAbTesting = evaluation.evaluationType === EvaluationType.human_a_b_testing
+    const [form] = Form.useForm()
 
     const loadPrevious = () => {
         if (scenarioIndex === 0) return
@@ -338,20 +341,33 @@ const EvaluationCardView: React.FC<Props> = ({
                             </Button>
                         </div>
 
-                        {isChat ? (
-                            <div className={classes.chatInputsCon}>
-                                <ChatInputs
-                                    key={scenarioId}
-                                    defaultValue={chat}
-                                    onChange={onChatChange}
-                                />
-                            </div>
-                        ) : (
-                            <EvaluationInputs
-                                evaluationScenario={scenario}
-                                onInputChange={onInputChange}
-                            />
-                        )}
+                        <ParamsForm
+                            isChatVariant={isChat}
+                            onParamChange={(name, value) =>
+                                isChat
+                                    ? onChatChange(value)
+                                    : onInputChange(
+                                          {target: {value}} as any,
+                                          scenarioId,
+                                          scenario.inputs.findIndex((ip) => ip.input_name === name),
+                                      )
+                            }
+                            inputParams={
+                                isChat
+                                    ? [{name: "chat", value: chat} as any]
+                                    : variantData[0].inputParams?.map((item) => ({
+                                          ...item,
+                                          value: scenario.inputs.find(
+                                              (ip) => ip.input_name === item.name,
+                                          )?.input_value,
+                                      })) || []
+                            }
+                            key={scenarioId}
+                            useChatDefaultValue
+                            form={form}
+                            onFinish={() => onRun(scenarioId)}
+                            imageSize="large"
+                        />
 
                         <div className={classes.toolBar}>
                             <Tooltip title="Instructions">
@@ -386,7 +402,7 @@ const EvaluationCardView: React.FC<Props> = ({
                             <Tooltip title="Run (Enter ↵)">
                                 <PlayCircleOutlined
                                     style={{color: token.colorSuccessActive}}
-                                    onClick={() => onRun(scenarioId)}
+                                    onClick={form.submit}
                                 />
                             </Tooltip>
                         </div>
