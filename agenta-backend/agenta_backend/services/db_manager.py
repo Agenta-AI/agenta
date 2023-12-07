@@ -65,23 +65,33 @@ async def add_testset_to_app_variant(
         **kwargs (dict): Additional keyword arguments
     """
 
-    app_db = await get_app_instance_by_id(app_id)
-    org_db = await get_organization_object(org_id)
-    user_db = await get_user(user_uid=kwargs["uid"])
+    try:
+        app_db = await get_app_instance_by_id(app_id)
+        org_db = await get_organization_object(org_id)
+        user_db = await get_user(user_uid=kwargs["uid"])
 
-    if template_name == "chat_openai":
-        json_path = (
-            f"{PARENT_DIRECTORY}/resources/default_testsets/single_prompt_testsets.json"
+        json_path = os.path.join(
+            PARENT_DIRECTORY,
+            "resources",
+            "default_testsets",
+            f"{template_name}_testset.json",
         )
-        csvdata = get_json(json_path)
-        testset = {
-            "name": f"{app_name}_testset",
-            "app_name": app_name,
-            "created_at": datetime.now().isoformat(),
-            "csvdata": csvdata,
-        }
-        testset = TestSetDB(**testset, app=app_db, user=user_db, organization=org_db)
-        await engine.save(testset)
+
+        if os.path.exists(json_path):
+            csvdata = get_json(json_path)
+            testset = {
+                "name": f"{app_name}_testset",
+                "app_name": app_name,
+                "created_at": datetime.now().isoformat(),
+                "csvdata": csvdata,
+            }
+            testset_db = TestSetDB(
+                **testset, app=app_db, user=user_db, organization=org_db
+            )
+            await engine.save(testset_db)
+
+    except Exception as e:
+        print(f"An error occurred in adding the default testset: {e}")
 
 
 async def get_image(app_variant: AppVariant, **kwargs: dict) -> ImageExtended:
