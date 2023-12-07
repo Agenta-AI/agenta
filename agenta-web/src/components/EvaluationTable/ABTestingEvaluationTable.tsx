@@ -30,7 +30,7 @@ import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
 import EvaluationCardView, {VARIANT_COLORS} from "../Evaluations/EvaluationCardView"
 import {Evaluation, EvaluationScenario, KeyValuePair, Variant} from "@/lib/Types"
-import {EvaluationTypeLabels, camelToSnake} from "@/lib/helpers/utils"
+import {EvaluationTypeLabels, batchExecute, camelToSnake} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
@@ -213,7 +213,10 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     const runAllEvaluations = async () => {
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
-        Promise.all(rows.map((row) => runEvaluation(row.id!, rows.length - 1, false)))
+        batchExecute(
+            rows.map((row) => () => runEvaluation(row.id!, rows.length - 1, false)),
+            {allowRetry: true, batchSize: 10},
+        )
             .then(() => {
                 setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
                 message.success("Evaluations Updated!")
