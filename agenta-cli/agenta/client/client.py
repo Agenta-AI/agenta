@@ -526,7 +526,9 @@ def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
         raise APIRequestError(f"Request failed: {str(e)}")
 
 
-def retrieve_variant_logs(variant_id: str, api_key: Optional[str], host: str, version: str = "cloud"):
+def retrieve_variant_logs(
+    variant_id: str, api_key: Optional[str], host: str, version: str = "cloud"
+):
     """Retrieve variant logs from the server.
 
     Args:
