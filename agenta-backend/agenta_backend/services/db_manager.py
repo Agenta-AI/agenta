@@ -69,7 +69,7 @@ async def add_testset_to_app_variant(
     org_db = await get_organization_object(org_id)
     user_db = await get_user(user_uid=kwargs["uid"])
 
-    if template_name == "single_prompt":
+    if template_name == "chat_openai":
         json_path = (
             f"{PARENT_DIRECTORY}/resources/default_testsets/single_prompt_testsets.json"
         )
