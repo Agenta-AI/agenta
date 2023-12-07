@@ -1,20 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {CaretRightOutlined} from "@ant-design/icons"
-import {
-    Button,
-    Card,
-    Col,
-    Input,
-    Radio,
-    Row,
-    Space,
-    Spin,
-    Statistic,
-    Table,
-    Typography,
-    message,
-} from "antd"
+import {Button, Card, Col, Radio, Row, Space, Statistic, Table, Typography, message} from "antd"
 import {
     updateEvaluationScenario,
     callVariant,
@@ -34,7 +20,7 @@ import {EvaluationTypeLabels, camelToSnake} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
-import ParamsForm from "../Playground/ParamsForm/ParamsForm"
+import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
 
 const {Title} = Typography
 
@@ -335,42 +321,24 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 </div>
             ),
             dataIndex: "inputs",
-            render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => (
-                <div>
-                    {evaluation.testset.testsetChatColumn ? (
-                        evaluation.testset.csvdata[rowIndex][
-                            evaluation.testset.testsetChatColumn
-                        ] || " - "
-                    ) : (
-                        <ParamsForm
-                            isChatVariant={false}
-                            onParamChange={(name, value) =>
-                                handleInputChange(
-                                    {target: {value}} as any,
-                                    record.id,
-                                    record?.inputs.findIndex((ip) => ip.input_name === name),
-                                )
-                            }
-                            inputParams={
-                                variantData[0].inputParams?.map((item) => ({
-                                    ...item,
-                                    value: record.inputs.find((ip) => ip.input_name === item.name)
-                                        ?.input_value,
-                                })) || []
-                            }
-                        />
-                    )}
-
-                    <div className={classes.inputTestBtn}>
-                        <Button
-                            onClick={() => runEvaluation(record.id!)}
-                            icon={<CaretRightOutlined />}
-                        >
-                            Run
-                        </Button>
-                    </div>
-                </div>
-            ),
+            render: (_: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
+                return (
+                    <ParamsFormWithRun
+                        evaluation={evaluation}
+                        record={record}
+                        rowIndex={rowIndex}
+                        onRun={() => runEvaluation(record.id!)}
+                        onParamChange={(name, value) =>
+                            handleInputChange(
+                                {target: {value}} as any,
+                                record.id,
+                                record?.inputs.findIndex((ip) => ip.input_name === name),
+                            )
+                        }
+                        variantData={variantData}
+                    />
+                )
+            },
         },
         ...dynamicColumns,
         {

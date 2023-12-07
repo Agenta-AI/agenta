@@ -2,7 +2,7 @@ import React from "react"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {GenericObject, Parameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
-import {Form, Image, Input} from "antd"
+import {Form, FormInstance, Image, Input} from "antd"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles({
@@ -34,6 +34,7 @@ interface Props {
     onParamChange?: (name: string, value: any) => void
     isChatVariant?: boolean
     useChatDefaultValue?: boolean
+    form?: FormInstance<GenericObject>
 }
 
 const ParamsForm: React.FC<Props> = ({
@@ -42,9 +43,9 @@ const ParamsForm: React.FC<Props> = ({
     onParamChange,
     isChatVariant,
     useChatDefaultValue,
+    form,
 }) => {
     const classes = useStyles()
-    const [form] = Form.useForm()
 
     const chat = inputParams.find((param) => param.name === "chat")?.value
 
@@ -57,8 +58,8 @@ const ParamsForm: React.FC<Props> = ({
     ) : (
         <Form form={form} className={classes.form} onFinish={onFinish}>
             {/*@ts-ignore*/}
-            {(_, formInstance) =>
-                inputParams.map((param, index) => {
+            {(_, formInstance) => {
+                return inputParams.map((param, index) => {
                     const type = param.type === "file_url" ? "url" : param.type
                     return (
                         <Form.Item
@@ -74,6 +75,7 @@ const ParamsForm: React.FC<Props> = ({
                                     message: `Must be a valid ${type}`,
                                 },
                             ]}
+                            initialValue={param.value}
                         >
                             <div className={classes.formItemRow}>
                                 {type === "url" &&
@@ -99,7 +101,7 @@ const ParamsForm: React.FC<Props> = ({
                         </Form.Item>
                     )
                 })
-            }
+            }}
         </Form>
     )
 }
