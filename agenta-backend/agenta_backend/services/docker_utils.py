@@ -113,7 +113,7 @@ def start_container(
             network="agenta-network",
             name=container_name,
             environment=env_vars,
-            extra_hosts=extra_hosts
+            extra_hosts=extra_hosts,
         )
         # Check the container's status
         sleep(0.5)
