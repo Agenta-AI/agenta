@@ -10,7 +10,7 @@ import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
-import {EvaluationTypeLabels, isDemo} from "@/lib/helpers/utils"
+import {EvaluationTypeLabels, getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -98,13 +98,11 @@ export default function HumanEvaluationResult() {
         }
         const fetchEvaluations = async () => {
             try {
-                fetchData(
-                    `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/?app_id=${app_id}`,
-                )
+                fetchData(`${getAgentaApiUrl()}/api/evaluations/?app_id=${app_id}`)
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
                             return fetchData(
-                                `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/evaluations/${item.id}/results/`,
+                                `${getAgentaApiUrl()}/api/evaluations/${item.id}/results/`,
                             )
                                 .then((results) => {
                                     if (item.evaluation_type === EvaluationType.human_a_b_testing) {

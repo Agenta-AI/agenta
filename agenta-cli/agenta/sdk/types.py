@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, Extra, HttpUrl
 
 
 class InFile:
@@ -123,6 +123,12 @@ class MessagesInput(list):
     @classmethod
     def __modify_schema__(cls, field_schema: dict[str, Any]):
         field_schema.update({"x-parameter": "messages", "type": "array"})
+
+
+class FileInputURL(HttpUrl):
+    @classmethod
+    def __modify_schema__(cls, field_schema: Dict[str, Any]) -> None:
+        field_schema.update({"x-parameter": "file_url", "type": "string"})
 
 
 class Context(BaseModel):

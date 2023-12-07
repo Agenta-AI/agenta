@@ -10,6 +10,7 @@ import tsCodeUpload from "../../../../../../code_snippets/testsets/create_with_u
 import {Typography} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles({
     title: {
@@ -22,8 +23,8 @@ export default function NewTestsetWithAPI() {
     const router = useRouter()
     const appId = router.query.app_id as string
 
-    const uploadURI = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/upload`
-    const jsonURI = `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/${appId}`
+    const uploadURI = `${getAgentaApiUrl()}/api/testsets/upload`
+    const jsonURI = `${getAgentaApiUrl()}/api/testsets/${appId}`
 
     const params = `{
     "name": "testset_name",}`
