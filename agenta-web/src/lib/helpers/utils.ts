@@ -1,6 +1,8 @@
 import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
+import promiseRetry from "promise-retry"
+import {getErrorMessage} from "./errorHandler"
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -218,4 +220,82 @@ export const getAgentaApiUrl = () => {
     }
 
     return apiUrl
+}
+
+export function promisifyFunction(fn: Function, ...args: any[]) {
+    return async () => {
+        return fn(...args)
+    }
+}
+
+export const withRetry = (
+    fn: Function,
+    options?: Parameters<typeof promiseRetry>[0] & {logErrors?: boolean},
+) => {
+    const {logErrors = true, ...config} = options || {}
+    const func = promisifyFunction(fn)
+
+    return promiseRetry(
+        (retry, attempt) =>
+            func().catch((e) => {
+                if (logErrors) {
+                    console.log("Error: ", getErrorMessage(e))
+                    console.log("Retry attempt: ", attempt)
+                }
+                retry(e)
+            }),
+        {
+            retries: 3,
+            ...config,
+        },
+    )
+}
+
+export async function batchExecute(
+    functions: Function[],
+    options?: {
+        batchSize?: number
+        supressErrors?: boolean
+        batchDelayMs?: number
+        logErrors?: boolean
+        allowRetry?: boolean
+        retryConfig?: Parameters<typeof promiseRetry>[0]
+    },
+) {
+    const {
+        batchSize = 20,
+        supressErrors = false,
+        batchDelayMs = 2000,
+        logErrors = true,
+        allowRetry = false,
+        retryConfig,
+    } = options || {}
+
+    functions = functions.map((f) => async () => {
+        try {
+            return await (allowRetry ? withRetry(f, {logErrors, ...(retryConfig || {})}) : f())
+        } catch (e) {
+            if (supressErrors) {
+                if (logErrors) console.log("Ignored error:", getErrorMessage(e))
+                return {__error: e}
+            }
+            throw e
+        }
+    })
+
+    if (!batchSize || !Number.isInteger(batchSize) || batchSize <= 0)
+        return Promise.all(functions.map((f) => f()))
+
+    let position = 0
+    let results: any[] = []
+
+    while (position < functions.length) {
+        const batch = functions.slice(position, position + batchSize)
+        results = [...results, ...(await Promise.all(batch.map((f) => f())))]
+        position += batchSize
+        if (batchDelayMs) {
+            await delay(batchDelayMs)
+        }
+    }
+    return results
 }

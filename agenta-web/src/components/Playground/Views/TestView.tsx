@@ -3,7 +3,7 @@ import {Button, Input, Card, Row, Col, Space} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
-import {randString, removeKeys, renameVariables} from "@/lib/helpers/utils"
+import {batchExecute, randString, removeKeys, renameVariables} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -281,7 +281,10 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     }
 
     const handleRunAll = () => {
-        testList.forEach((_, index) => handleRun(index))
+        batchExecute(
+            testList.map((_, index) => () => handleRun(index)),
+            {allowRetry: true, batchSize: 10},
+        )
     }
 
     const handleAddRow = () => {
