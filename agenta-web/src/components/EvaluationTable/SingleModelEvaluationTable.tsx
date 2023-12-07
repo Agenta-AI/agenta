@@ -5,23 +5,16 @@ import {
     Button,
     Card,
     Col,
-    Input,
-    InputNumber,
+    Form,
     Radio,
     Row,
     Space,
-    Spin,
     Statistic,
     Table,
     Typography,
     message,
 } from "antd"
-import {
-    updateEvaluationScenario,
-    callVariant,
-    fetchEvaluationResults,
-    updateEvaluation,
-} from "@/lib/services/api"
+import {updateEvaluationScenario, callVariant, updateEvaluation} from "@/lib/services/api"
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
@@ -35,6 +28,7 @@ import {EvaluationTypeLabels, camelToSnake} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {debounce} from "lodash"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
+import ParamsForm from "../Playground/ParamsForm/ParamsForm"
 
 const {Title} = Typography
 
@@ -78,6 +72,7 @@ const useStyles = createUseStyles({
         "& button": {
             marginLeft: 10,
         },
+        marginTop: "0.75rem",
     },
     recordInput: {
         marginBottom: 10,
@@ -104,6 +99,56 @@ const useStyles = createUseStyles({
         zIndex: 1,
     },
 })
+
+export const ParamsFormWithRun = ({
+    evaluation,
+    record,
+    rowIndex,
+    onRun,
+    onParamChange,
+    variantData,
+}: {
+    record: SingleModelEvaluationRow
+    rowIndex: number
+    evaluation: Evaluation
+    onRun: () => void
+    onParamChange: (name: string, value: any) => void
+    variantData: ReturnType<typeof useVariants>
+}) => {
+    const classes = useStyles()
+    const [form] = Form.useForm()
+
+    return (
+        <div>
+            {evaluation.testset.testsetChatColumn ? (
+                evaluation.testset.csvdata[rowIndex][evaluation.testset.testsetChatColumn] || " - "
+            ) : (
+                <ParamsForm
+                    isChatVariant={false}
+                    onParamChange={onParamChange}
+                    inputParams={
+                        variantData[0].inputParams?.map((item) => ({
+                            ...item,
+                            value: record.inputs.find((ip) => ip.input_name === item.name)
+                                ?.input_value,
+                        })) || []
+                    }
+                    onFinish={onRun}
+                    form={form}
+                />
+            )}
+
+            <div className={classes.inputTestBtn}>
+                <Button
+                    onClick={evaluation.testset.testsetChatColumn ? onRun : form.submit}
+                    icon={<CaretRightOutlined />}
+                >
+                    Run
+                </Button>
+            </div>
+        </div>
+    )
+}
 
 const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
@@ -335,36 +380,24 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                 </div>
             ),
             dataIndex: "inputs",
-            render: (text: any, record: SingleModelEvaluationRow, rowIndex: number) => (
-                <div>
-                    {evaluation.testset.testsetChatColumn
-                        ? evaluation.testset.csvdata[rowIndex][
-                              evaluation.testset.testsetChatColumn
-                          ] || " - "
-                        : record &&
-                          record.inputs &&
-                          record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                          record.inputs.map((input: any, index: number) => (
-                              <div className={classes.recordInput} key={index}>
-                                  <Input.TextArea
-                                      rows={2}
-                                      placeholder={input.input_name}
-                                      value={input.input_value}
-                                      onChange={(e) => handleInputChange(e, record.id, index)}
-                                  />
-                              </div>
-                          ))}
-
-                    <div className={classes.inputTestBtn}>
-                        <Button
-                            onClick={() => runEvaluation(record.id!)}
-                            icon={<CaretRightOutlined />}
-                        >
-                            Run
-                        </Button>
-                    </div>
-                </div>
-            ),
+            render: (_: any, record: SingleModelEvaluationRow, rowIndex: number) => {
+                return (
+                    <ParamsFormWithRun
+                        evaluation={evaluation}
+                        record={record}
+                        rowIndex={rowIndex}
+                        onRun={() => runEvaluation(record.id!)}
+                        onParamChange={(name, value) =>
+                            handleInputChange(
+                                {target: {value}} as any,
+                                record.id,
+                                record?.inputs.findIndex((ip) => ip.input_name === name),
+                            )
+                        }
+                        variantData={variantData}
+                    />
+                )
+            },
         },
         ...dynamicColumns,
         {
@@ -452,7 +485,6 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     dataSource={rows}
                     columns={columns}
                     pagination={false}
-                    rowClassName={() => "editable-row"}
                     rowKey={(record) => record.id!}
                 />
             ) : (
@@ -464,6 +496,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     onInputChange={handleInputChange}
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
+                    variantData={variantData}
                 />
             )}
         </div>
