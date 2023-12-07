@@ -147,7 +147,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     }, [evaluationStatus, evaluation.id])
 
     const handleInputChange = (
-        e: React.ChangeEvent<HTMLInputElement>,
+        e: React.ChangeEvent<HTMLTextAreaElement>,
         id: string,
         inputIndex: number,
     ) => {
@@ -307,7 +307,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                 ),
                 dataIndex: columnKey,
                 key: columnKey,
-                width: "20%",
+                width: "25%",
                 render: (text: any, record: SingleModelEvaluationRow, rowIndex: number) => {
                     if (text) return text
                     if (record.outputs && record.outputs.length > 0) {
@@ -346,7 +346,8 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                           record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
                           record.inputs.map((input: any, index: number) => (
                               <div className={classes.recordInput} key={index}>
-                                  <Input
+                                  <Input.TextArea
+                                      rows={2}
                                       placeholder={input.input_name}
                                       value={input.input_value}
                                       onChange={(e) => handleInputChange(e, record.id, index)}
