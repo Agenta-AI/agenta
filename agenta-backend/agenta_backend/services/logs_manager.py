@@ -6,7 +6,7 @@ import boto3
 
 
 # Initialize the CloudWatch Logs client
-client = boto3.client("logs")
+client = boto3.client("logs", region_name="eu-central-1")
 
 
 def retrieve_cloudwatch_logs(function_deployment_name: str) -> Union[List[str], str]:
