@@ -96,6 +96,22 @@
       ]
     },
     {
+      "group": "Command Line",
+      "pages": [
+        "cli/install",
+        "cli/quick-usage",
+        {
+          "group": "Core commands",
+          "pages": [
+            "cli/init",
+            "cli/variant_serve",
+            "cli/variant_list",
+            "cli/variant_remove"
+          ]
+        }
+      ]
+    },
+    {
       "group": "Contributing",
       "pages": [
         "contributing/getting-started",
@@ -106,7 +122,6 @@
     {
       "group": "Reference",
       "pages": [
-        "reference/agenta-cli",
         "reference/sdk",
         {
           "group": "Backend API",

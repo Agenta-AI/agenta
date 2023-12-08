@@ -1,0 +1,46 @@
+---
+title: "Quick usage"
+description: "Deploy and test LLM apps using agenta CLI"
+---
+
+
+The Agenta CLI is a tool used to manage LLM app variants used in Agenta. It allows you to create new apps and deploy variants to the Agenta platform. 
+
+## Create an application / project
+
+To use the agenta CLI, first create a new folder for each project / application.
+
+```bash
+mkdir my_app
+```
+
+Next, initialize the project in agenta by running
+
+```bash
+agenta init
+```
+
+agenta init creates an empty project in the agenta platform (or populates it on one of the templates).
+
+## Write the code [optional]
+Depending whether you initialized the project with a template or not, you may need to write the code for your variant.
+The code for your new variant in a .py file. The file should contain a function marked with the `@ag.entrypoint` decorator. 
+
+Here is an example
+```python
+
+import agenta as ag
+
+ag.config.register_default(prompt="Translate {sentence} to {language})
+
+@ag.entrypoint
+def translate(sentence:str, language:str):
+    ### add here openai call logic
+```
+## Serve the application
+
+```bash
+agenta variant serve myapp.py
+```
+
+This command deploys a new variant to the Agenta platform. It processes the code in the specified folder, with `myapp.py` as the entrypoint. This command builds a Docker image and deploys a container based on it. As a result, the variant becomes accessible in the web UI, allowing for prediction generation and API calls. The variant is named as `myapp.default` in the UI.
