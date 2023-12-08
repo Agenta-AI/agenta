@@ -184,8 +184,9 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                 </Col>
             </Row>
             {!isChatVariant && (
-                <Row className={classes.row3} data-cy="testview-input-parameters-result">
+                <Row className={classes.row3}>
                     <TextArea
+                        data-cy="testview-input-parameters-result"
                         value={result}
                         rows={6}
                         placeholder="Results will be shown here"
