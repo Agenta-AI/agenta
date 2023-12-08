@@ -1,6 +1,5 @@
 import toml
 import click
-import subprocess
 from pathlib import Path
 from agenta.client import client
 from agenta.cli.variant_commands import get_host
@@ -60,11 +59,19 @@ def get_api_key(app_folder: str) -> str:
 @click.option("--variant", help="The ID of the variant.")
 @click.option("--app_folder", default=".")
 @click.pass_context
-def get_app_logs_stream(ctx, variant: str, app_folder: str):
+def get_variant_logs_stream(ctx, variant: str, app_folder: str):
     """Fetch the logs stream and events for a given lambda app function"""
 
     try:
+        if not variant and len(ctx.args) > 0:
+            variant = ctx.args[0]
+
         config_check(app_folder)
+        click.echo(
+            click.style(
+                "Retrieving variant logs stream from cloudwatch...", fg="yellow"
+            )
+        )
         api_key = get_api_key(app_folder)
         if not api_key:
             click.echo(click.style(f"API Key is not specified\n", fg="red"))
@@ -73,16 +80,22 @@ def get_app_logs_stream(ctx, variant: str, app_folder: str):
         backend_host = get_host(app_folder)
         api_valid = client.validate_api_key(api_key=api_key, host=backend_host)
         if api_valid:
-            logs = client.retrieve_variant_logs(
+            logs_messages = client.retrieve_variant_logs(
                 variant_id=variant, api_key=api_key, host=backend_host, version="cloud"
             )
-            print("Logs: ", logs)
             click.echo(
                 click.style(
                     f"Successfully retrieved logs stream for variant {variant}! 🎉",
                     fg="green",
                 )
             )
+            click.echo(
+                click.style(
+                    "\n====================\nLOGS OUTPUT: \n===================="
+                )
+            )
+            for item in logs_messages:
+                click.echo(click.style(f"- {item.strip()}"))
             return
         else:
             click.echo(
