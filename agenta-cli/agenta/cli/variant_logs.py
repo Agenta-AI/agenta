@@ -81,7 +81,7 @@ def get_variant_logs_stream(ctx, variant: str, app_folder: str):
         api_valid = client.validate_api_key(api_key=api_key, host=backend_host)
         if api_valid:
             logs_messages = client.retrieve_variant_logs(
-                variant_id=variant, api_key=api_key, host=backend_host, version="cloud"
+                variant_id=variant, api_key=api_key, host=backend_host
             )
             click.echo(
                 click.style(

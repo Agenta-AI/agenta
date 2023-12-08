@@ -526,21 +526,18 @@ def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
         raise APIRequestError(f"Request failed: {str(e)}")
 
 
-def retrieve_variant_logs(
-    variant_id: str, api_key: Optional[str], host: str, version: str = "cloud"
-):
+def retrieve_variant_logs(variant_id: str, api_key: Optional[str], host: str):
     """Retrieve variant logs from the server.
 
     Args:
         app_name (str): The required app name
         host (str): The URL of the Agenta backend
         api_key (str): The API key to validate with
-        version (str): The version of agenta backend
     """
 
     try:
         response = requests.get(
-            f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/logs/?version={version}",
+            f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/logs/",
             headers={"Authorization": api_key},
             timeout=600,
         )

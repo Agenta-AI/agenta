@@ -5,7 +5,7 @@ from typing import Any, Optional, Union
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, HTTPException, Request, Body
 
-from agenta_backend.services import app_manager, db_manager, logs_manager
+from agenta_backend.services import app_manager, db_manager
 from agenta_backend.utils.common import (
     check_access_to_variant,
 )
@@ -28,6 +28,7 @@ if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (
         get_user_and_org_id,
     )  # noqa pylint: disable-all
+    from agenta_backend.cloud.services import logs_manager
 else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
@@ -279,10 +280,9 @@ async def start_variant(
 
 @router.get("/{variant_id}/logs/")
 async def retrieve_variant_logs(variant_id: str, request: Request):
-    version = request.query_params.get("version")
     app_variant = await db_manager.get_app_variant_instance_by_id(variant_id)
     deployment = await db_manager.get_deployment_by_appId(str(app_variant.app.id))
-    if version == "cloud":
+    if os.environ["FEATURE_FLAG"] == "cloud":
         try:
             logs_result = logs_manager.retrieve_cloudwatch_logs(
                 deployment.container_name
@@ -291,7 +291,7 @@ async def retrieve_variant_logs(variant_id: str, request: Request):
             raise HTTPException(500, {"message": str(exc)})
         return logs_result
 
-    if version == "ee":
+    if os.environ["FEATURE_FLAG"] == "ee":
         ...
 
     return "Please specify the required agenta version for retrieving the logs."
