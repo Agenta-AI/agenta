@@ -281,7 +281,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
         const funcs: Function[] = []
         rootRef.current
             ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
-            .forEach((btn) => funcs.push((btn as HTMLButtonElement).click))
+            .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
 
         batchExecute(funcs, {allowRetry: true, batchSize: 10})
     }
