@@ -180,10 +180,11 @@ const ViewNavigation: React.FC<Props> = ({
                                         Check if the lambda function for the variant{" "}
                                         {variantDesignator} is active by running the following
                                         command in your terminal:
-                                        <pre>agenta get logs --variant :variant_id:</pre> or{" "}
-                                        <pre>agenta get logs :variant_id:</pre>
-                                        Running the above command will enable you to view the latest
-                                        logs stream events.
+                                        <pre>
+                                            agenta get logs --variant {variant.variantId}
+                                        </pre> or <pre>agenta get logs {variant.variantId}</pre>
+                                        Running the above command will enable you to view the lambda
+                                        function latest logs stream events.
                                     </li>
                                 </div>
                             )}
