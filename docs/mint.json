@@ -91,8 +91,23 @@
         "self-host/host-locally",
         "self-host/host-remotely",
         "self-host/host-on-aws",
-        "self-host/host-on-gcp",
-        "self-host/host-on-kubernetes"
+        "self-host/host-on-gcp"
+      ]
+    },
+    {
+      "group": "Command Line",
+      "pages": [
+        "cli/install",
+        "cli/quick-usage",
+        {
+          "group": "Core commands",
+          "pages": [
+            "cli/init",
+            "cli/variant_serve",
+            "cli/variant_list",
+            "cli/variant_remove"
+          ]
+        }
       ]
     },
     {
@@ -106,7 +121,6 @@
     {
       "group": "Reference",
       "pages": [
-        "reference/agenta-cli",
         "reference/sdk",
         {
           "group": "Backend API",
