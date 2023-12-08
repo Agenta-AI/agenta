@@ -9,11 +9,12 @@ You'll need Docker installed on your machine. If you don't have it yet, download
 
 <Warning> Before you start, make sure that the port 80 is not being used by other applications. To free up resources, you can run docker system prune. </Warning>
 
-## Starting Agenta in Production Mode 
+## Starting agenta in Production Mode 
 
 ```bash
 mkdir agenta && cd agenta
-curl -L https://raw.githubusercontent.com/Agenta-AI/agenta/main/docker-compose.gh.yml -o docker-compose.yml && docker compose -f docker-compose.yml up -d
+curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
+docker compose -f docker-compose.gh.yml up -d
 ````
 
 
@@ -36,6 +37,14 @@ docker compose -f "docker-compose.yml" up -d --build
 ## Verify the Installation
 
 Open your browser and go to [http://localhost](http://localhost). If you see the Agenta web interface, you're good to go.
+
+<Accordion title="Troubleshooting.">
+  The most likely reason for failure is a port conflict. To check whether this is the case please check whether the containers for agenta are all running (agenta-web, agenta-backend, mongodb and redis) and check the logs for the containers agenta-web and agenta-backend.
+
+  If that is not the problem, please [file an issue in github](https://github.com/Agenta-AI/agenta/issues/new/choose) or reach out on [#support on Slack](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA). We are very active there and **should answer within minutes** (European time).
+
+  You can also check the most common problems in the [troubleshooting section](/howto/how-to-debug) of the documentation.
+</Accordion>
 
 ## What's next?
 You're all set to start using Agenta!
