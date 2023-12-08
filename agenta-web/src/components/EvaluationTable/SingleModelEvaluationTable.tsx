@@ -407,7 +407,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 type="primary"
                                 onClick={runAllEvaluations}
                                 size="large"
-                                data-cy="abTesting-run-all-button"
+                                data-cy="single-model-run-all-button"
                             >
                                 Run All
                             </Button>
