@@ -1,9 +1,9 @@
 import React, {useEffect, useState} from "react"
-import {Button, Input, Card, Row, Col, Space} from "antd"
+import {Button, Input, Card, Row, Col, Space, Form} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
-import {randString, removeKeys, renameVariables} from "@/lib/helpers/utils"
+import {randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -11,10 +11,12 @@ import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {createUseStyles} from "react-jss"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useRouter} from "next/router"
-import ChatInputs, {getDefaultNewMessage} from "@/components/ChatInputs/ChatInputs"
+import {getDefaultNewMessage} from "@/components/ChatInputs/ChatInputs"
 import {v4 as uuidv4} from "uuid"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import ParamsForm from "../ParamsForm/ParamsForm"
 
+const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
 
 const useStylesBox = createUseStyles({
@@ -110,18 +112,16 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     isChatVariant = false,
 }) => {
     const classes = useStylesBox()
-    const {TextArea} = Input
     const loading = result === LOADING_TEXT
+    const [form] = Form.useForm()
 
     if (!inputParams) {
         return <div>Loading...</div>
     }
 
-    const inputParamsNames = inputParams.map((param) => param.name)
-
     const handleAddToTestset = () => {
         const params: Record<string, string> = {}
-        inputParamsNames.forEach((name) => {
+        inputParams.forEach(({name}) => {
             params[name] = testData[name] || ""
         })
         params.correct_answer = result
@@ -142,22 +142,18 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             </Row>
 
             <Row className={classes.row1}>
-                {isChatVariant ? (
-                    <ChatInputs
-                        value={testData.chat}
-                        onChange={(val) => onInputParamChange("chat", val)}
-                    />
-                ) : (
-                    inputParamsNames.map((key, index) => (
-                        <TextArea
-                            data-cy={`testview-input-parameters-${index}`}
-                            key={index}
-                            value={testData[key]}
-                            placeholder={renameVariables(key)}
-                            onChange={(e) => onInputParamChange(key, e.target.value)}
-                        />
-                    ))
-                )}
+                <ParamsForm
+                    isChatVariant={isChatVariant}
+                    inputParams={
+                        isChatVariant
+                            ? [{value: testData.chat, name: "chat"} as any]
+                            : inputParams.map((item) => ({...item, value: testData[item.name]}))
+                    }
+                    onFinish={onRun}
+                    onParamChange={onInputParamChange}
+                    form={form}
+                    imageSize="large"
+                />
             </Row>
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
                 <Col span={24} className={classes.row2Col}>
@@ -180,7 +176,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         type="primary"
                         shape="round"
                         icon={<CaretRightOutlined />}
-                        onClick={onRun}
+                        onClick={isChatVariant ? onRun : form.submit}
                         loading={loading}
                     >
                         Run
@@ -209,6 +205,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
+    const rootRef = React.useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         setResultsList((prevResultsList) => {
@@ -281,7 +278,9 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     }
 
     const handleRunAll = () => {
-        testList.forEach((_, index) => handleRun(index))
+        rootRef.current
+            ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
+            .forEach((btn) => (btn as HTMLButtonElement).click())
     }
 
     const handleAddRow = () => {
@@ -318,7 +317,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     }
 
     return (
-        <div>
+        <div ref={rootRef}>
             <div className={classes.testView}>
                 <h2>2. Preview and test</h2>
                 <Space size={10}>

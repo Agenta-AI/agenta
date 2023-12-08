@@ -45,6 +45,6 @@ def explain(
     chat_completion = client.chat.completions.create(
         model="gpt-4-vision-preview",
         messages=messages,
-        max_tokens=max_tokens,
+        max_tokens=ag.config.max_tokens,
     )
     return chat_completion.choices[0].message.content

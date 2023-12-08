@@ -1,7 +1,7 @@
-export function isValidUrl(url: string) {
+export const isValidHttpUrl = (url: string) => {
     try {
-        new URL(url)
-        return true
+        const newUrl = new URL(url)
+        return newUrl.protocol.startsWith("http")
     } catch (_) {
         return false
     }

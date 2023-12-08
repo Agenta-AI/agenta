@@ -1,20 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {CaretRightOutlined} from "@ant-design/icons"
-import {
-    Button,
-    Card,
-    Col,
-    Input,
-    Radio,
-    Row,
-    Space,
-    Spin,
-    Statistic,
-    Table,
-    Typography,
-    message,
-} from "antd"
+import {Button, Card, Col, Radio, Row, Space, Statistic, Table, Typography, message} from "antd"
 import {
     updateEvaluationScenario,
     callVariant,
@@ -34,6 +20,7 @@ import {EvaluationTypeLabels, camelToSnake} from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
+import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
 
 const {Title} = Typography
 
@@ -76,7 +63,7 @@ const useStyles = createUseStyles({
         "& button": {
             marginLeft: 10,
         },
-        marginTop: 10,
+        marginTop: "0.75rem",
     },
     recordInput: {
         marginBottom: 10,
@@ -334,36 +321,24 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 </div>
             ),
             dataIndex: "inputs",
-            render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => (
-                <div>
-                    {evaluation.testset.testsetChatColumn
-                        ? evaluation.testset.csvdata[rowIndex][
-                              evaluation.testset.testsetChatColumn
-                          ] || " - "
-                        : record &&
-                          record.inputs &&
-                          record.inputs.length && // initial value of inputs is array with 1 element and variantInputs could contain more than 1 element
-                          record.inputs.map((input: any, index: number) => (
-                              <div className={classes.recordInput} key={index}>
-                                  <Input.TextArea
-                                      rows={2}
-                                      placeholder={input.input_name}
-                                      value={input.input_value}
-                                      onChange={(e) => handleInputChange(e, record.id, index)}
-                                  />
-                              </div>
-                          ))}
-
-                    <div className={classes.inputTestBtn}>
-                        <Button
-                            onClick={() => runEvaluation(record.id!)}
-                            icon={<CaretRightOutlined />}
-                        >
-                            Run
-                        </Button>
-                    </div>
-                </div>
-            ),
+            render: (_: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
+                return (
+                    <ParamsFormWithRun
+                        evaluation={evaluation}
+                        record={record}
+                        rowIndex={rowIndex}
+                        onRun={() => runEvaluation(record.id!)}
+                        onParamChange={(name, value) =>
+                            handleInputChange(
+                                {target: {value}} as any,
+                                record.id,
+                                record?.inputs.findIndex((ip) => ip.input_name === name),
+                            )
+                        }
+                        variantData={variantData}
+                    />
+                )
+            },
         },
         ...dynamicColumns,
         {
@@ -461,7 +436,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     dataSource={rows}
                     columns={columns}
                     pagination={false}
-                    rowClassName={() => "editable-row"}
                     rowKey={(record) => record.id!}
                 />
             ) : (
@@ -473,6 +447,7 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                     onInputChange={handleInputChange}
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
+                    variantData={variantData}
                 />
             )}
         </div>
