@@ -470,6 +470,23 @@ async def get_deployment_by_objectid(
     return deployment
 
 
+async def get_deployment_by_appId(app_id: str) -> DeploymentDB:
+    """Get the deployment object from the database with the provided app id.
+
+    Args:
+        app_id (str): The app ID
+
+    Returns:
+        DeploymentDB: instance of deployment object
+    """
+
+    deployment = await engine.find_one(
+        DeploymentDB, DeploymentDB.app == ObjectId(app_id)
+    )
+    logger.debug(f"deployment: {deployment}")
+    return deployment
+
+
 async def get_organization_object(organization_id: str) -> OrganizationDB:
     """
     Fetches an organization by its ID.
