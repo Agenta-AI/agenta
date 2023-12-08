@@ -177,34 +177,42 @@ const ViewNavigation: React.FC<Props> = ({
                             {isCloud() && (
                                 <div>
                                     <li>
-                                        Check if the lambda function for the variant {variantDesignator} is
-                                        active by running the following command in your terminal:
-                                        <pre>agenta get logs --variant :variant_id:</pre> or <pre>agenta get logs :variant_id:</pre>
-                                        Running the above command will enable you to view the latest logs stream events.
+                                        Check if the lambda function for the variant{" "}
+                                        {variantDesignator} is active by running the following
+                                        command in your terminal:
+                                        <pre>agenta get logs --variant :variant_id:</pre> or{" "}
+                                        <pre>agenta get logs :variant_id:</pre>
+                                        Running the above command will enable you to view the latest
+                                        logs stream events.
                                     </li>
                                 </div>
                             )}
                             {isEnterprise() && (
-                                <div><li></li></div>
+                                <div>
+                                    <li></li>
+                                </div>
                             )}
                             {!isCloud() && (
-                            <div>
-                                <li>
-                                    Check if the Docker container for the variant {variantDesignator} is
-                                    active by running the following command in your terminal:
-                                    <pre>docker logs {containerName} --tail 50 -f</pre>
-                                    Running the above command will enable you to continuously stream the
-                                    container logs in real-time as they are generated.
-                                </li>
-                                <p>
-                                    {" "}
-                                    In case the docker container is not running, please check the Docker
-                                    logs to understand the issue. Most of the time, it is due to missing
-                                    requirements. Also, please attempt restarting it (using cli or docker
-                                    desktop).
-                                </p>
-                            </div>
-                        )}
+                                <div>
+                                    <li>
+                                        Check if the Docker container for the variant{" "}
+                                        {variantDesignator} is active by running the following
+                                        command in your terminal:
+                                        <pre>docker logs {containerName} --tail 50 -f</pre>
+                                        Running the above command will enable you to continuously
+                                        stream the container logs in real-time as they are
+                                        generated.
+                                    </li>
+                                    <p>
+                                        {" "}
+                                        In case the docker container is not running, please check
+                                        the Docker logs to understand the issue. Most of the time,
+                                        it is due to missing requirements. Also, please attempt
+                                        restarting it (using cli or docker desktop).
+                                    </p>
+                                </div>
+                            )}
+                        </ul>
                         <p>
                             {" "}
                             If the issue persists please file an issue in github here:
