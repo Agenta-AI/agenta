@@ -1230,7 +1230,7 @@ async def get_app_variant_by_app_name_and_environment(
     return app_variant_db
 
 
-async def get_app_variant_instance_by_id(variant_id: str):
+async def get_app_variant_instance_by_id(variant_id: str) -> AppVariantDB:
     """Get the app variant object from the database with the provided id.
 
     Arguments:
