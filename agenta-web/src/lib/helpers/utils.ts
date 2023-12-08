@@ -185,6 +185,20 @@ export const isDemo = () => {
     return false
 }
 
+export const isCloud = () => {
+    if (process.env.NEXT_PUBLIC_FF) {
+        return process.env.NEXT_PUBLIC_FF === "cloud"
+    }
+    return false
+}
+
+export const isEnterprise = () => {
+    if (process.env.NEXT_PUBLIC_FF) {
+        return process.env.NEXT_PUBLIC_FF === "ee"
+    }
+    return false
+}
+
 export function dynamicComponent<T>(path: string, fallback: any = () => null) {
     return dynamic<T>(() => import(`@/components/${path}`), {
         loading: fallback,
