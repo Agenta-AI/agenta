@@ -1,8 +1,6 @@
 import os
 import logging
-import asyncio
 from typing import Any, Optional, Union
-from concurrent.futures import ThreadPoolExecutor
 
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, HTTPException, Request, Body
@@ -283,20 +281,17 @@ async def start_variant(
 async def retrieve_variant_logs(variant_id: str, request: Request):
     version = request.query_params.get("version")
     app_variant = await db_manager.get_app_variant_instance_by_id(variant_id)
-
-    #  Get event loop and create a ThreadPoolExecutor for running threads
-    loop = asyncio.get_event_loop()
-    thread_pool = ThreadPoolExecutor(max_workers=4)
+    deployment = await db_manager.get_deployment_by_appId(str(app_variant.app.id))
     if version == "cloud":
-        future = loop.run_in_executor(
-            thread_pool,
-            logs_manager.retrieve_cloudwatch_logs,
-            *(str(app_variant.app.id)),
-        )
-        logs_result = await asyncio.wrap_future(future)
+        try:
+            logs_result = logs_manager.retrieve_cloudwatch_logs(
+                deployment.container_name
+            )
+        except Exception as exc:
+            raise HTTPException(500, {"message": str(exc)})
         return logs_result
 
     if version == "ee":
         ...
 
-    return ""
+    return "Please specify the required agenta version for retrieving the logs."
