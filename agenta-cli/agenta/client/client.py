@@ -549,6 +549,6 @@ def retrieve_variant_logs(
             raise APIRequestError(
                 f"Request to retrieve_variant_logs endpoint failed with status code {response.status_code}. Error message: {error_message}"
             )
-        return response.json()["logs"]
+        return response.json()
     except RequestException as e:
         raise APIRequestError(f"Request failed: {str(e)}")

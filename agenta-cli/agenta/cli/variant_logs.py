@@ -94,8 +94,11 @@ def get_variant_logs_stream(ctx, variant: str, app_folder: str):
                     "\n====================\nLOGS OUTPUT: \n===================="
                 )
             )
-            for item in logs_messages:
-                click.echo(click.style(f"- {item.strip()}"))
+            if isinstance(logs_messages, list):
+                for item in logs_messages:
+                    click.echo(click.style(f"- {item.strip()}"))
+            else:
+                click.echo(click.style(f"- {logs_messages}"))
             return
         else:
             click.echo(
