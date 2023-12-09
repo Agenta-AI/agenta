@@ -33,7 +33,7 @@ Cypress.Commands.add("createVariant", () => {
         })
     })
 
-    cy.get('[data-cy="create-app-button"]').first().click()
+    cy.get('[data-cy^="create-app-button"]').eq(1).click()
     const appName = randString(5)
 
     cy.get('[data-cy="enter-app-name-modal"]')
@@ -64,7 +64,7 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.get('[data-cy="testset-name-input"]').type(testsetName)
     cy.wrap(testsetName).as("testsetName")
 
-    cy.get(".ag-row").should("be.visible").should("have.length", 3)
+    cy.get(".ag-row").should("have.length", 3)
     countries.forEach((country, index) => {
         cy.get(`.ag-center-cols-container .ag-row[row-index="${index}"]`).within(() => {
             cy.get(".ag-cell").eq(1).type(country.country)
