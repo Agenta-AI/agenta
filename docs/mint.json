@@ -43,7 +43,7 @@
       "url": "https://github.com/agenta-ai/agenta"
     },
     {
-      "name": "Book an Onboarding Call",
+      "name": "Book a Demo",
       "icon": "phone",
       "url": "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
     }
@@ -88,13 +88,20 @@
       ]
     },
     {
-      "group": "Self-host agenta",
+      "group": "Python SDK",
       "pages": [
-        "self-host/host-locally",
-        "self-host/host-remotely",
-        "self-host/host-on-aws",
-        "self-host/host-on-gcp",
-        "self-host/host-on-kubernetes"
+        "sdk/quick_start",
+        {
+          "group": "Core Functions",
+          "pages": [
+            "sdk/init",
+            "sdk/config_object",
+            "sdk/config_default",
+            "sdk/config_pull",
+            "sdk/config_push",
+            "sdk/config_datatypes"
+          ]
+        }
       ]
     },
     {
@@ -114,6 +121,21 @@
       ]
     },
     {
+      "group": "Self-host agenta",
+      "pages": [
+        "self-host/host-locally",
+        {
+          "group": "Deploy Remotely",
+          "pages": [
+            "self-host/host-remotely",
+            "self-host/host-on-aws",
+            "self-host/host-on-gcp",
+            "self-host/host-on-kubernetes"
+          ]
+        }
+      ]
+    },
+    {
       "group": "Contributing",
       "pages": [
         "contributing/getting-started",
@@ -124,7 +146,6 @@
     {
       "group": "Reference",
       "pages": [
-        "reference/sdk",
         {
           "group": "Backend API",
           "pages": [
