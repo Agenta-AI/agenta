@@ -35,24 +35,12 @@ describe("Testsets crud and UI functionality", () => {
             cy.get('[data-cy="testset-name-input"]').type(testsetName)
             cy.get(".ag-row").should("have.length", 3)
             countries.forEach((country, index) => {
-                cy.get(".ag-row")
-                    .eq(index)
-                    .within(() => {
-                        cy.get("div.ag-cell")
-                            .eq(1)
-                            .within(() => {
-                                cy.get("span").eq(0).dblclick()
-                                cy.get(".ag-input-field-input").type(country.country)
-                            })
-                        cy.get("div.ag-cell")
-                            .eq(2)
-                            .within(() => {
-                                cy.get("span").eq(0).dblclick()
-                                cy.get(".ag-input-field-input").type(
-                                    `The capital of ${country.country} is ${country.capital}.`,
-                                )
-                            })
-                    })
+                cy.get(`.ag-center-cols-container .ag-row[row-index="${index}"]`).within(() => {
+                    cy.get(".ag-cell").eq(1).type(country.country)
+                    cy.get(".ag-cell")
+                        .eq(2)
+                        .type(`The capital of ${country.country} is ${country.capital}.`)
+                })
             })
             cy.intercept("/api/testsets/*").as("saveTestsetRequest")
             cy.get('[data-cy="testset-save-button"]').click()
