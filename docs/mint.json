@@ -8,9 +8,9 @@
   },
   "favicon": "/logo/favicon.png",
   "colors": {
-    "primary": "#32bf40",
-    "light": "#00FF19",
-    "dark": "#00FF19"
+    "primary": "#34d399",
+    "light": "#34d399",
+    "dark": "#34d399"
   },
   "modeToggle": {
     "default": "dark",
@@ -43,7 +43,7 @@
       "url": "https://github.com/agenta-ai/agenta"
     },
     {
-      "name": "Book a Free Consulation",
+      "name": "Book an Onboarding Call",
       "icon": "phone",
       "url": "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
     }
