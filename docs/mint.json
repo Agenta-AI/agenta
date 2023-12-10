@@ -73,6 +73,7 @@
     {
       "group": "How-to Guides",
       "pages": [
+        "howto/use-a-custom-llm",
         "howto/creating-multiple-app-variants",
         "howto/how-to-debug"
       ]
@@ -81,8 +82,6 @@
       "group": "Learn",
       "pages": [
         "learn/the_llmops_workflow",
-        "learn/llm_app_architectures",
-        "learn/prompt_engineering",
         "conceptual/evaluating_llm_apps",
         "conceptual/concepts",
         "conceptual/architecture"
