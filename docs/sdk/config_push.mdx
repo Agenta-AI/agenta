@@ -1,0 +1,13 @@
+---
+title: "config.push()"
+description: "Pushes a configuration to the backend"
+---
+
+`agenta.config.push(self, config_name: str, overwrite=True, **kwargs)``
+
+This function pushes the configuration to the backend. The configuration contains all the parameters for the variant.
+
+The configuration is pushed to config_name for the code base being run. Basically if you are running `variant_name.py`, the configuration will be pushed to `variant_name.config_name`. 
+
+If overwrite is set to True, the configuration will overwrite the existing configuration. If overwrite is set to False, the configuration will be pushed only if the configuration does not exist yet.
+

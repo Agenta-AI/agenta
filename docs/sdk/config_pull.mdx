@@ -1,0 +1,27 @@
+---
+title: "config.pull()"
+description: "Pull a configuration from the backend"
+---
+
+`agenta.config.pull(config_name: str = "default", environment_name: str = None)`
+
+This function pulls the configuration from the backend and save them in the config object. The configuration contains all the parameters for the variant. 
+
+The configuration can be pulled by name. For instance
+```python
+agenta.config.pull("my_config")
+```
+
+This would pull the parameters from the backend for the configuration `my_config` (that is for `variant_name.py`, the configuration in the playground for the variant `variant_name.my_config`)
+
+The configuration can also be pulled by the environment name. For instance, you can always use the parameters from the 'production' environment by using:
+
+```python
+agenta.config.pull(environment_name = "production")
+```
+
+After pulling the configuration, the parameters are accessible in the following way:
+
+```python
+agenta.config.parameter_name
+```
