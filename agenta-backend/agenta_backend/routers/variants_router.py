@@ -283,7 +283,7 @@ async def retrieve_variant_logs(variant_id: str, request: Request):
     app_variant = await db_manager.get_app_variant_instance_by_id(variant_id)
     deployment = await db_manager.get_deployment_by_appId(str(app_variant.app.id))
     try:
-        logs_result = logs_manager.retrieve_cloudwatch_logs(deployment.container_name)
+        logs_result = logs_manager.retrieve_logs(deployment.container_name)
     except Exception as exc:
         raise HTTPException(500, {"message": str(exc)})
     return logs_result
