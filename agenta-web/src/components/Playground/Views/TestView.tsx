@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react"
+import React, {useContext, useEffect, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
@@ -15,6 +15,7 @@ import {getDefaultNewMessage} from "@/components/ChatInputs/ChatInputs"
 import {v4 as uuidv4} from "uuid"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import ParamsForm from "../ParamsForm/ParamsForm"
+import {TestContext} from "../TestContextProvider"
 
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
@@ -201,7 +202,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVariant}) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
-    const [testList, setTestList] = useState<GenericObject[]>([{}])
+    const {testList, setTestList} = useContext(TestContext)
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
