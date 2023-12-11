@@ -33,7 +33,7 @@ Cypress.Commands.add("createVariant", () => {
         })
     })
 
-    cy.get('[data-cy^="create-app-button"]').eq(1).click()
+    cy.get('[data-cy^="create-app-button"]').eq(0).click()
     const appName = randString(5)
 
     cy.get('[data-cy="enter-app-name-modal"]')
