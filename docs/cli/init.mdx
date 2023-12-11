@@ -1,0 +1,53 @@
+---
+title: "agenta init"
+description: "Initialize a new project"
+---
+
+
+```bash
+agenta init
+```
+
+# Description
+
+
+The init command initializes a new agenta project. Users can define the application's name and select the agenta platform host (either local or cloud).
+
+This command creates a blank project in the backend and generates a config.toml file for configuration settings.
+
+<Info>This command creates a `project.toml` file containing all the information about your project</Info>
+
+# Usage
+
+When running `agenta init` you will prompted the following questions:
+
+### Project name
+```bash
+? Please enter the app name
+```
+
+Enter the app/project name
+
+### Agenta host
+```bash
+? Where are you running agenta? (Use arrow keys)
+ » On agenta cloud
+   On my local machine
+   On a remote machine
+```
+
+Here you can select where the agenta platform is hosted.
+- Select cloud, in case you are using agenta cloud ([https://cloud.agenta.ai](https://cloud.agenta.ai)). In that case you will prompted to enter your API key. You can get these from the [agenta cloud configuration](https://cloud.agenta.ai/settings?tab=apiKeys).
+- Select local machine if you are running the OSS version of agenta on your local machine ([http://localhost](http://localhost))
+- Select remote machine, in case you are running the OSS version of agenta on a remote machine. In that case you will prompted to enter the remote machine URL.
+
+<Info> In case you are running agenta enterprise, please refer to the enterprise documentation on how to set up your agenta project</Info>
+
+### Start from scratch or from a template
+```bash
+? How do you want to initialize your app? (Use arrow keys)
+ » Blank App
+   Start from template
+```
+
+Chose blank app to start from scratch (write your own code) or start from template to use one of the agenta templates.

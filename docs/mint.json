@@ -8,9 +8,9 @@
   },
   "favicon": "/logo/favicon.png",
   "colors": {
-    "primary": "#32bf40",
-    "light": "#00FF19",
-    "dark": "#00FF19"
+    "primary": "#34d399",
+    "light": "#34d399",
+    "dark": "#34d399"
   },
   "modeToggle": {
     "default": "dark",
@@ -43,7 +43,7 @@
       "url": "https://github.com/agenta-ai/agenta"
     },
     {
-      "name": "Book a Free Consulation",
+      "name": "Book a Demo",
       "icon": "phone",
       "url": "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
     }
@@ -73,26 +73,66 @@
     {
       "group": "How-to Guides",
       "pages": [
+        "howto/use-a-custom-llm",
         "howto/creating-multiple-app-variants",
         "howto/how-to-debug"
       ]
     },
     {
-      "group": "Conceptual Guides",
+      "group": "Learn",
       "pages": [
+        "learn/the_llmops_workflow",
         "conceptual/evaluating_llm_apps",
         "conceptual/concepts",
         "conceptual/architecture"
       ]
     },
     {
+      "group": "Python SDK",
+      "pages": [
+        "sdk/quick_start",
+        {
+          "group": "Core Functions",
+          "pages": [
+            "sdk/init",
+            "sdk/config_object",
+            "sdk/config_default",
+            "sdk/config_pull",
+            "sdk/config_push",
+            "sdk/config_datatypes"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Command Line",
+      "pages": [
+        "cli/install",
+        "cli/quick-usage",
+        {
+          "group": "Core commands",
+          "pages": [
+            "cli/init",
+            "cli/variant_serve",
+            "cli/variant_list",
+            "cli/variant_remove"
+          ]
+        }
+      ]
+    },
+    {
       "group": "Self-host agenta",
       "pages": [
         "self-host/host-locally",
-        "self-host/host-remotely",
-        "self-host/host-on-aws",
-        "self-host/host-on-gcp",
-        "self-host/host-on-kubernetes"
+        {
+          "group": "Deploy Remotely",
+          "pages": [
+            "self-host/host-remotely",
+            "self-host/host-on-aws",
+            "self-host/host-on-gcp",
+            "self-host/host-on-kubernetes"
+          ]
+        }
       ]
     },
     {
@@ -106,8 +146,6 @@
     {
       "group": "Reference",
       "pages": [
-        "reference/agenta-cli",
-        "reference/sdk",
         {
           "group": "Backend API",
           "pages": [

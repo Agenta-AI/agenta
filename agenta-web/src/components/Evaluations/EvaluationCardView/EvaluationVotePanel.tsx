@@ -92,6 +92,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                         onClick={getOnClick(variant.variantId)}
                         type={value === variant.variantId ? "primary" : undefined}
                         danger
+                        data-cy="abTesting-app-variant-vote-button"
                     >
                         {String.fromCharCode(65 + ix)}: {variant.variantName}
                     </Button>
@@ -106,6 +107,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({variants, onChange, valu
                 type={value === badId ? "primary" : undefined}
                 key={badId}
                 onClick={getOnClick(badId)}
+                data-cy="abTesting-both-bad-vote-button"
             >
                 Both are bad
             </Button>

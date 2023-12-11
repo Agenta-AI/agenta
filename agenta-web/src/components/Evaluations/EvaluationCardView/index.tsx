@@ -221,7 +221,7 @@ const EvaluationCardView: React.FC<Props> = ({
                     </li>
                 </ol>
             ),
-            okText: "Ok",
+            okText: <span data-cy="evalInstructionsShown-ok-btn">Ok</span>,
             cancelText: null,
             width: 500,
             onCancel: () => (opened.current = false),

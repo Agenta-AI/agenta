@@ -174,6 +174,7 @@ async def create_evaluation_scenario(
     "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/"
 )
 async def update_evaluation_scenario_router(
+    evaluation_id: str,
     evaluation_scenario_id: str,
     evaluation_type: EvaluationType,
     evaluation_scenario: EvaluationScenarioUpdate,
