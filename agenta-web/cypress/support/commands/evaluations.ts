@@ -36,6 +36,10 @@ Cypress.Commands.add("createVariant", () => {
     cy.get('[data-cy^="create-app-button"]').eq(0).click()
     const appName = randString(5)
 
+    cy.task("log", `App name: ${appName}`)
+
+    cy.wait(3000)
+
     cy.get('[data-cy="enter-app-name-modal"]')
         .should("exist")
         .within(() => {
