@@ -8,9 +8,17 @@ export default defineConfig({
     video: false,
     screenshotOnRunFailure: false,
     e2e: {
-        baseUrl: "http://localhost",
+        baseUrl: "http://localhost:3000",
         defaultCommandTimeout: 30000,
         requestTimeout: 10000,
+        setupNodeEvents(on) {
+            on("task", {
+                log(message) {
+                    console.log(message)
+                    return null
+                },
+            })
+        },
     },
     env: {
         baseApiURL: "http://localhost/api",
