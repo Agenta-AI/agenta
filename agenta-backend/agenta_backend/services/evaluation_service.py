@@ -179,8 +179,6 @@ async def create_new_bulk_evaluation(app, payload, **user_org_data: dict):
 
 
     newEvaluation = await engine.save(eval_instance)
-    print("new evaluation")
-    print(newEvaluation)
     return newEvaluation
 
 

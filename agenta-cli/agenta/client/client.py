@@ -555,10 +555,8 @@ def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
         testset_id="6577025e60084c599a43e526"
     )
 
-    h = f"{host}/api/evaluations/bulk-evaluate/"
-    print(h)
     response = requests.post(
-        h,
+        f"{host}/api/evaluations/bulk-evaluate/",
         json=newBulkEvaluation.dict(),
         # headers={"Authorization": api_key} if api_key is not None else None,
         timeout=600,

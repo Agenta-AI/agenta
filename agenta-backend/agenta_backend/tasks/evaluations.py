@@ -28,8 +28,6 @@ def auto_regex_test(test_string, regex, should_match):
 
 
 def evaluate(evaluate_name, correct_answer, variant_output, *additional_args, **additional_kwargs):
-    print("evaluate_name", evaluate_name)
-
     module = __import__("agenta_backend.tasks.evaluations", fromlist=[evaluate_name])
     task_function = getattr(module, evaluate_name)
 

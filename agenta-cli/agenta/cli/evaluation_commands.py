@@ -13,7 +13,6 @@ def run_evaluation_cli():
     """Run an evaluation."""
 
     try:
-        print("Running evaluation...")
         client.run_evaluation(
             app_name="sss",
             host="http://localhost",
