@@ -47,7 +47,7 @@ interface Props {
 const AppTemplateCard: React.FC<Props> = ({title, tag, onClick, body, noTemplate}) => {
     const classes = useStyles({tag} as StylesProp)
     return (
-        <Card className={classes.card}>
+        <Card className={classes.card} data-cy="app-template-card">
             {tag && (
                 <Tag color="blue" className={classes.tag}>
                     {tag}
@@ -68,12 +68,7 @@ const AppTemplateCard: React.FC<Props> = ({title, tag, onClick, body, noTemplate
                     <Text type="secondary">
                         <p>{body}</p>
                     </Text>
-                    <Button
-                        shape="round"
-                        onClick={onClick}
-                        className={classes.createBtn}
-                        data-cy="create-app-button"
-                    >
+                    <Button shape="round" onClick={onClick} className={classes.createBtn}>
                         Create App
                     </Button>
                 </div>
