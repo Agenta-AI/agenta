@@ -212,7 +212,8 @@ class EvaluationScenarioOutput(EmbeddedModel):
     variant_id: str
     variant_output: str
 
-
+# TODO: This should be removed and replaced with EvaluationDB
+# Keppeing it for now for backwards compatibility
 class BulkEvaluationDB(Model):
     app: AppDB = Reference(key_name="app")
     organization: OrganizationDB = Reference(key_name="organization")
@@ -262,13 +263,14 @@ class EvaluationScenarioDB(Model):
     class Config:
         collection = "evaluation_scenarios"
 
-
-class SingleEvaluationScenarioDB(Model):
+# TODO: This should be removed and replaced with EvaluationScenarioDB
+# Keppeing it for now for backwards compatibility
+class EvaluationScenarioDBForBulkEvaluationDB(Model):
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     evaluation: BulkEvaluationDB = Reference(key_name="bulk_evaluations")
     inputs: List[EvaluationScenarioInput]
-    output: EvaluationScenarioOutput
+    outputs: List[EvaluationScenarioOutput]
     vote: Optional[str]
     score: Optional[Union[str, int]]
     correct_answer: Optional[str]

@@ -34,7 +34,7 @@ from agenta_backend.models.db_models import (
     BulkEvaluationDB,
     EvaluationDB,
     EvaluationScenarioDB,
-    SingleEvaluationScenarioDB,
+    EvaluationScenarioDBForBulkEvaluationDB,
     UserDB,
     AppDB,
     EvaluationTypeSettings,
@@ -337,7 +337,7 @@ async def create_single_evaluation_scenario(
         for input_item in payload.inputs
     ]
 
-    new_eval_scenario = SingleEvaluationScenarioDB(
+    new_eval_scenario = EvaluationScenarioDBForBulkEvaluationDB(
         user=evaluation.user,
         organization=evaluation.organization,
         evaluation=evaluation,
