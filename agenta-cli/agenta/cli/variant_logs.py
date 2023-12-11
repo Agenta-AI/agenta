@@ -67,11 +67,7 @@ def get_variant_logs_stream(ctx, variant: str, app_folder: str):
             variant = ctx.args[0]
 
         config_check(app_folder)
-        click.echo(
-            click.style(
-                "Retrieving variant logs stream from cloudwatch...", fg="yellow"
-            )
-        )
+        click.echo(click.style("Retrieving variant logs...", fg="yellow"))
         api_key = get_api_key(app_folder)
         if not api_key:
             click.echo(click.style(f"API Key is not specified\n", fg="red"))
@@ -85,7 +81,7 @@ def get_variant_logs_stream(ctx, variant: str, app_folder: str):
             )
             click.echo(
                 click.style(
-                    f"Successfully retrieved logs stream for variant {variant}! 🎉",
+                    f"Successfully retrieved logs for variant {variant}! 🎉",
                     fg="green",
                 )
             )
@@ -110,7 +106,7 @@ def get_variant_logs_stream(ctx, variant: str, app_folder: str):
     except Exception as ex:
         click.echo(
             click.style(
-                f"Error fetching logs streams for variant {variant}: {ex}\n",
+                f"Error fetching logs for variant {variant}: {ex}\n",
                 fg="red",
             )
         )
