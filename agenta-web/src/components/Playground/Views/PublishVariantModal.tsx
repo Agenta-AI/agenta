@@ -57,7 +57,7 @@ const PublishVariantModal: React.FC<Props> = ({
             closeModal()
             await loadEnvironments()
             message.success(`Published ${variant.variantName} to ${envName}`)
-            posthog.capture('app_deployed', { app_id: appId, environment: envName })
+            posthog.capture("app_deployed", {app_id: appId, environment: envName})
         })
     }
 
