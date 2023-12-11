@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import {useEffect} from "react"
 import type {AppProps} from "next/app"
-import { useRouter } from 'next/router'
+import {useRouter} from "next/router"
 
 import posthog from "posthog-js"
 import {PostHogProvider} from "posthog-js/react"
@@ -20,7 +20,7 @@ if (typeof window !== "undefined") {
             if (process.env.NODE_ENV === "development") posthog.debug()
         },
         capture_pageview: false,
-        persistence: "localStorage+cookie"
+        persistence: "localStorage+cookie",
     })
 }
 
@@ -28,11 +28,12 @@ export default function App({Component, pageProps}: AppProps) {
     const router = useRouter()
 
     useEffect(() => {
-        const handleRouteChange = () => posthog.capture('$pageview', { $current_url: window.location.href })
-        router.events.on('routeChangeComplete', handleRouteChange)
+        const handleRouteChange = () =>
+            posthog.capture("$pageview", {$current_url: window.location.href})
+        router.events.on("routeChangeComplete", handleRouteChange)
 
         return () => {
-        router.events.off('routeChangeComplete', handleRouteChange)
+            router.events.off("routeChangeComplete", handleRouteChange)
         }
     }, [])
     return (
