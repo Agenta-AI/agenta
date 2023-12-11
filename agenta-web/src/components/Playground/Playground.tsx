@@ -14,6 +14,7 @@ import {DndContext, PointerSensor, useSensor} from "@dnd-kit/core"
 import {arrayMove, SortableContext, horizontalListSortingStrategy} from "@dnd-kit/sortable"
 import DraggableTabNode from "../DraggableTabNode/DraggableTabNode"
 import {useLocalStorage} from "usehooks-ts"
+import TestContextProvider from "./TestContextProvider"
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -259,8 +260,7 @@ const Playground: React.FC = () => {
     return (
         <div>
             {contextHolder}
-
-            <div>
+            <TestContextProvider>
                 <div
                     style={{
                         display: "flex",
@@ -359,7 +359,7 @@ const Playground: React.FC = () => {
                         )}
                     />
                 )}
-            </div>
+            </TestContextProvider>
 
             <NewVariantModal
                 isModalOpen={isModalOpen}
