@@ -1,0 +1,48 @@
+---
+title: "Config Data Types"
+description: "Data types allow you to configure the playground"
+---
+
+## Data types for parameters
+
+There are multiple data types that can be used for the parameters in the configuration. Each data type translates into an element in the playground.
+
+### TextParam
+
+This display a text area widget in the playground. 
+
+```python
+agenta.config.default(prompt_system = ag.TextParam("You are an expert in geography."),
+                      prompt_user = ag.TextParam("What is the capital of {country}?"))
+``` 
+
+### IntParam
+
+This displays a slider widget in the playground with a step 1 (integers). 
+
+```python
+agenta.config.default(intval1 = ag.IntParam(default=1, minval=0, maxval=2),
+                      intval2 = ag.IntParam(1)
+```
+
+### FloatParam
+
+This displays a slider widget in the playground with a step 0.1 (float).
+
+
+```python
+agenta.config.default(temperature = ag.IntParam(default=0.5, minval=0, maxval=2),
+                      temperature2 = ag.IntParam(0.5)
+```
+
+
+## Data types for inputs
+
+Inputs in contrast to parameters are given as argument to the function decorated with `@agenta.entrypoint`. They are not part of the configuration but instead are the input in the call to the LLM app.
+
+```python
+def my_entrypoint(name:str):
+```
+
+Since the agenta sdk uses fastapi under the hood, the data types for the inputs are the same as the ones used in fastapi. In addition, there are some special data types.
+

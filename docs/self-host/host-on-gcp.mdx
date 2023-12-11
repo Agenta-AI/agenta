@@ -1,8 +1,9 @@
 ---
 title: Deploy on Google Cloud Engine
-description: 'Installing Agenta on GCP'
+description: 'Installing Agenta on GCP Compute Engine using terraform'
 ---
 
+<Tip> This guide is for provisioning and deploying agenta on GCP Compute Engine **using Terraform**. If you prefer to provision the instance manually, you can use the [guide for deploying on a remote machine](/self-host/host-remotely/). </Tip>
 ## GCP 
 We provide a Terraform module to deploy Agenta on GCP. You can find it [here](https://github.com/Agenta-AI/agenta/tree/main/self-host/gcp).
 The terraform module will in the in us-central1 region create;
@@ -15,6 +16,9 @@ You can customize the module according to your needs.
 ### Prerequisites
 
 1. **Install Terraform**: First, install [Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli).
+
+<Tip> Step 2 until 6 can be skipped if you already have a project with billing enabled and a service account with the compute admin role. </Tip>
+
 2. **Setup Project**; In the [Google cloud Console](https://console.cloud.google.com), on the project selector page, select or [create a Google Cloud project](https://cloud.google.com/resource-manager/docs/creating-managing-projects), then copy and save the Project ID for later.
 3. **Confirm Billing**; [Make sure that billing is enabled for your Google Cloud project.](https://cloud.google.com/billing/docs/how-to/verify-billing-enabled#console)
 4. **Create a Service account**; Click [here to Create a Service account](https://cloud.google.com/iam/docs/service-accounts-create) and specify the compute admin role.
@@ -22,8 +26,9 @@ You can customize the module according to your needs.
    <img height="600" src="/images/agenta_service_account.png" />
 
 5. **Get Service account key**; Click [here to obtain the keys for the service account](https://console.cloud.google.com/iam-admin/serviceaccounts?walkthrough_id=iam--create-service-account-keys&start_index=1#step_index=1) you created.
-6. Copy the content of the downloaded key file and replace the content of [credentials.json](https://github.com/Agenta-AI/agenta/blob/main/self-host/gcp/credentials.json) with it.
-7. Enable Google Compute Engine API: Navigate to [Compute Engine API](https://console.cloud.google.com/apis/library/compute.googleapis.com) and make sure to select the correct project at the top, then enable Compute Engine API.
+6. Enable Google Compute Engine API: Navigate to [Compute Engine API](https://console.cloud.google.com/apis/library/compute.googleapis.com) and make sure to select the correct project at the top, then enable Compute Engine API.
+
+7. Copy the content of the downloaded key file and replace the content of [credentials.json](https://github.com/Agenta-AI/agenta/blob/main/self-host/gcp/credentials.json) with it.
 8. **Initialize and Apply Terraform**: Navigate to the correct directory and run:
    ```bash
    cd self-host/gcp
