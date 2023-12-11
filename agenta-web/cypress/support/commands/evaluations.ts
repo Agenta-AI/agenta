@@ -33,9 +33,13 @@ Cypress.Commands.add("createVariant", () => {
         })
     })
 
-    cy.get('[data-cy^="create-app-button"]').eq(0).click()
-    const appName = randString(5)
+    cy.contains("Single Prompt")
+        .parentsUntil('[data-cy^="app-template-card"]')
+        .last()
+        .contains("create app", {matchCase: false})
+        .click()
 
+    const appName = randString(5)
     cy.task("log", `App name: ${appName}`)
 
     cy.get('[data-cy="enter-app-name-modal"]')
