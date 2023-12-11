@@ -59,7 +59,7 @@ def get_api_key(app_folder: str) -> str:
 @click.option("--variant", help="The ID of the variant.")
 @click.option("--app_folder", default=".")
 @click.pass_context
-def get_variant_logs_stream(ctx, variant: str, app_folder: str):
+def get_variant_logs(ctx, variant: str, app_folder: str):
     """Fetch the logs stream and events for a given lambda app function"""
 
     try:
