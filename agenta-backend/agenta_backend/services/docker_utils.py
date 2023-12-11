@@ -105,6 +105,7 @@ def start_container(
             labels.update(development_labels)
 
         env_vars = {} if env_vars is None else env_vars
+        extra_hosts = {"host.docker.internal": "host-gateway"}
         container = client.containers.run(
             image,
             detach=True,
@@ -112,6 +113,7 @@ def start_container(
             network="agenta-network",
             name=container_name,
             environment=env_vars,
+            extra_hosts=extra_hosts,
         )
         # Check the container's status
         sleep(0.5)
