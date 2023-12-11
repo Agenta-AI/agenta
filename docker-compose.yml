@@ -22,6 +22,9 @@ services:
             - FEATURE_FLAG=oss
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
+
+            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
+            - CELERY_RESULT_BACKEND=redis://redis:6379/0
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
@@ -92,7 +95,7 @@ services:
             retries: 20
 
     mongo_express:
-        image: mongo-express
+        image: mongo-express:0.54.0
         environment:
             ME_CONFIG_MONGODB_ADMINUSERNAME: username
             ME_CONFIG_MONGODB_ADMINPASSWORD: password
@@ -111,6 +114,39 @@ services:
             - agenta-network
         volumes:
             - redis_data:/data
+
+    rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+        volumes:
+            - ./rabbitmq_data:/var/lib/rabbitmq
+        environment:
+            RABBITMQ_DEFAULT_USER: "guest"
+            RABBITMQ_DEFAULT_PASS: "guest"
+        networks:
+            - agenta-network
+
+
+    celery_worker:
+      build: ./agenta-backend
+      command: celery -A agenta_backend.main.celery_app worker --loglevel=info
+      environment:
+        - MONGODB_URI=mongodb://username:password@mongo:27017
+        - REDIS_URL=redis://redis:6379/0
+        - CELERY_BROKER_URL=amqp://guest@rabbitmq//
+        - CELERY_RESULT_BACKEND=redis://redis:6379/0
+        - FEATURE_FLAG=oss
+
+      volumes:
+        - ./agenta-backend/agenta_backend:/app/agenta_backend
+        - /var/run/docker.sock:/var/run/docker.sock
+      depends_on:
+        - rabbitmq
+        - redis
+      networks:
+        - agenta-network
 
 networks:
     agenta-network:
