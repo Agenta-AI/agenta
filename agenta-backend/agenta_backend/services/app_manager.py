@@ -392,7 +392,7 @@ async def add_variant_based_on_image(
     variants = await db_manager.list_app_variants_for_app_id(
         app_id=str(app.id), **user_org_data
     )
-    already_exists = any([av for av in variants if av.variant_name == variant_name])
+    already_exists = any(av for av in variants if av.variant_name == variant_name)
     if already_exists:
         logger.error("App variant with the same name already exists")
         raise ValueError("App variant with the same name already exists")

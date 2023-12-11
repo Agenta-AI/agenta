@@ -753,7 +753,7 @@ async def add_variant_from_base_and_config(
     app_variant_for_base = await list_variants_for_base(base_db)
 
     already_exists = any(
-        [av for av in app_variant_for_base if av.config_name == new_config_name]
+        av for av in app_variant_for_base if av.config_name == new_config_name
     )
     if already_exists:
         raise ValueError("App variant with the same name already exists")
