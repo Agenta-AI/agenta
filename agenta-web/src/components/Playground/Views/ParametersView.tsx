@@ -1,5 +1,6 @@
 import {Environment, Parameter, Variant} from "@/lib/Types"
 import type {CollapseProps} from "antd"
+import {usePostHog} from "posthog-js/react"
 import {Button, Col, Collapse, Row, Space, Tooltip, message} from "antd"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -70,6 +71,7 @@ const ParametersView: React.FC<Props> = ({
     tabID,
 }) => {
     const classes = useStyles()
+    const posthog = usePostHog()
     const [messageApi, contextHolder] = message.useMessage()
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
@@ -106,6 +108,7 @@ const ParametersView: React.FC<Props> = ({
                 onStateChange(false)
                 res(true)
             })
+            posthog.capture('variant_saved', { variant_id: variant.variantId })
         })
     }
 
