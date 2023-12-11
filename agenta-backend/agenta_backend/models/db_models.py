@@ -213,6 +213,22 @@ class EvaluationScenarioOutput(EmbeddedModel):
     variant_output: str
 
 
+class BulkEvaluationDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    status: str
+    evaluation_type: List[str]
+    evaluation_type_settings: EvaluationTypeSettings
+    variants: List[ObjectId]
+    testset: TestSetDB = Reference(key_name="testsets")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "bulk_evaluations"
+
+
 class EvaluationDB(Model):
     app: AppDB = Reference(key_name="app")
     organization: OrganizationDB = Reference(key_name="organization")
@@ -245,6 +261,24 @@ class EvaluationScenarioDB(Model):
 
     class Config:
         collection = "evaluation_scenarios"
+
+
+class SingleEvaluationScenarioDB(Model):
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    evaluation: BulkEvaluationDB = Reference(key_name="bulk_evaluations")
+    inputs: List[EvaluationScenarioInput]
+    output: EvaluationScenarioOutput
+    vote: Optional[str]
+    score: Optional[Union[str, int]]
+    correct_answer: Optional[str]
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    is_pinned: Optional[bool]
+    note: Optional[str]
+
+    class Config:
+        collection = "single_evaluation_scenarios"
 
 
 class CustomEvaluationDB(Model):

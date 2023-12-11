@@ -21,6 +21,7 @@ from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
     AppDB,
     AppVariantDB,
+    BulkEvaluationDB,
     VariantBaseDB,
     ConfigDB,
     ConfigVersionDB,
@@ -1273,6 +1274,20 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
     assert evaluation_id is not None, "evaluation_id cannot be None"
     evaluation = await engine.find_one(
         EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
+    )
+    return evaluation
+
+
+async def fetch_bulk_evaluation_by_id(evaluation_id: str) -> Optional[BulkEvaluationDB]:
+    """Fetches a evaluation by its ID.
+    Args:
+        evaluation_id (str): The ID of the evaluation to fetch.
+    Returns:
+        EvaluationDB: The fetched evaluation, or None if no evaluation was found.
+    """
+    assert evaluation_id is not None, "evaluation_id cannot be None"
+    evaluation = await engine.find_one(
+        BulkEvaluationDB, BulkEvaluationDB.id == ObjectId(evaluation_id)
     )
     return evaluation
 

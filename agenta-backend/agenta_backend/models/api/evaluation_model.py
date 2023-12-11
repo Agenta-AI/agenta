@@ -85,6 +85,19 @@ class EvaluationScenario(BaseModel):
     note: Optional[str]
 
 
+class EvaluationScenario_SingleOutput(BaseModel):
+    id: Optional[str]
+    evaluation_id: str
+    inputs: List[EvaluationScenarioInput]
+    output: EvaluationScenarioOutput
+    vote: Optional[str]
+    score: Optional[Union[str, int]]
+    evaluation: Optional[str]
+    correct_answer: Optional[str]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+
+
 class AICritiqueCreate(BaseModel):
     correct_answer: str
     llm_app_prompt_template: Optional[str]
@@ -116,6 +129,13 @@ class NewEvaluation(BaseModel):
     inputs: List[str]
     testset_id: str
     status: str
+
+
+class NewBulkEvaluation(BaseModel):
+    app_id: str
+    variant_ids: List[str]
+    evaluation_type: List[EvaluationType]
+    testset_id: str
 
 
 class DeleteEvaluation(BaseModel):
