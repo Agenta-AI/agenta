@@ -1,8 +1,14 @@
+import os
+from agenta_backend.tasks.evaluations import evaluate
+import httpx
 import logging
 from agenta_backend.services.security.sandbox import execute_code_safely
 from bson import ObjectId
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+from celery import Celery
+app = Celery('hello', broker='amqp://guest@localhost//')
+
 
 from fastapi import HTTPException
 
@@ -12,7 +18,9 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenario,
     CustomEvaluationOutput,
     CustomEvaluationDetail,
+    EvaluationScenario_SingleOutput,
     EvaluationType,
+    NewBulkEvaluation,
     NewEvaluation,
     EvaluationScenarioUpdate,
     CreateCustomEvaluation,
@@ -24,8 +32,10 @@ from agenta_backend.services.db_manager import query, get_user
 from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import (
     AppVariantDB,
+    BulkEvaluationDB,
     EvaluationDB,
     EvaluationScenarioDB,
+    SingleEvaluationScenarioDB,
     UserDB,
     AppDB,
     EvaluationTypeSettings,
@@ -42,6 +52,14 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
+        get_user_and_org_id,
+    )
+else:
+    from agenta_backend.services.selectors import get_user_and_org_id
+
+
 class UpdateEvaluationScenarioError(Exception):
     """Custom exception for update evaluation scenario errors."""
 
@@ -53,7 +71,30 @@ async def _fetch_evaluation_and_check_access(
 ) -> EvaluationDB:
     # Fetch the evaluation by ID
     evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id=evaluation_id)
+    # Check if the evaluation exists
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation with id {evaluation_id} not found",
+        )
 
+    # Check for access rights
+    access = await check_access_to_app(
+        user_org_data=user_org_data, app_id=evaluation.app.id
+    )
+    if not access:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
+        )
+    return evaluation
+
+
+async def _fetch_bulk_evaluation_and_check_access(
+    evaluation_id: str, **user_org_data: dict
+) -> BulkEvaluationDB:
+    # Fetch the evaluation by ID
+    evaluation = await db_manager.fetch_bulk_evaluation_by_id(evaluation_id=evaluation_id)
     # Check if the evaluation exists
     if evaluation is None:
         raise HTTPException(
@@ -104,6 +145,43 @@ async def _fetch_evaluation_scenario_and_check_access(
             detail=f"You do not have access to this app: {str(evaluation.app.id)}",
         )
     return evaluation_scenario
+
+
+async def create_new_bulk_evaluation(app, payload, **user_org_data: dict):
+    status = "EVALUATION_CREATED"
+    user = await get_user(user_uid=user_org_data["uid"])
+    current_time = datetime.utcnow()
+
+    testset = await db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
+
+    evaluation_type_settings = EvaluationTypeSettings(
+        similarity_threshold=None,
+        regex_pattern=None,
+        regex_should_match=None,
+        webhook_url=None,
+        custom_code_evaluation_id=None,
+        llm_app_prompt_template=None,
+    )
+
+
+    eval_instance = BulkEvaluationDB(
+        app=app,
+        organization=app.organization,
+        user=user,
+        evaluation_type=payload.evaluation_type,
+        status=status,
+        evaluation_type_settings=evaluation_type_settings,
+        variants=payload.variant_ids,
+        testset=testset,
+        created_at=current_time,
+        updated_at=current_time,
+    )
+
+
+    newEvaluation = await engine.save(eval_instance)
+    print("new evaluation")
+    print(newEvaluation)
+    return newEvaluation
 
 
 async def create_new_evaluation(
@@ -243,6 +321,39 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         )
         await engine.save(eval_scenario_instance)
 
+
+async def create_single_evaluation_scenario(
+        evaluation: BulkEvaluationDB,
+        payload: EvaluationScenario_SingleOutput,
+        **user_org_data: dict
+    ):
+
+    evaluation = await _fetch_bulk_evaluation_and_check_access(
+        evaluation_id=str(evaluation.id), **user_org_data
+    )
+
+    scenario_inputs = [
+        EvaluationScenarioInput(
+            input_name=input_item.input_name,
+            input_value=input_item.input_value,
+        )
+        for input_item in payload.inputs
+    ]
+
+    new_eval_scenario = SingleEvaluationScenarioDB(
+        user=evaluation.user,
+        organization=evaluation.organization,
+        evaluation=evaluation,
+        inputs=scenario_inputs,
+        output=payload.output,
+        is_pinned=False,
+        note="",
+        **_extend_with_bulk_evaluation(evaluation.evaluation_type),
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+
+    await engine.save(new_eval_scenario)
 
 async def create_evaluation_scenario(
     evaluation_id: str, payload: EvaluationScenario, **user_org_data: dict
@@ -577,6 +688,23 @@ def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
             correct_answer["correct_answer"] = row["correct_answer"]
     return correct_answer
 
+def _extend_with_bulk_evaluation(evaluation_types: List[EvaluationType]):
+    evaluation = {}
+    for evaluation_type in evaluation_types:
+        if evaluation_type in [
+            EvaluationType.auto_exact_match,
+            EvaluationType.auto_similarity_match,
+            EvaluationType.auto_regex_test,
+            EvaluationType.auto_webhook_test,
+            EvaluationType.single_model_test,
+            EvaluationType.auto_ai_critique,
+        ]:
+            evaluation["score"] = ""
+
+        if evaluation_type == EvaluationType.human_a_b_testing:
+            evaluation["vote"] = ""
+
+    return evaluation
 
 async def fetch_list_evaluations(
     app_id: str,
@@ -917,3 +1045,67 @@ async def fetch_custom_evaluation_names(
             )
         )
     return list_of_custom_eval_names
+
+
+async def evaluate_in_bulk(new_evaluation: BulkEvaluationDB, **user_org_data: dict):
+    testset = await db_manager.fetch_testset_by_id(new_evaluation.testset.id)
+
+    for variant_id in new_evaluation.variants:
+        variant_id = str(variant_id)
+        app_variant_db = await db_manager.fetch_app_variant_by_id(variant_id)
+        deployment = await db_manager.get_deployment_by_objectid(
+            app_variant_db.base.deployment
+        )
+
+        uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
+
+        for input in testset.csvdata:
+            variant_output = get_variant_output(uri, input)
+
+            evaluationScenario_SingleOutput = EvaluationScenario_SingleOutput(
+                evaluation_id=str(new_evaluation.id),
+                inputs=[],
+                correct_answer=input['correct_answer'],
+                output=EvaluationScenarioOutput(
+                    variant_id=variant_id,
+                    variant_output=variant_output
+                )
+            )
+
+            evaluation_scenario = await create_single_evaluation_scenario(
+                new_evaluation,
+                evaluationScenario_SingleOutput,
+                **user_org_data
+            )
+
+            for evaluation_type in new_evaluation.evaluation_type:
+                evaluate(evaluation_type, evaluationScenario_SingleOutput.correct_answer, variant_output)
+
+
+# TODO: Move this to a separate file
+def get_variant_output(uri, input):
+    try:
+        url = f"{uri}/generate"
+
+        payload = {
+            "temperature": 1,
+            "model": "gpt-3.5-turbo",
+            "max_tokens": -1,
+            "prompt_system": "You are an expert in geography.",
+            "prompt_user": f"What is the capital of {input}?",
+            "top_p": 1,
+            "inputs": {
+                "country": input
+            }
+        }
+
+        with httpx.Client() as client:
+            response = client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        print(f"An HTTP error occurred: {e}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    return None
