@@ -3,7 +3,7 @@ import {Button, Input, Card, Row, Col, Space, Form} from "antd"
 import {CaretRightOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/lib/services/api"
 import {ChatMessage, ChatRole, GenericObject, Parameter, Variant} from "@/lib/Types"
-import {randString, removeKeys} from "@/lib/helpers/utils"
+import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -278,9 +278,12 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
     }
 
     const handleRunAll = () => {
+        const funcs: Function[] = []
         rootRef.current
             ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
-            .forEach((btn) => (btn as HTMLButtonElement).click())
+            .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
+
+        batchExecute(funcs, {allowRetry: true, batchSize: 10})
     }
 
     const handleAddRow = () => {
