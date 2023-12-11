@@ -16,6 +16,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioScoreUpdate,
     EvaluationScenarioUpdate,
     ExecuteCustomEvaluationCode,
+    NewBulkEvaluation,
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
@@ -26,6 +27,7 @@ from agenta_backend.models.api.evaluation_model import (
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
+    evaluate_in_bulk,
     evaluate_with_ai_critique,
     fetch_custom_evaluation_names,
     fetch_custom_evaluations,
@@ -52,6 +54,39 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
+
+
+@router.post("/bulk-evaluate/")
+async def create_bulk_evaluation(payload: NewBulkEvaluation, request: Request):
+    try:
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+
+        access_app = await check_access_to_app(
+            user_org_data=user_org_data,
+            app_id=payload.app_id,
+            check_owner=False,
+        )
+
+        if not access_app:
+            error_msg = f"You do not have access to this app: {payload.app_id}"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
+
+        if app is None:
+            raise HTTPException(status_code=404, detail="App not found")
+
+        new_evaluation_db = await evaluation_service.create_new_bulk_evaluation(
+            app,
+            payload,
+            **user_org_data
+        )
+
+        await evaluate_in_bulk(new_evaluation_db, **user_org_data)
+    except Exception as e:
+        raise HTTPException(f"Failed to evaluate AI critique: {str(e)}")
 
 
 @router.post("/", response_model=SimpleEvaluationOutput)
