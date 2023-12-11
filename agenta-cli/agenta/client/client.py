@@ -4,6 +4,7 @@ import time
 import click
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
 
 import requests
 from agenta.client.api_models import AppVariant, Image, VariantConfigPayload
@@ -524,3 +525,47 @@ def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
         return response.json()["id"]
     except RequestException as e:
         raise APIRequestError(f"Request failed: {str(e)}")
+
+
+# def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
+def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
+    """Creates new app on the server.
+
+    Args:
+        app_name (str): Name of the app
+        host (str): Hostname of the server
+        api_key (str): The API key to use for the request.
+    """
+
+    class NewBulkEvaluation(BaseModel):
+        app_id: str
+        variant_ids: List[str]
+        evaluation_type: List[str]
+        testset_id: str
+
+    newBulkEvaluation = NewBulkEvaluation(
+        app_id="6577025e60084c599a43e51f",
+        variant_ids=[
+            "6577025e60084c599a43e525",
+            #  "6570aed55d0eaff2293088e6"
+        ],
+        evaluation_type=[
+            "auto_similarity_match"
+        ],
+        testset_id="6577025e60084c599a43e526"
+    )
+
+    h = f"{host}/api/evaluations/bulk-evaluate/"
+    print(h)
+    response = requests.post(
+        h,
+        json=newBulkEvaluation.dict(),
+        # headers={"Authorization": api_key} if api_key is not None else None,
+        timeout=600,
+    )
+    if response.status_code != 200:
+        error_message = response.json()
+        raise APIRequestError(
+            f"Request to run evaluations failed with status code {response.status_code} and error message: {error_message}."
+        )
+    return response.json()["app_id"]
