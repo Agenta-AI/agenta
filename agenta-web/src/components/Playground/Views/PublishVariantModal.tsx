@@ -3,6 +3,7 @@ import {fetchEnvironments, publishVariant} from "@/lib/services/api"
 import {Button, Checkbox, Modal, Space, Typography, message} from "antd"
 import type {CheckboxChangeEvent} from "antd/es/checkbox"
 import {useRouter} from "next/router"
+import {usePostHog} from "posthog-js/react"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 
@@ -35,6 +36,7 @@ const PublishVariantModal: React.FC<Props> = ({
         setSelectedEnvs([])
     }
     const router = useRouter()
+    const posthog = usePostHog()
     const appId = router.query.app_id as string
 
     const [selectedEnvs, setSelectedEnvs] = useState<string[]>([])
@@ -55,6 +57,7 @@ const PublishVariantModal: React.FC<Props> = ({
             closeModal()
             await loadEnvironments()
             message.success(`Published ${variant.variantName} to ${envName}`)
+            posthog.capture('app_deployed', { app_id: appId, environment: envName })
         })
     }
 
