@@ -204,7 +204,7 @@ const AppSelector: React.FC = () => {
             orgId: selectedOrg?.id!,
             providerKey: isDemo() ? "" : (providerKeys as string),
             timeout,
-            onStatusChange: (status, details, appId) => {
+            onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)
@@ -212,17 +212,14 @@ const AppSelector: React.FC = () => {
                     mutate()
 
                     if (trackingEnabled) {
-                        // Get user profile
-                        getProfile().then((res) => {
-                            // Update distinct_id and track successfully app variant deployment
-                            posthog?.identify(res?.data?.id)
-                            posthog?.capture("app_deployment", {
-                                properties: {
-                                    app_id: appId,
-                                    environment: "UI",
-                                    deployed_by: res?.data?.id,
-                                },
-                            })
+                        const profileRes = await getProfile()
+                        posthog.identify(profileRes?.data?.id)
+                        posthog.capture("app_deployment", {
+                            properties: {
+                                app_id: appId,
+                                environment: "UI",
+                                deployed_by: profileRes?.data?.id,
+                            },
                         })
                     }
                 }
