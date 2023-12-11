@@ -85,18 +85,6 @@ class EvaluationScenario(BaseModel):
     note: Optional[str]
 
 
-class EvaluationScenario_SingleOutput(BaseModel):
-    id: Optional[str]
-    evaluation_id: str
-    inputs: List[EvaluationScenarioInput]
-    output: EvaluationScenarioOutput
-    vote: Optional[str]
-    score: Optional[Union[str, int]]
-    evaluation: Optional[str]
-    correct_answer: Optional[str]
-    is_pinned: Optional[bool]
-    note: Optional[str]
-
 
 class AICritiqueCreate(BaseModel):
     correct_answer: str

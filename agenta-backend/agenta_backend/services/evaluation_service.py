@@ -18,7 +18,6 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenario,
     CustomEvaluationOutput,
     CustomEvaluationDetail,
-    EvaluationScenario_SingleOutput,
     EvaluationType,
     NewBulkEvaluation,
     NewEvaluation,
@@ -322,7 +321,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
 
 async def create_single_evaluation_scenario(
         evaluation: BulkEvaluationDB,
-        payload: EvaluationScenario_SingleOutput,
+        payload: EvaluationScenario,
         **user_org_data: dict
     ):
 
@@ -343,7 +342,7 @@ async def create_single_evaluation_scenario(
         organization=evaluation.organization,
         evaluation=evaluation,
         inputs=scenario_inputs,
-        output=payload.output,
+        outputs=payload.outputs,
         is_pinned=False,
         note="",
         **_extend_with_bulk_evaluation(evaluation.evaluation_type),
@@ -1060,24 +1059,24 @@ async def evaluate_in_bulk(new_evaluation: BulkEvaluationDB, **user_org_data: di
         for input in testset.csvdata:
             variant_output = get_variant_output(uri, input)
 
-            evaluationScenario_SingleOutput = EvaluationScenario_SingleOutput(
+            evaluationScenario = EvaluationScenario(
                 evaluation_id=str(new_evaluation.id),
                 inputs=[],
                 correct_answer=input['correct_answer'],
-                output=EvaluationScenarioOutput(
+                outputs=[EvaluationScenarioOutput(
                     variant_id=variant_id,
                     variant_output=variant_output
-                )
+                )]
             )
 
             evaluation_scenario = await create_single_evaluation_scenario(
                 new_evaluation,
-                evaluationScenario_SingleOutput,
+                evaluationScenario,
                 **user_org_data
             )
 
             for evaluation_type in new_evaluation.evaluation_type:
-                evaluate(evaluation_type, evaluationScenario_SingleOutput.correct_answer, variant_output)
+                evaluate(evaluation_type, evaluationScenario.correct_answer, variant_output)
 
 
 # TODO: Move this to a separate file
