@@ -76,8 +76,8 @@ export default function Testsets() {
             message: (
                 <div className={classes.modalContainer}>
                     <p data-cy="testset-name-reqd-error">
-                        Deleting these testset(s) will change the evaluation in use of it/them to use a
-                        dummy testset. Are you sure you want to proceed?
+                        Deleting these testset(s) will change the evaluation in use of it/them to
+                        use a dummy testset. Are you sure you want to proceed?
                     </p>
                 </div>
             ),
