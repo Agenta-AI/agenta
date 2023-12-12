@@ -36,7 +36,9 @@ class TestsetsClient:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -50,7 +52,9 @@ class TestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_testsets_testsets_get(self, *, app_id: str) -> typing.List[TestSetOutputResponse]:
+    def get_testsets_testsets_get(
+        self, *, app_id: str
+    ) -> typing.List[TestSetOutputResponse]:
         """
         Get all testsets.
 
@@ -105,7 +109,9 @@ class AsyncTestsetsClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -119,7 +125,9 @@ class AsyncTestsetsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_testsets_testsets_get(self, *, app_id: str) -> typing.List[TestSetOutputResponse]:
+    async def get_testsets_testsets_get(
+        self, *, app_id: str
+    ) -> typing.List[TestSetOutputResponse]:
         """
         Get all testsets.
 

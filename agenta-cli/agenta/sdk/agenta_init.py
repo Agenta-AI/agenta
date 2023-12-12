@@ -8,9 +8,11 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 from agenta.client.client import ClientWrapper
+
 client_wrapper = ClientWrapper()
 client = client_wrapper.api_client
 from agenta.client.client import APIRequestError
+
 
 class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
@@ -65,18 +67,20 @@ class AgentaSingleton:
                 )
             else:
                 try:
-                    app_id = client.list_apps_apps_get(
-                        app_name=app_name
-                    ).app_id
-                    
+                    app_id = client.list_apps_apps_get(app_name=app_name).app_id
+
                     if not app_id:
-                        raise APIRequestError(f"App with name {app_name} does not exist on the server.")
-                    
+                        raise APIRequestError(
+                            f"App with name {app_name} does not exist on the server."
+                        )
+
                     base_id = client.list_bases_bases_get(
                         app_id=app_id, base_name=base_name
                     )
                 except Exception as ex:
-                    raise APIRequestError(f"Failed to get base id and/or app_id from the server with error: {ex}")
+                    raise APIRequestError(
+                        f"Failed to get base id and/or app_id from the server with error: {ex}"
+                    )
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
@@ -146,8 +150,7 @@ class Config:
             try:
                 if environment_name:
                     config = client.get_config_configs_get(
-                        base_id=self.base_id,
-                        environment_name=environment_name
+                        base_id=self.base_id, environment_name=environment_name
                     )
 
                 else:
