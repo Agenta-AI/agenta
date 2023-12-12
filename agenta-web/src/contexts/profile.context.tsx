@@ -4,6 +4,7 @@ import {isDemo} from "@/lib/helpers/utils"
 import {getOrgsList, getProfile} from "@/lib/services/api"
 import {Org, User} from "@/lib/Types"
 import {useRouter} from "next/router"
+import { usePostHog } from "posthog-js/react"
 import {
     PropsWithChildren,
     createContext,
@@ -54,6 +55,7 @@ const profileContextValues = {...initialValues}
 export const getProfileValues = () => profileContextValues
 
 const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
+    const posthog = usePostHog()
     const router = useRouter()
     const [user, setUser] = useState<User | null>(null)
     const [orgs, setOrgs] = useState<Org[]>([])
@@ -65,6 +67,7 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         setLoading(true)
         Promise.all([getProfile(), getOrgsList()])
             .then(([profile, orgs]) => {
+                posthog.identify(isDemo() ? profile.data.email : profile.data.id)
                 setUser(profile.data)
                 setOrgs(orgs.data)
                 setSelectedOrg(
