@@ -10,7 +10,7 @@ import {deleteTestsets, useLoadTestsetsList} from "@/lib/services/api"
 import {createUseStyles} from "react-jss"
 import {testset} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
-import ConfirmTestsetDeleteModal from "@/components/TestSetTable/ConfirmTestsetDeleteModal"
+import AlertPopup from "@/components/AlertPopup/AlertPopup"
 
 const useStyles = createUseStyles({
     container: {
@@ -42,8 +42,6 @@ export default function Testsets() {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
-    const [testsetIdsToDelete, setTestsetIds] = useState<Array<string>>([])
-    const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
 
@@ -73,8 +71,28 @@ export default function Testsets() {
 
     const onDelete = async () => {
         const testsetIds = selectedRowKeys.map((key) => key.toString())
-        setTestsetIds(testsetIds)
-        setIsConfirmDeleteModalOpen(true)
+        AlertPopup({
+            title: "Confirm Testset(s) Deletion",
+            message: (
+                <div className={classes.modalContainer}>
+                    <p data-cy="testset-name-reqd-error">
+                        Deleting these testset(s) will change the evaluation in use of it/them to use a
+                        dummy testset. Are you sure you want to proceed?
+                    </p>
+                </div>
+            ),
+            okButtonProps: {
+                type: "primary",
+                danger: true,
+            },
+            onOk: async () => {
+                try {
+                    await deleteTestsets(testsetIds)
+                    mutate()
+                    setSelectedRowKeys([])
+                } catch {}
+            },
+        })
     }
 
     return (
@@ -146,14 +164,6 @@ export default function Testsets() {
                     }}
                 />
             </div>
-
-            <ConfirmTestsetDeleteModal
-                isModalOpen={isConfirmDeleteModalOpen}
-                setIsModalOpen={setIsConfirmDeleteModalOpen}
-                testsetsIds={testsetIdsToDelete}
-                mutate={mutate}
-                setSelectedRowKeys={setSelectedRowKeys}
-            />
         </div>
     )
 }
