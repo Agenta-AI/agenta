@@ -4,4 +4,6 @@ import typing
 
 from .template import Template
 
-ContainerTemplatesContainersTemplatesGetResponse = typing.Union[typing.List[Template], str]
+ContainerTemplatesContainersTemplatesGetResponse = typing.Union[
+    typing.List[Template], str
+]

@@ -14,7 +14,9 @@ class VariantActionEnum(str, enum.Enum):
     START = "START"
     STOP = "STOP"
 
-    def visit(self, start: typing.Callable[[], T_Result], stop: typing.Callable[[], T_Result]) -> T_Result:
+    def visit(
+        self, start: typing.Callable[[], T_Result], stop: typing.Callable[[], T_Result]
+    ) -> T_Result:
         if self is VariantActionEnum.START:
             return start()
         if self is VariantActionEnum.STOP:
