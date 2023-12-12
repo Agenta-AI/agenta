@@ -2,7 +2,7 @@ import {GenericObject} from "@/lib/Types"
 import React, {PropsWithChildren, createContext, useState} from "react"
 
 export const TestContext = createContext<{
-    testList: Record<string, string>[]
+    testList: GenericObject[]
     setTestList: React.Dispatch<React.SetStateAction<GenericObject[]>>
 }>({testList: [{}], setTestList: () => {}})
 
