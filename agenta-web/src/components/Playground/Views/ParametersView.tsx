@@ -7,6 +7,7 @@ import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersC
 import PublishVariantModal from "./PublishVariantModal"
 import {removeVariant} from "@/lib/services/api"
 import {CloudUploadOutlined, DeleteOutlined, SaveOutlined} from "@ant-design/icons"
+import {usePostHogAg} from "@/hooks/usePostHogAg"
 
 interface Props {
     variant: Variant
@@ -70,6 +71,7 @@ const ParametersView: React.FC<Props> = ({
     tabID,
 }) => {
     const classes = useStyles()
+    const posthog = usePostHogAg()
     const [messageApi, contextHolder] = message.useMessage()
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
@@ -106,6 +108,7 @@ const ParametersView: React.FC<Props> = ({
                 onStateChange(false)
                 res(true)
             })
+            posthog.capture("variant_saved", {variant_id: variant.variantId})
         })
     }
 
