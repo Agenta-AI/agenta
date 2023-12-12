@@ -8,6 +8,7 @@ from agenta.client.backend import client
 from agenta.client.api_models import Image
 from requests.exceptions import RequestException
 
+
 class ClientWrapper:
     def __init__(self):
         self.backend_url_suffix = os.environ.get("BACKEND_URL_SUFFIX", "api")
@@ -32,10 +33,11 @@ class ClientWrapper:
             timeout=600,
         )
 
+
 class APIRequestError(Exception):
     """Exception to be raised when an API request fails."""
-    
-    
+
+
 def add_variant_to_server(
     app_id: str,
     base_name: str,

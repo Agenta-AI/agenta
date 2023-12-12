@@ -14,9 +14,11 @@ from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
 
 from agenta.client.client import ClientWrapper
+
 client_wrapper = ClientWrapper()
 client = client_wrapper.api_client
 from agenta.client.client import APIRequestError, add_variant_to_server
+
 
 @click.group()
 def variant():
@@ -24,9 +26,7 @@ def variant():
     pass
 
 
-def add_variant(
-    app_folder: str, file_name: str, config_name="default"
-) -> str:
+def add_variant(app_folder: str, file_name: str, config_name="default") -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
     The app variant name to be added is
@@ -142,8 +142,7 @@ def add_variant(
             )
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
             client.update_variant_image_variants_variant_id_image_put(
-                variant_id=variant_id,
-                image=image
+                variant_id=variant_id, image=image
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
@@ -245,7 +244,9 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         ).ask()
         variant_id = config["variant_ids"][config["variants"].index(variant_name)]
 
-    endpoint = client.start_variant_variants_variant_id_put(variant_id=variant_id, action="START")
+    endpoint = client.start_variant_variants_variant_id_put(
+        variant_id=variant_id, action="START"
+    )
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -339,7 +340,9 @@ def list_variants(app_folder: str):
     variants = []
 
     try:
-        variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(app_id=app_id)
+        variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(
+            app_id=app_id
+        )
     except Exception as ex:
         raise ex
 
