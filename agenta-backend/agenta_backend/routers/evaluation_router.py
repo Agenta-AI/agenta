@@ -1,5 +1,5 @@
 import os
-import random
+import secrets
 from typing import List, Dict
 
 from fastapi.responses import JSONResponse
@@ -578,4 +578,4 @@ async def webhook_example_fake():
     """
 
     # return a random score b/w 0 and 1
-    return {"score": random.random()}
+    return {"score": secrets.SystemRandom.random()}
