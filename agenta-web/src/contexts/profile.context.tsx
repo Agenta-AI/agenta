@@ -4,7 +4,7 @@ import {isDemo} from "@/lib/helpers/utils"
 import {getOrgsList, getProfile} from "@/lib/services/api"
 import {Org, User} from "@/lib/Types"
 import {useRouter} from "next/router"
-import { usePostHog } from "posthog-js/react"
+import {usePostHog} from "posthog-js/react"
 import {
     PropsWithChildren,
     createContext,
