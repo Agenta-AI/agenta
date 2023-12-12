@@ -74,7 +74,7 @@ export default function Testsets() {
         AlertPopup({
             title: "Confirm Testset(s) Deletion",
             message: (
-                <div className={classes.modalContainer}>
+                <div>
                     <p data-cy="testset-name-reqd-error">
                         Deleting these testset(s) will change the evaluation in use of it/them to
                         use a dummy testset. Are you sure you want to proceed?
