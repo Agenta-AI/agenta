@@ -121,7 +121,6 @@ const ViewNavigation: React.FC<Props> = ({
         } else {
             imageName += variantDesignator.toLowerCase()
         }
-        console.log("Variant: ", variant)
 
         const variantContainerPath = async () => {
             const url = await getAppContainerURL(appId, variant.variantId, variant.baseId)
