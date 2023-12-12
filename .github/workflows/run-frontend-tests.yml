@@ -40,18 +40,16 @@ jobs:
           node-version: 18
 
       - name: Install Frontend Depedencies
-        env:
-          NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
         run: |
           cd agenta-web/ && npm install
 
       - name: Run Cypress
         env:
           NEXT_PUBLIC_OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
-        run: cd agenta-web/ && npm run cypress:run
+        run: cd agenta-web/ && npm run test
 
       - name: Docker logs
-        if: always()  #
+        if: always() #
         run: docker ps -q | xargs -I {} docker logs {}
 
       - name: Stop Docker Compose
