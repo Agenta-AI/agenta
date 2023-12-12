@@ -105,7 +105,7 @@ const AppSelector: React.FC = () => {
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
-
+    const {user} = useProfileData()
     const [templateMessage, setTemplateMessage] = useState("")
     const [templateId, setTemplateId] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
@@ -212,13 +212,11 @@ const AppSelector: React.FC = () => {
                     mutate()
 
                     if (trackingEnabled) {
-                        const profileRes = await getProfile()
-                        posthog.identify(profileRes?.data?.id)
                         posthog.capture("app_deployment", {
                             properties: {
                                 app_id: appId,
                                 environment: "UI",
-                                deployed_by: profileRes?.data?.id,
+                                deployed_by: user?.id,
                             },
                         })
                     }
