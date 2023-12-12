@@ -2,7 +2,7 @@ import React, {useState} from "react"
 import {Modal} from "antd"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"
-import {deleteTestsets, convertTestsetsToDummyIfInUse} from "@/lib/services/api"
+import {deleteTestsets} from "@/lib/services/api"
 
 const useStyles = createUseStyles({
     modalContainer: {
@@ -39,13 +39,10 @@ const ConfirmTestsetDeleteModal: React.FC<Props> = ({
     const handleConfirmOK = async () => {
         setIsLoading(true)
         try {
-            // make sure promise is completely fulfilled before deleting testsets
-            await convertTestsetsToDummyIfInUse(testsetsIds).then(async () => {
-                await deleteTestsets(testsetsIds)
-                mutate()
-                setSelectedRowKeys([])
-                handleCloseModal()
-            })
+            await deleteTestsets(testsetsIds)
+            mutate()
+            setSelectedRowKeys([])
+            handleCloseModal()
         } catch (err) {
             console.log("Something went wrong with converting/deleting testsets: ", err)
         } finally {

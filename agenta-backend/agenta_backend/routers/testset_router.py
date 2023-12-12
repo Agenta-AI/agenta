@@ -192,16 +192,6 @@ async def import_testset(
         ) from error
 
 
-@router.post("/to-dummy/", response_model=int, tags=["testsets"])
-async def convert_testsets_to_dummy(payload: TestsetsToConvert, request: Request):
-    """Converts evaluation using testsets to a dummy testset."""
-
-    await evaluation_service.assign_dummy_testset_to_evaluations(
-        request.state.user_id, payload.testset_ids
-    )
-    return 200
-
-
 @router.post("/{app_id}/")
 async def create_testset(
     app_id: str,
@@ -380,7 +370,7 @@ async def get_testset(
 
 @router.delete("/", response_model=List[str])
 async def delete_testsets(
-    delete_testsets: DeleteTestsets,
+    payload: DeleteTestsets,
     request: Request,
 ):
     """
@@ -392,11 +382,14 @@ async def delete_testsets(
     Returns:
     A list of the deleted testsets' IDs.
     """
+
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    await evaluation_service.assign_dummy_testset_to_evaluations(
+        request.state.user_id, payload.testset_ids
+    )
 
     deleted_ids = []
-
-    for testset_id in delete_testsets.testset_ids:
+    for testset_id in payload.testset_ids:
         test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
         if test_set is None:
             raise HTTPException(status_code=404, detail="testset not found")

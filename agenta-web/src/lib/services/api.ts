@@ -301,14 +301,6 @@ export const deleteTestsets = async (ids: string[]) => {
     return response.data
 }
 
-export const convertTestsetsToDummyIfInUse = async (ids: string[]) => {
-    const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/testsets/to-dummy/`,
-        {testset_ids: ids},
-    )
-    return response.data
-}
-
 export const loadEvaluations = async (appId: string) => {
     return await axios
         .get(`${getAgentaApiUrl()}/api/evaluations/?app_id=${appId}`)
