@@ -9,10 +9,13 @@ import questionary
 import toml
 
 from agenta.cli import helper
-from agenta.client import client
 from agenta.cli import variant_configs
 from agenta.cli import variant_commands
 
+from agenta.client.client import ClientWrapper
+client_wrapper = ClientWrapper()
+client = client_wrapper.api_client
+from agenta.client.client import APIRequestError
 
 def print_version(ctx, param, value):
     if not value or ctx.resilient_parsing:
@@ -106,10 +109,10 @@ def init(app_name: str):
             if global_backend_host:
                 backend_host = global_backend_host
             else:
-                backend_host = "https://cloud.agenta.ai"
+                backend_host = "http://localhost"
 
             api_key = helper.get_api_key(backend_host)
-            client.validate_api_key(api_key, backend_host)
+            client.validate_api_key_keys_key_prefix_validate_get
 
         elif where_question is None:  # User pressed Ctrl+C
             sys.exit(0)
@@ -120,11 +123,13 @@ def init(app_name: str):
         )
 
         # Get app_id after creating new app in the backend server
-        app_id = client.create_new_app(
-            app_name,
-            backend_host,
-            api_key if where_question == "On agenta cloud" else None,
-        )
+        try:
+            app_id = client.create_app_apps_post(
+                app_name=app_name
+            ).app_id
+        except Exception as ex:
+            click.echo(click.style(f"Error: {ex}", fg="red"))
+            sys.exit(1)
 
         # Set app toml configuration
         config = {

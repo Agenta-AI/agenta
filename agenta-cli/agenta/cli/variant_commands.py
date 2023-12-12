@@ -9,11 +9,14 @@ import click
 import questionary
 import toml
 from agenta.cli import helper
-from agenta.client import client
 from agenta.cli.telemetry import event_track
 from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
 
+from agenta.client.client import ClientWrapper
+client_wrapper = ClientWrapper()
+client = client_wrapper.api_client
+from agenta.client.client import APIRequestError, add_variant_to_server
 
 @click.group()
 def variant():
@@ -22,7 +25,7 @@ def variant():
 
 
 def add_variant(
-    app_folder: str, file_name: str, host: str, config_name="default"
+    app_folder: str, file_name: str, config_name="default"
 ) -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
@@ -32,7 +35,6 @@ def add_variant(
         variant_name: the name of the variant
         app_folder: the folder of the app
         file_name: the name of the file to run.
-        host: the host to use for the variant
         config_name: the name of the config to use for now it is always default
     Returns:
         the name of the code base and variant(useful for serve)
@@ -116,9 +118,12 @@ def add_variant(
                 fg="bright_black",
             )
         )
-        image: Image = client.send_docker_tar(
-            app_id, base_name, tar_path, host, api_key
-        )
+        with tar_path.open("rb") as tar_file:
+            image: Image = client.build_image_containers_build_image_post(
+                app_id=app_id,
+                base_name=base_name,
+                tar_file=tar_file,
+            )
         if tar_path.exists():
             tar_path.unlink()
 
@@ -136,15 +141,14 @@ def add_variant(
                 )
             )
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
-            client.update_variant_image(
-                variant_id, image, host, api_key
+            client.update_variant_image_variants_variant_id_image_put(
+                variant_id=variant_id,
+                image=image
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
-            response = client.add_variant_to_server(
-                app_id, base_name, image, host, api_key
-            )
-            variant_id = response["variant_id"]
+            response = add_variant_to_server(app_id, base_name, image)
+            variant_id = response.variant_id
             config["variants"].append(variant_name)
             config["variant_ids"].append(variant_id)
     except Exception as ex:
@@ -160,7 +164,7 @@ def add_variant(
     if overwrite:
         # Track a deployment event
         if tracking_enabled:
-            user_id = client.retrieve_user_id(host, api_key)
+            user_id = client.user_profile_profile_get().id
             event_track.capture_event(
                 user_id,
                 "app_deployment",
@@ -182,7 +186,7 @@ def add_variant(
     else:
         # Track a deployment event
         if tracking_enabled:
-            user_id = client.retrieve_user_id(host, api_key)
+            user_id = client.user_profile_profile_get().id
             event_track.capture_event(
                 user_id,
                 "app_deployment",
@@ -220,7 +224,6 @@ def start_variant(variant_id: str, app_folder: str, host: str):
     app_folder = Path(app_folder)
     config_file = app_folder / "config.toml"
     config = toml.load(config_file)
-    api_key = config.get("api_key", None)
     app_id = config["app_id"]
 
     if len(config["variants"]) == 0:
@@ -242,7 +245,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         ).ask()
         variant_id = config["variant_ids"][config["variants"].index(variant_name)]
 
-    endpoint = client.start_variant(variant_id=variant_id, host=host, api_key=api_key)
+    endpoint = client.start_variant_variants_variant_id_put(variant_id=variant_id, action="START")
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -268,7 +271,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
     )
 
 
-def remove_variant(variant_name: str, app_folder: str, host: str):
+def remove_variant(variant_name: str, app_folder: str):
     """
     Removes a variant from the server
     Args:
@@ -304,7 +307,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
         ).ask()
     variant_id = config["variant_ids"][config["variants"].index(variant_name)]
     try:
-        client.remove_variant(variant_id, host, api_key)
+        client.remove_variant_variants_variant_id_delete(variant_id=variant_id)
     except Exception as ex:
         click.echo(
             click.style(
@@ -323,7 +326,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     )
 
 
-def list_variants(app_folder: str, host: str):
+def list_variants(app_folder: str):
     """List available variants for an app and print them to the console
 
     Arguments:
@@ -331,13 +334,12 @@ def list_variants(app_folder: str, host: str):
     """
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
-    app_id = config["app_id"]
     app_name = config["app_name"]
-    api_key = config.get("api_key", None)
+    app_id = config["app_id"]
     variants = []
 
     try:
-        variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
+        variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(app_id=app_id)
     except Exception as ex:
         raise ex
 
@@ -393,7 +395,6 @@ def remove_variant_cli(variant_name: str, app_folder: str):
         remove_variant(
             variant_name=variant_name,
             app_folder=app_folder,
-            host=get_host(app_folder),
         )
     except Exception as ex:
         click.echo(click.style(f"Error while removing variant: {ex}", fg="red"))
@@ -438,7 +439,7 @@ def serve_cli(ctx, app_folder: str, file_name: str):
         return
 
     try:
-        variant_id = add_variant(app_folder=app_folder, file_name=file_name, host=host)
+        variant_id = add_variant(app_folder=app_folder, file_name=file_name)
     except Exception as e:
         click.echo(click.style("Failed to add variant.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
@@ -465,6 +466,6 @@ def list_variants_cli(app_folder: str):
     """List the variants in the backend"""
     try:
         config_check(app_folder)
-        list_variants(app_folder=app_folder, host=get_host(app_folder))
+        list_variants(app_folder=app_folder)
     except Exception as ex:
         click.echo(click.style(f"Error while listing variants: {ex}", fg="red"))

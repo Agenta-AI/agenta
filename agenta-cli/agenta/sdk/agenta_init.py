@@ -1,13 +1,16 @@
 import os
 import logging
 from typing import Any, Optional
-from agenta.client import client
 
 from .utils.globals import set_global
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+from agenta.client.client import ClientWrapper
+client_wrapper = ClientWrapper()
+client = client_wrapper.api_client
+from agenta.client.client import APIRequestError
 
 class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
@@ -61,12 +64,19 @@ class AgentaSingleton:
                     f"Warning: Your configuration will not be saved permanently since app_name and base_name are not provided."
                 )
             else:
-                app_id = client.get_app_by_name(
-                    app_name=app_name, host=host, api_key=api_key
-                )
-                base_id = client.get_base_by_app_id_and_name(
-                    app_id=app_id, base_name=base_name, host=host, api_key=api_key
-                )
+                try:
+                    app_id = client.list_apps_apps_get(
+                        app_name=app_name
+                    ).app_id
+                    
+                    if not app_id:
+                        raise APIRequestError(f"App with name {app_name} does not exist on the server.")
+                    
+                    base_id = client.list_bases_bases_get(
+                        app_id=app_id, base_name=base_name
+                    )
+                except Exception as ex:
+                    raise APIRequestError(f"Failed to get base id and/or app_id from the server with error: {ex}")
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
@@ -113,13 +123,11 @@ class Config:
         if not self.persist:
             return
         try:
-            client.save_variant_config(
+            client.save_config_configs_post(
                 base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
                 overwrite=overwrite,
-                host=self.host,
-                api_key=self.api_key,
             )
         except Exception as ex:
             logger.warning(
@@ -137,18 +145,14 @@ class Config:
         if self.persist:
             try:
                 if environment_name:
-                    config = client.fetch_variant_config(
+                    config = client.get_config_configs_get(
                         base_id=self.base_id,
-                        host=self.host,
-                        api_key=self.api_key,
-                        environment_name=environment_name,
+                        environment_name=environment_name
                     )
 
                 else:
-                    config = client.fetch_variant_config(
+                    config = client.get_config_configs_get(
                         base_id=self.base_id,
-                        host=self.host,
-                        api_key=self.api_key,
                         config_name=config_name,
                     )
             except Exception as ex:
