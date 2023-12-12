@@ -1,6 +1,5 @@
 import {useState, useEffect, useMemo} from "react"
 import {useRouter} from "next/router"
-import {usePostHog} from "posthog-js/react"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
@@ -12,7 +11,6 @@ import Welcome from "./Welcome"
 import {getApikeys, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
-    getProfile,
     getTemplates,
     removeApp,
     waitForAppToStart,
@@ -25,6 +23,7 @@ import {createUseStyles} from "react-jss"
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
+import {usePostHogAg} from "@/hooks/usePostHogAg"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -97,7 +96,7 @@ const timeout = isDemo() ? 60000 : 30000
 
 const AppSelector: React.FC = () => {
     const router = useRouter()
-    const posthog = usePostHog()
+    const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
@@ -120,7 +119,6 @@ const AppSelector: React.FC = () => {
         appId: undefined,
     })
 
-    const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
@@ -210,16 +208,13 @@ const AppSelector: React.FC = () => {
                     setFetchingTemplate(false)
                 if (status === "success") {
                     mutate()
-
-                    if (trackingEnabled) {
-                        posthog.capture("app_deployment", {
-                            properties: {
-                                app_id: appId,
-                                environment: "UI",
-                                deployed_by: user?.id,
-                            },
-                        })
-                    }
+                    posthog.capture("app_deployment", {
+                        properties: {
+                            app_id: appId,
+                            environment: "UI",
+                            deployed_by: user?.id,
+                        },
+                    })
                 }
             },
         })
