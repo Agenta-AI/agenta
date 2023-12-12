@@ -12,9 +12,11 @@ from pathlib import Path
 import toml
 
 from agenta.client.client import ClientWrapper
+
 client_wrapper = ClientWrapper()
 client = client_wrapper.api_client
 from agenta.client.client import APIRequestError
+
 
 def get_global_config(var_name: str) -> Optional[Any]:
     """
@@ -131,7 +133,9 @@ def update_variants_from_backend(
         a new config object later to be saved using toml.dump(config, config_file.open('w'))
     """
     try:
-        variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(app_id=app_id)
+        variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(
+            app_id=app_id
+        )
     except Exception as ex:
         raise ex
 
