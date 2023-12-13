@@ -23,7 +23,6 @@ interface Props {
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
     environments: Environment[]
-    onAdd: () => void
     deleteVariant: (deleteAction?: Function) => void
     getHelpers: (helpers: {save: Function; delete: Function}) => void
     onStateChange: (isDirty: boolean) => void
@@ -62,7 +61,6 @@ const ParametersView: React.FC<Props> = ({
     isParamsCollapsed,
     setIsParamsCollapsed,
     environments,
-    onAdd,
     deleteVariant,
     getHelpers,
     onStateChange,
@@ -96,8 +94,7 @@ const ParametersView: React.FC<Props> = ({
 
     const onSave = () => {
         return new Promise((res) => {
-            onOptParamsChange(optParams!, true, isPersistent, (isNew: boolean) => {
-                if (isNew && onAdd) onAdd()
+            onOptParamsChange(optParams!, true, isPersistent, () => {
                 messageApi.open({
                     type: "success",
                     content: "Changes saved successfully!",
