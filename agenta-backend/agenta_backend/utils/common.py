@@ -1,8 +1,10 @@
+import logging
 from bson import ObjectId
 from odmantic import query
-from fastapi.responses import JSONResponse
-from typing import Dict, List, Union, Optional
+from fastapi.types import DecoratedCallable
+from fastapi import APIRouter as FastAPIRouter
 from agenta_backend.models.db_engine import DBEngine
+from typing import Dict, List, Union, Optional, Any, Callable
 from agenta_backend.models.db_models import (
     UserDB,
     AppVariantDB,
@@ -10,12 +12,33 @@ from agenta_backend.models.db_models import (
     AppDB,
     VariantBaseDB,
 )
-import logging
 
 engine = DBEngine().engine()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+
+class APIRouter(FastAPIRouter):
+    def api_route(
+        self, path: str, *, include_in_schema: bool = True, **kwargs: Any
+    ) -> Callable[[DecoratedCallable], DecoratedCallable]:
+        if path.endswith("/"):
+            path = path[:-1]
+
+        add_path = super().api_route(
+            path, include_in_schema=include_in_schema, **kwargs
+        )
+
+        alternate_path = path + "/"
+        add_alternate_path = super().api_route(
+            alternate_path, include_in_schema=False, **kwargs
+        )
+
+        def decorator(func: DecoratedCallable) -> DecoratedCallable:
+            add_alternate_path(func)
+            return add_path(func)
+
+        return decorator
 
 async def get_organization(org_id: str) -> OrganizationDB:
     org = await engine.find_one(OrganizationDB, OrganizationDB.id == ObjectId(org_id))
