@@ -62,7 +62,7 @@ class AgentaSingleton:
         backend_url = f"{host}/{BACKEND_URL_SUFFIX}"
         client_wrapper = ClientWrapper(
             backend_url=backend_url,
-            api_key=api_key,
+            api_key=api_key if api_key else "",
         )
         client = client_wrapper.api_client
 
