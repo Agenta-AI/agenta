@@ -6,18 +6,9 @@ from typing import Dict
 from pathlib import Path
 from agenta.client.backend import client
 from agenta.client.api_models import Image
-from agenta.client.exceptions import APIRequestError
 from requests.exceptions import RequestException
-
-
-class ClientWrapper:
-    def __init__(self, backend_url: str, api_key: str):
-        self.api_client = client.AgentaApi(
-            base_url=backend_url,
-            api_key=api_key,
-            timeout=600,
-        )
-
+from agenta.client.backend.client import AgentaApi
+from agenta.client.exceptions import APIRequestError
 
 def add_variant_to_server(
     app_id: str,
@@ -49,13 +40,13 @@ def add_variant_to_server(
         click.style("Waiting for the variant to be ready", fg="yellow"), nl=False
     )
 
-    api_wrapper = ClientWrapper(
-        backend_url=backend_url,
+    client = AgentaApi(
+        base_url=backend_url,
         api_key=api_key,
     )
     for attempt in range(retries):
         try:
-            response = api_wrapper.api_client.add_variant_from_image_apps_app_id_variant_from_image_post(
+            response = client.add_variant_from_image_apps_app_id_variant_from_image_post(
                 app_id=app_id,
                 variant_name=f"{base_name.lower()}.default",
                 base_name=base_name,
