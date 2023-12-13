@@ -4,9 +4,9 @@ import time
 import click
 from typing import Dict
 from pathlib import Path
-from agenta.api.backend import client
+from agenta.client.backend import client
 from agenta.client.api_models import Image
-from agenta.api.exceptions import APIRequestError
+from agenta.client.exceptions import APIRequestError
 from requests.exceptions import RequestException
 
 
