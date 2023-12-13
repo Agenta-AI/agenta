@@ -154,7 +154,7 @@ def add_variant(
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
             response = add_variant_to_server(
-                app_id, base_name, image, backend_url, client_api_key
+                app_id, base_name, image, f"{host}/{BACKEND_URL_SUFFIX}", api_key
             )
             variant_id = response["variant_id"]
             config["variants"].append(variant_name)
