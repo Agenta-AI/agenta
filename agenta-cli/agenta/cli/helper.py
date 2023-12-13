@@ -12,8 +12,7 @@ from typing import Any, Optional
 from pathlib import Path
 import toml
 
-from agenta.api.api import ClientWrapper
-from agenta.api.exceptions import APIRequestError
+from agenta.client.api import ClientWrapper
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
