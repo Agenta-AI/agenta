@@ -1,3 +1,4 @@
+import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {Environment, Variant} from "@/lib/Types"
 import {fetchEnvironments, publishVariant} from "@/lib/services/api"
 import {Button, Checkbox, Modal, Space, Typography, message} from "antd"
@@ -35,6 +36,7 @@ const PublishVariantModal: React.FC<Props> = ({
         setSelectedEnvs([])
     }
     const router = useRouter()
+    const posthog = usePostHogAg()
     const appId = router.query.app_id as string
 
     const [selectedEnvs, setSelectedEnvs] = useState<string[]>([])
@@ -55,6 +57,7 @@ const PublishVariantModal: React.FC<Props> = ({
             closeModal()
             await loadEnvironments()
             message.success(`Published ${variant.variantName} to ${envName}`)
+            posthog.capture("app_deployed", {app_id: appId, environment: envName})
         })
     }
 

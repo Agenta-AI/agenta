@@ -1,6 +1,5 @@
 import {useState, useEffect, useMemo} from "react"
 import {useRouter} from "next/router"
-import {usePostHog} from "posthog-js/react"
 import {PlusOutlined} from "@ant-design/icons"
 import {Input, Modal, ConfigProvider, theme, Spin, Card, Button, notification, Divider} from "antd"
 import AppCard from "./AppCard"
@@ -12,7 +11,6 @@ import Welcome from "./Welcome"
 import {getApikeys, isAppNameInputValid, isDemo} from "@/lib/helpers/utils"
 import {
     createAndStartTemplate,
-    getProfile,
     getTemplates,
     removeApp,
     waitForAppToStart,
@@ -25,6 +23,7 @@ import {createUseStyles} from "react-jss"
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
+import {usePostHogAg} from "@/hooks/usePostHogAg"
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -97,7 +96,7 @@ const timeout = isDemo() ? 60000 : 30000
 
 const AppSelector: React.FC = () => {
     const router = useRouter()
-    const posthog = usePostHog()
+    const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
@@ -105,7 +104,7 @@ const AppSelector: React.FC = () => {
     const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
-
+    const {user} = useProfileData()
     const [templateMessage, setTemplateMessage] = useState("")
     const [templateId, setTemplateId] = useState<string | undefined>(undefined)
     const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
@@ -120,7 +119,6 @@ const AppSelector: React.FC = () => {
         appId: undefined,
     })
 
-    const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
     const showCreateAppModal = async () => {
         setIsCreateAppModalOpen(true)
     }
@@ -204,27 +202,19 @@ const AppSelector: React.FC = () => {
             orgId: selectedOrg?.id!,
             providerKey: isDemo() ? "" : (providerKeys as string),
             timeout,
-            onStatusChange: (status, details, appId) => {
+            onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)
                 if (status === "success") {
                     mutate()
-
-                    if (trackingEnabled) {
-                        // Get user profile
-                        getProfile().then((res) => {
-                            // Update distinct_id and track successfully app variant deployment
-                            posthog?.identify(res?.data?.id)
-                            posthog?.capture("app_deployment", {
-                                properties: {
-                                    app_id: appId,
-                                    environment: "UI",
-                                    deployed_by: res?.data?.id,
-                                },
-                            })
-                        })
-                    }
+                    posthog.capture("app_deployment", {
+                        properties: {
+                            app_id: appId,
+                            environment: "UI",
+                            deployed_by: user?.id,
+                        },
+                    })
                 }
             },
         })
