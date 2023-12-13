@@ -3,7 +3,8 @@ import logging
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
 from typing import Any, Optional, Union
-from fastapi import APIRouter, HTTPException, Request, Body
+from fastapi import HTTPException, Request, Body
+from agenta_backend.utils.common import APIRouter
 from agenta_backend.services import (
     app_manager,
     db_manager,
