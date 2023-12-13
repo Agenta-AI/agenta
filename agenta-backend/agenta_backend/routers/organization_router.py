@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.get("/", response_model=list[Organization])
+@router.get("/", response_model=list[Organization], operation_id="list_organizations")
 async def list_organizations(
     request: Request,
 ):
@@ -67,7 +67,7 @@ async def list_organizations(
         )
 
 
-@router.get("/own/")
+@router.get("/own/", response_model=OrganizationOutput, operation_id="get_own_org")
 async def get_user_organization(
     request: Request,
 ):
