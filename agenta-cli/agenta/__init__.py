@@ -10,6 +10,7 @@ from .sdk.types import (
     MessagesInput,
     TextParam,
     FileInputURL,
+    BinaryParam
 )
 from .sdk.utils.preinit import PreInitObject
 from .sdk.agenta_init import Config, init
