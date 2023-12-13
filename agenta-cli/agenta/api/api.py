@@ -4,10 +4,10 @@ import time
 import click
 from typing import Dict
 from pathlib import Path
-from agenta.client.backend import client
+from agenta.api.backend import client
 from agenta.client.api_models import Image
+from agenta.api.exceptions import APIRequestError
 from requests.exceptions import RequestException
-
 
 class ClientWrapper:
     def __init__(self):
@@ -34,15 +34,12 @@ class ClientWrapper:
         )
 
 
-class APIRequestError(Exception):
-    """Exception to be raised when an API request fails."""
-
-
 def add_variant_to_server(
     app_id: str,
     base_name: str,
     image: Image,
     retries=10,
+    
     backoff_factor=1,
 ) -> Dict:
     """
@@ -94,3 +91,4 @@ def add_variant_to_server(
             raise APIRequestError(
                 click.style(f"\nAn unexpected error occurred: {e}", fg="red")
             )
+
