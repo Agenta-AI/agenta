@@ -10,26 +10,11 @@ from agenta.api.exceptions import APIRequestError
 from requests.exceptions import RequestException
 
 class ClientWrapper:
-    def __init__(self):
-        self.backend_url_suffix = os.environ.get("BACKEND_URL_SUFFIX", "api")
-        self.script_path = Path(__file__).resolve()
-        self.app_folder = self.script_path.parents[1]
-        self.config_file = self.app_folder / "config.toml"
-        self.config = toml.load(self.config_file)
-
-        if "backend_host" not in self.config:
-            self.backend_host = "http://localhost"
-        else:
-            self.backend_host = self.config["backend_host"]
-
-        self.agenta_dir = Path.home() / ".agenta"
-        self.dir_config_file = self.agenta_dir / "config.toml"
-        self.dir_config = toml.load(self.dir_config_file)
-        self.api_key_for_fern = self.dir_config.get("api_key", None)
+    def __init__(self, backend_url: str, api_key: str):
 
         self.api_client = client.AgentaApi(
-            base_url=f"{self.backend_host}/{self.backend_url_suffix}",
-            api_key=self.api_key_for_fern,
+            base_url=backend_url,
+            api_key=api_key,
             timeout=600,
         )
 
