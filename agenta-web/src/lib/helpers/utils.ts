@@ -299,3 +299,17 @@ export async function batchExecute(
     }
     return results
 }
+
+export const shortPoll = async (
+    func: Function,
+    {delayMs, timeoutMs = 2000}: {delayMs: number; timeoutMs?: number},
+) => {
+    let startTime = Date.now()
+    let shouldContinue = true
+    while (shouldContinue && Date.now() - startTime < timeoutMs) {
+        try {
+            shouldContinue = await func()
+        } catch {}
+        await delay(delayMs)
+    }
+}
