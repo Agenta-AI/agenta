@@ -14,7 +14,8 @@ from agenta.cli.telemetry import event_track
 from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
 
-from agenta.client.api import ClientWrapper, add_variant_to_server
+from agenta.client.api import add_variant_to_server
+from agenta.client.backend.client import AgentaApi
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
@@ -96,10 +97,10 @@ def add_variant(
     variant_name = f"{base_name}.{config_name}"
     overwrite = False
 
-    client = ClientWrapper(
-        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
-    ).api_client
+    )
 
     if variant_name in config["variants"]:
         overwrite = questionary.confirm(
@@ -255,10 +256,10 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         ).ask()
         variant_id = config["variant_ids"][config["variants"].index(variant_name)]
 
-    client = ClientWrapper(
-        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
-    ).api_client
+    )
 
     endpoint = client.start_variant_variants_variant_id_put(
         variant_id=variant_id, action={"action": "START"}
@@ -324,10 +325,10 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
         ).ask()
     variant_id = config["variant_ids"][config["variants"].index(variant_name)]
 
-    client = ClientWrapper(
-        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
-    ).api_client
+    )
 
     try:
         client.remove_variant_variants_variant_id_delete(variant_id=variant_id)
@@ -362,10 +363,10 @@ def list_variants(app_folder: str, host: str):
     api_key = config.get("api_key", "")
     variants = []
 
-    client = ClientWrapper(
-        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
-    ).api_client
+    )
 
     try:
         variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(
