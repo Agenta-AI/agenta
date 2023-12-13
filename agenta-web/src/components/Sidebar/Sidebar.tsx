@@ -6,7 +6,7 @@ import {
     DatabaseOutlined,
     CloudUploadOutlined,
     LineChartOutlined,
-    QuestionOutlined,
+    ReadOutlined,
     PhoneOutlined,
     SettingOutlined,
     LogoutOutlined,
@@ -313,9 +313,9 @@ const Sidebar: React.FC = () => {
                                     </Menu.Item>
                                 )}
 
-                                <Menu.Item key="help" icon={<QuestionOutlined />}>
+                                <Menu.Item key="docs" icon={<ReadOutlined />}>
                                     <Link href="https://docs.agenta.ai" target="_blank">
-                                        Help
+                                        Docs
                                     </Link>
                                 </Menu.Item>
 
@@ -326,7 +326,7 @@ const Sidebar: React.FC = () => {
                                                 href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"
                                                 target="_blank"
                                             >
-                                                Talk to an Expert
+                                                Book Onboarding Call
                                             </Link>
                                         </Menu.Item>
                                         {selectedOrg && (
