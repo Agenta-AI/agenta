@@ -17,24 +17,6 @@ from agenta.api.exceptions import APIRequestError
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
-# set up the client
-script_path = Path(__file__).resolve().parents[1]
-config = toml.load(script_path / "config.toml")
-
-backend_host = (
-    config["backend_host"] if "backend_host" in config else "http://localhost"
-)
-
-agenta_dir = Path.home() / ".agenta"
-dir_config = toml.load(agenta_dir / "config.toml")
-client_api_key = dir_config.get("api_key", None)
-
-client_wrapper = ClientWrapper(
-    backend_url=f"{backend_host}/{BACKEND_URL_SUFFIX}",
-    api_key=client_api_key if client_api_key else "",
-)
-client = client_wrapper.api_client
-
 
 def get_global_config(var_name: str) -> Optional[Any]:
     """
@@ -150,6 +132,11 @@ def update_variants_from_backend(
     Returns:
         a new config object later to be saved using toml.dump(config, config_file.open('w'))
     """
+    client = ClientWrapper(
+        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    ).api_client
+    
     try:
         variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(
             app_id=app_id
@@ -171,7 +158,7 @@ def update_config_from_backend(config_file: Path, host: str):
     assert config_file.exists(), "Config file does not exist!"
     config = toml.load(config_file)
     app_id = config["app_id"]
-    api_key = config.get("api_key", None)
+    api_key = config.get("api_key", "")
     if "variants" not in config:
         config["variants"] = []
     if "variant_ids" not in config:

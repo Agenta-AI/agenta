@@ -19,22 +19,6 @@ from agenta.api.exceptions import APIRequestError
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
-# set up the client
-script_path = Path(__file__).resolve().parents[1]
-config = toml.load(script_path / "config.toml")
-
-backend_host = (
-    config["backend_host"] if "backend_host" in config else "http://localhost"
-)
-backend_url = f"{backend_host}/{BACKEND_URL_SUFFIX}"
-
-client_api_key = helper.get_global_config("api_key")
-client_wrapper = ClientWrapper(
-    backend_url=backend_url,
-    api_key=client_api_key if client_api_key else "",
-)
-client = client_wrapper.api_client
-
 
 @click.group()
 def variant():
@@ -42,7 +26,7 @@ def variant():
     pass
 
 
-def add_variant(app_folder: str, file_name: str, config_name="default") -> str:
+def add_variant(app_folder: str, file_name: str, host: str, config_name="default") -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
     The app variant name to be added is
@@ -62,7 +46,7 @@ def add_variant(app_folder: str, file_name: str, config_name="default") -> str:
 
     app_name = config["app_name"]
     app_id = config["app_id"]
-    api_key = config.get("api_key", None)
+    api_key = config.get("api_key", "")
 
     config_name = "default"
     base_name = file_name.removesuffix(".py")
@@ -110,6 +94,11 @@ def add_variant(app_folder: str, file_name: str, config_name="default") -> str:
     # update the config file with the variant names from the backend
     variant_name = f"{base_name}.{config_name}"
     overwrite = False
+    
+    client = ClientWrapper(
+        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    ).api_client
 
     if variant_name in config["variants"]:
         overwrite = questionary.confirm(
@@ -244,6 +233,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
     config_file = app_folder / "config.toml"
     config = toml.load(config_file)
     app_id = config["app_id"]
+    api_key = config.get("api_key", "")
 
     if len(config["variants"]) == 0:
         click.echo("No variants found. Please add a variant first.")
@@ -263,6 +253,11 @@ def start_variant(variant_id: str, app_folder: str, host: str):
             "Please choose a variant", choices=config["variants"]
         ).ask()
         variant_id = config["variant_ids"][config["variants"].index(variant_name)]
+        
+    client = ClientWrapper(
+        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    ).api_client
 
     endpoint = client.start_variant_variants_variant_id_put(
         variant_id=variant_id, action={"action": "START"}
@@ -292,7 +287,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
     )
 
 
-def remove_variant(variant_name: str, app_folder: str):
+def remove_variant(variant_name: str, app_folder: str, host: str):
     """
     Removes a variant from the server
     Args:
@@ -327,6 +322,12 @@ def remove_variant(variant_name: str, app_folder: str):
             "Please choose a variant", choices=config["variants"]
         ).ask()
     variant_id = config["variant_ids"][config["variants"].index(variant_name)]
+    
+    client = ClientWrapper(
+        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    ).api_client
+    
     try:
         client.remove_variant_variants_variant_id_delete(variant_id=variant_id)
     except Exception as ex:
@@ -347,7 +348,7 @@ def remove_variant(variant_name: str, app_folder: str):
     )
 
 
-def list_variants(app_folder: str):
+def list_variants(app_folder: str, host: str):
     """List available variants for an app and print them to the console
 
     Arguments:
@@ -357,7 +358,13 @@ def list_variants(app_folder: str):
     config = toml.load(config_file)
     app_name = config["app_name"]
     app_id = config["app_id"]
+    api_key = config.get("api_key", "")
     variants = []
+    
+    client = ClientWrapper(
+        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    ).api_client
 
     try:
         variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(
@@ -418,6 +425,7 @@ def remove_variant_cli(variant_name: str, app_folder: str):
         remove_variant(
             variant_name=variant_name,
             app_folder=app_folder,
+            host=get_host(app_folder),
         )
     except Exception as ex:
         click.echo(click.style(f"Error while removing variant: {ex}", fg="red"))
@@ -460,9 +468,16 @@ def serve_cli(ctx, app_folder: str, file_name: str):
         click.echo(click.style("Failed to retrieve the host.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
         return
+    
+    try:
+        api_key = helper.get_global_config("api_key")
+    except Exception as e:
+        click.echo(click.style("Failed to retrieve the api key.", fg="red"))
+        click.echo(click.style(f"Error message: {str(e)}", fg="red"))
+        return
 
     try:
-        variant_id = add_variant(app_folder=app_folder, file_name=file_name)
+        variant_id = add_variant(app_folder=app_folder, file_name=file_name, host=host)
     except Exception as e:
         click.echo(click.style("Failed to add variant.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
@@ -489,6 +504,6 @@ def list_variants_cli(app_folder: str):
     """List the variants in the backend"""
     try:
         config_check(app_folder)
-        list_variants(app_folder=app_folder)
+        list_variants(app_folder=app_folder, host=get_host(app_folder))
     except Exception as ex:
         click.echo(click.style(f"Error while listing variants: {ex}", fg="red"))
