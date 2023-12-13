@@ -111,7 +111,8 @@ def init(app_name: str):
             if global_backend_host:
                 backend_host = global_backend_host
             else:
-                backend_host = "http://localhost"
+                backend_host = "https://cloud.agenta.ai"
+
             api_key = helper.get_api_key(backend_host)
 
         elif where_question is None:  # User pressed Ctrl+C
@@ -123,15 +124,24 @@ def init(app_name: str):
         )   
             
         # initialize the client with the backend url and api key
-        backend_url = f"{backend_host}/{BACKEND_URL_SUFFIX}"
         client_wrapper = ClientWrapper(
-            backend_url=backend_url, 
+            backend_url=f"{backend_host}/{BACKEND_URL_SUFFIX}", 
             api_key=api_key if where_question == "On agenta cloud" else None,
         )
         client = client_wrapper.api_client
         
-        # validate the api key
-        client.validate_api_key_keys_key_prefix_validate_get
+        # validate the api key if it is provided
+        if where_question == "On agenta cloud":
+            try:
+                key_prefix = api_key.split(".")[0]
+                client.validate_api_key_keys_key_prefix_validate_get(key_prefix=key_prefix)
+            except Exception as ex:
+                if ex.status_code == 401:
+                    click.echo(click.style("Error: Invalid API key", fg="red"))
+                    sys.exit(1)
+                else:
+                    click.echo(click.style(f"Error: {ex}", fg="red"))
+                    sys.exit(1)
 
         # Get app_id after creating new app in the backend server
         try:
