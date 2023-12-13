@@ -125,7 +125,7 @@ def init(app_name: str):
         # initialize the client with the backend url and api key
         client_wrapper = ClientWrapper(
             backend_url=f"{backend_host}/{BACKEND_URL_SUFFIX}", 
-            api_key=api_key if where_question == "On agenta cloud" else None,
+            api_key=api_key if where_question == "On agenta cloud" else "",
         )
         client = client_wrapper.api_client
         
