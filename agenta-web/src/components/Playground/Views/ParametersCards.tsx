@@ -1,8 +1,8 @@
-import {Row, Card, Slider, Select, InputNumber, Col, Input, Button} from "antd"
 import React from "react"
-import {Parameter, InputParameter} from "@/lib/Types"
-import {renameVariables} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
+import {renameVariables} from "@/lib/helpers/utils"
+import {Parameter, InputParameter} from "@/lib/Types"
+import {Row, Card, Slider, Select, InputNumber, Col, Input, Button, Switch} from "antd"
 
 const useStyles = createUseStyles({
     row1: {
@@ -72,6 +72,10 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
     handleParamChange,
 }) => {
     const classes = useStyles()
+    const handleCheckboxChange = (paramName: string, checked: boolean) => {
+        const value = checked ? 1 : 0
+        handleParamChange(paramName, value)
+    }
     return (
         <>
             {optParams?.some((param) => !param.input && param.type === "number") && (
@@ -83,7 +87,8 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                     !param.input &&
                                     (param.type === "number" ||
                                         param.type === "integer" ||
-                                        param.type === "array"),
+                                        param.type === "array") ||
+                                        param.type === "boolean",
                             )
                             .map((param, index) => (
                                 <Row key={index} className={classes.row2}>
@@ -135,6 +140,12 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                                     </Select.Option>
                                                 ))}
                                             </Select>
+                                        )}
+                                        {param.type === "boolean" && (
+                                            <Switch
+                                                defaultValue={param.default}
+                                                onChange={(checked: boolean) => handleCheckboxChange(param.name, checked)}
+                                            />
                                         )}
                                     </Col>
                                     <Col>
