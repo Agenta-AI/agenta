@@ -4,7 +4,8 @@ from docker.errors import DockerException
 from fastapi.responses import JSONResponse
 from agenta_backend.config import settings
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import HTTPException, Request
+from agenta_backend.utils.common import APIRouter
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,

@@ -1,7 +1,8 @@
 import os
 from typing import List
 
-from fastapi import APIRouter, Request
+from fastapi import Request
+from agenta_backend.utils.common import APIRouter
 
 from agenta_backend.services.event_db_manager import (
     get_variant_traces,
