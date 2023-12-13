@@ -7,8 +7,8 @@ from .utils.globals import set_global
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-from agenta.api.api import ClientWrapper
-from agenta.api.exceptions import APIRequestError
+from agenta.client.api import ClientWrapper
+from agenta.client.exceptions import APIRequestError
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 CLIENT_API_KEY = os.environ.get("AGENTA_API_KEY")
