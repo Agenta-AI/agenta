@@ -4,7 +4,8 @@ Does not deal with the instanciation of the images
 
 import os
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import HTTPException, Request
+from agenta_backend.utils.common import APIRouter
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.models.api.organization_models import (
     OrganizationOutput,
