@@ -136,7 +136,7 @@ def update_variants_from_backend(
         backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
     ).api_client
-    
+
     try:
         variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(
             app_id=app_id
