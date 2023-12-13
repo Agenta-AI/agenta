@@ -120,20 +120,22 @@ def init(app_name: str):
             backend_host
             if backend_host.startswith("http://") or backend_host.startswith("https://")
             else "http://" + backend_host
-        )   
-            
+        )
+
         # initialize the client with the backend url and api key
         client_wrapper = ClientWrapper(
-            backend_url=f"{backend_host}/{BACKEND_URL_SUFFIX}", 
+            backend_url=f"{backend_host}/{BACKEND_URL_SUFFIX}",
             api_key=api_key if where_question == "On agenta cloud" else "",
         )
         client = client_wrapper.api_client
-        
+
         # validate the api key if it is provided
         if where_question == "On agenta cloud":
             try:
                 key_prefix = api_key.split(".")[0]
-                client.validate_api_key_keys_key_prefix_validate_get(key_prefix=key_prefix)
+                client.validate_api_key_keys_key_prefix_validate_get(
+                    key_prefix=key_prefix
+                )
             except Exception as ex:
                 if ex.status_code == 401:
                     click.echo(click.style("Error: Invalid API key", fg="red"))
