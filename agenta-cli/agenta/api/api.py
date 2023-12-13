@@ -9,9 +9,9 @@ from agenta.client.api_models import Image
 from agenta.api.exceptions import APIRequestError
 from requests.exceptions import RequestException
 
+
 class ClientWrapper:
     def __init__(self, backend_url: str, api_key: str):
-
         self.api_client = client.AgentaApi(
             base_url=backend_url,
             api_key=api_key,
@@ -80,4 +80,3 @@ def add_variant_to_server(
             raise APIRequestError(
                 click.style(f"\nAn unexpected error occurred: {e}", fg="red")
             )
-
