@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 from typing import List
@@ -14,11 +15,22 @@ from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
 
 from agenta.api.api import ClientWrapper, add_variant_to_server
-
-client_wrapper = ClientWrapper()
-client = client_wrapper.api_client
 from agenta.api.exceptions import APIRequestError
 
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
+
+# set up the client
+script_path = Path(__file__).resolve().parents[1]
+config = toml.load( script_path / "config.toml" )
+
+backend_host = config["backend_host"] if "backend_host" in config else "http://localhost"
+
+client_api_key = helper.get_global_config("api_key")
+client_wrapper = ClientWrapper(
+    backend_url=f"{backend_host}/{BACKEND_URL_SUFFIX}",
+    api_key=client_api_key,
+)
+client = client_wrapper.api_client
 
 @click.group()
 def variant():

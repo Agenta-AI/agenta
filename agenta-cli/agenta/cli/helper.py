@@ -1,3 +1,4 @@
+import os
 import sys
 import toml
 import click
@@ -12,11 +13,25 @@ from pathlib import Path
 import toml
 
 from agenta.api.api import ClientWrapper
-
-client_wrapper = ClientWrapper()
-client = client_wrapper.api_client
 from agenta.api.exceptions import APIRequestError
 
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
+
+# set up the client
+script_path = Path(__file__).resolve().parents[1]
+config = toml.load(script_path / "config.toml")
+
+backend_host = config["backend_host"] if "backend_host" in config else "http://localhost"
+
+agenta_dir = Path.home() / ".agenta"
+dir_config = toml.load(agenta_dir / "config.toml")
+client_api_key = dir_config.get("api_key", None)
+
+client_wrapper = ClientWrapper(
+    backend_url=f"{backend_host}/{BACKEND_URL_SUFFIX}",
+    api_key=client_api_key,
+)
+client = client_wrapper.api_client
 
 def get_global_config(var_name: str) -> Optional[Any]:
     """
