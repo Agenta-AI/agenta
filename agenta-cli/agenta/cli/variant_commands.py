@@ -24,11 +24,12 @@ script_path = Path(__file__).resolve().parents[1]
 config = toml.load( script_path / "config.toml" )
 
 backend_host = config["backend_host"] if "backend_host" in config else "http://localhost"
+backend_url = f"{backend_host}/{BACKEND_URL_SUFFIX}"
 
 client_api_key = helper.get_global_config("api_key")
 client_wrapper = ClientWrapper(
-    backend_url=f"{backend_host}/{BACKEND_URL_SUFFIX}",
-    api_key=client_api_key,
+    backend_url=backend_url,
+    api_key=client_api_key if client_api_key else "",
 )
 client = client_wrapper.api_client
 
@@ -158,8 +159,8 @@ def add_variant(app_folder: str, file_name: str, config_name="default") -> str:
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
-            response = add_variant_to_server(app_id, base_name, image)
-            variant_id = response.variant_id
+            response = add_variant_to_server(app_id, base_name, image, backend_url, client_api_key)
+            variant_id = response["variant_id"]
             config["variants"].append(variant_name)
             config["variant_ids"].append(variant_id)
     except Exception as ex:
@@ -175,7 +176,8 @@ def add_variant(app_folder: str, file_name: str, config_name="default") -> str:
     if overwrite:
         # Track a deployment event
         if tracking_enabled:
-            user_id = client.user_profile_profile_get().id
+            get_user_id = client.user_profile_profile_get()
+            user_id = get_user_id["id"]
             event_track.capture_event(
                 user_id,
                 "app_deployment",
@@ -197,7 +199,8 @@ def add_variant(app_folder: str, file_name: str, config_name="default") -> str:
     else:
         # Track a deployment event
         if tracking_enabled:
-            user_id = client.user_profile_profile_get().id
+            get_user_id = client.user_profile_profile_get()
+            user_id = get_user_id["id"]
             event_track.capture_event(
                 user_id,
                 "app_deployment",
@@ -257,7 +260,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         variant_id = config["variant_ids"][config["variants"].index(variant_name)]
 
     endpoint = client.start_variant_variants_variant_id_put(
-        variant_id=variant_id, action="START"
+        variant_id=variant_id, action={"action": "START"}
     )
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
