@@ -244,7 +244,6 @@ const Playground: React.FC = () => {
                 variant={variant}
                 handlePersistVariant={handlePersistVariant}
                 environments={environments}
-                onAdd={fetchData}
                 deleteVariant={deleteVariant}
                 onStateChange={(isDirty) =>
                     setUnsavedVariants((prev) => ({...prev, [variant.variantName]: isDirty}))
