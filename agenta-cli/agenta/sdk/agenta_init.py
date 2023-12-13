@@ -22,6 +22,7 @@ client_wrapper = ClientWrapper(
 )
 client = client_wrapper.api_client
 
+
 class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 

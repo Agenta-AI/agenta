@@ -21,7 +21,9 @@ BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 script_path = Path(__file__).resolve().parents[1]
 config = toml.load(script_path / "config.toml")
 
-backend_host = config["backend_host"] if "backend_host" in config else "http://localhost"
+backend_host = (
+    config["backend_host"] if "backend_host" in config else "http://localhost"
+)
 
 agenta_dir = Path.home() / ".agenta"
 dir_config = toml.load(agenta_dir / "config.toml")
@@ -32,6 +34,7 @@ client_wrapper = ClientWrapper(
     api_key=client_api_key if client_api_key else "",
 )
 client = client_wrapper.api_client
+
 
 def get_global_config(var_name: str) -> Optional[Any]:
     """
