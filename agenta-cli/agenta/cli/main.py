@@ -13,7 +13,7 @@ from agenta.cli import helper
 from agenta.cli import variant_configs
 from agenta.cli import variant_commands
 
-from agenta.api.api import ClientWrapper
+from agenta.client.api import ClientWrapper
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 

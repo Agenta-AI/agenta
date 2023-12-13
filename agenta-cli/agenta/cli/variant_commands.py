@@ -14,8 +14,7 @@ from agenta.cli.telemetry import event_track
 from agenta.client.api_models import AppVariant, Image
 from agenta.docker.docker_utils import build_tar_docker_container
 
-from agenta.api.api import ClientWrapper, add_variant_to_server
-from agenta.api.exceptions import APIRequestError
+from agenta.client.api import ClientWrapper, add_variant_to_server
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
