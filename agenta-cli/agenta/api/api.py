@@ -23,8 +23,9 @@ def add_variant_to_server(
     app_id: str,
     base_name: str,
     image: Image,
+    backend_url: str,
+    api_key: str,
     retries=10,
-    
     backoff_factor=1,
 ) -> Dict:
     """
@@ -50,7 +51,10 @@ def add_variant_to_server(
 
     for attempt in range(retries):
         try:
-            api_wrapper = ClientWrapper()
+            api_wrapper = ClientWrapper(
+                backend_url=backend_url,
+                api_key=api_key,
+            )
             response = api_wrapper.api_client.add_variant_from_image_apps_app_id_variant_from_image_post(
                 app_id=app_id,
                 variant_name=f"{base_name.lower()}.default",
