@@ -73,16 +73,18 @@ class AgentaSingleton:
                 )
             else:
                 try:
-                    app_id = client.list_apps_apps_get(app_name=app_name).app_id
+                    get_app_id = client.list_apps_apps_get(app_name=app_name)
+                    app_id = get_app_id.app_id
 
                     if not app_id:
                         raise APIRequestError(
                             f"App with name {app_name} does not exist on the server."
                         )
 
-                    base_id = client.list_bases_bases_get(
+                    get_base_id = client.list_bases_bases_get(
                         app_id=app_id, base_name=base_name
                     )
+                    base_id = get_base_id.base_id
                 except Exception as ex:
                     raise APIRequestError(
                         f"Failed to get base id and/or app_id from the server with error: {ex}"
@@ -90,19 +92,24 @@ class AgentaSingleton:
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
-        self.config = Config(base_id=base_id, host=host, api_key=api_key, client=client)
+        self.config = Config(base_id=base_id, host=host, api_key=api_key, backend_url=backend_url)
 
 
 class Config:
-    def __init__(self, base_id, host, api_key, client):
+    def __init__(self, base_id, host, api_key, backend_url):
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
-        self.client = client
+        self.backend_url = backend_url
         if base_id is None or host is None:
             self.persist = False
         else:
             self.persist = True
+            
+        self.client = ClientWrapper(
+            backend_url=self.backend_url,
+            api_key=self.api_key if self.api_key else "",
+        ).api_client
 
     def default(self, overwrite=True, **kwargs):
         """Saves the default parameters to the app_name and base_name in case they are not already saved.
