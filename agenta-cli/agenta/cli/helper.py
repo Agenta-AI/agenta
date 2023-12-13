@@ -12,7 +12,7 @@ from typing import Any, Optional
 from pathlib import Path
 import toml
 
-from agenta.client.api import ClientWrapper
+from agenta.client.backend.client import AgentaApi
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
@@ -131,10 +131,10 @@ def update_variants_from_backend(
     Returns:
         a new config object later to be saved using toml.dump(config, config_file.open('w'))
     """
-    client = ClientWrapper(
-        backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
-    ).api_client
+    )
 
     try:
         variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(
