@@ -8,11 +8,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 from agenta.api.api import ClientWrapper
-
-client_wrapper = ClientWrapper()
-client = client_wrapper.api_client
 from agenta.api.exceptions import APIRequestError
 
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
 class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
@@ -60,6 +58,14 @@ class AgentaSingleton:
         if host is None:
             host = os.environ.get("AGENTA_HOST", "http://localhost")
 
+        # initialize the client with the backend url and api key
+        backend_url = f"{host}/{BACKEND_URL_SUFFIX}"
+        client_wrapper = ClientWrapper(
+            backend_url=backend_url,
+            api_key=api_key,
+        )
+        client = client_wrapper.api_client
+
         if base_id is None:
             if app_name is None or base_name is None:
                 print(
@@ -84,14 +90,15 @@ class AgentaSingleton:
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
-        self.config = Config(base_id=base_id, host=host, api_key=api_key)
+        self.config = Config(base_id=base_id, host=host, api_key=api_key, client=client)
 
 
 class Config:
-    def __init__(self, base_id, host, api_key):
+    def __init__(self, base_id, host, api_key, client):
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
+        self.client = client
         if base_id is None or host is None:
             self.persist = False
         else:
@@ -127,7 +134,7 @@ class Config:
         if not self.persist:
             return
         try:
-            client.save_config_configs_post(
+            self.client.save_config_configs_post(
                 base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
@@ -149,12 +156,12 @@ class Config:
         if self.persist:
             try:
                 if environment_name:
-                    config = client.get_config_configs_get(
+                    config = self.client.get_config_configs_get(
                         base_id=self.base_id, environment_name=environment_name
                     )
 
                 else:
-                    config = client.get_config_configs_get(
+                    config = self.client.get_config_configs_get(
                         base_id=self.base_id,
                         config_name=config_name,
                     )
