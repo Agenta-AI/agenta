@@ -21,9 +21,11 @@ BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
 # set up the client
 script_path = Path(__file__).resolve().parents[1]
-config = toml.load( script_path / "config.toml" )
+config = toml.load(script_path / "config.toml")
 
-backend_host = config["backend_host"] if "backend_host" in config else "http://localhost"
+backend_host = (
+    config["backend_host"] if "backend_host" in config else "http://localhost"
+)
 backend_url = f"{backend_host}/{BACKEND_URL_SUFFIX}"
 
 client_api_key = helper.get_global_config("api_key")
@@ -32,6 +34,7 @@ client_wrapper = ClientWrapper(
     api_key=client_api_key if client_api_key else "",
 )
 client = client_wrapper.api_client
+
 
 @click.group()
 def variant():
@@ -159,7 +162,9 @@ def add_variant(app_folder: str, file_name: str, config_name="default") -> str:
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
-            response = add_variant_to_server(app_id, base_name, image, backend_url, client_api_key)
+            response = add_variant_to_server(
+                app_id, base_name, image, backend_url, client_api_key
+            )
             variant_id = response["variant_id"]
             config["variants"].append(variant_name)
             config["variant_ids"].append(variant_id)
