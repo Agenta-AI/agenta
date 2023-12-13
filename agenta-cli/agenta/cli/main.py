@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import sys
@@ -13,10 +14,9 @@ from agenta.cli import variant_configs
 from agenta.cli import variant_commands
 
 from agenta.api.api import ClientWrapper
-
-client_wrapper = ClientWrapper()
-client = client_wrapper.api_client
 from agenta.api.exceptions import APIRequestError
+
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
 
 def print_version(ctx, param, value):
@@ -111,10 +111,8 @@ def init(app_name: str):
             if global_backend_host:
                 backend_host = global_backend_host
             else:
-                backend_host = "https://cloud.agenta.ai"
-
+                backend_host = "http://localhost"
             api_key = helper.get_api_key(backend_host)
-            client.validate_api_key_keys_key_prefix_validate_get
 
         elif where_question is None:  # User pressed Ctrl+C
             sys.exit(0)
@@ -122,7 +120,18 @@ def init(app_name: str):
             backend_host
             if backend_host.startswith("http://") or backend_host.startswith("https://")
             else "http://" + backend_host
+        )   
+            
+        # initialize the client with the backend url and api key
+        backend_url = f"{backend_host}/{BACKEND_URL_SUFFIX}"
+        client_wrapper = ClientWrapper(
+            backend_url=backend_url, 
+            api_key=api_key if where_question == "On agenta cloud" else None,
         )
+        client = client_wrapper.api_client
+        
+        # validate the api key
+        client.validate_api_key_keys_key_prefix_validate_get
 
         # Get app_id after creating new app in the backend server
         try:
