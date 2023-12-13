@@ -29,7 +29,7 @@ client_api_key = dir_config.get("api_key", None)
 
 client_wrapper = ClientWrapper(
     backend_url=f"{backend_host}/{BACKEND_URL_SUFFIX}",
-    api_key=client_api_key,
+    api_key=client_api_key if client_api_key else "",
 )
 client = client_wrapper.api_client
 
