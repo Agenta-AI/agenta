@@ -7,7 +7,8 @@ from agenta_backend.models.api.api_models import (
     Template,
 )
 from agenta_backend.services import db_manager
-from fastapi import APIRouter, Request, UploadFile, HTTPException
+from fastapi import Request, UploadFile, HTTPException
+from agenta_backend.utils.common import APIRouter
 from fastapi.responses import JSONResponse
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:

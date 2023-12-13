@@ -7,7 +7,8 @@ from bson import ObjectId
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import HTTPException, APIRouter, UploadFile, File, Form, Request
+from fastapi import HTTPException, UploadFile, File, Form, Request
+from agenta_backend.utils.common import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 

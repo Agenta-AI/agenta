@@ -3,7 +3,8 @@ import secrets
 from typing import List, Dict
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, APIRouter, Body, Request, status, Response
+from fastapi import HTTPException, Body, Request, status, Response
+from agenta_backend.utils.common import APIRouter
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (

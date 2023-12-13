@@ -1,6 +1,7 @@
 import os
 from typing import Optional
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import Request, HTTPException
+from agenta_backend.utils.common import APIRouter
 import logging
 
 from agenta_backend.models.api.api_models import (
