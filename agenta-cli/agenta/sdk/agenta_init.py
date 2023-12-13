@@ -7,11 +7,11 @@ from .utils.globals import set_global
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-from agenta.client.client import ClientWrapper
+from agenta.api.api import ClientWrapper
 
 client_wrapper = ClientWrapper()
 client = client_wrapper.api_client
-from agenta.client.client import APIRequestError
+from agenta.api.exceptions import APIRequestError
 
 
 class AgentaSingleton:
