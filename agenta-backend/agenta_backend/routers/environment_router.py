@@ -25,7 +25,7 @@ logger.setLevel(logging.DEBUG)
 router = APIRouter()
 
 
-@router.post("/deploy/")
+@router.post("/deploy/", operation_id="deploy_to_environment")
 async def deploy_to_environment(
     payload: DeployToEnvironmentPayload,
     request: Request,

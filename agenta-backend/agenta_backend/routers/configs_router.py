@@ -27,7 +27,7 @@ logger.setLevel(logging.DEBUG)
 router = APIRouter()
 
 
-@router.post("/")
+@router.post("/", operation_id="save_config")
 async def save_config(
     payload: SaveConfigPayload,
     request: Request,
@@ -74,7 +74,7 @@ async def save_config(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.get("/", response_model=GetConfigReponse)
+@router.get("/", response_model=GetConfigReponse, operation_id="get_config")
 async def get_config(
     request: Request,
     base_id: str,

@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.post("/from-base/")
+@router.post("/from-base/", operation_id="add_variant_from_base_and_config")
 async def add_variant_from_base_and_config(
     payload: AddVariantFromBasePayload,
     request: Request,
@@ -79,7 +79,7 @@ async def add_variant_from_base_and_config(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{variant_id}/")
+@router.delete("/{variant_id}/", operation_id="remove_variant")
 async def remove_variant(
     variant_id: str,
     request: Request,
@@ -123,7 +123,7 @@ async def remove_variant(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put("/{variant_id}/parameters/")
+@router.put("/{variant_id}/parameters/", operation_id="update_variant_parameters")
 async def update_variant_parameters(
     request: Request,
     variant_id: str,
@@ -172,7 +172,7 @@ async def update_variant_parameters(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put("/{variant_id}/image/")
+@router.put("/{variant_id}/image/", operation_id="update_variant_image")
 async def update_variant_image(
     variant_id: str,
     image: Image,
@@ -221,7 +221,7 @@ async def update_variant_image(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put("/{variant_id}/")
+@router.put("/{variant_id}/", operation_id="start_variant")
 async def start_variant(
     request: Request,
     variant_id: str,

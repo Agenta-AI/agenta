@@ -37,7 +37,7 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
-@router.post("/upload/", response_model=TestSetSimpleResponse)
+@router.post("/upload/", response_model=TestSetSimpleResponse, operation_id="upload_file")
 async def upload_file(
     request: Request,
     upload_type: str = Form(None),
@@ -115,7 +115,7 @@ async def upload_file(
         )
 
 
-@router.post("/endpoint/", response_model=TestSetSimpleResponse)
+@router.post("/endpoint/", response_model=TestSetSimpleResponse, operation_id="import_testset")
 async def import_testset(
     request: Request,
     endpoint: str = Form(None),
@@ -192,7 +192,7 @@ async def import_testset(
         ) from error
 
 
-@router.post("/{app_id}/")
+@router.post("/{app_id}/", response_model=TestSetSimpleResponse, operation_id="create_testset")
 async def create_testset(
     app_id: str,
     csvdata: NewTestset,
@@ -246,7 +246,7 @@ async def create_testset(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/{testset_id}/")
+@router.put("/{testset_id}/", operation_id="update_testset")
 async def update_testset(
     testset_id: str,
     csvdata: NewTestset,
@@ -298,7 +298,7 @@ async def update_testset(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/", tags=["testsets"])
+@router.get("/", operation_id="get_testsets")
 async def get_testsets(
     app_id: str,
     request: Request,
@@ -338,8 +338,8 @@ async def get_testsets(
     ]
 
 
-@router.get("/{testset_id}/", tags=["testsets"])
-async def get_testset(
+@router.get("/{testset_id}/", operation_id="get_single_testset")
+async def get_single_testset(
     testset_id: str,
     request: Request,
 ):
@@ -368,7 +368,7 @@ async def get_testset(
     return testset_db_to_pydantic(test_set)
 
 
-@router.delete("/", response_model=List[str])
+@router.delete("/", response_model=List[str], operation_id="delete_testsets")
 async def delete_testsets(
     delete_testsets: DeleteTestsets,
     request: Request,
