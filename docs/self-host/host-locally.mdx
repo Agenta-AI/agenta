@@ -15,7 +15,14 @@ You'll need Docker installed on your machine. If you don't have it yet, download
 mkdir agenta && cd agenta
 curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
 docker compose -f docker-compose.gh.yml up -d
-````
+```
+
+<Warning>To update to the last version of agenta. Please run 
+```bash
+docker compose -f docker-compose.gh.yml up -d --pull always
+```
+Which forces docker to pull the last version of the image
+</Warning>
 
 
 ## Starting agenta in Development Mode
