@@ -49,12 +49,12 @@ def add_variant_to_server(
         click.style("Waiting for the variant to be ready", fg="yellow"), nl=False
     )
 
+    api_wrapper = ClientWrapper(
+        backend_url=backend_url,
+        api_key=api_key,
+    )
     for attempt in range(retries):
         try:
-            api_wrapper = ClientWrapper(
-                backend_url=backend_url,
-                api_key=api_key,
-            )
             response = api_wrapper.api_client.add_variant_from_image_apps_app_id_variant_from_image_post(
                 app_id=app_id,
                 variant_name=f"{base_name.lower()}.default",
