@@ -26,7 +26,9 @@ def variant():
     pass
 
 
-def add_variant(app_folder: str, file_name: str, host: str, config_name="default") -> str:
+def add_variant(
+    app_folder: str, file_name: str, host: str, config_name="default"
+) -> str:
     """
     Adds a variant to the backend. Sends the code as a tar to the backend, which then containerizes it and adds it to the backend store.
     The app variant name to be added is
@@ -94,7 +96,7 @@ def add_variant(app_folder: str, file_name: str, host: str, config_name="default
     # update the config file with the variant names from the backend
     variant_name = f"{base_name}.{config_name}"
     overwrite = False
-    
+
     client = ClientWrapper(
         backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
@@ -253,7 +255,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
             "Please choose a variant", choices=config["variants"]
         ).ask()
         variant_id = config["variant_ids"][config["variants"].index(variant_name)]
-        
+
     client = ClientWrapper(
         backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
@@ -322,12 +324,12 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
             "Please choose a variant", choices=config["variants"]
         ).ask()
     variant_id = config["variant_ids"][config["variants"].index(variant_name)]
-    
+
     client = ClientWrapper(
         backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
     ).api_client
-    
+
     try:
         client.remove_variant_variants_variant_id_delete(variant_id=variant_id)
     except Exception as ex:
@@ -360,7 +362,7 @@ def list_variants(app_folder: str, host: str):
     app_id = config["app_id"]
     api_key = config.get("api_key", "")
     variants = []
-    
+
     client = ClientWrapper(
         backend_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
@@ -468,7 +470,7 @@ def serve_cli(ctx, app_folder: str, file_name: str):
         click.echo(click.style("Failed to retrieve the host.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
         return
-    
+
     try:
         api_key = helper.get_global_config("api_key")
     except Exception as e:
