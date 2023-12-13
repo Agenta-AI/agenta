@@ -1,3 +1,4 @@
+import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {useSession} from "@/hooks/useSession"
 import useStateCallback from "@/hooks/useStateCallback"
 import {isDemo} from "@/lib/helpers/utils"
@@ -54,6 +55,7 @@ const profileContextValues = {...initialValues}
 export const getProfileValues = () => profileContextValues
 
 const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
+    const posthog = usePostHogAg()
     const router = useRouter()
     const [user, setUser] = useState<User | null>(null)
     const [orgs, setOrgs] = useState<Org[]>([])
@@ -65,6 +67,7 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         setLoading(true)
         Promise.all([getProfile(), getOrgsList()])
             .then(([profile, orgs]) => {
+                posthog.identify()
                 setUser(profile.data)
                 setOrgs(orgs.data)
                 setSelectedOrg(
