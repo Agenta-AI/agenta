@@ -23,7 +23,7 @@ logger.setLevel(logging.DEBUG)
 router = APIRouter()
 
 
-@router.get("/", response_model=List[BaseOutput])
+@router.get("/", response_model=List[BaseOutput], operation_id="list_bases")
 async def list_bases(
     request: Request,
     app_id: Optional[str] = None,
