@@ -11,11 +11,11 @@ from typing import Any, Optional
 from pathlib import Path
 import toml
 
-from agenta.client.client import ClientWrapper
+from agenta.api.api import ClientWrapper
 
 client_wrapper = ClientWrapper()
 client = client_wrapper.api_client
-from agenta.client.client import APIRequestError
+from agenta.api.exceptions import APIRequestError
 
 
 def get_global_config(var_name: str) -> Optional[Any]:

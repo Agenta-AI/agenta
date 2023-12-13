@@ -12,11 +12,11 @@ from agenta.cli import helper
 from agenta.cli import variant_configs
 from agenta.cli import variant_commands
 
-from agenta.client.client import ClientWrapper
+from agenta.api.api import ClientWrapper
 
 client_wrapper = ClientWrapper()
 client = client_wrapper.api_client
-from agenta.client.client import APIRequestError
+from agenta.api.exceptions import APIRequestError
 
 
 def print_version(ctx, param, value):
@@ -111,7 +111,7 @@ def init(app_name: str):
             if global_backend_host:
                 backend_host = global_backend_host
             else:
-                backend_host = "http://localhost"
+                backend_host = "https://cloud.agenta.ai"
 
             api_key = helper.get_api_key(backend_host)
             client.validate_api_key_keys_key_prefix_validate_get
