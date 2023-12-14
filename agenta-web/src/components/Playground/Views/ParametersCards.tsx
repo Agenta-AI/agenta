@@ -84,11 +84,11 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                         {optParams
                             ?.filter(
                                 (param) =>
-                                    !param.input &&
-                                    (param.type === "number" ||
-                                        param.type === "integer" ||
-                                        param.type === "array") ||
-                                        param.type === "boolean",
+                                    (!param.input &&
+                                        (param.type === "number" ||
+                                            param.type === "integer" ||
+                                            param.type === "array")) ||
+                                    param.type === "boolean",
                             )
                             .map((param, index) => (
                                 <Row key={index} className={classes.row2}>
@@ -144,7 +144,9 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
                                         {param.type === "boolean" && (
                                             <Switch
                                                 defaultValue={param.default}
-                                                onChange={(checked: boolean) => handleCheckboxChange(param.name, checked)}
+                                                onChange={(checked: boolean) =>
+                                                    handleCheckboxChange(param.name, checked)
+                                                }
                                             />
                                         )}
                                     </Col>
