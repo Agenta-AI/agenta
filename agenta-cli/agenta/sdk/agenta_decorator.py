@@ -175,10 +175,10 @@ async def execute_function(
 
         if isinstance(result, Context):
             save_context(result)
-        if isinstance(result, FuncResponse):
-            return FuncResponse(**result, latency=str(latency)).dict()
+        if isinstance(result, Dict):
+            return FuncResponse(**result, latency=round(latency, 4)).dict()
         if isinstance(result, str):
-            return FuncResponse(message=result, latency=str(latency)).dict()
+            return FuncResponse(message=result, latency=round(latency, 4)).dict()
     except Exception as e:
         return handle_exception(e)
 
