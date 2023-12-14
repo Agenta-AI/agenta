@@ -150,7 +150,9 @@ def ingest_files(
             func_params[name] = ingest_file(func_params[name])
 
 
-async def execute_function(func: Callable[..., Any], *args, **func_params) -> Union[Dict[str, Any], JSONResponse]:
+async def execute_function(
+    func: Callable[..., Any], *args, **func_params
+) -> Union[Dict[str, Any], JSONResponse]:
     """Execute the function and handle any exceptions."""
 
     try:
