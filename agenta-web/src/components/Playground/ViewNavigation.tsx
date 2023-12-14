@@ -21,7 +21,6 @@ interface Props {
     variant: Variant
     handlePersistVariant: (variantName: string) => void
     environments: Environment[]
-    onAdd: () => void
     deleteVariant: (deleteAction?: Function) => void
     getHelpers: (helpers: {save: Function; delete: Function}) => void
     onStateChange: (isDirty: boolean) => void
@@ -42,7 +41,6 @@ const ViewNavigation: React.FC<Props> = ({
     variant,
     handlePersistVariant,
     environments,
-    onAdd,
     deleteVariant,
     getHelpers,
     onStateChange,
@@ -235,7 +233,6 @@ const ViewNavigation: React.FC<Props> = ({
                         isParamsCollapsed={isParamsCollapsed}
                         setIsParamsCollapsed={setIsParamsCollapsed}
                         environments={environments}
-                        onAdd={onAdd}
                         getHelpers={getHelpers}
                         onStateChange={onStateChange}
                         tabID={tabID}

@@ -104,6 +104,10 @@ class Config:
         else:
             self.persist = True
 
+    def register_default(self, overwrite=True, **kwargs):
+        """alias for default"""
+        return self.default(overwrite=overwrite, **kwargs)
+
     def default(self, overwrite=True, **kwargs):
         """Saves the default parameters to the app_name and base_name in case they are not already saved.
         Args:
