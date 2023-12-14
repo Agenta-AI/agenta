@@ -15,17 +15,20 @@ Welcome! This beginner-friendly guide will walk you through building a simple LL
 
 ## Prerequisites
 
-Make sure you have installed the Agenta web platform or are using the cloud version. If you haven't done this yet, follow our [installation guide](/installation).
+This guide assumes you are using [agenta cloud](https://cloud.agenta.ai). If you would like to self-host the agenta platform, please refer to [the self-hosting guide](/self-host/host-locally) for deployment instructions.
+
+<Accordion title="In case you are self-hosting agenta">
 
 ## Step 0: Add your OpenAI API keys
 
-1. Access the Agenta web platform.
-2. Select API keys from the left menu.
+1. Access the agenta in your webbrowser.
+2. Select "Settings" from the left sidebar.
+3. Select "LLM Keys" from the top menu.
 3. Add your OpenAI API key.
 
 Your OpenAI API keys are saved locally on your browser and are sent to the Agenta server only when you create a new application (as an environment variable in the Docker container).
 
-<img height="600" src="/images/getting-started-ui-screenshots/00_provide_openapi_token.png" />
+</Accordion >
 
 ## Step 1: Create a New LLM App
 
@@ -47,7 +50,9 @@ The provided application template already includes a prompt that states the capi
 <img height="600" src="/images/getting-started-ui-screenshots/03_playground.png" />
 
 ## Step 3: Deploy the application
-The application was deployed as an API the moment you created it. You can find the API endpoint in the "Endpoints" menu. Copy and paste the code from the "Endpoints" menu to use it in your software.
+To deploy the application as an API. You need to click on the button "Publish" in the playground and select an environemnt. 
+
+You can now find the API endpoint in the "Endpoints" menu. Copy and paste the code from the "Endpoints" menu to use it in your software.
 
 <img height="600" src="/images/getting-started-ui-screenshots/06_deployment.png" />
 

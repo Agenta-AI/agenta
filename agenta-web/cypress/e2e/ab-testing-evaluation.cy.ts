@@ -69,15 +69,16 @@ describe("A/B Testing Evaluation workflow", () => {
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.url().should("include", "/human_a_b_testing")
+            cy.get('[data-cy="evalInstructionsShown-ok-btn"]').click()
+
+            cy.get('[data-cy="abTesting-app-variant-vote-button"]').should("not.exist")
+            cy.get('[data-cy="abTesting-both-bad-vote-button"]').should("not.exist")
             cy.wait(1000)
             cy.get('[data-cy="abTesting-run-all-button"]').click()
-            cy.get('[data-cy^="abTesting-app-variant-1-vote-button"]').should("not.be.disabled")
-            cy.get('[data-cy^="abTesting-app-variant-2-vote-button"]').should("not.be.disabled")
-            cy.get('[data-cy^="abTesting-both-bad-vote-button"]').should("not.be.disabled")
 
-            cy.get('[data-cy="abTesting-app-variant-1-vote-button-0"]').click()
-            cy.get('[data-cy="abTesting-app-variant-2-vote-button-1"]').click()
-            cy.get('[data-cy="abTesting-both-bad-vote-button-2"]').click()
+            cy.get('[data-cy="abTesting-app-variant-vote-button"]').eq(0).click()
+            cy.get('[data-cy="abTesting-app-variant-vote-button"]').eq(1).click()
+            cy.get('[data-cy="abTesting-both-bad-vote-button"]').click()
         })
     })
 

@@ -1,0 +1,34 @@
+---
+title: "config.default()"
+description: "Register the default configuration for your application"
+---
+
+`agenta.config.default(**kwargs)`
+
+Set the default configuration for your variant. For instance if you set 
+
+```python
+agenta.config.default(prompt = ag.TextParam("Hello world"))
+```
+
+This will set the default value of the prompt to "Hello World". This means that the default configuration (the configuration in the variant variant_name.default) will have the value "Hello World".
+
+agenta.config.default should be used to set the parameters that you are planning to test and iterate on in the playground. For instance if your application has two different prompts in addition to temperature, you might want to use the following:
+
+```python
+agenta.config.default(prompt1 = ag.TextParam("my prompt1"),
+                      prompt2 = ag.TextParam("my prompt2"),
+                      temperature = ag.FloatParam(0.5),
+                      temperature2 = ag.FloatParam(0.5))
+```
+
+Using this configuration will result in:
+
+1. A playground with the two prompts and temperature sliders
+2. An API endpoint /generate wich takes the parameters prompt1, prompt2 and temperature as input
+
+You can later use the last parameters from the configuration (from the backend) the following way:
+    
+```python
+agenta.config.prompt1
+```

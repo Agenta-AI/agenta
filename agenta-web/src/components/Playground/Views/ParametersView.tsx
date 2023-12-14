@@ -7,6 +7,7 @@ import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersC
 import PublishVariantModal from "./PublishVariantModal"
 import {removeVariant} from "@/lib/services/api"
 import {CloudUploadOutlined, DeleteOutlined, SaveOutlined} from "@ant-design/icons"
+import {usePostHogAg} from "@/hooks/usePostHogAg"
 
 interface Props {
     variant: Variant
@@ -23,7 +24,6 @@ interface Props {
     isParamsCollapsed: string
     setIsParamsCollapsed: (value: string) => void
     environments: Environment[]
-    onAdd: () => void
     deleteVariant: (deleteAction?: Function) => void
     getHelpers: (helpers: {save: Function; delete: Function}) => void
     onStateChange: (isDirty: boolean) => void
@@ -62,7 +62,6 @@ const ParametersView: React.FC<Props> = ({
     isParamsCollapsed,
     setIsParamsCollapsed,
     environments,
-    onAdd,
     deleteVariant,
     getHelpers,
     onStateChange,
@@ -70,6 +69,7 @@ const ParametersView: React.FC<Props> = ({
     tabID,
 }) => {
     const classes = useStyles()
+    const posthog = usePostHogAg()
     const [messageApi, contextHolder] = message.useMessage()
     const [isPublishModalOpen, setPublishModalOpen] = useState(false)
     const isVariantExisting = !!variant.variantId
@@ -96,8 +96,7 @@ const ParametersView: React.FC<Props> = ({
 
     const onSave = () => {
         return new Promise((res) => {
-            onOptParamsChange(optParams!, true, isPersistent, (isNew: boolean) => {
-                if (isNew && onAdd) onAdd()
+            onOptParamsChange(optParams!, true, isPersistent, () => {
                 messageApi.open({
                     type: "success",
                     content: "Changes saved successfully!",
@@ -106,6 +105,7 @@ const ParametersView: React.FC<Props> = ({
                 onStateChange(false)
                 res(true)
             })
+            posthog.capture("variant_saved", {variant_id: variant.variantId})
         })
     }
 
