@@ -132,9 +132,7 @@ def init(app_name: str):
         if where_question == "On agenta cloud":
             try:
                 key_prefix = api_key.split(".")[0]
-                client.validate_api_key(
-                    key_prefix=key_prefix
-                )
+                client.validate_api_key(key_prefix=key_prefix)
             except Exception as ex:
                 if ex.status_code == 401:
                     click.echo(click.style("Error: Invalid API key", fg="red"))

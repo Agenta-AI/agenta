@@ -137,9 +137,7 @@ def update_variants_from_backend(
     )
 
     try:
-        variants: List[AppVariant] = client.list_app_variants(
-            app_id=app_id
-        )
+        variants: List[AppVariant] = client.list_app_variants(app_id=app_id)
     except Exception as ex:
         raise ex
 

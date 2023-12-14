@@ -149,7 +149,8 @@ def add_variant(
             )
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
             client.update_variant_image(
-                variant_id=variant_id, request=image # because Fern code uses "request: Image" instead of "image: Image"
+                variant_id=variant_id,
+                request=image,  # because Fern code uses "request: Image" instead of "image: Image"
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
@@ -261,9 +262,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         api_key=api_key,
     )
 
-    endpoint = client.start_variant(
-        variant_id=variant_id, action={"action": "START"}
-    )
+    endpoint = client.start_variant(variant_id=variant_id, action={"action": "START"})
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
     click.echo(
         click.style("Your app has been deployed locally as an API. 🚀", fg="cyan")
@@ -369,9 +368,7 @@ def list_variants(app_folder: str, host: str):
     )
 
     try:
-        variants: List[AppVariant] = client.list_app_variants(
-            app_id=app_id
-        )
+        variants: List[AppVariant] = client.list_app_variants(app_id=app_id)
     except Exception as ex:
         raise ex
 
