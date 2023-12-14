@@ -4,6 +4,4 @@ import typing
 
 from .app_variant_output import AppVariantOutput
 
-AddVariantFromBaseAndConfigVariantsFromBasePostResponse = typing.Union[
-    AppVariantOutput, typing.Any
-]
+AddVariantFromBaseAndConfigResponse = typing.Union[AppVariantOutput, typing.Any]
