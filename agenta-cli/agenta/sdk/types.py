@@ -29,14 +29,6 @@ class TextParam(str):
         field_schema.update({"x-parameter": "text"})
 
 
-class BinaryParamMixin(BaseModel):
-    default: bool
-
-    @property
-    def type(self) -> bool:
-        return "bool"
-
-
 class BoolMeta(type):
     """
     This meta class handles the behavior of a boolean without
