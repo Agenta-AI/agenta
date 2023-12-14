@@ -13,7 +13,9 @@ from .core.jsonable_encoder import jsonable_encoder
 from .core.remove_none_from_dict import remove_none_from_dict
 from .environment import AgentaApiEnvironment
 from .errors.unprocessable_entity_error import UnprocessableEntityError
-from .types.add_variant_from_base_and_config_response import AddVariantFromBaseAndConfigResponse
+from .types.add_variant_from_base_and_config_response import (
+    AddVariantFromBaseAndConfigResponse,
+)
 from .types.app import App
 from .types.app_variant_output import AppVariantOutput
 from .types.base_output import BaseOutput
@@ -146,7 +148,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -171,7 +175,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -201,7 +207,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -236,7 +244,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/invite"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations_ee/{org_id}/invite",
+            ),
             json=jsonable_encoder({"email": email}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -270,7 +281,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/accept"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations_ee/{org_id}/accept",
+            ),
             json=jsonable_encoder({"token": token}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -292,7 +306,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations_ee/create"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations_ee/create"
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -308,7 +324,11 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def update_organization(
-        self, org_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT
+        self,
+        org_id: str,
+        *,
+        name: typing.Optional[str] = OMIT,
+        description: typing.Optional[str] = OMIT,
     ) -> typing.Any:
         """
         Parameters:
@@ -325,7 +345,10 @@ class AgentaApi:
             _request["description"] = description
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/update"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations_ee/{org_id}/update",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -391,7 +414,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -427,8 +452,12 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"),
-            params=remove_none_from_dict({"app_id": app_id, "environment": environment}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"
+            ),
+            params=remove_none_from_dict(
+                {"app_id": app_id, "environment": environment}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -443,7 +472,10 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def list_apps(
-        self, *, app_name: typing.Optional[str] = None, org_id: typing.Optional[str] = None
+        self,
+        *,
+        app_name: typing.Optional[str] = None,
+        org_id: typing.Optional[str] = None,
     ) -> typing.List[App]:
         """
         Retrieve a list of apps filtered by app_name and org_id.
@@ -486,7 +518,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_app(self, *, app_name: str, organization_id: typing.Optional[str] = OMIT) -> CreateAppOutput:
+    def create_app(
+        self, *, app_name: str, organization_id: typing.Optional[str] = OMIT
+    ) -> CreateAppOutput:
         """
         Create a new app for a user or organization.
 
@@ -562,14 +596,21 @@ class AgentaApi:
 
             - config_name: typing.Optional[str].
         """
-        _request: typing.Dict[str, typing.Any] = {"variant_name": variant_name, "docker_id": docker_id, "tags": tags}
+        _request: typing.Dict[str, typing.Any] = {
+            "variant_name": variant_name,
+            "docker_id": docker_id,
+            "tags": tags,
+        }
         if base_name is not OMIT:
             _request["base_name"] = base_name
         if config_name is not OMIT:
             _request["config_name"] = config_name
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variant/from-image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"apps/{app_id}/variant/from-image",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -596,7 +637,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -649,7 +692,10 @@ class AgentaApi:
             _request["organization_id"] = organization_id
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/app_and_variant_from_template"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "apps/app_and_variant_from_template",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -685,7 +731,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -700,7 +748,12 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def add_variant_from_base_and_config(
-        self, *, base_id: str, new_variant_name: str, new_config_name: str, parameters: typing.Dict[str, typing.Any]
+        self,
+        *,
+        base_id: str,
+        new_variant_name: str,
+        new_config_name: str,
+        parameters: typing.Dict[str, typing.Any],
     ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
@@ -727,7 +780,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "variants/from-base"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "variants/from-base"
+            ),
             json=jsonable_encoder(
                 {
                     "base_id": base_id,
@@ -750,7 +805,11 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def start_variant(
-        self, variant_id: str, *, action: VariantAction, env_vars: typing.Optional[DockerEnvVars] = OMIT
+        self,
+        variant_id: str,
+        *,
+        action: VariantAction,
+        env_vars: typing.Optional[DockerEnvVars] = OMIT,
     ) -> Uri:
         """
         Start a variant of an app.
@@ -779,7 +838,9 @@ class AgentaApi:
             _request["env_vars"] = env_vars
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -810,7 +871,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -824,7 +887,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_variant_parameters(self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]) -> typing.Any:
+    def update_variant_parameters(
+        self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]
+    ) -> typing.Any:
         """
         Updates the parameters for an app variant.
 
@@ -846,7 +911,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/parameters"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/parameters",
+            ),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -882,7 +950,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/image",
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -917,7 +988,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluations"
+            ),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -977,7 +1050,9 @@ class AgentaApi:
             _request["evaluation_type_settings"] = evaluation_type_settings
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluations"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -992,7 +1067,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def delete_evaluations(self, *, evaluations_ids: typing.List[str]) -> typing.List[str]:
+    def delete_evaluations(
+        self, *, evaluations_ids: typing.List[str]
+    ) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
 
@@ -1012,7 +1089,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluations"
+            ),
             json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1042,7 +1121,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1086,7 +1168,10 @@ class AgentaApi:
             _request["evaluation_type_settings"] = evaluation_type_settings
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1101,7 +1186,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_evaluation_scenarios(self, evaluation_id: str) -> typing.List[EvaluationScenario]:
+    def fetch_evaluation_scenarios(
+        self, evaluation_id: str
+    ) -> typing.List[EvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
 
@@ -1125,7 +1212,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenarios"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/evaluation_scenarios",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1140,7 +1228,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_evaluation_scenario(self, evaluation_id: str, *, request: EvaluationScenario) -> typing.Any:
+    def create_evaluation_scenario(
+        self, evaluation_id: str, *, request: EvaluationScenario
+    ) -> typing.Any:
         """
         Create a new evaluation scenario for a given evaluation ID.
 
@@ -1158,7 +1248,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenario"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/evaluation_scenario",
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
@@ -1303,7 +1394,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations/evaluation_scenario/ai_critique"
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/evaluation_scenario/ai_critique",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -1319,7 +1411,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_evaluation_scenario_score(self, evaluation_scenario_id: str) -> typing.Dict[str, str]:
+    def get_evaluation_scenario_score(
+        self, evaluation_scenario_id: str
+    ) -> typing.Dict[str, str]:
         """
         Fetch the score of a specific evaluation scenario.
 
@@ -1357,7 +1451,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_evaluation_scenario_score(self, evaluation_scenario_id: str, *, score: float) -> typing.Any:
+    def update_evaluation_scenario_score(
+        self, evaluation_scenario_id: str, *, score: float
+    ) -> typing.Any:
         """
         Updates the score of an evaluation scenario.
 
@@ -1407,7 +1503,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/results"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/results",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1421,7 +1520,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_custom_evaluation(self, *, request: CreateCustomEvaluation) -> typing.Any:
+    def create_custom_evaluation(
+        self, *, request: CreateCustomEvaluation
+    ) -> typing.Any:
         """
         Create evaluation with custom python code.
 
@@ -1434,7 +1535,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/custom_evaluation"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/custom_evaluation",
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1464,7 +1568,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/{id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1478,7 +1585,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_custom_evaluation(self, id: str, *, request: CreateCustomEvaluation) -> typing.Any:
+    def update_custom_evaluation(
+        self, id: str, *, request: CreateCustomEvaluation
+    ) -> typing.Any:
         """
         Update a custom code evaluation.
         Args:
@@ -1493,7 +1602,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/{id}",
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1508,7 +1620,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_custom_evaluations(self, app_id: str) -> typing.List[CustomEvaluationOutput]:
+    def list_custom_evaluations(
+        self, app_id: str
+    ) -> typing.List[CustomEvaluationOutput]:
         """
         List the custom code evaluations for a given app.
 
@@ -1529,7 +1643,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/list/{app_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/list/{app_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1544,7 +1659,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_custom_evaluation_names(self, app_name: str) -> typing.List[CustomEvaluationNames]:
+    def get_custom_evaluation_names(
+        self, app_name: str
+    ) -> typing.List[CustomEvaluationNames]:
         """
         Get the names of custom evaluation for a given app.
 
@@ -1565,7 +1682,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{app_name}/names"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/{app_name}/names",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1616,7 +1734,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/execute/{evaluation_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/execute/{evaluation_id}",
             ),
             json=jsonable_encoder(
                 {
@@ -1649,7 +1768,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/webhook_example_fake"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/webhook_example_fake",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1686,8 +1808,16 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/upload"),
-            data=jsonable_encoder({"upload_type": upload_type, "testset_name": testset_name, "app_id": app_id}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "testsets/upload"
+            ),
+            data=jsonable_encoder(
+                {
+                    "upload_type": upload_type,
+                    "testset_name": testset_name,
+                    "app_id": app_id,
+                }
+            ),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1715,7 +1845,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1729,7 +1861,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_testset(self, app_id: str, *, request: NewTestset) -> TestSetSimpleResponse:
+    def create_testset(
+        self, app_id: str, *, request: NewTestset
+    ) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -1748,7 +1882,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1778,7 +1914,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1810,7 +1948,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1917,7 +2057,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/build_image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/build_image"
+            ),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
@@ -1946,7 +2088,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/restart_container"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "containers/restart_container",
+            ),
             json=jsonable_encoder({"variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1974,7 +2119,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/templates"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/templates"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1987,7 +2134,10 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def construct_app_container_url(
-        self, *, base_id: typing.Optional[str] = None, variant_id: typing.Optional[str] = None
+        self,
+        *,
+        base_id: typing.Optional[str] = None,
+        variant_id: typing.Optional[str] = None,
     ) -> Uri:
         """
         Constructs the URL for an app container based on the provided base_id or variant_id.
@@ -2010,8 +2160,12 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/container_url"),
-            params=remove_none_from_dict({"base_id": base_id, "variant_id": variant_id}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/container_url"
+            ),
+            params=remove_none_from_dict(
+                {"base_id": base_id, "variant_id": variant_id}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2025,7 +2179,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def deploy_to_environment(self, *, environment_name: str, variant_id: str) -> typing.Any:
+    def deploy_to_environment(
+        self, *, environment_name: str, variant_id: str
+    ) -> typing.Any:
         """
         Deploys a given variant to an environment
 
@@ -2044,8 +2200,12 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "environments/deploy"),
-            json=jsonable_encoder({"environment_name": environment_name, "variant_id": variant_id}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "environments/deploy"
+            ),
+            json=jsonable_encoder(
+                {"environment_name": environment_name, "variant_id": variant_id}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2114,7 +2274,9 @@ class AgentaApi:
             _request["tags"] = tags
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/traces"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2144,7 +2306,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{app_id}/{variant_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{app_id}/{variant_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2166,7 +2329,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2189,7 +2355,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{trace_id}",
+            ),
             json=jsonable_encoder({"status": status}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2290,7 +2459,9 @@ class AgentaApi:
             _request["tags"] = tags
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2317,7 +2488,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/spans/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2343,7 +2517,10 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2384,7 +2561,10 @@ class AgentaApi:
             _request["meta"] = meta
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2409,7 +2589,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2453,7 +2634,8 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -2490,7 +2672,9 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2505,7 +2689,9 @@ class AgentaApi:
     def get_own_org(self) -> OrganizationOutput:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations/own"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations/own"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2518,7 +2704,10 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def list_bases(
-        self, *, app_id: typing.Optional[str] = None, base_name: typing.Optional[str] = None
+        self,
+        *,
+        app_id: typing.Optional[str] = None,
+        base_name: typing.Optional[str] = None,
     ) -> typing.List[BaseOutput]:
         """
         Retrieve a list of bases filtered by app_id and base_name.
@@ -2562,7 +2751,11 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def get_config(
-        self, *, base_id: str, config_name: typing.Optional[str] = None, environment_name: typing.Optional[str] = None
+        self,
+        *,
+        base_id: str,
+        config_name: typing.Optional[str] = None,
+        environment_name: typing.Optional[str] = None,
     ) -> GetConfigReponse:
         """
         Parameters:
@@ -2576,7 +2769,11 @@ class AgentaApi:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             params=remove_none_from_dict(
-                {"base_id": base_id, "config_name": config_name, "environment_name": environment_name}
+                {
+                    "base_id": base_id,
+                    "config_name": config_name,
+                    "environment_name": environment_name,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2592,7 +2789,12 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def save_config(
-        self, *, base_id: str, config_name: str, parameters: typing.Dict[str, typing.Any], overwrite: bool
+        self,
+        *,
+        base_id: str,
+        config_name: str,
+        parameters: typing.Dict[str, typing.Any],
+        overwrite: bool,
     ) -> typing.Any:
         """
         Parameters:
@@ -2608,7 +2810,12 @@ class AgentaApi:
             "POST",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             json=jsonable_encoder(
-                {"base_id": base_id, "config_name": config_name, "parameters": parameters, "overwrite": overwrite}
+                {
+                    "base_id": base_id,
+                    "config_name": config_name,
+                    "parameters": parameters,
+                    "overwrite": overwrite,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2711,7 +2918,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2736,7 +2945,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2766,7 +2977,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2801,7 +3014,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/invite"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations_ee/{org_id}/invite",
+            ),
             json=jsonable_encoder({"email": email}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2835,7 +3051,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/accept"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations_ee/{org_id}/accept",
+            ),
             json=jsonable_encoder({"token": token}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2857,7 +3076,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations_ee/create"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations_ee/create"
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2873,7 +3094,11 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def update_organization(
-        self, org_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT
+        self,
+        org_id: str,
+        *,
+        name: typing.Optional[str] = OMIT,
+        description: typing.Optional[str] = OMIT,
     ) -> typing.Any:
         """
         Parameters:
@@ -2890,7 +3115,10 @@ class AsyncAgentaApi:
             _request["description"] = description
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/update"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations_ee/{org_id}/update",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2956,7 +3184,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2970,7 +3200,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_variant_by_env(self, *, app_id: str, environment: str) -> AppVariantOutput:
+    async def get_variant_by_env(
+        self, *, app_id: str, environment: str
+    ) -> AppVariantOutput:
         """
         Retrieve the app variant based on the provided app_id and environment.
 
@@ -2992,8 +3224,12 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"),
-            params=remove_none_from_dict({"app_id": app_id, "environment": environment}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"
+            ),
+            params=remove_none_from_dict(
+                {"app_id": app_id, "environment": environment}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3008,7 +3244,10 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def list_apps(
-        self, *, app_name: typing.Optional[str] = None, org_id: typing.Optional[str] = None
+        self,
+        *,
+        app_name: typing.Optional[str] = None,
+        org_id: typing.Optional[str] = None,
     ) -> typing.List[App]:
         """
         Retrieve a list of apps filtered by app_name and org_id.
@@ -3051,7 +3290,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_app(self, *, app_name: str, organization_id: typing.Optional[str] = OMIT) -> CreateAppOutput:
+    async def create_app(
+        self, *, app_name: str, organization_id: typing.Optional[str] = OMIT
+    ) -> CreateAppOutput:
         """
         Create a new app for a user or organization.
 
@@ -3127,14 +3368,21 @@ class AsyncAgentaApi:
 
             - config_name: typing.Optional[str].
         """
-        _request: typing.Dict[str, typing.Any] = {"variant_name": variant_name, "docker_id": docker_id, "tags": tags}
+        _request: typing.Dict[str, typing.Any] = {
+            "variant_name": variant_name,
+            "docker_id": docker_id,
+            "tags": tags,
+        }
         if base_name is not OMIT:
             _request["base_name"] = base_name
         if config_name is not OMIT:
             _request["config_name"] = config_name
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variant/from-image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"apps/{app_id}/variant/from-image",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3161,7 +3409,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3214,7 +3464,10 @@ class AsyncAgentaApi:
             _request["organization_id"] = organization_id
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/app_and_variant_from_template"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "apps/app_and_variant_from_template",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3250,7 +3503,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3265,7 +3520,12 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def add_variant_from_base_and_config(
-        self, *, base_id: str, new_variant_name: str, new_config_name: str, parameters: typing.Dict[str, typing.Any]
+        self,
+        *,
+        base_id: str,
+        new_variant_name: str,
+        new_config_name: str,
+        parameters: typing.Dict[str, typing.Any],
     ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
@@ -3292,7 +3552,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "variants/from-base"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "variants/from-base"
+            ),
             json=jsonable_encoder(
                 {
                     "base_id": base_id,
@@ -3315,7 +3577,11 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def start_variant(
-        self, variant_id: str, *, action: VariantAction, env_vars: typing.Optional[DockerEnvVars] = OMIT
+        self,
+        variant_id: str,
+        *,
+        action: VariantAction,
+        env_vars: typing.Optional[DockerEnvVars] = OMIT,
     ) -> Uri:
         """
         Start a variant of an app.
@@ -3344,7 +3610,9 @@ class AsyncAgentaApi:
             _request["env_vars"] = env_vars
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3375,7 +3643,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3413,7 +3683,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/parameters"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/parameters",
+            ),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3428,7 +3701,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_variant_image(self, variant_id: str, *, request: Image) -> typing.Any:
+    async def update_variant_image(
+        self, variant_id: str, *, request: Image
+    ) -> typing.Any:
         """
         Updates the image used in an app variant.
 
@@ -3449,7 +3724,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/image",
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3484,7 +3762,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluations"
+            ),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3544,7 +3824,9 @@ class AsyncAgentaApi:
             _request["evaluation_type_settings"] = evaluation_type_settings
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluations"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3559,7 +3841,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_evaluations(self, *, evaluations_ids: typing.List[str]) -> typing.List[str]:
+    async def delete_evaluations(
+        self, *, evaluations_ids: typing.List[str]
+    ) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
 
@@ -3579,7 +3863,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "evaluations"
+            ),
             json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3609,7 +3895,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3653,7 +3942,10 @@ class AsyncAgentaApi:
             _request["evaluation_type_settings"] = evaluation_type_settings
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3668,7 +3960,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_evaluation_scenarios(self, evaluation_id: str) -> typing.List[EvaluationScenario]:
+    async def fetch_evaluation_scenarios(
+        self, evaluation_id: str
+    ) -> typing.List[EvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
 
@@ -3692,7 +3986,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenarios"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/evaluation_scenarios",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3707,7 +4002,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_evaluation_scenario(self, evaluation_id: str, *, request: EvaluationScenario) -> typing.Any:
+    async def create_evaluation_scenario(
+        self, evaluation_id: str, *, request: EvaluationScenario
+    ) -> typing.Any:
         """
         Create a new evaluation scenario for a given evaluation ID.
 
@@ -3725,7 +4022,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenario"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/evaluation_scenario",
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
@@ -3870,7 +4168,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations/evaluation_scenario/ai_critique"
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/evaluation_scenario/ai_critique",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -3886,7 +4185,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_evaluation_scenario_score(self, evaluation_scenario_id: str) -> typing.Dict[str, str]:
+    async def get_evaluation_scenario_score(
+        self, evaluation_scenario_id: str
+    ) -> typing.Dict[str, str]:
         """
         Fetch the score of a specific evaluation scenario.
 
@@ -3924,7 +4225,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_evaluation_scenario_score(self, evaluation_scenario_id: str, *, score: float) -> typing.Any:
+    async def update_evaluation_scenario_score(
+        self, evaluation_scenario_id: str, *, score: float
+    ) -> typing.Any:
         """
         Updates the score of an evaluation scenario.
 
@@ -3974,7 +4277,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/results"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/{evaluation_id}/results",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3988,7 +4294,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_custom_evaluation(self, *, request: CreateCustomEvaluation) -> typing.Any:
+    async def create_custom_evaluation(
+        self, *, request: CreateCustomEvaluation
+    ) -> typing.Any:
         """
         Create evaluation with custom python code.
 
@@ -4001,7 +4309,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/custom_evaluation"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/custom_evaluation",
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4031,7 +4342,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/{id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4045,7 +4359,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_custom_evaluation(self, id: str, *, request: CreateCustomEvaluation) -> typing.Any:
+    async def update_custom_evaluation(
+        self, id: str, *, request: CreateCustomEvaluation
+    ) -> typing.Any:
         """
         Update a custom code evaluation.
         Args:
@@ -4060,7 +4376,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/{id}",
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4075,7 +4394,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_custom_evaluations(self, app_id: str) -> typing.List[CustomEvaluationOutput]:
+    async def list_custom_evaluations(
+        self, app_id: str
+    ) -> typing.List[CustomEvaluationOutput]:
         """
         List the custom code evaluations for a given app.
 
@@ -4096,7 +4417,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/list/{app_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/list/{app_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4111,7 +4433,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_custom_evaluation_names(self, app_name: str) -> typing.List[CustomEvaluationNames]:
+    async def get_custom_evaluation_names(
+        self, app_name: str
+    ) -> typing.List[CustomEvaluationNames]:
         """
         Get the names of custom evaluation for a given app.
 
@@ -4132,7 +4456,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{app_name}/names"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/{app_name}/names",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4183,7 +4508,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/execute/{evaluation_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/execute/{evaluation_id}",
             ),
             json=jsonable_encoder(
                 {
@@ -4216,7 +4542,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/webhook_example_fake"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "evaluations/webhook_example_fake",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4253,8 +4582,16 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/upload"),
-            data=jsonable_encoder({"upload_type": upload_type, "testset_name": testset_name, "app_id": app_id}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "testsets/upload"
+            ),
+            data=jsonable_encoder(
+                {
+                    "upload_type": upload_type,
+                    "testset_name": testset_name,
+                    "app_id": app_id,
+                }
+            ),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4282,7 +4619,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4296,7 +4635,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_testset(self, app_id: str, *, request: NewTestset) -> TestSetSimpleResponse:
+    async def create_testset(
+        self, app_id: str, *, request: NewTestset
+    ) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -4315,7 +4656,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4345,7 +4688,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4359,7 +4704,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_testset(self, testset_id: str, *, request: NewTestset) -> typing.Any:
+    async def update_testset(
+        self, testset_id: str, *, request: NewTestset
+    ) -> typing.Any:
         """
         Update a testset with given id, update the testset in MongoDB.
 
@@ -4377,7 +4724,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
+            ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4427,7 +4776,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_testsets(self, *, testset_ids: typing.List[str]) -> typing.List[str]:
+    async def delete_testsets(
+        self, *, testset_ids: typing.List[str]
+    ) -> typing.List[str]:
         """
         Delete specific testsets based on their unique IDs.
 
@@ -4462,7 +4813,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def build_image(self, *, app_id: str, base_name: str, tar_file: typing.IO) -> Image:
+    async def build_image(
+        self, *, app_id: str, base_name: str, tar_file: typing.IO
+    ) -> Image:
         """
         Builds a Docker image from a tar file containing the application code.
 
@@ -4484,7 +4837,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/build_image"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/build_image"
+            ),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
@@ -4501,7 +4856,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def restart_container(self, *, variant_id: str) -> typing.Dict[str, typing.Any]:
+    async def restart_container(
+        self, *, variant_id: str
+    ) -> typing.Dict[str, typing.Any]:
         """
         Restart docker container.
 
@@ -4513,7 +4870,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/restart_container"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                "containers/restart_container",
+            ),
             json=jsonable_encoder({"variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4541,7 +4901,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/templates"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/templates"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4554,7 +4916,10 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def construct_app_container_url(
-        self, *, base_id: typing.Optional[str] = None, variant_id: typing.Optional[str] = None
+        self,
+        *,
+        base_id: typing.Optional[str] = None,
+        variant_id: typing.Optional[str] = None,
     ) -> Uri:
         """
         Constructs the URL for an app container based on the provided base_id or variant_id.
@@ -4577,8 +4942,12 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/container_url"),
-            params=remove_none_from_dict({"base_id": base_id, "variant_id": variant_id}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "containers/container_url"
+            ),
+            params=remove_none_from_dict(
+                {"base_id": base_id, "variant_id": variant_id}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4592,7 +4961,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def deploy_to_environment(self, *, environment_name: str, variant_id: str) -> typing.Any:
+    async def deploy_to_environment(
+        self, *, environment_name: str, variant_id: str
+    ) -> typing.Any:
         """
         Deploys a given variant to an environment
 
@@ -4611,8 +4982,12 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "environments/deploy"),
-            json=jsonable_encoder({"environment_name": environment_name, "variant_id": variant_id}),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "environments/deploy"
+            ),
+            json=jsonable_encoder(
+                {"environment_name": environment_name, "variant_id": variant_id}
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4681,7 +5056,9 @@ class AsyncAgentaApi:
             _request["tags"] = tags
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/traces"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4711,7 +5088,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{app_id}/{variant_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{app_id}/{variant_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4733,7 +5111,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4756,7 +5137,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/traces/{trace_id}",
+            ),
             json=jsonable_encoder({"status": status}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4857,7 +5241,9 @@ class AsyncAgentaApi:
             _request["tags"] = tags
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4884,7 +5270,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/spans/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4910,7 +5299,10 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4951,7 +5343,10 @@ class AsyncAgentaApi:
             _request["meta"] = meta
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}",
+            ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4976,7 +5371,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5020,7 +5416,8 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
+                f"{self._client_wrapper.get_base_url()}/",
+                f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -5057,7 +5454,9 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -5072,7 +5471,9 @@ class AsyncAgentaApi:
     async def get_own_org(self) -> OrganizationOutput:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations/own"),
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", "organizations/own"
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -5085,7 +5486,10 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def list_bases(
-        self, *, app_id: typing.Optional[str] = None, base_name: typing.Optional[str] = None
+        self,
+        *,
+        app_id: typing.Optional[str] = None,
+        base_name: typing.Optional[str] = None,
     ) -> typing.List[BaseOutput]:
         """
         Retrieve a list of bases filtered by app_id and base_name.
@@ -5129,7 +5533,11 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def get_config(
-        self, *, base_id: str, config_name: typing.Optional[str] = None, environment_name: typing.Optional[str] = None
+        self,
+        *,
+        base_id: str,
+        config_name: typing.Optional[str] = None,
+        environment_name: typing.Optional[str] = None,
     ) -> GetConfigReponse:
         """
         Parameters:
@@ -5143,7 +5551,11 @@ class AsyncAgentaApi:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             params=remove_none_from_dict(
-                {"base_id": base_id, "config_name": config_name, "environment_name": environment_name}
+                {
+                    "base_id": base_id,
+                    "config_name": config_name,
+                    "environment_name": environment_name,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5159,7 +5571,12 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def save_config(
-        self, *, base_id: str, config_name: str, parameters: typing.Dict[str, typing.Any], overwrite: bool
+        self,
+        *,
+        base_id: str,
+        config_name: str,
+        parameters: typing.Dict[str, typing.Any],
+        overwrite: bool,
     ) -> typing.Any:
         """
         Parameters:
@@ -5175,7 +5592,12 @@ class AsyncAgentaApi:
             "POST",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             json=jsonable_encoder(
-                {"base_id": base_id, "config_name": config_name, "parameters": parameters, "overwrite": overwrite}
+                {
+                    "base_id": base_id,
+                    "config_name": config_name,
+                    "parameters": parameters,
+                    "overwrite": overwrite,
+                }
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5191,10 +5613,14 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
 
-def _get_base_url(*, base_url: typing.Optional[str] = None, environment: AgentaApiEnvironment) -> str:
+def _get_base_url(
+    *, base_url: typing.Optional[str] = None, environment: AgentaApiEnvironment
+) -> str:
     if base_url is not None:
         return base_url
     elif environment is not None:
         return environment.value
     else:
-        raise Exception("Please pass in either base_url or environment to construct the client")
+        raise Exception(
+            "Please pass in either base_url or environment to construct the client"
+        )
