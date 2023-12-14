@@ -75,7 +75,7 @@ class AgentaSingleton:
                 )
             else:
                 try:
-                    get_app_id = client.list_apps_apps_get(app_name=app_name)
+                    get_app_id = client.list_apps(app_name=app_name)
                     app_id = get_app_id.app_id
 
                     if not app_id:
@@ -83,7 +83,7 @@ class AgentaSingleton:
                             f"App with name {app_name} does not exist on the server."
                         )
 
-                    get_base_id = client.list_bases_bases_get(
+                    get_base_id = client.list_bases(
                         app_id=app_id, base_name=base_name
                     )
                     base_id = get_base_id.base_id
@@ -136,7 +136,7 @@ class Config:
         if not self.persist:
             return
         try:
-            client.save_config_configs_post(
+            client.save_config(
                 base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
@@ -158,12 +158,12 @@ class Config:
         if self.persist:
             try:
                 if environment_name:
-                    config = client.get_config_configs_get(
+                    config = client.get_config(
                         base_id=self.base_id, environment_name=environment_name
                     )
 
                 else:
-                    config = client.get_config_configs_get(
+                    config = client.get_config(
                         base_id=self.base_id,
                         config_name=config_name,
                     )

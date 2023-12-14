@@ -126,7 +126,7 @@ def add_variant(
             )
         )
         with tar_path.open("rb") as tar_file:
-            image: Image = client.build_image_containers_build_image_post(
+            image: Image = client.build_image(
                 app_id=app_id,
                 base_name=base_name,
                 tar_file=tar_file,
@@ -148,8 +148,8 @@ def add_variant(
                 )
             )
             variant_id = config["variant_ids"][config["variants"].index(variant_name)]
-            client.update_variant_image_variants_variant_id_image_put(
-                variant_id=variant_id, image=image
+            client.update_variant_image(
+                variant_id=variant_id, request=image # because Fern code uses "request: Image" instead of "image: Image"
             )  # this automatically restarts
         else:
             click.echo(click.style(f"Adding {variant_name} to server...", fg="yellow"))
@@ -172,7 +172,7 @@ def add_variant(
     if overwrite:
         # Track a deployment event
         if tracking_enabled:
-            get_user_id = client.user_profile_profile_get()
+            get_user_id = client.user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
                 user_id,
@@ -195,7 +195,7 @@ def add_variant(
     else:
         # Track a deployment event
         if tracking_enabled:
-            get_user_id = client.user_profile_profile_get()
+            get_user_id = client.user_profile()
             user_id = get_user_id["id"]
             event_track.capture_event(
                 user_id,
@@ -261,7 +261,7 @@ def start_variant(variant_id: str, app_folder: str, host: str):
         api_key=api_key,
     )
 
-    endpoint = client.start_variant_variants_variant_id_put(
+    endpoint = client.start_variant(
         variant_id=variant_id, action={"action": "START"}
     )
     click.echo("\n" + click.style("Congratulations! 🎉", bold=True, fg="green"))
@@ -331,7 +331,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     )
 
     try:
-        client.remove_variant_variants_variant_id_delete(variant_id=variant_id)
+        client.remove_variant(variant_id=variant_id)
     except Exception as ex:
         click.echo(
             click.style(
@@ -369,7 +369,7 @@ def list_variants(app_folder: str, host: str):
     )
 
     try:
-        variants: List[AppVariant] = client.list_app_variants_apps_app_id_variants_get(
+        variants: List[AppVariant] = client.list_app_variants(
             app_id=app_id
         )
     except Exception as ex:

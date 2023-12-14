@@ -132,7 +132,7 @@ def init(app_name: str):
         if where_question == "On agenta cloud":
             try:
                 key_prefix = api_key.split(".")[0]
-                client.validate_api_key_keys_key_prefix_validate_get(
+                client.validate_api_key(
                     key_prefix=key_prefix
                 )
             except Exception as ex:
@@ -145,7 +145,7 @@ def init(app_name: str):
 
         # Get app_id after creating new app in the backend server
         try:
-            app_id = client.create_app_apps_post(app_name=app_name).app_id
+            app_id = client.create_app(app_name=app_name).app_id
         except Exception as ex:
             click.echo(click.style(f"Error: {ex}", fg="red"))
             sys.exit(1)
