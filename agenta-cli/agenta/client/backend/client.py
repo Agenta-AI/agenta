@@ -13,16 +13,13 @@ from .core.jsonable_encoder import jsonable_encoder
 from .core.remove_none_from_dict import remove_none_from_dict
 from .environment import AgentaApiEnvironment
 from .errors.unprocessable_entity_error import UnprocessableEntityError
-from .resources.testsets.client import AsyncTestsetsClient, TestsetsClient
-from .types.add_variant_from_base_and_config_variants_from_base_post_response import (
-    AddVariantFromBaseAndConfigVariantsFromBasePostResponse,
+from .types.add_variant_from_base_and_config_response import (
+    AddVariantFromBaseAndConfigResponse,
 )
 from .types.app import App
 from .types.app_variant_output import AppVariantOutput
 from .types.base_output import BaseOutput
-from .types.container_templates_containers_templates_get_response import (
-    ContainerTemplatesContainersTemplatesGetResponse,
-)
+from .types.container_templates_response import ContainerTemplatesResponse
 from .types.create_app_output import CreateAppOutput
 from .types.create_custom_evaluation import CreateCustomEvaluation
 from .types.custom_evaluation_detail import CustomEvaluationDetail
@@ -46,8 +43,10 @@ from .types.image import Image
 from .types.list_api_keys_output import ListApiKeysOutput
 from .types.new_testset import NewTestset
 from .types.organization import Organization
+from .types.organization_output import OrganizationOutput
 from .types.simple_evaluation_output import SimpleEvaluationOutput
 from .types.span import Span
+from .types.test_set_output_response import TestSetOutputResponse
 from .types.test_set_simple_response import TestSetSimpleResponse
 from .types.trace import Trace
 from .types.uri import Uri
@@ -68,17 +67,14 @@ class AgentaApi:
         *,
         base_url: typing.Optional[str] = None,
         environment: AgentaApiEnvironment = AgentaApiEnvironment.DEFAULT,
-        api_key: str,
         timeout: typing.Optional[float] = 60,
     ):
         self._client_wrapper = SyncClientWrapper(
             base_url=_get_base_url(base_url=base_url, environment=environment),
-            api_key=api_key,
             httpx_client=httpx.Client(timeout=timeout),
         )
-        self.testsets = TestsetsClient(client_wrapper=self._client_wrapper)
 
-    def list_api_keys_keys_get(self) -> typing.List[ListApiKeysOutput]:
+    def list_api_keys(self) -> ListApiKeysOutput:
         """
         List all API keys associated with the authenticated user.
 
@@ -87,12 +83,6 @@ class AgentaApi:
 
         Returns:
             List[ListAPIKeysOutput]: A list of API Keys associated with the user.
-
-        ---
-        from devgenix.client import AgentaApi
-
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.list_api_keys_keys_get()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -101,14 +91,14 @@ class AgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.List[ListApiKeysOutput], _response.json())  # type: ignore
+            return pydantic.parse_obj_as(ListApiKeysOutput, _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_api_key_keys_post(self) -> typing.Any:
+    def create_api_key(self) -> str:
         """
         Creates an API key for a user.
 
@@ -125,14 +115,14 @@ class AgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(str, _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def delete_api_key_keys_key_prefix_delete(self, key_prefix: str) -> typing.Any:
+    def delete_api_key(self, key_prefix: str) -> typing.Dict[str, typing.Any]:
         """
         Delete an API key with the given key prefix for the authenticated user.
 
@@ -148,6 +138,11 @@ class AgentaApi:
 
         Parameters:
             - key_prefix: str.
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi()
+        client.delete_api_key(key_prefix="key-prefix")
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -158,7 +153,7 @@ class AgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(typing.Dict[str, typing.Any], _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -167,9 +162,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def validate_api_key_keys_key_prefix_validate_get(
-        self, key_prefix: str
-    ) -> typing.Any:
+    def validate_api_key(self, key_prefix: str) -> bool:
         """
         This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.
         Returns:
@@ -181,14 +174,13 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"keys/{key_prefix}/validate/",
+                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -197,9 +189,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_organization_details_organizations_ee_org_id_get(
-        self, org_id: str
-    ) -> typing.Any:
+    def fetch_organization_details(self, org_id: str) -> typing.Any:
         """
         Get an organization's details.
 
@@ -231,9 +221,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def invite_to_org_organizations_ee_org_id_invite_post(
-        self, org_id: str, *, email: str
-    ) -> typing.Any:
+    def invite_to_org(self, org_id: str, *, email: str) -> typing.Any:
         """
         Invite a user to an Organization.
 
@@ -272,9 +260,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def add_user_to_org_organizations_ee_org_id_accept_post(
-        self, org_id: str, *, token: str
-    ) -> typing.Any:
+    def add_user_to_org(self, org_id: str, *, token: str) -> typing.Any:
         """
         Invite a user to an Organization.
 
@@ -311,9 +297,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_organization_organizations_ee_create_post(
-        self, *, request: Organization
-    ) -> typing.Any:
+    def create_organization(self, *, request: Organization) -> typing.Any:
         """
         Parameters:
             - request: Organization.
@@ -337,7 +321,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_organization_organizations_ee_org_id_update_post(
+    def update_organization(
         self,
         org_id: str,
         *,
@@ -377,7 +361,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def health_check_health_get(self) -> typing.Any:
+    def health_check(self) -> typing.Any:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "health"),
@@ -392,10 +376,10 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def user_profile_profile_get(self) -> typing.Any:
+    def user_profile(self) -> typing.Any:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "profile/"),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "profile"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -407,9 +391,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_app_variants_apps_app_id_variants_get(
-        self, app_id: str
-    ) -> typing.List[AppVariantOutput]:
+    def list_app_variants(self, app_id: str) -> typing.List[AppVariantOutput]:
         """
         Retrieve a list of app variants for a given app ID.
 
@@ -423,15 +405,15 @@ class AgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.list_app_variants_apps_app_id_variants_get(app_id="app-id")
+        client = AgentaApi()
+        client.list_app_variants(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants/"
+                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -446,9 +428,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_variant_by_env_apps_get_variant_by_env_get(
-        self, *, app_id: str, environment: str
-    ) -> AppVariantOutput:
+    def get_variant_by_env(self, *, app_id: str, environment: str) -> AppVariantOutput:
         """
         Retrieve the app variant based on the provided app_id and environment.
 
@@ -489,7 +469,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_apps_apps_get(
+    def list_apps(
         self,
         *,
         app_name: typing.Optional[str] = None,
@@ -514,14 +494,14 @@ class AgentaApi:
 
             - org_id: typing.Optional[str].
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.list_apps_apps_get()
+        client = AgentaApi()
+        client.list_apps()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/"),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps"),
             params=remove_none_from_dict({"app_name": app_name, "org_id": org_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -536,7 +516,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_app_apps_post(
+    def create_app(
         self, *, app_name: str, organization_id: typing.Optional[str] = OMIT
     ) -> CreateAppOutput:
         """
@@ -562,7 +542,7 @@ class AgentaApi:
             _request["organization_id"] = organization_id
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/"),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -577,7 +557,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def add_variant_from_image_apps_app_id_variant_from_image_post(
+    def add_variant_from_image(
         self,
         app_id: str,
         *,
@@ -627,7 +607,7 @@ class AgentaApi:
             "POST",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"apps/{app_id}/variant/from-image/",
+                f"apps/{app_id}/variant/from-image",
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -643,7 +623,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def remove_app_apps_app_id_delete(self, app_id: str) -> typing.Any:
+    def remove_app(self, app_id: str) -> typing.Any:
         """
         Remove app, all its variant, containers and images
 
@@ -671,7 +651,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_app_and_variant_from_template_apps_app_and_variant_from_template_post(
+    def create_app_and_variant_from_template(
         self,
         *,
         app_name: str,
@@ -728,9 +708,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_environments_apps_app_id_environments_get(
-        self, app_id: str
-    ) -> typing.List[EnvironmentOutput]:
+    def list_environments(self, app_id: str) -> typing.List[EnvironmentOutput]:
         """
         Retrieve a list of environments for a given app ID.
 
@@ -744,10 +722,10 @@ class AgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.list_environments_apps_app_id_environments_get(app_id="app-id")
+        client = AgentaApi()
+        client.list_environments(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -767,14 +745,14 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def add_variant_from_base_and_config_variants_from_base_post(
+    def add_variant_from_base_and_config(
         self,
         *,
         base_id: str,
         new_variant_name: str,
         new_config_name: str,
         parameters: typing.Dict[str, typing.Any],
-    ) -> AddVariantFromBaseAndConfigVariantsFromBasePostResponse:
+    ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
         Same as POST /config
@@ -815,7 +793,7 @@ class AgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(AddVariantFromBaseAndConfigVariantsFromBasePostResponse, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(AddVariantFromBaseAndConfigResponse, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -824,7 +802,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def start_variant_variants_variant_id_put(
+    def start_variant(
         self,
         variant_id: str,
         *,
@@ -859,7 +837,7 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/"
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -875,7 +853,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def remove_variant_variants_variant_id_delete(self, variant_id: str) -> typing.Any:
+    def remove_variant(self, variant_id: str) -> typing.Any:
         """
         Remove a variant from the server.
         In the case it's the last variant using the image, stop the container and remove the image.
@@ -892,7 +870,7 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/"
+                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -907,7 +885,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_variant_parameters_variants_variant_id_parameters_put(
+    def update_variant_parameters(
         self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]
     ) -> typing.Any:
         """
@@ -949,9 +927,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_variant_image_variants_variant_id_image_put(
-        self, variant_id: str, *, image: Image
-    ) -> typing.Any:
+    def update_variant_image(self, variant_id: str, *, request: Image) -> typing.Any:
         """
         Updates the image used in an app variant.
 
@@ -968,15 +944,15 @@ class AgentaApi:
         Parameters:
             - variant_id: str.
 
-            - image: Image.
+            - request: Image.
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
                 f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/image/",
+                f"variants/{variant_id}/image",
             ),
-            json=jsonable_encoder(image),
+            json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -990,9 +966,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_list_evaluations_evaluations_get(
-        self, *, app_id: str
-    ) -> typing.List[Evaluation]:
+    def fetch_list_evaluations(self, *, app_id: str) -> typing.List[Evaluation]:
         """
         Fetches a list of evaluations, optionally filtered by an app ID.
 
@@ -1005,10 +979,10 @@ class AgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.fetch_list_evaluations_evaluations_get(app_id="app-id")
+        client = AgentaApi()
+        client.fetch_list_evaluations(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -1029,7 +1003,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_evaluation_evaluations_post(
+    def create_evaluation(
         self,
         *,
         app_id: str,
@@ -1091,7 +1065,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def delete_evaluations_evaluations_delete(
+    def delete_evaluations(
         self, *, evaluations_ids: typing.List[str]
     ) -> typing.List[str]:
         """
@@ -1106,10 +1080,10 @@ class AgentaApi:
         Parameters:
             - evaluations_ids: typing.List[str].
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.delete_evaluations_evaluations_delete(evaluations_ids=[])
+        client = AgentaApi()
+        client.delete_evaluations(evaluations_ids=[])
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -1130,9 +1104,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_evaluation_evaluations_evaluation_id_get(
-        self, evaluation_id: str
-    ) -> Evaluation:
+    def fetch_evaluation(self, evaluation_id: str) -> Evaluation:
         """
         Fetches a single evaluation based on its ID.
 
@@ -1164,7 +1136,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_evaluation_router_evaluations_evaluation_id_put(
+    def update_evaluation(
         self,
         evaluation_id: str,
         *,
@@ -1212,7 +1184,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_evaluation_scenarios_evaluations_evaluation_id_evaluation_scenarios_get(
+    def fetch_evaluation_scenarios(
         self, evaluation_id: str
     ) -> typing.List[EvaluationScenario]:
         """
@@ -1230,10 +1202,10 @@ class AgentaApi:
         Parameters:
             - evaluation_id: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.fetch_evaluation_scenarios_evaluations_evaluation_id_evaluation_scenarios_get(evaluation_id="evaluation-id")
+        client = AgentaApi()
+        client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -1254,7 +1226,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_evaluation_scenario_evaluations_evaluation_id_evaluation_scenario_post(
+    def create_evaluation_scenario(
         self, evaluation_id: str, *, request: EvaluationScenario
     ) -> typing.Any:
         """
@@ -1291,7 +1263,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_evaluation_scenario_router_evaluations_evaluation_id_evaluation_scenario_evaluation_scenario_id_evaluation_type_put(
+    def update_evaluation_scenario(
         self,
         evaluation_id: str,
         evaluation_scenario_id: str,
@@ -1370,7 +1342,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def evaluate_ai_critique_evaluations_evaluation_scenario_ai_critique_post(
+    def evaluate_ai_critique(
         self,
         *,
         correct_answer: str,
@@ -1437,7 +1409,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_evaluation_scenario_score_router_evaluations_evaluation_scenario_evaluation_scenario_id_score_get(
+    def get_evaluation_scenario_score(
         self, evaluation_scenario_id: str
     ) -> typing.Dict[str, str]:
         """
@@ -1453,12 +1425,10 @@ class AgentaApi:
         Parameters:
             - evaluation_scenario_id: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.get_evaluation_scenario_score_router_evaluations_evaluation_scenario_evaluation_scenario_id_score_get(
-            evaluation_scenario_id="evaluation-scenario-id"
-        )
+        client = AgentaApi()
+        client.get_evaluation_scenario_score(evaluation_scenario_id="evaluation-scenario-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -1479,7 +1449,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_evaluation_scenario_score_router_evaluations_evaluation_scenario_evaluation_scenario_id_score_put(
+    def update_evaluation_scenario_score(
         self, evaluation_scenario_id: str, *, score: float
     ) -> typing.Any:
         """
@@ -1516,9 +1486,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_results_evaluations_evaluation_id_results_get(
-        self, evaluation_id: str
-    ) -> typing.Any:
+    def fetch_results(self, evaluation_id: str) -> typing.Any:
         """
         Fetch all the results for one the comparison table
 
@@ -1550,7 +1518,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_custom_evaluation_evaluations_custom_evaluation_post(
+    def create_custom_evaluation(
         self, *, request: CreateCustomEvaluation
     ) -> typing.Any:
         """
@@ -1583,7 +1551,39 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_custom_evaluation_evaluations_custom_evaluation_id_put(
+    def get_custom_evaluation(self, id: str) -> CustomEvaluationDetail:
+        """
+        Get the custom code evaluation detail.
+
+        Args:
+            id (str): the id of the custom evaluation
+
+        Returns:
+            CustomEvaluationDetail: Detail of the custom evaluation
+
+        Parameters:
+            - id: str.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/{id}",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(CustomEvaluationDetail, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def update_custom_evaluation(
         self, id: str, *, request: CreateCustomEvaluation
     ) -> typing.Any:
         """
@@ -1618,7 +1618,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_custom_evaluations_evaluations_custom_evaluation_list_app_id_get(
+    def list_custom_evaluations(
         self, app_id: str
     ) -> typing.List[CustomEvaluationOutput]:
         """
@@ -1633,10 +1633,10 @@ class AgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.list_custom_evaluations_evaluations_custom_evaluation_list_app_id_get(app_id="app-id")
+        client = AgentaApi()
+        client.list_custom_evaluations(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -1657,41 +1657,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_custom_evaluation_evaluations_custom_evaluation_id_get(
-        self, id: str
-    ) -> CustomEvaluationDetail:
-        """
-        Get the custom code evaluation detail.
-
-        Args:
-            id (str): the id of the custom evaluation
-
-        Returns:
-            CustomEvaluationDetail: Detail of the custom evaluation
-
-        Parameters:
-            - id: str.
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(CustomEvaluationDetail, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def get_custom_evaluation_names_evaluations_custom_evaluation_app_name_names_get(
+    def get_custom_evaluation_names(
         self, app_name: str
     ) -> typing.List[CustomEvaluationNames]:
         """
@@ -1706,10 +1672,10 @@ class AgentaApi:
         Parameters:
             - app_name: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.get_custom_evaluation_names_evaluations_custom_evaluation_app_name_names_get(app_name="app-name")
+        client = AgentaApi()
+        client.get_custom_evaluation_names(app_name="app-name")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -1730,7 +1696,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def execute_custom_evaluation_evaluations_custom_evaluation_execute_evaluation_id_post(
+    def execute_custom_evaluation(
         self,
         evaluation_id: str,
         *,
@@ -1791,9 +1757,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def webhook_example_fake_evaluations_webhook_example_fake_post(
-        self,
-    ) -> EvaluationWebhook:
+    def webhook_example_fake(self) -> EvaluationWebhook:
         """
         Returns a fake score response for example webhook evaluation
 
@@ -1817,7 +1781,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def upload_file_testsets_upload_post(
+    def upload_file(
         self, *, upload_type: str, file: typing.IO, testset_name: str, app_id: str
     ) -> TestSetSimpleResponse:
         """
@@ -1866,7 +1830,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def import_testset_testsets_endpoint_post(self) -> TestSetSimpleResponse:
+    def import_testset(self) -> TestSetSimpleResponse:
         """
         Import JSON testset data from an endpoint and save it to MongoDB.
 
@@ -1895,9 +1859,9 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_testset_testsets_app_id_post(
+    def create_testset(
         self, app_id: str, *, request: NewTestset
-    ) -> typing.Any:
+    ) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -1924,6 +1888,37 @@ class AgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(TestSetSimpleResponse, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def get_single_testset(self, testset_id: str) -> typing.Any:
+        """
+        Fetch a specific testset in a MongoDB collection using its _id.
+
+        Args:
+            testset_id (str): The _id of the testset to fetch.
+
+        Returns:
+            The requested testset if found, else an HTTPException.
+
+        Parameters:
+            - testset_id: str.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
@@ -1933,9 +1928,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_testset_testsets_testset_id_put(
-        self, testset_id: str, *, request: NewTestset
-    ) -> typing.Any:
+    def update_testset(self, testset_id: str, *, request: NewTestset) -> typing.Any:
         """
         Update a testset with given id, update the testset in MongoDB.
 
@@ -1970,9 +1963,42 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def delete_testsets_testsets_delete(
-        self, *, testset_ids: typing.List[str]
-    ) -> typing.List[str]:
+    def get_testsets(self, *, app_id: str) -> typing.List[TestSetOutputResponse]:
+        """
+        Get all testsets.
+
+        Returns:
+        - A list of testset objects.
+
+        Raises:
+        - `HTTPException` with status code 404 if no testsets are found.
+
+        Parameters:
+            - app_id: str.
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi()
+        client.get_testsets(app_id="app-id")
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets"),
+            params=remove_none_from_dict({"app_id": app_id}),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[TestSetOutputResponse], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def delete_testsets(self, *, testset_ids: typing.List[str]) -> typing.List[str]:
         """
         Delete specific testsets based on their unique IDs.
 
@@ -1985,10 +2011,10 @@ class AgentaApi:
         Parameters:
             - testset_ids: typing.List[str].
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.delete_testsets_testsets_delete(testset_ids=[])
+        client = AgentaApi()
+        client.delete_testsets(testset_ids=[])
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -2007,9 +2033,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def build_image_containers_build_image_post(
-        self, *, app_id: str, base_name: str, tar_file: typing.IO
-    ) -> Image:
+    def build_image(self, *, app_id: str, base_name: str, tar_file: typing.IO) -> Image:
         """
         Builds a Docker image from a tar file containing the application code.
 
@@ -2032,13 +2056,13 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "containers/build_image/"
+                f"{self._client_wrapper.get_base_url()}/", "containers/build_image"
             ),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Image, _response.json())  # type: ignore
@@ -2050,9 +2074,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def restart_docker_container_containers_restart_container_post(
-        self, *, variant_id: str
-    ) -> typing.Dict[str, typing.Any]:
+    def restart_container(self, *, variant_id: str) -> typing.Dict[str, typing.Any]:
         """
         Restart docker container.
 
@@ -2082,9 +2104,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def container_templates_containers_templates_get(
-        self,
-    ) -> ContainerTemplatesContainersTemplatesGetResponse:
+    def container_templates(self) -> ContainerTemplatesResponse:
         """
         Returns a list of templates available for creating new containers.
 
@@ -2104,14 +2124,14 @@ class AgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(ContainerTemplatesContainersTemplatesGetResponse, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(ContainerTemplatesResponse, _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def construct_app_container_url_containers_container_url_get(
+    def construct_app_container_url(
         self,
         *,
         base_id: typing.Optional[str] = None,
@@ -2157,7 +2177,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def deploy_to_environment_environments_deploy_post(
+    def deploy_to_environment(
         self, *, environment_name: str, variant_id: str
     ) -> typing.Any:
         """
@@ -2197,7 +2217,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_trace_observability_traces_post(
+    def create_trace(
         self,
         *,
         app_id: typing.Optional[str] = OMIT,
@@ -2269,19 +2289,17 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_traces_observability_traces_app_id_variant_id_get(
-        self, app_id: str, variant_id: str
-    ) -> typing.List[Trace]:
+    def get_traces(self, app_id: str, variant_id: str) -> typing.List[Trace]:
         """
         Parameters:
             - app_id: str.
 
             - variant_id: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.get_traces_observability_traces_app_id_variant_id_get(app_id="app-id", variant_id="variant-id")
+        client = AgentaApi()
+        client.get_traces(app_id="app-id", variant_id="variant-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -2302,7 +2320,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_trace_observability_traces_trace_id_get(self, trace_id: str) -> Trace:
+    def get_single_trace(self, trace_id: str) -> Trace:
         """
         Parameters:
             - trace_id: str.
@@ -2326,9 +2344,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_trace_status_observability_traces_trace_id_put(
-        self, trace_id: str, *, status: str
-    ) -> bool:
+    def update_trace_status(self, trace_id: str, *, status: str) -> bool:
         """
         Parameters:
             - trace_id: str.
@@ -2355,7 +2371,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_span_observability_spans_post(
+    def create_span(
         self,
         *,
         parent_span_id: typing.Optional[str] = OMIT,
@@ -2458,17 +2474,15 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_spans_of_trace_observability_spans_trace_id_get(
-        self, trace_id: str
-    ) -> typing.List[Span]:
+    def get_spans_of_trace(self, trace_id: str) -> typing.List[Span]:
         """
         Parameters:
             - trace_id: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.get_spans_of_trace_observability_spans_trace_id_get(trace_id="trace-id")
+        client = AgentaApi()
+        client.get_spans_of_trace(trace_id="trace-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -2489,17 +2503,15 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_feedbacks_observability_feedbacks_trace_id_get(
-        self, trace_id: str
-    ) -> typing.List[Feedback]:
+    def get_feedbacks(self, trace_id: str) -> typing.List[Feedback]:
         """
         Parameters:
             - trace_id: str.
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.get_feedbacks_observability_feedbacks_trace_id_get(trace_id="trace-id")
+        client = AgentaApi()
+        client.get_feedbacks(trace_id="trace-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -2520,7 +2532,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_feedback_observability_feedbacks_trace_id_post(
+    def create_feedback(
         self,
         trace_id: str,
         *,
@@ -2565,9 +2577,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_feedback_observability_feedbacks_trace_id_feedback_id_get(
-        self, trace_id: str, feedback_id: str
-    ) -> Feedback:
+    def get_feedback(self, trace_id: str, feedback_id: str) -> Feedback:
         """
         Parameters:
             - trace_id: str.
@@ -2593,7 +2603,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_feedback_observability_feedbacks_trace_id_feedback_id_put(
+    def update_feedback(
         self,
         trace_id: str,
         feedback_id: str,
@@ -2639,7 +2649,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_organizations_organizations_get(self) -> typing.List[Organization]:
+    def list_organizations(self) -> typing.List[Organization]:
         """
         Returns a list of organizations associated with the user's session.
 
@@ -2653,10 +2663,10 @@ class AgentaApi:
             HTTPException: If there is an error retrieving the organizations from the database.
 
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.list_organizations_organizations_get()
+        client = AgentaApi()
+        client.list_organizations()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -2674,7 +2684,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_user_organization_organizations_own_get(self) -> typing.Any:
+    def get_own_org(self) -> OrganizationOutput:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
@@ -2684,14 +2694,14 @@ class AgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(OrganizationOutput, _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_bases_bases_get(
+    def list_bases(
         self,
         *,
         app_id: typing.Optional[str] = None,
@@ -2716,14 +2726,14 @@ class AgentaApi:
 
             - base_name: typing.Optional[str].
         ---
-        from devgenix.client import AgentaApi
+        from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
-        client.list_bases_bases_get()
+        client = AgentaApi()
+        client.list_bases()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "bases/"),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "bases"),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2738,7 +2748,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_config_configs_get(
+    def get_config(
         self,
         *,
         base_id: str,
@@ -2776,7 +2786,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def save_config_configs_post(
+    def save_config(
         self,
         *,
         base_id: str,
@@ -2796,7 +2806,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs/"),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             json=jsonable_encoder(
                 {
                     "base_id": base_id,
@@ -2825,17 +2835,14 @@ class AsyncAgentaApi:
         *,
         base_url: typing.Optional[str] = None,
         environment: AgentaApiEnvironment = AgentaApiEnvironment.DEFAULT,
-        api_key: str,
         timeout: typing.Optional[float] = 60,
     ):
         self._client_wrapper = AsyncClientWrapper(
             base_url=_get_base_url(base_url=base_url, environment=environment),
-            api_key=api_key,
             httpx_client=httpx.AsyncClient(timeout=timeout),
         )
-        self.testsets = AsyncTestsetsClient(client_wrapper=self._client_wrapper)
 
-    async def list_api_keys_keys_get(self) -> typing.List[ListApiKeysOutput]:
+    async def list_api_keys(self) -> ListApiKeysOutput:
         """
         List all API keys associated with the authenticated user.
 
@@ -2844,12 +2851,6 @@ class AsyncAgentaApi:
 
         Returns:
             List[ListAPIKeysOutput]: A list of API Keys associated with the user.
-
-        ---
-        from devgenix.client import AsyncAgentaApi
-
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.list_api_keys_keys_get()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -2858,14 +2859,14 @@ class AsyncAgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.List[ListApiKeysOutput], _response.json())  # type: ignore
+            return pydantic.parse_obj_as(ListApiKeysOutput, _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_api_key_keys_post(self) -> typing.Any:
+    async def create_api_key(self) -> str:
         """
         Creates an API key for a user.
 
@@ -2882,16 +2883,14 @@ class AsyncAgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(str, _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_api_key_keys_key_prefix_delete(
-        self, key_prefix: str
-    ) -> typing.Any:
+    async def delete_api_key(self, key_prefix: str) -> typing.Dict[str, typing.Any]:
         """
         Delete an API key with the given key prefix for the authenticated user.
 
@@ -2907,6 +2906,11 @@ class AsyncAgentaApi:
 
         Parameters:
             - key_prefix: str.
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi()
+        await client.delete_api_key(key_prefix="key-prefix")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -2917,7 +2921,7 @@ class AsyncAgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(typing.Dict[str, typing.Any], _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -2926,9 +2930,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def validate_api_key_keys_key_prefix_validate_get(
-        self, key_prefix: str
-    ) -> typing.Any:
+    async def validate_api_key(self, key_prefix: str) -> bool:
         """
         This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.
         Returns:
@@ -2946,7 +2948,7 @@ class AsyncAgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -2955,9 +2957,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_organization_details_organizations_ee_org_id_get(
-        self, org_id: str
-    ) -> typing.Any:
+    async def fetch_organization_details(self, org_id: str) -> typing.Any:
         """
         Get an organization's details.
 
@@ -2989,9 +2989,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def invite_to_org_organizations_ee_org_id_invite_post(
-        self, org_id: str, *, email: str
-    ) -> typing.Any:
+    async def invite_to_org(self, org_id: str, *, email: str) -> typing.Any:
         """
         Invite a user to an Organization.
 
@@ -3030,9 +3028,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def add_user_to_org_organizations_ee_org_id_accept_post(
-        self, org_id: str, *, token: str
-    ) -> typing.Any:
+    async def add_user_to_org(self, org_id: str, *, token: str) -> typing.Any:
         """
         Invite a user to an Organization.
 
@@ -3069,9 +3065,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_organization_organizations_ee_create_post(
-        self, *, request: Organization
-    ) -> typing.Any:
+    async def create_organization(self, *, request: Organization) -> typing.Any:
         """
         Parameters:
             - request: Organization.
@@ -3095,7 +3089,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_organization_organizations_ee_org_id_update_post(
+    async def update_organization(
         self,
         org_id: str,
         *,
@@ -3135,7 +3129,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def health_check_health_get(self) -> typing.Any:
+    async def health_check(self) -> typing.Any:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "health"),
@@ -3150,7 +3144,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def user_profile_profile_get(self) -> typing.Any:
+    async def user_profile(self) -> typing.Any:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "profile"),
@@ -3165,9 +3159,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_app_variants_apps_app_id_variants_get(
-        self, app_id: str
-    ) -> typing.List[AppVariantOutput]:
+    async def list_app_variants(self, app_id: str) -> typing.List[AppVariantOutput]:
         """
         Retrieve a list of app variants for a given app ID.
 
@@ -3181,10 +3173,10 @@ class AsyncAgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.list_app_variants_apps_app_id_variants_get(app_id="app-id")
+        client = AsyncAgentaApi()
+        await client.list_app_variants(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -3204,7 +3196,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_variant_by_env_apps_get_variant_by_env_get(
+    async def get_variant_by_env(
         self, *, app_id: str, environment: str
     ) -> AppVariantOutput:
         """
@@ -3247,7 +3239,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_apps_apps_get(
+    async def list_apps(
         self,
         *,
         app_name: typing.Optional[str] = None,
@@ -3272,10 +3264,10 @@ class AsyncAgentaApi:
 
             - org_id: typing.Optional[str].
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.list_apps_apps_get()
+        client = AsyncAgentaApi()
+        await client.list_apps()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -3294,7 +3286,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_app_apps_post(
+    async def create_app(
         self, *, app_name: str, organization_id: typing.Optional[str] = OMIT
     ) -> CreateAppOutput:
         """
@@ -3335,7 +3327,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def add_variant_from_image_apps_app_id_variant_from_image_post(
+    async def add_variant_from_image(
         self,
         app_id: str,
         *,
@@ -3401,7 +3393,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def remove_app_apps_app_id_delete(self, app_id: str) -> typing.Any:
+    async def remove_app(self, app_id: str) -> typing.Any:
         """
         Remove app, all its variant, containers and images
 
@@ -3429,7 +3421,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_app_and_variant_from_template_apps_app_and_variant_from_template_post(
+    async def create_app_and_variant_from_template(
         self,
         *,
         app_name: str,
@@ -3486,9 +3478,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_environments_apps_app_id_environments_get(
-        self, app_id: str
-    ) -> typing.List[EnvironmentOutput]:
+    async def list_environments(self, app_id: str) -> typing.List[EnvironmentOutput]:
         """
         Retrieve a list of environments for a given app ID.
 
@@ -3502,10 +3492,10 @@ class AsyncAgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.list_environments_apps_app_id_environments_get(app_id="app-id")
+        client = AsyncAgentaApi()
+        await client.list_environments(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -3525,14 +3515,14 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def add_variant_from_base_and_config_variants_from_base_post(
+    async def add_variant_from_base_and_config(
         self,
         *,
         base_id: str,
         new_variant_name: str,
         new_config_name: str,
         parameters: typing.Dict[str, typing.Any],
-    ) -> AddVariantFromBaseAndConfigVariantsFromBasePostResponse:
+    ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
         Same as POST /config
@@ -3573,7 +3563,7 @@ class AsyncAgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(AddVariantFromBaseAndConfigVariantsFromBasePostResponse, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(AddVariantFromBaseAndConfigResponse, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
         try:
@@ -3582,7 +3572,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def start_variant_variants_variant_id_put(
+    async def start_variant(
         self,
         variant_id: str,
         *,
@@ -3633,9 +3623,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def remove_variant_variants_variant_id_delete(
-        self, variant_id: str
-    ) -> typing.Any:
+    async def remove_variant(self, variant_id: str) -> typing.Any:
         """
         Remove a variant from the server.
         In the case it's the last variant using the image, stop the container and remove the image.
@@ -3667,7 +3655,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_variant_parameters_variants_variant_id_parameters_put(
+    async def update_variant_parameters(
         self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]
     ) -> typing.Any:
         """
@@ -3709,7 +3697,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_variant_image_variants_variant_id_image_put(
+    async def update_variant_image(
         self, variant_id: str, *, request: Image
     ) -> typing.Any:
         """
@@ -3750,9 +3738,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_list_evaluations_evaluations_get(
-        self, *, app_id: str
-    ) -> typing.List[Evaluation]:
+    async def fetch_list_evaluations(self, *, app_id: str) -> typing.List[Evaluation]:
         """
         Fetches a list of evaluations, optionally filtered by an app ID.
 
@@ -3765,10 +3751,10 @@ class AsyncAgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.fetch_list_evaluations_evaluations_get(app_id="app-id")
+        client = AsyncAgentaApi()
+        await client.fetch_list_evaluations(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -3789,7 +3775,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_evaluation_evaluations_post(
+    async def create_evaluation(
         self,
         *,
         app_id: str,
@@ -3851,7 +3837,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_evaluations_evaluations_delete(
+    async def delete_evaluations(
         self, *, evaluations_ids: typing.List[str]
     ) -> typing.List[str]:
         """
@@ -3866,10 +3852,10 @@ class AsyncAgentaApi:
         Parameters:
             - evaluations_ids: typing.List[str].
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.delete_evaluations_evaluations_delete(evaluations_ids=[])
+        client = AsyncAgentaApi()
+        await client.delete_evaluations(evaluations_ids=[])
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -3890,9 +3876,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_evaluation_evaluations_evaluation_id_get(
-        self, evaluation_id: str
-    ) -> Evaluation:
+    async def fetch_evaluation(self, evaluation_id: str) -> Evaluation:
         """
         Fetches a single evaluation based on its ID.
 
@@ -3924,7 +3908,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_evaluation_router_evaluations_evaluation_id_put(
+    async def update_evaluation(
         self,
         evaluation_id: str,
         *,
@@ -3972,7 +3956,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_evaluation_scenarios_evaluations_evaluation_id_evaluation_scenarios_get(
+    async def fetch_evaluation_scenarios(
         self, evaluation_id: str
     ) -> typing.List[EvaluationScenario]:
         """
@@ -3990,12 +3974,10 @@ class AsyncAgentaApi:
         Parameters:
             - evaluation_id: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.fetch_evaluation_scenarios_evaluations_evaluation_id_evaluation_scenarios_get(
-            evaluation_id="evaluation-id"
-        )
+        client = AsyncAgentaApi()
+        await client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -4016,7 +3998,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_evaluation_scenario_evaluations_evaluation_id_evaluation_scenario_post(
+    async def create_evaluation_scenario(
         self, evaluation_id: str, *, request: EvaluationScenario
     ) -> typing.Any:
         """
@@ -4053,7 +4035,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_evaluation_scenario_router_evaluations_evaluation_id_evaluation_scenario_evaluation_scenario_id_evaluation_type_put(
+    async def update_evaluation_scenario(
         self,
         evaluation_id: str,
         evaluation_scenario_id: str,
@@ -4132,7 +4114,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def evaluate_ai_critique_evaluations_evaluation_scenario_ai_critique_post(
+    async def evaluate_ai_critique(
         self,
         *,
         correct_answer: str,
@@ -4199,7 +4181,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_evaluation_scenario_score_router_evaluations_evaluation_scenario_evaluation_scenario_id_score_get(
+    async def get_evaluation_scenario_score(
         self, evaluation_scenario_id: str
     ) -> typing.Dict[str, str]:
         """
@@ -4215,12 +4197,10 @@ class AsyncAgentaApi:
         Parameters:
             - evaluation_scenario_id: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.get_evaluation_scenario_score_router_evaluations_evaluation_scenario_evaluation_scenario_id_score_get(
-            evaluation_scenario_id="evaluation-scenario-id"
-        )
+        client = AsyncAgentaApi()
+        await client.get_evaluation_scenario_score(evaluation_scenario_id="evaluation-scenario-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -4241,7 +4221,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_evaluation_scenario_score_router_evaluations_evaluation_scenario_evaluation_scenario_id_score_put(
+    async def update_evaluation_scenario_score(
         self, evaluation_scenario_id: str, *, score: float
     ) -> typing.Any:
         """
@@ -4278,9 +4258,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_results_evaluations_evaluation_id_results_get(
-        self, evaluation_id: str
-    ) -> typing.Any:
+    async def fetch_results(self, evaluation_id: str) -> typing.Any:
         """
         Fetch all the results for one the comparison table
 
@@ -4312,7 +4290,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_custom_evaluation_evaluations_custom_evaluation_post(
+    async def create_custom_evaluation(
         self, *, request: CreateCustomEvaluation
     ) -> typing.Any:
         """
@@ -4345,7 +4323,39 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_custom_evaluation_evaluations_custom_evaluation_id_put(
+    async def get_custom_evaluation(self, id: str) -> CustomEvaluationDetail:
+        """
+        Get the custom code evaluation detail.
+
+        Args:
+            id (str): the id of the custom evaluation
+
+        Returns:
+            CustomEvaluationDetail: Detail of the custom evaluation
+
+        Parameters:
+            - id: str.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"evaluations/custom_evaluation/{id}",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(CustomEvaluationDetail, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def update_custom_evaluation(
         self, id: str, *, request: CreateCustomEvaluation
     ) -> typing.Any:
         """
@@ -4380,7 +4390,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_custom_evaluations_evaluations_custom_evaluation_list_app_id_get(
+    async def list_custom_evaluations(
         self, app_id: str
     ) -> typing.List[CustomEvaluationOutput]:
         """
@@ -4395,10 +4405,10 @@ class AsyncAgentaApi:
         Parameters:
             - app_id: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.list_custom_evaluations_evaluations_custom_evaluation_list_app_id_get(app_id="app-id")
+        client = AsyncAgentaApi()
+        await client.list_custom_evaluations(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -4419,41 +4429,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_custom_evaluation_evaluations_custom_evaluation_id_get(
-        self, id: str
-    ) -> CustomEvaluationDetail:
-        """
-        Get the custom code evaluation detail.
-
-        Args:
-            id (str): the id of the custom evaluation
-
-        Returns:
-            CustomEvaluationDetail: Detail of the custom evaluation
-
-        Parameters:
-            - id: str.
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
-            ),
-            headers=self._client_wrapper.get_headers(),
-            timeout=60,
-        )
-        if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(CustomEvaluationDetail, _response.json())  # type: ignore
-        if _response.status_code == 422:
-            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
-        try:
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def get_custom_evaluation_names_evaluations_custom_evaluation_app_name_names_get(
+    async def get_custom_evaluation_names(
         self, app_name: str
     ) -> typing.List[CustomEvaluationNames]:
         """
@@ -4468,10 +4444,10 @@ class AsyncAgentaApi:
         Parameters:
             - app_name: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.get_custom_evaluation_names_evaluations_custom_evaluation_app_name_names_get(app_name="app-name")
+        client = AsyncAgentaApi()
+        await client.get_custom_evaluation_names(app_name="app-name")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -4492,7 +4468,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def execute_custom_evaluation_evaluations_custom_evaluation_execute_evaluation_id_post(
+    async def execute_custom_evaluation(
         self,
         evaluation_id: str,
         *,
@@ -4553,9 +4529,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def webhook_example_fake_evaluations_webhook_example_fake_post(
-        self,
-    ) -> EvaluationWebhook:
+    async def webhook_example_fake(self) -> EvaluationWebhook:
         """
         Returns a fake score response for example webhook evaluation
 
@@ -4579,7 +4553,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def upload_file_testsets_upload_post(
+    async def upload_file(
         self, *, upload_type: str, file: typing.IO, testset_name: str, app_id: str
     ) -> TestSetSimpleResponse:
         """
@@ -4628,7 +4602,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def import_testset_testsets_endpoint_post(self) -> TestSetSimpleResponse:
+    async def import_testset(self) -> TestSetSimpleResponse:
         """
         Import JSON testset data from an endpoint and save it to MongoDB.
 
@@ -4657,9 +4631,9 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_testset_testsets_app_id_post(
+    async def create_testset(
         self, app_id: str, *, request: NewTestset
-    ) -> typing.Any:
+    ) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -4686,6 +4660,37 @@ class AsyncAgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(TestSetSimpleResponse, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def get_single_testset(self, testset_id: str) -> typing.Any:
+        """
+        Fetch a specific testset in a MongoDB collection using its _id.
+
+        Args:
+            testset_id (str): The _id of the testset to fetch.
+
+        Returns:
+            The requested testset if found, else an HTTPException.
+
+        Parameters:
+            - testset_id: str.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
         if _response.status_code == 422:
             raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
@@ -4695,7 +4700,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_testset_testsets_testset_id_put(
+    async def update_testset(
         self, testset_id: str, *, request: NewTestset
     ) -> typing.Any:
         """
@@ -4732,7 +4737,42 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_testsets_testsets_delete(
+    async def get_testsets(self, *, app_id: str) -> typing.List[TestSetOutputResponse]:
+        """
+        Get all testsets.
+
+        Returns:
+        - A list of testset objects.
+
+        Raises:
+        - `HTTPException` with status code 404 if no testsets are found.
+
+        Parameters:
+            - app_id: str.
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi()
+        await client.get_testsets(app_id="app-id")
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets"),
+            params=remove_none_from_dict({"app_id": app_id}),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.List[TestSetOutputResponse], _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def delete_testsets(
         self, *, testset_ids: typing.List[str]
     ) -> typing.List[str]:
         """
@@ -4747,10 +4787,10 @@ class AsyncAgentaApi:
         Parameters:
             - testset_ids: typing.List[str].
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.delete_testsets_testsets_delete(testset_ids=[])
+        client = AsyncAgentaApi()
+        await client.delete_testsets(testset_ids=[])
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
@@ -4769,7 +4809,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def build_image_containers_build_image_post(
+    async def build_image(
         self, *, app_id: str, base_name: str, tar_file: typing.IO
     ) -> Image:
         """
@@ -4812,7 +4852,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def restart_docker_container_containers_restart_container_post(
+    async def restart_container(
         self, *, variant_id: str
     ) -> typing.Dict[str, typing.Any]:
         """
@@ -4844,9 +4884,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def container_templates_containers_templates_get(
-        self,
-    ) -> ContainerTemplatesContainersTemplatesGetResponse:
+    async def container_templates(self) -> ContainerTemplatesResponse:
         """
         Returns a list of templates available for creating new containers.
 
@@ -4866,14 +4904,14 @@ class AsyncAgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(ContainerTemplatesContainersTemplatesGetResponse, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(ContainerTemplatesResponse, _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def construct_app_container_url_containers_container_url_get(
+    async def construct_app_container_url(
         self,
         *,
         base_id: typing.Optional[str] = None,
@@ -4919,7 +4957,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def deploy_to_environment_environments_deploy_post(
+    async def deploy_to_environment(
         self, *, environment_name: str, variant_id: str
     ) -> typing.Any:
         """
@@ -4959,7 +4997,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_trace_observability_traces_post(
+    async def create_trace(
         self,
         *,
         app_id: typing.Optional[str] = OMIT,
@@ -5031,19 +5069,17 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_traces_observability_traces_app_id_variant_id_get(
-        self, app_id: str, variant_id: str
-    ) -> typing.List[Trace]:
+    async def get_traces(self, app_id: str, variant_id: str) -> typing.List[Trace]:
         """
         Parameters:
             - app_id: str.
 
             - variant_id: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.get_traces_observability_traces_app_id_variant_id_get(app_id="app-id", variant_id="variant-id")
+        client = AsyncAgentaApi()
+        await client.get_traces(app_id="app-id", variant_id="variant-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -5064,7 +5100,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_trace_observability_traces_trace_id_get(self, trace_id: str) -> Trace:
+    async def get_single_trace(self, trace_id: str) -> Trace:
         """
         Parameters:
             - trace_id: str.
@@ -5088,9 +5124,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_trace_status_observability_traces_trace_id_put(
-        self, trace_id: str, *, status: str
-    ) -> bool:
+    async def update_trace_status(self, trace_id: str, *, status: str) -> bool:
         """
         Parameters:
             - trace_id: str.
@@ -5117,7 +5151,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_span_observability_spans_post(
+    async def create_span(
         self,
         *,
         parent_span_id: typing.Optional[str] = OMIT,
@@ -5220,17 +5254,15 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_spans_of_trace_observability_spans_trace_id_get(
-        self, trace_id: str
-    ) -> typing.List[Span]:
+    async def get_spans_of_trace(self, trace_id: str) -> typing.List[Span]:
         """
         Parameters:
             - trace_id: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.get_spans_of_trace_observability_spans_trace_id_get(trace_id="trace-id")
+        client = AsyncAgentaApi()
+        await client.get_spans_of_trace(trace_id="trace-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -5251,17 +5283,15 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_feedbacks_observability_feedbacks_trace_id_get(
-        self, trace_id: str
-    ) -> typing.List[Feedback]:
+    async def get_feedbacks(self, trace_id: str) -> typing.List[Feedback]:
         """
         Parameters:
             - trace_id: str.
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.get_feedbacks_observability_feedbacks_trace_id_get(trace_id="trace-id")
+        client = AsyncAgentaApi()
+        await client.get_feedbacks(trace_id="trace-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -5282,7 +5312,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_feedback_observability_feedbacks_trace_id_post(
+    async def create_feedback(
         self,
         trace_id: str,
         *,
@@ -5327,9 +5357,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_feedback_observability_feedbacks_trace_id_feedback_id_get(
-        self, trace_id: str, feedback_id: str
-    ) -> Feedback:
+    async def get_feedback(self, trace_id: str, feedback_id: str) -> Feedback:
         """
         Parameters:
             - trace_id: str.
@@ -5355,7 +5383,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_feedback_observability_feedbacks_trace_id_feedback_id_put(
+    async def update_feedback(
         self,
         trace_id: str,
         feedback_id: str,
@@ -5401,7 +5429,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_organizations_organizations_get(self) -> typing.List[Organization]:
+    async def list_organizations(self) -> typing.List[Organization]:
         """
         Returns a list of organizations associated with the user's session.
 
@@ -5415,10 +5443,10 @@ class AsyncAgentaApi:
             HTTPException: If there is an error retrieving the organizations from the database.
 
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.list_organizations_organizations_get()
+        client = AsyncAgentaApi()
+        await client.list_organizations()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -5436,7 +5464,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_user_organization_organizations_own_get(self) -> typing.Any:
+    async def get_own_org(self) -> OrganizationOutput:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
@@ -5446,14 +5474,14 @@ class AsyncAgentaApi:
             timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(OrganizationOutput, _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_bases_bases_get(
+    async def list_bases(
         self,
         *,
         app_id: typing.Optional[str] = None,
@@ -5478,10 +5506,10 @@ class AsyncAgentaApi:
 
             - base_name: typing.Optional[str].
         ---
-        from devgenix.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
-        await client.list_bases_bases_get()
+        client = AsyncAgentaApi()
+        await client.list_bases()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -5500,7 +5528,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_config_configs_get(
+    async def get_config(
         self,
         *,
         base_id: str,
@@ -5538,7 +5566,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def save_config_configs_post(
+    async def save_config(
         self,
         *,
         base_id: str,
