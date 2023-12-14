@@ -1,6 +1,7 @@
 import {useProfileData} from "@/contexts/profile.context"
 import {isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
+import posthog from "posthog-js"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
 import {signOut} from "supertokens-auth-react/recipe/thirdpartypasswordless"
 
@@ -17,6 +18,7 @@ export const useSession: () => {loading: boolean; doesSessionExist: boolean; log
                   logout: () => {
                       signOut()
                           .then(() => {
+                              posthog.reset()
                               reset()
                               router.push("/auth")
                           })

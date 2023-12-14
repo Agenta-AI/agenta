@@ -1,0 +1,42 @@
+---
+title: How to use a Custom LLM in agenta
+description: 'Learn how to write an LLM application that uses a custom LLM'
+---
+
+Using a custom LLM in Agenta is straightforward. The process involves writing the code for a custom application using the SDK, which then calls the LLM.
+
+Below is the structure of a custom application that calls a  [vllm hosted model on an API server](https://docs.vllm.ai/en/latest/getting_started/quickstart.html#api-server):
+
+```python
+
+import agenta as ag
+import requests
+
+default_prompt = "Please write a joke about {subject}"
+
+url = "https://<api-server-url>/generate"
+ag.config.default(prompt=default_prompt,
+                  temperature=0.8)
+
+@ag.entrypoint
+def generate(subject:str)->str:
+    prompt = config.prompt.format(subject=subject)
+    data = {
+        "prompt": prompt,
+        "temperature": config.temperature
+    }
+    response = requests.post(url, data=json.dumps(data))
+    return response.json()
+```
+
+The above code is a simple LLM app that generates jokes about a given subject, using a vLLM hosted model. It is structured as follows:
+
+`ag.config.default` sets the default values for the configuration of the LLM application. In this example, the default prompt is "Please write a joke about {subject}", and the temperature is set at 0.8.
+
+The `@ag.entrypoint` decorator marks the function that will be called. The function `generate` accepts a subject as input and returns a joke as output. It calls the vLLM hosted model using the requests library.
+
+To call any other LLM, you need to set up the configuration for the LLM (prompt, temperature, etc.) and then call the LLM in the main function.
+
+After writing the code, it can be deployed using the CLI, as described in the [command line reference](/cli/quick-usage). This can be done by running `agenta init` followed by `agenta variant serve app.py` in the code folder.
+
+<Warning> Note that if the LLM is hosted on your local machine and not accessible from outside, you will need to [self-host agenta locally](self-host/host-locally) to be able to call the LLM from the LLm app. </Warning>
