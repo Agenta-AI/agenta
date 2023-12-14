@@ -40,7 +40,9 @@ class BoolMeta(type):
         if "default" in namespace and namespace["default"] not in [0, 1]:
             raise ValueError("Must provide either 0 or 1")
         namespace["default"] = bool(namespace.get("default", 0))
-        return super().__new__(cls, name, bases, namespace)
+        instance = super().__new__(cls, name, bases, namespace)
+        instance.default = 0
+        return instance
 
 
 class BinaryParam(int, metaclass=BoolMeta):
