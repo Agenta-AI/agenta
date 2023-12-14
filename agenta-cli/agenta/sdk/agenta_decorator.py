@@ -8,7 +8,7 @@ import traceback
 import functools
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, Optional, Tuple, List, TypeVar
+from typing import Any, Callable, Dict, Optional, Tuple, List, Union
 
 from fastapi import Body, FastAPI, UploadFile
 from fastapi.responses import JSONResponse
@@ -31,7 +31,6 @@ from .types import (
 )
 
 app = FastAPI()
-T = TypeVar("T")
 
 origins = [
     "*",
@@ -55,7 +54,7 @@ def ingest_file(upfile: UploadFile):
     return InFile(file_name=upfile.filename, file_path=temp_file.name)
 
 
-def entrypoint(func: Callable[..., T]) -> Callable[..., Dict[str, T]]:
+def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator to wrap a function for HTTP POST and terminal exposure.
 
@@ -151,7 +150,7 @@ def ingest_files(
             func_params[name] = ingest_file(func_params[name])
 
 
-async def execute_function(func: Callable[..., Any], *args, **func_params) -> Any:
+async def execute_function(func: Callable[..., Any], *args, **func_params) -> Union[Dict[str, Any], JSONResponse]:
     """Execute the function and handle any exceptions."""
 
     try:
