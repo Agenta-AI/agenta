@@ -40,6 +40,7 @@ class APIRouter(FastAPIRouter):
 
         return decorator
 
+
 async def get_organization(org_id: str) -> OrganizationDB:
     org = await engine.find_one(OrganizationDB, OrganizationDB.id == ObjectId(org_id))
     if org is not None:
