@@ -10,17 +10,17 @@ class InFile:
         self.file_path = file_path
 
 
-class FuncTokenUsage(BaseModel):
-    completion_tokens: str
-    prompt_tokens: str
-    total_tokens: str
+class LLMTokenUsage(BaseModel):
+    completion_tokens: int
+    prompt_tokens: int
+    total_tokens: int
 
 
 class FuncResponse(BaseModel):
     message: str
-    usage: Optional[FuncTokenUsage]
+    usage: Optional[LLMTokenUsage]
     cost: Optional[str]
-    latency: str
+    latency: float
 
 
 class DictInput(dict):
