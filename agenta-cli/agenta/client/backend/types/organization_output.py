@@ -11,10 +11,9 @@ except ImportError:
     import pydantic  # type: ignore
 
 
-class BodyImportTestsetTestsetsEndpointPost(pydantic.BaseModel):
-    endpoint: typing.Optional[str]
-    testset_name: typing.Optional[str]
-    app_id: typing.Optional[str]
+class OrganizationOutput(pydantic.BaseModel):
+    id: str
+    name: str
 
     def json(self, **kwargs: typing.Any) -> str:
         kwargs_with_defaults: typing.Any = {
