@@ -19,26 +19,44 @@ To generate the client code using Fern, follow the steps below.
         fern init --openapi http://localhost/api/openapi.json
     ```
 
-3. Run `fern check` to validate the OpenAPI spec and resolve any errors, if there are any. 
+3. Add Security Definition to the openapi.json
    
-4. Add the Fern Python SDK;
+    At this stage, you should have a folder named "fern" with the following directory;
+
+        ```bash
+            fern/
+                ├─ fern.config.json
+                ├─ generators.yml
+                openapi/
+                    ├─ openapi.yml
+        ```
+
+    - Go to the openapi.json.
+    - Go to components and add the following new schema;
+        ```bash
+            securitySchemes:
+                APIKeyHeader:
+                type: apiKey
+                in: header
+                name: Authorization
+        ```
+    - At the last empty line in the bottom of the file, add this;
+        ```bash
+            security:
+            - APIKeyHeader: []
+        ```
+    
+
+4. Run `fern check` to validate the OpenAPI spec and resolve any errors, if there are any. ( You can ignore the conflicting endpoints warning )
+   
+5. Add the Fern Python SDK;
    ```bash
         fern add fern-python-sdk
     ```
 
-At this stage, you should have a folder named "fern" with the following directory;
+6. Go to the generators.yml, which would look like this;
 
-    ```
-        fern/
-            ├─ fern.config.json
-            ├─ generators.yml
-            openapi/
-                ├─ openapi.yml
-    ```
-
-5. Your generators.yml would look like this;
-
-    ```
+    ```bash
         default-group: local
         groups:
         local:
@@ -54,14 +72,14 @@ At this stage, you should have a folder named "fern" with the following director
 
     Replace the following;
 
-    ```
+    ```bash
         - name: fernapi/fern-typescript-node-sdk
         version: 0.7.2
     ```
 
     with this;
 
-    ```
+    ```bash
        - name: fernapi/fern-python-sdk
          version: 0.6.0
     ```
@@ -70,7 +88,7 @@ At this stage, you should have a folder named "fern" with the following director
     For example change it from this `path: ../generated/typescript` to this path: `../backend`
 
     Now your generators.yml should look like this;
-    ```
+    ```bash
         default-group: local
         groups:
         local:
@@ -82,9 +100,9 @@ At this stage, you should have a folder named "fern" with the following director
                 path: ../backend
     ```
 
-6. Generate the client code
+7. Generate the client code
    
-    ```
+    ```bash
         fern generate
     ```
 
