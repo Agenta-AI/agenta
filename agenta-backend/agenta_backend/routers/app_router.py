@@ -50,7 +50,11 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.get("/{app_id}/variants/", response_model=List[AppVariantOutput], operation_id="list_app_variants")
+@router.get(
+    "/{app_id}/variants/",
+    response_model=List[AppVariantOutput],
+    operation_id="list_app_variants",
+)
 async def list_app_variants(
     app_id: str,
     request: Request,
@@ -91,7 +95,11 @@ async def list_app_variants(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/get_variant_by_env/", response_model=AppVariantOutput, operation_id="get_variant_by_env")
+@router.get(
+    "/get_variant_by_env/",
+    response_model=AppVariantOutput,
+    operation_id="get_variant_by_env",
+)
 async def get_variant_by_env(
     app_id: str,
     environment: str,
@@ -302,7 +310,10 @@ async def remove_app(app_id: str, request: Request):
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.post("/app_and_variant_from_template/", operation_id="create_app_and_variant_from_template")
+@router.post(
+    "/app_and_variant_from_template/",
+    operation_id="create_app_and_variant_from_template",
+)
 async def create_app_and_variant_from_template(
     payload: CreateAppVariant,
     request: Request,
@@ -409,7 +420,11 @@ async def create_app_and_variant_from_template(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{app_id}/environments/", response_model=List[EnvironmentOutput], operation_id="list_environments")
+@router.get(
+    "/{app_id}/environments/",
+    response_model=List[EnvironmentOutput],
+    operation_id="list_environments",
+)
 async def list_environments(
     app_id: str,
     request: Request,

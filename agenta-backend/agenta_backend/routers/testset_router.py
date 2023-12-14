@@ -37,7 +37,9 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
-@router.post("/upload/", response_model=TestSetSimpleResponse, operation_id="upload_file")
+@router.post(
+    "/upload/", response_model=TestSetSimpleResponse, operation_id="upload_file"
+)
 async def upload_file(
     request: Request,
     upload_type: str = Form(None),
@@ -115,7 +117,9 @@ async def upload_file(
         )
 
 
-@router.post("/endpoint/", response_model=TestSetSimpleResponse, operation_id="import_testset")
+@router.post(
+    "/endpoint/", response_model=TestSetSimpleResponse, operation_id="import_testset"
+)
 async def import_testset(
     request: Request,
     endpoint: str = Form(None),
@@ -192,7 +196,9 @@ async def import_testset(
         ) from error
 
 
-@router.post("/{app_id}/", response_model=TestSetSimpleResponse, operation_id="create_testset")
+@router.post(
+    "/{app_id}/", response_model=TestSetSimpleResponse, operation_id="create_testset"
+)
 async def create_testset(
     app_id: str,
     csvdata: NewTestset,

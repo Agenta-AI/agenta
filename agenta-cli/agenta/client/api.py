@@ -10,6 +10,7 @@ from requests.exceptions import RequestException
 from agenta.client.backend.client import AgentaApi
 from agenta.client.exceptions import APIRequestError
 
+
 def add_variant_to_server(
     app_id: str,
     base_name: str,
@@ -46,13 +47,15 @@ def add_variant_to_server(
     )
     for attempt in range(retries):
         try:
-            response = client.add_variant_from_image_apps_app_id_variant_from_image_post(
-                app_id=app_id,
-                variant_name=f"{base_name.lower()}.default",
-                base_name=base_name,
-                config_name="default",
-                docker_id=image.docker_id,
-                tags=image.tags,
+            response = (
+                client.add_variant_from_image_apps_app_id_variant_from_image_post(
+                    app_id=app_id,
+                    variant_name=f"{base_name.lower()}.default",
+                    base_name=base_name,
+                    config_name="default",
+                    docker_id=image.docker_id,
+                    tags=image.tags,
+                )
             )
             click.echo(click.style("\nVariant added successfully.", fg="green"))
             return response
