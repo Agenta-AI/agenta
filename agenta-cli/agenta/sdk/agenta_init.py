@@ -83,9 +83,7 @@ class AgentaSingleton:
                             f"App with name {app_name} does not exist on the server."
                         )
 
-                    get_base_id = client.list_bases(
-                        app_id=app_id, base_name=base_name
-                    )
+                    get_base_id = client.list_bases(app_id=app_id, base_name=base_name)
                     base_id = get_base_id.base_id
                 except Exception as ex:
                     raise APIRequestError(
