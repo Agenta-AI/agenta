@@ -116,6 +116,8 @@ Now change every instance where `DevgenixApi` appears to `AgentaApi`, and `Async
 > - Click on the horizontal elipse icon at the bottom right of the Replace box. 
 > - Specify the path to the generated code in the "files to include" box. For example `./agenta/agenta-cli/agenta/client/backend`
 > - It should look something like this;
+> - <img width="397" alt="Screenshot 2023-12-14 at 02 22 54" src="https://github.com/devgenix/agenta/assets/56418363/e4762c79-d4c0-4b8d-ad6a-e9bd20ddc8b1">
+
 > - Click on the button beside the Replace box to replace every instance of the target with the new value. 
 
 Afterwards you can delete the fern folder, if you so wish. 
