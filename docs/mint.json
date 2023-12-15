@@ -84,7 +84,6 @@
       "pages": [
         "learn/the_llmops_workflow",
         "learn/evaluating_llm_apps",
-        "learn/concepts",
         "learn/architecture"
       ]
     },
