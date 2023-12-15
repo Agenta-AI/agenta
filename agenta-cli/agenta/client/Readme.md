@@ -96,8 +96,8 @@ To generate the client code using Fern, follow the steps below.
             - name: fernapi/fern-python-sdk
                 version: 0.6.0
                 output:
-                location: local-file-system
-                path: ../backend
+                  location: local-file-system
+                  path: ../backend
     ```
 
 7. Generate the client code
