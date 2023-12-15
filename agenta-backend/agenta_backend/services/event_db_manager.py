@@ -85,7 +85,7 @@ async def create_app_trace(payload: CreateTrace, **kwargs: dict) -> str:
     return trace_db_to_pydantic(trace)["trace_id"]
 
 
-async def get_single_trace_object(trace_id: str, **kwargs: dict) -> Trace:
+async def get_trace_single(trace_id: str, **kwargs: dict) -> Trace:
     """Get a single trace.
 
     Args:

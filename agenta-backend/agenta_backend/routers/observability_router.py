@@ -8,7 +8,7 @@ from agenta_backend.services.event_db_manager import (
     get_variant_traces,
     create_app_trace,
     create_trace_span,
-    get_single_trace_object,
+    get_trace_single,
     trace_status_update,
     get_trace_spans,
     add_feedback_to_trace,
@@ -74,7 +74,7 @@ async def get_single_trace(
 ):
     # Get user and org id
     kwargs: dict = await get_user_and_org_id(request.state.user_id)
-    trace = await get_single_trace_object(trace_id, **kwargs)
+    trace = await get_trace_single(trace_id, **kwargs)
     return trace
 
 
