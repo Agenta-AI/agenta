@@ -73,7 +73,8 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
 }) => {
     const classes = useStyles()
     const handleCheckboxChange = (paramName: string, checked: boolean) => {
-        handleParamChange(paramName, checked)
+        const value = checked ? 1 : 0
+        handleParamChange(paramName, value)
     }
     return (
         <>
