@@ -1,0 +1,34 @@
+---
+title: "System Architecture"
+description: "An overview of the architecture of Agenta"
+---
+
+<Frame caption="Agenta System Architecture">
+<img width="700" src="images/apps_and_configurations_light.png" />
+</Frame>
+
+## Concepts behind agenta
+
+The main concept behind agenta is the separation of the application logic and configuration. The application logic refers to the code that defines the application, whether it's a simple prompt, chain of prompts, RAG, etc. The configuration refers to the parameters that define the application logic, such as the prompt, model, chunk size, etc.
+
+By separating the application logic from the configuration. We simplify the process of iterating on application variants, and enable the collaboration between developers (working from code/cli) and non-developers (working from the UI).
+
+## Architecture Components
+
+### The Application
+
+The application describes the logic written in Python code. An application can be created from a pre-built template in the UI or from code in the CLI. In either case, a new container with the application code is launched. The application can then be accessed via a REST API.
+
+Each application has a default configuration specified in its code. This default configuration can be overridden by the user in the UI or the CLI. Additionally, the user can create new configurations from the UI or the CLI. Each new configuration results in the creation of a new application variant, which is a combination of the application logic and a configuration. A single project can house many variants encompassing multiple application logics and configurations.
+
+## The Backend
+Agenta's backend manages applications and configurations. It is responsible for building images, deploying containers, and managing configurations and prompts for the application.
+
+## The Frontend / UI
+The frontend provides tools to create new applications from a template, create and edit configurations, run evaluations, and deploy applications to different environments (e.g., staging, production, etc.).
+
+## The CLI
+The CLI offers the same capabilities as the frontend. Additionally, it allows for the creation of custom applications not available as templates. When serving a new application from the CLI, Agenta handles container creation and deployment. After creating a new application, users can edit its configuration and evaluate it in the UI.
+
+## The SDK
+The SDK is a Python library used to create new applications from code. It manages the saving of the default configuration, creation of the REST API, and necessary actions to create a playground and integrate the application with the Agenta platform.
