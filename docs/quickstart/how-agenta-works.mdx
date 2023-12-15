@@ -29,10 +29,10 @@ Agenta offers an integrated solution for developing LLM applications. It simplif
 
 ## How does agenta work?
 
-<Frame caption="Agenta decouples the configuration (prompt, model) from the application logic. The configuration is managed by the backend. You can test different configurations both from the UI and the CLI. For more details about our architecture, you can refer to [System Architecture](/learn/architecture).">
+<Frame caption="Agenta decouples the configuration (prompt, model) from the application logic. The configuration is managed by the backend. You can test different configurations both from the UI and the CLI. ">
 <img width="700" src="images/apps_and_configurations_light.png" />
 </Frame>
-
+<Tip>For more details about our architecture, you can refer to [System Architecture](/learn/architecture).</Tip>
 Agenta's framework is based on three core concepts:
 
 1. **Application Variant**: Building a robust AI application requires iterating on different prompts, models, and architectures. We refer to each of these different iterations as an `application variant`.
@@ -40,62 +40,29 @@ Agenta's framework is based on three core concepts:
 3. **Microservice-based Applications**: Agenta treats each application as a microservice. Creating a new application in Agenta automatically generates a container with a REST API. This is true whether the application is created using a pre-built template from the UI, or whether from CLI using custom application code. Agenta handles the creation of Docker images and container deployment. This means that all interactions with the application (either from the UI, during evaluations, or post-deployment) occur with the container.
 
 
-## How to use agenta
+## How to use agenta?
 
-1. How to create an application
-1. Seperate the application logic from the configuration
-2. The concept of application variant
+<Steps>
+  <Step title="Create an application">
+    You can create an application using a pre-built template [directly from the UI](/quickstart/getting-started-code) or by writing [custom code](/quickstart/getting-started-code) and serving it using the CLI.
+  </Step>
+  <Step title="Experiment and add more variants">
+Next, visit the playground to experiment with different configurations, prompts, and models. Directly observe the effects of changes or compare different variants side by side. 
+You can also experiment with different architectures and application logics by adding more custom applications to the same project using the CLI (for instance, if you want to compare using RAG to single prompts).
+  </Step>
+  <Step title="Create a golden set">
+A golden set is a collection of input for your LLM app with expected outputs. Create a golden set in one of the following ways:
 
-This process is difficult because:
-1. The application logic 
+1. Upload a CSV or JSON, or manually fill the set using our UI.
+2. Iteratively work in the playground (by interacting with the LLM application and adding edge cases to the golden set).
+3. (In the future) From the logs of your deployed application.
+  </Step> 
 
-- the fact that creating an LLM application requires iterating a lot on both the prompts and the architecture of the application
-(link here the llmops workflow, and the different architectures of applications).
-- the fact that you would like an easy to iterate on the prompts and see their effects, and run evaluations
-- the fact that usually teams contain product people need to be able to iterate on the prompts and see their effects
-
-// I explain here that building an llm app requires:
-iterating a lot on both configuration and application logic
-- this requires the tools to evaluate the different iterations quickly 
-- this requires the tools to debug the application and understand the effect of changes on the outputs and the intermediate outputs
-collaborating between product people and developers
-
-## How does agenta solve these problems?
-
-1. Separate the application logic from the configuration
-
-2. 
-Concepts in agenta
-
-
-## How to interact with agenta
-- Creating an application from a template 
-
-- Creating a configuration from 
-Separate application logic form configuration (prompts, models parameters, chunking strategies, etc)..
-
-This allows you to iterate on the the ai model behavior separatelyu from the application logic
-
-This allows you to collaborate between developers and product people
-
-Edit configuration in the playground
-
-Anatomy of AI config
-
-1. aiconfig format
-2. SDK
-3. AI playground
-
-Advantages of prompts as config
-
-1. separation of concerns and collaboration
-2. notebook editor of prompts
-
-Basics
-
-
-Model and framework agnostic
-
-creating a configuration programmatically
-
+  <Step title="Evaluate">
+Run evaluations on your golden set (or for some evaluators with an unlabeled set) from the UI or the CLI. You can also batch run and compare the results for different variants side by side.
+  </Step> 
+  <Step title="Deploy to Production">
+Finally, deploy the best performing LLM applications to different production environments (staging, production) from the UI in the playground.
+  </Step>
+</Steps>
 
