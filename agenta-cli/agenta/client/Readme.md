@@ -13,13 +13,13 @@ To generate the client code using Fern, follow the steps below.
 2. Execute this command to initialize Fern to import and use the OpenAPI spec;
 
 > To use an OpenAPI spec, you can pass in the filepath or URL.
-> We'll be using a url to the openapi.json running locally in Agenta Backend. If Agenta is not running on your Computer, start it by executing the command in the root of the agenta repository `docker compose -f "docker-compose.yml" up -d --build` 
+> We'll be using a url to the openapi.json for Aggenta at https://cloud.agenta.ai.
 
     ```bash
-        fern init --openapi http://localhost/api/openapi.json
+        fern init --openapi https://cloud.agenta.ai/api/openapi.json
     ```
 
-3. Add Security Definition to the openapi.json
+1. Add Security Definition to the openapi.json
    
     At this stage, you should have a folder named "fern" with the following directory;
 
@@ -47,7 +47,7 @@ To generate the client code using Fern, follow the steps below.
         ```
     
 
-4. Run `fern check` to validate the OpenAPI spec and resolve any errors, if there are any. ( You can ignore the conflicting endpoints warning )
+4. Run `fern check` to validate the OpenAPI spec and resolve any errors, if there are any. ( You can ignore the conflicting endpoints warnings. )
    
 5. Add the Fern Python SDK;
    ```bash
@@ -64,8 +64,8 @@ To generate the client code using Fern, follow the steps below.
             - name: fernapi/fern-typescript-node-sdk
                 version: 0.7.2
                 output:
-                location: local-file-system
-                path: ../generated/typescript
+                  location: local-file-system
+                  path: ../generated/typescript
             - name: fernapi/fern-python-sdk
                 version: 0.6.0
     ```
@@ -74,7 +74,7 @@ To generate the client code using Fern, follow the steps below.
 
     ```bash
         - name: fernapi/fern-typescript-node-sdk
-        version: 0.7.2
+          version: 0.7.2
     ```
 
     with this;
