@@ -1,0 +1,46 @@
+<mxfile host="app.diagrams.net" modified="2023-12-15T17:10:08.570Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0" etag="LOpdpmdsNK03oSl0pV7P" version="22.0.0" type="device">
+  <diagram name="Page-1" id="3e8102d1-ef87-2e61-34e1-82d9a586fe2e">
+    <mxGraphModel dx="1269" dy="1592" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" background="none" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="70666756c84bb93c-1" value="" style="ellipse;whiteSpace=wrap;html=1;rounded=0;shadow=0;comic=0;strokeWidth=1;fontFamily=Verdana;fontSize=14;fillColor=#2AAD7E;fontColor=#ffffff;strokeColor=#005700;" parent="1" vertex="1">
+          <mxGeometry x="280" y="110" width="500" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="70666756c84bb93c-5" value="&lt;div&gt;Team&lt;/div&gt;&lt;div&gt;Collaboration&lt;br&gt;&lt;/div&gt;" style="shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;shape=mxgraph.office.users.users;rounded=0;comic=0;fontFamily=Verdana;fontSize=14;fontColor=#FFFFFF;" parent="1" vertex="1">
+          <mxGeometry x="681" y="257.8" width="56" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="70666756c84bb93c-13" value="Versioning" style="shadow=0;dashed=0;html=1;strokeColor=none;shape=mxgraph.mscae.general.continuous_cycle;fillColor=#ffffff;rounded=0;comic=0;fontFamily=Verdana;fontSize=14;fontColor=#FFFFFF;verticalAlign=top;labelPosition=center;verticalLabelPosition=bottom;align=center;" parent="1" vertex="1">
+          <mxGeometry x="600" y="150" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="JDmTQxFqgsX-q80Pc-4e-5" value="&lt;div&gt;Prompt&lt;/div&gt;&lt;div&gt;Management&lt;br&gt;&lt;/div&gt;" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.concepts.writing_pen;fontFamily=Verdana;fontSize=14;fontColor=#FFFFFF;strokeColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="477.19" y="130" width="54" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="JDmTQxFqgsX-q80Pc-4e-9" value="&lt;div style=&quot;font-size: 14px;&quot;&gt;&lt;font style=&quot;font-size: 14px; color: rgb(255, 255, 255);&quot;&gt;&lt;span style=&quot;font-family: Verdana;&quot;&gt;Debugging&lt;/span&gt;&lt;/font&gt;&lt;/div&gt;" style="sketch=0;outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.iot_thing_freertos_device;" vertex="1" parent="1">
+          <mxGeometry x="667" y="390" width="70" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="JDmTQxFqgsX-q80Pc-4e-10" value="&lt;div style=&quot;font-size: 14px;&quot;&gt;&lt;font style=&quot;font-family: Verdana; font-size: 14px; color: rgb(255, 255, 255);&quot;&gt;Monitoring and&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 14px;&quot;&gt;&lt;font style=&quot;font-family: Verdana; font-size: 14px; color: rgb(255, 255, 255);&quot;&gt;Observability&lt;br&gt;&lt;/font&gt;&lt;/div&gt;" style="verticalLabelPosition=bottom;sketch=0;html=1;verticalAlign=top;align=center;points=[[0,0.5,0],[0.125,0.25,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[0.875,0.25,0],[1,0.5,0],[0.875,0.75,0],[0.75,1,0],[0.5,1,0],[0.125,0.75,0]];pointerEvents=1;shape=mxgraph.cisco_safe.compositeIcon;bgIcon=mxgraph.cisco_safe.design.blank_device;resIcon=mxgraph.cisco_safe.design.monitoring;strokeColor=#2AAD7E;" vertex="1" parent="1">
+          <mxGeometry x="310" y="332.5" width="60" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="JDmTQxFqgsX-q80Pc-4e-11" value="&lt;font style=&quot;font-size: 14px; font-family: Verdana;&quot;&gt;CI/CD&lt;/font&gt;" style="verticalLabelPosition=bottom;sketch=0;html=1;verticalAlign=top;pointerEvents=1;align=center;shape=mxgraph.cisco_safe.security_icons.virtual_deployment;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="370" y="460" width="60" height="54.5" as="geometry" />
+        </mxCell>
+        <mxCell id="JDmTQxFqgsX-q80Pc-4e-13" value="&lt;font style=&quot;font-size: 14px; font-family: Verdana; color: rgb(255, 255, 255);&quot;&gt;Evaluation&lt;/font&gt;" style="sketch=0;outlineConnect=0;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.sagemaker_shadow_testing;" vertex="1" parent="1">
+          <mxGeometry x="580" y="490" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="JDmTQxFqgsX-q80Pc-4e-17" value="" style="shape=step;perimeter=stepPerimeter;whiteSpace=wrap;html=1;fixedSize=1;rotation=-60;size=51.40000000000009;strokeColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="320" y="174" width="122.81" height="133.8" as="geometry" />
+        </mxCell>
+        <mxCell id="70666756c84bb93c-2" value="&lt;div&gt;Challenges in&lt;br&gt;&lt;/div&gt;&lt;div&gt;LLMOps&lt;br&gt;&lt;/div&gt;" style="ellipse;whiteSpace=wrap;html=1;rounded=0;shadow=0;comic=0;strokeWidth=1;fontFamily=Verdana;fontSize=22;strokeColor=default;fillColor=#ffffff;fontColor=#000000;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="400" y="230" width="260" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="JDmTQxFqgsX-q80Pc-4e-19" value="" style="ellipse;whiteSpace=wrap;html=1;rounded=0;shadow=0;comic=0;strokeWidth=1;fontFamily=Verdana;fontSize=14;strokeColor=default;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="280" y="110" width="500" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="JDmTQxFqgsX-q80Pc-4e-33" value="&lt;div style=&quot;text-align: left;&quot;&gt;&lt;br&gt;&lt;/div&gt;&lt;div style=&quot;text-align: center;&quot;&gt;&lt;br&gt;&lt;/div&gt;&lt;div style=&quot;text-align: center; font-size: 14px;&quot;&gt;&lt;font style=&quot;font-size: 14px; font-family: Verdana; color: rgb(255, 255, 255);&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;text-align: center; font-size: 14px;&quot;&gt;&lt;font style=&quot;font-size: 14px; font-family: Verdana; color: rgb(255, 255, 255);&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;text-align: center; font-size: 14px;&quot;&gt;&lt;font style=&quot;font-size: 14px; font-family: Verdana; color: rgb(255, 255, 255);&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;text-align: center; font-size: 14px;&quot;&gt;&lt;font style=&quot;font-size: 14px; font-family: Verdana; color: rgb(255, 255, 255);&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;text-align: center; font-size: 14px;&quot;&gt;&lt;font style=&quot;font-size: 14px; font-family: Verdana; color: rgb(255, 255, 255);&quot;&gt;Human&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;text-align: center; font-size: 14px;&quot;&gt;&lt;font style=&quot;font-size: 14px; font-family: Verdana; color: rgb(255, 255, 255);&quot;&gt;Feedback&lt;br&gt;&lt;/font&gt;&lt;/div&gt;" style="shape=actor;whiteSpace=wrap;html=1;strokeColor=#2AAD7E;align=left;" vertex="1" parent="1">
+          <mxGeometry x="470" y="500" width="47.19" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
