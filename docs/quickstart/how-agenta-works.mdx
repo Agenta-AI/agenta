@@ -1,0 +1,101 @@
+---
+title: 'How does Agenta Work?'
+description: 'Understand the main concepts behind agenta'
+---
+
+## What problems does agenta solve?
+
+Building Large Language Model powered applications (LLM apps) is challenging because these models are hard to control. The most effective way to build LLM apps is to continuously iterate on the prompts, models, parameters, and application logic until finding a robust solution.
+
+This process can be difficult to manage, especially when collaborating in teams, due to several factors:
+1. **Version management**: Keeping track of different versions of prompts, models, and application logic is a difficult task. Especially, since **mixing the application logic with the prompt** creates a disoragnized mix.
+
+2. **Collaboration Challenges**:  Non-developers, who often have insights into creating effective prompts and assessing the outputs, cannot contribute due to the technical barrier.
+
+3. **Organization Issues**: It's challenging to organize different versions, evaluations, and test sets, and human labeling. Especially, when dozens of LLM apps and use cases are in production.
+
+<Frame>
+<img className="dark:hidden" width="500" src="images/problems.light.png" />
+<img className="hidden dark:block" width="500" src="images/problems.dark.png" />
+</Frame>
+
+## How agenta addresses these problems?
+
+Agenta offers an integrated solution for developing LLM applications. It simplifies the development process by:
+
+1. **Version Control**: It makes managing different application variants easier, enhancing the ability to test, compare, and **optimize accuracy** and **reduce latency**.
+2. **Collaboration**: It facilitates collaboration between developers (working on code) and domain experts (working in the UI).
+3. **Evaluation and Deployment Tools**: It supplies all the tools necessary to evaluate and deploy the LLM application to production.
+
+## How does agenta work?
+
+<Frame caption="Agenta decouples the configuration (prompt, model) from the application logic. The configuration is managed by the backend. You can test different configurations both from the UI and the CLI. For more details about our architecture, you can refer to [System Architecture](/learn/architecture).">
+<img width="700" src="images/apps_and_configurations_light.png" />
+</Frame>
+
+Agenta's framework is based on three core concepts:
+
+1. **Application Variant**: Building a robust AI application requires iterating on different prompts, models, and architectures. We refer to each of these different iterations as an `application variant`.
+2. **Separation of Logic and Configuration**: Agenta separates the application logic (one prompt, chain-of-prompts, RAG, ..) from the configuration (the prompt, model..). 
+3. **Microservice-based Applications**: Agenta treats each application as a microservice. Creating a new application in Agenta automatically generates a container with a REST API. This is true whether the application is created using a pre-built template from the UI, or whether from CLI using custom application code. Agenta handles the creation of Docker images and container deployment. This means that all interactions with the application (either from the UI, during evaluations, or post-deployment) occur with the container.
+
+
+## How to use agenta
+
+1. How to create an application
+1. Seperate the application logic from the configuration
+2. The concept of application variant
+
+This process is difficult because:
+1. The application logic 
+
+- the fact that creating an LLM application requires iterating a lot on both the prompts and the architecture of the application
+(link here the llmops workflow, and the different architectures of applications).
+- the fact that you would like an easy to iterate on the prompts and see their effects, and run evaluations
+- the fact that usually teams contain product people need to be able to iterate on the prompts and see their effects
+
+// I explain here that building an llm app requires:
+iterating a lot on both configuration and application logic
+- this requires the tools to evaluate the different iterations quickly 
+- this requires the tools to debug the application and understand the effect of changes on the outputs and the intermediate outputs
+collaborating between product people and developers
+
+## How does agenta solve these problems?
+
+1. Separate the application logic from the configuration
+
+2. 
+Concepts in agenta
+
+
+## How to interact with agenta
+- Creating an application from a template 
+
+- Creating a configuration from 
+Separate application logic form configuration (prompts, models parameters, chunking strategies, etc)..
+
+This allows you to iterate on the the ai model behavior separatelyu from the application logic
+
+This allows you to collaborate between developers and product people
+
+Edit configuration in the playground
+
+Anatomy of AI config
+
+1. aiconfig format
+2. SDK
+3. AI playground
+
+Advantages of prompts as config
+
+1. separation of concerns and collaboration
+2. notebook editor of prompts
+
+Basics
+
+
+Model and framework agnostic
+
+creating a configuration programmatically
+
+
