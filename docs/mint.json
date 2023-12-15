@@ -56,9 +56,10 @@
   ],
   "navigation": [
     {
-      "group": "Quickstart",
+      "group": "Getting Started",
       "pages": [
         "quickstart/introduction",
+        "quickstart/how-agenta-works",
         "quickstart/getting-started-ui",
         "quickstart/getting-started-code"
       ]
@@ -82,9 +83,9 @@
       "group": "Learn",
       "pages": [
         "learn/the_llmops_workflow",
-        "conceptual/evaluating_llm_apps",
-        "conceptual/concepts",
-        "conceptual/architecture"
+        "learn/evaluating_llm_apps",
+        "learn/concepts",
+        "learn/architecture"
       ]
     },
     {
