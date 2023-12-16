@@ -202,8 +202,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
 const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVariant}) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
-    const {testList, setTestList} = useContext(TestContext)
-    const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
+    const {testList, setTestList, resultsList, setResultsList} = useContext(TestContext)
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
     const rootRef = React.useRef<HTMLDivElement>(null)
