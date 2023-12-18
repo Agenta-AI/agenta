@@ -16,6 +16,7 @@ import {v4 as uuidv4} from "uuid"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import ParamsForm from "../ParamsForm/ParamsForm"
 import {TestContext} from "../TestContextProvider"
+import {isEqual} from "lodash"
 
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
@@ -212,7 +213,13 @@ const App: React.FC<TestViewProps> = ({
 }) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
-    const {testList, setTestList, isRunning, setIsRunning} = useContext(TestContext)
+    const {
+        testList: _testList,
+        setTestList: _setTestList,
+        isRunning,
+        setIsRunning,
+    } = useContext(TestContext)
+    const [testList, setTestList] = useState<GenericObject[]>(_testList)
     const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
@@ -226,6 +233,10 @@ const App: React.FC<TestViewProps> = ({
             return newResultsList
         })
     }, [testList])
+
+    useEffect(() => {
+        setTestList(_testList)
+    }, [JSON.stringify(_testList)])
 
     const setResultForIndex = (value: string, index: number) => {
         if (isChatVariant) {
@@ -267,16 +278,22 @@ const App: React.FC<TestViewProps> = ({
         try {
             const testItem = testList[index]
             if (compareMode && !isRunning[index]) {
-                setIsRunning((prevState) => {
-                    const newState = [...prevState]
-                    newState[index] = true
-                    return newState
-                })
-                document.querySelectorAll(`.testview-run-button-${testItem._id}`).forEach((btn) => {
-                    if (btn.parentElement?.id !== variant.variantId) {
-                        ;(btn as HTMLButtonElement).click()
-                    }
-                })
+                setIsRunning(
+                    (prevState) => {
+                        const newState = [...prevState]
+                        newState[index] = true
+                        return newState
+                    },
+                    () => {
+                        document
+                            .querySelectorAll(`.testview-run-button-${testItem._id}`)
+                            .forEach((btn) => {
+                                if (btn.parentElement?.id !== variant.variantId) {
+                                    ;(btn as HTMLButtonElement).click()
+                                }
+                            })
+                    },
+                )
             }
             setResultForIndex(LOADING_TEXT, index)
 
@@ -316,19 +333,25 @@ const App: React.FC<TestViewProps> = ({
     }
 
     const handleAddRow = () => {
-        setTestList([...testList, {_id: randString(6)}])
+        _setTestList([...testList, {_id: randString(6)}])
         setResultsList([...resultsList, ""])
     }
 
     const handleDeleteRow = (testIndex: number) => {
-        setTestList((prevTestList) => prevTestList.filter((_, index) => index !== testIndex))
+        _setTestList((prevTestList) => prevTestList.filter((_, index) => index !== testIndex))
         setResultsList((prevResultsList) =>
             prevResultsList.filter((_, index) => index !== testIndex),
         )
     }
 
     const handleInputParamChange = (paramName: string, value: any, index: number) => {
-        setTestList((prevState) => {
+        if (
+            isEqual(_testList[index][paramName], value) ||
+            isEqual(testList[index][paramName], value)
+        )
+            return
+
+        _setTestList((prevState) => {
             const newState = [...prevState]
             newState[index] = {...newState[index], [paramName]: value}
             return newState
@@ -342,9 +365,9 @@ const App: React.FC<TestViewProps> = ({
             _id: randString(6),
         }))
         if (shouldReplace) {
-            setTestList(testsList)
+            _setTestList(testsList)
         } else {
-            setTestList((prev) => [...prev, ...testsList])
+            _setTestList((prev) => [...prev, ...testsList])
         }
     }
 
