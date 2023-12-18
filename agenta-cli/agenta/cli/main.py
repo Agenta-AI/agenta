@@ -110,7 +110,7 @@ def init(app_name: str):
             if global_backend_host:
                 backend_host = global_backend_host
             else:
-                backend_host = "http://localhost"
+                backend_host = "https://cloud.agenta.ai"
 
             api_key = helper.get_api_key(backend_host)
 
