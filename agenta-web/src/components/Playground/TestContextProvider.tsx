@@ -4,16 +4,16 @@ import React, {PropsWithChildren, createContext, useState} from "react"
 export const TestContext = createContext<{
     testList: GenericObject[]
     setTestList: React.Dispatch<React.SetStateAction<GenericObject[]>>
-    setResultsList: React.Dispatch<React.SetStateAction<string[]>>
-    resultsList: string[]
-}>({testList: [{}], setTestList: () => {}, resultsList: [], setResultsList: () => {}})
+    isRunning: boolean[]
+    setIsRunning: React.Dispatch<React.SetStateAction<boolean[]>>
+}>({testList: [{}], setTestList: () => {}, isRunning: [], setIsRunning: () => {}})
 
 const TestContextProvider: React.FC<PropsWithChildren> = (props) => {
     const [testList, setTestList] = useState<GenericObject[]>([{}])
-    const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
+    const [isRunning, setIsRunning] = useState<boolean[]>([])
 
     return (
-        <TestContext.Provider value={{testList, setTestList, resultsList, setResultsList}}>
+        <TestContext.Provider value={{testList, setTestList, isRunning, setIsRunning}}>
             {props.children}
         </TestContext.Provider>
     )
