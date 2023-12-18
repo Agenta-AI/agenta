@@ -283,7 +283,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
             ?.querySelectorAll("[data-cy=testview-input-parameters-run-button]")
             .forEach((btn) => funcs.push(() => (btn as HTMLButtonElement).click()))
 
-        batchExecute(funcs, {allowRetry: true, batchSize: 10})
+        batchExecute(funcs)
     }
 
     const handleAddRow = () => {
