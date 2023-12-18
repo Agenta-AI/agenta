@@ -89,6 +89,7 @@ interface TestViewProps {
     inputParams: Parameter[] | null
     optParams: Parameter[] | null
     isChatVariant?: boolean
+    compareMode: boolean
 }
 
 interface BoxComponentProps {
@@ -100,6 +101,7 @@ interface BoxComponentProps {
     onAddToTestset: (params: Record<string, string>) => void
     onDelete?: () => void
     isChatVariant?: boolean
+    variant: Variant
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -111,6 +113,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     onAddToTestset,
     onDelete,
     isChatVariant = false,
+    variant,
 }) => {
     const classes = useStylesBox()
     const loading = result === LOADING_TEXT
@@ -157,7 +160,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                 />
             </Row>
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
-                <Col span={24} className={classes.row2Col}>
+                <Col span={24} className={classes.row2Col} id={variant.variantId}>
                     <Button
                         shape="round"
                         icon={<PlusOutlined />}
@@ -174,6 +177,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     />
                     <Button
                         data-cy="testview-input-parameters-run-button"
+                        className={`testview-run-button-${testData._id}`}
                         type="primary"
                         shape="round"
                         icon={<CaretRightOutlined />}
@@ -199,10 +203,17 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     )
 }
 
-const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVariant}) => {
+const App: React.FC<TestViewProps> = ({
+    inputParams,
+    optParams,
+    variant,
+    isChatVariant,
+    compareMode,
+}) => {
     const router = useRouter()
     const appId = router.query.app_id as unknown as string
-    const {testList, setTestList, resultsList, setResultsList} = useContext(TestContext)
+    const {testList, setTestList, isRunning, setIsRunning} = useContext(TestContext)
+    const [resultsList, setResultsList] = useState<string[]>(testList.map(() => ""))
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp()
     const rootRef = React.useRef<HTMLDivElement>(null)
@@ -254,9 +265,21 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
 
     const handleRun = async (index: number) => {
         try {
+            const testItem = testList[index]
+            if (compareMode && !isRunning[index]) {
+                setIsRunning((prevState) => {
+                    const newState = [...prevState]
+                    newState[index] = true
+                    return newState
+                })
+                document.querySelectorAll(`.testview-run-button-${testItem._id}`).forEach((btn) => {
+                    if (btn.parentElement?.id !== variant.variantId) {
+                        ;(btn as HTMLButtonElement).click()
+                    }
+                })
+            }
             setResultForIndex(LOADING_TEXT, index)
 
-            const testItem = testList[index]
             const res = await callVariant(
                 isChatVariant ? removeKeys(testItem, ["chat"]) : testItem,
                 inputParams || [],
@@ -274,6 +297,12 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
                     "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground",
                 index,
             )
+        } finally {
+            setIsRunning((prevState) => {
+                const newState = [...prevState]
+                newState[index] = false
+                return newState
+            })
         }
     }
 
@@ -355,6 +384,7 @@ const App: React.FC<TestViewProps> = ({inputParams, optParams, variant, isChatVa
                     onAddToTestset={setParams}
                     onDelete={testList.length >= 2 ? () => handleDeleteRow(index) : undefined}
                     isChatVariant={isChatVariant}
+                    variant={variant}
                 />
             ))}
             <Button
