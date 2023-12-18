@@ -26,7 +26,7 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {getApikeys} from "@/lib/helpers/utils"
+import {batchExecute, getApikeys} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
@@ -225,7 +225,7 @@ Answer ONLY with one of the given grading or evaluation options.
     const runAllEvaluations = async () => {
         try {
             setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
-            await Promise.all(rows.map((_, rowIndex) => runEvaluation(rowIndex)))
+            await batchExecute(rows.map((_, rowIndex) => () => runEvaluation(rowIndex)))
             setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
             console.log("All evaluations finished.")
         } catch (err) {

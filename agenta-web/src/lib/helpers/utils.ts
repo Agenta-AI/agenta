@@ -263,11 +263,11 @@ export async function batchExecute(
     },
 ) {
     const {
-        batchSize = 20,
+        batchSize = 10,
         supressErrors = false,
         batchDelayMs = 2000,
         logErrors = true,
-        allowRetry = false,
+        allowRetry = true,
         retryConfig,
     } = options || {}
 
