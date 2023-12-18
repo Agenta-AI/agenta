@@ -31,6 +31,7 @@ import {exportRegexEvaluationData} from "@/lib/helpers/evaluate"
 import {isValidRegex} from "@/lib/helpers/validators"
 import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
+import {batchExecute} from "@/lib/helpers/utils"
 
 const {Title} = Typography
 
@@ -182,13 +183,7 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
         showError.current = true
 
         const {regexPattern, regexShouldMatch} = form.getFieldsValue()
-        const promises: Promise<void>[] = []
-
-        for (let i = 0; i < rows.length; i++) {
-            promises.push(runEvaluation(i))
-        }
-
-        Promise.all(promises)
+        batchExecute(rows.map((_, rowIndex) => () => runEvaluation(rowIndex)))
             .then(() => {
                 updateEvaluation(evaluation.id, {
                     evaluation_type_settings: {
