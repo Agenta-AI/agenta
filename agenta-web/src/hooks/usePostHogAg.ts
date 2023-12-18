@@ -18,7 +18,7 @@ export const usePostHogAg = () => {
 
     const identify: typeof posthog.identify = (id, ...args) => {
         if (trackingEnabled && user?.id) {
-            posthog.identify(_id !== undefined ? _id : null, ...args)
+            posthog.identify(_id !== undefined ? _id : id, ...args)
         }
     }
 
