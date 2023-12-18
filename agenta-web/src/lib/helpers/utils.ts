@@ -316,10 +316,14 @@ export const shortPoll = async (
 }
 
 export const generateOrRetrieveDistinctId = (): string => {
-    let distinctId = localStorage.getItem("posthog_distinct_id")
-    if (!distinctId) {
-        distinctId = uuidv4()
-        localStorage.setItem("posthog_distinct_id", distinctId)
+    if (typeof localStorage !== "undefined") {
+        let distinctId = localStorage.getItem("posthog_distinct_id")
+        if (!distinctId) {
+            distinctId = uuidv4()
+            localStorage.setItem("posthog_distinct_id", distinctId)
+        }
+        return distinctId
+    } else {
+        return uuidv4()
     }
-    return distinctId
 }
