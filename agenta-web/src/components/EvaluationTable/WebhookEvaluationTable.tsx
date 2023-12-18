@@ -30,6 +30,7 @@ import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportWebhookEvaluationData} from "@/lib/helpers/evaluate"
 import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
+import {batchExecute} from "@/lib/helpers/utils"
 
 const {Title} = Typography
 
@@ -162,13 +163,7 @@ const WebhookEvaluationTable: React.FC<WebhookEvaluationTableProps> = ({
         showError.current = true
 
         const {webhookUrl} = form.getFieldsValue()
-        const promises: Promise<void>[] = []
-
-        for (let i = 0; i < rows.length; i++) {
-            promises.push(runEvaluation(i))
-        }
-
-        Promise.all(promises)
+        batchExecute(rows.map((_, rowIndex) => () => runEvaluation(rowIndex)))
             .then(() => {
                 updateEvaluation(evaluation.id, {
                     evaluation_type_settings: {

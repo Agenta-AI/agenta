@@ -30,7 +30,7 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {getApikeys} from "@/lib/helpers/utils"
+import {batchExecute, getApikeys} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {exportCustomCodeEvaluationData} from "@/lib/helpers/evaluate"
@@ -220,7 +220,7 @@ const CustomCodeRunEvaluationTable: React.FC<CustomCodeEvaluationTableProps> = (
     const runAllEvaluations = async () => {
         try {
             setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
-            await Promise.all(rows.map((_, rowIndex) => runEvaluation(rowIndex)))
+            await batchExecute(rows.map((_, rowIndex) => () => runEvaluation(rowIndex)))
             setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
             console.log("All evaluations finished.")
         } catch (err) {

@@ -26,6 +26,7 @@ import {exportSimilarityEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
+import {batchExecute} from "@/lib/helpers/utils"
 
 const {Title} = Typography
 
@@ -182,13 +183,7 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
         }
 
         const {similarityThreshold} = form.getFieldsValue()
-        const promises: Promise<void>[] = []
-
-        for (let i = 0; i < rows.length; i++) {
-            promises.push(runEvaluation(i))
-        }
-
-        Promise.all(promises).then(() => {
+        batchExecute(rows.map((_, rowIndex) => () => runEvaluation(rowIndex))).then(() => {
             updateEvaluation(evaluation.id, {
                 evaluation_type_settings: {
                     similarity_threshold: similarityThreshold,

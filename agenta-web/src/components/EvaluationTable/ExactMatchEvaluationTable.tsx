@@ -31,6 +31,7 @@ import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {contentToChatMessageString, testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {Evaluation} from "@/lib/Types"
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
+import {batchExecute} from "@/lib/helpers/utils"
 
 const {Title} = Typography
 
@@ -162,13 +163,8 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
 
     const runAllEvaluations = async () => {
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
-        const promises: Promise<void>[] = []
 
-        for (let i = 0; i < rows.length; i++) {
-            promises.push(runEvaluation(i))
-        }
-
-        Promise.all(promises)
+        batchExecute(rows.map((_, rowIndex) => () => runEvaluation(rowIndex)))
             .then(() => {
                 console.log("All functions finished.")
                 setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
