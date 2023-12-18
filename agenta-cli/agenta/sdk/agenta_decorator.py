@@ -162,16 +162,13 @@ async def execute_function(
         it awaits their execution.
         """
         is_coroutine_function = inspect.iscoroutinefunction(func)
+        start_time = time.perf_counter()
         if is_coroutine_function:
-            start_time = time.perf_counter()
             result = await func(*args, **func_params)
-            end_time = time.perf_counter()
-            latency = end_time - start_time
         else:
-            start_time = time.perf_counter()
             result = func(*args, **func_params)
-            end_time = time.perf_counter()
-            latency = end_time - start_time
+        end_time = time.perf_counter()
+        latency = end_time - start_time
 
         if isinstance(result, Context):
             save_context(result)
