@@ -8,7 +8,7 @@ export const usePostHogAg = () => {
     const {user} = useProfileData()
     const posthog = usePostHog()
 
-    const _id: string | null = isDemo() ? user?.email : null
+    const _id: string | undefined = isDemo() ? user?.email : null
 
     const capture: typeof posthog.capture = (...args) => {
         if (trackingEnabled && user?.id) {
