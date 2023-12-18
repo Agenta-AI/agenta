@@ -8,7 +8,7 @@ export const usePostHogAg = () => {
     const {user} = useProfileData()
     const posthog = usePostHog()
 
-    const _id = isDemo() ? user?.email : user?.id
+    const _id = isDemo() ? user?.email : null
 
     const capture: typeof posthog.capture = (...args) => {
         if (trackingEnabled && user?.id) {
@@ -18,7 +18,7 @@ export const usePostHogAg = () => {
 
     const identify: typeof posthog.identify = (id, ...args) => {
         if (trackingEnabled && user?.id) {
-            posthog.identify(_id || id, ...args)
+            posthog.identify(_id !== undefined ? _id : null, ...args)
         }
     }
 
