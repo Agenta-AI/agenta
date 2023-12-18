@@ -7,7 +7,8 @@ from bson import ObjectId
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from celery import Celery
-app = Celery('hello', broker='amqp://guest@localhost//')
+
+app = Celery("hello", broker="amqp://guest@localhost//")
 
 
 from fastapi import HTTPException
@@ -93,7 +94,9 @@ async def _fetch_bulk_evaluation_and_check_access(
     evaluation_id: str, **user_org_data: dict
 ) -> BulkEvaluationDB:
     # Fetch the evaluation by ID
-    evaluation = await db_manager.fetch_bulk_evaluation_by_id(evaluation_id=evaluation_id)
+    evaluation = await db_manager.fetch_bulk_evaluation_by_id(
+        evaluation_id=evaluation_id
+    )
     # Check if the evaluation exists
     if evaluation is None:
         raise HTTPException(
@@ -162,7 +165,6 @@ async def create_new_bulk_evaluation(app, payload, **user_org_data: dict):
         llm_app_prompt_template=None,
     )
 
-
     eval_instance = BulkEvaluationDB(
         app=app,
         organization=app.organization,
@@ -175,7 +177,6 @@ async def create_new_bulk_evaluation(app, payload, **user_org_data: dict):
         created_at=current_time,
         updated_at=current_time,
     )
-
 
     newEvaluation = await engine.save(eval_instance)
     return newEvaluation
@@ -320,11 +321,8 @@ async def prepare_csvdata_and_create_evaluation_scenario(
 
 
 async def create_single_evaluation_scenario(
-        evaluation: BulkEvaluationDB,
-        payload: EvaluationScenario,
-        **user_org_data: dict
-    ):
-
+    evaluation: BulkEvaluationDB, payload: EvaluationScenario, **user_org_data: dict
+):
     evaluation = await _fetch_bulk_evaluation_and_check_access(
         evaluation_id=str(evaluation.id), **user_org_data
     )
@@ -351,6 +349,7 @@ async def create_single_evaluation_scenario(
     )
 
     await engine.save(new_eval_scenario)
+
 
 async def create_evaluation_scenario(
     evaluation_id: str, payload: EvaluationScenario, **user_org_data: dict
@@ -685,6 +684,7 @@ def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
             correct_answer["correct_answer"] = row["correct_answer"]
     return correct_answer
 
+
 def _extend_with_bulk_evaluation(evaluation_types: List[EvaluationType]):
     evaluation = {}
     for evaluation_type in evaluation_types:
@@ -702,6 +702,7 @@ def _extend_with_bulk_evaluation(evaluation_types: List[EvaluationType]):
             evaluation["vote"] = ""
 
     return evaluation
+
 
 async def fetch_list_evaluations(
     app_id: str,
@@ -1062,21 +1063,22 @@ async def evaluate_in_bulk(new_evaluation: BulkEvaluationDB, **user_org_data: di
             evaluationScenario = EvaluationScenario(
                 evaluation_id=str(new_evaluation.id),
                 inputs=[],
-                correct_answer=input['correct_answer'],
-                outputs=[EvaluationScenarioOutput(
-                    variant_id=variant_id,
-                    variant_output=variant_output
-                )]
+                correct_answer=input["correct_answer"],
+                outputs=[
+                    EvaluationScenarioOutput(
+                        variant_id=variant_id, variant_output=variant_output
+                    )
+                ],
             )
 
             evaluation_scenario = await create_single_evaluation_scenario(
-                new_evaluation,
-                evaluationScenario,
-                **user_org_data
+                new_evaluation, evaluationScenario, **user_org_data
             )
 
             for evaluation_type in new_evaluation.evaluation_type:
-                evaluate(evaluation_type, evaluationScenario.correct_answer, variant_output)
+                evaluate(
+                    evaluation_type, evaluationScenario.correct_answer, variant_output
+                )
 
 
 # TODO: Move this to a separate file
@@ -1091,9 +1093,7 @@ def get_variant_output(uri, input):
             "prompt_system": "You are an expert in geography.",
             "prompt_user": f"What is the capital of {input}?",
             "top_p": 1,
-            "inputs": {
-                "country": input
-            }
+            "inputs": {"country": input},
         }
 
         with httpx.Client() as client:

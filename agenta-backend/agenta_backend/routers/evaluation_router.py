@@ -79,9 +79,7 @@ async def create_bulk_evaluation(payload: NewBulkEvaluation, request: Request):
             raise HTTPException(status_code=404, detail="App not found")
 
         new_evaluation_db = await evaluation_service.create_new_bulk_evaluation(
-            app,
-            payload,
-            **user_org_data
+            app, payload, **user_org_data
         )
 
         await evaluate_in_bulk(new_evaluation_db, **user_org_data)

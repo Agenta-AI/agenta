@@ -85,7 +85,6 @@ class EvaluationScenario(BaseModel):
     note: Optional[str]
 
 
-
 class AICritiqueCreate(BaseModel):
     correct_answer: str
     llm_app_prompt_template: Optional[str]
