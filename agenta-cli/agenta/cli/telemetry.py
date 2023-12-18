@@ -1,7 +1,5 @@
 # Stdlib Imports
-import toml
 from uuid import uuid4
-from pathlib import Path
 
 # Own Imports
 from agenta.cli import helper
