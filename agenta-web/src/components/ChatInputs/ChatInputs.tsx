@@ -1,6 +1,7 @@
 import {ChatMessage, ChatRole} from "@/lib/Types"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Select, Space, Tooltip} from "antd"
+import {cloneDeep} from "lodash"
 import React, {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
@@ -63,7 +64,7 @@ const ChatInputs: React.FC<Props> = ({
 }) => {
     const classes = useStyles()
     const [messages, setMessages] = useState<ChatMessage[]>(
-        value || defaultValue || [getDefaultNewMessage()],
+        cloneDeep(value || defaultValue || [getDefaultNewMessage()]),
     )
     const onChangeRef = useRef(onChange)
 
@@ -100,12 +101,12 @@ const ChatInputs: React.FC<Props> = ({
 
     useUpdateEffect(() => {
         if (onChangeRef.current) {
-            onChangeRef.current(messages)
+            onChangeRef.current(cloneDeep(messages))
         }
     }, [messages])
 
     useUpdateEffect(() => {
-        if (Array.isArray(value)) setMessages(value)
+        if (Array.isArray(value)) setMessages(cloneDeep(value))
     }, [JSON.stringify(value)])
 
     return (
