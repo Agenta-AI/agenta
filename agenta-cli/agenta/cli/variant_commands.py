@@ -162,7 +162,6 @@ def add_variant(
         if tracking_enabled:
             user_id = client.retrieve_user_id(host, api_key)
             event_track.capture_event(
-                user_id,
                 "app_deployment",
                 body={
                     "app_id": app_id,
@@ -184,7 +183,6 @@ def add_variant(
         if tracking_enabled:
             user_id = client.retrieve_user_id(host, api_key)
             event_track.capture_event(
-                user_id,
                 "app_deployment",
                 body={
                     "app_id": app_id,
