@@ -17,6 +17,7 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioDB,
     VariantBaseDB,
     UserDB,
+    ConfigDB,
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
@@ -28,6 +29,7 @@ from agenta_backend.models.api.api_models import (
     EnvironmentOutput,
     TestSetOutput,
     BaseOutput,
+    AppVariantConfigOutput,
 )
 from agenta_backend.models.api.observability_models import (
     Span,
@@ -139,6 +141,18 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
         config_name=app_variant_db.config_name,
         config_id=str(app_variant_db.config.id),
         uri=uri,
+    )
+
+
+async def app_variant_config_to_output(app_variant_config: ConfigDB) -> AppVariantConfigOutput:
+    return AppVariantConfigOutput(
+        config_id=str(app_variant_config.id),
+        config_name=app_variant_config.config_name,
+        current_version=app_variant_config.current_version,
+        parameters=app_variant_config.parameters,
+        created_at=app_variant_config.created_at,
+        updated_at=app_variant_config.updated_at,
+        version_history=app_variant_config.version_history,
     )
 
 

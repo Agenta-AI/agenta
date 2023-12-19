@@ -276,3 +276,44 @@ async def start_variant(
             app_variant_db, envvars, **user_org_data
         )
     return url
+
+
+@router.get("/{variant_id}/config/", operation_id="get_variant_config")
+async def get_variant_config(
+    request: Request,
+    variant_id: str,
+):
+    """
+    Get the configuration for a variant.
+
+    Args:
+        variant_id (str): The ID of the variant to get the configuration for.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+
+    Raises:
+        HTTPException: If the variant cannot be accessed.
+
+    Returns:
+        JSONResponse: A JSON response containing the variant configuration.
+    """
+    try:
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        access_variant = await check_access_to_variant(
+            user_org_data=user_org_data, variant_id=variant_id
+        )
+        if not access_variant:
+            error_msg = (
+                f"You do not have permission to access app variant: {variant_id}"
+            )
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        db_app_variant_config = await db_manager.get_app_variant_config_by_id(
+            app_variant_id=variant_id
+        )
+        return await converters.app_variant_config_to_output(db_app_variant_config)
+    except Exception as e:
+        detail = f"Unexpected error while trying to get the app variant config: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
