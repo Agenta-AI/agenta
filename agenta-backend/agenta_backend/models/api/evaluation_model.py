@@ -108,16 +108,6 @@ class EvaluationScenarioScoreUpdate(BaseModel):
     score: float
 
 
-class NewEvaluation(BaseModel):
-    app_id: str
-    variant_ids: List[str]
-    evaluation_type: EvaluationType
-    evaluation_type_settings: Optional[EvaluationTypeSettings]
-    inputs: List[str]
-    testset_id: str
-    status: str
-
-
 class DeleteEvaluation(BaseModel):
     evaluations_ids: List[str]
 
@@ -159,3 +149,25 @@ class ExecuteCustomEvaluationCode(BaseModel):
 
 class EvaluationWebhook(BaseModel):
     score: float
+
+
+class EvaluationSettingsTemplate(BaseModel):
+    type: str
+    default: str
+    description: str
+
+
+class Evaluator(BaseModel):
+    key: str
+
+
+class EvaluatorConfig(BaseModel):
+    evaluator: Evaluator
+    settings_values: Optional[Dict[str, Any]]
+
+
+class NewEvaluation(BaseModel):
+    app_id: str
+    variant_ids: List[str]
+    evaluators_configs: List[EvaluatorConfig]
+    testset_id: str
