@@ -1,5 +1,6 @@
 import re
 
+
 def auto_exact_match(variant_output, correct_answer):
     if variant_output == correct_answer:
         return 1
@@ -23,10 +24,18 @@ def auto_regex_test(test_string, regex, should_match):
     return result == should_match
 
 
-def evaluate(evaluator_name, correct_answer, variant_output, *additional_args, **additional_kwargs):
+def evaluate(
+    evaluator_name,
+    correct_answer,
+    variant_output,
+    *additional_args,
+    **additional_kwargs,
+):
     try:
         evaluation_function = globals()[evaluator_name]
 
-        return evaluation_function(correct_answer, variant_output, *additional_args, **additional_kwargs)
+        return evaluation_function(
+            correct_answer, variant_output, *additional_args, **additional_kwargs
+        )
     except KeyError:
         raise ValueError(f"Evaluation method '{evaluator_name}' not found.")
