@@ -1,4 +1,3 @@
-
 import click
 from agenta.client import client
 
@@ -9,7 +8,7 @@ def evaluation():
     pass
 
 
-#TODO: Remove hardcoded values
+# TODO: Remove hardcoded values
 @evaluation.command(name="run")
 def run_evaluation_cli():
     """Run an evaluation."""

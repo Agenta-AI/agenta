@@ -525,7 +525,10 @@ def retrieve_user_id(host: str, api_key: Optional[str] = None) -> str:
     except RequestException as e:
         raise APIRequestError(f"Request failed: {str(e)}")
 
+
 from pydantic import BaseModel
+
+
 # def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
 def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
     """Creates new app on the server.
@@ -534,8 +537,6 @@ def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
         host (str): Hostname of the server
         api_key (str): The API key to use for the request.
     """
-
-
 
     evaluators_configs = [
         {
@@ -552,7 +553,7 @@ def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
             # "6570aed55d0eaff2293088e6"
         ],
         "evaluators_configs": evaluators_configs,
-        "testset_id": "6577025e60084c599a43e526"
+        "testset_id": "6577025e60084c599a43e526",
     }
 
     response = requests.post(
