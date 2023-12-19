@@ -200,7 +200,7 @@ class CustomEvaluationDB(Model):
         collection = "custom_evaluations"
 
 
-class EvalSettingsTemplate(EmbeddedModel):
+class EvaluationSettingsTemplate(EmbeddedModel):
     type: str
     default: str
     description: str
@@ -208,7 +208,8 @@ class EvalSettingsTemplate(EmbeddedModel):
 
 class EvaluatorDB(Model):
     name: str = Field(required=True)
-    settings_template: Dict[str, EvalSettingsTemplate]
+    key: str
+    settings_template: Dict[str, EvaluationSettingsTemplate]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
@@ -216,14 +217,9 @@ class EvaluatorDB(Model):
         collection = "evaluators"
 
 
-class EvalSettingsValue(EmbeddedModel):
-    parameter: str
-    threshold_value: float = Field(min_value=0.0, max_value=1.0)
-
-
 class EvaluatorConfigDB(Model):
     evaluator: EvaluatorDB = Reference()
-    settings_value: EvalSettingsValue
+    settings_value: Dict
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
@@ -252,7 +248,7 @@ class EvaluationDB(Model):
     user: UserDB = Reference(key_name="user")
     testset: TestSetDB = Reference()
     variants: List[AppVariantDB]
-    evaluators: List[EvaluatorConfigDB]
+    evaluators_configs: List[EvaluatorConfigDB]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
@@ -269,7 +265,7 @@ class EvaluationScenarioDB(Model):
     correct_answer: Optional[str]
     is_pinned: Optional[bool]
     note: Optional[str]
-    evaluators: List[EvaluatorConfigDB]
+    evaluators_configs: List[EvaluatorConfigDB]
     results: List[EvaluationScenarioResult]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
