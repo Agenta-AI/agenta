@@ -19,7 +19,7 @@ class LLMTokenUsage(BaseModel):
 class FuncResponse(BaseModel):
     message: str
     usage: Optional[LLMTokenUsage]
-    cost: Optional[str]
+    cost: Optional[float]
     latency: float
 
 
