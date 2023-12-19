@@ -1,7 +1,9 @@
 import os
+from celery import Celery
 from contextlib import asynccontextmanager
 
 from agenta_backend.config import settings
+from agenta_backend import celery_config
 from agenta_backend.routers import (
     app_router,
     container_router,
@@ -31,6 +33,10 @@ origins = [
     "http://0.0.0.0:3000",
     "http://0.0.0.0:3001",
 ]
+
+
+celery_app = Celery('evaluation_app')
+celery_app.config_from_object(celery_config)
 
 
 @asynccontextmanager
