@@ -24,7 +24,7 @@ ag.config.default(
 
 
 @ag.entrypoint
-async def chat(inputs: MessagesInput = MessagesInput()) -> str:
+async def chat(inputs: MessagesInput = MessagesInput()):
     messages = [{"role": "system", "content": ag.config.prompt_system}] + inputs
     max_tokens = ag.config.max_tokens if ag.config.max_tokens != -1 else None
     chat_completion = await client.chat.completions.create(
@@ -33,8 +33,9 @@ async def chat(inputs: MessagesInput = MessagesInput()) -> str:
         temperature=ag.config.temperature,
         max_tokens=max_tokens,
     )
+    token_usage = chat_completion.usage.dict()
     return {
         "message": chat_completion.choices[0].message.content,
-        **{"usage": chat_completion.usage.dict()}
-        # "cost": ...
+        **{"usage": token_usage},
+        "cost": ag.calculate_token_usage(ag.config.model, token_usage)
     }
