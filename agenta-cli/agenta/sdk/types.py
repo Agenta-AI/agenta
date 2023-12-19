@@ -29,23 +29,12 @@ class TextParam(str):
         field_schema.update({"x-parameter": "text"})
 
 
-class BoolMeta(type):
-    """
-    This meta class handles the behavior of a boolean without
-    directly inheriting from it (avoiding the conflict
-    that comes from inheriting bool).
-    """
-
-    def __new__(cls, name: str, bases: tuple, namespace: dict):
-        if "default" in namespace and namespace["default"] not in [0, 1]:
-            raise ValueError("Must provide either 0 or 1")
-        namespace["default"] = bool(namespace.get("default", 0))
-        instance = super().__new__(cls, name, bases, namespace)
-        instance.default = 0
+class BinaryParam(int):
+    def __new__(cls, value: bool = False):
+        instance = super().__new__(cls, int(value))
+        instance.default = value
         return instance
 
-
-class BinaryParam(int, metaclass=BoolMeta):
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update(
