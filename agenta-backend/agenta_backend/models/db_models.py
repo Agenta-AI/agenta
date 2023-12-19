@@ -128,11 +128,13 @@ class ConfigDB(Model):
 
 
 class AppVariantDB(Model):
-    app: AppDB = Reference()
+    app: AppDB = Reference(key_name="app")
     variant_name: str
-    image: ImageDB = Reference()
-    user: UserDB = Reference()
-    organization: OrganizationDB = Reference()
+    image: ImageDB = Reference(key_name="image")
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
+    previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
     base: VariantBaseDB = Reference(key_name="bases")
     config_name: Optional[str]
@@ -140,22 +142,22 @@ class AppVariantDB(Model):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
+    is_deleted: bool = Field(  # TODO: deprecated. remove
+        default=False
+    )  # soft deletion for using the template variants
+
     class Config:
         collection = "app_variants"
 
 
 class AppEnvironmentDB(Model):
-    app: AppDB = Reference()
+    app: AppDB = Reference(key_name="app")
     name: str
-    user: UserDB = Reference()
-    organization: OrganizationDB = Reference()
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
     deployed_app_variant: Optional[ObjectId]
     deployment: Optional[ObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Config:
-        collection = "environments"
 
 
 class TemplateDB(Model):
