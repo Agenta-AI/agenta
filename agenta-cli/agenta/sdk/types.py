@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Extra, HttpUrl
+from pydantic import BaseModel, Extra, HttpUrl, Field
 
 
 class InFile:
@@ -27,6 +27,33 @@ class TextParam(str):
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update({"x-parameter": "text"})
+
+
+class BoolMeta(type):
+    """
+    This meta class handles the behavior of a boolean without
+    directly inheriting from it (avoiding the conflict
+    that comes from inheriting bool).
+    """
+
+    def __new__(cls, name: str, bases: tuple, namespace: dict):
+        if "default" in namespace and namespace["default"] not in [0, 1]:
+            raise ValueError("Must provide either 0 or 1")
+        namespace["default"] = bool(namespace.get("default", 0))
+        instance = super().__new__(cls, name, bases, namespace)
+        instance.default = 0
+        return instance
+
+
+class BinaryParam(int, metaclass=BoolMeta):
+    @classmethod
+    def __modify_schema__(cls, field_schema):
+        field_schema.update(
+            {
+                "x-parameter": "bool",
+                "type": "boolean",
+            }
+        )
 
 
 class IntParam(int):

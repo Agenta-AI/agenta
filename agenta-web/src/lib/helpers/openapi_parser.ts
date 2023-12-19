@@ -63,6 +63,8 @@ const determineType = (xParam: any): string => {
             return "number"
         case "dict":
             return "object"
+        case "bool":
+            return "boolean"
         case "int":
             return "integer"
         case "file_url":
