@@ -50,8 +50,16 @@
   ],
   "tabs": [
     {
+      "name": "Cookbook",
+      "url": "cookbook"
+    },
+    {
       "name": "Reference",
       "url": "reference"
+    },
+    {
+      "name": "Changelog",
+      "url": "changelog"
     }
   ],
   "navigation": [
@@ -216,6 +224,12 @@
             "reference/backend_api/save-config"
           ]
         }
+      ]
+    },
+    {
+      "group": "Changelog",
+      "pages": [
+        "changelog/main"
       ]
     }
   ],
