@@ -35,7 +35,17 @@ agenta.config.default(temperature = ag.IntParam(default=0.5, minval=0, maxval=2)
                       temperature2 = ag.IntParam(0.5)
 ```
 
+### BinaryParam
 
+This displays a binary switch in the playground.
+
+
+```python
+agenta.config.default(temperature = ag.IntParam(default=0.5, minval=0, maxval=2),
+                      force_json = BinaryParam())
+```
+
+<Note> For now the binary parameter is always initialized with `False` and can only be changed from the playground </Note>
 ## Data types for inputs
 
 Inputs in contrast to parameters are given as argument to the function decorated with `@agenta.entrypoint`. They are not part of the configuration but instead are the input in the call to the LLM app.
