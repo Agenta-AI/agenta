@@ -78,6 +78,9 @@ const ChatInputs: React.FC<Props> = ({
         const newMessages = [...messages]
         newMessages[index].role = role
         setMessages(newMessages)
+        if (onChangeRef.current) {
+            onChangeRef.current(cloneDeep(newMessages))
+        }
     }
 
     const handleInputChange = (index: number, event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -85,25 +88,37 @@ const ChatInputs: React.FC<Props> = ({
         const newMessages = [...messages]
         newMessages[index].content = value
         setMessages(newMessages)
+        if (onChangeRef.current) {
+            onChangeRef.current(cloneDeep(newMessages))
+        }
     }
 
     const handleDelete = (index: number) => {
-        setMessages((prev) => prev.filter((_, i) => i !== index))
+        const newMessages = messages.filter((_, i) => i !== index)
+        setMessages(newMessages)
+        if (onChangeRef.current) {
+            onChangeRef.current(cloneDeep(newMessages))
+        }
     }
 
     const handleAdd = () => {
-        setMessages((prev) => prev.concat([getDefaultNewMessage()]))
+        const newMessages = messages.concat([getDefaultNewMessage()])
+        setMessages(newMessages)
+        if (onChangeRef.current) {
+            onChangeRef.current(cloneDeep(newMessages))
+        }
     }
 
     useEffect(() => {
         onChangeRef.current = onChange
     }, [onChange])
 
-    useUpdateEffect(() => {
-        if (onChangeRef.current) {
-            onChangeRef.current(cloneDeep(messages))
-        }
-    }, [messages])
+    // disabled for now (to be reverted if there are issues after this change)
+    // useUpdateEffect(() => {
+    //     if (onChangeRef.current) {
+    //         onChangeRef.current(cloneDeep(messages))
+    //     }
+    // }, [messages])
 
     useUpdateEffect(() => {
         if (Array.isArray(value)) setMessages(cloneDeep(value))

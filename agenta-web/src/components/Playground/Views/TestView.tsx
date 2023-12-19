@@ -345,17 +345,16 @@ const App: React.FC<TestViewProps> = ({
     }
 
     const handleInputParamChange = (paramName: string, value: any, index: number) => {
-        if (
-            isEqual(_testList[index][paramName], value) ||
-            isEqual(testList[index][paramName], value)
-        )
-            return
+        const newState = [...testList]
+        newState[index] = {...newState[index], [paramName]: value}
+        setTestList(newState)
 
-        _setTestList((prevState) => {
-            const newState = [...prevState]
-            newState[index] = {...newState[index], [paramName]: value}
-            return newState
-        })
+        if (
+            !isEqual(_testList[index][paramName], value) &&
+            !isEqual(testList[index][paramName], value)
+        ) {
+            _setTestList(newState)
+        }
     }
 
     const onLoadTests = (tests: Record<string, string>[], shouldReplace: boolean) => {
