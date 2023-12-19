@@ -219,7 +219,7 @@ class EvaluatorDB(Model):
 
 class EvaluatorConfigDB(Model):
     evaluator: EvaluatorDB = Reference()
-    settings_value: Dict
+    settings_value: Dict[str, Any]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
