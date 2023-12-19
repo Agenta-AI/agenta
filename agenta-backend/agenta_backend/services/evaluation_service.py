@@ -28,7 +28,6 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioDB,
     UserDB,
     AppDB,
-    EvaluationTypeSettings,
     EvaluationScenarioInput,
     EvaluationScenarioOutput,
     CustomEvaluationDB,
