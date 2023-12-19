@@ -20,12 +20,21 @@
 </br>
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license." />
+  <a href="https://docs.agenta.ai/">
+    <img src="https://img.shields.io/badge/Doc-online-green" alt="Doc">
+  </a>
+
   <a href="https://github.com/Agenta-AI/agenta/blob/main/CONTRIBUTING.md">
     <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs welcome" />
   </a>
   <img src="https://img.shields.io/github/contributors/Agenta-AI/agenta" alt="Contributors">
   <img src="https://img.shields.io/github/last-commit/Agenta-AI/agenta" alt="Last Commit">
-  <img src="https://img.shields.io/github/commit-activity/m/agenta-ai/agenta" alt="Commits per month">
+    <img src="https://img.shields.io/github/commit-activity/m/agenta-ai/agenta" alt="Commits per month">
+
+  <a href="https://pypi.org/project/agenta/">
+    <img src="https://img.shields.io/pypi/dm/agenta" alt="PyPI - Downloads">
+  </a>
+
 </br>
 </p>
 
