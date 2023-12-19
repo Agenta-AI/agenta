@@ -37,5 +37,5 @@ async def chat(inputs: MessagesInput = MessagesInput()):
     return {
         "message": chat_completion.choices[0].message.content,
         **{"usage": token_usage},
-        "cost": ag.calculate_token_usage(ag.config.model, token_usage)
+        "cost": ag.calculate_token_usage(ag.config.model, token_usage),
     }
