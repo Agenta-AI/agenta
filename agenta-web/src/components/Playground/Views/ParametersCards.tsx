@@ -63,7 +63,7 @@ const useStyles = createUseStyles({
 interface ModelParametersProps {
     optParams: Parameter[] | null
     onChange: (param: Parameter, value: number | string) => void
-    handleParamChange: (name: string, value: number | string) => void
+    handleParamChange: (name: string, value: number | string | boolean) => void
 }
 
 export const ModelParameters: React.FC<ModelParametersProps> = ({
@@ -73,8 +73,7 @@ export const ModelParameters: React.FC<ModelParametersProps> = ({
 }) => {
     const classes = useStyles()
     const handleCheckboxChange = (paramName: string, checked: boolean) => {
-        const value = checked ? 1 : 0
-        handleParamChange(paramName, value)
+        handleParamChange(paramName, checked)
     }
     return (
         <>
