@@ -128,13 +128,11 @@ class ConfigDB(Model):
 
 
 class AppVariantDB(Model):
-    app: AppDB = Reference(key_name="app")
+    app: AppDB = Reference()
     variant_name: str
-    image: ImageDB = Reference(key_name="image")
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
-    parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
-    previous_variant_name: Optional[str]  # TODO: deprecated. remove
+    image: ImageDB = Reference()
+    user: UserDB = Reference()
+    organization: OrganizationDB = Reference()
     base_name: Optional[str]
     base: VariantBaseDB = Reference(key_name="bases")
     config_name: Optional[str]
@@ -142,19 +140,15 @@ class AppVariantDB(Model):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    is_deleted: bool = Field(  # TODO: deprecated. remove
-        default=False
-    )  # soft deletion for using the template variants
-
     class Config:
         collection = "app_variants"
 
 
 class AppEnvironmentDB(Model):
-    app: AppDB = Reference(key_name="app")
+    app: AppDB = Reference()
     name: str
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference()
+    organization: OrganizationDB = Reference()
     deployed_app_variant: Optional[ObjectId]
     deployment: Optional[ObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
@@ -193,60 +187,6 @@ class TestSetDB(Model):
         collection = "testsets"
 
 
-class EvaluationTypeSettings(EmbeddedModel):
-    similarity_threshold: Optional[float]
-    regex_pattern: Optional[str]
-    regex_should_match: Optional[bool]
-    webhook_url: Optional[str]
-    llm_app_prompt_template: Optional[str]
-    custom_code_evaluation_id: Optional[str]
-    evaluation_prompt_template: Optional[str]
-
-
-class EvaluationScenarioInput(EmbeddedModel):
-    input_name: str
-    input_value: str
-
-
-class EvaluationScenarioOutput(EmbeddedModel):
-    variant_id: str
-    variant_output: str
-
-
-class EvaluationDB(Model):
-    app: AppDB = Reference(key_name="app")
-    organization: OrganizationDB = Reference(key_name="organization")
-    user: UserDB = Reference(key_name="user")
-    status: str
-    evaluation_type: str
-    evaluation_type_settings: EvaluationTypeSettings
-    variants: List[ObjectId]
-    testset: TestSetDB = Reference(key_name="testsets")
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Config:
-        collection = "evaluations"
-
-
-class EvaluationScenarioDB(Model):
-    user: UserDB = Reference(key_name="user")
-    organization: OrganizationDB = Reference(key_name="organization")
-    evaluation: EvaluationDB = Reference(key_name="evaluations")
-    inputs: List[EvaluationScenarioInput]
-    outputs: List[EvaluationScenarioOutput]  # EvaluationScenarioOutput
-    vote: Optional[str]
-    score: Optional[Union[str, int]]
-    correct_answer: Optional[str]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-    is_pinned: Optional[bool]
-    note: Optional[str]
-
-    class Config:
-        collection = "evaluation_scenarios"
-
-
 class CustomEvaluationDB(Model):
     evaluation_name: str
     python_code: str
@@ -258,6 +198,85 @@ class CustomEvaluationDB(Model):
 
     class Config:
         collection = "custom_evaluations"
+
+
+class EvalSettingsTemplate(EmbeddedModel):
+    type: str
+    default: str
+    description: str
+
+
+class EvaluatorDB(Model):
+    name: str = Field(required=True)
+    settings_template: Dict[str, EvalSettingsTemplate]
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "evaluators"
+
+
+class EvalSettingsValue(EmbeddedModel):
+    parameter: str
+    threshold_value: float = Field(min_value=0.0, max_value=1.0)
+
+
+class EvaluatorConfigDB(Model):
+    evaluator: EvaluatorDB = Reference()
+    settings_value: EvalSettingsValue
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "evaluator_config"
+
+
+class EvaluationScenarioResult(EmbeddedModel):
+    evaluator: EvaluatorDB = Reference()
+    result: Any
+
+
+class EvaluationScenarioInput(EmbeddedModel):
+    name: str
+    type: str
+    value: str
+
+
+class EvaluationScenarioOutput(EmbeddedModel):
+    type: str
+    value: str
+
+
+class EvaluationDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    testset: TestSetDB = Reference()
+    variants: List[AppVariantDB]
+    evaluators: List[EvaluatorConfigDB]
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "evaluations"
+
+
+class EvaluationScenarioDB(Model):
+    user: UserDB = Reference()
+    organization: OrganizationDB = Reference()
+    evaluation: EvaluationDB = Reference()
+    inputs: List[EvaluationScenarioInput]
+    outputs: List[EvaluationScenarioOutput]
+    correct_answer: Optional[str]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+    evaluators: List[EvaluatorConfigDB]
+    results: List[EvaluationScenarioResult]
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "evaluation_scenarios"
 
 
 class SpanDB(Model):
