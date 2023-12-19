@@ -95,8 +95,8 @@ def standardize_model_name(
 
     Returns:
         Standardized model name.
-
     """
+
     model_name = model_name.lower()
     if ".ft-" in model_name:
         model_name = model_name.split(".ft-")[0] + "-azure-finetuned"
@@ -130,6 +130,7 @@ def get_openai_token_cost_for_model(
     Returns:
         Cost in USD.
     """
+
     model_name = standardize_model_name(model_name, is_completion=is_completion)
     if model_name not in MODEL_COST_PER_1K_TOKENS:
         raise ValueError(
@@ -137,3 +138,28 @@ def get_openai_token_cost_for_model(
             "Known models are: " + ", ".join(MODEL_COST_PER_1K_TOKENS.keys())
         )
     return MODEL_COST_PER_1K_TOKENS[model_name] * (num_tokens / 1000)
+
+
+def calculate_token_usage(model_name: str, token_usage: dict) -> float:
+    """Calculates the total cost of using a language model based on the model name and token
+    usage.
+
+    Args:
+        model_name: The name of the model used to determine the cost per token.
+        token_usage: Contains information about the usage of tokens for a particular model.
+
+    Returns:
+       Total cost of using a model.
+    """
+
+    completion_tokens = token_usage.get("completion_tokens", 0)
+    prompt_tokens = token_usage.get("prompt_tokens", 0)
+    model_name = standardize_model_name(model_name)
+    if model_name in MODEL_COST_PER_1K_TOKENS:
+        completion_cost = get_openai_token_cost_for_model(
+            model_name, completion_tokens, is_completion=True
+        )
+        prompt_cost = get_openai_token_cost_for_model(model_name, prompt_tokens)
+        total_cost = prompt_cost + completion_cost
+        return total_cost
+    return 0
