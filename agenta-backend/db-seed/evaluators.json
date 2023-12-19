@@ -1,0 +1,14 @@
+[
+    {
+        "name": "Exact Match",
+        "key": "auto_exact_match"
+    },
+    {
+        "name": "Similarity Match",
+        "key": "auto_similarity_match"
+    },
+    {
+        "name": "Regex Test",
+        "key": "auto_regex_test"
+    }
+]
