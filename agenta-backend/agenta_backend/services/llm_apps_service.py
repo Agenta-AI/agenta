@@ -1,5 +1,6 @@
 import httpx
 
+
 def get_llm_app_output(uri, input):
     try:
         url = f"{uri}/generate"
@@ -12,9 +13,7 @@ def get_llm_app_output(uri, input):
             "prompt_system": "You are an expert in geography.",
             "prompt_user": f"What is the capital of {input}?",
             "top_p": 1,
-            "inputs": {
-                "country": input
-            }
+            "inputs": {"country": input},
         }
 
         with httpx.Client() as client:
