@@ -392,4 +392,4 @@ def override_schema(openapi_schema: dict, func_name: str, endpoint: str, params:
             subschema["default"] = "https://example.com"
         if isinstance(param_val, BinaryParam):
             subschema = find_in_schema(schema_to_override, param_name, "bool")
-            subschema["default"] = True if param_val.default == 1 else False
+            subschema["default"] = param_val.default
