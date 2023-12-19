@@ -1,5 +1,4 @@
 import agenta as ag
-from agenta.sdk.types import BinaryParam
 from openai import OpenAI
 
 client = OpenAI()
@@ -20,7 +19,7 @@ ag.config.default(
     model=ag.MultipleChoiceParam("gpt-3.5-turbo", CHAT_LLM_GPT),
     max_tokens=ag.IntParam(-1, -1, 4000),
     prompt_system=ag.TextParam(SYSTEM_PROMPT),
-    force_json_response=BinaryParam(),
+    force_json_response=ag.BinaryParam(False),
 )
 
 
