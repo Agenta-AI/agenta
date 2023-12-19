@@ -232,7 +232,6 @@ class EvaluatorConfigDB(Model):
 
 
 class EvaluationScenarioResult(EmbeddedModel):
-    evaluator: EvaluatorDB = Reference()
     result: Any
 
 
