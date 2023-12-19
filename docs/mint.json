@@ -231,6 +231,20 @@
       "pages": [
         "changelog/main"
       ]
+    },
+    {
+      "group": "Cookbook",
+      "pages": [
+        "cookbook/list_templates_by_architecture",
+        "cookbook/list_templates_by_technology",
+        "cookbook/list_templates_by_use_case",
+        {
+          "group": "Templates",
+          "pages": [
+            "cookbook/extract_job_information"
+          ]
+        }
+      ]
     }
   ],
   "api": {
