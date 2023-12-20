@@ -322,6 +322,8 @@ def update_variant_config(ctx, app_folder: str):
             )
             return
         
+        variant_names = [variant_name]
+        
     variant_objects = {variant_name: config["variant_ids"][config["variants"].index(variant_name)] for variant_name in variant_names}
 
     try:
