@@ -1617,8 +1617,8 @@ async def create_new_evaluation(
     app: AppDB,
     organization: OrganizationDB,
     user: UserDB,
-    testset:TestSetDB,
-    variants:[AppVariantDB],
+    testset: TestSetDB,
+    variants: [AppVariantDB],
     evaluators_configs: [EvaluatorConfigDB],
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
@@ -1637,7 +1637,6 @@ async def create_new_evaluation(
     )
     await engine.save(evaluation)
     return evaluation
-
 
 
 async def create_new_evaluation_scenario(
