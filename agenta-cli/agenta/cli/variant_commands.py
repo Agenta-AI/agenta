@@ -126,11 +126,12 @@ def add_variant(
             )
         )
         with tar_path.open("rb") as tar_file:
-            image: Image = client.build_image(
+            built_image: Image = client.build_image(
                 app_id=app_id,
                 base_name=base_name,
                 tar_file=tar_file,
             )
+            image = Image.parse_obj(built_image)
         if tar_path.exists():
             tar_path.unlink()
 
