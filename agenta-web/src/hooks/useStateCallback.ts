@@ -1,7 +1,7 @@
 import {SetStateAction, useCallback, useEffect, useRef, useState} from "react"
 
 type Callback<T> = (value?: T) => void
-type DispatchWithCallback<T> = (value: T, callback?: Callback<T>) => void
+export type DispatchWithCallback<T> = (value: T, callback?: Callback<T>) => void
 
 /**
  * This hook mimcs the setState behaviour of class components. An optional callback can be passed

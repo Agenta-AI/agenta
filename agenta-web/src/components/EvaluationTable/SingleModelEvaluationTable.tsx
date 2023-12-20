@@ -260,10 +260,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     const runAllEvaluations = async () => {
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
-        batchExecute(
-            rows.map((row) => () => runEvaluation(row.id!, rows.length - 1, false)),
-            {allowRetry: true, batchSize: 10},
-        )
+        batchExecute(rows.map((row) => () => runEvaluation(row.id!, rows.length - 1, false)))
             .then(() => {
                 setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
                 message.success("Evaluations Updated!")

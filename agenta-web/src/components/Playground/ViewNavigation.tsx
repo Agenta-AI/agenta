@@ -248,6 +248,7 @@ const ViewNavigation: React.FC<Props> = ({
                         optParams={optParams}
                         variant={variant}
                         isChatVariant={!!isChatVariant}
+                        compareMode={compareMode}
                     />
                 </Col>
             </Row>
