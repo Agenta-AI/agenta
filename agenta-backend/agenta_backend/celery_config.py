@@ -10,8 +10,8 @@ CELERY_TIMEZONE = "UTC"
 
 CELERY_QUEUES = (
     Queue(
-        "agenta_backend.tasks.evaluations",
-        Exchange("agenta_backend.tasks.evaluations"),
-        routing_key="agenta_backend.tasks.evaluations",
+        "agenta_backend.tasks.evaluations.evaluate",
+        Exchange("agenta_backend.tasks.evaluations.evaluate"),
+        routing_key="agenta_backend.tasks.evaluations.evaluate",
     ),
 )

@@ -34,8 +34,7 @@ origins = [
     "http://0.0.0.0:3001",
 ]
 
-
-celery_app = Celery("evaluation_app")
+celery_app = Celery("agenta_app")
 celery_app.config_from_object(celery_config)
 
 
