@@ -241,15 +241,19 @@ def get_variant_config(ctx, app_folder: str):
         api_key=api_key,
     )
     
-    # get variant from the variant_objects dictionary, and get the config from Backend
-    for variant_name, variant_id in variant_objects.items():
-        click.echo(click.style(f"Pulling config for variant with id {variant_id}", fg="bright_black"))
-        
-        variant_config = client.get_variant_config(variant_id=variant_id)
-        variant_config_file = Path(app_folder) / f"{variant_name}.toml"
-        toml.dump(variant_config, variant_config_file.open("w"))
+    try:
+        # get variant from the variant_objects dictionary, and get the config from Backend
+        for variant_name, variant_id in variant_objects.items():
+            click.echo(click.style(f"Pulling config for variant with id {variant_id}", fg="bright_black"))
+            
+            variant_config = client.get_variant_config(variant_id=variant_id)
+            variant_config_file = Path(app_folder) / f"{variant_name}.toml"
+            toml.dump(variant_config, variant_config_file.open("w"))
+    except Exception as e:
+        click.echo(click.style(f"Error pulling variant config: {e}", fg="red"))
+        return
     
-        click.echo(click.style(f"Config for variant {variant_name} pulled successfully! 🎉\n", fg="green"))
+    click.echo(click.style(f"Config for variant {variant_name} pulled successfully! 🎉\n", fg="green"))
 
 
 @config.command(
@@ -338,27 +342,31 @@ def update_variant_config(ctx, app_folder: str):
         base_url=f"{host}/{BACKEND_URL_SUFFIX}",
         api_key=api_key,
     )
-    
-    # get variant from the variant_objects dictionary, 
-    # get the config file associated with the respective variant, 
-    # get only the parameters from the config file and convert to dict,
-    # finally update the variant config in Backend
-    for variant_name, variant_id in variant_objects.items():
-        click.echo(click.style(f"Updating config for variant with id {variant_id}", fg="bright_black"))
-        
-        variant_config_file = Path(app_folder) / f"{variant_name}.toml"
-        if not variant_config_file.exists():
-            click.echo(click.style(f"Config file for variant {variant_name} not found. Please run 'agenta config pull {variant_name}' first", fg="red"))
-            return
-        
-        variant_config = toml.load(variant_config_file)
-        variant_config_parameters = variant_config.get("parameters", {})
-        if not variant_config_parameters:
-            click.echo(click.style(f"Config file for variant {variant_name} does not contain any parameters. Please run 'agenta config pull {variant_name}' first", fg="red"))
-            return
-        parameters_dict = dict(variant_config_parameters)
-            
-        client.update_variant_parameters(variant_id=variant_id, parameters=parameters_dict)
 
-        click.echo(click.style(f"Config for variant {variant_name} updated successfully! 🎉\n", fg="green"))
+    try:    
+        # get variant from the variant_objects dictionary, 
+        # get the config file associated with the respective variant, 
+        # get only the parameters from the config file and convert to dict,
+        # finally update the variant config in Backend
+        for variant_name, variant_id in variant_objects.items():
+            click.echo(click.style(f"Updating config for variant with id {variant_id}", fg="bright_black"))
+            
+            variant_config_file = Path(app_folder) / f"{variant_name}.toml"
+            if not variant_config_file.exists():
+                click.echo(click.style(f"Config file for variant {variant_name} not found. Please run 'agenta config pull {variant_name}' first", fg="red"))
+                return
+            
+            variant_config = toml.load(variant_config_file)
+            variant_config_parameters = variant_config.get("parameters", {})
+            if not variant_config_parameters:
+                click.echo(click.style(f"Config file for variant {variant_name} does not contain any parameters. Please run 'agenta config pull {variant_name}' first", fg="red"))
+                return
+            parameters_dict = dict(variant_config_parameters)
+                
+            client.update_variant_parameters(variant_id=variant_id, parameters=parameters_dict)
+    except Exception as e:
+        click.echo(click.style(f"Error updating variant config: {e}", fg="red"))
+        return
+    
+    click.echo(click.style(f"Config for variant {variant_name} updated successfully! 🎉\n", fg="green"))
 
