@@ -43,6 +43,9 @@ from agenta_backend.utils.common import check_access_to_app
 from agenta_backend.services import db_manager
 from agenta_backend.models import converters
 from agenta_backend.services import results_service
+from agenta_backend.tasks.evaluations import evaluate
+
+from fastapi.encoders import jsonable_encoder
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
@@ -54,7 +57,8 @@ else:
 router = APIRouter()
 
 
-@router.post("/", response_model=SimpleEvaluationOutput)
+# @router.post("/", response_model=SimpleEvaluationOutput)
+@router.post("/")
 async def create_evaluation(
     payload: NewEvaluation,
     request: Request,
@@ -82,11 +86,19 @@ async def create_evaluation(
 
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
+        # TODO: clean this
+        # new_evaluation_db = await evaluation_service.create_new_evaluation(
+        #     payload, **user_org_data
+        # )
+        app_data = jsonable_encoder(app)
+        new_evaluation_data = payload.dict()
+        # TODO: to review/find a better solution
+        # We need to serilize the data we pass to celery tasks otherwise we will get serilisation errors
 
-        new_evaluation_db = await evaluation_service.create_new_evaluation(
-            payload, **user_org_data
-        )
-        return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
+        evaluate.delay(app_data, new_evaluation_data)
+
+        return 200
+        # return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
     except KeyError:
         raise HTTPException(
             status_code=400,
