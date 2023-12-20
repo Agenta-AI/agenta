@@ -249,11 +249,11 @@ def get_variant_config(ctx, app_folder: str):
             variant_config = client.get_variant_config(variant_id=variant_id)
             variant_config_file = Path(app_folder) / f"{variant_name}.toml"
             toml.dump(variant_config, variant_config_file.open("w"))
+            click.echo(click.style(f"Config for variant {variant_name} pulled successfully! 🎉\n", fg="green"))
     except Exception as e:
         click.echo(click.style(f"Error pulling variant config: {e}", fg="red"))
         return
     
-    click.echo(click.style(f"Config for variant {variant_name} pulled successfully! 🎉\n", fg="green"))
 
 
 @config.command(
@@ -364,9 +364,9 @@ def update_variant_config(ctx, app_folder: str):
             parameters_dict = dict(variant_config_parameters)
                 
             client.update_variant_parameters(variant_id=variant_id, parameters=parameters_dict)
+            click.echo(click.style(f"Config for variant {variant_name} updated successfully! 🎉\n", fg="green"))
     except Exception as e:
         click.echo(click.style(f"Error updating variant config: {e}", fg="red"))
         return
     
-    click.echo(click.style(f"Config for variant {variant_name} updated successfully! 🎉\n", fg="green"))
 
