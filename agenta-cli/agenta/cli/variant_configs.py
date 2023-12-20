@@ -317,4 +317,3 @@ def update_variant_config(ctx, app_folder: str):
     except Exception as e:
         click.echo(click.style(f"Error updating variant config: {e}", fg="red"))
         return
-
