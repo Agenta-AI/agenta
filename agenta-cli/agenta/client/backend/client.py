@@ -11,7 +11,6 @@ from .core.api_error import ApiError
 from .core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from .core.jsonable_encoder import jsonable_encoder
 from .core.remove_none_from_dict import remove_none_from_dict
-from .environment import AgentaApiEnvironment
 from .errors.unprocessable_entity_error import UnprocessableEntityError
 from .types.add_variant_from_base_and_config_response import (
     AddVariantFromBaseAndConfigResponse,
@@ -63,15 +62,10 @@ OMIT = typing.cast(typing.Any, ...)
 
 class AgentaApi:
     def __init__(
-        self,
-        *,
-        base_url: typing.Optional[str] = None,
-        environment: AgentaApiEnvironment = AgentaApiEnvironment.DEFAULT,
-        api_key: str,
-        timeout: typing.Optional[float] = 60,
+        self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60
     ):
         self._client_wrapper = SyncClientWrapper(
-            base_url=_get_base_url(base_url=base_url, environment=environment),
+            base_url=base_url,
             api_key=api_key,
             httpx_client=httpx.Client(timeout=timeout),
         )
@@ -143,7 +137,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.delete_api_key(key_prefix="key-prefix")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -409,7 +403,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_app_variants(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -498,7 +492,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_apps()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -726,7 +720,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_environments(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -968,6 +962,42 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    def get_variant_config(self, variant_id: str) -> typing.Any:
+        """
+        Get the configuration for a variant.
+
+        Args:
+            variant_id (str): The ID of the variant to get the configuration for.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+
+        Raises:
+            HTTPException: If the variant cannot be accessed.
+
+        Returns:
+            JSONResponse: A JSON response containing the variant configuration.
+
+        Parameters:
+            - variant_id: str.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/config",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
     def fetch_list_evaluations(self, *, app_id: str) -> typing.List[Evaluation]:
         """
         Fetches a list of evaluations, optionally filtered by an app ID.
@@ -983,7 +1013,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.fetch_list_evaluations(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1084,7 +1114,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.delete_evaluations(evaluations_ids=[])
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1206,7 +1236,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1429,7 +1459,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_evaluation_scenario_score(evaluation_scenario_id="evaluation-scenario-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1637,7 +1667,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_custom_evaluations(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1676,7 +1706,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_custom_evaluation_names(app_name="app-name")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1980,7 +2010,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_testsets(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2015,7 +2045,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.delete_testsets(testset_ids=[])
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2064,7 +2094,7 @@ class AgentaApi:
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Image, _response.json())  # type: ignore
@@ -2300,7 +2330,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_traces(app_id="app-id", variant_id="variant-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2483,7 +2513,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_spans_of_trace(trace_id="trace-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2512,7 +2542,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_feedbacks(trace_id="trace-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2667,7 +2697,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_organizations()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2730,7 +2760,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_bases()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2833,15 +2863,10 @@ class AgentaApi:
 
 class AsyncAgentaApi:
     def __init__(
-        self,
-        *,
-        base_url: typing.Optional[str] = None,
-        environment: AgentaApiEnvironment = AgentaApiEnvironment.DEFAULT,
-        api_key: str,
-        timeout: typing.Optional[float] = 60,
+        self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60
     ):
         self._client_wrapper = AsyncClientWrapper(
-            base_url=_get_base_url(base_url=base_url, environment=environment),
+            base_url=base_url,
             api_key=api_key,
             httpx_client=httpx.AsyncClient(timeout=timeout),
         )
@@ -2913,7 +2938,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.delete_api_key(key_prefix="key-prefix")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3179,7 +3204,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_app_variants(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3270,7 +3295,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_apps()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3498,7 +3523,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_environments(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3742,6 +3767,42 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    async def get_variant_config(self, variant_id: str) -> typing.Any:
+        """
+        Get the configuration for a variant.
+
+        Args:
+            variant_id (str): The ID of the variant to get the configuration for.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+
+        Raises:
+            HTTPException: If the variant cannot be accessed.
+
+        Returns:
+            JSONResponse: A JSON response containing the variant configuration.
+
+        Parameters:
+            - variant_id: str.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/config",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
     async def fetch_list_evaluations(self, *, app_id: str) -> typing.List[Evaluation]:
         """
         Fetches a list of evaluations, optionally filtered by an app ID.
@@ -3757,7 +3818,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.fetch_list_evaluations(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3858,7 +3919,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.delete_evaluations(evaluations_ids=[])
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3980,7 +4041,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -4203,7 +4264,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_evaluation_scenario_score(evaluation_scenario_id="evaluation-scenario-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -4411,7 +4472,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_custom_evaluations(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -4450,7 +4511,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_custom_evaluation_names(app_name="app-name")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -4756,7 +4817,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_testsets(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -4793,7 +4854,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.delete_testsets(testset_ids=[])
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5082,7 +5143,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_traces(app_id="app-id", variant_id="variant-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5265,7 +5326,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_spans_of_trace(trace_id="trace-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5294,7 +5355,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_feedbacks(trace_id="trace-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5449,7 +5510,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_organizations()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5512,7 +5573,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_bases()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5611,16 +5672,3 @@ class AsyncAgentaApi:
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
-
-
-def _get_base_url(
-    *, base_url: typing.Optional[str] = None, environment: AgentaApiEnvironment
-) -> str:
-    if base_url is not None:
-        return base_url
-    elif environment is not None:
-        return environment.value
-    else:
-        raise Exception(
-            "Please pass in either base_url or environment to construct the client"
-        )
