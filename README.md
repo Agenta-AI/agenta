@@ -96,6 +96,12 @@
 Agenta is an end-to-end LLMOps platform. It provides the tools for **prompt engineering and management**,  ⚖️ **evaluation**, and :rocket: **deployment**. All without imposing any restrictions on your choice of framework, library, or model. 
 
 Agenta allows developers and product teams to collaborate and build robust AI applications in less time. 
+
+## How does it work?
+
+| Using an LLM App Template (For Non-Technical Users)  | Starting from Code |
+| ------------- | ------------- |
+|1. Create an application using a pre-built template from our UI.<br />2. Access a playground where you can test and compare different prompts and configurations side-by-side.<br /> 3. Systematically evaluate your application using pre-built or custom evaluators.<br /> 4. Deploy the application to production with one click. |1. Add a few lines to any LLM application code to automatically create a playground for it. <br />2. Experiment with prompts and configurations, and compare them side-by-side in the playground. <br />3. Systematically evaluate your application using pre-built or custom evaluators. <br />4. Deploy the application to production with one click. |
 <br /><br />
 
 # Quick Start
