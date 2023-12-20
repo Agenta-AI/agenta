@@ -28,8 +28,8 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioDB,
     UserDB,
     AppDB,
-    EvaluationScenarioInput,
-    EvaluationScenarioOutput,
+    EvaluationScenarioInputDB,
+    EvaluationScenarioOutputDB,
     CustomEvaluationDB,
 )
 
@@ -217,7 +217,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         # Create evaluation scenarios
         list_of_scenario_input = []
         for scenario_input in inputs:
-            eval_scenario_input_instance = EvaluationScenarioInput(
+            eval_scenario_input_instance = EvaluationScenarioInputDB(
                 input_name=scenario_input["input_name"],
                 input_value=scenario_input["input_value"],
             )
@@ -406,7 +406,7 @@ async def update_evaluation_scenario(
 
     if updated_data["outputs"] is not None:
         new_outputs = [
-            EvaluationScenarioOutput(
+            EvaluationScenarioOutputDB(
                 variant_id=output["variant_id"],
                 variant_output=output["variant_output"],
             ).dict()
@@ -416,7 +416,7 @@ async def update_evaluation_scenario(
 
     if updated_data["inputs"] is not None:
         new_inputs = [
-            EvaluationScenarioInput(
+            EvaluationScenarioInputDB(
                 input_name=input_item["input_name"],
                 input_value=input_item["input_value"],
             ).dict()

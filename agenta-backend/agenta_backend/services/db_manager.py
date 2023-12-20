@@ -21,6 +21,10 @@ from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
     AppDB,
     AppVariantDB,
+    EvaluationScenarioInputDB,
+    EvaluationScenarioOutputDB,
+    EvaluationScenarioResult,
+    EvaluatorConfigDB,
     VariantBaseDB,
     ConfigDB,
     ConfigVersionDB,
@@ -1607,3 +1611,64 @@ async def fetch_app_by_name_and_organization(
     )
     app_db = await engine.find_one(AppDB, query_expression)
     return app_db
+
+
+async def create_new_evaluation(
+    app: AppDB,
+    organization: OrganizationDB,
+    user: UserDB,
+    testset:TestSetDB,
+    variants:[AppVariantDB],
+    evaluators_configs: [EvaluatorConfigDB],
+) -> EvaluationDB:
+    """Create a new evaluation scenario.
+    Returns:
+        EvaluationScenarioDB: The created evaluation scenario.
+    """
+    evaluation = EvaluationDB(
+        app=app,
+        organization=organization,
+        user=user,
+        testset=testset,
+        variants=variants,
+        evaluators_configs=evaluators_configs,
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat(),
+    )
+    await engine.save(evaluation)
+    return evaluation
+
+
+
+async def create_new_evaluation_scenario(
+    user: UserDB,
+    organization: OrganizationDB,
+    evaluation: EvaluationDB,
+    inputs: List[EvaluationScenarioInputDB],
+    outputs: List[EvaluationScenarioOutputDB],
+    correct_answer: Optional[str],
+    is_pinned: Optional[bool],
+    note: Optional[str],
+    evaluators_configs: List[EvaluatorConfigDB],
+    results: List[EvaluationScenarioResult],
+) -> EvaluationScenarioDB:
+    """Create a new evaluation scenario.
+    Returns:
+        EvaluationScenarioDB: The created evaluation scenario.
+    """
+    evaluation_scenario = EvaluationScenarioDB(
+        user=user,
+        organization=organization,
+        evaluation=evaluation,
+        inputs=inputs,
+        outputs=outputs,
+        correct_answer=correct_answer,
+        is_pinned=is_pinned,
+        note=note,
+        evaluators_configs=evaluators_configs,
+        results=results,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    await engine.save(evaluation_scenario)
+    return evaluation_scenario
