@@ -162,7 +162,7 @@ class Evaluator(BaseModel):
 
 
 class EvaluatorConfig(BaseModel):
-    evaluator: Evaluator
+    evaluator_key: str
     settings_values: Optional[Dict[str, Any]]
 
 

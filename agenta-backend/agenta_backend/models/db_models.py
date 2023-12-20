@@ -220,8 +220,8 @@ class EvaluatorDB(Model):
 
 
 class EvaluatorConfigDB(Model):
-    evaluator: EvaluatorDB = Reference()
-    settings_values: Dict[str, Any]
+    evaluator_key: str
+    settings_values: Optional[Dict[str, Any]] = None
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
@@ -230,16 +230,17 @@ class EvaluatorConfigDB(Model):
 
 
 class EvaluationScenarioResult(EmbeddedModel):
+    evaluator_key: str
     result: Any
 
 
-class EvaluationScenarioInput(EmbeddedModel):
+class EvaluationScenarioInputDB(EmbeddedModel):
     name: str
     type: str
     value: str
 
 
-class EvaluationScenarioOutput(EmbeddedModel):
+class EvaluationScenarioOutputDB(EmbeddedModel):
     type: str
     value: str
 
@@ -249,7 +250,7 @@ class EvaluationDB(Model):
     organization: OrganizationDB = Reference(key_name="organization")
     user: UserDB = Reference(key_name="user")
     testset: TestSetDB = Reference()
-    variants: List[AppVariantDB]
+    variants: List[ObjectId]
     evaluators_configs: List[EvaluatorConfigDB]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
@@ -262,8 +263,8 @@ class EvaluationScenarioDB(Model):
     user: UserDB = Reference()
     organization: OrganizationDB = Reference()
     evaluation: EvaluationDB = Reference()
-    inputs: List[EvaluationScenarioInput]
-    outputs: List[EvaluationScenarioOutput]
+    inputs: List[EvaluationScenarioInputDB]
+    outputs: List[EvaluationScenarioOutputDB]
     correct_answer: Optional[str]
     is_pinned: Optional[bool]
     note: Optional[str]
