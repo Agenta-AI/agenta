@@ -1,17 +1,18 @@
 """The code for the Agenta SDK"""
 import os
 import sys
+import time
 import inspect
 import argparse
 import traceback
 import functools
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, Optional, Tuple, List
+from typing import Any, Callable, Dict, Optional, Tuple, List, Union
 
 from fastapi import Body, FastAPI, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 import agenta
 from .context import save_context
@@ -26,6 +27,7 @@ from .types import (
     TextParam,
     MessagesInput,
     FileInputURL,
+    FuncResponse,
 )
 
 app = FastAPI()
@@ -90,7 +92,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
 
     update_function_signature(wrapper, func_signature, config_params, ingestible_files)
     route = f"/{endpoint_name}"
-    app.post(route)(wrapper)
+    app.post(route, response_model=FuncResponse)(wrapper)
 
     update_deployed_function_signature(
         wrapper_deployed,
@@ -98,7 +100,7 @@ def entrypoint(func: Callable[..., Any]) -> Callable[..., Any]:
         ingestible_files,
     )
     route_deployed = f"/{endpoint_name}_deployed"
-    app.post(route_deployed)(wrapper_deployed)
+    app.post(route_deployed, response_model=FuncResponse)(wrapper_deployed)
     override_schema(
         openapi_schema=app.openapi(),
         func_name=func.__name__,
@@ -148,7 +150,9 @@ def ingest_files(
             func_params[name] = ingest_file(func_params[name])
 
 
-async def execute_function(func: Callable[..., Any], *args, **func_params) -> Any:
+async def execute_function(
+    func: Callable[..., Any], *args, **func_params
+) -> Union[Dict[str, Any], JSONResponse]:
     """Execute the function and handle any exceptions."""
 
     try:
@@ -158,14 +162,20 @@ async def execute_function(func: Callable[..., Any], *args, **func_params) -> An
         it awaits their execution.
         """
         is_coroutine_function = inspect.iscoroutinefunction(func)
+        start_time = time.perf_counter()
         if is_coroutine_function:
             result = await func(*args, **func_params)
         else:
             result = func(*args, **func_params)
+        end_time = time.perf_counter()
+        latency = end_time - start_time
 
         if isinstance(result, Context):
             save_context(result)
-        return result
+        if isinstance(result, Dict):
+            return FuncResponse(**result, latency=round(latency, 4)).dict()
+        if isinstance(result, str):
+            return FuncResponse(message=result, latency=round(latency, 4)).dict()
     except Exception as e:
         return handle_exception(e)
 
