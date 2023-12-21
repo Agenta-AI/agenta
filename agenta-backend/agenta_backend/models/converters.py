@@ -73,8 +73,6 @@ async def evaluation_db_to_pydantic(
         user_id=str(evaluation_db.user.id),
         user_username=evaluation_db.user.username or "",
         status=evaluation_db.status,
-        evaluation_type=evaluation_db.evaluation_type,
-        evaluation_type_settings=evaluation_db.evaluation_type_settings,
         variant_ids=[str(variant) for variant in evaluation_db.variants],
         variant_names=variant_names,
         testset_id=str(evaluation_db.testset.id),
