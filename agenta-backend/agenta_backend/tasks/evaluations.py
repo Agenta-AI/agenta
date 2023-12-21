@@ -8,7 +8,6 @@ import uuid
 
 from agenta_backend.services import llm_apps_service
 from agenta_backend.services.db_manager import (
-    create_new_evaluation,
     fetch_evaluation_by_id,
     fetch_app_variant_by_id,
     get_deployment_by_objectid,
@@ -16,14 +15,14 @@ from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
     update_evaluation_with_aggregated_results,
 )
-from agenta_backend.models.api.evaluation_model import EvaluatorConfig, NewEvaluation, EvaluationStatusEnum
+from agenta_backend.models.api.evaluation_model import EvaluatorConfig, NewEvaluation
 
 from agenta_backend.models.db_models import (
-    AggregatedResult,
     AppDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
     EvaluatorConfigDB,
+    AggregatedResultDB,
     Result,
 )
 
@@ -31,20 +30,21 @@ from agenta_backend.services import evaluators_service
 
 
 @shared_task(queue="agenta_backend.tasks.evaluations.evaluate")
-def evaluate(app_data: dict, new_evaluation_data: dict, evaluation_id: str, testset_id: str):
+def evaluate(
+    app_data: dict, new_evaluation_data: dict, evaluation_id: str, testset_id: str
+):
     loop = asyncio.get_event_loop()
     new_evaluation = NewEvaluation(**new_evaluation_data)
     app = AppDB(**app_data)
 
     # NOTE: This will generate a name in case it's run from cli
-    evaluation_evaluators_configs, evaluator_key_name_mapping = process_evaluators_configs(
-        new_evaluation.evaluators_configs
-    )
+    (
+        evaluation_evaluators_configs,
+        evaluator_key_name_mapping,
+    ) = process_evaluators_configs(new_evaluation.evaluators_configs)
 
     testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
-    new_evaluation_db = loop.run_until_complete(
-        fetch_evaluation_by_id(evaluation_id)
-    )
+    new_evaluation_db = loop.run_until_complete(fetch_evaluation_by_id(evaluation_id))
     evaluators_aggregated_data = defaultdict(list)
 
     for variant_id in new_evaluation.variant_ids:
@@ -55,7 +55,7 @@ def evaluate(app_data: dict, new_evaluation_data: dict, evaluation_id: str, test
         )
 
         # TODO: remove if abraham's fix is working
-        uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
+        uri = deployment.uri.replace("http://localhost", "http://obsidian")
 
         for data_point in testset.csvdata:
             variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
@@ -94,7 +94,9 @@ def evaluate(app_data: dict, new_evaluation_data: dict, evaluation_id: str, test
                 )
             )
 
-    aggregated_results = aggregate_evaluator_results(evaluators_aggregated_data, evaluator_key_name_mapping)
+    aggregated_results = aggregate_evaluator_results(
+        evaluators_aggregated_data, evaluator_key_name_mapping
+    )
 
     updated_evaluation = loop.run_until_complete(
         update_evaluation_with_aggregated_results(
@@ -123,11 +125,12 @@ def aggregate_evaluator_results(evaluators_aggregated_data, evaluator_key_name_m
     aggregated_results = []
     for evaluator_key, values in evaluators_aggregated_data.items():
         average_value = sum(values) / len(values) if values else 0
-        evaluator_name = evaluator_key_name_mapping.get(evaluator_key, "Unknown Evaluator")
-        aggregated_result_value: AggregatedResult = AggregatedResult(
+        evaluator_name = evaluator_key_name_mapping.get(
+            evaluator_key, "Unknown Evaluator"
+        )
+        aggregated_result_value = AggregatedResultDB(
             evaluator_config=EvaluatorConfigDB(
-                name=evaluator_name,
-                evaluator_key=evaluator_key
+                name=evaluator_name, evaluator_key=evaluator_key
             ),
             result=Result(type="number", value=str(average_value)),
         )
