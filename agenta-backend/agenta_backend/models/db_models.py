@@ -208,18 +208,8 @@ class EvaluationSettingsTemplate(EmbeddedModel):
     description: str
 
 
-class EvaluatorDB(Model):
-    name: str = Field(required=True)
-    key: str
-    settings_template: Dict[str, EvaluationSettingsTemplate]
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
-
-    class Config:
-        collection = "evaluators"
-
-
 class EvaluatorConfigDB(Model):
+    name: str
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]] = None
     created_at: datetime = Field(default=datetime.utcnow())
@@ -229,9 +219,19 @@ class EvaluatorConfigDB(Model):
         collection = "evaluator_config"
 
 
+class Result(EmbeddedModel):
+    type: str
+    value: str
+
+
 class EvaluationScenarioResult(EmbeddedModel):
     evaluator_key: str
-    result: Any
+    result: Result
+
+
+class AggregatedResult(EmbeddedModel):
+    evaluator_config = EvaluatorConfigDB
+    result = Result
 
 
 class EvaluationScenarioInputDB(EmbeddedModel):
@@ -252,6 +252,7 @@ class EvaluationDB(Model):
     testset: TestSetDB = Reference()
     variants: List[ObjectId]
     evaluators_configs: List[EvaluatorConfigDB]
+    aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
