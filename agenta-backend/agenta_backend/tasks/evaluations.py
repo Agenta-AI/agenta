@@ -1,3 +1,4 @@
+from collections import defaultdict
 from bson import ObjectId
 from celery import shared_task
 import asyncio
@@ -10,13 +11,17 @@ from agenta_backend.services.db_manager import (
     get_deployment_by_objectid,
     fetch_testset_by_id,
     create_new_evaluation_scenario,
+    update_evaluation_with_aggregated_results,
 )
 from agenta_backend.models.api.evaluation_model import NewEvaluation
 
 from agenta_backend.models.db_models import (
+    AggregatedResult,
     AppDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
+    EvaluatorConfigDB,
+    Result,
 )
 
 from agenta_backend.services import evaluators_service
@@ -39,6 +44,7 @@ def evaluate(app_data, new_evaluation_data):
             evaluators_configs=new_evaluation.evaluators_configs,
         )
     )
+    evaluators_aggregated_data = defaultdict(list)
 
     for variant_id in new_evaluation.variant_ids:
         variant_id = str(variant_id)
@@ -53,18 +59,25 @@ def evaluate(app_data, new_evaluation_data):
         for data_point in testset.csvdata:
             variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
-            results: [EvaluationScenarioResult] = []
+            evaluators_results: [EvaluationScenarioResult] = []
             for evaluator_config in new_evaluation.evaluators_configs:
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
                     data_point["correct_answer"],
                     variant_output,
                 )
+
                 result_object = EvaluationScenarioResult(
                     evaluator_key=evaluator_config.evaluator_key,
-                    result={"type": "number", "value": result},
+                    result=Result(
+                        type="number",
+                        value=result
+                    ),
                 )
-                results.append(result_object)
+                evaluators_results.append(result_object)
+                evaluators_aggregated_data[evaluator_config.evaluator_key].append(
+                    result
+                )
 
             evaluation_scenario = loop.run_until_complete(
                 create_new_evaluation_scenario(
@@ -79,8 +92,25 @@ def evaluate(app_data, new_evaluation_data):
                     outputs=[
                         EvaluationScenarioOutputDB(type="text", value=variant_output)
                     ],
-                    results=results,
+                    results=evaluators_results,
                 )
             )
-            print("evaluation scenario is ready")
-            print(evaluation_scenario)
+
+    aggregated_results = aggregate_evaluator_results(evaluators_aggregated_data)
+    updated_evaluation = loop.run_until_complete(update_evaluation_with_aggregated_results(new_evaluation_db.id, aggregated_results))
+
+def aggregate_evaluator_results(evaluators_aggregated_data):
+    aggregated_results = []
+    for evaluator_key, values in evaluators_aggregated_data.items():
+        average_value = sum(values) / len(values) if values else 0
+        aggregated_result_value:AggregatedResult = AggregatedResult(
+            evaluator_config=EvaluatorConfigDB(
+                evaluator_key=evaluator_key
+            ),
+            result=Result(
+                type="number",
+                value=str(average_value)
+            )
+        )
+        aggregated_results.append(aggregated_result_value)
+    return aggregated_results
