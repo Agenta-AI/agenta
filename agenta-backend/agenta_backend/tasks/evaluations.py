@@ -128,11 +128,11 @@ def aggregate_evaluator_results(evaluators_aggregated_data, evaluator_key_name_m
         evaluator_name = evaluator_key_name_mapping.get(
             evaluator_key, "Unknown Evaluator"
         )
-        aggregated_result_value = AggregatedResultDB(
+        aggregated_result_db = AggregatedResultDB(
             evaluator_config=EvaluatorConfigDB(
                 name=evaluator_name, evaluator_key=evaluator_key
             ),
             result=Result(type="number", value=str(average_value)),
         )
-        aggregated_results.append(aggregated_result_value)
+        aggregated_results.append(aggregated_result_db)
     return aggregated_results
