@@ -95,13 +95,6 @@ services:
             timeout: 10s
             retries: 20
 
-    mongo-seed:
-        build: ./agenta-backend/db-seed
-        depends_on:
-            - mongo
-        networks:
-            - agenta-network
-
     mongo_express:
         image: mongo-express
         environment:
