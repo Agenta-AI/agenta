@@ -565,4 +565,5 @@ def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
         raise APIRequestError(
             f"Request to run evaluations failed with status code {response.status_code} and error message: {error_message}."
         )
-    return response.json()["app_id"]
+    print(response.json())
+    return response.json()
