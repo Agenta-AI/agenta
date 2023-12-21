@@ -31,7 +31,7 @@ from agenta_backend.services import evaluators_service
 
 
 @shared_task(queue="agenta_backend.tasks.evaluations.evaluate")
-def evaluate(app_data, new_evaluation_data, evaluation_id: str, testset_id: str):
+def evaluate(app_data: dict, new_evaluation_data: dict, evaluation_id: str, testset_id: str):
     loop = asyncio.get_event_loop()
     new_evaluation = NewEvaluation(**new_evaluation_data)
     app = AppDB(**app_data)
