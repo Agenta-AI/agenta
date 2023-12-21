@@ -17,7 +17,7 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioDB,
     VariantBaseDB,
     UserDB,
-    AggregatedResult,
+    AggregatedResultDB,
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
@@ -83,7 +83,7 @@ async def evaluation_db_to_pydantic(
     )
 
 
-def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
+def aggregated_result_to_pydantic(results: List[AggregatedResultDB]) -> List[dict]:
     list_of_aggregated_results = []
     for aggregated_result in results:
         result_dict = {
