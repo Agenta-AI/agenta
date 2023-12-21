@@ -882,4 +882,4 @@ async def create_new_evaluation(
         variants=new_evaluation.variant_ids,
         evaluators_configs=new_evaluation.evaluators_configs,
     )
-    return converters.evaluation_db_to_pydantic(evaluation_db)
+    return await converters.evaluation_db_to_pydantic(evaluation_db)
