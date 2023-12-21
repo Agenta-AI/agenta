@@ -15,7 +15,7 @@ from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
     update_evaluation_with_aggregated_results,
 )
-from agenta_backend.models.api.evaluation_model import EvaluatorConfig, NewEvaluation
+from agenta_backend.models.api.evaluation_model import EvaluatorConfig, NewEvaluation, EvaluationStatusEnum
 
 from agenta_backend.models.db_models import (
     AggregatedResult,
@@ -48,6 +48,7 @@ def evaluate(app_data, new_evaluation_data):
             organization=app.organization,
             user=app.user,
             testset=testset,
+            status=EvaluationStatusEnum.EVALUATION_STARTED,
             variants=new_evaluation.variant_ids,
             evaluators_configs=new_evaluation.evaluators_configs,
         )
