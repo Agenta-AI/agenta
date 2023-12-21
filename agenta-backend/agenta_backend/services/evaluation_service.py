@@ -17,6 +17,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioUpdate,
     CreateCustomEvaluation,
     EvaluationUpdate,
+    EvaluationStatusEnum
 )
 from agenta_backend.models import converters
 from agenta_backend.utils.common import engine, check_access_to_app
@@ -103,76 +104,6 @@ async def _fetch_evaluation_scenario_and_check_access(
             detail=f"You do not have access to this app: {str(evaluation.app.id)}",
         )
     return evaluation_scenario
-
-
-async def create_new_evaluation(
-    payload: NewEvaluation, **user_org_data: dict
-) -> EvaluationDB:
-    """
-    Create a new evaluation based on the provided payload and additional arguments.
-
-    Args:
-        payload (NewEvaluation): The evaluation payload.
-        **user_org_data (dict): Additional keyword arguments, e.g., user id.
-
-    Returns:
-        EvaluationDB
-    """
-    user = await get_user(user_uid=user_org_data["uid"])
-
-    # Initialize evaluation type settings
-    settings = payload.evaluation_type_settings
-    evaluation_type_settings = EvaluationTypeSettings(
-        similarity_threshold=settings.similarity_threshold or 0.0,
-        regex_pattern=settings.regex_pattern or "",
-        regex_should_match=settings.regex_should_match or True,
-        webhook_url=settings.webhook_url or "",
-        custom_code_evaluation_id=settings.custom_code_evaluation_id or "",
-        llm_app_prompt_template=settings.llm_app_prompt_template or "",
-    )
-
-    current_time = datetime.utcnow()
-
-    # Fetch app
-    app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
-    if app is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"App with id {payload.app_id} does not exist",
-        )
-
-    variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
-
-    testset = await db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
-    # Initialize and save evaluation instance to database
-    eval_instance = EvaluationDB(
-        app=app,
-        organization=app.organization,  # Assuming user has an organization_id attribute
-        user=user,
-        status=payload.status,
-        evaluation_type=payload.evaluation_type,
-        evaluation_type_settings=evaluation_type_settings,
-        variants=variants,
-        testset=testset,
-        created_at=current_time,
-        updated_at=current_time,
-    )
-    newEvaluation = await engine.save(eval_instance)
-
-    if newEvaluation is None:
-        raise HTTPException(
-            status_code=500, detail="Failed to create evaluation_scenario"
-        )
-
-    await prepare_csvdata_and_create_evaluation_scenario(
-        testset.csvdata,
-        payload.inputs,
-        payload.evaluation_type,
-        newEvaluation,
-        user,
-        app,
-    )
-    return newEvaluation
 
 
 async def prepare_csvdata_and_create_evaluation_scenario(
@@ -916,3 +847,39 @@ async def fetch_custom_evaluation_names(
             )
         )
     return list_of_custom_eval_names
+
+
+async def create_new_evaluation(
+    app_data: dict, new_evaluation_data: dict
+) -> Evaluation:
+    """
+    Create a new evaluation based on the provided payload and additional arguments.
+
+    Args:
+        payload (NewEvaluation): The evaluation payload.
+        **user_org_data (dict): Additional keyword arguments, e.g., user id.
+
+    Returns:
+        Evaluation
+    """
+
+    from agenta_backend.tasks.evaluations import process_evaluators_configs
+
+    new_evaluation = NewEvaluation(**new_evaluation_data)
+    app = AppDB(**app_data)
+
+    # This will generate a name in case it's run from cli
+    new_evaluation.evaluators_configs = process_evaluators_configs(
+        new_evaluation.evaluators_configs
+    )
+    testset = await db_manager.fetch_testset_by_id(new_evaluation.testset_id)
+    evaluation_db = await db_manager.create_new_evaluation(
+        app=app,
+        organization=app.organization,
+        user=app.user,
+        testset=testset,
+        status=EvaluationStatusEnum.EVALUATION_STARTED,
+        variants=new_evaluation.variant_ids,
+        evaluators_configs=new_evaluation.evaluators_configs,
+    )
+    return converters.evaluation_db_to_pydantic(evaluation_db)
