@@ -46,7 +46,6 @@ from .types import (
     VariantActionEnum,
 )
 from .errors import UnprocessableEntityError
-from .environment import AgentaApiEnvironment
 
 __all__ = [
     "AddVariantFromBaseAndConfigResponse",
@@ -60,7 +59,6 @@ __all__ = [
     "CustomEvaluationDetail",
     "CustomEvaluationNames",
     "CustomEvaluationOutput",
-    "AgentaApiEnvironment",
     "DockerEnvVars",
     "EnvironmentOutput",
     "Evaluation",

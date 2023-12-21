@@ -11,11 +11,8 @@ from .core.api_error import ApiError
 from .core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from .core.jsonable_encoder import jsonable_encoder
 from .core.remove_none_from_dict import remove_none_from_dict
-from .environment import AgentaApiEnvironment
 from .errors.unprocessable_entity_error import UnprocessableEntityError
-from .types.add_variant_from_base_and_config_response import (
-    AddVariantFromBaseAndConfigResponse,
-)
+from .types.add_variant_from_base_and_config_response import AddVariantFromBaseAndConfigResponse
 from .types.app import App
 from .types.app_variant_output import AppVariantOutput
 from .types.base_output import BaseOutput
@@ -62,18 +59,9 @@ OMIT = typing.cast(typing.Any, ...)
 
 
 class AgentaApi:
-    def __init__(
-        self,
-        *,
-        base_url: typing.Optional[str] = None,
-        environment: AgentaApiEnvironment = AgentaApiEnvironment.DEFAULT,
-        api_key: str,
-        timeout: typing.Optional[float] = 60,
-    ):
+    def __init__(self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60):
         self._client_wrapper = SyncClientWrapper(
-            base_url=_get_base_url(base_url=base_url, environment=environment),
-            api_key=api_key,
-            httpx_client=httpx.Client(timeout=timeout),
+            base_url=base_url, api_key=api_key, httpx_client=httpx.Client(timeout=timeout)
         )
 
     def list_api_keys(self) -> ListApiKeysOutput:
@@ -81,10 +69,10 @@ class AgentaApi:
         List all API keys associated with the authenticated user.
 
         Args:
-            request (Request): The incoming request object.
+        request (Request): The incoming request object.
 
         Returns:
-            List[ListAPIKeysOutput]: A list of API Keys associated with the user.
+        List[ListAPIKeysOutput]: A list of API Keys associated with the user.
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
@@ -105,10 +93,10 @@ class AgentaApi:
         Creates an API key for a user.
 
         Args:
-            request (Request): The request object containing the user ID in the request state.
+        request (Request): The request object containing the user ID in the request state.
 
         Returns:
-            str: The created API key.
+        str: The created API key.
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -129,28 +117,26 @@ class AgentaApi:
         Delete an API key with the given key prefix for the authenticated user.
 
         Args:
-            key_prefix (str): The prefix of the API key to be deleted.
-            request (Request): The incoming request object.
+        key_prefix (str): The prefix of the API key to be deleted.
+        request (Request): The incoming request object.
 
         Returns:
-            dict: A dictionary containing a success message upon successful deletion.
+        dict: A dictionary containing a success message upon successful deletion.
 
         Raises:
-            HTTPException: If the API key is not found or does not belong to the user.
+        HTTPException: If the API key is not found or does not belong to the user.
 
         Parameters:
             - key_prefix: str.
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.delete_api_key(key_prefix="key-prefix")
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -168,16 +154,14 @@ class AgentaApi:
         """
         This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.
         Returns:
-            bool: True. If the request reaches this point, the API key is valid.
+        bool: True. If the request reaches this point, the API key is valid.
 
         Parameters:
             - key_prefix: str.
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -196,20 +180,18 @@ class AgentaApi:
         Get an organization's details.
 
         Raises:
-            HTTPException: _description_
-            Permission Denied
+        HTTPException: _description_
+        Permission Denied
 
         Returns:
-            OrganizationDB Instance
+        OrganizationDB Instance
 
         Parameters:
             - org_id: str.
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -228,14 +210,14 @@ class AgentaApi:
         Invite a user to an Organization.
 
         Raises:
-            HTTPException: _description_; status_code: 500
-            HTTPException: This Organization doesn't exist; status_code: 400
-            HTTPException: Failed to invite user to organization; status_code: 403
-            HTTPException: You cannot invite yourself to your own organization; status_code: 400
-            HTTPException: You do not have permission to access this organization; status_code: 500
+        HTTPException: _description_; status_code: 500
+        HTTPException: This Organization doesn't exist; status_code: 400
+        HTTPException: Failed to invite user to organization; status_code: 403
+        HTTPException: You cannot invite yourself to your own organization; status_code: 400
+        HTTPException: You do not have permission to access this organization; status_code: 500
 
         Returns:
-            JSONResponse: Invited user to organization; status_code: 200
+        JSONResponse: Invited user to organization; status_code: 200
 
         Parameters:
             - org_id: str.
@@ -244,10 +226,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations_ee/{org_id}/invite",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/invite"),
             json=jsonable_encoder({"email": email}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -267,12 +246,12 @@ class AgentaApi:
         Invite a user to an Organization.
 
         Raises:
-            HTTPException: _description_; status_code: 500
-            HTTPException: Invitation not found or has expired; status_code: 400
-            HTTPException: You already belong to this organization; status_code: 400
+        HTTPException: _description_; status_code: 500
+        HTTPException: Invitation not found or has expired; status_code: 400
+        HTTPException: You already belong to this organization; status_code: 400
 
         Returns:
-            JSONResponse: Added user to organization; status_code: 200
+        JSONResponse: Added user to organization; status_code: 200
 
         Parameters:
             - org_id: str.
@@ -281,10 +260,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations_ee/{org_id}/accept",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/accept"),
             json=jsonable_encoder({"token": token}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -306,9 +282,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations_ee/create"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations_ee/create"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -324,11 +298,7 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def update_organization(
-        self,
-        org_id: str,
-        *,
-        name: typing.Optional[str] = OMIT,
-        description: typing.Optional[str] = OMIT,
+        self, org_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT
     ) -> typing.Any:
         """
         Parameters:
@@ -345,10 +315,7 @@ class AgentaApi:
             _request["description"] = description
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations_ee/{org_id}/update",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/update"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -398,25 +365,23 @@ class AgentaApi:
         Retrieve a list of app variants for a given app ID.
 
         Args:
-            app_id (str): The ID of the app to retrieve variants for.
-            stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
+        app_id (str): The ID of the app to retrieve variants for.
+        stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
 
         Returns:
-            List[AppVariantOutput]: A list of app variants for the given app ID.
+        List[AppVariantOutput]: A list of app variants for the given app ID.
 
         Parameters:
             - app_id: str.
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_app_variants(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -435,15 +400,15 @@ class AgentaApi:
         Retrieve the app variant based on the provided app_id and environment.
 
         Args:
-            app_id (str): The ID of the app to retrieve the variant for.
-            environment (str): The environment of the app variant to retrieve.
-            stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
+        app_id (str): The ID of the app to retrieve the variant for.
+        environment (str): The environment of the app variant to retrieve.
+        stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
+        HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
 
         Returns:
-            AppVariantOutput: The retrieved app variant.
+        AppVariantOutput: The retrieved app variant.
 
         Parameters:
             - app_id: str.
@@ -452,12 +417,8 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"
-            ),
-            params=remove_none_from_dict(
-                {"app_id": app_id, "environment": environment}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"),
+            params=remove_none_from_dict({"app_id": app_id, "environment": environment}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -472,24 +433,21 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def list_apps(
-        self,
-        *,
-        app_name: typing.Optional[str] = None,
-        org_id: typing.Optional[str] = None,
+        self, *, app_name: typing.Optional[str] = None, org_id: typing.Optional[str] = None
     ) -> typing.List[App]:
         """
         Retrieve a list of apps filtered by app_name and org_id.
 
         Args:
-            app_name (Optional[str]): The name of the app to filter by.
-            org_id (Optional[str]): The ID of the organization to filter by.
-            stoken_session (SessionContainer): The session container.
+        app_name (Optional[str]): The name of the app to filter by.
+        org_id (Optional[str]): The ID of the organization to filter by.
+        stoken_session (SessionContainer): The session container.
 
         Returns:
-            List[App]: A list of apps filtered by app_name and org_id.
+        List[App]: A list of apps filtered by app_name and org_id.
 
         Raises:
-            HTTPException: If there was an error retrieving the list of apps.
+        HTTPException: If there was an error retrieving the list of apps.
 
         Parameters:
             - app_name: typing.Optional[str].
@@ -498,7 +456,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_apps()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -518,21 +476,19 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_app(
-        self, *, app_name: str, organization_id: typing.Optional[str] = OMIT
-    ) -> CreateAppOutput:
+    def create_app(self, *, app_name: str, organization_id: typing.Optional[str] = OMIT) -> CreateAppOutput:
         """
         Create a new app for a user or organization.
 
         Args:
-            payload (CreateApp): The payload containing the app name and organization ID (optional).
-            stoken_session (SessionContainer): The session container containing the user's session token.
+        payload (CreateApp): The payload containing the app name and organization ID (optional).
+        stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
-            CreateAppOutput: The output containing the newly created app's ID and name.
+        CreateAppOutput: The output containing the newly created app's ID and name.
 
         Raises:
-            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+        HTTPException: If there is an error creating the app or the user does not have permission to access the app.
 
         Parameters:
             - app_name: str.
@@ -573,15 +529,15 @@ class AgentaApi:
         Add a new variant to an app based on a Docker image.
 
         Args:
-            app_id (str): The ID of the app to add the variant to.
-            payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        app_id (str): The ID of the app to add the variant to.
+        payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
+        HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
 
         Returns:
-            dict: The newly added variant.
+        dict: The newly added variant.
 
         Parameters:
             - app_id: str.
@@ -596,21 +552,14 @@ class AgentaApi:
 
             - config_name: typing.Optional[str].
         """
-        _request: typing.Dict[str, typing.Any] = {
-            "variant_name": variant_name,
-            "docker_id": docker_id,
-            "tags": tags,
-        }
+        _request: typing.Dict[str, typing.Any] = {"variant_name": variant_name, "docker_id": docker_id, "tags": tags}
         if base_name is not OMIT:
             _request["base_name"] = base_name
         if config_name is not OMIT:
             _request["config_name"] = config_name
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"apps/{app_id}/variant/from-image",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variant/from-image"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -630,16 +579,14 @@ class AgentaApi:
         Remove app, all its variant, containers and images
 
         Arguments:
-            app -- App to remove
+        app -- App to remove
 
         Parameters:
             - app_id: str.
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -665,14 +612,14 @@ class AgentaApi:
         Create an app and variant from a template.
 
         Args:
-            payload (CreateAppVariant): The payload containing the app and variant information.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        payload (CreateAppVariant): The payload containing the app and variant information.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If the user has reached the app limit or if an app with the same name already exists.
+        HTTPException: If the user has reached the app limit or if an app with the same name already exists.
 
         Returns:
-            AppVariantOutput: The output of the created app variant.
+        AppVariantOutput: The output of the created app variant.
 
         Parameters:
             - app_name: str.
@@ -692,10 +639,7 @@ class AgentaApi:
             _request["organization_id"] = organization_id
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "apps/app_and_variant_from_template",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/app_and_variant_from_template"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -715,25 +659,23 @@ class AgentaApi:
         Retrieve a list of environments for a given app ID.
 
         Args:
-            app_id (str): The ID of the app to retrieve environments for.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        app_id (str): The ID of the app to retrieve environments for.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-            List[EnvironmentOutput]: A list of environment objects.
+        List[EnvironmentOutput]: A list of environment objects.
 
         Parameters:
             - app_id: str.
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_environments(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -748,26 +690,21 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def add_variant_from_base_and_config(
-        self,
-        *,
-        base_id: str,
-        new_variant_name: str,
-        new_config_name: str,
-        parameters: typing.Dict[str, typing.Any],
+        self, *, base_id: str, new_variant_name: str, new_config_name: str, parameters: typing.Dict[str, typing.Any]
     ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
         Same as POST /config
 
         Args:
-            payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
-            stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
+        payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
+        stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
 
         Raises:
-            HTTPException: Raised if the variant could not be added or accessed.
+        HTTPException: Raised if the variant could not be added or accessed.
 
         Returns:
-            Union[AppVariantOutput, Any]: New variant details or exception.
+        Union[AppVariantOutput, Any]: New variant details or exception.
 
         Parameters:
             - base_id: str.
@@ -780,9 +717,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "variants/from-base"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "variants/from-base"),
             json=jsonable_encoder(
                 {
                     "base_id": base_id,
@@ -805,26 +740,22 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def start_variant(
-        self,
-        variant_id: str,
-        *,
-        action: VariantAction,
-        env_vars: typing.Optional[DockerEnvVars] = OMIT,
+        self, variant_id: str, *, action: VariantAction, env_vars: typing.Optional[DockerEnvVars] = OMIT
     ) -> Uri:
         """
         Start a variant of an app.
 
         Args:
-            variant_id (str): The ID of the variant to start.
-            action (VariantAction): The action to perform on the variant (start).
-            env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        variant_id (str): The ID of the variant to start.
+        action (VariantAction): The action to perform on the variant (start).
+        env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-            URI: The URL of the started variant.
+        URI: The URL of the started variant.
 
         Raises:
-            HTTPException: If the app container cannot be started.
+        HTTPException: If the app container cannot be started.
 
         Parameters:
             - variant_id: str.
@@ -838,9 +769,7 @@ class AgentaApi:
             _request["env_vars"] = env_vars
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -861,19 +790,17 @@ class AgentaApi:
         In the case it's the last variant using the image, stop the container and remove the image.
 
         Arguments:
-            app_variant -- AppVariant to remove
+        app_variant -- AppVariant to remove
 
         Raises:
-            HTTPException: If there is a problem removing the app variant
+        HTTPException: If there is a problem removing the app variant
 
         Parameters:
             - variant_id: str.
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -887,22 +814,20 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_variant_parameters(
-        self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]
-    ) -> typing.Any:
+    def update_variant_parameters(self, variant_id: str, *, parameters: typing.Dict[str, typing.Any]) -> typing.Any:
         """
         Updates the parameters for an app variant.
 
         Args:
-            variant_id (str): The ID of the app variant to update.
-            payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        variant_id (str): The ID of the app variant to update.
+        payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If there is an error while trying to update the app variant.
+        HTTPException: If there is an error while trying to update the app variant.
 
         Returns:
-            JSONResponse: A JSON response containing the updated app variant parameters.
+        JSONResponse: A JSON response containing the updated app variant parameters.
 
         Parameters:
             - variant_id: str.
@@ -911,10 +836,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/parameters",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/parameters"),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -934,14 +856,14 @@ class AgentaApi:
         Updates the image used in an app variant.
 
         Args:
-            variant_id (str): The ID of the app variant to update.
-            image (Image): The image information to update.
+        variant_id (str): The ID of the app variant to update.
+        image (Image): The image information to update.
 
         Raises:
-            HTTPException: If an error occurs while trying to update the app variant.
+        HTTPException: If an error occurs while trying to update the app variant.
 
         Returns:
-            JSONResponse: A JSON response indicating whether the update was successful or not.
+        JSONResponse: A JSON response indicating whether the update was successful or not.
 
         Parameters:
             - variant_id: str.
@@ -950,10 +872,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/image",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/image"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -973,24 +892,22 @@ class AgentaApi:
         Fetches a list of evaluations, optionally filtered by an app ID.
 
         Args:
-            app_id (Optional[str]): An optional app ID to filter the evaluations.
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
 
         Returns:
-            List[Evaluation]: A list of evaluations.
+        List[Evaluation]: A list of evaluations.
 
         Parameters:
             - app_id: str.
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.fetch_list_evaluations(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1019,9 +936,9 @@ class AgentaApi:
         """
         Creates a new comparison table document
         Raises:
-            HTTPException: _description_
+        HTTPException: _description_
         Returns:
-            _description_
+        _description_
 
         Parameters:
             - app_id: str.
@@ -1050,9 +967,7 @@ class AgentaApi:
             _request["evaluation_type_settings"] = evaluation_type_settings
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1067,9 +982,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def delete_evaluations(
-        self, *, evaluations_ids: typing.List[str]
-    ) -> typing.List[str]:
+    def delete_evaluations(self, *, evaluations_ids: typing.List[str]) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
 
@@ -1084,14 +997,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.delete_evaluations(evaluations_ids=[])
         """
         _response = self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1111,20 +1022,17 @@ class AgentaApi:
         Fetches a single evaluation based on its ID.
 
         Args:
-            evaluation_id (str): The ID of the evaluation to fetch.
+        evaluation_id (str): The ID of the evaluation to fetch.
 
         Returns:
-            Evaluation: The fetched evaluation.
+        Evaluation: The fetched evaluation.
 
         Parameters:
             - evaluation_id: str.
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1149,10 +1057,10 @@ class AgentaApi:
         Updates an evaluation's status.
 
         Raises:
-            HTTPException: If the columns in the test set do not match with the inputs in the variant.
+        HTTPException: If the columns in the test set do not match with the inputs in the variant.
 
         Returns:
-            None: A 204 No Content status code, indicating that the update was successful.
+        None: A 204 No Content status code, indicating that the update was successful.
 
         Parameters:
             - evaluation_id: str.
@@ -1168,10 +1076,7 @@ class AgentaApi:
             _request["evaluation_type_settings"] = evaluation_type_settings
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1186,34 +1091,31 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def fetch_evaluation_scenarios(
-        self, evaluation_id: str
-    ) -> typing.List[EvaluationScenario]:
+    def fetch_evaluation_scenarios(self, evaluation_id: str) -> typing.List[EvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
 
         Arguments:
-            evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
 
         Raises:
-            HTTPException: If the evaluation is not found or access is denied.
+        HTTPException: If the evaluation is not found or access is denied.
 
         Returns:
-            List[EvaluationScenario]: A list of evaluation scenarios.
+        List[EvaluationScenario]: A list of evaluation scenarios.
 
         Parameters:
             - evaluation_id: str.
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenarios",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenarios"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1228,17 +1130,15 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_evaluation_scenario(
-        self, evaluation_id: str, *, request: EvaluationScenario
-    ) -> typing.Any:
+    def create_evaluation_scenario(self, evaluation_id: str, *, request: EvaluationScenario) -> typing.Any:
         """
         Create a new evaluation scenario for a given evaluation ID.
 
         Raises:
-            HTTPException: If evaluation not found or access denied.
+        HTTPException: If evaluation not found or access denied.
 
         Returns:
-            None: 204 No Content status code upon success.
+        None: 204 No Content status code upon success.
 
         Parameters:
             - evaluation_id: str.
@@ -1248,8 +1148,7 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenario",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenario"
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
@@ -1283,10 +1182,10 @@ class AgentaApi:
         Updates an evaluation scenario's vote or score based on its type.
 
         Raises:
-            HTTPException: If update fails or unauthorized.
+        HTTPException: If update fails or unauthorized.
 
         Returns:
-            None: 204 No Content status code upon successful update.
+        None: 204 No Content status code upon successful update.
 
         Parameters:
             - evaluation_id: str.
@@ -1358,14 +1257,14 @@ class AgentaApi:
         Evaluate AI critique based on the given payload.
 
         Args:
-            payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
-            stoken_session (SessionContainer): The session container verified by `verify_session`.
+        payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
+        stoken_session (SessionContainer): The session container verified by `verify_session`.
 
         Returns:
-            str: The output of the AI critique evaluation.
+        str: The output of the AI critique evaluation.
 
         Raises:
-            HTTPException: If any exception occurs during the evaluation.
+        HTTPException: If any exception occurs during the evaluation.
 
         Parameters:
             - correct_answer: str.
@@ -1394,8 +1293,7 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/evaluation_scenario/ai_critique",
+                f"{self._client_wrapper.get_base_url()}/", "evaluations/evaluation_scenario/ai_critique"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -1411,25 +1309,23 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_evaluation_scenario_score(
-        self, evaluation_scenario_id: str
-    ) -> typing.Dict[str, str]:
+    def get_evaluation_scenario_score(self, evaluation_scenario_id: str) -> typing.Dict[str, str]:
         """
         Fetch the score of a specific evaluation scenario.
 
         Args:
-            evaluation_scenario_id: The ID of the evaluation scenario to fetch.
-            stoken_session: Session data, verified by `verify_session`.
+        evaluation_scenario_id: The ID of the evaluation scenario to fetch.
+        stoken_session: Session data, verified by `verify_session`.
 
         Returns:
-            Dictionary containing the scenario ID and its score.
+        Dictionary containing the scenario ID and its score.
 
         Parameters:
             - evaluation_scenario_id: str.
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_evaluation_scenario_score(evaluation_scenario_id="evaluation-scenario-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -1451,17 +1347,15 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_evaluation_scenario_score(
-        self, evaluation_scenario_id: str, *, score: float
-    ) -> typing.Any:
+    def update_evaluation_scenario_score(self, evaluation_scenario_id: str, *, score: float) -> typing.Any:
         """
         Updates the score of an evaluation scenario.
 
         Raises:
-            HTTPException: Server error if the evaluation update fails.
+        HTTPException: Server error if the evaluation update fails.
 
         Returns:
-            None: 204 No Content status code upon successful update.
+        None: 204 No Content status code upon successful update.
 
         Parameters:
             - evaluation_scenario_id: str.
@@ -1493,20 +1387,17 @@ class AgentaApi:
         Fetch all the results for one the comparison table
 
         Arguments:
-            evaluation_id -- _description_
+        evaluation*id -- \_description*
 
         Returns:
-            _description_
+        _description_
 
         Parameters:
             - evaluation_id: str.
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/results",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/results"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1520,13 +1411,11 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_custom_evaluation(
-        self, *, request: CreateCustomEvaluation
-    ) -> typing.Any:
+    def create_custom_evaluation(self, *, request: CreateCustomEvaluation) -> typing.Any:
         """
         Create evaluation with custom python code.
 
-           Args:
+        Args:
 
         custom_evaluation_payload (CreateCustomEvaluation): the required payload
 
@@ -1535,10 +1424,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/custom_evaluation",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/custom_evaluation"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1558,20 +1444,17 @@ class AgentaApi:
         Get the custom code evaluation detail.
 
         Args:
-            id (str): the id of the custom evaluation
+        id (str): the id of the custom evaluation
 
         Returns:
-            CustomEvaluationDetail: Detail of the custom evaluation
+        CustomEvaluationDetail: Detail of the custom evaluation
 
         Parameters:
             - id: str.
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1585,15 +1468,13 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def update_custom_evaluation(
-        self, id: str, *, request: CreateCustomEvaluation
-    ) -> typing.Any:
+    def update_custom_evaluation(self, id: str, *, request: CreateCustomEvaluation) -> typing.Any:
         """
         Update a custom code evaluation.
         Args:
-            id (str): the ID of the custom evaluation to update
-            updated_data (CreateCustomEvaluation): the payload with updated data
-            stoken_session (SessionContainer): session container for authentication
+        id (str): the ID of the custom evaluation to update
+        updated_data (CreateCustomEvaluation): the payload with updated data
+        stoken_session (SessionContainer): session container for authentication
 
         Parameters:
             - id: str.
@@ -1602,10 +1483,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1620,31 +1498,28 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_custom_evaluations(
-        self, app_id: str
-    ) -> typing.List[CustomEvaluationOutput]:
+    def list_custom_evaluations(self, app_id: str) -> typing.List[CustomEvaluationOutput]:
         """
         List the custom code evaluations for a given app.
 
         Args:
-            app_id (str): the id of the app
+        app_id (str): the id of the app
 
         Returns:
-            List[CustomEvaluationOutput]: a list of custom evaluation
+        List[CustomEvaluationOutput]: a list of custom evaluation
 
         Parameters:
             - app_id: str.
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_custom_evaluations(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/list/{app_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/list/{app_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1659,31 +1534,28 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def get_custom_evaluation_names(
-        self, app_name: str
-    ) -> typing.List[CustomEvaluationNames]:
+    def get_custom_evaluation_names(self, app_name: str) -> typing.List[CustomEvaluationNames]:
         """
         Get the names of custom evaluation for a given app.
 
         Args:
-            app_name (str): the name of the app the evaluation belongs to
+        app_name (str): the name of the app the evaluation belongs to
 
         Returns:
-            List[CustomEvaluationNames]: the list of name of custom evaluations
+        List[CustomEvaluationNames]: the list of name of custom evaluations
 
         Parameters:
             - app_name: str.
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_custom_evaluation_names(app_name="app-name")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{app_name}/names",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{app_name}/names"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1712,11 +1584,11 @@ class AgentaApi:
         Execute a custom evaluation code.
 
         Args:
-            evaluation_id (str): the custom evaluation id
-            payload (ExecuteCustomEvaluationCode): the required payload
+        evaluation_id (str): the custom evaluation id
+        payload (ExecuteCustomEvaluationCode): the required payload
 
         Returns:
-            float: the result of the evaluation custom code
+        float: the result of the evaluation custom code
 
         Parameters:
             - evaluation_id: str.
@@ -1734,8 +1606,7 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/execute/{evaluation_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/execute/{evaluation_id}"
             ),
             json=jsonable_encoder(
                 {
@@ -1764,14 +1635,11 @@ class AgentaApi:
         Returns a fake score response for example webhook evaluation
 
         Returns:
-            _description_
+        _description_
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/webhook_example_fake",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/webhook_example_fake"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1791,11 +1659,11 @@ class AgentaApi:
 
         Args:
         upload_type : Either a json or csv file.
-            file (UploadFile): The CSV or JSON file to upload.
-            testset_name (Optional): the name of the testset if provided.
+        file (UploadFile): The CSV or JSON file to upload.
+        testset_name (Optional): the name of the testset if provided.
 
         Returns:
-            dict: The result of the upload process.
+        dict: The result of the upload process.
 
         Parameters:
             - upload_type: str.
@@ -1808,16 +1676,8 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/upload"
-            ),
-            data=jsonable_encoder(
-                {
-                    "upload_type": upload_type,
-                    "testset_name": testset_name,
-                    "app_id": app_id,
-                }
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/upload"),
+            data=jsonable_encoder({"upload_type": upload_type, "testset_name": testset_name, "app_id": app_id}),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1837,17 +1697,15 @@ class AgentaApi:
         Import JSON testset data from an endpoint and save it to MongoDB.
 
         Args:
-            endpoint (str): An endpoint URL to import data from.
-            testset_name (str): the name of the testset if provided.
+        endpoint (str): An endpoint URL to import data from.
+        testset_name (str): the name of the testset if provided.
 
         Returns:
-            dict: The result of the import process.
+        dict: The result of the import process.
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1861,9 +1719,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_testset(
-        self, app_id: str, *, request: NewTestset
-    ) -> TestSetSimpleResponse:
+    def create_testset(self, app_id: str, *, request: NewTestset) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -1882,9 +1738,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1901,22 +1755,20 @@ class AgentaApi:
 
     def get_single_testset(self, testset_id: str) -> typing.Any:
         """
-        Fetch a specific testset in a MongoDB collection using its _id.
+        Fetch a specific testset in a MongoDB collection using its \_id.
 
         Args:
-            testset_id (str): The _id of the testset to fetch.
+        testset_id (str): The \_id of the testset to fetch.
 
         Returns:
-            The requested testset if found, else an HTTPException.
+        The requested testset if found, else an HTTPException.
 
         Parameters:
             - testset_id: str.
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -1948,9 +1800,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -1970,9 +1820,11 @@ class AgentaApi:
         Get all testsets.
 
         Returns:
+
         - A list of testset objects.
 
         Raises:
+
         - `HTTPException` with status code 404 if no testsets are found.
 
         Parameters:
@@ -1980,7 +1832,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_testsets(app_id="app-id")
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2015,7 +1867,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.delete_testsets(testset_ids=[])
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2040,13 +1892,13 @@ class AgentaApi:
         Builds a Docker image from a tar file containing the application code.
 
         Args:
-            app_id (str): The ID of the application to build the image for.
-            base_name (str): The base name of the image to build.
-            tar_file (UploadFile): The tar file containing the application code.
-            stoken_session (SessionContainer): The session container for the user making the request.
+        app_id (str): The ID of the application to build the image for.
+        base_name (str): The base name of the image to build.
+        tar_file (UploadFile): The tar file containing the application code.
+        stoken_session (SessionContainer): The session container for the user making the request.
 
         Returns:
-            Image: The Docker image that was built.
+        Image: The Docker image that was built.
 
         Parameters:
             - app_id: str.
@@ -2057,14 +1909,12 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "containers/build_image"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/build_image"),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Image, _response.json())  # type: ignore
@@ -2081,17 +1931,14 @@ class AgentaApi:
         Restart docker container.
 
         Args:
-            payload (RestartAppContainer) -- the required data (app_name and variant_name)
+        payload (RestartAppContainer) -- the required data (app_name and variant_name)
 
         Parameters:
             - variant_id: str.
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "containers/restart_container",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/restart_container"),
             json=jsonable_encoder({"variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2119,9 +1966,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "containers/templates"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/templates"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2134,24 +1979,21 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def construct_app_container_url(
-        self,
-        *,
-        base_id: typing.Optional[str] = None,
-        variant_id: typing.Optional[str] = None,
+        self, *, base_id: typing.Optional[str] = None, variant_id: typing.Optional[str] = None
     ) -> Uri:
         """
         Constructs the URL for an app container based on the provided base_id or variant_id.
 
         Args:
-            base_id (Optional[str]): The ID of the base to use for the app container.
-            variant_id (Optional[str]): The ID of the variant to use for the app container.
-            stoken_session (SessionContainer): The session container for the user.
+        base_id (Optional[str]): The ID of the base to use for the app container.
+        variant_id (Optional[str]): The ID of the variant to use for the app container.
+        stoken_session (SessionContainer): The session container for the user.
 
         Returns:
-            URI: The URI for the app container.
+        URI: The URI for the app container.
 
         Raises:
-            HTTPException: If the base or variant cannot be found or the user does not have access.
+        HTTPException: If the base or variant cannot be found or the user does not have access.
 
         Parameters:
             - base_id: typing.Optional[str].
@@ -2160,12 +2002,8 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "containers/container_url"
-            ),
-            params=remove_none_from_dict(
-                {"base_id": base_id, "variant_id": variant_id}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/container_url"),
+            params=remove_none_from_dict({"base_id": base_id, "variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2179,19 +2017,17 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def deploy_to_environment(
-        self, *, environment_name: str, variant_id: str
-    ) -> typing.Any:
+    def deploy_to_environment(self, *, environment_name: str, variant_id: str) -> typing.Any:
         """
         Deploys a given variant to an environment
 
         Args:
-            environment_name: Name of the environment to deploy to.
-            variant_id: variant id to deploy.
-            stoken_session: . Defaults to Depends(verify_session()).
+        environment_name: Name of the environment to deploy to.
+        variant_id: variant id to deploy.
+        stoken_session: . Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If the deployment fails.
+        HTTPException: If the deployment fails.
 
         Parameters:
             - environment_name: str.
@@ -2200,12 +2036,8 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "environments/deploy"
-            ),
-            json=jsonable_encoder(
-                {"environment_name": environment_name, "variant_id": variant_id}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "environments/deploy"),
+            json=jsonable_encoder({"environment_name": environment_name, "variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2274,9 +2106,7 @@ class AgentaApi:
             _request["tags"] = tags
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/traces"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2300,14 +2130,13 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_traces(app_id="app-id", variant_id="variant-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/traces/{app_id}/{variant_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{app_id}/{variant_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2329,10 +2158,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/traces/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2355,10 +2181,7 @@ class AgentaApi:
         """
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/traces/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
             json=jsonable_encoder({"status": status}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2459,9 +2282,7 @@ class AgentaApi:
             _request["tags"] = tags
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2483,15 +2304,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_spans_of_trace(trace_id="trace-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/spans/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{trace_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2512,15 +2330,12 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.get_feedbacks(trace_id="trace-id")
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2561,10 +2376,7 @@ class AgentaApi:
             _request["meta"] = meta
         _response = self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2589,8 +2401,7 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}/{feedback_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2634,8 +2445,7 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}/{feedback_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -2656,25 +2466,23 @@ class AgentaApi:
         Returns a list of organizations associated with the user's session.
 
         Args:
-            stoken_session (SessionContainer): The user's session token.
+        stoken_session (SessionContainer): The user's session token.
 
         Returns:
-            list[Organization]: A list of organizations associated with the user's session.
+        list[Organization]: A list of organizations associated with the user's session.
 
         Raises:
-            HTTPException: If there is an error retrieving the organizations from the database.
+        HTTPException: If there is an error retrieving the organizations from the database.
 
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_organizations()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2689,9 +2497,7 @@ class AgentaApi:
     def get_own_org(self) -> OrganizationOutput:
         _response = self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations/own"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations/own"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2704,24 +2510,21 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def list_bases(
-        self,
-        *,
-        app_id: typing.Optional[str] = None,
-        base_name: typing.Optional[str] = None,
+        self, *, app_id: typing.Optional[str] = None, base_name: typing.Optional[str] = None
     ) -> typing.List[BaseOutput]:
         """
         Retrieve a list of bases filtered by app_id and base_name.
 
         Args:
-            request (Request): The incoming request.
-            app_id (Optional[str], optional): The ID of the app to filter by. Defaults to None.
-            base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
+        request (Request): The incoming request.
+        app_id (Optional[str], optional): The ID of the app to filter by. Defaults to None.
+        base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
 
         Returns:
-            List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
+        List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
 
         Raises:
-            HTTPException: If there was an error retrieving the bases.
+        HTTPException: If there was an error retrieving the bases.
 
         Parameters:
             - app_id: typing.Optional[str].
@@ -2730,7 +2533,7 @@ class AgentaApi:
         ---
         from agenta.client import AgentaApi
 
-        client = AgentaApi(api_key="YOUR_API_KEY")
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         client.list_bases()
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -2751,11 +2554,7 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def get_config(
-        self,
-        *,
-        base_id: str,
-        config_name: typing.Optional[str] = None,
-        environment_name: typing.Optional[str] = None,
+        self, *, base_id: str, config_name: typing.Optional[str] = None, environment_name: typing.Optional[str] = None
     ) -> GetConfigReponse:
         """
         Parameters:
@@ -2769,11 +2568,7 @@ class AgentaApi:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             params=remove_none_from_dict(
-                {
-                    "base_id": base_id,
-                    "config_name": config_name,
-                    "environment_name": environment_name,
-                }
+                {"base_id": base_id, "config_name": config_name, "environment_name": environment_name}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2789,12 +2584,7 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def save_config(
-        self,
-        *,
-        base_id: str,
-        config_name: str,
-        parameters: typing.Dict[str, typing.Any],
-        overwrite: bool,
+        self, *, base_id: str, config_name: str, parameters: typing.Dict[str, typing.Any], overwrite: bool
     ) -> typing.Any:
         """
         Parameters:
@@ -2810,12 +2600,7 @@ class AgentaApi:
             "POST",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             json=jsonable_encoder(
-                {
-                    "base_id": base_id,
-                    "config_name": config_name,
-                    "parameters": parameters,
-                    "overwrite": overwrite,
-                }
+                {"base_id": base_id, "config_name": config_name, "parameters": parameters, "overwrite": overwrite}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -2832,18 +2617,9 @@ class AgentaApi:
 
 
 class AsyncAgentaApi:
-    def __init__(
-        self,
-        *,
-        base_url: typing.Optional[str] = None,
-        environment: AgentaApiEnvironment = AgentaApiEnvironment.DEFAULT,
-        api_key: str,
-        timeout: typing.Optional[float] = 60,
-    ):
+    def __init__(self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60):
         self._client_wrapper = AsyncClientWrapper(
-            base_url=_get_base_url(base_url=base_url, environment=environment),
-            api_key=api_key,
-            httpx_client=httpx.AsyncClient(timeout=timeout),
+            base_url=base_url, api_key=api_key, httpx_client=httpx.AsyncClient(timeout=timeout)
         )
 
     async def list_api_keys(self) -> ListApiKeysOutput:
@@ -2851,10 +2627,10 @@ class AsyncAgentaApi:
         List all API keys associated with the authenticated user.
 
         Args:
-            request (Request): The incoming request object.
+        request (Request): The incoming request object.
 
         Returns:
-            List[ListAPIKeysOutput]: A list of API Keys associated with the user.
+        List[ListAPIKeysOutput]: A list of API Keys associated with the user.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
@@ -2875,10 +2651,10 @@ class AsyncAgentaApi:
         Creates an API key for a user.
 
         Args:
-            request (Request): The request object containing the user ID in the request state.
+        request (Request): The request object containing the user ID in the request state.
 
         Returns:
-            str: The created API key.
+        str: The created API key.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -2899,28 +2675,26 @@ class AsyncAgentaApi:
         Delete an API key with the given key prefix for the authenticated user.
 
         Args:
-            key_prefix (str): The prefix of the API key to be deleted.
-            request (Request): The incoming request object.
+        key_prefix (str): The prefix of the API key to be deleted.
+        request (Request): The incoming request object.
 
         Returns:
-            dict: A dictionary containing a success message upon successful deletion.
+        dict: A dictionary containing a success message upon successful deletion.
 
         Raises:
-            HTTPException: If the API key is not found or does not belong to the user.
+        HTTPException: If the API key is not found or does not belong to the user.
 
         Parameters:
             - key_prefix: str.
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.delete_api_key(key_prefix="key-prefix")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2938,16 +2712,14 @@ class AsyncAgentaApi:
         """
         This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.
         Returns:
-            bool: True. If the request reaches this point, the API key is valid.
+        bool: True. If the request reaches this point, the API key is valid.
 
         Parameters:
             - key_prefix: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2966,20 +2738,18 @@ class AsyncAgentaApi:
         Get an organization's details.
 
         Raises:
-            HTTPException: _description_
-            Permission Denied
+        HTTPException: _description_
+        Permission Denied
 
         Returns:
-            OrganizationDB Instance
+        OrganizationDB Instance
 
         Parameters:
             - org_id: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -2998,14 +2768,14 @@ class AsyncAgentaApi:
         Invite a user to an Organization.
 
         Raises:
-            HTTPException: _description_; status_code: 500
-            HTTPException: This Organization doesn't exist; status_code: 400
-            HTTPException: Failed to invite user to organization; status_code: 403
-            HTTPException: You cannot invite yourself to your own organization; status_code: 400
-            HTTPException: You do not have permission to access this organization; status_code: 500
+        HTTPException: _description_; status_code: 500
+        HTTPException: This Organization doesn't exist; status_code: 400
+        HTTPException: Failed to invite user to organization; status_code: 403
+        HTTPException: You cannot invite yourself to your own organization; status_code: 400
+        HTTPException: You do not have permission to access this organization; status_code: 500
 
         Returns:
-            JSONResponse: Invited user to organization; status_code: 200
+        JSONResponse: Invited user to organization; status_code: 200
 
         Parameters:
             - org_id: str.
@@ -3014,10 +2784,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations_ee/{org_id}/invite",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/invite"),
             json=jsonable_encoder({"email": email}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3037,12 +2804,12 @@ class AsyncAgentaApi:
         Invite a user to an Organization.
 
         Raises:
-            HTTPException: _description_; status_code: 500
-            HTTPException: Invitation not found or has expired; status_code: 400
-            HTTPException: You already belong to this organization; status_code: 400
+        HTTPException: _description_; status_code: 500
+        HTTPException: Invitation not found or has expired; status_code: 400
+        HTTPException: You already belong to this organization; status_code: 400
 
         Returns:
-            JSONResponse: Added user to organization; status_code: 200
+        JSONResponse: Added user to organization; status_code: 200
 
         Parameters:
             - org_id: str.
@@ -3051,10 +2818,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations_ee/{org_id}/accept",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/accept"),
             json=jsonable_encoder({"token": token}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3076,9 +2840,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations_ee/create"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations_ee/create"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3094,11 +2856,7 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def update_organization(
-        self,
-        org_id: str,
-        *,
-        name: typing.Optional[str] = OMIT,
-        description: typing.Optional[str] = OMIT,
+        self, org_id: str, *, name: typing.Optional[str] = OMIT, description: typing.Optional[str] = OMIT
     ) -> typing.Any:
         """
         Parameters:
@@ -3115,10 +2873,7 @@ class AsyncAgentaApi:
             _request["description"] = description
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"organizations_ee/{org_id}/update",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}/update"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3168,25 +2923,23 @@ class AsyncAgentaApi:
         Retrieve a list of app variants for a given app ID.
 
         Args:
-            app_id (str): The ID of the app to retrieve variants for.
-            stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
+        app_id (str): The ID of the app to retrieve variants for.
+        stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
 
         Returns:
-            List[AppVariantOutput]: A list of app variants for the given app ID.
+        List[AppVariantOutput]: A list of app variants for the given app ID.
 
         Parameters:
             - app_id: str.
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_app_variants(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3200,22 +2953,20 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_variant_by_env(
-        self, *, app_id: str, environment: str
-    ) -> AppVariantOutput:
+    async def get_variant_by_env(self, *, app_id: str, environment: str) -> AppVariantOutput:
         """
         Retrieve the app variant based on the provided app_id and environment.
 
         Args:
-            app_id (str): The ID of the app to retrieve the variant for.
-            environment (str): The environment of the app variant to retrieve.
-            stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
+        app_id (str): The ID of the app to retrieve the variant for.
+        environment (str): The environment of the app variant to retrieve.
+        stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
+        HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
 
         Returns:
-            AppVariantOutput: The retrieved app variant.
+        AppVariantOutput: The retrieved app variant.
 
         Parameters:
             - app_id: str.
@@ -3224,12 +2975,8 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"
-            ),
-            params=remove_none_from_dict(
-                {"app_id": app_id, "environment": environment}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/get_variant_by_env"),
+            params=remove_none_from_dict({"app_id": app_id, "environment": environment}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3244,24 +2991,21 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def list_apps(
-        self,
-        *,
-        app_name: typing.Optional[str] = None,
-        org_id: typing.Optional[str] = None,
+        self, *, app_name: typing.Optional[str] = None, org_id: typing.Optional[str] = None
     ) -> typing.List[App]:
         """
         Retrieve a list of apps filtered by app_name and org_id.
 
         Args:
-            app_name (Optional[str]): The name of the app to filter by.
-            org_id (Optional[str]): The ID of the organization to filter by.
-            stoken_session (SessionContainer): The session container.
+        app_name (Optional[str]): The name of the app to filter by.
+        org_id (Optional[str]): The ID of the organization to filter by.
+        stoken_session (SessionContainer): The session container.
 
         Returns:
-            List[App]: A list of apps filtered by app_name and org_id.
+        List[App]: A list of apps filtered by app_name and org_id.
 
         Raises:
-            HTTPException: If there was an error retrieving the list of apps.
+        HTTPException: If there was an error retrieving the list of apps.
 
         Parameters:
             - app_name: typing.Optional[str].
@@ -3270,7 +3014,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_apps()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -3290,21 +3034,19 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_app(
-        self, *, app_name: str, organization_id: typing.Optional[str] = OMIT
-    ) -> CreateAppOutput:
+    async def create_app(self, *, app_name: str, organization_id: typing.Optional[str] = OMIT) -> CreateAppOutput:
         """
         Create a new app for a user or organization.
 
         Args:
-            payload (CreateApp): The payload containing the app name and organization ID (optional).
-            stoken_session (SessionContainer): The session container containing the user's session token.
+        payload (CreateApp): The payload containing the app name and organization ID (optional).
+        stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
-            CreateAppOutput: The output containing the newly created app's ID and name.
+        CreateAppOutput: The output containing the newly created app's ID and name.
 
         Raises:
-            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+        HTTPException: If there is an error creating the app or the user does not have permission to access the app.
 
         Parameters:
             - app_name: str.
@@ -3345,15 +3087,15 @@ class AsyncAgentaApi:
         Add a new variant to an app based on a Docker image.
 
         Args:
-            app_id (str): The ID of the app to add the variant to.
-            payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        app_id (str): The ID of the app to add the variant to.
+        payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
+        HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
 
         Returns:
-            dict: The newly added variant.
+        dict: The newly added variant.
 
         Parameters:
             - app_id: str.
@@ -3368,21 +3110,14 @@ class AsyncAgentaApi:
 
             - config_name: typing.Optional[str].
         """
-        _request: typing.Dict[str, typing.Any] = {
-            "variant_name": variant_name,
-            "docker_id": docker_id,
-            "tags": tags,
-        }
+        _request: typing.Dict[str, typing.Any] = {"variant_name": variant_name, "docker_id": docker_id, "tags": tags}
         if base_name is not OMIT:
             _request["base_name"] = base_name
         if config_name is not OMIT:
             _request["config_name"] = config_name
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"apps/{app_id}/variant/from-image",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variant/from-image"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3402,16 +3137,14 @@ class AsyncAgentaApi:
         Remove app, all its variant, containers and images
 
         Arguments:
-            app -- App to remove
+        app -- App to remove
 
         Parameters:
             - app_id: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3437,14 +3170,14 @@ class AsyncAgentaApi:
         Create an app and variant from a template.
 
         Args:
-            payload (CreateAppVariant): The payload containing the app and variant information.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        payload (CreateAppVariant): The payload containing the app and variant information.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If the user has reached the app limit or if an app with the same name already exists.
+        HTTPException: If the user has reached the app limit or if an app with the same name already exists.
 
         Returns:
-            AppVariantOutput: The output of the created app variant.
+        AppVariantOutput: The output of the created app variant.
 
         Parameters:
             - app_name: str.
@@ -3464,10 +3197,7 @@ class AsyncAgentaApi:
             _request["organization_id"] = organization_id
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "apps/app_and_variant_from_template",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps/app_and_variant_from_template"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3487,25 +3217,23 @@ class AsyncAgentaApi:
         Retrieve a list of environments for a given app ID.
 
         Args:
-            app_id (str): The ID of the app to retrieve environments for.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        app_id (str): The ID of the app to retrieve environments for.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-            List[EnvironmentOutput]: A list of environment objects.
+        List[EnvironmentOutput]: A list of environment objects.
 
         Parameters:
             - app_id: str.
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_environments(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3520,26 +3248,21 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def add_variant_from_base_and_config(
-        self,
-        *,
-        base_id: str,
-        new_variant_name: str,
-        new_config_name: str,
-        parameters: typing.Dict[str, typing.Any],
+        self, *, base_id: str, new_variant_name: str, new_config_name: str, parameters: typing.Dict[str, typing.Any]
     ) -> AddVariantFromBaseAndConfigResponse:
         """
         Add a new variant based on an existing one.
         Same as POST /config
 
         Args:
-            payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
-            stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
+        payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
+        stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
 
         Raises:
-            HTTPException: Raised if the variant could not be added or accessed.
+        HTTPException: Raised if the variant could not be added or accessed.
 
         Returns:
-            Union[AppVariantOutput, Any]: New variant details or exception.
+        Union[AppVariantOutput, Any]: New variant details or exception.
 
         Parameters:
             - base_id: str.
@@ -3552,9 +3275,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "variants/from-base"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "variants/from-base"),
             json=jsonable_encoder(
                 {
                     "base_id": base_id,
@@ -3577,26 +3298,22 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def start_variant(
-        self,
-        variant_id: str,
-        *,
-        action: VariantAction,
-        env_vars: typing.Optional[DockerEnvVars] = OMIT,
+        self, variant_id: str, *, action: VariantAction, env_vars: typing.Optional[DockerEnvVars] = OMIT
     ) -> Uri:
         """
         Start a variant of an app.
 
         Args:
-            variant_id (str): The ID of the variant to start.
-            action (VariantAction): The action to perform on the variant (start).
-            env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        variant_id (str): The ID of the variant to start.
+        action (VariantAction): The action to perform on the variant (start).
+        env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-            URI: The URL of the started variant.
+        URI: The URL of the started variant.
 
         Raises:
-            HTTPException: If the app container cannot be started.
+        HTTPException: If the app container cannot be started.
 
         Parameters:
             - variant_id: str.
@@ -3610,9 +3327,7 @@ class AsyncAgentaApi:
             _request["env_vars"] = env_vars
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3633,19 +3348,17 @@ class AsyncAgentaApi:
         In the case it's the last variant using the image, stop the container and remove the image.
 
         Arguments:
-            app_variant -- AppVariant to remove
+        app_variant -- AppVariant to remove
 
         Raises:
-            HTTPException: If there is a problem removing the app variant
+        HTTPException: If there is a problem removing the app variant
 
         Parameters:
             - variant_id: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3666,15 +3379,15 @@ class AsyncAgentaApi:
         Updates the parameters for an app variant.
 
         Args:
-            variant_id (str): The ID of the app variant to update.
-            payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        variant_id (str): The ID of the app variant to update.
+        payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If there is an error while trying to update the app variant.
+        HTTPException: If there is an error while trying to update the app variant.
 
         Returns:
-            JSONResponse: A JSON response containing the updated app variant parameters.
+        JSONResponse: A JSON response containing the updated app variant parameters.
 
         Parameters:
             - variant_id: str.
@@ -3683,10 +3396,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/parameters",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/parameters"),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3701,21 +3411,19 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_variant_image(
-        self, variant_id: str, *, request: Image
-    ) -> typing.Any:
+    async def update_variant_image(self, variant_id: str, *, request: Image) -> typing.Any:
         """
         Updates the image used in an app variant.
 
         Args:
-            variant_id (str): The ID of the app variant to update.
-            image (Image): The image information to update.
+        variant_id (str): The ID of the app variant to update.
+        image (Image): The image information to update.
 
         Raises:
-            HTTPException: If an error occurs while trying to update the app variant.
+        HTTPException: If an error occurs while trying to update the app variant.
 
         Returns:
-            JSONResponse: A JSON response indicating whether the update was successful or not.
+        JSONResponse: A JSON response indicating whether the update was successful or not.
 
         Parameters:
             - variant_id: str.
@@ -3724,10 +3432,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"variants/{variant_id}/image",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}/image"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3747,24 +3452,22 @@ class AsyncAgentaApi:
         Fetches a list of evaluations, optionally filtered by an app ID.
 
         Args:
-            app_id (Optional[str]): An optional app ID to filter the evaluations.
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
 
         Returns:
-            List[Evaluation]: A list of evaluations.
+        List[Evaluation]: A list of evaluations.
 
         Parameters:
             - app_id: str.
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.fetch_list_evaluations(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3793,9 +3496,9 @@ class AsyncAgentaApi:
         """
         Creates a new comparison table document
         Raises:
-            HTTPException: _description_
+        HTTPException: _description_
         Returns:
-            _description_
+        _description_
 
         Parameters:
             - app_id: str.
@@ -3824,9 +3527,7 @@ class AsyncAgentaApi:
             _request["evaluation_type_settings"] = evaluation_type_settings
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3841,9 +3542,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_evaluations(
-        self, *, evaluations_ids: typing.List[str]
-    ) -> typing.List[str]:
+    async def delete_evaluations(self, *, evaluations_ids: typing.List[str]) -> typing.List[str]:
         """
         Delete specific comparison tables based on their unique IDs.
 
@@ -3858,14 +3557,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.delete_evaluations(evaluations_ids=[])
         """
         _response = await self._client_wrapper.httpx_client.request(
             "DELETE",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "evaluations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations"),
             json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3885,20 +3582,17 @@ class AsyncAgentaApi:
         Fetches a single evaluation based on its ID.
 
         Args:
-            evaluation_id (str): The ID of the evaluation to fetch.
+        evaluation_id (str): The ID of the evaluation to fetch.
 
         Returns:
-            Evaluation: The fetched evaluation.
+        Evaluation: The fetched evaluation.
 
         Parameters:
             - evaluation_id: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -3923,10 +3617,10 @@ class AsyncAgentaApi:
         Updates an evaluation's status.
 
         Raises:
-            HTTPException: If the columns in the test set do not match with the inputs in the variant.
+        HTTPException: If the columns in the test set do not match with the inputs in the variant.
 
         Returns:
-            None: A 204 No Content status code, indicating that the update was successful.
+        None: A 204 No Content status code, indicating that the update was successful.
 
         Parameters:
             - evaluation_id: str.
@@ -3942,10 +3636,7 @@ class AsyncAgentaApi:
             _request["evaluation_type_settings"] = evaluation_type_settings
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -3960,34 +3651,31 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def fetch_evaluation_scenarios(
-        self, evaluation_id: str
-    ) -> typing.List[EvaluationScenario]:
+    async def fetch_evaluation_scenarios(self, evaluation_id: str) -> typing.List[EvaluationScenario]:
         """
         Fetches evaluation scenarios for a given evaluation ID.
 
         Arguments:
-            evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
 
         Raises:
-            HTTPException: If the evaluation is not found or access is denied.
+        HTTPException: If the evaluation is not found or access is denied.
 
         Returns:
-            List[EvaluationScenario]: A list of evaluation scenarios.
+        List[EvaluationScenario]: A list of evaluation scenarios.
 
         Parameters:
             - evaluation_id: str.
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.fetch_evaluation_scenarios(evaluation_id="evaluation-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenarios",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenarios"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4002,17 +3690,15 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_evaluation_scenario(
-        self, evaluation_id: str, *, request: EvaluationScenario
-    ) -> typing.Any:
+    async def create_evaluation_scenario(self, evaluation_id: str, *, request: EvaluationScenario) -> typing.Any:
         """
         Create a new evaluation scenario for a given evaluation ID.
 
         Raises:
-            HTTPException: If evaluation not found or access denied.
+        HTTPException: If evaluation not found or access denied.
 
         Returns:
-            None: 204 No Content status code upon success.
+        None: 204 No Content status code upon success.
 
         Parameters:
             - evaluation_id: str.
@@ -4022,8 +3708,7 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/evaluation_scenario",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/evaluation_scenario"
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
@@ -4057,10 +3742,10 @@ class AsyncAgentaApi:
         Updates an evaluation scenario's vote or score based on its type.
 
         Raises:
-            HTTPException: If update fails or unauthorized.
+        HTTPException: If update fails or unauthorized.
 
         Returns:
-            None: 204 No Content status code upon successful update.
+        None: 204 No Content status code upon successful update.
 
         Parameters:
             - evaluation_id: str.
@@ -4132,14 +3817,14 @@ class AsyncAgentaApi:
         Evaluate AI critique based on the given payload.
 
         Args:
-            payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
-            stoken_session (SessionContainer): The session container verified by `verify_session`.
+        payload (AICritiqueCreate): The payload containing data for AI critique evaluation.
+        stoken_session (SessionContainer): The session container verified by `verify_session`.
 
         Returns:
-            str: The output of the AI critique evaluation.
+        str: The output of the AI critique evaluation.
 
         Raises:
-            HTTPException: If any exception occurs during the evaluation.
+        HTTPException: If any exception occurs during the evaluation.
 
         Parameters:
             - correct_answer: str.
@@ -4168,8 +3853,7 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/evaluation_scenario/ai_critique",
+                f"{self._client_wrapper.get_base_url()}/", "evaluations/evaluation_scenario/ai_critique"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -4185,25 +3869,23 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_evaluation_scenario_score(
-        self, evaluation_scenario_id: str
-    ) -> typing.Dict[str, str]:
+    async def get_evaluation_scenario_score(self, evaluation_scenario_id: str) -> typing.Dict[str, str]:
         """
         Fetch the score of a specific evaluation scenario.
 
         Args:
-            evaluation_scenario_id: The ID of the evaluation scenario to fetch.
-            stoken_session: Session data, verified by `verify_session`.
+        evaluation_scenario_id: The ID of the evaluation scenario to fetch.
+        stoken_session: Session data, verified by `verify_session`.
 
         Returns:
-            Dictionary containing the scenario ID and its score.
+        Dictionary containing the scenario ID and its score.
 
         Parameters:
             - evaluation_scenario_id: str.
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_evaluation_scenario_score(evaluation_scenario_id="evaluation-scenario-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -4225,17 +3907,15 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_evaluation_scenario_score(
-        self, evaluation_scenario_id: str, *, score: float
-    ) -> typing.Any:
+    async def update_evaluation_scenario_score(self, evaluation_scenario_id: str, *, score: float) -> typing.Any:
         """
         Updates the score of an evaluation scenario.
 
         Raises:
-            HTTPException: Server error if the evaluation update fails.
+        HTTPException: Server error if the evaluation update fails.
 
         Returns:
-            None: 204 No Content status code upon successful update.
+        None: 204 No Content status code upon successful update.
 
         Parameters:
             - evaluation_scenario_id: str.
@@ -4267,20 +3947,17 @@ class AsyncAgentaApi:
         Fetch all the results for one the comparison table
 
         Arguments:
-            evaluation_id -- _description_
+        evaluation*id -- \_description*
 
         Returns:
-            _description_
+        _description_
 
         Parameters:
             - evaluation_id: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/{evaluation_id}/results",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/{evaluation_id}/results"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4294,13 +3971,11 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_custom_evaluation(
-        self, *, request: CreateCustomEvaluation
-    ) -> typing.Any:
+    async def create_custom_evaluation(self, *, request: CreateCustomEvaluation) -> typing.Any:
         """
         Create evaluation with custom python code.
 
-           Args:
+        Args:
 
         custom_evaluation_payload (CreateCustomEvaluation): the required payload
 
@@ -4309,10 +3984,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/custom_evaluation",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/custom_evaluation"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4332,20 +4004,17 @@ class AsyncAgentaApi:
         Get the custom code evaluation detail.
 
         Args:
-            id (str): the id of the custom evaluation
+        id (str): the id of the custom evaluation
 
         Returns:
-            CustomEvaluationDetail: Detail of the custom evaluation
+        CustomEvaluationDetail: Detail of the custom evaluation
 
         Parameters:
             - id: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4359,15 +4028,13 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_custom_evaluation(
-        self, id: str, *, request: CreateCustomEvaluation
-    ) -> typing.Any:
+    async def update_custom_evaluation(self, id: str, *, request: CreateCustomEvaluation) -> typing.Any:
         """
         Update a custom code evaluation.
         Args:
-            id (str): the ID of the custom evaluation to update
-            updated_data (CreateCustomEvaluation): the payload with updated data
-            stoken_session (SessionContainer): session container for authentication
+        id (str): the ID of the custom evaluation to update
+        updated_data (CreateCustomEvaluation): the payload with updated data
+        stoken_session (SessionContainer): session container for authentication
 
         Parameters:
             - id: str.
@@ -4376,10 +4043,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4394,31 +4058,28 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_custom_evaluations(
-        self, app_id: str
-    ) -> typing.List[CustomEvaluationOutput]:
+    async def list_custom_evaluations(self, app_id: str) -> typing.List[CustomEvaluationOutput]:
         """
         List the custom code evaluations for a given app.
 
         Args:
-            app_id (str): the id of the app
+        app_id (str): the id of the app
 
         Returns:
-            List[CustomEvaluationOutput]: a list of custom evaluation
+        List[CustomEvaluationOutput]: a list of custom evaluation
 
         Parameters:
             - app_id: str.
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_custom_evaluations(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/list/{app_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/list/{app_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4433,31 +4094,28 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def get_custom_evaluation_names(
-        self, app_name: str
-    ) -> typing.List[CustomEvaluationNames]:
+    async def get_custom_evaluation_names(self, app_name: str) -> typing.List[CustomEvaluationNames]:
         """
         Get the names of custom evaluation for a given app.
 
         Args:
-            app_name (str): the name of the app the evaluation belongs to
+        app_name (str): the name of the app the evaluation belongs to
 
         Returns:
-            List[CustomEvaluationNames]: the list of name of custom evaluations
+        List[CustomEvaluationNames]: the list of name of custom evaluations
 
         Parameters:
             - app_name: str.
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_custom_evaluation_names(app_name="app-name")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/{app_name}/names",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/{app_name}/names"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4486,11 +4144,11 @@ class AsyncAgentaApi:
         Execute a custom evaluation code.
 
         Args:
-            evaluation_id (str): the custom evaluation id
-            payload (ExecuteCustomEvaluationCode): the required payload
+        evaluation_id (str): the custom evaluation id
+        payload (ExecuteCustomEvaluationCode): the required payload
 
         Returns:
-            float: the result of the evaluation custom code
+        float: the result of the evaluation custom code
 
         Parameters:
             - evaluation_id: str.
@@ -4508,8 +4166,7 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"evaluations/custom_evaluation/execute/{evaluation_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"evaluations/custom_evaluation/execute/{evaluation_id}"
             ),
             json=jsonable_encoder(
                 {
@@ -4538,14 +4195,11 @@ class AsyncAgentaApi:
         Returns a fake score response for example webhook evaluation
 
         Returns:
-            _description_
+        _description_
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "evaluations/webhook_example_fake",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "evaluations/webhook_example_fake"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4565,11 +4219,11 @@ class AsyncAgentaApi:
 
         Args:
         upload_type : Either a json or csv file.
-            file (UploadFile): The CSV or JSON file to upload.
-            testset_name (Optional): the name of the testset if provided.
+        file (UploadFile): The CSV or JSON file to upload.
+        testset_name (Optional): the name of the testset if provided.
 
         Returns:
-            dict: The result of the upload process.
+        dict: The result of the upload process.
 
         Parameters:
             - upload_type: str.
@@ -4582,16 +4236,8 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/upload"
-            ),
-            data=jsonable_encoder(
-                {
-                    "upload_type": upload_type,
-                    "testset_name": testset_name,
-                    "app_id": app_id,
-                }
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/upload"),
+            data=jsonable_encoder({"upload_type": upload_type, "testset_name": testset_name, "app_id": app_id}),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4611,17 +4257,15 @@ class AsyncAgentaApi:
         Import JSON testset data from an endpoint and save it to MongoDB.
 
         Args:
-            endpoint (str): An endpoint URL to import data from.
-            testset_name (str): the name of the testset if provided.
+        endpoint (str): An endpoint URL to import data from.
+        testset_name (str): the name of the testset if provided.
 
         Returns:
-            dict: The result of the import process.
+        dict: The result of the import process.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4635,9 +4279,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_testset(
-        self, app_id: str, *, request: NewTestset
-    ) -> TestSetSimpleResponse:
+    async def create_testset(self, app_id: str, *, request: NewTestset) -> TestSetSimpleResponse:
         """
         Create a testset with given name and app_name, save the testset to MongoDB.
 
@@ -4656,9 +4298,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{app_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4675,22 +4315,20 @@ class AsyncAgentaApi:
 
     async def get_single_testset(self, testset_id: str) -> typing.Any:
         """
-        Fetch a specific testset in a MongoDB collection using its _id.
+        Fetch a specific testset in a MongoDB collection using its \_id.
 
         Args:
-            testset_id (str): The _id of the testset to fetch.
+        testset_id (str): The \_id of the testset to fetch.
 
         Returns:
-            The requested testset if found, else an HTTPException.
+        The requested testset if found, else an HTTPException.
 
         Parameters:
             - testset_id: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4704,9 +4342,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def update_testset(
-        self, testset_id: str, *, request: NewTestset
-    ) -> typing.Any:
+    async def update_testset(self, testset_id: str, *, request: NewTestset) -> typing.Any:
         """
         Update a testset with given id, update the testset in MongoDB.
 
@@ -4724,9 +4360,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4746,9 +4380,11 @@ class AsyncAgentaApi:
         Get all testsets.
 
         Returns:
+
         - A list of testset objects.
 
         Raises:
+
         - `HTTPException` with status code 404 if no testsets are found.
 
         Parameters:
@@ -4756,7 +4392,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_testsets(app_id="app-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -4776,9 +4412,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_testsets(
-        self, *, testset_ids: typing.List[str]
-    ) -> typing.List[str]:
+    async def delete_testsets(self, *, testset_ids: typing.List[str]) -> typing.List[str]:
         """
         Delete specific testsets based on their unique IDs.
 
@@ -4793,7 +4427,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.delete_testsets(testset_ids=[])
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -4813,20 +4447,18 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def build_image(
-        self, *, app_id: str, base_name: str, tar_file: typing.IO
-    ) -> Image:
+    async def build_image(self, *, app_id: str, base_name: str, tar_file: typing.IO) -> Image:
         """
         Builds a Docker image from a tar file containing the application code.
 
         Args:
-            app_id (str): The ID of the application to build the image for.
-            base_name (str): The base name of the image to build.
-            tar_file (UploadFile): The tar file containing the application code.
-            stoken_session (SessionContainer): The session container for the user making the request.
+        app_id (str): The ID of the application to build the image for.
+        base_name (str): The base name of the image to build.
+        tar_file (UploadFile): The tar file containing the application code.
+        stoken_session (SessionContainer): The session container for the user making the request.
 
         Returns:
-            Image: The Docker image that was built.
+        Image: The Docker image that was built.
 
         Parameters:
             - app_id: str.
@@ -4837,9 +4469,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "containers/build_image"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/build_image"),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
@@ -4856,24 +4486,19 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def restart_container(
-        self, *, variant_id: str
-    ) -> typing.Dict[str, typing.Any]:
+    async def restart_container(self, *, variant_id: str) -> typing.Dict[str, typing.Any]:
         """
         Restart docker container.
 
         Args:
-            payload (RestartAppContainer) -- the required data (app_name and variant_name)
+        payload (RestartAppContainer) -- the required data (app_name and variant_name)
 
         Parameters:
             - variant_id: str.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                "containers/restart_container",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/restart_container"),
             json=jsonable_encoder({"variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -4901,9 +4526,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "containers/templates"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/templates"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4916,24 +4539,21 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def construct_app_container_url(
-        self,
-        *,
-        base_id: typing.Optional[str] = None,
-        variant_id: typing.Optional[str] = None,
+        self, *, base_id: typing.Optional[str] = None, variant_id: typing.Optional[str] = None
     ) -> Uri:
         """
         Constructs the URL for an app container based on the provided base_id or variant_id.
 
         Args:
-            base_id (Optional[str]): The ID of the base to use for the app container.
-            variant_id (Optional[str]): The ID of the variant to use for the app container.
-            stoken_session (SessionContainer): The session container for the user.
+        base_id (Optional[str]): The ID of the base to use for the app container.
+        variant_id (Optional[str]): The ID of the variant to use for the app container.
+        stoken_session (SessionContainer): The session container for the user.
 
         Returns:
-            URI: The URI for the app container.
+        URI: The URI for the app container.
 
         Raises:
-            HTTPException: If the base or variant cannot be found or the user does not have access.
+        HTTPException: If the base or variant cannot be found or the user does not have access.
 
         Parameters:
             - base_id: typing.Optional[str].
@@ -4942,12 +4562,8 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "containers/container_url"
-            ),
-            params=remove_none_from_dict(
-                {"base_id": base_id, "variant_id": variant_id}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "containers/container_url"),
+            params=remove_none_from_dict({"base_id": base_id, "variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -4961,19 +4577,17 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def deploy_to_environment(
-        self, *, environment_name: str, variant_id: str
-    ) -> typing.Any:
+    async def deploy_to_environment(self, *, environment_name: str, variant_id: str) -> typing.Any:
         """
         Deploys a given variant to an environment
 
         Args:
-            environment_name: Name of the environment to deploy to.
-            variant_id: variant id to deploy.
-            stoken_session: . Defaults to Depends(verify_session()).
+        environment_name: Name of the environment to deploy to.
+        variant_id: variant id to deploy.
+        stoken_session: . Defaults to Depends(verify_session()).
 
         Raises:
-            HTTPException: If the deployment fails.
+        HTTPException: If the deployment fails.
 
         Parameters:
             - environment_name: str.
@@ -4982,12 +4596,8 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "environments/deploy"
-            ),
-            json=jsonable_encoder(
-                {"environment_name": environment_name, "variant_id": variant_id}
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "environments/deploy"),
+            json=jsonable_encoder({"environment_name": environment_name, "variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -5056,9 +4666,7 @@ class AsyncAgentaApi:
             _request["tags"] = tags
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/traces"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/traces"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5082,14 +4690,13 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_traces(app_id="app-id", variant_id="variant-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/traces/{app_id}/{variant_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{app_id}/{variant_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5111,10 +4718,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/traces/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -5137,10 +4741,7 @@ class AsyncAgentaApi:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/traces/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/traces/{trace_id}"),
             json=jsonable_encoder({"status": status}),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5241,9 +4842,7 @@ class AsyncAgentaApi:
             _request["tags"] = tags
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "observability/spans"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "observability/spans"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5265,15 +4864,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_spans_of_trace(trace_id="trace-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/spans/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/spans/{trace_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -5294,15 +4890,12 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.get_feedbacks(trace_id="trace-id")
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -5343,10 +4936,7 @@ class AsyncAgentaApi:
             _request["meta"] = meta
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}",
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5371,8 +4961,7 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}/{feedback_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5416,8 +5005,7 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "PUT",
             urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/",
-                f"observability/feedbacks/{trace_id}/{feedback_id}",
+                f"{self._client_wrapper.get_base_url()}/", f"observability/feedbacks/{trace_id}/{feedback_id}"
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
@@ -5438,25 +5026,23 @@ class AsyncAgentaApi:
         Returns a list of organizations associated with the user's session.
 
         Args:
-            stoken_session (SessionContainer): The user's session token.
+        stoken_session (SessionContainer): The user's session token.
 
         Returns:
-            list[Organization]: A list of organizations associated with the user's session.
+        list[Organization]: A list of organizations associated with the user's session.
 
         Raises:
-            HTTPException: If there is an error retrieving the organizations from the database.
+        HTTPException: If there is an error retrieving the organizations from the database.
 
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_organizations()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -5471,9 +5057,7 @@ class AsyncAgentaApi:
     async def get_own_org(self) -> OrganizationOutput:
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
-            urllib.parse.urljoin(
-                f"{self._client_wrapper.get_base_url()}/", "organizations/own"
-            ),
+            urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "organizations/own"),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
@@ -5486,24 +5070,21 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def list_bases(
-        self,
-        *,
-        app_id: typing.Optional[str] = None,
-        base_name: typing.Optional[str] = None,
+        self, *, app_id: typing.Optional[str] = None, base_name: typing.Optional[str] = None
     ) -> typing.List[BaseOutput]:
         """
         Retrieve a list of bases filtered by app_id and base_name.
 
         Args:
-            request (Request): The incoming request.
-            app_id (Optional[str], optional): The ID of the app to filter by. Defaults to None.
-            base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
+        request (Request): The incoming request.
+        app_id (Optional[str], optional): The ID of the app to filter by. Defaults to None.
+        base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
 
         Returns:
-            List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
+        List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
 
         Raises:
-            HTTPException: If there was an error retrieving the bases.
+        HTTPException: If there was an error retrieving the bases.
 
         Parameters:
             - app_id: typing.Optional[str].
@@ -5512,7 +5093,7 @@ class AsyncAgentaApi:
         ---
         from agenta.client import AsyncAgentaApi
 
-        client = AsyncAgentaApi(api_key="YOUR_API_KEY")
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
         await client.list_bases()
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -5533,11 +5114,7 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def get_config(
-        self,
-        *,
-        base_id: str,
-        config_name: typing.Optional[str] = None,
-        environment_name: typing.Optional[str] = None,
+        self, *, base_id: str, config_name: typing.Optional[str] = None, environment_name: typing.Optional[str] = None
     ) -> GetConfigReponse:
         """
         Parameters:
@@ -5551,11 +5128,7 @@ class AsyncAgentaApi:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             params=remove_none_from_dict(
-                {
-                    "base_id": base_id,
-                    "config_name": config_name,
-                    "environment_name": environment_name,
-                }
+                {"base_id": base_id, "config_name": config_name, "environment_name": environment_name}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5571,12 +5144,7 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def save_config(
-        self,
-        *,
-        base_id: str,
-        config_name: str,
-        parameters: typing.Dict[str, typing.Any],
-        overwrite: bool,
+        self, *, base_id: str, config_name: str, parameters: typing.Dict[str, typing.Any], overwrite: bool
     ) -> typing.Any:
         """
         Parameters:
@@ -5592,12 +5160,7 @@ class AsyncAgentaApi:
             "POST",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "configs"),
             json=jsonable_encoder(
-                {
-                    "base_id": base_id,
-                    "config_name": config_name,
-                    "parameters": parameters,
-                    "overwrite": overwrite,
-                }
+                {"base_id": base_id, "config_name": config_name, "parameters": parameters, "overwrite": overwrite}
             ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
@@ -5611,16 +5174,3 @@ class AsyncAgentaApi:
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
-
-
-def _get_base_url(
-    *, base_url: typing.Optional[str] = None, environment: AgentaApiEnvironment
-) -> str:
-    if base_url is not None:
-        return base_url
-    elif environment is not None:
-        return environment.value
-    else:
-        raise Exception(
-            "Please pass in either base_url or environment to construct the client"
-        )
