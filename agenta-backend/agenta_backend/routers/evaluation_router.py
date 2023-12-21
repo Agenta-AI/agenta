@@ -3,6 +3,7 @@ import secrets
 from typing import List, Dict
 
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from fastapi import HTTPException, APIRouter, Body, Request, status, Response
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
@@ -22,7 +23,6 @@ from agenta_backend.models.api.evaluation_model import (
     CreateCustomEvaluation,
     EvaluationUpdate,
     EvaluationWebhook,
-    SimpleEvaluationOutput,
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
@@ -45,7 +45,6 @@ from agenta_backend.models import converters
 from agenta_backend.services import results_service
 from agenta_backend.tasks.evaluations import evaluate
 
-from fastapi.encoders import jsonable_encoder
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
@@ -57,7 +56,6 @@ else:
 router = APIRouter()
 
 
-# @router.post("/", response_model=SimpleEvaluationOutput)
 @router.post("/")
 async def create_evaluation(
     payload: NewEvaluation,
@@ -141,9 +139,10 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
     """
 
     try:
-        ...
+        results = await evaluation_service.retrieve_evaluation_results(evaluation_id)
+        return {**results, "evaluation_id": evaluation_id}
     except Exception as exc:
-        raise ...
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.put("/{evaluation_id}/")
