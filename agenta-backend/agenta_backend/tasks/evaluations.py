@@ -3,7 +3,7 @@ from bson import ObjectId
 from celery import shared_task
 import asyncio
 from datetime import datetime
-from typing import List
+from typing import List, Tuple, Dict
 import uuid
 
 from agenta_backend.services import llm_apps_service
@@ -36,7 +36,7 @@ def evaluate(app_data, new_evaluation_data):
     app = AppDB(**app_data)
 
     # This will generate a name in case it's run from cli
-    new_evaluation.evaluators_configs = process_evaluators_configs(
+    new_evaluation.evaluators_configs, evaluator_key_name_mapping = process_evaluators_configs(
         new_evaluation.evaluators_configs
     )
 
@@ -101,7 +101,8 @@ def evaluate(app_data, new_evaluation_data):
                 )
             )
 
-    aggregated_results = aggregate_evaluator_results(evaluators_aggregated_data)
+    aggregated_results = aggregate_evaluator_results(evaluators_aggregated_data, evaluator_key_name_mapping)
+
     updated_evaluation = loop.run_until_complete(
         update_evaluation_with_aggregated_results(
             new_evaluation_db.id, aggregated_results
@@ -111,24 +112,30 @@ def evaluate(app_data, new_evaluation_data):
 
 def process_evaluators_configs(
     evaluators_configs: List[EvaluatorConfig],
-) -> List[EvaluatorConfigDB]:
-    """Process evaluators_configs to include names if missing."""
+) -> Tuple[List[EvaluatorConfigDB], Dict[str, str]]:
+    """Process evaluators_configs to include names if missing and return a mapping of evaluator keys to names."""
     processed_configs = []
+    evaluator_key_name_mapping = {}
     for config in evaluators_configs:
         config_dict = config.dict()
         if "name" not in config_dict:
             config_dict["name"] = f"Evaluator_{uuid.uuid4()}"  # Generate a random name
         processed_config = EvaluatorConfigDB(**config_dict)
         processed_configs.append(processed_config)
-    return processed_configs
+        evaluator_key_name_mapping[config_dict["evaluator_key"]] = config_dict["name"]
+    return processed_configs, evaluator_key_name_mapping
 
 
-def aggregate_evaluator_results(evaluators_aggregated_data):
+def aggregate_evaluator_results(evaluators_aggregated_data, evaluator_key_name_mapping):
     aggregated_results = []
     for evaluator_key, values in evaluators_aggregated_data.items():
         average_value = sum(values) / len(values) if values else 0
+        evaluator_name = evaluator_key_name_mapping.get(evaluator_key, "Unknown Evaluator")
         aggregated_result_value: AggregatedResult = AggregatedResult(
-            evaluator_config=EvaluatorConfigDB(evaluator_key=evaluator_key),
+            evaluator_config=EvaluatorConfigDB(
+                name=evaluator_name,
+                evaluator_key=evaluator_key
+            ),
             result=Result(type="number", value=str(average_value)),
         )
         aggregated_results.append(aggregated_result_value)
