@@ -1,3 +1,4 @@
+# https://raw.githubusercontent.com/langchain-ai/langchain/23eb480c3866db8693a3a2d63b787c898c54bb35/libs/community/langchain_community/callbacks/openai_info.py
 MODEL_COST_PER_1K_TOKENS = {
     # GPT-4 input
     "gpt-4": 0.03,
