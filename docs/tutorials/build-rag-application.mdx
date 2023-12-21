@@ -1,0 +1,77 @@
+---
+title: RAG application with LlamaIndex
+description: Build a playground and evaluate with you RAG application 
+---
+
+Retrieval Augmented Generation (RAG) is a very useful architecture for grounding the LLM application with your own knowldge base. However, it is not easy to build a robust RAG application that does not hallucinate and answers truthfully.
+
+In this tutorial, we will show how to use a RAG application built with [LlamaIndex](https://www.llamaindex.ai/). We will create a playground based on the RAG application allowing us to quickly test different configurations in a live playground. Then we will evaluate different variants of the RAG application with the playground.
+
+You can find the full code for this tutorial [here](https://github.com/Agenta-AI/qa_llama_index_playground)
+
+Let's get started
+
+## What are we building?
+
+Our goal is to build a RAG application. The application takes a transcript of a conversation and a question then returns the answer. 
+
+We want to quickly iterate on the configuration of the RAG application and evaluate the performance of each configuration. 
+
+Here is a list of parameters we would to experiment with in the playground:
+
+- How to split the transcript: the separator, the chunk size, and the overlap, and the text splitter to use in LlamaIndex (`TokenTextSplitter` or `SentenceSplitter`)
+- The embedding model to be used (`Davinci`, `Curie`, `Babbage`, `ADA`, `Text_embed_ada_002`)
+- The embedding mode: similarity mode or text search mode
+- The LLM model to be used to generate the final response (`gpt3.5-turbo`, `gpt4`...)
+
+After finishing, we will have a playground where we can experiment with these different parameters live, and compare the outputs between different configuration side-by-side.
+
+In addition, we will be able to run evaluations on the different versions to score them, and later deploy the best version to production, without any overhead.
+
+## Installation and Setup
+
+First, let's make sure that you have the latest version of agenta installed.  
+```bash
+pip install -U agenta
+```
+
+Now let's initialize our project 
+
+```bash
+agenta init
+````
+
+## Write the core application
+
+The idea behind agenta is to distangle the core application code from the parameters. So first let's write the core code of the application using some default parameters. Then we will extract the parameters, add them to the configuration and add the agenta lines of codes.
+
+### The core application
+
+Let's start by writing a simple application with LlamaIndex. 
+
+
+```python
+text_splitter = TEXT_SPLITTERS[text_splitter](
+    separator=ag.config.splitter_separator,
+    chunk_size=ag.config.text_splitter_chunk_size,
+    chunk_overlap=ag.config.text_splitter_chunk_overlap,
+)
+service_context = ServiceContext.from_defaults(
+    llm=OpenAI(temperature=ag.config.temperature, model=ag.config.model),
+    embed_model=OpenAIEmbedding(
+        mode=EMBEDDING_MODES[ag.config.embedding_mode],
+        model=EMBEDDING_MODELS[ag.config.embedding_model],
+    ),
+    node_parser=SimpleNodeParser(text_splitter=text_splitter),
+)
+# build a vector store index from the transcript as message documents
+index = VectorStoreIndex.from_documents(
+    documents=[Document(text=transcript)], service_context=service_context
+)
+
+query_engine = index.as_query_engine(
+    text_qa_template=prompt, service_context=service_context
+)
+response = query_engine.query(question)
+print(response)
+```
