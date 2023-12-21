@@ -59,7 +59,15 @@ fern init --openapi https://cloud.agenta.ai/api/openapi.json
         version: 0.6.0
     ```
 
-6. Change the path from this `path: ../generated/typescript` to this path: `../backend`
+6. Set timeout.
+    > Default timeout is 60 seconds but some operations in the CLI can take longer
+    Configure the python sdk to use a specified timeout by adding this configuration.
+    ```yaml
+        config:
+          timeout_in_seconds: 600
+    ```
+
+7. Change the path from this `path: ../generated/typescript` to this path: `../backend`
 
     Now your generators.yml should look like this;
     ```yaml
@@ -72,14 +80,16 @@ fern init --openapi https://cloud.agenta.ai/api/openapi.json
             output:
               location: local-file-system
               path: ../backend
+            config:
+              timeout_in_seconds: 600
     ```
 
-7. Go to the fern.config.json file and change the value of "organization" to `agenta`
+8.  Go to the fern.config.json file and change the value of "organization" to `agenta`
    
-8.  Generate the client code
+9.  Generate the client code
    
     ```bash
         fern generate
     ```
 
-9. Delete the fern folder.
+10. Delete the fern folder.
