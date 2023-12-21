@@ -140,7 +140,7 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
 
     try:
         results = await evaluation_service.retrieve_evaluation_results(evaluation_id)
-        return {**results, "evaluation_id": evaluation_id}
+        return {"results": results, "evaluation_id": evaluation_id}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
