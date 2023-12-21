@@ -83,22 +83,21 @@ async def create_evaluation(
                 status_code=400,
             )
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
-
         if app is None:
             raise HTTPException(status_code=404, detail="App not found")
-        # TODO: clean this
-        # new_evaluation_db = await evaluation_service.create_new_evaluation(
-        #     payload, **user_org_data
-        # )
+
         app_data = jsonable_encoder(app)
         new_evaluation_data = payload.dict()
-        # TODO: to review/find a better solution
-        # We need to serilize the data we pass to celery tasks otherwise we will get serilisation errors
+        evaluation = await evaluation_service.create_new_evaluation(
+            app_data=app_data,
+            new_evaluation_data=new_evaluation_data,
+        )
 
-        evaluate.delay(app_data, new_evaluation_data)
-
-        return 200
-        # return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
+        # Start celery task
+        evaluate.delay(
+            app_data, new_evaluation_data, evaluation.id, evaluation.testset_id
+        )
+        return evaluation.id
     except KeyError:
         raise HTTPException(
             status_code=400,
