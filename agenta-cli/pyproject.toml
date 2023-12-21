@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.6.7"
+version = "0.6.8"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = ["Mahmoud Mabrouk <mahmoud@agenta.ai>"]
@@ -19,7 +19,7 @@ keywords = ["LLMOps", "LLM", "evaluation", "prompt engineering"]
 python = "^3.9"
 docker = "^6.1.1"
 click = "^8.1.3"
-fastapi = ">=0.95"
+fastapi = "^0.95.1"
 toml = "^0.10.2"
 questionary = "^1.10.0"
 ipdb = ">=0.13"
