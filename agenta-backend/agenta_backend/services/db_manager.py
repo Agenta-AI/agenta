@@ -19,6 +19,7 @@ from agenta_backend.models.converters import (
 )
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
+    AggregatedResult,
     AppDB,
     AppVariantDB,
     EvaluationScenarioInputDB,
@@ -1632,6 +1633,7 @@ async def create_new_evaluation(
         testset=testset,
         variants=variants,
         evaluators_configs=evaluators_configs,
+        aggregated_results=[],
         created_at=datetime.now().isoformat(),
         updated_at=datetime.now().isoformat(),
     )
@@ -1671,3 +1673,18 @@ async def create_new_evaluation_scenario(
     )
     await engine.save(evaluation_scenario)
     return evaluation_scenario
+
+
+async def update_evaluation_with_aggregated_results(
+    evaluation_id: ObjectId, aggregated_results: List[AggregatedResult]
+) -> EvaluationDB:
+    evaluation = await engine.find_one(EvaluationDB, EvaluationDB.id == evaluation_id)
+
+    if not evaluation:
+        raise ValueError("Evaluation not found")
+
+    evaluation.aggregated_results = aggregated_results
+    evaluation.updated_at = datetime.utcnow().isoformat()
+
+    await engine.save(evaluation)
+    return evaluation
