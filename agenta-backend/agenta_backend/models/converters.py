@@ -17,6 +17,7 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioDB,
     VariantBaseDB,
     UserDB,
+    AggregatedResult,
 )
 from agenta_backend.models.api.api_models import (
     AppVariant,
@@ -80,6 +81,19 @@ async def evaluation_db_to_pydantic(
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
+
+
+def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
+    list_of_aggregated_results = []
+    for aggregated_result in results:
+        result_dict = {
+            "evaluator_config": aggregated_result.evaluator_config.json(
+                exclude={"created_at", "updated_at"}
+            ),
+            "result": aggregated_result.result.json(),
+        }
+        list_of_aggregated_results.append(result_dict)
+    return list_of_aggregated_results
 
 
 def evaluation_scenario_db_to_pydantic(
