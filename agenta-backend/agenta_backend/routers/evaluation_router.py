@@ -97,7 +97,7 @@ async def create_evaluation(
         evaluate.delay(
             app_data, new_evaluation_data, evaluation.id, evaluation.testset_id
         )
-        return evaluation.id
+        return evaluation
     except KeyError:
         raise HTTPException(
             status_code=400,
