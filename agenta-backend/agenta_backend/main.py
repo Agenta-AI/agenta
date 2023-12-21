@@ -79,3 +79,17 @@ app.include_router(observability_router.router, prefix="/observability")
 app.include_router(organization_router.router, prefix="/organizations")
 app.include_router(bases_router.router, prefix="/bases")
 app.include_router(configs_router.router, prefix="/configs")
+
+APIKeyHeader = {
+    "APIKeyHeader": []
+}
+
+app.openapi()["components"]["securitySchemes"] = {
+    "APIKeyHeader": {
+        "type": "apiKey",
+        "name": "Authorization",
+        "in": "header",
+    }
+}
+
+app.openapi()["security"] = [APIKeyHeader]
