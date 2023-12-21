@@ -169,3 +169,8 @@ class NewEvaluation(BaseModel):
     variant_ids: List[str]
     evaluators_configs: List[EvaluatorConfig]
     testset_id: str
+
+
+class Evaluator(BaseModel):
+    name: str
+    key: str
