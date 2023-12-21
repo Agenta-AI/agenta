@@ -19,7 +19,7 @@ from agenta_backend.models.converters import (
 )
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
-    AggregatedResult,
+    AggregatedResultDB,
     AppDB,
     AppVariantDB,
     EvaluationScenarioInputDB,
@@ -34,14 +34,15 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioDB,
     ImageDB,
     OrganizationDB,
+    DeploymentDB,
     TemplateDB,
     TestSetDB,
     UserDB,
 )
 
 from agenta_backend.utils.common import check_user_org_access, engine
+from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 
-from agenta_backend.models.db_models import DeploymentDB
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
@@ -1678,13 +1679,14 @@ async def create_new_evaluation_scenario(
 
 
 async def update_evaluation_with_aggregated_results(
-    evaluation_id: ObjectId, aggregated_results: List[AggregatedResult]
+    evaluation_id: ObjectId, aggregated_results: List[AggregatedResultDB]
 ) -> EvaluationDB:
     evaluation = await engine.find_one(EvaluationDB, EvaluationDB.id == evaluation_id)
 
     if not evaluation:
         raise ValueError("Evaluation not found")
 
+    evaluation.status = EvaluationStatusEnum.EVALUATION_FINISHED
     evaluation.aggregated_results = aggregated_results
     evaluation.updated_at = datetime.utcnow().isoformat()
 
