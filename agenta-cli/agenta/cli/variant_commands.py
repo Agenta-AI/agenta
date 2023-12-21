@@ -524,3 +524,30 @@ def list_variants_cli(app_folder: str):
         list_variants(app_folder=app_folder, host=get_host(app_folder))
     except Exception as ex:
         click.echo(click.style(f"Error while listing variants: {ex}", fg="red"))
+
+
+@variant.command(name="add")
+@click.option("--app_folder", default=".")
+@click.option("--config", help="The name of the config to use")
+@click.pass_context
+def add_variant_from_config(ctx, app_folder: str, config: str):
+    """Adds a variant to the backend"""
+    if ctx.args:
+        file_name = ctx.args[0]
+    else:
+        error_msg = "To add variant, kindly provide the filename and run:\n"
+        error_msg += ">>> agenta variant add --config <app_name.variant_name>.toml\n"
+        click.echo(click.style(f"{error_msg}", fg="red"))
+        sys.exit(0)
+
+    try:
+        config_check(app_folder)
+        add_variant(
+            app_folder=app_folder,
+            file_name=file_name,
+            host=get_host(app_folder),
+            config_name=config,
+        )
+    except Exception as ex:
+        click.echo(click.style(f"Error while adding variant: {ex}", fg="red"))
+
