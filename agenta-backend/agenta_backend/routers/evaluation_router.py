@@ -105,6 +105,47 @@ async def create_evaluation(
         )
 
 
+@router.get("/{evaluation_id}/status/")
+async def fetch_evaluation_status(evaluation_id: str, request: Request):
+    """Fetches the status of the evaluation.
+
+    Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
+
+    Returns:
+        (str): the evaluation status
+    """
+
+    try:
+        # Get user and organization id
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        evaluation = await evaluation_service.fetch_evaluation(
+            evaluation_id, **user_org_data
+        )
+        return evaluation.status
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/{evaluation_id}/results/")
+async def fetch_evaluation_results(evaluation_id: str, request: Request):
+    """Fetches the results of the evaluation
+
+    Args:
+        evaluation_id (str): the evaluation id
+        request (Request): the request object
+
+    Returns:
+        _type_: _description_
+    """
+
+    try:
+        ...
+    except Exception as exc:
+        raise ...
+
+
 @router.put("/{evaluation_id}/")
 async def update_evaluation_router(
     request: Request,
