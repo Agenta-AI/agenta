@@ -9,6 +9,7 @@ from agenta_backend.routers import (
     container_router,
     environment_router,
     evaluation_router,
+    evaluators_router,
     observability_router,
     organization_router,
     testset_router,
@@ -77,6 +78,7 @@ app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps")
 app.include_router(variants_router.router, prefix="/variants")
 app.include_router(evaluation_router.router, prefix="/evaluations")
+app.include_router(evaluators_router.router, prefix="/evaluators")
 app.include_router(testset_router.router, prefix="/testsets")
 app.include_router(container_router.router, prefix="/containers")
 app.include_router(environment_router.router, prefix="/environments")
