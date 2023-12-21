@@ -3,6 +3,8 @@ from bson import ObjectId
 from celery import shared_task
 import asyncio
 from datetime import datetime
+from typing import List
+import uuid
 
 from agenta_backend.services import llm_apps_service
 from agenta_backend.services.db_manager import (
@@ -13,7 +15,7 @@ from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
     update_evaluation_with_aggregated_results,
 )
-from agenta_backend.models.api.evaluation_model import NewEvaluation
+from agenta_backend.models.api.evaluation_model import EvaluatorConfig, NewEvaluation
 
 from agenta_backend.models.db_models import (
     AggregatedResult,
@@ -32,6 +34,12 @@ def evaluate(app_data, new_evaluation_data):
     loop = asyncio.get_event_loop()
     new_evaluation = NewEvaluation(**new_evaluation_data)
     app = AppDB(**app_data)
+
+    # This will generate a name in case it's run from cli
+    new_evaluation.evaluators_configs = process_evaluators_configs(
+        new_evaluation.evaluators_configs
+    )
+
     testset = loop.run_until_complete(fetch_testset_by_id(new_evaluation.testset_id))
 
     new_evaluation_db = loop.run_until_complete(
@@ -99,6 +107,20 @@ def evaluate(app_data, new_evaluation_data):
             new_evaluation_db.id, aggregated_results
         )
     )
+
+
+def process_evaluators_configs(
+    evaluators_configs: List[EvaluatorConfig],
+) -> List[EvaluatorConfigDB]:
+    """Process evaluators_configs to include names if missing."""
+    processed_configs = []
+    for config in evaluators_configs:
+        config_dict = config.dict()
+        if "name" not in config_dict:
+            config_dict["name"] = f"Evaluator_{uuid.uuid4()}"  # Generate a random name
+        processed_config = EvaluatorConfigDB(**config_dict)
+        processed_configs.append(processed_config)
+    return processed_configs
 
 
 def aggregate_evaluator_results(evaluators_aggregated_data):
