@@ -249,6 +249,7 @@ class EvaluationDB(Model):
     app: AppDB = Reference(key_name="app")
     organization: OrganizationDB = Reference(key_name="organization")
     user: UserDB = Reference(key_name="user")
+    status: str
     testset: TestSetDB = Reference()
     variants: List[ObjectId]
     evaluators_configs: List[EvaluatorConfigDB]
