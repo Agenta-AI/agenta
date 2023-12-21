@@ -1619,6 +1619,7 @@ async def create_new_evaluation(
     organization: OrganizationDB,
     user: UserDB,
     testset: TestSetDB,
+    status: str,
     variants: [AppVariantDB],
     evaluators_configs: [EvaluatorConfigDB],
 ) -> EvaluationDB:
@@ -1631,6 +1632,7 @@ async def create_new_evaluation(
         organization=organization,
         user=user,
         testset=testset,
+        status=status,
         variants=variants,
         evaluators_configs=evaluators_configs,
         aggregated_results=[],
