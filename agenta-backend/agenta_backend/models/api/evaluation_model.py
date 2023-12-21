@@ -157,10 +157,6 @@ class EvaluationSettingsTemplate(BaseModel):
     description: str
 
 
-class Evaluator(BaseModel):
-    key: str
-
-
 class EvaluatorConfig(BaseModel):
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]]

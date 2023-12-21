@@ -10,5 +10,17 @@
     {
         "name": "Regex Test",
         "key": "auto_regex_test"
+    },
+    {
+        "name": "AI Critique",
+        "key": "auto_ai_critique"
+    },
+    {
+        "name": "Code Evaluation",
+        "key": "custom_code_run"
+    },
+    {
+        "name": "Webhook test",
+        "key": "auto_webhook_test"
     }
 ]
