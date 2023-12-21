@@ -69,10 +69,7 @@ def evaluate(app_data, new_evaluation_data):
 
                 result_object = EvaluationScenarioResult(
                     evaluator_key=evaluator_config.evaluator_key,
-                    result=Result(
-                        type="number",
-                        value=result
-                    ),
+                    result=Result(type="number", value=result),
                 )
                 evaluators_results.append(result_object)
                 evaluators_aggregated_data[evaluator_config.evaluator_key].append(
@@ -97,20 +94,20 @@ def evaluate(app_data, new_evaluation_data):
             )
 
     aggregated_results = aggregate_evaluator_results(evaluators_aggregated_data)
-    updated_evaluation = loop.run_until_complete(update_evaluation_with_aggregated_results(new_evaluation_db.id, aggregated_results))
+    updated_evaluation = loop.run_until_complete(
+        update_evaluation_with_aggregated_results(
+            new_evaluation_db.id, aggregated_results
+        )
+    )
+
 
 def aggregate_evaluator_results(evaluators_aggregated_data):
     aggregated_results = []
     for evaluator_key, values in evaluators_aggregated_data.items():
         average_value = sum(values) / len(values) if values else 0
-        aggregated_result_value:AggregatedResult = AggregatedResult(
-            evaluator_config=EvaluatorConfigDB(
-                evaluator_key=evaluator_key
-            ),
-            result=Result(
-                type="number",
-                value=str(average_value)
-            )
+        aggregated_result_value: AggregatedResult = AggregatedResult(
+            evaluator_config=EvaluatorConfigDB(evaluator_key=evaluator_key),
+            result=Result(type="number", value=str(average_value)),
         )
         aggregated_results.append(aggregated_result_value)
     return aggregated_results
