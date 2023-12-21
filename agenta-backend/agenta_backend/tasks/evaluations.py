@@ -9,6 +9,7 @@ import uuid
 from agenta_backend.services import llm_apps_service
 from agenta_backend.services.db_manager import (
     create_new_evaluation,
+    fetch_evaluation_by_id,
     fetch_app_variant_by_id,
     get_deployment_by_objectid,
     fetch_testset_by_id,
@@ -30,28 +31,19 @@ from agenta_backend.services import evaluators_service
 
 
 @shared_task(queue="agenta_backend.tasks.evaluations.evaluate")
-def evaluate(app_data, new_evaluation_data):
+def evaluate(app_data, new_evaluation_data, evaluation_id: str, testset_id: str):
     loop = asyncio.get_event_loop()
     new_evaluation = NewEvaluation(**new_evaluation_data)
     app = AppDB(**app_data)
 
-    # This will generate a name in case it's run from cli
-    new_evaluation.evaluators_configs, evaluator_key_name_mapping = process_evaluators_configs(
+    # NOTE: This will generate a name in case it's run from cli
+    evaluation_evaluators_configs, evaluator_key_name_mapping = process_evaluators_configs(
         new_evaluation.evaluators_configs
     )
 
-    testset = loop.run_until_complete(fetch_testset_by_id(new_evaluation.testset_id))
-
+    testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
     new_evaluation_db = loop.run_until_complete(
-        create_new_evaluation(
-            app=app,
-            organization=app.organization,
-            user=app.user,
-            testset=testset,
-            status=EvaluationStatusEnum.EVALUATION_STARTED,
-            variants=new_evaluation.variant_ids,
-            evaluators_configs=new_evaluation.evaluators_configs,
-        )
+        fetch_evaluation_by_id(evaluation_id)
     )
     evaluators_aggregated_data = defaultdict(list)
 
@@ -69,7 +61,7 @@ def evaluate(app_data, new_evaluation_data):
             variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
             evaluators_results: [EvaluationScenarioResult] = []
-            for evaluator_config in new_evaluation.evaluators_configs:
+            for evaluator_config in evaluation_evaluators_configs:
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
                     data_point["correct_answer"],
