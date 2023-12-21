@@ -1,3 +1,4 @@
+import {StaticImageData} from "next/image"
 import {EvaluationFlow, EvaluationType} from "./enums"
 
 export interface testset {
@@ -287,4 +288,70 @@ export type ChatMessage = {
     role: ChatRole
     content: string
     id?: string
+}
+
+type ValueType = number | string | boolean | GenericObject | null
+
+//evaluation revamp types
+export interface EvaluationSettingsTemplate {
+    type: string
+    default: ValueType
+    description: string
+}
+
+export interface Evaluator {
+    name: string
+    key: string
+    settings_template: Record<string, EvaluationSettingsTemplate>
+    icon_url?: string | StaticImageData
+    color?: string
+}
+
+export interface EvaluatorConfig {
+    id: string
+    evaluator_key: string
+    name: string
+    settings_values: Record<string, any>
+    created_at: string
+}
+
+export interface TypedValue {
+    type: string
+    value: ValueType
+}
+
+export interface EvaluationScenarioResult {
+    evaluator: Evaluator
+    result: TypedValue
+}
+
+export interface _Evaluation {
+    id: string
+    organization: Org
+    user: User
+    testset: TestSet
+    status: "completed" | "failed" | "pending"
+    variants: Variant[]
+    aggregated_results: {
+        evaluator_config: EvaluatorConfig
+        result: TypedValue
+    }[]
+    created_at?: string
+    duration?: number
+}
+
+export interface _EvaluationScenario {
+    id: string
+    user: User
+    organization: Org
+    evaluation: _Evaluation
+    inputs: (TypedValue & {name: string})[]
+    outputs: TypedValue[]
+    correct_answer?: string
+    created_at?: Date
+    updated_at?: Date
+    is_pinned?: boolean
+    note?: string
+    evaluators_configs: EvaluatorConfig[]
+    results: EvaluationResult[]
 }

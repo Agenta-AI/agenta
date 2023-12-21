@@ -313,3 +313,15 @@ export const shortPoll = async (
         await delay(delayMs)
     }
 }
+
+export function pickRandom<T>(arr: T[], len: number) {
+    const result: T[] = []
+    const length = arr.length
+
+    for (let i = 0; i < len; i++) {
+        const randomIndex = Math.floor(Math.random() * length)
+        result.push(arr[randomIndex])
+    }
+
+    return result
+}
