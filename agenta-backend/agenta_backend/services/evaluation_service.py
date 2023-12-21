@@ -17,7 +17,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioUpdate,
     CreateCustomEvaluation,
     EvaluationUpdate,
-    EvaluationStatusEnum
+    EvaluationStatusEnum,
 )
 from agenta_backend.models import converters
 from agenta_backend.utils.common import engine, check_access_to_app
@@ -883,3 +883,17 @@ async def create_new_evaluation(
         evaluators_configs=evaluation_evaluators_configs,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
+
+
+async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
+    """Retrieve the aggregated results for a given evaluation.
+
+    Args:
+        evaluation_id (str): the evaluation id
+
+    Returns:
+        List[dict]: evaluation aggregated results
+    """
+
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
+    return converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
