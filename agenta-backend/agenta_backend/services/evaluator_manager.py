@@ -1,13 +1,6 @@
 from typing import Any, Dict, Optional
 
-from agenta_backend.services.db_manager import (
-    fetch_evaluator_config,
-    fetch_evaluators_configs,
-    create_evaluator_config as db_manager_create_evaluator_config,
-    update_evaluator_config,
-    delete_evaluator_config,
-    fetch_app_by_id
-)
+from agenta_backend.services import db_manager
 
 
 from agenta_backend.models.db_models import EvaluatorConfigDB
@@ -22,7 +15,7 @@ async def get_evaluators_configs(app_id: str):
     Returns:
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
-    return await fetch_evaluators_configs(app_id)
+    return await db_manager.fetch_evaluators_configs(app_id)
 
 
 async def get_evaluator_config(config_id: str):
@@ -34,7 +27,7 @@ async def get_evaluator_config(config_id: str):
     Returns:
         EvaluatorConfigDB: the evaluator configuration object.
     """
-    return await fetch_evaluator_config(config_id)
+    return await db_manager.fetch_evaluator_config(config_id)
 
 
 async def create_evaluator_config(
@@ -55,8 +48,8 @@ async def create_evaluator_config(
     Returns:
         EvaluatorConfigDB: The newly created evaluator configuration object.
     """
-    app = await fetch_app_by_id(app_id)
-    return await db_manager_create_evaluator_config(
+    app = await db_manager.fetch_app_by_id(app_id)
+    return await db_manager.create_evaluator_config(
         app=app,
         organization=app.organization,
         user=app.user,
@@ -79,10 +72,10 @@ async def update_evaluator_config(
     Returns:
         EvaluatorConfigDB: The updated evaluator configuration object.
     """
-    return await update_evaluator_config(evaluator_config_id, updates)
+    return await db_manager.update_evaluator_config(evaluator_config_id, updates)
 
 
-async def remove_evaluator_config(evaluator_config_id: str) -> bool:
+async def delete_evaluator_config(evaluator_config_id: str) -> bool:
     """
     Delete an evaluator configuration.
 
@@ -92,4 +85,4 @@ async def remove_evaluator_config(evaluator_config_id: str) -> bool:
     Returns:
         bool: True if the deletion was successful, False otherwise.
     """
-    return await delete_evaluator_config(evaluator_config_id)
+    return await db_manager.delete_evaluator_config(evaluator_config_id)
