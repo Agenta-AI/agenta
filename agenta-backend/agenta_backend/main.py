@@ -45,7 +45,8 @@ async def lifespan(application: FastAPI, cache=True):
     yield
 
 
-app = FastAPI(lifespan=lifespan)
+# app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 allow_headers = ["Content-Type"]
 
@@ -79,17 +80,3 @@ app.include_router(observability_router.router, prefix="/observability")
 app.include_router(organization_router.router, prefix="/organizations")
 app.include_router(bases_router.router, prefix="/bases")
 app.include_router(configs_router.router, prefix="/configs")
-
-APIKeyHeader = {
-    "APIKeyHeader": []
-}
-
-app.openapi()["components"]["securitySchemes"] = {
-    "APIKeyHeader": {
-        "type": "apiKey",
-        "name": "Authorization",
-        "in": "header",
-    }
-}
-
-app.openapi()["security"] = [APIKeyHeader]
