@@ -174,3 +174,10 @@ class NewEvaluation(BaseModel):
 class Evaluator(BaseModel):
     name: str
     key: str
+
+
+class NewEvaluatorConfig(BaseModel):
+    app_id: str
+    name: str
+    evaluator_key: str
+    settings_values: dict

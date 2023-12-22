@@ -209,6 +209,9 @@ class EvaluationSettingsTemplate(EmbeddedModel):
 
 
 class EvaluatorConfigDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
     name: str
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]] = None
@@ -216,7 +219,7 @@ class EvaluatorConfigDB(Model):
     updated_at: datetime = Field(default=datetime.utcnow())
 
     class Config:
-        collection = "evaluator_config"
+        collection = "evaluators_configs"
 
 
 class Result(EmbeddedModel):

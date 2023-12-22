@@ -39,9 +39,9 @@ def evaluate(
 
     # NOTE: This will generate a name in case it's run from cli
     (
-        evaluation_evaluators_configs,
+        evaluators_configs,
         evaluator_key_name_mapping,
-    ) = process_evaluators_configs(new_evaluation.evaluators_configs)
+    ) = process_evaluators_configs(app, new_evaluation.evaluators_configs)
 
     testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
     new_evaluation_db = loop.run_until_complete(fetch_evaluation_by_id(evaluation_id))
@@ -49,19 +49,20 @@ def evaluate(
 
     for variant_id in new_evaluation.variant_ids:
         variant_id = str(variant_id)
+
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         deployment = loop.run_until_complete(
             get_deployment_by_objectid(app_variant_db.base.deployment)
         )
 
         # TODO: remove if abraham's fix is working
-        uri = deployment.uri.replace("http://localhost", "http://obsidian")
+        uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
 
         for data_point in testset.csvdata:
             variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
             evaluators_results: [EvaluationScenarioResult] = []
-            for evaluator_config in evaluation_evaluators_configs:
+            for evaluator_config in evaluators_configs:
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
                     data_point["correct_answer"],
@@ -95,7 +96,7 @@ def evaluate(
             )
 
     aggregated_results = aggregate_evaluator_results(
-        evaluators_aggregated_data, evaluator_key_name_mapping
+        app, evaluators_aggregated_data, evaluator_key_name_mapping
     )
 
     updated_evaluation = loop.run_until_complete(
@@ -106,22 +107,37 @@ def evaluate(
 
 
 def process_evaluators_configs(
+    app: AppDB,
     evaluators_configs: List[EvaluatorConfig],
 ) -> Tuple[List[EvaluatorConfigDB], Dict[str, str]]:
     """Process evaluators_configs to include names if missing and return a mapping of evaluator keys to names."""
+
     processed_configs = []
     evaluator_key_name_mapping = {}
+
     for config in evaluators_configs:
-        config_dict = config.dict()
-        if "name" not in config_dict:
-            config_dict["name"] = f"Evaluator_{uuid.uuid4()}"  # Generate a random name
-        processed_config = EvaluatorConfigDB(**config_dict)
+        # Handle the 'name' field with a default value if it's None
+        name = getattr(config, "name", f"Evaluator_{uuid.uuid4()}")
+
+        processed_config = EvaluatorConfigDB(
+            user=app.user,
+            organization=app.organization,
+            name=name,
+            app=app,
+            evaluator_key=config.evaluator_key,
+        )
+
         processed_configs.append(processed_config)
-        evaluator_key_name_mapping[config_dict["evaluator_key"]] = config_dict["name"]
+        evaluator_key_name_mapping[
+            processed_config.evaluator_key
+        ] = processed_config.name
+
     return processed_configs, evaluator_key_name_mapping
 
 
-def aggregate_evaluator_results(evaluators_aggregated_data, evaluator_key_name_mapping):
+def aggregate_evaluator_results(
+    app, evaluators_aggregated_data, evaluator_key_name_mapping
+):
     aggregated_results = []
     for evaluator_key, values in evaluators_aggregated_data.items():
         average_value = sum(values) / len(values) if values else 0
@@ -130,7 +146,11 @@ def aggregate_evaluator_results(evaluators_aggregated_data, evaluator_key_name_m
         )
         aggregated_result_db = AggregatedResultDB(
             evaluator_config=EvaluatorConfigDB(
-                name=evaluator_name, evaluator_key=evaluator_key
+                app=app,
+                user=app.user,
+                organization=app.organization,
+                name=evaluator_name,
+                evaluator_key=evaluator_key,
             ),
             result=Result(type="number", value=str(average_value)),
         )
