@@ -76,6 +76,7 @@
       "group": "Tutorials",
       "pages": [
         "tutorials/first-app-with-langchain",
+        "tutorials/build-rag-application",
         "tutorials/deploy-mistral-model"
       ]
     },
