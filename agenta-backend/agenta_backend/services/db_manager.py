@@ -1804,9 +1804,7 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
     assert evaluator_config_id is not None, "Evaluator Config ID cannot be None"
 
     try:
-        delete_result = await engine.find_one_and_delete(
-            EvaluatorConfigDB, query.eq("_id", ObjectId(evaluator_config_id))
-        )
+        delete_result = remove_document_using_driver(str(evaluator_config_id), "evaluators_configs")
         return delete_result is not None
     except Exception as e:
         raise e
