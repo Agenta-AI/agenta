@@ -10,7 +10,6 @@ from agenta_backend.services.db_manager import (
     fetch_evaluator_config,
     get_deployment_by_objectid,
     fetch_testset_by_id,
-    create_aggregated_results,
     create_new_evaluation_scenario,
     fetch_evaluator_config_by_appId,
     update_evaluation_with_aggregated_results,
@@ -19,7 +18,7 @@ from agenta_backend.models.db_models import (
     AppDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
-    AggregatedResultDB,
+    AggregatedResult,
     Result,
 )
 from agenta_backend.services import evaluators_service
@@ -101,13 +100,14 @@ def evaluate(
 
 async def aggregate_evaluator_results(
     app: AppDB, evaluators_aggregated_data: dict
-) -> List[AggregatedResultDB]:
+) -> List[AggregatedResult]:
     aggregated_results = []
     for evaluator_key, values in evaluators_aggregated_data.items():
         average_value = sum(values) / len(values) if values else 0
         evaluator_config = await fetch_evaluator_config_by_appId(app.id, evaluator_key)
-        aggregated_result_db = await create_aggregated_results(
-            str(evaluator_config.id), str(average_value)
+        aggregated_result = AggregatedResult(
+            evaluator_config=evaluator_config.id,
+            result=Result(type="number", value=average_value),
         )
-        aggregated_results.append(aggregated_result_db)
+        aggregated_results.append(aggregated_result)
     return aggregated_results

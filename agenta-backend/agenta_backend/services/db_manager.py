@@ -20,7 +20,7 @@ from agenta_backend.models.converters import (
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
     Result,
-    AggregatedResultDB,
+    AggregatedResult,
     AppDB,
     AppVariantDB,
     EvaluationScenarioInputDB,
@@ -1680,7 +1680,7 @@ async def create_new_evaluation_scenario(
 
 
 async def update_evaluation_with_aggregated_results(
-    evaluation_id: ObjectId, aggregated_results: List[AggregatedResultDB]
+    evaluation_id: ObjectId, aggregated_results: List[AggregatedResult]
 ) -> EvaluationDB:
     evaluation = await engine.find_one(EvaluationDB, EvaluationDB.id == evaluation_id)
 
@@ -1693,22 +1693,6 @@ async def update_evaluation_with_aggregated_results(
 
     await engine.save(evaluation)
     return evaluation
-
-
-async def create_aggregated_results(
-    evaluator_config_id: str, average_value: Any
-) -> AggregatedResultDB:
-    """Create an aggregated results in the database."""
-
-    aggregated_result = AggregatedResultDB(
-        evaluator_config=ObjectId(evaluator_config_id),
-        result=Result(type="number", value=average_value),
-    )
-    try:
-        await engine.save(aggregated_result)
-        return aggregated_result
-    except Exception as e:
-        raise e
 
 
 async def fetch_evaluators_configs(app_id: str):
