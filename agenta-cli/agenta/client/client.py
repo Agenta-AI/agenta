@@ -538,20 +538,14 @@ def run_evaluation(app_name: str, host: str, api_key: str = None) -> str:
         api_key (str): The API key to use for the request.
     """
 
-    evaluators_configs = [
-        {
-            "evaluator_key": "auto_similarity_match",
-        }
-    ]
-
     new_evaluation = {
-        "app_id": "6581e69500afd8dfe404f765",
+        "app_id": "6583e552eb855930ec6b1bdd",
         "variant_ids": [
-            "6581e69500afd8dfe404f76b",
+            "6583e552eb855930ec6b1be3",
             # "6570aed55d0eaff2293088e6"
         ],
-        "evaluators_configs": evaluators_configs,
-        "testset_id": "6581e69500afd8dfe404f76c",
+        "evaluators_configs": ["65856b2b11d53fcce5894ab6"],
+        "testset_id": "6583e552eb855930ec6b1be4",
     }
 
     response = requests.post(
