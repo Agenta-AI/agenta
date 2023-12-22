@@ -1692,3 +1692,79 @@ async def update_evaluation_with_aggregated_results(
 
     await engine.save(evaluation)
     return evaluation
+
+
+async def fetch_evaluators_configs(app_id: str):
+    """Fetches a list of evaluator configurations from the database.
+
+    Returns:
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+    """
+    assert app_id is not None, "evaluation_id cannot be None"
+
+    try:
+        query_expression = query.eq(EvaluatorConfigDB.app, ObjectId(app_id))
+        evaluators_configs: [EvaluatorConfigDB] = await engine.find(
+            EvaluatorConfigDB, query_expression
+        )
+        return evaluators_configs
+    except Exception as e:
+        raise e
+
+
+async def create_evaluator_config(
+    app: AppDB,
+    user: UserDB,
+    organization: OrganizationDB,
+    name: str,
+    evaluator_key: str,
+    settings_values: Optional[Dict[str, Any]] = None,
+) -> EvaluatorConfigDB:
+    """Create a new evaluator configuration in the database."""
+
+
+    new_evaluator_config = EvaluatorConfigDB(
+        app=app,
+        user=user,
+        organization=organization,
+        name=name,
+        evaluator_key=evaluator_key,
+        settings_values=settings_values,
+    )
+
+    try:
+        await engine.save(new_evaluator_config)
+        return new_evaluator_config
+    except Exception as e:
+        raise e
+
+
+async def update_evaluator_config(
+    evaluator_config_id: str, updates: Dict[str, Any]
+) -> EvaluatorConfigDB:
+    """Edit an existing evaluator configuration in the database."""
+    assert evaluator_config_id is not None, "Evaluator Config ID cannot be None"
+
+    try:
+        updated_evaluator_config = await engine.find_one_and_update(
+            EvaluatorConfigDB,
+            query.eq("_id", ObjectId(evaluator_config_id)),
+            {"$set": updates},
+            return_document=True,
+        )
+        return updated_evaluator_config
+    except Exception as e:
+        raise e
+
+
+async def delete_evaluator_config(evaluator_config_id: str) -> bool:
+    """Delete an evaluator configuration from the database."""
+    assert evaluator_config_id is not None, "Evaluator Config ID cannot be None"
+
+    try:
+        delete_result = await engine.find_one_and_delete(
+            EvaluatorConfigDB, query.eq("_id", ObjectId(evaluator_config_id))
+        )
+        return delete_result is not None
+    except Exception as e:
+        raise e
