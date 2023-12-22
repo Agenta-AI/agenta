@@ -16,10 +16,7 @@ from agenta_backend.services import (
     db_manager,
 )
 
-from agenta_backend.services.evaluator_manager import (
-    get_evaluators_configs,
-    create_evaluator_config,
-)
+from agenta_backend.services import evaluator_manager
 
 from agenta_backend.utils.common import (
     check_access_to_app
@@ -72,7 +69,7 @@ async def get_evaluator_configs(
     Returns:
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
-    return await get_evaluators_configs(app_id)
+    return await evaluator_manager.get_evaluators_configs(app_id)
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
@@ -88,9 +85,26 @@ async def create_new_evaluator_config(
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    return await create_evaluator_config(
+    return await evaluator_manager.create_evaluator_config(
         app_id=payload.app_id,
         name=payload.name,
         evaluator_key=payload.evaluator_key,
         settings_values=payload.settings_values,
     )
+
+
+@router.delete("/configs/{evaluator_id}/", response_model=bool)
+async def delete_evaluator_config(evaluator_id: str):
+    """Endpoint to delete a specific evaluator configuration.
+
+    Args:
+        evaluator_id (str): The unique identifier of the evaluator configuration.
+
+    Returns:
+        bool: True if deletion was successful, False otherwise.
+    """
+    try:
+        success = await evaluator_manager.delete_evaluator_config(evaluator_id)
+        return success
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting evaluator configuration: {str(e)}")
