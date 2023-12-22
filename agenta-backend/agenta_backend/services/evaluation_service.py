@@ -863,15 +863,15 @@ async def create_new_evaluation(
         Evaluation
     """
 
-    from agenta_backend.tasks.evaluations import process_evaluators_configs
+    # from agenta_backend.tasks.evaluations import process_evaluators_configs
 
     new_evaluation = NewEvaluation(**new_evaluation_data)
     app = AppDB(**app_data)
 
     # This will generate a name in case it's run from cli
-    evaluators_configs, _ = process_evaluators_configs(
-        app, new_evaluation.evaluators_configs
-    )
+    # evaluators_configs, _ = process_evaluators_configs(
+    #     app, new_evaluation.evaluators_configs
+    # )
     testset = await db_manager.fetch_testset_by_id(new_evaluation.testset_id)
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
@@ -880,7 +880,7 @@ async def create_new_evaluation(
         testset=testset,
         status=EvaluationStatusEnum.EVALUATION_STARTED,
         variants=new_evaluation.variant_ids,
-        evaluators_configs=evaluators_configs,
+        evaluators_configs=new_evaluation.evaluators_configs,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
