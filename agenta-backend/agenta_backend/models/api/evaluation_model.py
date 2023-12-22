@@ -167,7 +167,7 @@ class EvaluatorConfig(BaseModel):
 class NewEvaluation(BaseModel):
     app_id: str
     variant_ids: List[str]
-    evaluators_configs: List[EvaluatorConfig]
+    evaluators_configs: List[str]
     testset_id: str
 
 

@@ -1712,6 +1712,24 @@ async def fetch_evaluators_configs(app_id: str):
         raise e
 
 
+async def fetch_evaluator_config(evaluator_config_id: str):
+    """Fetches a list of evaluator configurations from the database.
+
+    Returns:
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+    """
+
+    try:
+        query_expression = query.eq(EvaluatorConfigDB._id, ObjectId(evaluator_config_id))
+        evaluator_config: EvaluatorConfigDB = await engine.find(
+            EvaluatorConfigDB, query_expression
+        )
+        return evaluator_config
+    except Exception as e:
+        raise e
+
+
+
 async def create_evaluator_config(
     app: AppDB,
     user: UserDB,

@@ -10,6 +10,7 @@ from agenta_backend.services import llm_apps_service
 from agenta_backend.services.db_manager import (
     fetch_evaluation_by_id,
     fetch_app_variant_by_id,
+    fetch_evaluator_config,
     get_deployment_by_objectid,
     fetch_testset_by_id,
     create_new_evaluation_scenario,
@@ -38,10 +39,10 @@ def evaluate(
     app = AppDB(**app_data)
 
     # NOTE: This will generate a name in case it's run from cli
-    (
-        evaluators_configs,
-        evaluator_key_name_mapping,
-    ) = process_evaluators_configs(app, new_evaluation.evaluators_configs)
+    # (
+    #     evaluators_configs,
+    #     evaluator_key_name_mapping,
+    # ) = process_evaluators_configs(app, new_evaluation.evaluators_configs)
 
     testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
     new_evaluation_db = loop.run_until_complete(fetch_evaluation_by_id(evaluation_id))
@@ -62,7 +63,8 @@ def evaluate(
             variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
             evaluators_results: [EvaluationScenarioResult] = []
-            for evaluator_config in evaluators_configs:
+            for evaluator_config_id in new_evaluation.evaluators_configs:
+                evaluator_config = fetch_evaluator_config(evaluator_config_id)
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
                     data_point["correct_answer"],
@@ -106,33 +108,33 @@ def evaluate(
     )
 
 
-def process_evaluators_configs(
-    app: AppDB,
-    evaluators_configs: List[EvaluatorConfig],
-) -> Tuple[List[EvaluatorConfigDB], Dict[str, str]]:
-    """Process evaluators_configs to include names if missing and return a mapping of evaluator keys to names."""
+# def process_evaluators_configs(
+#     app: AppDB,
+#     evaluators_configs: List[EvaluatorConfig],
+# ) -> Tuple[List[EvaluatorConfigDB], Dict[str, str]]:
+#     """Process evaluators_configs to include names if missing and return a mapping of evaluator keys to names."""
 
-    processed_configs = []
-    evaluator_key_name_mapping = {}
+#     processed_configs = []
+#     evaluator_key_name_mapping = {}
 
-    for config in evaluators_configs:
-        # Handle the 'name' field with a default value if it's None
-        name = getattr(config, "name", f"Evaluator_{uuid.uuid4()}")
+#     for config in evaluators_configs:
+#         # Handle the 'name' field with a default value if it's None
+#         name = getattr(config, "name", f"Evaluator_{uuid.uuid4()}")
 
-        processed_config = EvaluatorConfigDB(
-            user=app.user,
-            organization=app.organization,
-            name=name,
-            app=app,
-            evaluator_key=config.evaluator_key,
-        )
+#         processed_config = EvaluatorConfigDB(
+#             user=app.user,
+#             organization=app.organization,
+#             name=name,
+#             app=app,
+#             evaluator_key=config.evaluator_key,
+#         )
 
-        processed_configs.append(processed_config)
-        evaluator_key_name_mapping[
-            processed_config.evaluator_key
-        ] = processed_config.name
+#         processed_configs.append(processed_config)
+#         evaluator_key_name_mapping[
+#             processed_config.evaluator_key
+#         ] = processed_config.name
 
-    return processed_configs, evaluator_key_name_mapping
+#     return processed_configs, evaluator_key_name_mapping
 
 
 def aggregate_evaluator_results(
