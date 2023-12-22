@@ -232,14 +232,9 @@ class EvaluationScenarioResult(EmbeddedModel):
     result: Result
 
 
-class AggregatedResultDB(Model):
+class AggregatedResult(EmbeddedModel):
     evaluator_config: ObjectId
     result: Result
-    created_at: datetime = Field(default=datetime.utcnow())
-    updated_at: datetime = Field(default=datetime.utcnow())
-
-    class Config:
-        collection = "aggregated_results"
 
 
 class EvaluationScenarioInputDB(EmbeddedModel):
@@ -261,7 +256,7 @@ class EvaluationDB(Model):
     testset: TestSetDB = Reference()
     variants: List[ObjectId]
     evaluators_configs: List[EvaluatorConfigDB]
-    aggregated_results: List[AggregatedResultDB]
+    aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 
