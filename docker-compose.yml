@@ -9,6 +9,7 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
             - agenta-network
+        restart: always
 
     backend:
         build: ./agenta-backend
@@ -54,6 +55,7 @@ services:
         depends_on:
             mongo:
                 condition: service_healthy
+        restart: always
 
     agenta-web:
         build:
@@ -73,6 +75,7 @@ services:
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
         environment:
             - NEXT_PUBLIC_POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
+        restart: always
 
     mongo:
         image: mongo:5.0
@@ -90,6 +93,7 @@ services:
             interval: 10s
             timeout: 10s
             retries: 20
+        restart: always
 
     mongo_express:
         image: mongo-express
@@ -104,6 +108,7 @@ services:
         depends_on:
             mongo:
                 condition: service_healthy
+        restart: always
 
     redis:
         image: redis:latest
@@ -111,6 +116,7 @@ services:
             - agenta-network
         volumes:
             - redis_data:/data
+        restart: always
 
 networks:
     agenta-network:
