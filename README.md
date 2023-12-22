@@ -211,7 +211,7 @@ Check out our [Contributing Guide](https://docs.agenta.ai/contributing/getting-s
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-38-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-39-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -270,6 +270,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://diegolikescode.me/"><img src="https://avatars.githubusercontent.com/u/57499868?v=4?s=100" width="100px;" alt="diego"/><br /><sub><b>diego</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=diegolikescode" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/brockWith"><img src="https://avatars.githubusercontent.com/u/105627491?v=4?s=100" width="100px;" alt="brockWith"/><br /><sub><b>brockWith</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=brockWith" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="http://denniszelada.wordpress.com/"><img src="https://avatars.githubusercontent.com/u/219311?v=4?s=100" width="100px;" alt="Dennis Zelada"/><br /><sub><b>Dennis Zelada</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=denniszelada" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/romainrbr"><img src="https://avatars.githubusercontent.com/u/10381609?v=4?s=100" width="100px;" alt="Romain Brucker"/><br /><sub><b>Romain Brucker</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=romainrbr" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
