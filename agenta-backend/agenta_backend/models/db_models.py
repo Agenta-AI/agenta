@@ -228,7 +228,7 @@ class Result(EmbeddedModel):
 
 
 class EvaluationScenarioResult(EmbeddedModel):
-    evaluator_key: str
+    evaluator_config: ObjectId
     result: Result
 
 
@@ -255,7 +255,7 @@ class EvaluationDB(Model):
     status: str = Field(default="EVALUATION_INITIALIZED")
     testset: TestSetDB = Reference()
     variants: List[ObjectId]
-    evaluators_configs: List[EvaluatorConfigDB]
+    evaluators_configs: List[ObjectId]
     aggregated_results: List[AggregatedResult]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
@@ -273,7 +273,7 @@ class EvaluationScenarioDB(Model):
     correct_answer: Optional[str]
     is_pinned: Optional[bool]
     note: Optional[str]
-    evaluators_configs: List[EvaluatorConfigDB]
+    evaluators_configs: List[ObjectId]
     results: List[EvaluationScenarioResult]
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
