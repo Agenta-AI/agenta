@@ -1,5 +1,6 @@
 import asyncio
 from typing import List
+from bson import ObjectId
 from celery import shared_task
 from collections import defaultdict
 
@@ -56,6 +57,7 @@ def evaluate(
                 evaluator_config = loop.run_until_complete(
                     fetch_evaluator_config(evaluator_config_id)
                 )
+
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
                     data_point["correct_answer"],
@@ -63,7 +65,7 @@ def evaluate(
                 )
 
                 result_object = EvaluationScenarioResult(
-                    evaluator_key=evaluator_config.evaluator_key,
+                    evaluator_config=evaluator_config.id,
                     result=Result(type="number", value=result),
                 )
                 evaluators_results.append(result_object)
