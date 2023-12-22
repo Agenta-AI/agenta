@@ -850,29 +850,28 @@ async def fetch_custom_evaluation_names(
 
 
 async def create_new_evaluation(
-    app_data: dict, new_evaluation_data: dict
+    app_data: dict, new_evaluation_data: dict, evaluators_configs: List[str]
 ) -> Evaluation:
     """
-    Create a new evaluation based on the provided payload and additional arguments.
+    Create a new evaluation.
 
     Args:
-        payload (NewEvaluation): The evaluation payload.
-        **user_org_data (dict): Additional keyword arguments, e.g., user id.
+        app_data (dict): Required app data
+        new_evaluation_data (dict): Required new evaluation data
+        evaluators_configs (List[str]): List of evaluator configurations
 
     Returns:
         Evaluation
     """
 
-    # from agenta_backend.tasks.evaluations import process_evaluators_configs
-
     new_evaluation = NewEvaluation(**new_evaluation_data)
     app = AppDB(**app_data)
 
-    # This will generate a name in case it's run from cli
-    # evaluators_configs, _ = process_evaluators_configs(
-    #     app, new_evaluation.evaluators_configs
-    # )
     testset = await db_manager.fetch_testset_by_id(new_evaluation.testset_id)
+    evaluators_configs_db = [
+        await db_manager.fetch_evaluator_config(evaluator_config)
+        for evaluator_config in evaluators_configs
+    ]
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
         organization=app.organization,
@@ -880,7 +879,7 @@ async def create_new_evaluation(
         testset=testset,
         status=EvaluationStatusEnum.EVALUATION_STARTED,
         variants=new_evaluation.variant_ids,
-        evaluators_configs=new_evaluation.evaluators_configs,
+        evaluators_configs=evaluators_configs_db,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 

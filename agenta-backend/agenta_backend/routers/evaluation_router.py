@@ -89,6 +89,7 @@ async def create_evaluation(
         evaluation = await evaluation_service.create_new_evaluation(
             app_data=app_data,
             new_evaluation_data=new_evaluation_data,
+            evaluators_configs=payload.evaluators_configs
         )
 
         # Start celery task
