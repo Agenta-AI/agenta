@@ -233,7 +233,7 @@ class EvaluationScenarioResult(EmbeddedModel):
 
 
 class AggregatedResultDB(Model):
-    evaluator_config: EvaluatorConfigDB = Reference()
+    evaluator_config: ObjectId
     result: Result
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())

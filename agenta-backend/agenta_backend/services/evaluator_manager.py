@@ -25,16 +25,16 @@ async def get_evaluators_configs(app_id: str):
     return await fetch_evaluators_configs(app_id)
 
 
-async def get_evaluator_config(app_id: str):
+async def get_evaluator_config(config_id: str):
     """Get evaluators configs by app_id.
 
     Args:
-        app_id (str): The ID of the app.
+        config_id (str): The ID of the evaluator configuration.
 
     Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+        EvaluatorConfigDB: the evaluator configuration object.
     """
-    return await fetch_evaluator_config(app_id)
+    return await fetch_evaluator_config(config_id)
 
 
 async def create_evaluator_config(

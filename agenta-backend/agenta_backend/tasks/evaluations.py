@@ -1,10 +1,7 @@
-from collections import defaultdict
-from bson import ObjectId
-from celery import shared_task
 import asyncio
-from datetime import datetime
-from typing import List, Tuple, Dict
-import uuid
+from typing import List
+from celery import shared_task
+from collections import defaultdict
 
 from agenta_backend.services import llm_apps_service
 from agenta_backend.services.db_manager import (
@@ -13,13 +10,11 @@ from agenta_backend.services.db_manager import (
     fetch_evaluator_config,
     get_deployment_by_objectid,
     fetch_testset_by_id,
-    create_evaluator_config,
     create_aggregated_results,
     create_new_evaluation_scenario,
+    fetch_evaluator_config_by_appId,
     update_evaluation_with_aggregated_results,
 )
-from agenta_backend.models.api.evaluation_model import NewEvaluation
-
 from agenta_backend.models.db_models import (
     AppDB,
     EvaluationScenarioOutputDB,
@@ -27,8 +22,8 @@ from agenta_backend.models.db_models import (
     AggregatedResultDB,
     Result,
 )
-
 from agenta_backend.services import evaluators_service
+from agenta_backend.models.api.evaluation_model import NewEvaluation
 
 
 @shared_task(queue="agenta_backend.tasks.evaluations.evaluate")
@@ -36,14 +31,14 @@ def evaluate(
     app_data: dict, new_evaluation_data: dict, evaluation_id: str, testset_id: str
 ):
     loop = asyncio.get_event_loop()
-    new_evaluation = NewEvaluation(**new_evaluation_data)
     app = AppDB(**app_data)
+    evaluation = NewEvaluation(**new_evaluation_data)
 
     testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
     new_evaluation_db = loop.run_until_complete(fetch_evaluation_by_id(evaluation_id))
     evaluators_aggregated_data = defaultdict(list)
 
-    for variant_id in new_evaluation.variant_ids:
+    for variant_id in evaluation.variant_ids:
         variant_id = str(variant_id)
 
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
@@ -58,8 +53,10 @@ def evaluate(
             variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
             evaluators_results: [EvaluationScenarioResult] = []
-            for evaluator_config_id in new_evaluation.evaluators_configs:
-                evaluator_config = fetch_evaluator_config(evaluator_config_id)
+            for evaluator_config_id in evaluation.evaluators_configs:
+                evaluator_config = loop.run_until_complete(
+                    fetch_evaluator_config(evaluator_config_id)
+                )
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
                     data_point["correct_answer"],
@@ -93,9 +90,7 @@ def evaluate(
             )
 
     aggregated_results = loop.run_until_complete(
-        aggregate_evaluator_results(
-            app, evaluators_aggregated_data, evaluator_key_name_mapping
-        )
+        aggregate_evaluator_results(app, evaluators_aggregated_data)
     )
     updated_evaluation = loop.run_until_complete(
         update_evaluation_with_aggregated_results(
@@ -105,17 +100,14 @@ def evaluate(
 
 
 async def aggregate_evaluator_results(
-    app: AppDB, evaluators_aggregated_data: dict, evaluator_key_name_mapping: dict
+    app: AppDB, evaluators_aggregated_data: dict
 ) -> List[AggregatedResultDB]:
     aggregated_results = []
     for evaluator_key, values in evaluators_aggregated_data.items():
         average_value = sum(values) / len(values) if values else 0
-        evaluator_name = evaluator_key_name_mapping.get(
-            evaluator_key, "Unknown Evaluator"
+        evaluator_config = await fetch_evaluator_config_by_appId(app.id, evaluator_key)
+        aggregated_result_db = await create_aggregated_results(
+            str(evaluator_config.id), str(average_value)
         )
-        evaluator_config = await create_evaluator_config(
-            app, app.user, app.organization, evaluator_name, evaluator_key
-        )
-        aggregated_result_db = await create_aggregated_results(evaluator_config, str(average_value))
         aggregated_results.append(aggregated_result_db)
     return aggregated_results

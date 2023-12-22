@@ -1623,7 +1623,7 @@ async def create_new_evaluation(
     testset: TestSetDB,
     status: str,
     variants: [AppVariantDB],
-    evaluators_configs: [EvaluatorConfigDB],
+    evaluators_configs: List[EvaluatorConfigDB],
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
     Returns:
@@ -1696,12 +1696,12 @@ async def update_evaluation_with_aggregated_results(
 
 
 async def create_aggregated_results(
-    evaluator_config: EvaluatorConfigDB, average_value: Any
+    evaluator_config_id: str, average_value: Any
 ) -> AggregatedResultDB:
     """Create an aggregated results in the database."""
 
     aggregated_result = AggregatedResultDB(
-        evaluator_config=evaluator_config,
+        evaluator_config=ObjectId(evaluator_config_id),
         result=Result(type="number", value=average_value),
     )
     try:
@@ -1730,21 +1730,45 @@ async def fetch_evaluators_configs(app_id: str):
 
 
 async def fetch_evaluator_config(evaluator_config_id: str):
-    """Fetches a list of evaluator configurations from the database.
+    """Fetch evaluator configurations from the database.
 
     Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+        EvaluatorConfigDB: the evaluator configuration object.
     """
 
     try:
-        query_expression = query.eq(EvaluatorConfigDB._id, ObjectId(evaluator_config_id))
-        evaluator_config: EvaluatorConfigDB = await engine.find(
+        query_expression = query.eq(EvaluatorConfigDB.id, ObjectId(evaluator_config_id))
+        evaluator_config: EvaluatorConfigDB = await engine.find_one(
             EvaluatorConfigDB, query_expression
         )
         return evaluator_config
     except Exception as e:
         raise e
 
+
+async def fetch_evaluator_config_by_appId(
+    app_id: str, evaluator_name: str
+) -> EvaluatorConfigDB:
+    """Fetch the evaluator config from the database using the app Id and evaluator name.
+
+    Args:
+        app_id (str): The app Id
+        evaluator_name (str): The name of the evaluator
+
+    Returns:
+        EvaluatorConfigDB: the evaluator configuration object.
+    """
+
+    try:
+        query_expression = query.eq(EvaluatorConfigDB.app, ObjectId(app_id)) & query.eq(
+            EvaluatorConfigDB.evaluator_key, evaluator_name
+        )
+        evaluator_config: EvaluatorConfigDB = await engine.find_one(
+            EvaluatorConfigDB, query_expression
+        )
+        return evaluator_config
+    except Exception as e:
+        raise e
 
 
 async def create_evaluator_config(
