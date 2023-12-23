@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useCallback} from "react"
 import type {ColumnType} from "antd/es/table"
 import {Button, Card, Col, Radio, Row, Space, Statistic, Table, Typography, message} from "antd"
 import {
@@ -137,38 +137,17 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
         setRows(newRows)
     }
 
-    useEffect(() => {
-        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
-            fetchEvaluationResults(evaluation.id)
-                .then((data) => setEvaluationResults(data))
-                .catch((err) => console.error("Failed to fetch results:", err))
-                .then(() => {
-                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
-                })
-                .catch((err) => console.error("Failed to fetch results:", err))
-        }
-    }, [evaluationStatus, evaluation.id])
+    const setRowValue = useCallback((
+        rowIndex: number,
+        columnKey: keyof ABTestingEvaluationTableRow,
+        value: any,
+    ) => {
+        const newRows = [...rows]
+        newRows[rowIndex][columnKey] = value as never
+        setRows(newRows)
+    }, [rows])
 
-    const handleVoteClick = (id: string, vote: string) => {
-        const rowIndex = rows.findIndex((row) => row.id === id)
-        const evaluation_scenario_id = rows[rowIndex].id
-
-        if (evaluation_scenario_id) {
-            setRowValue(rowIndex, "vote", "loading")
-            const data = {
-                vote: vote,
-                outputs: variants.map((v: Variant) => ({
-                    variant_id: v.variantId,
-                    variant_output: rows[rowIndex][v.variantId],
-                })),
-                inputs: rows[rowIndex].inputs,
-            }
-
-            updateEvaluationScenarioData(evaluation_scenario_id, data)
-        }
-    }
-
-    const updateEvaluationScenarioData = async (
+    const updateEvaluationScenarioData = useCallback(async (
         id: string,
         data: Partial<EvaluationScenario>,
         showNotification: boolean = true,
@@ -196,7 +175,38 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                 if (showNotification) message.success("Evaluation Updated!")
             })
             .catch(console.error)
-    }
+    },[evaluation.evaluationType, evaluation.id, evaluationScenarios, setRowValue])
+
+    const handleVoteClick = useCallback((id: string, vote: string) => {
+        const rowIndex = rows.findIndex((row) => row.id === id)
+        const evaluation_scenario_id = rows[rowIndex].id
+
+        if (evaluation_scenario_id) {
+            setRowValue(rowIndex, "vote", "loading")
+            const data = {
+                vote: vote,
+                outputs: variants.map((v: Variant) => ({
+                    variant_id: v.variantId,
+                    variant_output: rows[rowIndex][v.variantId],
+                })),
+                inputs: rows[rowIndex].inputs,
+            }
+
+            updateEvaluationScenarioData(evaluation_scenario_id, data)
+        }
+    },[rows, setRowValue, updateEvaluationScenarioData, variants])
+
+    useEffect(() => {
+        if (evaluationStatus === EvaluationFlow.EVALUATION_FINISHED) {
+            fetchEvaluationResults(evaluation.id)
+                .then((data) => setEvaluationResults(data))
+                .catch((err) => console.error("Failed to fetch results:", err))
+                .then(() => {
+                    updateEvaluation(evaluation.id, {status: EvaluationFlow.EVALUATION_FINISHED})
+                })
+                .catch((err) => console.error("Failed to fetch results:", err))
+        }
+    }, [evaluationStatus, evaluation.id, handleVoteClick])
 
     const runAllEvaluations = async () => {
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
@@ -265,16 +275,6 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
             },
             showNotification,
         )
-    }
-
-    const setRowValue = (
-        rowIndex: number,
-        columnKey: keyof ABTestingEvaluationTableRow,
-        value: any,
-    ) => {
-        const newRows = [...rows]
-        newRows[rowIndex][columnKey] = value as never
-        setRows(newRows)
     }
 
     const dynamicColumns: ColumnType<ABTestingEvaluationTableRow>[] = variants.map(
