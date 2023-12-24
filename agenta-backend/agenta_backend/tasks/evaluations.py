@@ -17,6 +17,7 @@ from agenta_backend.services.db_manager import (
 )
 from agenta_backend.models.db_models import (
     AppDB,
+    EvaluationScenarioInputDB,
     EvaluationScenarioOutputDB,
     EvaluationScenarioResult,
     AggregatedResult,
@@ -50,6 +51,8 @@ def evaluate(
         uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
 
         for data_point in testset.csvdata:
+
+            # 1. We call the llm app
             variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
             evaluators_results: [EvaluationScenarioResult] = []
@@ -57,30 +60,43 @@ def evaluate(
                 evaluator_config = loop.run_until_complete(
                     fetch_evaluator_config(evaluator_config_id)
                 )
-
+                # 2. We evaluate
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
                     data_point["correct_answer"],
                     variant_output,
-                    evaluator_config.settings_values
+                    evaluator_config.settings_values,
                 )
 
                 result_object = EvaluationScenarioResult(
                     evaluator_config=evaluator_config.id,
-                    result=Result(type="number", value=result),
+                    result=result,
                 )
                 evaluators_results.append(result_object)
                 evaluators_aggregated_data[evaluator_config.evaluator_key].append(
                     result
                 )
 
+            # 3. We add inputs
+            raw_inputs = app_variant_db.parameters.get('inputs', []) if app_variant_db.parameters else []
+            inputs = []
+            if raw_inputs:
+                inputs = [
+                    EvaluationScenarioInputDB(
+                        name=input_item['name'],
+                        type='text',
+                        value=data_point[input_item['name']]
+                    ) for input_item in raw_inputs
+                ]
+
+            # 4. We create a new evaluation scenario
             evaluation_scenario = loop.run_until_complete(
                 create_new_evaluation_scenario(
                     user=app.user,
                     organization=app.organization,
                     evaluation=new_evaluation_db,
                     evaluators_configs=new_evaluation_db.evaluators_configs,
-                    inputs=[],
+                    inputs=inputs,
                     is_pinned=False,
                     note="",
                     correct_answer=data_point["correct_answer"],
