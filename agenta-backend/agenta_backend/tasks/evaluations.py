@@ -62,6 +62,7 @@ def evaluate(
                     evaluator_config.evaluator_key,
                     data_point["correct_answer"],
                     variant_output,
+                    evaluator_config.settings_values
                 )
 
                 result_object = EvaluationScenarioResult(
