@@ -2,15 +2,16 @@ import re
 from langchain.chains import LLMChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
-
-def auto_exact_match(variant_output, correct_answer, settings_values):
-    if variant_output == correct_answer:
-        return 1
-    else:
-        return 0
+from agenta_backend.services.db_manager import Result
 
 
-def auto_similarity_match(variant_output, correct_answer, settings_values):
+def auto_exact_match(variant_output, correct_answer, settings_values) -> Result:
+    exact_match = True if variant_output == correct_answer else False
+    result = Result(type="bool", value=exact_match)
+    return result
+
+
+def auto_similarity_match(variant_output, correct_answer, settings_values) -> Result:
     set1 = set(variant_output.split())
     set2 = set(correct_answer.split())
     intersect = set1.intersection(set2)
@@ -19,7 +20,8 @@ def auto_similarity_match(variant_output, correct_answer, settings_values):
     similarity = len(intersect) / len(union)
 
     is_similar = True if similarity > settings_values["similarity_threshold"] else False
-    return is_similar
+    result = Result(type="bool", value=is_similar)
+    return result
 
 
 def auto_regex_test(test_string, regex, should_match):
@@ -40,7 +42,11 @@ def evaluate(
         evaluation_function = globals()[evaluator_name]
 
         return evaluation_function(
-            correct_answer, variant_output, settings_values, *additional_args, **additional_kwargs
+            correct_answer,
+            variant_output,
+            settings_values,
+            *additional_args,
+            **additional_kwargs,
         )
     except KeyError:
         raise ValueError(f"Evaluation method '{evaluator_name}' not found.")
