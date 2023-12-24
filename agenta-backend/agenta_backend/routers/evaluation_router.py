@@ -629,4 +629,6 @@ async def webhook_example_fake():
     """
 
     # return a random score b/w 0 and 1
-    return {"score": secrets.SystemRandom.random()}
+    random_generator = secrets.SystemRandom()
+    random_number = random_generator.random()
+    return {"score": random_number}

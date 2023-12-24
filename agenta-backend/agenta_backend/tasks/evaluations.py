@@ -80,8 +80,8 @@ def evaluate(
 
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
-                    data_point["correct_answer"],
                     variant_output,
+                    data_point["correct_answer"],
                     evaluator_config.settings_values,
                 )
 
