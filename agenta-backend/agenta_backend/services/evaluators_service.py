@@ -35,7 +35,7 @@ def evaluate(
     correct_answer: str,
     variant_output :str,
     settings_values: dict,
-    *additional_args: dict,
+    *additional_args: tuple,
     **additional_kwargs: dict,
 ):
     try:
