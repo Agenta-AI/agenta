@@ -124,7 +124,7 @@ def evaluate(
         )
     )
 
-
+# TODO: find a good solution for aggregating evaluator results
 async def aggregate_evaluator_results(
     app: AppDB, evaluators_aggregated_data: dict
 ) -> List[AggregatedResult]:
