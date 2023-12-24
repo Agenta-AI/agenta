@@ -29,9 +29,11 @@ def auto_similarity_match(
     return result
 
 
-def auto_regex_test(test_string: str, regex: Any, should_match: bool) -> Result:
-    re_pattern = re.compile(regex, re.IGNORECASE)
-    result = bool(re_pattern.search(test_string)) == should_match
+def auto_regex_test(_, test_string: str, settings_values: dict) -> Result:
+    re_pattern = re.compile(settings_values["regex_pattern"], re.IGNORECASE)
+    result = (
+        bool(re_pattern.search(test_string)) == settings_values["regex_should_match"]
+    )
     return Result(type="bool", value=result)
 
 
