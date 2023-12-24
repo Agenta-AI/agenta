@@ -57,13 +57,19 @@ def evaluate(
                 evaluator_config = loop.run_until_complete(
                     fetch_evaluator_config(evaluator_config_id)
                 )
-
-                result = evaluators_service.evaluate(
-                    evaluator_config.evaluator_key,
-                    data_point["correct_answer"],
-                    variant_output,
-                    evaluator_config.settings_values
-                )
+                if evaluator_config.evaluator_key == "auto_regex_test":
+                    result = evaluators_service.auto_regex_test(
+                        variant_output,
+                        evaluator_config.settings_values.get("regex_pattern"),
+                        evaluator_config.settings_values.get("regex_should_match"),
+                    ) # result will come out as a bool (True or False)
+                else:
+                    result = evaluators_service.evaluate(
+                        evaluator_config.evaluator_key,
+                        data_point["correct_answer"],
+                        variant_output,
+                        evaluator_config.settings_values
+                    )
 
                 result_object = EvaluationScenarioResult(
                     evaluator_config=evaluator_config.id,
