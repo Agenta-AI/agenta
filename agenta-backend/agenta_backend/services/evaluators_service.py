@@ -25,10 +25,10 @@ def auto_similarity_match(variant_output: str, correct_answer: str, settings_val
     return result
 
 
-def auto_regex_test(test_string: str, regex: Any, should_match: bool):
+def auto_regex_test(test_string: str, regex: Any, should_match: bool) -> Result:
     re_pattern = re.compile(regex, re.IGNORECASE)
-    result = bool(re_pattern.search(test_string))
-    return result == should_match
+    result = bool(re_pattern.search(test_string)) == should_match
+    return Result(type="bool", value=result)
 
 
 def evaluate(
