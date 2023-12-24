@@ -1623,7 +1623,7 @@ async def create_new_evaluation(
     testset: TestSetDB,
     status: str,
     variants: [AppVariantDB],
-    evaluators_configs: List[EvaluatorConfigDB],
+    evaluators_configs: List[str],
 ) -> EvaluationDB:
     """Create a new evaluation scenario.
     Returns:
