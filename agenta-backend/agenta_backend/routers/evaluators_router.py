@@ -56,9 +56,7 @@ async def get_evaluators():
 
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])
-async def get_evaluator_configs(
-    app_id: str = Query(), response_model=List[EvaluatorConfig]
-):
+async def get_evaluator_configs(app_id: str = Query()):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Args:
@@ -67,7 +65,16 @@ async def get_evaluator_configs(
     Returns:
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
-    return await evaluator_manager.get_evaluators_configs(app_id)
+
+    configs_db = await evaluator_manager.get_evaluators_configs(app_id)
+    return [
+        EvaluatorConfig(
+            id=str(config_db.id),
+            evaluator_key=config_db.evaluator_key,
+            settings_values=config_db.settings_values,
+        )
+        for config_db in configs_db
+    ]
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
@@ -80,14 +87,19 @@ async def create_new_evaluator_config(
         app_id (str): The ID of the app.
 
     Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+        EvaluatorConfigDB: Evaluator configuration api model.
     """
 
-    return await evaluator_manager.create_evaluator_config(
+    config_db = await evaluator_manager.create_evaluator_config(
         app_id=payload.app_id,
         name=payload.name,
         evaluator_key=payload.evaluator_key,
         settings_values=payload.settings_values,
+    )
+    return EvaluatorConfig(
+        id=str(config_db.id),
+        evaluator_key=config_db.evaluator_key,
+        settings_values=config_db.settings_values,
     )
 
 
