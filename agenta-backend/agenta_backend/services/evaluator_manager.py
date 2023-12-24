@@ -55,7 +55,7 @@ async def create_evaluator_config(
         user=app.user,
         name=name,
         evaluator_key=evaluator_key,
-        settings_values=settings_values
+        settings_values=settings_values,
     )
 
 

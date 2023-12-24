@@ -18,9 +18,7 @@ from agenta_backend.services import (
 
 from agenta_backend.services import evaluator_manager
 
-from agenta_backend.utils.common import (
-    check_access_to_app
-)
+from agenta_backend.utils.common import check_access_to_app
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
@@ -107,4 +105,6 @@ async def delete_evaluator_config(evaluator_id: str):
         success = await evaluator_manager.delete_evaluator_config(evaluator_id)
         return success
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error deleting evaluator configuration: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error deleting evaluator configuration: {str(e)}"
+        )
