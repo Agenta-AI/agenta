@@ -107,14 +107,14 @@ def evaluate(
                 )
             )
 
-    aggregated_results = loop.run_until_complete(
-        aggregate_evaluator_results(app, evaluators_aggregated_data)
-    )
-    updated_evaluation = loop.run_until_complete(
-        update_evaluation_with_aggregated_results(
-            new_evaluation_db.id, aggregated_results
-        )
-    )
+    # aggregated_results = loop.run_until_complete(
+    #     aggregate_evaluator_results(app, evaluators_aggregated_data)
+    # )
+    # updated_evaluation = loop.run_until_complete(
+    #     update_evaluation_with_aggregated_results(
+    #         new_evaluation_db.id, aggregated_results
+    #     )
+    # )
 
 
 async def aggregate_evaluator_results(
