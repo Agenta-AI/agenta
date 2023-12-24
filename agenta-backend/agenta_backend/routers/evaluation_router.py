@@ -26,7 +26,6 @@ from agenta_backend.models.api.evaluation_model import (
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
-    evaluate_with_ai_critique,
     fetch_custom_evaluation_names,
     fetch_custom_evaluations,
     fetch_custom_evaluation_detail,
