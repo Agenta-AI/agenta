@@ -51,7 +51,6 @@ def evaluate(
         uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
 
         for data_point in testset.csvdata:
-
             # 1. We call the llm app
             variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
@@ -73,7 +72,7 @@ def evaluate(
                         evaluator_config.evaluator_key,
                         data_point["correct_answer"],
                         variant_output,
-                        evaluator_config.settings_values
+                        evaluator_config.settings_values,
                     )
 
                 result_object = EvaluationScenarioResult(
@@ -86,15 +85,20 @@ def evaluate(
                 )
 
             # 3. We add inputs
-            raw_inputs = app_variant_db.parameters.get('inputs', []) if app_variant_db.parameters else []
+            raw_inputs = (
+                app_variant_db.parameters.get("inputs", [])
+                if app_variant_db.parameters
+                else []
+            )
             inputs = []
             if raw_inputs:
                 inputs = [
                     EvaluationScenarioInputDB(
-                        name=input_item['name'],
-                        type='text',
-                        value=data_point[input_item['name']]
-                    ) for input_item in raw_inputs
+                        name=input_item["name"],
+                        type="text",
+                        value=data_point[input_item["name"]],
+                    )
+                    for input_item in raw_inputs
                 ]
 
             # 4. We create a new evaluation scenario
@@ -123,6 +127,7 @@ def evaluate(
             new_evaluation_db.id, aggregated_results
         )
     )
+
 
 # TODO: find a good solution for aggregating evaluator results
 async def aggregate_evaluator_results(
