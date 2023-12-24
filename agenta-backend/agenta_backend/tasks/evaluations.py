@@ -51,7 +51,6 @@ def evaluate(
         uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
 
         for data_point in testset.csvdata:
-
             # 1. We call the llm app
             variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
@@ -60,6 +59,7 @@ def evaluate(
                 evaluator_config = loop.run_until_complete(
                     fetch_evaluator_config(evaluator_config_id)
                 )
+
                 # 2. We evaluate
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
@@ -78,15 +78,20 @@ def evaluate(
                 )
 
             # 3. We add inputs
-            raw_inputs = app_variant_db.parameters.get('inputs', []) if app_variant_db.parameters else []
+            raw_inputs = (
+                app_variant_db.parameters.get("inputs", [])
+                if app_variant_db.parameters
+                else []
+            )
             inputs = []
             if raw_inputs:
                 inputs = [
                     EvaluationScenarioInputDB(
-                        name=input_item['name'],
-                        type='text',
-                        value=data_point[input_item['name']]
-                    ) for input_item in raw_inputs
+                        name=input_item["name"],
+                        type="text",
+                        value=data_point[input_item["name"]],
+                    )
+                    for input_item in raw_inputs
                 ]
 
             # 4. We create a new evaluation scenario
@@ -121,12 +126,13 @@ async def aggregate_evaluator_results(
     app: AppDB, evaluators_aggregated_data: dict
 ) -> List[AggregatedResult]:
     aggregated_results = []
-    for evaluator_key, values in evaluators_aggregated_data.items():
-        average_value = sum(values) / len(values) if values else 0
-        evaluator_config = await fetch_evaluator_config_by_appId(app.id, evaluator_key)
-        aggregated_result = AggregatedResult(
-            evaluator_config=evaluator_config.id,
-            result=Result(type="number", value=average_value),
-        )
-        aggregated_results.append(aggregated_result)
+    # TODO: find a good solution for aggregating evaluator results
+    # for evaluator_key, values in evaluators_aggregated_data.items():
+    #     average_value = sum(values) / len(values) if values else 0
+    #     evaluator_config = await fetch_evaluator_config_by_appId(app.id, evaluator_key)
+    #     aggregated_result = AggregatedResult(
+    #         evaluator_config=evaluator_config.id,
+    #         result=Result(type="number", value=average_value),
+    #     )
+    #     aggregated_results.append(aggregated_result)
     return aggregated_results
