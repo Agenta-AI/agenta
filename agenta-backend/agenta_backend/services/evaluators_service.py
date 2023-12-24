@@ -6,13 +6,17 @@ from langchain.prompts import PromptTemplate
 from agenta_backend.services.db_manager import Result
 
 
-def auto_exact_match(variant_output: str, correct_answer: str, settings_values: dict) -> Result:
+def auto_exact_match(
+    variant_output: str, correct_answer: str, settings_values: dict
+) -> Result:
     exact_match = True if variant_output == correct_answer else False
     result = Result(type="bool", value=exact_match)
     return result
 
 
-def auto_similarity_match(variant_output: str, correct_answer: str, settings_values: dict) -> Result:
+def auto_similarity_match(
+    variant_output: str, correct_answer: str, settings_values: dict
+) -> Result:
     set1 = set(variant_output.split())
     set2 = set(correct_answer.split())
     intersect = set1.intersection(set2)
@@ -34,7 +38,7 @@ def auto_regex_test(test_string: str, regex: Any, should_match: bool) -> Result:
 def evaluate(
     evaluator_name: str,
     correct_answer: str,
-    variant_output :str,
+    variant_output: str,
     settings_values: dict,
     *additional_args: tuple,
     **additional_kwargs: dict,
