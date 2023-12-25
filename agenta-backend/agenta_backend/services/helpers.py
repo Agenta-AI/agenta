@@ -15,8 +15,7 @@ def format_inputs(list_of_dictionaries: List[Dict[str, Any]]) -> Dict:
 
     formatted_dictionary = {}
     for dictionary in list_of_dictionaries:
-        input_name = list(dictionary.keys())[0]
-        formatted_dictionary[input_name] = dictionary[input_name]
+        formatted_dictionary[dictionary["input_name"]] = dictionary["input_value"]
     return formatted_dictionary
 
 

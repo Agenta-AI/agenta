@@ -24,7 +24,6 @@ from agenta_backend.models.db_models import (
     Result,
 )
 from agenta_backend.services import evaluators_service
-from agenta_backend.services.helpers import format_inputs
 from agenta_backend.models.api.evaluation_model import NewEvaluation
 
 
@@ -79,12 +78,10 @@ def evaluate(
                     fetch_evaluator_config(evaluator_config_id)
                 )
 
-                # Format inputs for custom code
-                formatted_inputs = format_inputs(testset.csvdata)
                 additional_kwargs = (
                     {
                         "app_params": app_variant_db.config.parameters,
-                        "inputs": formatted_inputs,
+                        "inputs": data_point,
                     }
                     if evaluator_config.evaluator_key == "custom_code_run"
                     else {}
