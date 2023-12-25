@@ -1,4 +1,4 @@
-from pydantic.v1 import BaseSettings
+from pydantic import BaseSettings
 
 import os
 import toml
