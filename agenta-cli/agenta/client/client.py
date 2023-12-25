@@ -268,7 +268,7 @@ def remove_variant(variant_id: str, host: str, api_key: str = None):
         None
     """
     response = requests.delete(
-        f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}",
+        f"{host}/{BACKEND_URL_SUFFIX}/variants/{variant_id}/",
         headers={
             "Content-Type": "application/json",
             "Authorization": api_key if api_key is not None else None,
