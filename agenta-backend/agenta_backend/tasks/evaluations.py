@@ -81,7 +81,7 @@ def evaluate(
                 additional_kwargs = (
                     {
                         "app_params": app_variant_db.config.parameters,
-                        "inputs": data_point, # TODO: fetch input from config parameters when #1102 has been fixed
+                        "inputs": data_point,  # TODO: fetch input from config parameters when #1102 has been fixed
                     }
                     if evaluator_config.evaluator_key == "custom_code_run"
                     else {}
