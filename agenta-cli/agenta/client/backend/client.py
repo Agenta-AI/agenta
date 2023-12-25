@@ -39,6 +39,7 @@ from .types.feedback import Feedback
 from .types.get_config_reponse import GetConfigReponse
 from .types.http_validation_error import HttpValidationError
 from .types.image import Image
+from .types.invite_request import InviteRequest
 from .types.list_api_keys_output import ListApiKeysOutput
 from .types.new_testset import NewTestset
 from .types.organization import Organization
@@ -62,7 +63,7 @@ OMIT = typing.cast(typing.Any, ...)
 
 class AgentaApi:
     def __init__(
-        self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 600
+        self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60
     ):
         self._client_wrapper = SyncClientWrapper(
             base_url=base_url,
@@ -70,7 +71,7 @@ class AgentaApi:
             httpx_client=httpx.Client(timeout=timeout),
         )
 
-    def list_api_keys(self) -> ListApiKeysOutput:
+    def list_api_keys(self) -> typing.List[ListApiKeysOutput]:
         """
         List all API keys associated with the authenticated user.
 
@@ -79,15 +80,21 @@ class AgentaApi:
 
         Returns:
         List[ListAPIKeysOutput]: A list of API Keys associated with the user.
+
+        ---
+        from agenta.client import AgentaApi
+
+        client = AgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        client.list_api_keys()
         """
         _response = self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "keys"),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(ListApiKeysOutput, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(typing.List[ListApiKeysOutput], _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
@@ -108,7 +115,7 @@ class AgentaApi:
             "POST",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "keys"),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -146,7 +153,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Dict[str, typing.Any], _response.json())  # type: ignore
@@ -173,7 +180,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
@@ -205,7 +212,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -217,7 +224,7 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def invite_to_org(self, org_id: str, *, email: str) -> typing.Any:
+    def invite_to_org(self, org_id: str, *, request: InviteRequest) -> typing.Any:
         """
         Invite a user to an Organization.
 
@@ -234,7 +241,7 @@ class AgentaApi:
         Parameters:
             - org_id: str.
 
-            - email: str.
+            - request: InviteRequest.
         """
         _response = self._client_wrapper.httpx_client.request(
             "POST",
@@ -242,9 +249,46 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/",
                 f"organizations_ee/{org_id}/invite",
             ),
-            json=jsonable_encoder({"email": email}),
+            json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def resend_invitation(self, org_id: str, *, request: InviteRequest) -> typing.Any:
+        """
+        Resend an invitation to a user to an Organization.
+
+        Raises:
+        HTTPException: _description_; status_code: 500
+        HTTPException: Invitation not found or has expired; status_code: 400
+        HTTPException: You already belong to this organization; status_code: 400
+
+        Returns:
+        JSONResponse: Resent invitation to user; status_code: 200
+
+        Parameters:
+            - org_id: str.
+
+            - request: InviteRequest.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "POST",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations_ee/{org_id}/invite/resend",
+            ),
+            json=jsonable_encoder(request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -281,7 +325,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder({"token": token}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -305,7 +349,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -345,7 +389,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -362,7 +406,7 @@ class AgentaApi:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "health"),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -377,7 +421,7 @@ class AgentaApi:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "profile"),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -412,7 +456,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[AppVariantOutput], _response.json())  # type: ignore
@@ -453,7 +497,7 @@ class AgentaApi:
                 {"app_id": app_id, "environment": environment}
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(AppVariantOutput, _response.json())  # type: ignore
@@ -500,7 +544,7 @@ class AgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps"),
             params=remove_none_from_dict({"app_name": app_name, "org_id": org_id}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[App], _response.json())  # type: ignore
@@ -541,7 +585,7 @@ class AgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(CreateAppOutput, _response.json())  # type: ignore
@@ -607,7 +651,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -635,7 +679,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -692,7 +736,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(AppVariantOutput, _response.json())  # type: ignore
@@ -729,7 +773,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[EnvironmentOutput], _response.json())  # type: ignore
@@ -786,7 +830,7 @@ class AgentaApi:
                 }
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(AddVariantFromBaseAndConfigResponse, _response.json())  # type: ignore
@@ -837,7 +881,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Uri, _response.json())  # type: ignore
@@ -869,7 +913,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -911,7 +955,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -950,7 +994,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -987,7 +1031,7 @@ class AgentaApi:
             ),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Evaluation], _response.json())  # type: ignore
@@ -1049,7 +1093,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(SimpleEvaluationOutput, _response.json())  # type: ignore
@@ -1088,7 +1132,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[str], _response.json())  # type: ignore
@@ -1120,7 +1164,7 @@ class AgentaApi:
                 f"evaluations/{evaluation_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Evaluation, _response.json())  # type: ignore
@@ -1168,7 +1212,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1210,7 +1254,7 @@ class AgentaApi:
                 f"evaluations/{evaluation_id}/evaluation_scenarios",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[EvaluationScenario], _response.json())  # type: ignore
@@ -1247,7 +1291,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1326,7 +1370,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1393,7 +1437,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -1433,7 +1477,7 @@ class AgentaApi:
                 f"evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Dict[str, str], _response.json())  # type: ignore
@@ -1470,7 +1514,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder({"score": score}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1502,7 +1546,7 @@ class AgentaApi:
                 f"evaluations/{evaluation_id}/results",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1535,7 +1579,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1567,7 +1611,7 @@ class AgentaApi:
                 f"evaluations/custom_evaluation/{id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(CustomEvaluationDetail, _response.json())  # type: ignore
@@ -1602,7 +1646,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1641,7 +1685,7 @@ class AgentaApi:
                 f"evaluations/custom_evaluation/list/{app_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[CustomEvaluationOutput], _response.json())  # type: ignore
@@ -1680,7 +1724,7 @@ class AgentaApi:
                 f"evaluations/custom_evaluation/{app_name}/names",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[CustomEvaluationNames], _response.json())  # type: ignore
@@ -1741,7 +1785,7 @@ class AgentaApi:
                 }
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1767,7 +1811,7 @@ class AgentaApi:
                 "evaluations/webhook_example_fake",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(EvaluationWebhook, _response.json())  # type: ignore
@@ -1814,7 +1858,7 @@ class AgentaApi:
             ),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(TestSetSimpleResponse, _response.json())  # type: ignore
@@ -1843,7 +1887,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(TestSetSimpleResponse, _response.json())  # type: ignore
@@ -1881,7 +1925,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(TestSetSimpleResponse, _response.json())  # type: ignore
@@ -1912,7 +1956,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1947,7 +1991,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -1984,7 +2028,7 @@ class AgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets"),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[TestSetOutputResponse], _response.json())  # type: ignore
@@ -2019,7 +2063,7 @@ class AgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets"),
             json=jsonable_encoder({"testset_ids": testset_ids}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[str], _response.json())  # type: ignore
@@ -2060,7 +2104,7 @@ class AgentaApi:
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Image, _response.json())  # type: ignore
@@ -2090,7 +2134,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder({"variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Dict[str, typing.Any], _response.json())  # type: ignore
@@ -2119,7 +2163,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", "containers/templates"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(ContainerTemplatesResponse, _response.json())  # type: ignore
@@ -2163,7 +2207,7 @@ class AgentaApi:
                 {"base_id": base_id, "variant_id": variant_id}
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Uri, _response.json())  # type: ignore
@@ -2203,7 +2247,7 @@ class AgentaApi:
                 {"environment_name": environment_name, "variant_id": variant_id}
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -2275,7 +2319,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -2306,7 +2350,7 @@ class AgentaApi:
                 f"observability/traces/{app_id}/{variant_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Trace], _response.json())  # type: ignore
@@ -2330,7 +2374,7 @@ class AgentaApi:
                 f"observability/traces/{trace_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Trace, _response.json())  # type: ignore
@@ -2357,7 +2401,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder({"status": status}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
@@ -2460,7 +2504,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -2489,7 +2533,7 @@ class AgentaApi:
                 f"observability/spans/{trace_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Span], _response.json())  # type: ignore
@@ -2518,7 +2562,7 @@ class AgentaApi:
                 f"observability/feedbacks/{trace_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Feedback], _response.json())  # type: ignore
@@ -2563,7 +2607,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -2589,7 +2633,7 @@ class AgentaApi:
                 f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Feedback, _response.json())  # type: ignore
@@ -2635,7 +2679,7 @@ class AgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Feedback, _response.json())  # type: ignore
@@ -2672,7 +2716,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", "organizations"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Organization], _response.json())  # type: ignore
@@ -2689,7 +2733,7 @@ class AgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", "organizations/own"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(OrganizationOutput, _response.json())  # type: ignore
@@ -2734,7 +2778,7 @@ class AgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "bases"),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[BaseOutput], _response.json())  # type: ignore
@@ -2772,7 +2816,7 @@ class AgentaApi:
                 }
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(GetConfigReponse, _response.json())  # type: ignore
@@ -2814,7 +2858,7 @@ class AgentaApi:
                 }
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -2829,7 +2873,7 @@ class AgentaApi:
 
 class AsyncAgentaApi:
     def __init__(
-        self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 600
+        self, *, base_url: str, api_key: str, timeout: typing.Optional[float] = 60
     ):
         self._client_wrapper = AsyncClientWrapper(
             base_url=base_url,
@@ -2837,7 +2881,7 @@ class AsyncAgentaApi:
             httpx_client=httpx.AsyncClient(timeout=timeout),
         )
 
-    async def list_api_keys(self) -> ListApiKeysOutput:
+    async def list_api_keys(self) -> typing.List[ListApiKeysOutput]:
         """
         List all API keys associated with the authenticated user.
 
@@ -2846,15 +2890,21 @@ class AsyncAgentaApi:
 
         Returns:
         List[ListAPIKeysOutput]: A list of API Keys associated with the user.
+
+        ---
+        from agenta.client import AsyncAgentaApi
+
+        client = AsyncAgentaApi(api_key="YOUR_API_KEY", base_url="https://yourhost.com/path/to/api")
+        await client.list_api_keys()
         """
         _response = await self._client_wrapper.httpx_client.request(
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "keys"),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
-            return pydantic.parse_obj_as(ListApiKeysOutput, _response.json())  # type: ignore
+            return pydantic.parse_obj_as(typing.List[ListApiKeysOutput], _response.json())  # type: ignore
         try:
             _response_json = _response.json()
         except JSONDecodeError:
@@ -2875,7 +2925,7 @@ class AsyncAgentaApi:
             "POST",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "keys"),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -2913,7 +2963,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Dict[str, typing.Any], _response.json())  # type: ignore
@@ -2940,7 +2990,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"keys/{key_prefix}/validate"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
@@ -2972,7 +3022,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"organizations_ee/{org_id}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -2984,7 +3034,7 @@ class AsyncAgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def invite_to_org(self, org_id: str, *, email: str) -> typing.Any:
+    async def invite_to_org(self, org_id: str, *, request: InviteRequest) -> typing.Any:
         """
         Invite a user to an Organization.
 
@@ -3001,7 +3051,7 @@ class AsyncAgentaApi:
         Parameters:
             - org_id: str.
 
-            - email: str.
+            - request: InviteRequest.
         """
         _response = await self._client_wrapper.httpx_client.request(
             "POST",
@@ -3009,9 +3059,48 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/",
                 f"organizations_ee/{org_id}/invite",
             ),
-            json=jsonable_encoder({"email": email}),
+            json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def resend_invitation(
+        self, org_id: str, *, request: InviteRequest
+    ) -> typing.Any:
+        """
+        Resend an invitation to a user to an Organization.
+
+        Raises:
+        HTTPException: _description_; status_code: 500
+        HTTPException: Invitation not found or has expired; status_code: 400
+        HTTPException: You already belong to this organization; status_code: 400
+
+        Returns:
+        JSONResponse: Resent invitation to user; status_code: 200
+
+        Parameters:
+            - org_id: str.
+
+            - request: InviteRequest.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "POST",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"organizations_ee/{org_id}/invite/resend",
+            ),
+            json=jsonable_encoder(request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3048,7 +3137,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder({"token": token}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3072,7 +3161,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3112,7 +3201,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3129,7 +3218,7 @@ class AsyncAgentaApi:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "health"),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3144,7 +3233,7 @@ class AsyncAgentaApi:
             "GET",
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "profile"),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3179,7 +3268,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/variants"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[AppVariantOutput], _response.json())  # type: ignore
@@ -3222,7 +3311,7 @@ class AsyncAgentaApi:
                 {"app_id": app_id, "environment": environment}
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(AppVariantOutput, _response.json())  # type: ignore
@@ -3269,7 +3358,7 @@ class AsyncAgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps"),
             params=remove_none_from_dict({"app_name": app_name, "org_id": org_id}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[App], _response.json())  # type: ignore
@@ -3310,7 +3399,7 @@ class AsyncAgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "apps"),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(CreateAppOutput, _response.json())  # type: ignore
@@ -3376,7 +3465,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3404,7 +3493,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3461,7 +3550,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(AppVariantOutput, _response.json())  # type: ignore
@@ -3498,7 +3587,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"apps/{app_id}/environments"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[EnvironmentOutput], _response.json())  # type: ignore
@@ -3555,7 +3644,7 @@ class AsyncAgentaApi:
                 }
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(AddVariantFromBaseAndConfigResponse, _response.json())  # type: ignore
@@ -3606,7 +3695,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Uri, _response.json())  # type: ignore
@@ -3638,7 +3727,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"variants/{variant_id}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3680,7 +3769,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder({"parameters": parameters}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3721,7 +3810,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3758,7 +3847,7 @@ class AsyncAgentaApi:
             ),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Evaluation], _response.json())  # type: ignore
@@ -3820,7 +3909,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(SimpleEvaluationOutput, _response.json())  # type: ignore
@@ -3859,7 +3948,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder({"evaluations_ids": evaluations_ids}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[str], _response.json())  # type: ignore
@@ -3891,7 +3980,7 @@ class AsyncAgentaApi:
                 f"evaluations/{evaluation_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Evaluation, _response.json())  # type: ignore
@@ -3939,7 +4028,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -3981,7 +4070,7 @@ class AsyncAgentaApi:
                 f"evaluations/{evaluation_id}/evaluation_scenarios",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[EvaluationScenario], _response.json())  # type: ignore
@@ -4018,7 +4107,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -4097,7 +4186,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -4164,7 +4253,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -4204,7 +4293,7 @@ class AsyncAgentaApi:
                 f"evaluations/evaluation_scenario/{evaluation_scenario_id}/score",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Dict[str, str], _response.json())  # type: ignore
@@ -4241,7 +4330,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder({"score": score}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -4273,7 +4362,7 @@ class AsyncAgentaApi:
                 f"evaluations/{evaluation_id}/results",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -4306,7 +4395,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -4338,7 +4427,7 @@ class AsyncAgentaApi:
                 f"evaluations/custom_evaluation/{id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(CustomEvaluationDetail, _response.json())  # type: ignore
@@ -4373,7 +4462,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -4412,7 +4501,7 @@ class AsyncAgentaApi:
                 f"evaluations/custom_evaluation/list/{app_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[CustomEvaluationOutput], _response.json())  # type: ignore
@@ -4451,7 +4540,7 @@ class AsyncAgentaApi:
                 f"evaluations/custom_evaluation/{app_name}/names",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[CustomEvaluationNames], _response.json())  # type: ignore
@@ -4512,7 +4601,7 @@ class AsyncAgentaApi:
                 }
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -4538,7 +4627,7 @@ class AsyncAgentaApi:
                 "evaluations/webhook_example_fake",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(EvaluationWebhook, _response.json())  # type: ignore
@@ -4585,7 +4674,7 @@ class AsyncAgentaApi:
             ),
             files={"file": file},
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(TestSetSimpleResponse, _response.json())  # type: ignore
@@ -4614,7 +4703,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", "testsets/endpoint"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(TestSetSimpleResponse, _response.json())  # type: ignore
@@ -4652,7 +4741,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(TestSetSimpleResponse, _response.json())  # type: ignore
@@ -4683,7 +4772,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", f"testsets/{testset_id}"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -4720,7 +4809,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -4757,7 +4846,7 @@ class AsyncAgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets"),
             params=remove_none_from_dict({"app_id": app_id}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[TestSetOutputResponse], _response.json())  # type: ignore
@@ -4794,7 +4883,7 @@ class AsyncAgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "testsets"),
             json=jsonable_encoder({"testset_ids": testset_ids}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[str], _response.json())  # type: ignore
@@ -4837,7 +4926,7 @@ class AsyncAgentaApi:
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Image, _response.json())  # type: ignore
@@ -4869,7 +4958,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder({"variant_id": variant_id}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Dict[str, typing.Any], _response.json())  # type: ignore
@@ -4898,7 +4987,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", "containers/templates"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(ContainerTemplatesResponse, _response.json())  # type: ignore
@@ -4942,7 +5031,7 @@ class AsyncAgentaApi:
                 {"base_id": base_id, "variant_id": variant_id}
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Uri, _response.json())  # type: ignore
@@ -4982,7 +5071,7 @@ class AsyncAgentaApi:
                 {"environment_name": environment_name, "variant_id": variant_id}
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
@@ -5054,7 +5143,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -5085,7 +5174,7 @@ class AsyncAgentaApi:
                 f"observability/traces/{app_id}/{variant_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Trace], _response.json())  # type: ignore
@@ -5109,7 +5198,7 @@ class AsyncAgentaApi:
                 f"observability/traces/{trace_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Trace, _response.json())  # type: ignore
@@ -5136,7 +5225,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder({"status": status}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(bool, _response.json())  # type: ignore
@@ -5239,7 +5328,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -5268,7 +5357,7 @@ class AsyncAgentaApi:
                 f"observability/spans/{trace_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Span], _response.json())  # type: ignore
@@ -5297,7 +5386,7 @@ class AsyncAgentaApi:
                 f"observability/feedbacks/{trace_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Feedback], _response.json())  # type: ignore
@@ -5342,7 +5431,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(str, _response.json())  # type: ignore
@@ -5368,7 +5457,7 @@ class AsyncAgentaApi:
                 f"observability/feedbacks/{trace_id}/{feedback_id}",
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Feedback, _response.json())  # type: ignore
@@ -5414,7 +5503,7 @@ class AsyncAgentaApi:
             ),
             json=jsonable_encoder(_request),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Feedback, _response.json())  # type: ignore
@@ -5451,7 +5540,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", "organizations"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[Organization], _response.json())  # type: ignore
@@ -5468,7 +5557,7 @@ class AsyncAgentaApi:
                 f"{self._client_wrapper.get_base_url()}/", "organizations/own"
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(OrganizationOutput, _response.json())  # type: ignore
@@ -5513,7 +5602,7 @@ class AsyncAgentaApi:
             urllib.parse.urljoin(f"{self._client_wrapper.get_base_url()}/", "bases"),
             params=remove_none_from_dict({"app_id": app_id, "base_name": base_name}),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.List[BaseOutput], _response.json())  # type: ignore
@@ -5551,7 +5640,7 @@ class AsyncAgentaApi:
                 }
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(GetConfigReponse, _response.json())  # type: ignore
@@ -5593,7 +5682,7 @@ class AsyncAgentaApi:
                 }
             ),
             headers=self._client_wrapper.get_headers(),
-            timeout=600,
+            timeout=60,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore

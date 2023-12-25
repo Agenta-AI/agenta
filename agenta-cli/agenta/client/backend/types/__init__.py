@@ -29,6 +29,7 @@ from .feedback import Feedback
 from .get_config_reponse import GetConfigReponse
 from .http_validation_error import HttpValidationError
 from .image import Image
+from .invite_request import InviteRequest
 from .list_api_keys_output import ListApiKeysOutput
 from .new_testset import NewTestset
 from .organization import Organization
@@ -74,6 +75,7 @@ __all__ = [
     "GetConfigReponse",
     "HttpValidationError",
     "Image",
+    "InviteRequest",
     "ListApiKeysOutput",
     "NewTestset",
     "Organization",
