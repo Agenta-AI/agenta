@@ -363,6 +363,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "romainrbr",
+      "name": "Romain Brucker",
+      "avatar_url": "https://avatars.githubusercontent.com/u/10381609?v=4",
+      "profile": "https://github.com/romainrbr",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

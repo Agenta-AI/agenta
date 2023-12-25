@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, List
 
-from pydantic import BaseModel, Extra, HttpUrl
+from pydantic import BaseModel, Extra, HttpUrl, Field
 
 
 class InFile:
@@ -27,6 +27,22 @@ class TextParam(str):
     @classmethod
     def __modify_schema__(cls, field_schema):
         field_schema.update({"x-parameter": "text"})
+
+
+class BinaryParam(int):
+    def __new__(cls, value: bool = False):
+        instance = super().__new__(cls, int(value))
+        instance.default = value
+        return instance
+
+    @classmethod
+    def __modify_schema__(cls, field_schema):
+        field_schema.update(
+            {
+                "x-parameter": "bool",
+                "type": "boolean",
+            }
+        )
 
 
 class IntParam(int):

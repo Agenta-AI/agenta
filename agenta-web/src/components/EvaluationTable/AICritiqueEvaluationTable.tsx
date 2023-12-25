@@ -1,6 +1,6 @@
 import {useState, useEffect} from "react"
 import type {ColumnType} from "antd/es/table"
-import {LineChartOutlined} from "@ant-design/icons"
+import {CaretRightOutlined, LineChartOutlined} from "@ant-design/icons"
 import {
     Button,
     Card,
@@ -26,7 +26,7 @@ import {
 import {useVariants} from "@/lib/hooks/useVariant"
 import {useRouter} from "next/router"
 import {EvaluationFlow, EvaluationType} from "@/lib/enums"
-import {getApikeys} from "@/lib/helpers/utils"
+import {batchExecute, getApikeys} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {exportAICritiqueEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
@@ -141,6 +141,15 @@ const useStyles = createUseStyles({
             color: "#3f8600",
         },
     },
+    inputTestBtn: {
+        width: "100%",
+        display: "flex",
+        justifyContent: "flex-end",
+        "& button": {
+            marginLeft: 10,
+        },
+        marginTop: "0.75rem",
+    },
 })
 
 const AICritiqueEvaluationTable: React.FC<AICritiqueEvaluationTableProps> = ({
@@ -225,7 +234,7 @@ Answer ONLY with one of the given grading or evaluation options.
     const runAllEvaluations = async () => {
         try {
             setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
-            await Promise.all(rows.map((_, rowIndex) => runEvaluation(rowIndex)))
+            await batchExecute(rows.map((_, rowIndex) => () => runEvaluation(rowIndex)))
             setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
             console.log("All evaluations finished.")
         } catch (err) {
@@ -235,35 +244,54 @@ Answer ONLY with one of the given grading or evaluation options.
     }
 
     const runEvaluation = async (rowIndex: number) => {
-        const inputParamsDict = rows[rowIndex].inputs.reduce((acc: {[key: string]: any}, item) => {
-            acc[item.input_name] = item.input_value
-            return acc
-        }, {})
+        try {
+            setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
 
-        const columnsDataNames = ["columnData0"]
-        let idx = 0
-        for (const columnName of columnsDataNames) {
-            setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
-
-            let result = await callVariant(
-                inputParamsDict,
-                variantData[idx].inputParams!,
-                variantData[idx].optParams!,
-                appId || "",
-                variants[idx].baseId || "",
-                variantData[idx].isChatVariant
-                    ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
-                    : [],
+            const inputParamsDict = rows[rowIndex].inputs.reduce(
+                (acc: {[key: string]: any}, item) => {
+                    acc[item.input_name] = item.input_value
+                    return acc
+                },
+                {},
             )
-            if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
-            setRowValue(rowIndex, columnName as any, result)
-            await evaluate(rowIndex)
-            setShouldFetchResults(true)
-            if (rowIndex === rows.length - 1) {
-                message.success("Evaluation Results Saved")
+            const columnsDataNames = ["columnData0"]
+            let idx = 0
+
+            for (const columnName of columnsDataNames) {
+                setRowValue(rowIndex, "evaluationFlow", EvaluationFlow.COMPARISON_RUN_STARTED)
+
+                let result = await callVariant(
+                    inputParamsDict,
+                    variantData[idx].inputParams!,
+                    variantData[idx].optParams!,
+                    appId || "",
+                    variants[idx].baseId || "",
+                    variantData[idx].isChatVariant
+                        ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
+                        : [],
+                )
+
+                if (variantData[idx].isChatVariant) {
+                    result = contentToChatMessageString(result)
+                }
+
+                setRowValue(rowIndex, columnName as any, result)
+                await evaluate(rowIndex)
+                setShouldFetchResults(true)
+
+                if (rowIndex === rows.length - 1) {
+                    message.success("Evaluation Results Saved")
+                }
+
+                idx++
             }
-            idx++
+
+            setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
+        } catch (error) {
+            console.error("Error during evaluation:", error)
+            setEvaluationStatus(EvaluationFlow.EVALUATION_FAILED)
+            message.error("Failed to run evaluation")
         }
     }
 
@@ -391,6 +419,15 @@ Answer ONLY with one of the given grading or evaluation options.
                             }
                         />
                     )}
+
+                    <div className={classes.inputTestBtn}>
+                        <Button
+                            onClick={() => runEvaluation(rowIndex)}
+                            icon={<CaretRightOutlined />}
+                        >
+                            Run
+                        </Button>
+                    </div>
                 </div>
             ),
         },
