@@ -78,11 +78,20 @@ def evaluate(
                     fetch_evaluator_config(evaluator_config_id)
                 )
 
+                additional_kwargs = (
+                    {
+                        "app_params": app_variant_db.config.parameters,
+                        "inputs": data_point, # TODO: fetch input from config parameters when #1102 has been fixed
+                    }
+                    if evaluator_config.evaluator_key == "custom_code_run"
+                    else {}
+                )
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
                     variant_output,
                     data_point["correct_answer"],
                     evaluator_config.settings_values,
+                    **additional_kwargs
                 )
 
                 result_object = EvaluationScenarioResult(
