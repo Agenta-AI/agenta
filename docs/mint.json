@@ -50,8 +50,16 @@
   ],
   "tabs": [
     {
+      "name": "Cookbook",
+      "url": "cookbook"
+    },
+    {
       "name": "Reference",
       "url": "reference"
+    },
+    {
+      "name": "Changelog",
+      "url": "changelog"
     }
   ],
   "navigation": [
@@ -68,6 +76,7 @@
       "group": "Tutorials",
       "pages": [
         "tutorials/first-app-with-langchain",
+        "tutorials/build-rag-application",
         "tutorials/deploy-mistral-model"
       ]
     },
@@ -214,6 +223,26 @@
             "reference/backend_api/list-bases",
             "reference/backend_api/get-config",
             "reference/backend_api/save-config"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Changelog",
+      "pages": [
+        "changelog/main"
+      ]
+    },
+    {
+      "group": "Cookbook",
+      "pages": [
+        "cookbook/list_templates_by_architecture",
+        "cookbook/list_templates_by_technology",
+        "cookbook/list_templates_by_use_case",
+        {
+          "group": "Templates",
+          "pages": [
+            "cookbook/extract_job_information"
           ]
         }
       ]
