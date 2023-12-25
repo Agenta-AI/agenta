@@ -73,16 +73,24 @@ fern init --openapi https://cloud.agenta.ai/api/openapi.json
               location: local-file-system
               path: ../backend
     ```
+    <img width="1001" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/f537691d-8dbb-4363-b7c0-ecef9f464053">
+
 
 7.  Go to the fern.config.json file and change the value of "organization" to `agenta`
+    <img width="593" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/0f44255e-50b5-4d78-863b-d33a3ec2eea0">
+
    
-8.  Generate the client code
+9.  Generate the client code
    
     ```bash
         fern generate
     ```
 
-9.  Change the timeout for the build_image function endpoint
-    Go to the client.py in the generated code folder search for the `build_image` function in the AgentaApi class and change the timeout to 600
+10.  Change the timeout for the build_image function endpoint
+    Go to the client.py in the generated code folder search for the `build_image` function in the AgentaApi class and change the timeout to 600.
+    When done, it should look like this;
+    <img width="995" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/8fab19e3-5226-405b-8a6f-4dcb6df588c9">
 
-10. Delete the fern folder.
+
+
+11. Delete the fern folder.
