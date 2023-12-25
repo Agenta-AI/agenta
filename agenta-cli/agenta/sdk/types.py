@@ -1,7 +1,8 @@
 import json
 from typing import Any, Dict, List
 
-from pydantic.v1 import BaseModel, Extra, HttpUrl, Field
+from pydantic import BaseModel, Extra, HttpUrl, Field
+
 
 class InFile:
     def __init__(self, file_name: str, file_path: str):
