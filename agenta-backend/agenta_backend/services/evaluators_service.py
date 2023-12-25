@@ -87,13 +87,7 @@ def custom_code_run(
 
 
 def auto_ai_critique(
-    llm_app_prompt_template: str,
-    llm_app_inputs: list,
-    correct_answer: str,
-    app_variant_output: str,
-    evaluation_prompt_template: str,
-    open_ai_key: str,
-    temperature: float = 0.9,
+    variant_output: str, correct_answer: str, settings_values: dict
 ) -> str:
     """Evaluate a response using an AI critique based on provided
      - An evaluation prompt,
@@ -105,49 +99,57 @@ def auto_ai_critique(
         llm_app_prompt_template (str): the prompt template of the llm app variant
         llm_app_inputs (list): parameters
         correct_answer (str): correct answer
-        app_variant_output (str): the output of an ll app variant with given parameters
+        variant_output (str): the output of an ll app variant with given parameters
         evaluation_prompt_template (str): evaluation prompt set by an agenta user in the ai evaluation view
 
     Returns:
         str: returns an evaluation
     """
-    llm = OpenAI(openai_api_key=open_ai_key, temperature=temperature)
+    llm = OpenAI(
+        openai_api_key=settings_values["open_ai_key"],
+        temperature=settings_values["temperature"],
+    )
 
     input_variables = []
 
     # List of default variables
     default_vars = [
-        "app_variant_output",
+        "variant_output",
         "llm_app_prompt_template",
         "correct_answer",
     ]
 
     # Check default variables
     for var in default_vars:
-        if "{%s}" % var in evaluation_prompt_template:
+        if "{%s}" % var in settings_values["evaluation_prompt_template"]:
             input_variables.append(var)
 
     # Iterate over llm_app_inputs and check if the variable name exists in the evaluation_prompt_template
-    for input_item in llm_app_inputs:
-        if "{%s}" % input_item["input_name"] in evaluation_prompt_template:
+    for input_item in settings_values["llm_app_inputs"]:
+        if (
+            "{%s}" % input_item["input_name"]
+            in settings_values["evaluation_prompt_template"]
+        ):
             input_variables.append(input_item["input_name"])
 
     chain_run_args = {
-        "llm_app_prompt_template": llm_app_prompt_template,
+        "llm_app_prompt_template": settings_values["llm_app_prompt_template"],
         "correct_answer": correct_answer,
-        "app_variant_output": app_variant_output,
+        "variant_output": variant_output,
     }
 
-    for input_item in llm_app_inputs:
+    for input_item in settings_values["llm_app_inputs"]:
         chain_run_args[input_item["input_name"]] = input_item["input_value"]
 
     prompt = PromptTemplate(
-        input_variables=input_variables, template=evaluation_prompt_template
+        input_variables=input_variables,
+        template=settings_values["evaluation_prompt_template"],
     )
     chain = LLMChain(llm=llm, prompt=prompt)
 
     output = chain.run(**chain_run_args)
-    return output.strip()
+
+    return Result(type="text", value=output.strip())
 
 
 def evaluate(
