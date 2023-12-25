@@ -81,7 +81,7 @@ def evaluate(
                 additional_kwargs = (
                     {
                         "app_params": app_variant_db.config.parameters,
-                        "inputs": data_point, # TODO: fetch input from config parameters when #1102 has been fixed
+                        "inputs": data_point,  # TODO: fetch input from config parameters when #1102 has been fixed
                     }
                     if evaluator_config.evaluator_key == "custom_code_run"
                     else {}
@@ -121,27 +121,33 @@ def evaluate(
                 )
             )
 
-    # aggregated_results = loop.run_until_complete(
-    #     aggregate_evaluator_results(app, evaluators_aggregated_data)
-    # )
-    # updated_evaluation = loop.run_until_complete(
-    #     update_evaluation_with_aggregated_results(
-    #         new_evaluation_db.id, aggregated_results
-    #     )
-    # )
+    aggregated_results = loop.run_until_complete(
+        aggregate_evaluator_results(app, evaluators_aggregated_data)
+    )
+    updated_evaluation = loop.run_until_complete(
+        update_evaluation_with_aggregated_results(
+            new_evaluation_db.id, aggregated_results
+        )
+    )
 
 
 async def aggregate_evaluator_results(
     app: AppDB, evaluators_aggregated_data: dict
 ) -> List[AggregatedResult]:
     aggregated_results = []
-    # TODO: find a good solution for aggregating evaluator results
-    # for evaluator_key, values in evaluators_aggregated_data.items():
-    #     average_value = sum(values) / len(values) if values else 0
-    #     evaluator_config = await fetch_evaluator_config_by_appId(app.id, evaluator_key)
-    #     aggregated_result = AggregatedResult(
-    #         evaluator_config=evaluator_config.id,
-    #         result=Result(type="number", value=average_value),
-    #     )
-    #     aggregated_results.append(aggregated_result)
+    for evaluator_key, results in evaluators_aggregated_data.items():
+        if evaluator_key != "auto_ai_critique":
+            average_value = (
+                sum([result.value for result in results]) / len(results)
+                if results
+                else 0
+            )
+            evaluator_config = await fetch_evaluator_config_by_appId(
+                app.id, evaluator_key
+            )
+            aggregated_result = AggregatedResult(
+                evaluator_config=evaluator_config.id,
+                result=Result(type="number", value=average_value),
+            )
+            aggregated_results.append(aggregated_result)
     return aggregated_results
