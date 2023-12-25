@@ -59,15 +59,7 @@ fern init --openapi https://cloud.agenta.ai/api/openapi.json
         version: 0.6.0
     ```
 
-6. Set timeout.
-    > Default timeout is 60 seconds but some operations in the CLI can take longer
-    Configure the python sdk to use a specified timeout by adding this configuration.
-    ```yaml
-        config:
-          timeout_in_seconds: 600
-    ```
-
-7. Change the path from this `path: ../generated/typescript` to this path: `../backend`
+6. Change the path from this `path: ../generated/typescript` to this path: `../backend`
 
     Now your generators.yml should look like this;
     ```yaml
@@ -80,16 +72,17 @@ fern init --openapi https://cloud.agenta.ai/api/openapi.json
             output:
               location: local-file-system
               path: ../backend
-            config:
-              timeout_in_seconds: 600
     ```
 
-8.  Go to the fern.config.json file and change the value of "organization" to `agenta`
+7.  Go to the fern.config.json file and change the value of "organization" to `agenta`
    
-9.  Generate the client code
+8.  Generate the client code
    
     ```bash
         fern generate
     ```
+
+9.  Change the timeout for the build_image function endpoint
+    Go to the client.py in the generated code folder search for the `build_image` function in the AgentaApi class and change the timeout to 600
 
 10. Delete the fern folder.
