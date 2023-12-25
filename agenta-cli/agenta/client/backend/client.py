@@ -2104,7 +2104,7 @@ class AgentaApi:
             data=jsonable_encoder({}),
             files={"tar_file": tar_file},
             headers=self._client_wrapper.get_headers(),
-            timeout=60,
+            timeout=600,
         )
         if 200 <= _response.status_code < 300:
             return pydantic.parse_obj_as(Image, _response.json())  # type: ignore
