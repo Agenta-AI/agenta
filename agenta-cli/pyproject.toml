@@ -19,7 +19,7 @@ keywords = ["LLMOps", "LLM", "evaluation", "prompt engineering"]
 python = "^3.9"
 docker = "^6.1.1"
 click = "^8.1.3"
-fastapi = "^0.95.1"
+fastapi = ">=0.95.1"
 toml = "^0.10.2"
 questionary = "^1.10.0"
 ipdb = ">=0.13"
