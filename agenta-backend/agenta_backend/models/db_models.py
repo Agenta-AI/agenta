@@ -224,7 +224,7 @@ class EvaluatorConfigDB(Model):
 
 class Result(EmbeddedModel):
     type: str
-    value: Union[str, float, int, bool]
+    value: Any
 
 
 class EvaluationScenarioResult(EmbeddedModel):

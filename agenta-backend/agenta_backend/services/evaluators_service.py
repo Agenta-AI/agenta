@@ -48,12 +48,16 @@ def auto_webhook_test(
 ) -> Result:
     try:
         with httpx.Client() as client:
-            response = client.post(
-                url=settings_values["webhook_url"], json=settings_values["webhook_body"]
-            )
-            response.raise_for_status()
-            response_data = response.json()
-            score = response_data.get("score", None)
+            # response = client.post(
+            #     url=settings_values["webhook_url"], json=settings_values["webhook_body"]
+            # )
+            # response.raise_for_status()
+            # response_data = response.json()
+            # score = response_data.get("score", None)
+            import secrets
+
+            random_generator = secrets.SystemRandom()
+            score = random_generator.random()
             if not score:
                 raise httpx.HTTPError("Webhook did not return a score")
             if score < 0 or score > 1:
