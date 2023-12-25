@@ -80,3 +80,7 @@ app.include_router(observability_router.router, prefix="/observability")
 app.include_router(organization_router.router, prefix="/organizations")
 app.include_router(bases_router.router, prefix="/bases")
 app.include_router(configs_router.router, prefix="/configs")
+
+if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
+    import agenta_backend.cloud.main as cloud
+    app = cloud.extend_app_schema(app)
