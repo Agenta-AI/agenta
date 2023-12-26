@@ -1,3 +1,4 @@
+from agenta import FloatParam, TextParam
 import agenta as ag
 from agenta import FloatParam, TextParam
 from openai import OpenAI
