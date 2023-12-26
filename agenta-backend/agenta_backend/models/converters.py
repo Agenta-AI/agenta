@@ -5,6 +5,7 @@ from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.db_models import (
     AppVariantDB,
+    EvaluatorConfigDB,
     ImageDB,
     TemplateDB,
     AppDB,
@@ -39,6 +40,7 @@ from agenta_backend.models.api.evaluation_model import (
     SimpleEvaluationOutput,
     EvaluationScenario,
     Evaluation,
+    EvaluatorConfig,
 )
 
 import logging
@@ -294,3 +296,12 @@ def user_db_to_pydantic(user_db: UserDB) -> User:
         username=user_db.username,
         email=user_db.email,
     ).dict(exclude_unset=True)
+
+
+def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
+    return EvaluatorConfig(
+        id=str(evaluator_config.id),
+        name=evaluator_config.name,
+        evaluator_key=evaluator_config.evaluator_key,
+        settings_values=evaluator_config.settings_values,
+    )
