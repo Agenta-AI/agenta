@@ -323,7 +323,14 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
         variant_name = questionary.select(
             "Please choose a variant", choices=config["variants"]
         ).ask()
+        if not variant_name:
+            click.echo("Operation cancelled.")
+            sys.exit(0)
     variant_id = config["variant_ids"][config["variants"].index(variant_name)]
+
+    variant_configuration_file = Path(app_folder) / f"{variant_name}.toml"
+    if not variant_configuration_file.exists():
+        pass
 
     client = AgentaApi(
         base_url=f"{host}/{BACKEND_URL_SUFFIX}",
@@ -332,6 +339,16 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
 
     try:
         client.remove_variant(variant_id=variant_id)
+        
+        # delete the variant configuration file if it exists
+        if variant_configuration_file.is_file():
+            click.echo(
+                click.style(
+                    f"Removing variant configuration file {variant_name}.toml...",
+                    fg="bright_black",
+                )
+            )
+            variant_configuration_file.unlink()
     except Exception as ex:
         click.echo(
             click.style(
@@ -348,7 +365,6 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
             fg="green",
         )
     )
-
 
 def list_variants(app_folder: str, host: str):
     """List available variants for an app and print them to the console
