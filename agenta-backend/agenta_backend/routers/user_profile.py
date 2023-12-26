@@ -1,8 +1,9 @@
 import os
 from agenta_backend.models.db_models import UserDB
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import HTTPException, Request
 from agenta_backend.models.api.user_models import User
 from agenta_backend.services import db_manager
+from agenta_backend.utils.common import APIRouter
 
 router = APIRouter()
 
@@ -14,7 +15,7 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 
-@router.get("/")
+@router.get("/", operation_id="user_profile")
 async def user_profile(
     request: Request,
 ):

@@ -1,9 +1,9 @@
+import os
 import sys
 import toml
 import click
 import questionary
 from pathlib import Path
-from agenta.client import client
 from typing import Any, List, MutableMapping
 from agenta.client.api_models import AppVariant
 
@@ -11,6 +11,10 @@ from agenta.client.api_models import AppVariant
 from typing import Any, Optional
 from pathlib import Path
 import toml
+
+from agenta.client.backend.client import AgentaApi
+
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
 
 def get_global_config(var_name: str) -> Optional[Any]:
@@ -127,8 +131,13 @@ def update_variants_from_backend(
     Returns:
         a new config object later to be saved using toml.dump(config, config_file.open('w'))
     """
+    client = AgentaApi(
+        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
+        api_key=api_key,
+    )
+
     try:
-        variants: List[AppVariant] = client.list_variants(app_id, host, api_key)
+        variants: List[AppVariant] = client.list_app_variants(app_id=app_id)
     except Exception as ex:
         raise ex
 
@@ -146,7 +155,7 @@ def update_config_from_backend(config_file: Path, host: str):
     assert config_file.exists(), "Config file does not exist!"
     config = toml.load(config_file)
     app_id = config["app_id"]
-    api_key = config.get("api_key", None)
+    api_key = config.get("api_key", "")
     if "variants" not in config:
         config["variants"] = []
     if "variant_ids" not in config:
