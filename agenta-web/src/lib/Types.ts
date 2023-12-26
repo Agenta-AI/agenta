@@ -1,4 +1,8 @@
+import {StaticImageData} from "next/image"
 import {EvaluationFlow, EvaluationType} from "./enums"
+import {GlobalToken} from "antd"
+
+export type JSSTheme = GlobalToken & {isDark: boolean}
 
 export interface testset {
     _id: string
@@ -287,4 +291,79 @@ export type ChatMessage = {
     role: ChatRole
     content: string
     id?: string
+}
+
+type ValueType = number | string | boolean | GenericObject | null
+type ValueTypeOptions = "text" | "number" | "boolean" | "string" | "code" | "regex"
+
+//evaluation revamp types
+export interface EvaluationSettingsTemplate {
+    type: ValueTypeOptions
+    label: string
+    default?: ValueType
+    description: string
+}
+
+export interface Evaluator {
+    name: string
+    key: string
+    settings_template: Record<string, EvaluationSettingsTemplate>
+    icon_url?: string | StaticImageData
+    color?: string
+}
+
+export interface EvaluatorConfig {
+    id: string
+    evaluator_key: string
+    name: string
+    settings_values: Record<string, any>
+    created_at: string
+}
+
+export interface TypedValue {
+    type: ValueTypeOptions
+    value: ValueType
+}
+
+export interface EvaluationScenarioResult {
+    evaluator: Evaluator
+    result: TypedValue
+}
+
+export enum EvaluationStatus {
+    INITIALIZED = "EVALUATION_INITIALIZED",
+    STARTED = "EVALUATION_STARTED",
+    FINISHED = "EVALUATION_FINISHED",
+    ERROR = "EVALUATION_ERROR",
+}
+
+export interface _Evaluation {
+    id: string
+    organization: Org
+    user: User
+    testset: TestSet
+    status: EvaluationStatus
+    variants: Variant[]
+    aggregated_results: {
+        evaluator_config: EvaluatorConfig
+        result: TypedValue
+    }[]
+    created_at?: string
+    duration?: number
+}
+
+export interface _EvaluationScenario {
+    id: string
+    user: User
+    organization: Org
+    evaluation: _Evaluation
+    inputs: (TypedValue & {name: string})[]
+    outputs: TypedValue[]
+    correct_answer?: TypedValue
+    created_at?: string
+    updated_at?: string
+    is_pinned?: boolean
+    note?: string
+    evaluators_configs: EvaluatorConfig[]
+    results: {evaluator: Evaluator; result: ValueType}[]
 }
