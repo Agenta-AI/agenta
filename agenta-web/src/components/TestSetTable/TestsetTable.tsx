@@ -1,7 +1,5 @@
 import React, {useState, useRef, useEffect, ReactNode} from "react"
 import {AgGridReact} from "ag-grid-react"
-import "ag-grid-community/styles/ag-grid.css"
-import "ag-grid-community/styles/ag-theme-alpine.css"
 import {createUseStyles} from "react-jss"
 import {Button, Input, Tooltip, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
