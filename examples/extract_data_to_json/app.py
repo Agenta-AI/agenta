@@ -48,6 +48,10 @@ def generate(
         temperature=ag.config.temperature,
         functions=[function],
     )
-
+    token_usage = response.usage.dict()
     output = str(response["choices"][0]["message"]["function_call"])
-    return output
+    return {
+        "message": output,
+        **{"usage": token_usage},
+        "cost": ag.calculate_token_usage(ag.config.model, token_usage),
+    }
