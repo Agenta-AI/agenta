@@ -3,7 +3,8 @@ from typing import List
 
 from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import Request, HTTPException
+from agenta_backend.utils.common import APIRouter
 from agenta_backend.utils.common import check_access_to_app, check_access_to_variant
 from agenta_backend.models.api.api_models import (
     EnvironmentOutput,
@@ -24,7 +25,7 @@ logger.setLevel(logging.DEBUG)
 router = APIRouter()
 
 
-@router.post("/deploy/")
+@router.post("/deploy/", operation_id="deploy_to_environment")
 async def deploy_to_environment(
     payload: DeployToEnvironmentPayload,
     request: Request,

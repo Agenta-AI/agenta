@@ -3,7 +3,8 @@ import secrets
 from typing import List, Dict
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, APIRouter, Body, Request, status, Response
+from fastapi import HTTPException, Body, Request, status, Response
+from agenta_backend.utils.common import APIRouter
 
 from agenta_backend.services.helpers import format_inputs, format_outputs
 from agenta_backend.models.api.evaluation_model import (
@@ -30,10 +31,10 @@ from agenta_backend.services.evaluation_service import (
     fetch_custom_evaluation_names,
     fetch_custom_evaluations,
     fetch_custom_evaluation_detail,
-    get_evaluation_scenario_score,
-    update_evaluation_scenario,
-    update_evaluation_scenario_score,
-    update_evaluation,
+    get_evaluation_scenario_score_service,
+    update_evaluation_scenario_service,
+    update_evaluation_scenario_score_service,
+    update_evaluation_service,
     create_custom_code_evaluation,
     update_custom_code_evaluation,
     execute_custom_code_evaluation,
@@ -54,7 +55,9 @@ else:
 router = APIRouter()
 
 
-@router.post("/", response_model=SimpleEvaluationOutput)
+@router.post(
+    "/", response_model=SimpleEvaluationOutput, operation_id="create_evaluation"
+)
 async def create_evaluation(
     payload: NewEvaluation,
     request: Request,
@@ -94,8 +97,8 @@ async def create_evaluation(
         )
 
 
-@router.put("/{evaluation_id}/")
-async def update_evaluation_router(
+@router.put("/{evaluation_id}/", operation_id="update_evaluation")
+async def update_evaluation(
     request: Request,
     evaluation_id: str,
     update_data: EvaluationUpdate = Body(...),
@@ -111,7 +114,7 @@ async def update_evaluation_router(
     try:
         # Get user and organization id
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        await update_evaluation(evaluation_id, update_data, **user_org_data)
+        await update_evaluation_service(evaluation_id, update_data, **user_org_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     except KeyError:
@@ -124,6 +127,7 @@ async def update_evaluation_router(
 @router.get(
     "/{evaluation_id}/evaluation_scenarios/",
     response_model=List[EvaluationScenario],
+    operation_id="fetch_evaluation_scenarios",
 )
 async def fetch_evaluation_scenarios(
     evaluation_id: str,
@@ -149,7 +153,9 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.post("/{evaluation_id}/evaluation_scenario/")
+@router.post(
+    "/{evaluation_id}/evaluation_scenario/", operation_id="create_evaluation_scenario"
+)
 async def create_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario: EvaluationScenario,
@@ -171,9 +177,10 @@ async def create_evaluation_scenario(
 
 
 @router.put(
-    "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/"
+    "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/",
+    operation_id="update_evaluation_scenario",
 )
-async def update_evaluation_scenario_router(
+async def update_evaluation_scenario(
     evaluation_id: str,
     evaluation_scenario_id: str,
     evaluation_type: EvaluationType,
@@ -190,7 +197,7 @@ async def update_evaluation_scenario_router(
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
     try:
-        await update_evaluation_scenario(
+        await update_evaluation_scenario_service(
             evaluation_scenario_id,
             evaluation_scenario,
             evaluation_type,
@@ -201,7 +208,11 @@ async def update_evaluation_scenario_router(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.post("/evaluation_scenario/ai_critique/", response_model=str)
+@router.post(
+    "/evaluation_scenario/ai_critique/",
+    response_model=str,
+    operation_id="evaluate_ai_critique",
+)
 async def evaluate_ai_critique(
     payload: AICritiqueCreate,
     request: Request,
@@ -238,8 +249,11 @@ async def evaluate_ai_critique(
         raise HTTPException(400, f"Failed to evaluate AI critique: {str(e)}")
 
 
-@router.get("/evaluation_scenario/{evaluation_scenario_id}/score/")
-async def get_evaluation_scenario_score_router(
+@router.get(
+    "/evaluation_scenario/{evaluation_scenario_id}/score/",
+    operation_id="get_evaluation_scenario_score",
+)
+async def get_evaluation_scenario_score(
     evaluation_scenario_id: str,
     request: Request,
 ) -> Dict[str, str]:
@@ -254,11 +268,16 @@ async def get_evaluation_scenario_score_router(
         Dictionary containing the scenario ID and its score.
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
+    return await get_evaluation_scenario_score_service(
+        evaluation_scenario_id, **user_org_data
+    )
 
 
-@router.put("/evaluation_scenario/{evaluation_scenario_id}/score/")
-async def update_evaluation_scenario_score_router(
+@router.put(
+    "/evaluation_scenario/{evaluation_scenario_id}/score/",
+    operation_id="update_evaluation_scenario_score",
+)
+async def update_evaluation_scenario_score(
     evaluation_scenario_id: str,
     payload: EvaluationScenarioScoreUpdate,
     request: Request,
@@ -273,7 +292,7 @@ async def update_evaluation_scenario_score_router(
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
     try:
-        await update_evaluation_scenario_score(
+        await update_evaluation_scenario_score_service(
             evaluation_scenario_id, payload.score, **user_org_data
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -281,7 +300,7 @@ async def update_evaluation_scenario_score_router(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.get("/", response_model=List[Evaluation])
+@router.get("/", response_model=List[Evaluation], operation_id="fetch_list_evaluations")
 async def fetch_list_evaluations(
     app_id: str,
     request: Request,
@@ -300,7 +319,9 @@ async def fetch_list_evaluations(
     )
 
 
-@router.get("/{evaluation_id}/", response_model=Evaluation)
+@router.get(
+    "/{evaluation_id}/", response_model=Evaluation, operation_id="fetch_evaluation"
+)
 async def fetch_evaluation(
     evaluation_id: str,
     request: Request,
@@ -317,7 +338,7 @@ async def fetch_evaluation(
     return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
 
 
-@router.delete("/", response_model=List[str])
+@router.delete("/", response_model=List[str], operation_id="delete_evaluations")
 async def delete_evaluations(
     delete_evaluations: DeleteEvaluation,
     request: Request,
@@ -340,7 +361,7 @@ async def delete_evaluations(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/{evaluation_id}/results/")
+@router.get("/{evaluation_id}/results/", operation_id="fetch_results")
 async def fetch_results(
     evaluation_id: str,
     request: Request,
@@ -400,7 +421,7 @@ async def fetch_results(
         return {"avg_score": results}
 
 
-@router.post("/custom_evaluation/")
+@router.post("/custom_evaluation/", operation_id="create_custom_evaluation")
 async def create_custom_evaluation(
     custom_evaluation_payload: CreateCustomEvaluation,
     request: Request,
@@ -429,7 +450,7 @@ async def create_custom_evaluation(
     )
 
 
-@router.put("/custom_evaluation/{id}")
+@router.put("/custom_evaluation/{id}", operation_id="update_custom_evaluation")
 async def update_custom_evaluation(
     id: str,
     updated_data: CreateCustomEvaluation,
@@ -463,6 +484,7 @@ async def update_custom_evaluation(
 @router.get(
     "/custom_evaluation/list/{app_id}/",
     response_model=List[CustomEvaluationOutput],
+    operation_id="list_custom_evaluations",
 )
 async def list_custom_evaluations(
     app_id: str,
@@ -488,6 +510,7 @@ async def list_custom_evaluations(
 @router.get(
     "/custom_evaluation/{id}/",
     response_model=CustomEvaluationDetail,
+    operation_id="get_custom_evaluation",
 )
 async def get_custom_evaluation(
     id: str,
@@ -513,6 +536,7 @@ async def get_custom_evaluation(
 @router.get(
     "/custom_evaluation/{app_name}/names/",
     response_model=List[CustomEvaluationNames],
+    operation_id="get_custom_evaluation_names",
 )
 async def get_custom_evaluation_names(app_name: str, request: Request):
     """Get the names of custom evaluation for a given app.
@@ -532,6 +556,7 @@ async def get_custom_evaluation_names(app_name: str, request: Request):
 
 @router.post(
     "/custom_evaluation/execute/{evaluation_id}/",
+    operation_id="execute_custom_evaluation",
 )
 async def execute_custom_evaluation(
     evaluation_id: str,
@@ -569,7 +594,11 @@ async def execute_custom_evaluation(
     return result
 
 
-@router.post("/webhook_example_fake/", response_model=EvaluationWebhook)
+@router.post(
+    "/webhook_example_fake/",
+    response_model=EvaluationWebhook,
+    operation_id="webhook_example_fake",
+)
 async def webhook_example_fake():
     """Returns a fake score response for example webhook evaluation
 
