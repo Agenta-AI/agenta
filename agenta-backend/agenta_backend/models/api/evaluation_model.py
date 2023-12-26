@@ -175,6 +175,8 @@ class NewEvaluation(BaseModel):
 class Evaluator(BaseModel):
     name: str
     key: str
+    icon: str
+    settings_template: dict
 
 
 class NewEvaluatorConfig(BaseModel):

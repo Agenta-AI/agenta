@@ -2,6 +2,7 @@ import re
 import httpx
 from typing import Any, Dict, Tuple
 
+from agenta_backend.services.security import sandbox
 from agenta_backend.services.db_manager import Result
 
 from langchain.llms import OpenAI
@@ -64,6 +65,25 @@ def auto_webhook_test(
         print(f"An HTTP error occurred: {e}")
     except Exception as e:
         print(f"An error occurred: {e}")
+
+
+def custom_code_run(
+    variant_output: str,
+    correct_answer: str,
+    settings_values: Dict[str, Any],
+    **kwargs: Dict[str, Any],
+) -> Result:
+    try:
+        result = sandbox.execute_code_safely(
+            app_params=kwargs["app_params"],
+            inputs=kwargs["inputs"],
+            output=variant_output,
+            correct_answer=correct_answer,
+            code=settings_values["python_code"],
+        )
+        return Result(type="number", value=result)
+    except Exception as exc:
+        raise exc
 
 
 def auto_ai_critique(
