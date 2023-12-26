@@ -2,13 +2,11 @@
     {
         "name": "Exact Match",
         "key": "auto_exact_match",
-        "icon": "",
         "settings_template": {}
     },
     {
         "name": "Similarity Match",
         "key": "auto_similarity_match",
-        "icon": "",
         "settings_template": {
             "threshold": 0.5
         }
@@ -16,7 +14,6 @@
     {
         "name": "Regex Test",
         "key": "auto_regex_test",
-        "icon": "",
         "settings_template": {
             "regex_pattern": {
                 "type": "regex",
@@ -28,7 +25,6 @@
     {
         "name": "AI Critique",
         "key": "auto_ai_critique",
-        "icon": "",
         "settings_template": {
             "prompt_template": {
                 "type": "text",
@@ -40,25 +36,21 @@
     {
         "name": "Code Evaluation",
         "key": "auto_custom_code_run",
-        "icon": "",
         "settings_template": {}
     },
     {
         "name": "Webhook test",
         "key": "auto_webhook_test",
-        "icon": "",
         "settings_template": {}
     },
     {
         "name": "A/B Test",
         "key": "human_a_b_testing",
-        "icon": "",
         "settings_template": {}
     },
     {
         "name": "Single Model Test",
         "key": "human_single_model_test",
-        "icon": "",
         "settings_template": {}
     }
 ]
