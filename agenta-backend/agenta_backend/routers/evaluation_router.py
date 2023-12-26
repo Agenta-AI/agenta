@@ -90,17 +90,11 @@ async def create_evaluation(
             new_evaluation_data=new_evaluation_data,
             evaluators_configs=payload.evaluators_configs,
         )
-        if (
-            payload.evaluators_configs.len == 1
-            and payload.evaluators_configs.evaluator_key
-            in ["human_a_b_testing", "human_single_model_test"]
-        ):
-            return evaluation
-        else:
-            evaluate.delay(
-                app_data, new_evaluation_data, evaluation.id, evaluation.testset_id
-            )
-            return evaluation
+
+        evaluate.delay(
+            app_data, new_evaluation_data, evaluation.id, evaluation.testset_id
+        )
+        return evaluation
     except KeyError:
         raise HTTPException(
             status_code=400,

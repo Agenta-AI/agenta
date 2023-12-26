@@ -161,6 +161,7 @@ class EvaluationSettingsTemplate(BaseModel):
 
 class EvaluatorConfig(BaseModel):
     id: str
+    name: str
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]]
 
@@ -175,7 +176,6 @@ class NewEvaluation(BaseModel):
 class Evaluator(BaseModel):
     name: str
     key: str
-    icon: str
     settings_template: dict
 
 

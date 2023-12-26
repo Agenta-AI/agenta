@@ -4,6 +4,7 @@ from agenta_backend.services import db_manager
 
 
 from agenta_backend.models.db_models import EvaluatorConfigDB
+from agenta_backend.models.converters import evaluator_config_db_to_pydantic
 
 
 async def get_evaluators_configs(app_id: str):
@@ -49,7 +50,7 @@ async def create_evaluator_config(
         EvaluatorConfigDB: The newly created evaluator configuration object.
     """
     app = await db_manager.fetch_app_by_id(app_id)
-    return await db_manager.create_evaluator_config(
+    evaluator_config = await db_manager.create_evaluator_config(
         app=app,
         organization=app.organization,
         user=app.user,
@@ -57,6 +58,7 @@ async def create_evaluator_config(
         evaluator_key=evaluator_key,
         settings_values=settings_values,
     )
+    return evaluator_config_db_to_pydantic(evaluator_config=evaluator_config)
 
 
 async def update_evaluator_config(
