@@ -1,17 +1,24 @@
 ---
-title: "System Architecture"
-description: "An overview of the architecture of Agenta"
+title: "How does agenta work?"
+description: "An overview of the architecture and main concepts of agenta"
 ---
 
-<Frame caption="Agenta System Architecture">
+<Frame caption="Agenta decouples the configuration (prompt, model) from the application logic. The configuration is managed by the backend. You can test different configurations both from the UI and the CLI. ">
 <img width="700" src="/images/apps_and_configurations_light.png" />
 </Frame>
 
-## Concepts behind agenta
+## Separation of App Logic from Configuration Enable Quick Iteration
 
 The main concept behind agenta is the separation of the application logic and configuration. The application logic refers to the code that defines the application, whether it's a simple prompt, chain of prompts, RAG, etc. The configuration refers to the parameters that define the application logic, such as the prompt, model, chunk size, etc.
 
 By separating the application logic from the configuration. We simplify the process of iterating on application variants, and enable the collaboration between developers (working from code/cli) and non-developers (working from the UI).
+
+## Agenta's core concepts:
+
+1. **Application Variant**: Building a robust AI application requires iterating on different prompts, models, and architectures. We refer to each of these different iterations as an `application variant`.
+2. **Separation of Logic and Configuration**: Agenta separates the application logic (one prompt, chain-of-prompts, RAG, ..) from the configuration (the prompt, model..). 
+3. **Microservice-based Applications**: Agenta treats each application as a microservice. Creating a new application in Agenta automatically generates a container with a REST API. This is true whether the application is created using a pre-built template from the UI, or whether from CLI using custom application code. Agenta handles the creation of Docker images and container deployment. This means that all interactions with the application (either from the UI, during evaluations, or post-deployment) occur with the container.
+
 
 ## Architecture Components
 
