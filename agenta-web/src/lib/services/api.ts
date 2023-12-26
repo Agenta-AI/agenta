@@ -252,6 +252,11 @@ export const useLoadTestsetsList = (appId: string) => {
     }
 }
 
+export const fetchTestsets = async (appId: string) => {
+    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`)
+    return response.data
+}
+
 export async function createNewTestset(appId: string, testsetName: string, testsetData: any) {
     const response = await axios.post(`${getAgentaApiUrl()}/api/testsets/${appId}/`, {
         name: testsetName,

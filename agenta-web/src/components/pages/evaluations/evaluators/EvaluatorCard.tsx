@@ -1,18 +1,13 @@
 import React from "react"
-import {EvaluatorConfig} from "@/lib/Types"
+import {EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {DeleteOutlined, EditOutlined} from "@ant-design/icons"
 import {Card, Tag, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import Mock from "../evaluationResults/mock"
 import dayjs from "dayjs"
 import Image from "next/image"
-import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 
-type StyleProps = {
-    themeMode: "dark" | "light"
-}
-
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     body: {
         display: "flex",
         flexDirection: "column",
@@ -25,25 +20,24 @@ const useStyles = createUseStyles({
         justifyContent: "space-between",
         marginBottom: "1.5rem",
     },
-    evaluationImg: ({themeMode}: StyleProps) => ({
+    evaluationImg: {
         width: 27,
         height: 27,
         marginRight: "8px",
-        filter: themeMode === "dark" ? "invert(1)" : "none",
-    }),
+        filter: theme.isDark ? "invert(1)" : "none",
+    },
     name: {
         marginTop: "0.25rem",
         marginBottom: 0,
     },
-})
+}))
 
 interface Props {
     evaluatorConfig: EvaluatorConfig
 }
 
 const EvaluatorCard: React.FC<Props> = ({evaluatorConfig}) => {
-    const {appTheme} = useAppTheme()
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const classes = useStyles()
     const evaluator = Mock.evaluators.find((item) => item.key === evaluatorConfig.evaluator_key)!
 
     return (

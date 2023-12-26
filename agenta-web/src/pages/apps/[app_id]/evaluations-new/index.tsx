@@ -13,6 +13,7 @@ const Evaluations: React.FC<Props> = () => {
     return (
         <div>
             <Tabs
+                destroyInactiveTabPane
                 defaultActiveKey={tab}
                 items={[
                     {
