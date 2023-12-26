@@ -1006,6 +1006,39 @@ class AgentaApi:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    def get_variant_config(self, variant_id: str) -> typing.Any:
+        """
+        Get the configuration for a variant.
+        Args:
+        variant_id (str): The ID of the variant to get the configuration for.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        Raises:
+        HTTPException: If the variant cannot be accessed.
+        Returns:
+        JSONResponse: A JSON response containing the variant configuration.
+
+        Parameters:
+            - variant_id: str.
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/config",
+            ),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
     def fetch_list_evaluations(self, *, app_id: str) -> typing.List[Evaluation]:
         """
         Fetches a list of evaluations, optionally filtered by an app ID.
@@ -3809,6 +3842,39 @@ class AsyncAgentaApi:
                 f"variants/{variant_id}/image",
             ),
             json=jsonable_encoder(request),
+            headers=self._client_wrapper.get_headers(),
+            timeout=60,
+        )
+        if 200 <= _response.status_code < 300:
+            return pydantic.parse_obj_as(typing.Any, _response.json())  # type: ignore
+        if _response.status_code == 422:
+            raise UnprocessableEntityError(pydantic.parse_obj_as(HttpValidationError, _response.json()))  # type: ignore
+        try:
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def get_variant_config(self, variant_id: str) -> typing.Any:
+        """
+        Get the configuration for a variant.
+        Args:
+        variant_id (str): The ID of the variant to get the configuration for.
+        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        Raises:
+        HTTPException: If the variant cannot be accessed.
+        Returns:
+        JSONResponse: A JSON response containing the variant configuration.
+
+        Parameters:
+            - variant_id: str.
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "GET",
+            urllib.parse.urljoin(
+                f"{self._client_wrapper.get_base_url()}/",
+                f"variants/{variant_id}/config",
+            ),
             headers=self._client_wrapper.get_headers(),
             timeout=60,
         )
