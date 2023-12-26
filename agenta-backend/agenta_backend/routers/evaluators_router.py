@@ -90,17 +90,13 @@ async def create_new_evaluator_config(
         EvaluatorConfigDB: Evaluator configuration api model.
     """
 
-    config_db = await evaluator_manager.create_evaluator_config(
+    evaluator_config = await evaluator_manager.create_evaluator_config(
         app_id=payload.app_id,
         name=payload.name,
         evaluator_key=payload.evaluator_key,
         settings_values=payload.settings_values,
     )
-    return EvaluatorConfig(
-        id=str(config_db.id),
-        evaluator_key=config_db.evaluator_key,
-        settings_values=config_db.settings_values,
-    )
+    return evaluator_config
 
 
 @router.delete("/configs/{evaluator_id}/", response_model=bool)
