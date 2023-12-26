@@ -9,6 +9,12 @@ import {
 } from "@/lib/Types"
 import {getTagColors} from "@/lib/helpers/colors"
 import {delay, pickRandom, stringToNumberInRange} from "@/lib/helpers/utils"
+import exactMatchImg from "@/media/target.png"
+import similarityImg from "@/media/transparency.png"
+import regexImg from "@/media/programming.png"
+import webhookImg from "@/media/link.png"
+import aiImg from "@/media/artificial-intelligence.png"
+import codeImg from "@/media/browser.png"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -17,38 +23,44 @@ import {delay, pickRandom, stringToNumberInRange} from "@/lib/helpers/utils"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
+const evaluatorIconsMap = {
+    auto_exact_match: exactMatchImg,
+    auto_similarity_match: similarityImg,
+    auto_regex_test: regexImg,
+    auto_webhook_test: webhookImg,
+    auto_ai_critique: aiImg,
+    auto_custom_code_run: codeImg,
+}
+
 //Evaluators
 export const fetchAllEvaluators = async () => {
+    // await delay(1000)
+    // return Mock.evaluators
     const tagColors = getTagColors()
 
-    await delay(1000)
-    return Mock.evaluators
-
     const response = await axios.get(`/api/evaluators/`)
-    return (response.data || []).map((item: Evaluator) => ({
-        ...item,
-        color: tagColors[stringToNumberInRange(item.key, 0, tagColors.length - 1)],
-    })) as Evaluator[]
+    return (response.data || [])
+        .filter((item: Evaluator) => !item.key.startsWith("human"))
+        .map((item: Evaluator) => ({
+            ...item,
+            icon_url: evaluatorIconsMap[item.key as keyof typeof evaluatorIconsMap],
+            color: tagColors[stringToNumberInRange(item.key, 0, tagColors.length - 1)],
+        })) as Evaluator[]
 }
 
 // Evaluator Configs
 export const fetchAllEvaluatorConfigs = async (appId: string) => {
-    await delay(1000)
-    return Mock.evaluatorConfigs
-
-    const response = await axios.get(`/api/evaluators/configs`)
+    const response = await axios.get(`/api/evaluators/configs/`, {params: {app_id: appId}})
     return response.data as EvaluatorConfig[]
-}
-
-export const deleteEvaluatorConfig = async (appId: string, configId: string) => {
-    return axios.delete(`/api/evaluators/configs/${configId}`)
 }
 
 export type CreateEvaluationConfigData = Omit<EvaluatorConfig, "id" | "created_at">
 export const createEvaluatorConfig = async (appId: string, config: CreateEvaluationConfigData) => {
-    await delay(1000)
-    return console.log("create evaluation config", config)
-    return axios.post(`/api/evaluators/configs`, {...config, app_id: appId})
+    return axios.post(`/api/evaluators/configs/`, {...config, app_id: appId})
+}
+
+export const deleteEvaluatorConfig = async (configId: string) => {
+    return axios.delete(`/api/evaluators/configs/${configId}`)
 }
 
 // Evaluations
@@ -56,7 +68,7 @@ export const fetchAllEvaluations = async (appId: string) => {
     await delay(1000)
     return Mock.evaluations
 
-    const response = await axios.get(`/api/evaluations`, {params: {app_id: appId}})
+    const response = await axios.get(`/api/evaluations/`, {params: {app_id: appId}})
     return response.data as _Evaluation[]
 }
 
@@ -64,7 +76,7 @@ export const fetchEvaluation = async (appId: string, evaluationId: string) => {
     await delay(1000)
     return Mock.evaluations[0]
 
-    const response = await axios.get(`/api/evaluations/${evaluationId}`, {
+    const response = await axios.get(`/api/evaluations/${evaluationId}/`, {
         params: {app_id: appId},
     })
     return response.data as _Evaluation
@@ -74,21 +86,19 @@ export const fetchEvaluationStatus = async (appId: string, evaluationId: string)
     await delay(1000)
     return {status: pickRandom(Object.values(EvaluationStatus), 1)[0]}
 
-    const response = await axios.get(`/api/evaluations/${evaluationId}/status`, {
+    const response = await axios.get(`/api/evaluations/${evaluationId}/status/`, {
         params: {app_id: appId},
     })
     return response.data as {status: EvaluationStatus}
 }
 
 export type CreateEvaluationData = {
-    testset: string[]
-    variants: string[]
-    evaluator_configs: string[]
+    testset_id: string
+    variant_ids: string[]
+    evaluators_configs: string[]
 }
 export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluationData) => {
-    await delay(1000)
-    return console.log("create evaluation", evaluation)
-    return axios.post(`/api/evaluations`, {...evaluation, app_id: appId})
+    return axios.post(`/api/evaluations/`, {...evaluation, app_id: appId})
 }
 
 // Evaluation Scenarios
@@ -96,7 +106,7 @@ export const fetchAllEvaluationScenarios = async (appId: string, evaluationId: s
     await delay(1000)
     return Mock.evaluationScenarios
 
-    const response = await axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios`, {
+    const response = await axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios/`, {
         params: {app_id: appId},
     })
     return response.data as _EvaluationScenario[]

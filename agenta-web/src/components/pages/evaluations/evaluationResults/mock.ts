@@ -19,6 +19,15 @@ import codeImg from "@/media/browser.png"
 import {pickRandom, stringToNumberInRange} from "@/lib/helpers/utils"
 import {getTagColors} from "@/lib/helpers/colors"
 
+const evaluatorIconsMap = {
+    auto_exact_match: exactMatchImg,
+    similarity: similarityImg,
+    auto_regex_test: regexImg,
+    auto_webhook_test: webhookImg,
+    auto_ai_critique: aiImg,
+    custom_code_run: codeImg,
+}
+
 const organizations: Org[] = [
     {
         id: "org1",
@@ -112,15 +121,13 @@ const evaluators: Evaluator[] = [
         name: "Exact Match",
         key: "auto_exact_match",
         settings_template: {},
-        icon_url: exactMatchImg,
     },
     {
         name: "Similarity",
-        key: "similarity",
+        key: "auto_similarity_match",
         settings_template: {
             similarity_threshold: evaluatorSettinsTemplates[0],
         },
-        icon_url: similarityImg,
     },
     {
         name: "Regex Test",
@@ -129,7 +136,6 @@ const evaluators: Evaluator[] = [
             regex_pattern: evaluatorSettinsTemplates[4],
             regex_should_match: evaluatorSettinsTemplates[3],
         },
-        icon_url: regexImg,
     },
     {
         name: "AI Critique",
@@ -137,7 +143,6 @@ const evaluators: Evaluator[] = [
         settings_template: {
             llm_app_prompt_template: evaluatorSettinsTemplates[1],
         },
-        icon_url: aiImg,
     },
     {
         name: "Code Evaluation",
@@ -145,7 +150,6 @@ const evaluators: Evaluator[] = [
         settings_template: {
             custom_code_evaluation_id: evaluatorSettinsTemplates[2],
         },
-        icon_url: codeImg,
     },
     {
         name: "Webhook Test",
@@ -153,10 +157,10 @@ const evaluators: Evaluator[] = [
         settings_template: {
             webhook_url: evaluatorSettinsTemplates[5],
         },
-        icon_url: webhookImg,
     },
 ].map((item) => ({
     ...(item as Evaluator),
+    icon_url: evaluatorIconsMap[item.key as keyof typeof evaluatorIconsMap],
     color: getTagColors()[stringToNumberInRange(item.key, 0, getTagColors().length - 1)],
 }))
 
@@ -208,7 +212,7 @@ const evaluations: _Evaluation[] = [
         duration: 120000,
     },
     {
-        id: "evaluation2",
+        id: "evaluation3",
         organization: organizations[0],
         user: users[0],
         testset: testsets[0],
@@ -227,7 +231,7 @@ const evaluations: _Evaluation[] = [
         duration: 120000,
     },
     {
-        id: "evaluation2",
+        id: "evaluation4",
         organization: organizations[0],
         user: users[0],
         testset: testsets[0],

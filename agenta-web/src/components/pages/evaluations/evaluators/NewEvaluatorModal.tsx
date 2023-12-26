@@ -96,9 +96,16 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
 
 type Props = {
     onSuccess?: () => void
+    initialValues?: CreateEvaluationConfigData
+    editMode?: boolean
 } & React.ComponentProps<typeof Modal>
 
-const NewEvaluatorModal: React.FC<Props> = ({onSuccess, ...props}) => {
+const NewEvaluatorModal: React.FC<Props> = ({
+    onSuccess,
+    editMode = false,
+    initialValues,
+    ...props
+}) => {
     const classes = useStyles()
     const [fetching, setFetching] = useState(false)
     const [evaluators, setEvaluators] = useState<Evaluator[]>([])
@@ -118,7 +125,9 @@ const NewEvaluatorModal: React.FC<Props> = ({onSuccess, ...props}) => {
 
     useEffect(() => {
         setFetching(true)
-        setSelectedEval(null)
+        setSelectedEval(
+            evaluators.find((item) => item.key === initialValues?.evaluator_key) || null,
+        )
         form.resetFields()
         fetchAllEvaluators()
             .then(setEvaluators)
@@ -144,6 +153,7 @@ const NewEvaluatorModal: React.FC<Props> = ({onSuccess, ...props}) => {
         >
             <Spin spinning={fetching}>
                 <Form
+                    initialValues={initialValues}
                     requiredMark={false}
                     form={form}
                     name="new-evaluator"
@@ -163,6 +173,7 @@ const NewEvaluatorModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         rules={[{required: true, message: "This field is required"}]}
                     >
                         <Radio.Group
+                            disabled={editMode}
                             onChange={(e) =>
                                 setSelectedEval(
                                     evaluators.find((item) => item.key === e.target.value) || null,

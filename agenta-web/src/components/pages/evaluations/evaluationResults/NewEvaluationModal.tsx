@@ -106,7 +106,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                     layout="vertical"
                 >
                     <Form.Item
-                        name="testset"
+                        name="testset_id"
                         label="Which testset do you want to use?"
                         rules={[{required: true, message: "This field is required"}]}
                     >
@@ -119,7 +119,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         </Select>
                     </Form.Item>
                     <Form.Item
-                        name="variants"
+                        name="variant_ids"
                         label="Which variants you would like to evaluate?"
                         rules={[{required: true, message: "This field is required"}]}
                     >

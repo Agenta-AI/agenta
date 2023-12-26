@@ -300,17 +300,30 @@ export async function batchExecute(
     return results
 }
 
-export const shortPoll = async (
+export const shortPoll = (
     func: Function,
     {delayMs, timeoutMs = 2000}: {delayMs: number; timeoutMs?: number},
 ) => {
     let startTime = Date.now()
     let shouldContinue = true
-    while (shouldContinue && Date.now() - startTime < timeoutMs) {
-        try {
-            shouldContinue = await func()
-        } catch {}
-        await delay(delayMs)
+
+    const executor = async () => {
+        while (shouldContinue && Date.now() - startTime < timeoutMs) {
+            try {
+                await func()
+            } catch {}
+            await delay(delayMs)
+        }
+        if (Date.now() - startTime >= timeoutMs) throw new Error("timeout")
+    }
+
+    const promise = executor()
+
+    return {
+        stopper: () => {
+            shouldContinue = false
+        },
+        promise,
     }
 }
 

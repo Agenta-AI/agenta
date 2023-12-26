@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useEffect, useMemo, useRef, useState} from "react"
 import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef, ICellRendererParams} from "ag-grid-community"
@@ -12,8 +12,10 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import NewEvaluationModal from "./NewEvaluationModal"
 import {useAppId} from "@/hooks/useAppId"
-import {fetchAllEvaluations} from "@/services/evaluations"
+import {fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
 import {useRouter} from "next/router"
+import {useUpdateEffect} from "usehooks-ts"
+import {shortPoll} from "@/lib/helpers/utils"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -79,7 +81,18 @@ const EvaluationResults: React.FC<Props> = () => {
     const [evaluations, setEvaluations] = useState<_Evaluation[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const [fetching, setFetching] = useState(false)
+    const stoppers = useRef<Function>()
     const {token} = theme.useToken()
+
+    const runningEvaluationIds = useMemo(
+        () =>
+            evaluations
+                .filter((item) =>
+                    [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED].includes(item.status),
+                )
+                .map((item) => item.id),
+        [evaluations],
+    )
 
     const fetcher = () => {
         setFetching(true)
@@ -92,6 +105,36 @@ const EvaluationResults: React.FC<Props> = () => {
     useEffect(() => {
         fetcher()
     }, [appId])
+
+    //update status of running evaluations through short polling
+    useUpdateEffect(() => {
+        stoppers.current?.()
+
+        if (runningEvaluationIds.length) {
+            stoppers.current = shortPoll(
+                () =>
+                    Promise.all(runningEvaluationIds.map((id) => fetchEvaluationStatus(appId, id)))
+                        .then((res) => {
+                            setEvaluations((prev) => {
+                                const newEvals = [...prev]
+                                runningEvaluationIds.forEach((id, ix) => {
+                                    const index = newEvals.findIndex((e) => e.id === id)
+                                    if (index !== -1) {
+                                        newEvals[index].status = res[ix].status
+                                    }
+                                })
+                                return newEvals
+                            })
+                        })
+                        .catch(console.error),
+                {delayMs: 2000, timeoutMs: Infinity},
+            ).stopper
+        }
+
+        return () => {
+            stoppers.current?.()
+        }
+    }, [JSON.stringify(runningEvaluationIds)])
 
     const evaluatorConfigs = useMemo(
         () =>

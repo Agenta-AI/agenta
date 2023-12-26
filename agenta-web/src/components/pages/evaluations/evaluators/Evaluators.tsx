@@ -19,7 +19,7 @@ const useStyles = createUseStyles({
     },
     grid: {
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 320px))",
         gap: "1rem",
     },
 })
@@ -31,6 +31,7 @@ const Evaluators: React.FC<Props> = () => {
     const appId = useAppId()
     const [evaluatorConfigs, setEvaluatorConfigs] = useState<EvaluatorConfig[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
+    const [editIndex, setEditIndex] = useState<number>(-1)
     const [fetching, setFetching] = useState(false)
 
     const fetcher = () => {
@@ -51,15 +52,26 @@ const Evaluators: React.FC<Props> = () => {
                 <Button
                     icon={<PlusCircleOutlined />}
                     type="primary"
-                    onClick={() => setNewEvalModalOpen(true)}
+                    onClick={() => {
+                        setEditIndex(-1)
+                        setNewEvalModalOpen(true)
+                    }}
                 >
                     New Evaluator
                 </Button>
             </Space>
             <Spin spinning={fetching}>
                 <div className={classes.grid}>
-                    {evaluatorConfigs.map((item) => (
-                        <EvaluatorCard key={item.id} evaluatorConfig={item} />
+                    {evaluatorConfigs.map((item, ix) => (
+                        <EvaluatorCard
+                            key={item.id}
+                            evaluatorConfig={item}
+                            onEdit={() => {
+                                setEditIndex(ix)
+                                setNewEvalModalOpen(true)
+                            }}
+                            onSuccessDelete={fetcher}
+                        />
                     ))}
                 </div>
             </Spin>
@@ -71,6 +83,8 @@ const Evaluators: React.FC<Props> = () => {
                     setNewEvalModalOpen(false)
                     fetcher()
                 }}
+                editMode={editIndex !== -1}
+                initialValues={evaluatorConfigs[editIndex]}
             />
         </div>
     )

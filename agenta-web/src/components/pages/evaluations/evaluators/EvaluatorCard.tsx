@@ -6,6 +6,8 @@ import {createUseStyles} from "react-jss"
 import Mock from "../evaluationResults/mock"
 import dayjs from "dayjs"
 import Image from "next/image"
+import AlertPopup from "@/components/AlertPopup/AlertPopup"
+import {deleteEvaluatorConfig} from "@/services/evaluations"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     body: {
@@ -34,14 +36,32 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 interface Props {
     evaluatorConfig: EvaluatorConfig
+    onEdit?: () => void
+    onSuccessDelete?: () => void
 }
 
-const EvaluatorCard: React.FC<Props> = ({evaluatorConfig}) => {
+const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelete}) => {
     const classes = useStyles()
     const evaluator = Mock.evaluators.find((item) => item.key === evaluatorConfig.evaluator_key)!
 
+    const onDelete = () => {
+        AlertPopup({
+            title: "Delete evaluator",
+            message: "Are you sure you want to delete this evaluator?",
+            onOk: () =>
+                deleteEvaluatorConfig(evaluatorConfig.id)
+                    .then(onSuccessDelete)
+                    .catch(console.error),
+        })
+    }
+
     return (
-        <Card actions={[<EditOutlined key="edit" />, <DeleteOutlined key="delete" />]}>
+        <Card
+            actions={[
+                <EditOutlined key="edit" onClick={onEdit} />,
+                <DeleteOutlined key="delete" onClick={onDelete} />,
+            ]}
+        >
             <div className={classes.body}>
                 <div className={classes.headerRow}>
                     <Typography.Text>
