@@ -50,83 +50,52 @@
   ],
   "tabs": [
     {
+      "name": "For Developers",
+      "url": "developer_guides"
+    },
+    {
       "name": "Cookbook",
       "url": "cookbook"
     },
     {
-      "name": "Reference",
-      "url": "reference"
-    },
-    {
       "name": "Changelog",
       "url": "changelog"
+    },
+    {
+      "name": "Roadmap",
+      "url": "https://agenta.ai"
+    },
+    {
+      "name": "Blog",
+      "url": "https://agenta.ai/blog"
     }
   ],
   "navigation": [
     {
       "group": "Getting Started",
       "pages": [
-        "quickstart/introduction",
-        "quickstart/how-agenta-works",
-        "quickstart/getting-started-ui",
-        "quickstart/getting-started-code"
+        "getting_started/introduction",
+        "getting_started/getting-started-ui"
       ]
     },
     {
-      "group": "Tutorials",
+      "group": "Basic Guides",
       "pages": [
-        "tutorials/first-app-with-langchain",
-        "tutorials/build-rag-application",
-        "tutorials/deploy-mistral-model"
+        "basic_guides/creating_an_app",
+        "basic_guides/prompt_engineering",
+        "basic_guides/test_sets",
+        "basic_guides/automatic_evaluation",
+        "basic_guides/human_evaluation",
+        "basic_guides/deployment",
+        "basic_guides/team_management"
       ]
     },
     {
-      "group": "How-to Guides",
+      "group": "Advanced Guides",
       "pages": [
-        "howto/use-a-custom-llm",
-        "howto/creating-multiple-app-variants",
-        "howto/how-to-debug"
-      ]
-    },
-    {
-      "group": "Learn",
-      "pages": [
-        "learn/the_llmops_workflow",
-        "learn/evaluating_llm_apps",
-        "learn/architecture"
-      ]
-    },
-    {
-      "group": "Python SDK",
-      "pages": [
-        "sdk/quick_start",
-        {
-          "group": "Core Functions",
-          "pages": [
-            "sdk/init",
-            "sdk/config_object",
-            "sdk/config_default",
-            "sdk/config_pull",
-            "sdk/config_push",
-            "sdk/config_datatypes"
-          ]
-        }
-      ]
-    },
-    {
-      "group": "Command Line",
-      "pages": [
-        "cli/install",
-        "cli/quick-usage",
-        {
-          "group": "Core commands",
-          "pages": [
-            "cli/init",
-            "cli/variant_serve",
-            "cli/variant_list",
-            "cli/variant_remove"
-          ]
-        }
+        "advanced_guides/custom_applications",
+        "advanced_guides/using_custom_evaluators",
+        "advanced_guides/using_agenta_from_cli"
       ]
     },
     {
@@ -145,11 +114,58 @@
       ]
     },
     {
+      "group": "Introduction",
+      "pages": [
+        "developer_guides/how_does_agenta_work"
+      ]
+    },
+    {
+      "group": "Tutorials",
+      "pages": [
+        "developer_guides/tutorials/first-app-with-langchain",
+        "developer_guides/tutorials/build-rag-application",
+        "developer_guides/tutorials/deploy-mistral-model"
+      ]
+    },
+    {
+      "group": "Python SDK",
+      "pages": [
+        "developer_guides/sdk/quick_start",
+        {
+          "group": "Core Functions",
+          "pages": [
+            "developer_guides/sdk/init",
+            "developer_guides/sdk/config_object",
+            "developer_guides/sdk/config_default",
+            "developer_guides/sdk/config_pull",
+            "developer_guides/sdk/config_push",
+            "developer_guides/sdk/config_datatypes"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Command Line",
+      "pages": [
+        "developer_guides/cli/install",
+        "developer_guides/cli/quick-usage",
+        {
+          "group": "Core commands",
+          "pages": [
+            "developer_guides/cli/init",
+            "developer_guides/cli/variant_serve",
+            "developer_guides/cli/variant_list",
+            "developer_guides/cli/variant_remove"
+          ]
+        }
+      ]
+    },
+    {
       "group": "Contributing",
       "pages": [
-        "contributing/getting-started",
-        "contributing/development-mode",
-        "contributing/file-issue"
+        "developer_guides/contributing/getting-started",
+        "developer_guides/ontributing/development-mode",
+        "developer_guides/contributing/file-issue"
       ]
     },
     {
@@ -158,71 +174,71 @@
         {
           "group": "Backend API",
           "pages": [
-            "reference/backend_api/user-profile",
-            "reference/backend_api/list-app-variants",
-            "reference/backend_api/get-variant-by-env",
-            "reference/backend_api/list-apps",
-            "reference/backend_api/create-app",
-            "reference/backend_api/add-variant-from-image",
-            "reference/backend_api/remove-app",
-            "reference/backend_api/create-app-and-variant-from-template",
-            "reference/backend_api/list-environments",
-            "reference/backend_api/add-variant-from-base-and-config",
-            "reference/backend_api/start-variant",
-            "reference/backend_api/remove-variant",
-            "reference/backend_api/update-variant-parameters",
-            "reference/backend_api/update-variant-image",
-            "reference/backend_api/fetch-list-evaluations",
-            "reference/backend_api/create-evaluation",
-            "reference/backend_api/delete-evaluations",
-            "reference/backend_api/fetch-evaluation",
-            "reference/backend_api/update-evaluation-router",
-            "reference/backend_api/fetch-evaluation-scenarios",
-            "reference/backend_api/create-evaluation-scenario",
-            "reference/backend_api/update-evaluation-scenario-router",
-            "reference/backend_api/evaluate-ai-critique",
-            "reference/backend_api/get-evaluation-scenario-score-router",
-            "reference/backend_api/update-evaluation-scenario-score-router",
-            "reference/backend_api/fetch-results",
-            "reference/backend_api/create-custom-evaluation",
-            "reference/backend_api/update-custom-evaluation",
-            "reference/backend_api/list-custom-evaluations",
-            "reference/backend_api/get-custom-evaluation",
-            "reference/backend_api/get-custom-evaluation-names",
-            "reference/backend_api/execute-custom-evaluation",
-            "reference/backend_api/webhook-example-fake",
-            "reference/backend_api/upload-file",
-            "reference/backend_api/import-testset",
-            "reference/backend_api/create-testset",
+            "developer_guides/reference/backend_api/user-profile",
+            "developer_guides/reference/backend_api/list-app-variants",
+            "developer_guides/reference/backend_api/get-variant-by-env",
+            "developer_guides/reference/backend_api/list-apps",
+            "developer_guides/reference/backend_api/create-app",
+            "developer_guides/reference/backend_api/add-variant-from-image",
+            "developer_guides/reference/backend_api/remove-app",
+            "developer_guides/reference/backend_api/create-app-and-variant-from-template",
+            "developer_guides/reference/backend_api/list-environments",
+            "developer_guides/reference/backend_api/add-variant-from-base-and-config",
+            "developer_guides/reference/backend_api/start-variant",
+            "developer_guides/reference/backend_api/remove-variant",
+            "developer_guides/reference/backend_api/update-variant-parameters",
+            "developer_guides/reference/backend_api/update-variant-image",
+            "developer_guides/reference/backend_api/fetch-list-evaluations",
+            "developer_guides/reference/backend_api/create-evaluation",
+            "developer_guides/reference/backend_api/delete-evaluations",
+            "developer_guides/reference/backend_api/fetch-evaluation",
+            "developer_guides/reference/backend_api/update-evaluation-router",
+            "developer_guides/reference/backend_api/fetch-evaluation-scenarios",
+            "developer_guides/reference/backend_api/create-evaluation-scenario",
+            "developer_guides/reference/backend_api/update-evaluation-scenario-router",
+            "developer_guides/reference/backend_api/evaluate-ai-critique",
+            "developer_guides/reference/backend_api/get-evaluation-scenario-score-router",
+            "developer_guides/reference/backend_api/update-evaluation-scenario-score-router",
+            "developer_guides/reference/backend_api/fetch-results",
+            "developer_guides/reference/backend_api/create-custom-evaluation",
+            "developer_guides/reference/backend_api/update-custom-evaluation",
+            "developer_guides/reference/backend_api/list-custom-evaluations",
+            "developer_guides/reference/backend_api/get-custom-evaluation",
+            "developer_guides/reference/backend_api/get-custom-evaluation-names",
+            "developer_guides/reference/backend_api/execute-custom-evaluation",
+            "developer_guides/reference/backend_api/webhook-example-fake",
+            "developer_guides/reference/backend_api/upload-file",
+            "developer_guides/reference/backend_api/import-testset",
+            "developer_guides/reference/backend_api/create-testset",
             {
               "group": "testsets",
               "pages": [
-                "reference/backend_api/testsets/get-testset",
-                "reference/backend_api/testsets/get-testsets"
+                "developer_guides/reference/backend_api/testsets/get-testset",
+                "developer_guides/reference/backend_api/testsets/get-testsets"
               ]
             },
-            "reference/backend_api/update-testset",
-            "reference/backend_api/delete-testsets",
-            "reference/backend_api/build-image",
-            "reference/backend_api/restart-docker-container",
-            "reference/backend_api/container-templates",
-            "reference/backend_api/construct-app-container-url",
-            "reference/backend_api/deploy-to-environment",
-            "reference/backend_api/create-trace",
-            "reference/backend_api/get-traces",
-            "reference/backend_api/get-trace",
-            "reference/backend_api/update-trace-status",
-            "reference/backend_api/create-span",
-            "reference/backend_api/get-spans-of-trace",
-            "reference/backend_api/get-feedbacks",
-            "reference/backend_api/create-feedback",
-            "reference/backend_api/get-feedback",
-            "reference/backend_api/update-feedback",
-            "reference/backend_api/list-organizations",
-            "reference/backend_api/get-user-organization",
-            "reference/backend_api/list-bases",
-            "reference/backend_api/get-config",
-            "reference/backend_api/save-config"
+            "developer_guides/reference/backend_api/update-testset",
+            "developer_guides/reference/backend_api/delete-testsets",
+            "developer_guides/reference/backend_api/build-image",
+            "developer_guides/reference/backend_api/restart-docker-container",
+            "developer_guides/reference/backend_api/container-templates",
+            "developer_guides/reference/backend_api/construct-app-container-url",
+            "developer_guides/reference/backend_api/deploy-to-environment",
+            "developer_guides/reference/backend_api/create-trace",
+            "developer_guides/reference/backend_api/get-traces",
+            "developer_guides/reference/backend_api/get-trace",
+            "developer_guides/reference/backend_api/update-trace-status",
+            "developer_guides/reference/backend_api/create-span",
+            "developer_guides/reference/backend_api/get-spans-of-trace",
+            "developer_guides/reference/backend_api/get-feedbacks",
+            "developer_guides/reference/backend_api/create-feedback",
+            "developer_guides/reference/backend_api/get-feedback",
+            "developer_guides/reference/backend_api/update-feedback",
+            "developer_guides/reference/backend_api/list-organizations",
+            "developer_guides/reference/backend_api/get-user-organization",
+            "developer_guides/reference/backend_api/list-bases",
+            "developer_guides/reference/backend_api/get-config",
+            "developer_guides/reference/backend_api/save-config"
           ]
         }
       ]
@@ -236,15 +252,8 @@
     {
       "group": "Cookbook",
       "pages": [
-        "cookbook/list_templates_by_architecture",
-        "cookbook/list_templates_by_technology",
-        "cookbook/list_templates_by_use_case",
-        {
-          "group": "Templates",
-          "pages": [
-            "cookbook/extract_job_information"
-          ]
-        }
+        "cookbook/list_templates",
+        "cookbook/extract_job_information"
       ]
     }
   ],
