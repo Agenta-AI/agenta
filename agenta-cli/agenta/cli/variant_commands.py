@@ -299,7 +299,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
     app_name = config["app_name"]
-    api_key = config.get("api_key", None)
+    api_key = config.get("api_key", "")
 
     if not config["variants"]:
         click.echo(
