@@ -66,15 +66,19 @@ async def get_evaluator_configs(app_id: str = Query()):
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    configs_db = await evaluator_manager.get_evaluators_configs(app_id)
-    return [
-        EvaluatorConfig(
-            id=str(config_db.id),
-            evaluator_key=config_db.evaluator_key,
-            settings_values=config_db.settings_values,
-        )
-        for config_db in configs_db
-    ]
+    evaluators_configs = await evaluator_manager.get_evaluators_configs(app_id)
+    return evaluators_configs
+
+@router.get("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
+async def get_evaluator_config(evaluator_config_id: str):
+    """Endpoint to fetch evaluator configurations for a specific app.
+
+    Returns:
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+    """
+
+    evaluators_configs = await evaluator_manager.get_evaluator_config(evaluator_config_id)
+    return evaluators_configs
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
@@ -99,18 +103,18 @@ async def create_new_evaluator_config(
     return evaluator_config
 
 
-@router.delete("/configs/{evaluator_id}/", response_model=bool)
-async def delete_evaluator_config(evaluator_id: str):
+@router.delete("/configs/{evaluator_config_id}/", response_model=bool)
+async def delete_evaluator_config(evaluator_config_id: str):
     """Endpoint to delete a specific evaluator configuration.
 
     Args:
-        evaluator_id (str): The unique identifier of the evaluator configuration.
+        evaluator_config_id (str): The unique identifier of the evaluator configuration.
 
     Returns:
         bool: True if deletion was successful, False otherwise.
     """
     try:
-        success = await evaluator_manager.delete_evaluator_config(evaluator_id)
+        success = await evaluator_manager.delete_evaluator_config(evaluator_config_id)
         return success
     except Exception as e:
         raise HTTPException(
