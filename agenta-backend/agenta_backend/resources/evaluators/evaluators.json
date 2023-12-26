@@ -8,7 +8,11 @@
         "name": "Similarity Match",
         "key": "auto_similarity_match",
         "settings_template": {
-            "threshold": 0.5
+            "similarity_threshold": {
+                "type": "number",
+                "default": 0.5,
+                "description": ""
+            }
         }
     },
     {
