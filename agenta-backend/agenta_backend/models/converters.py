@@ -144,7 +144,9 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantOu
     )
 
 
-async def app_variant_config_to_output(app_variant_config: ConfigDB) -> AppVariantConfigOutput:
+async def app_variant_config_to_output(
+    app_variant_config: ConfigDB,
+) -> AppVariantConfigOutput:
     return AppVariantConfigOutput(
         config_id=str(app_variant_config.id),
         config_name=app_variant_config.config_name,

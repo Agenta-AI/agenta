@@ -312,6 +312,7 @@ async def get_variant_config(
         )
         return await converters.app_variant_config_to_output(db_app_variant_config)
     except Exception as e:
-        detail = f"Unexpected error while trying to get the app variant config: {str(e)}"
+        detail = (
+            f"Unexpected error while trying to get the app variant config: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail=detail)
-
