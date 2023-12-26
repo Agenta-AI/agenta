@@ -131,7 +131,7 @@ def add_variant(
                 base_name=base_name,
                 tar_file=tar_file,
             )
-            image = Image.parse_obj(built_image)
+            image = Image(**built_image.dict())
         if tar_path.exists():
             tar_path.unlink()
 
