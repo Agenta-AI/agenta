@@ -36,12 +36,24 @@
     {
         "name": "Code Evaluation",
         "key": "auto_custom_code_run",
-        "settings_template": {}
+        "settings_template": {
+            "code": {
+                "type": "code",
+                "default": "from typing import Dict\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: str,\n    correct_answer: str\n) -> float:\n    # ...\n    return 0.75  # Replace with your calculated score",
+                "description": "url"
+            }
+        }
     },
     {
         "name": "Webhook test",
         "key": "auto_webhook_test",
-        "settings_template": {}
+        "settings_template": {
+            "webhook_url": {
+                "type": "string",
+                "default": "https://cloud.agenta.ai/api/evaluations/webhook_example_fake",
+                "description": "url"
+            }
+        }
     },
     {
         "name": "A/B Test",
