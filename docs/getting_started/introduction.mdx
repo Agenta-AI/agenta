@@ -1,50 +1,61 @@
 ---
 title: What is Agenta?
-description: 'The open source end-to-end LLMOps platform.'
+description: 'The open-source end-to-end LLMOps platform.'
 ---
 <img className="dark:hidden" height="600" src="/images/agenta_mockup_whitebg.png" />
 <img className="hidden dark:block" height="600" src="/images/agenta_mockup_blackbg.png" />
 
-Agenta is an open-source end-to-end platform that helps **developers** and **product teams** build and maintain robust AI applications powered with Large Language Models (LLMs). . 
+Agenta is an open-source platform that helps **developers** and **product teams** build robust AI applications powered by LLMs. It offers all the tools for **prompt management and evaluation**. 
 
-With agenta, you can:
+### With Agenta, you can:
 
-1. Quickly **experiment** and **compare** prompts, configurations and complex pipelines (chains, Retrieval Augmented Generation (RAG), agents...) 
-2. Quickly **create test sets** and **golden datasets** for evaluation
-3. **Evaluate** your applications with pre-existing or **custom Evaluators**
-4. **Annotate** and **A/B test** your applications with human feedback 
-5. **Collaborate with product teams** for prompt engineering and evaluation
-6. **Deploy** your application in one-click in the UI,  through CLI, or through github workflows. 
+1. Quickly [**experiment** and **compare** prompts](/basic_guides/prompt_engineering) on [any LLM workflow](/advanced_guides/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...) 
+2. Quickly [**create test sets**](/basic_guides/test_sets) and **golden datasets** for evaluation
+3. [**Evaluate** your application](/basic_guides/automatic_evaluation) with pre-existing or [**custom evaluators**](/advanced_guides/using_custom_evaluators)
+4. [**Annotate** and **A/B test**](basic_guides/human_evaluation) your applications with **human feedback**
+5. [**Collaborate with product teams**](/basic_guides/team_management) for prompt engineering and evaluation
+6. [**Deploy your application**](/basic_guides/deployment) in one-click in the UI,  through CLI, or through github workflows. 
 
-Agenta focuses on increasing the speed of the development cycle of LLM applications by increasing the speed of iteration.
+Agenta focuses on increasing the speed of the development cycle of LLM applications by increasing the speed of experimentation.
 
-Agenta integrates with all frameworks and model providers in the ecosystem, such as [Langchain](https://langchain.com), [LlamaIndex](https://www.llamaindex.ai/), [OpenAI](https://openai.com), [Cohere](https://cohere.ai), [Mistral](https://mistral.ai/), [Huggingface](https://huggingface.co/), and self-hosted open source LLMs such as the one served using [vLLM](https://github.com/vllm-project/vllm)
+## How is Agenta different? 
+
+### Works with any LLM app workflow
+Agenta enables prompt engineering and evaluation on any LLM app architecture:
+- Chain of prompts
+- RAG
+- Agents
+- ...
+
+It works with any framework such as [Langchain](https://langchain.com), [LlamaIndex](https://www.llamaindex.ai/) and any LLM provider (openAI, Cohere, Mistral). 
+
+[Jump here to see how to use your own custom application with agenta](/advanced_guides/custom_applications)
+
+### Enable collaboration between developers and product teams
+
+
+Agenta empowers **non-developers** to iterate on the configuration of any custom LLM application, evaluate it, annotate it, A/B test it, and deploy it, all within the UI.
+
+By **adding a few lines to your application code**, you can create a prompt playground that allows non-developers to experiment with prompts for your application and use all the tools within agenta.
 
 
 ## Next Steps
 
-<CardGroup cols={3}>
-    <Card
-    title="Learn How agenta Works"
-    icon="book"
-    href="/quickstart/how-agenta-works"
-    color="FF42">
-      Learn the main concepts behind agenta.
-  </Card>
+<CardGroup cols={2}>
 
   <Card
-    title="Get Started from the UI"
+    title="Get Started"
     icon="stars"
-    href="/quickstart/getting-started-ui"
+    href="/getting-started-ui/getting-started-ui"
     color="#33FF57">
       Create and deploy your first app from the UI in under 2 minutes.
   </Card>
 
   <Card
-    title="Get Started from code"
+    title="Create a Custom App"
     icon="code"
     color="#337BFF"
-    href="/quickstart/getting-started-code">
+    href="/advanced_guides/custom_applications">
       Write a custom LLM app and evaluate it in 10 minutes.
   </Card>
 
