@@ -339,7 +339,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
 
     try:
         client.remove_variant(variant_id=variant_id)
-        
+
         # delete the variant configuration file if it exists
         if variant_configuration_file.is_file():
             click.echo(
@@ -365,6 +365,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
             fg="green",
         )
     )
+
 
 def list_variants(app_folder: str, host: str):
     """List available variants for an app and print them to the console
