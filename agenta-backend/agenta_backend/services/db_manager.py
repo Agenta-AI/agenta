@@ -286,6 +286,27 @@ async def create_new_config(
     return config_db
 
 
+async def get_app_variant_config_by_id(
+    app_variant_id: str,
+) -> Optional[ConfigDB]:
+    """
+    Fetches the config for an app variant by its ID.
+    Args:
+        app_variant_id (str): The ID of the app variant to fetch the config for.
+    Returns:
+        ConfigDB: The fetched config, or None if no config was found.
+    """
+    assert app_variant_id is not None, "app_variant_id cannot be None"
+    app_variant = await engine.find_one(
+        AppVariantDB, AppVariantDB.id == ObjectId(app_variant_id)
+    )
+    if app_variant is None:
+        logger.error("App variant not found")
+        return None
+    config = app_variant.config
+    return config
+
+
 async def create_new_app_variant(
     app: AppDB,
     organization: OrganizationDB,
