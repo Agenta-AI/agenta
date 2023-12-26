@@ -2,8 +2,10 @@ import axiosApi from "axios"
 import {getErrorMessage, globalErrorHandler} from "./errorHandler"
 import {signOut} from "supertokens-auth-react/recipe/thirdpartypasswordless"
 import router from "next/router"
+import {getAgentaApiUrl} from "./utils"
 
 const axios = axiosApi.create({
+    baseURL: getAgentaApiUrl(),
     headers: {
         "Content-Type": "application/json",
     },

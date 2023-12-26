@@ -278,7 +278,7 @@ const Sidebar: React.FC = () => {
                                                     ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
                                                     : ""
                                             }
-                                            key="evaluations"
+                                            key="evaluations-new"
                                         >
                                             <Menu.Item icon={<LineChartOutlined />}>
                                                 <Link

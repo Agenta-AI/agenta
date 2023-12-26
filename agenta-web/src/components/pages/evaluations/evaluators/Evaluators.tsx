@@ -1,11 +1,12 @@
-import React, {useState} from "react"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
-import Mock from "../evaluationResults/mock"
 import EvaluatorCard from "./EvaluatorCard"
-import {Button, Space} from "antd"
+import {Button, Space, Spin} from "antd"
 import {PlusCircleOutlined} from "@ant-design/icons"
-import {pickRandom} from "@/lib/helpers/utils"
 import {EvaluatorConfig} from "@/lib/Types"
+import NewEvaluatorModal from "./NewEvaluatorModal"
+import {useAppId} from "@/hooks/useAppId"
+import {fetchAllEvaluatorConfigs} from "@/services/evaluations"
 
 const useStyles = createUseStyles({
     root: {
@@ -27,28 +28,50 @@ interface Props {}
 
 const Evaluators: React.FC<Props> = () => {
     const classes = useStyles()
-    const [evaluatorConfigs, setEvaluatorConfigs] = useState<EvaluatorConfig[]>(
-        pickRandom(Mock.evaluators, 7).map((item, ix) => ({
-            evaluator_key: item.key,
-            id: ix + "",
-            name: `Evaluator ${ix}`,
-            settings_values: {},
-            created_at: new Date().toString(),
-        })),
-    )
+    const appId = useAppId()
+    const [evaluatorConfigs, setEvaluatorConfigs] = useState<EvaluatorConfig[]>([])
+    const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
+    const [fetching, setFetching] = useState(false)
+
+    const fetcher = () => {
+        setFetching(true)
+        fetchAllEvaluatorConfigs(appId)
+            .then(setEvaluatorConfigs)
+            .catch(console.error)
+            .finally(() => setFetching(false))
+    }
+
+    useEffect(() => {
+        fetcher()
+    }, [])
 
     return (
         <div className={classes.root}>
             <Space className={classes.buttonsGroup}>
-                <Button icon={<PlusCircleOutlined />} type="primary">
+                <Button
+                    icon={<PlusCircleOutlined />}
+                    type="primary"
+                    onClick={() => setNewEvalModalOpen(true)}
+                >
                     New Evaluator
                 </Button>
             </Space>
-            <div className={classes.grid}>
-                {evaluatorConfigs.map((item) => (
-                    <EvaluatorCard key={item.id} evaluatorConfig={item} />
-                ))}
-            </div>
+            <Spin spinning={fetching}>
+                <div className={classes.grid}>
+                    {evaluatorConfigs.map((item) => (
+                        <EvaluatorCard key={item.id} evaluatorConfig={item} />
+                    ))}
+                </div>
+            </Spin>
+
+            <NewEvaluatorModal
+                open={newEvalModalOpen}
+                onCancel={() => setNewEvalModalOpen(false)}
+                onSuccess={() => {
+                    setNewEvalModalOpen(false)
+                    fetcher()
+                }}
+            />
         </div>
     )
 }
