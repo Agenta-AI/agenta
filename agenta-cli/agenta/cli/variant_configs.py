@@ -148,9 +148,9 @@ def get_variant_config(ctx, app_folder: str):
 def update_variant_config(ctx, app_folder: str):
     config_commands = ctx.args
 
-    # check and update config file
+    # check and update config file without updating variant config files
     try:
-        variant_commands.config_check(app_folder)
+        variant_commands.config_check(app_folder, update_config_file=False)
     except Exception as e:
         click.echo(click.style("Failed during configuration check.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
