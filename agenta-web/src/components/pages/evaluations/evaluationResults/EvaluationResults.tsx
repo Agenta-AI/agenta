@@ -248,7 +248,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     type="primary"
                     onClick={() =>
                         router.push(
-                            `/apps/${appId}/evaluations-new/compare/?evalautions=${selected
+                            `/apps/${appId}/evaluations-new/compare/?evaluations=${selected
                                 .map((item) => item.id)
                                 .join(",")}`,
                         )
