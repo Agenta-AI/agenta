@@ -117,7 +117,7 @@ async def test_create_evaluation(prepare_testset_csvdata):
             testset["variant_id"],
         ],
         "evaluators_configs": [],
-        "testset_id": "",
+        "testset_id": ""
     }
 
     # Fetch evaluator configs
@@ -142,7 +142,7 @@ async def test_create_evaluation(prepare_testset_csvdata):
 
     assert response.status_code == 200
     assert response_data["app_id"] == payload["app_id"]
-    assert response_data["status"] == EvaluationStatusEnum.EVALUATION_INITIALIZED
+    assert response_data["status"] == EvaluationStatusEnum.EVALUATION_STARTED
     assert response_data is not None and isinstance(response_data, Evaluation)
 
 
@@ -163,7 +163,7 @@ async def test_fetch_evaluation_status():
         if response_data["status"] == EvaluationStatusEnum.EVALUATION_FINISHED:
             assert True
             return
-        asyncio.sleep(intervals)
+        await asyncio.sleep(intervals)
 
     assert (
         False
