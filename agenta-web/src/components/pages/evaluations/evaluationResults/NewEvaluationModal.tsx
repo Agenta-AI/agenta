@@ -40,7 +40,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     date: {
         fontSize: "0.75rem",
-        color: "#888",
+        color: "#8c8c8c",
     },
     tag: {
         transform: "scale(0.8)",
