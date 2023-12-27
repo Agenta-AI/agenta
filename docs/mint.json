@@ -124,7 +124,8 @@
             "cli/init",
             "cli/variant_serve",
             "cli/variant_list",
-            "cli/variant_remove"
+            "cli/variant_remove",
+            "cli/variant_add"
           ]
         }
       ]
