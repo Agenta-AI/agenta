@@ -303,7 +303,7 @@ def add_variant(
             return variant_id
 
 
-def config_check(app_folder: str):
+def config_check(app_folder: str, delete_config_file=True, update_config_file=True):
     """Check the config file and update it from the backend
 
     Arguments:
@@ -322,7 +322,13 @@ def config_check(app_folder: str):
         )
         return
     host = helper.get_host(app_folder)  # TODO: Refactor the whole config thing
-    helper.update_config_from_backend(config_file, host=host, app_folder=app_folder)
+    helper.update_config_from_backend(
+        config_file,
+        host=host,
+        app_folder=app_folder,
+        delete_config_file=delete_config_file,
+        update_config_file=update_config_file,
+    )
 
 
 @variant.command(name="remove")
@@ -444,7 +450,7 @@ def list_variants_cli(app_folder: str):
     "--from_variant", help="The name of the variant to base the new variant on"
 )
 @click.pass_context
-def add_variant_from_config(ctx, app_folder: str, config_file: str, from_variant: str):
+def add_new_variant(ctx, app_folder: str, config_file: str, from_variant: str):
     """Adds a variant to the backend"""
     config_commands = ctx.args
     variant_to_use = None
@@ -453,7 +459,7 @@ def add_variant_from_config(ctx, app_folder: str, config_file: str, from_variant
 
     # check and update config file
     try:
-        config_check(app_folder)
+        config_check(app_folder, delete_config_file=False)
     except Exception as e:
         click.echo(click.style("Failed during configuration check.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))

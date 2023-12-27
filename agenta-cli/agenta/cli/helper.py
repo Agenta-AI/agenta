@@ -173,7 +173,13 @@ def update_variants_from_backend(
     return config
 
 
-def update_config_from_backend(config_file: Path, host: str, app_folder: Path):
+def update_config_from_backend(
+    config_file: Path,
+    host: str,
+    app_folder: Path,
+    delete_config_file: bool = True,
+    update_config_file: bool = True,
+):
     """Updates the config file with new information from the backend
 
     Arguments:
@@ -191,23 +197,25 @@ def update_config_from_backend(config_file: Path, host: str, app_folder: Path):
     toml.dump(config, config_file.open("w"))
 
     # update variant config files
-    command_utils.pull_config_from_backend(
-        config=config,
-        app_folder=app_folder,
-        api_key=api_key,
-        variant_names=config["variants"],
-        host=host,
-        show_output=False,
-    )
+    if update_config_file:
+        command_utils.pull_config_from_backend(
+            config=config,
+            app_folder=app_folder,
+            api_key=api_key,
+            variant_names=config["variants"],
+            host=host,
+            show_output=False,
+        )
 
     # remove variant config files that are not in the backend
-    variant_config_files = [
-        file for file in app_folder.glob("*.toml") if file.name != "config.toml"
-    ]
-    for variant_config_file in variant_config_files:
-        variant_name = variant_config_file.stem
-        if variant_name not in config["variants"]:
-            variant_config_file.unlink()
+    if delete_config_file:
+        variant_config_files = [
+            file for file in app_folder.glob("*.toml") if file.name != "config.toml"
+        ]
+        for variant_config_file in variant_config_files:
+            variant_name = variant_config_file.stem
+            if variant_name not in config["variants"]:
+                variant_config_file.unlink()
 
 
 def display_app_variant(variant: AppVariant):
