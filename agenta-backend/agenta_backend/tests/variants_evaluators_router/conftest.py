@@ -52,7 +52,11 @@ def ensure_frontend_reachable():
 @pytest.fixture()
 async def fetch_app():
     apps = await engine.find(AppDB)
-    return {"app_id": str(apps[0].id)}
+    return {
+        "app_id": str(apps[0].id),
+        "app_name": apps[0].app_name,
+        "org_id": str(apps[0].user.organizations[0]),
+    }
 
 
 @pytest.fixture()
@@ -65,17 +69,34 @@ async def fetch_app_variant(fetch_app):
 
 
 @pytest.fixture()
-async def prepare_testset_csvdata(fetch_app_variant):
-    app_variant = await fetch_app_variant
+async def create_app_from_template(fetch_app, fetch_single_prompt_template):
+    app = await fetch_app
+    payload = {
+        "app_name": app["app_name"],
+        "template_id": fetch_single_prompt_template["id"],
+        "env_vars": {"OPENAI_API_KEY": OPEN_AI_KEY},
+        "organization_id": app["org_id"],
+    }
+    print("Payload: ", payload)
+    response = httpx.post(
+        f"{BACKEND_URI}apps/app_and_variant_from_template/", json=payload
+    )
+    return response.json()
+
+
+@pytest.fixture()
+async def prepare_testset_csvdata(create_app_from_template):
+    app_variant = await create_app_from_template
+    print("AppV: ", app_variant)
     app_db = await engine.find_one(AppDB, AppDB.id == ObjectId(app_variant["app_id"]))
     org_db = await engine.find_one(
-        OrganizationDB, OrganizationDB.id == ObjectId(app_db.user.organizations[0])
+        OrganizationDB, OrganizationDB.id == ObjectId(app_variant["organization_id"])
     )
     json_path = os.path.join(
         PARENT_DIRECTORY,
         "resources",
         "default_testsets",
-        "evaluation_testset.json",
+        "chat_openai_testset.json",
     )
 
     csvdata = get_json(json_path)
@@ -92,19 +113,6 @@ async def prepare_testset_csvdata(fetch_app_variant):
         "variant_id": app_variant["variant_id"],
         "app_id": app_variant["app_id"],
     }
-
-
-@pytest.fixture()
-async def create_app_from_template(fetch_app, fetch_single_prompt_template):
-    payload = {
-        "app_name": fetch_app["app_name"],
-        "template_id": fetch_single_prompt_template["id"],
-        "env_vars": {"OPENAI_API_KEY": OPEN_AI_KEY},
-    }
-    response = httpx.post(
-        f"{BACKEND_URI}/apps/app_and_variant_from_template/", json=payload
-    )
-    return response.json()
 
 
 @pytest.fixture()
