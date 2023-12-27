@@ -7,6 +7,7 @@ from agenta_backend.models.db_models import EvaluatorConfigDB
 from agenta_backend.models.api.evaluation_model import EvaluatorConfig
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
 
+
 async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:
     """
     Get evaluators configs by app_id.
@@ -18,7 +19,10 @@ async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:
         List[EvaluatorConfig]: A list of evaluator configuration objects.
     """
     evaluator_configs_db = await db_manager.fetch_evaluators_configs(app_id)
-    return [evaluator_config_db_to_pydantic(evaluator_config_db) for evaluator_config_db in evaluator_configs_db]
+    return [
+        evaluator_config_db_to_pydantic(evaluator_config_db)
+        for evaluator_config_db in evaluator_configs_db
+    ]
 
 
 async def get_evaluator_config(evaluator_config_id: str) -> EvaluatorConfig:
@@ -78,7 +82,10 @@ async def update_evaluator_config(
     Returns:
         EvaluatorConfigDB: The updated evaluator configuration object.
     """
-    return await db_manager.update_evaluator_config(evaluator_config_id, updates)
+    evaluator_config = await db_manager.update_evaluator_config(
+        evaluator_config_id, updates
+    )
+    return evaluator_config_db_to_pydantic(evaluator_config=evaluator_config)
 
 
 async def delete_evaluator_config(evaluator_config_id: str) -> bool:

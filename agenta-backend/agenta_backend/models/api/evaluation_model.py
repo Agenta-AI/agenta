@@ -184,3 +184,9 @@ class NewEvaluatorConfig(BaseModel):
     name: str
     evaluator_key: str
     settings_values: dict
+
+
+class UpdateEvaluatorConfig(BaseModel):
+    name: Optional[str]
+    evaluator_key: Optional[str]
+    settings_values: Optional[dict]

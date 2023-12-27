@@ -10,6 +10,7 @@ from agenta_backend.models.api.evaluation_model import (
     Evaluator,
     EvaluatorConfig,
     NewEvaluatorConfig,
+    UpdateEvaluatorConfig,
 )
 
 from agenta_backend.services import (
@@ -69,6 +70,7 @@ async def get_evaluator_configs(app_id: str = Query()):
     evaluators_configs = await evaluator_manager.get_evaluators_configs(app_id)
     return evaluators_configs
 
+
 @router.get("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
 async def get_evaluator_config(evaluator_config_id: str):
     """Endpoint to fetch evaluator configurations for a specific app.
@@ -77,7 +79,9 @@ async def get_evaluator_config(evaluator_config_id: str):
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    evaluators_configs = await evaluator_manager.get_evaluator_config(evaluator_config_id)
+    evaluators_configs = await evaluator_manager.get_evaluator_config(
+        evaluator_config_id
+    )
     return evaluators_configs
 
 
@@ -101,6 +105,22 @@ async def create_new_evaluator_config(
         settings_values=payload.settings_values,
     )
     return evaluator_config
+
+
+@router.put("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
+async def get_evaluator_config(
+    evaluator_config_id: str, payload: UpdateEvaluatorConfig
+):
+    """Endpoint to fetch evaluator configurations for a specific app.
+
+    Returns:
+        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+    """
+
+    evaluators_configs = await evaluator_manager.update_evaluator_config(
+        evaluator_config_id=evaluator_config_id, updates=payload
+    )
+    return evaluators_configs
 
 
 @router.delete("/configs/{evaluator_config_id}/", response_model=bool)
