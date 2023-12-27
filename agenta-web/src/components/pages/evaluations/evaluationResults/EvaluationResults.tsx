@@ -15,8 +15,9 @@ import {useAppId} from "@/hooks/useAppId"
 import {deleteEvaluations, fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
 import {useRouter} from "next/router"
 import {useUpdateEffect} from "usehooks-ts"
-import {shortPoll} from "@/lib/helpers/utils"
+import {durationToStr, shortPoll} from "@/lib/helpers/utils"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
+import {useDurationCounter} from "@/hooks/useDurationCounter"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -28,7 +29,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     table: {
         width: "100%",
-        height: 500,
+        height: "calc(100vh - 260px)",
     },
     buttonsGroup: {
         alignSelf: "flex-end",
@@ -50,11 +51,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         height: 3,
         aspectRatio: 1 / 1,
         borderRadius: "50%",
-        backgroundColor: theme.colorTextSecondary,
+        backgroundColor: "#8c8c8c",
         marginTop: 2,
     },
     date: {
-        color: theme.colorTextSecondary,
+        color: "#8c8c8c",
     },
 }))
 
@@ -168,20 +169,24 @@ const EvaluationResults: React.FC<Props> = () => {
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_Evaluation>[] = [
             {
+                minWidth: 280,
                 field: "id",
+                flex: 1,
                 headerCheckboxSelection: true,
                 checkboxSelection: true,
                 showDisabledCheckboxes: true,
             },
-            {field: "testset.name"},
+            {field: "testset.name", flex: 1},
             {
                 field: "variants",
+                flex: 1,
                 valueGetter: (params) => params.data?.variants[0].variantName,
                 headerName: "Variant",
             },
             ...evaluatorConfigs.map(
                 (config) =>
                     ({
+                        flex: 1,
                         field: "aggregated_results",
                         headerComponent: () => (
                             <span>
@@ -195,9 +200,17 @@ const EvaluationResults: React.FC<Props> = () => {
                     }) as ColDef<_Evaluation>,
             ),
             {
+                flex: 1,
                 field: "status",
+                minWidth: 220,
                 cellRenderer: (params: ICellRendererParams<_Evaluation>) => {
                     const classes = useStyles()
+                    const duration = useDurationCounter(
+                        params.data?.duration || 0,
+                        [EvaluationStatus.STARTED, EvaluationStatus.INITIALIZED].includes(
+                            params.value,
+                        ),
+                    )
                     const {label, color} = statusMapper(token)[params.value as EvaluationStatus]
 
                     return (
@@ -205,16 +218,13 @@ const EvaluationResults: React.FC<Props> = () => {
                             <div style={{backgroundColor: color}} />
                             <span>{label}</span>
                             <span className={classes.dot}></span>
-                            <span className={classes.date}>
-                                {dayjs
-                                    .duration(params.data?.duration || 0, "milliseconds")
-                                    .humanize()}
-                            </span>
+                            <span className={classes.date}>{duration}</span>
                         </Typography.Text>
                     )
                 },
             },
             {
+                flex: 1,
                 field: "created_at",
                 headerName: "Created",
                 valueFormatter: (params) => dayjs(params.value).fromNow(),

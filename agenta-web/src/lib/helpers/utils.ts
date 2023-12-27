@@ -3,6 +3,7 @@ import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 import promiseRetry from "promise-retry"
 import {getErrorMessage} from "./errorHandler"
+import dayjs from "dayjs"
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -337,4 +338,24 @@ export function pickRandom<T>(arr: T[], len: number) {
     }
 
     return result
+}
+
+export function durationToStr(duration: number) {
+    const days = Math.floor(dayjs.duration(duration, "milliseconds").asDays())
+    const hours = Math.floor(dayjs.duration(duration, "milliseconds").asHours())
+    const mins = Math.floor(dayjs.duration(duration, "milliseconds").asMinutes())
+    const secs = Math.floor(dayjs.duration(duration, "milliseconds").asSeconds())
+
+    if (days > 0) return `${days} days`
+    if (hours > 0) return `${hours} hours`
+    if (mins > 0) return `${mins} mins`
+    return `${secs} seconds`
+}
+
+type DayjsDate = Parameters<typeof dayjs>[0]
+export function getDurationStr(date1: DayjsDate, date2: DayjsDate) {
+    const d1 = dayjs(date1)
+    const d2 = dayjs(date2)
+
+    return durationToStr(d2.diff(d1, "milliseconds"))
 }

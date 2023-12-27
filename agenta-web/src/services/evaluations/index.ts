@@ -62,11 +62,11 @@ export const updateEvaluatorConfig = async (
     configId: string,
     config: Partial<CreateEvaluationConfigData>,
 ) => {
-    return axios.put(`/api/evaluators/configs/${configId}`, config)
+    return axios.put(`/api/evaluators/configs/${configId}/`, config)
 }
 
 export const deleteEvaluatorConfig = async (configId: string) => {
-    return axios.delete(`/api/evaluators/configs/${configId}`)
+    return axios.delete(`/api/evaluators/configs/${configId}/`)
 }
 
 // Evaluations
@@ -75,7 +75,11 @@ const evaluationTransformer = (item: any) => ({
     appId: item.app_id,
     created_at: item.created_at,
     updated_at: item.updated_at,
-    duration: dayjs(item.updated_at).diff(dayjs(item.created_at), "milliseconds"),
+    duration: dayjs(
+        [EvaluationStatus.STARTED, EvaluationStatus.INITIALIZED].includes(item.status)
+            ? Date.now()
+            : item.updated_at,
+    ).diff(dayjs(item.created_at), "milliseconds"),
     status: item.status,
     testset: {
         id: item.testset_id,
