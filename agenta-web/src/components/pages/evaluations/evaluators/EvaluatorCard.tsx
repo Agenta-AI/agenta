@@ -3,13 +3,19 @@ import {EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {DeleteOutlined, EditOutlined} from "@ant-design/icons"
 import {Card, Tag, Typography} from "antd"
 import {createUseStyles} from "react-jss"
-import Mock from "../evaluationResults/mock"
 import dayjs from "dayjs"
 import Image from "next/image"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {deleteEvaluatorConfig} from "@/services/evaluations"
+import {useAtom} from "jotai"
+import {evaluatorsAtom} from "@/lib/atoms/evaluation"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
+    card: {
+        "& .ant-card-body": {
+            padding: "1.25rem 0.75rem 1rem 1rem",
+        },
+    },
     body: {
         display: "flex",
         flexDirection: "column",
@@ -23,14 +29,20 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         marginBottom: "1.5rem",
     },
     evaluationImg: {
-        width: 27,
-        height: 27,
+        width: 32,
+        height: 32,
         marginRight: "8px",
         filter: theme.isDark ? "invert(1)" : "none",
     },
     name: {
-        marginTop: "0.25rem",
-        marginBottom: 0,
+        marginTop: "0.5rem",
+        marginBottom: "0 !important",
+        fontWeight: "500 !important",
+        fontSize: "1rem",
+    },
+    date: {
+        fontSize: "0.75rem",
+        color: theme.colorTextSecondary,
     },
 }))
 
@@ -42,7 +54,8 @@ interface Props {
 
 const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelete}) => {
     const classes = useStyles()
-    const evaluator = Mock.evaluators.find((item) => item.key === evaluatorConfig.evaluator_key)!
+    const [evaluators] = useAtom(evaluatorsAtom)
+    const evaluator = evaluators.find((item) => item.key === evaluatorConfig.evaluator_key)!
 
     const onDelete = () => {
         AlertPopup({
@@ -57,6 +70,7 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
 
     return (
         <Card
+            className={classes.card}
             actions={[
                 <EditOutlined key="edit" onClick={onEdit} />,
                 <DeleteOutlined key="delete" onClick={onDelete} />,
@@ -64,7 +78,7 @@ const EvaluatorCard: React.FC<Props> = ({evaluatorConfig, onEdit, onSuccessDelet
         >
             <div className={classes.body}>
                 <div className={classes.headerRow}>
-                    <Typography.Text>
+                    <Typography.Text className={classes.date}>
                         {dayjs(evaluatorConfig.created_at).format("DD MMM YY")}
                     </Typography.Text>
                     <Tag color={evaluator.color}>{evaluator.name}</Tag>

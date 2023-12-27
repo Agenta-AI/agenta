@@ -8,13 +8,14 @@ import {
     _EvaluationScenario,
 } from "@/lib/Types"
 import {getTagColors} from "@/lib/helpers/colors"
-import {delay, pickRandom, stringToNumberInRange} from "@/lib/helpers/utils"
+import {delay, stringToNumberInRange} from "@/lib/helpers/utils"
 import exactMatchImg from "@/media/target.png"
 import similarityImg from "@/media/transparency.png"
 import regexImg from "@/media/programming.png"
 import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
+import dayjs from "dayjs"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -34,8 +35,6 @@ const evaluatorIconsMap = {
 
 //Evaluators
 export const fetchAllEvaluators = async () => {
-    // await delay(1000)
-    // return Mock.evaluators
     const tagColors = getTagColors()
 
     const response = await axios.get(`/api/evaluators/`)
@@ -59,36 +58,52 @@ export const createEvaluatorConfig = async (appId: string, config: CreateEvaluat
     return axios.post(`/api/evaluators/configs/`, {...config, app_id: appId})
 }
 
+export const updateEvaluatorConfig = async (
+    configId: string,
+    config: Partial<CreateEvaluationConfigData>,
+) => {
+    return axios.put(`/api/evaluators/configs/${configId}`, config)
+}
+
 export const deleteEvaluatorConfig = async (configId: string) => {
     return axios.delete(`/api/evaluators/configs/${configId}`)
 }
 
 // Evaluations
+const evaluationTransformer = (item: any) => ({
+    id: item.id,
+    appId: item.app_id,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    duration: dayjs(item.updated_at).diff(dayjs(item.created_at), "milliseconds"),
+    status: item.status,
+    testset: {
+        id: item.testset_id,
+        name: item.testset_name,
+    },
+    user: {
+        id: item.user_id,
+        username: item.user_username,
+    },
+    variants: item.variant_ids.map((id: string, ix: number) => ({
+        variantId: id,
+        variantName: item.variant_names[ix],
+    })),
+    aggregated_results: item.aggregated_results || [],
+})
+
 export const fetchAllEvaluations = async (appId: string) => {
-    await delay(1000)
-    return Mock.evaluations
-
     const response = await axios.get(`/api/evaluations/`, {params: {app_id: appId}})
-    return response.data as _Evaluation[]
+    return response.data.map(evaluationTransformer) as _Evaluation[]
 }
 
-export const fetchEvaluation = async (appId: string, evaluationId: string) => {
-    await delay(1000)
-    return Mock.evaluations[0]
-
-    const response = await axios.get(`/api/evaluations/${evaluationId}/`, {
-        params: {app_id: appId},
-    })
-    return response.data as _Evaluation
+export const fetchEvaluation = async (evaluationId: string) => {
+    const response = await axios.get(`/api/evaluations/${evaluationId}/`)
+    return evaluationTransformer(response.data) as _Evaluation
 }
 
-export const fetchEvaluationStatus = async (appId: string, evaluationId: string) => {
-    await delay(1000)
-    return {status: pickRandom(Object.values(EvaluationStatus), 1)[0]}
-
-    const response = await axios.get(`/api/evaluations/${evaluationId}/status/`, {
-        params: {app_id: appId},
-    })
+export const fetchEvaluationStatus = async (evaluationId: string) => {
+    const response = await axios.get(`/api/evaluations/${evaluationId}/status/`)
     return response.data as {status: EvaluationStatus}
 }
 
@@ -101,10 +116,14 @@ export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluat
     return axios.post(`/api/evaluations/`, {...evaluation, app_id: appId})
 }
 
+export const deleteEvaluations = async (evaluationsIds: string[]) => {
+    return axios.delete(`/api/evaluations/`, {data: {evaluations_ids: evaluationsIds}})
+}
+
 // Evaluation Scenarios
 export const fetchAllEvaluationScenarios = async (appId: string, evaluationId: string) => {
-    await delay(1000)
-    return Mock.evaluationScenarios
+    // await delay(1000)
+    // return Mock.evaluationScenarios
 
     const response = await axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios/`, {
         params: {app_id: appId},
