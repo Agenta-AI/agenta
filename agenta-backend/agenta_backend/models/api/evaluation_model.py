@@ -37,6 +37,16 @@ class EvaluationScenarioStatusEnum(str, Enum):
     COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
 
 
+class Result(BaseModel):
+    type: str
+    value: Any
+
+
+class AggregatedResult(BaseModel):
+    evaluator_config: str
+    result: Result
+
+
 class Evaluation(BaseModel):
     id: str
     app_id: str
@@ -47,6 +57,7 @@ class Evaluation(BaseModel):
     testset_id: str
     testset_name: str
     status: str
+    aggregated_results: List[AggregatedResult]
     created_at: datetime
     updated_at: datetime
 
