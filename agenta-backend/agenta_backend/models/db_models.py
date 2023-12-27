@@ -265,9 +265,9 @@ class EvaluationDB(Model):
 
 
 class EvaluationScenarioDB(Model):
-    user: UserDB = Reference()
-    organization: OrganizationDB = Reference()
-    evaluation: EvaluationDB = Reference()
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    evaluation: EvaluationDB = Reference(key_name="evaluations")
     inputs: List[EvaluationScenarioInputDB]
     outputs: List[EvaluationScenarioOutputDB]
     correct_answer: Optional[str]
