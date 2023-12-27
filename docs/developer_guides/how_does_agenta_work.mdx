@@ -1,26 +1,38 @@
 ---
-title: "How does agenta work?"
-description: "An overview of the architecture and main concepts of agenta"
+title: "How does Agenta work?"
+description: "An overview of the architecture and main concepts of Agenta"
 ---
 
-<Frame caption="Agenta decouples the configuration (prompt, model) from the application logic. The configuration is managed by the backend. You can test different configurations both from the UI and the CLI. ">
+
+## What problem does Agenta solve?
+
+To build a robust LLM application, you need to:
+1. **Rapidly experiment and evaluate** various prompts, models, and architectures/workflows (RAG, chain-of-prompts, etc..).
+2. **Collaborate with non-developers**, such as product managers or domain experts.
+
+While some tools exist that help doing the first point via a user interface, they are typically limited to pre-built single-prompt applications and fail to accomodate custom workflows or application logic.
+
+## How does Agenta solve this problem?
+
+Agenta creates a playground in the UI from your LLM applications, regardless of the workflow (RAG, chain-of-prompts, custom logic) or the framework (Langchain, Llama_index, OpenAI calls) in use. 
+
+This enables the entire team to collaborate on prompt engineering and experimentation with the   application parameters (prompts, models, chunk size, etc.). It also allow them to manage all aspects of the app development lifecyclefrom the UI: comparing different configuration, evaluating the application, deploying it, and more.
+
+## How does Agenta achieve this?
+
+1. **Microservice-based Applications**: 
+
+Agenta treats each application as a microservice. Creating a new application in Agenta automatically generates a container with a REST API. This is true whether the application is created using a pre-built template from the UI, or whether from CLI using custom application code. Agenta handles the creation of Docker images and container deployment. This means that all interactions with the application (either from the UI, during evaluations, or post-deployment) occur with the container. 
+
+2. **Separation of Logic and Configuration**:
+
+Agenta separates the application logic from the configuration. The application logic refers to the code that defines the application, whether it's a simple prompt, chain of prompts, RAG, etc. The configuration refers to the parameters used in the application logic, such as the prompt, model, chunk size, etc. In the application code, you specify which configuration does the application use. This configuration can be modified from the UI in the playground or the CLI. 
+
+## Agenta architecture
+
+<Frame caption="Agenta decouples the configuration (prompts, model) from the application logic. The configuration is managed by the backend. The configuration then can be modified both from the UI (in the playground) or from the CLI">
 <img width="700" src="/images/apps_and_configurations_light.png" />
 </Frame>
-
-## Separation of App Logic from Configuration Enable Quick Iteration
-
-The main concept behind agenta is the separation of the application logic and configuration. The application logic refers to the code that defines the application, whether it's a simple prompt, chain of prompts, RAG, etc. The configuration refers to the parameters that define the application logic, such as the prompt, model, chunk size, etc.
-
-By separating the application logic from the configuration. We simplify the process of iterating on application variants, and enable the collaboration between developers (working from code/cli) and non-developers (working from the UI).
-
-## Agenta's core concepts:
-
-1. **Application Variant**: Building a robust AI application requires iterating on different prompts, models, and architectures. We refer to each of these different iterations as an `application variant`.
-2. **Separation of Logic and Configuration**: Agenta separates the application logic (one prompt, chain-of-prompts, RAG, ..) from the configuration (the prompt, model..). 
-3. **Microservice-based Applications**: Agenta treats each application as a microservice. Creating a new application in Agenta automatically generates a container with a REST API. This is true whether the application is created using a pre-built template from the UI, or whether from CLI using custom application code. Agenta handles the creation of Docker images and container deployment. This means that all interactions with the application (either from the UI, during evaluations, or post-deployment) occur with the container.
-
-
-## Architecture Components
 
 ### The Application
 
@@ -39,3 +51,5 @@ The CLI offers the same capabilities as the frontend. Additionally, it allows fo
 
 ## The SDK
 The SDK is a Python library used to create new applications from code. It manages the saving of the default configuration, creation of the REST API, and necessary actions to create a playground and integrate the application with the Agenta platform.
+
+
