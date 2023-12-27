@@ -199,7 +199,7 @@ def update_config_from_backend(config_file: Path, host: str, app_folder: Path):
         host=host,
         show_output=False,
     )
-    
+
     # remove variant config files that are not in the backend
     variant_config_files = [
         file for file in app_folder.glob("*.toml") if file.name != "config.toml"
@@ -257,11 +257,16 @@ def extract_parameters(config_data):
     parameters = {}
 
     try:
-        if "parameters" in config_data and isinstance(config_data["parameters"], dict) and config_data["parameters"]:
+        if (
+            "parameters" in config_data
+            and isinstance(config_data["parameters"], dict)
+            and config_data["parameters"]
+        ):
             parameters = config_data["parameters"]
             return parameters
         else:
-            raise Exception("Parameters not found or empty in the config file. Please make sure you have a non-empty parameters section in the config file. \nIf you are creating a new variant based on an existing variant, please pull the config for the existing variant first using 'agenta config pull <variant_name>'")
+            raise Exception(
+                "Parameters not found or empty in the config file. Please make sure you have a non-empty parameters section in the config file. \nIf you are creating a new variant based on an existing variant, please pull the config for the existing variant first using 'agenta config pull <variant_name>'"
+            )
     except Exception as e:
         raise Exception(f"Error extracting parameters: {e}")
-
