@@ -4,8 +4,7 @@ import toml
 import click
 from pathlib import Path
 from agenta.cli import helper
-from agenta.cli import variant_commands
-from agenta.client.backend.client import AgentaApi
+from agenta.cli import variant_commands, command_utils
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
@@ -14,20 +13,6 @@ BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 def config():
     """Commands for variants configurations"""
     pass
-
-
-def update_backend_host(backend_host: str):
-    """Check the config file and update the backend URL
-
-    Arguments:
-        app_folder -- the app folder
-        backend_host -- the backend host
-    """
-
-    click.echo(
-        click.style("\nChecking and updating global backend host...", fg="bright_black")
-    )
-    helper.set_global_config("host", backend_host)
 
 
 @config.command(
@@ -51,7 +36,7 @@ def set_config_url(ctx, backend_host: str):
             else:
                 click.echo(click.style("Backend host URL not specified", fg="red"))
 
-        update_backend_host(backend_host)
+        helper.update_backend_host(backend_host)
         click.echo(click.style("Backend host updated successfully! 🎉\n"))
     except Exception as ex:
         click.echo(click.style(f"Error updating backend host: {ex}", fg="red"))
@@ -135,44 +120,19 @@ def get_variant_config(ctx, app_folder: str):
 
         variant_names = [variant_name]
 
-    variant_objects = {
-        variant_name: config["variant_ids"][config["variants"].index(variant_name)]
-        for variant_name in variant_names
-    }
-
     try:
-        host = variant_commands.get_host(app_folder)
+        host = helper.get_host(app_folder)
     except Exception as e:
         click.echo(click.style("Failed to retrieve the host.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
         return
 
-    client = AgentaApi(
-        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
-        api_key=api_key,
-    )
-
     try:
-        # get variant from the variant_objects dictionary, and get the config from Backend
-        for variant_name, variant_id in variant_objects.items():
-            click.echo(
-                click.style(
-                    f"Pulling config for variant with id {variant_id}",
-                    fg="bright_black",
-                )
-            )
-
-            variant_config = client.get_variant_config(variant_id=variant_id)
-            variant_config_file = Path(app_folder) / f"{variant_name}.toml"
-            toml.dump(variant_config, variant_config_file.open("w"))
-            click.echo(
-                click.style(
-                    f"Config for variant {variant_name} pulled successfully! 🎉\n",
-                    fg="green",
-                )
-            )
+        command_utils.pull_config_from_backend(
+            config, app_folder, api_key, variant_names, host
+        )
     except Exception as e:
-        click.echo(click.style(f"Error pulling variant config: {e}", fg="red"))
+        click.echo(click.style(f"Error getting variant config: {e}", fg="red"))
         return
 
 
@@ -252,67 +212,17 @@ def update_variant_config(ctx, app_folder: str):
 
         variant_names = [variant_name]
 
-    variant_objects = {
-        variant_name: config["variant_ids"][config["variants"].index(variant_name)]
-        for variant_name in variant_names
-    }
-
     try:
-        host = variant_commands.get_host(app_folder)
+        host = helper.get_host(app_folder)
     except Exception as e:
         click.echo(click.style("Failed to retrieve the host.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
         return
 
-    client = AgentaApi(
-        base_url=f"{host}/{BACKEND_URL_SUFFIX}",
-        api_key=api_key,
-    )
-
     try:
-        # get variant from the variant_objects dictionary,
-        # get the config file associated with the respective variant,
-        # get only the parameters from the config file and convert to dict,
-        # finally update the variant config in Backend
-        for variant_name, variant_id in variant_objects.items():
-            click.echo(
-                click.style(
-                    f"Updating config for variant with id {variant_id}",
-                    fg="bright_black",
-                )
-            )
-
-            variant_config_file = Path(app_folder) / f"{variant_name}.toml"
-            if not variant_config_file.exists():
-                click.echo(
-                    click.style(
-                        f"Config file for variant {variant_name} not found. Please run 'agenta config pull {variant_name}' first",
-                        fg="red",
-                    )
-                )
-                return
-
-            variant_config = toml.load(variant_config_file)
-            variant_config_parameters = variant_config.get("parameters", {})
-            if not variant_config_parameters:
-                click.echo(
-                    click.style(
-                        f"Config file for variant {variant_name} does not contain any parameters. Please run 'agenta config pull {variant_name}' first",
-                        fg="red",
-                    )
-                )
-                return
-            parameters_dict = dict(variant_config_parameters)
-
-            client.update_variant_parameters(
-                variant_id=variant_id, parameters=parameters_dict
-            )
-            click.echo(
-                click.style(
-                    f"Config for variant {variant_name} updated successfully! 🎉\n",
-                    fg="green",
-                )
-            )
+        command_utils.update_config_to_backend(
+            config, app_folder, api_key, variant_names, host
+        )
     except Exception as e:
         click.echo(click.style(f"Error updating variant config: {e}", fg="red"))
         return

@@ -12,9 +12,36 @@ from typing import Any, Optional
 from pathlib import Path
 import toml
 
+from agenta.cli import command_utils
 from agenta.client.backend.client import AgentaApi
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
+
+
+def get_host(app_folder: str) -> str:
+    """Fetches the host from the config"""
+    app_folder = Path(app_folder)
+    config_file = app_folder / "config.toml"
+    config = toml.load(config_file)
+    if "backend_host" not in config:
+        host = "http://localhost"
+    else:
+        host = config["backend_host"]
+    return host
+
+
+def update_backend_host(backend_host: str):
+    """Check the config file and update the backend URL
+
+    Arguments:
+        app_folder -- the app folder
+        backend_host -- the backend host
+    """
+
+    click.echo(
+        click.style("\nChecking and updating global backend host...", fg="bright_black")
+    )
+    set_global_config("host", backend_host)
 
 
 def get_global_config(var_name: str) -> Optional[Any]:
@@ -146,7 +173,7 @@ def update_variants_from_backend(
     return config
 
 
-def update_config_from_backend(config_file: Path, host: str):
+def update_config_from_backend(config_file: Path, host: str, app_folder: Path):
     """Updates the config file with new information from the backend
 
     Arguments:
@@ -162,6 +189,25 @@ def update_config_from_backend(config_file: Path, host: str):
         config["variant_ids"] = []
     config = update_variants_from_backend(app_id, config, host, api_key)
     toml.dump(config, config_file.open("w"))
+
+    # update variant config files
+    command_utils.pull_config_from_backend(
+        config=config,
+        app_folder=app_folder,
+        api_key=api_key,
+        variant_names=config["variants"],
+        host=host,
+        show_output=False,
+    )
+    
+    # remove variant config files that are not in the backend
+    variant_config_files = [
+        file for file in app_folder.glob("*.toml") if file.name != "config.toml"
+    ]
+    for variant_config_file in variant_config_files:
+        variant_name = variant_config_file.stem
+        if variant_name not in config["variants"]:
+            variant_config_file.unlink()
 
 
 def display_app_variant(variant: AppVariant):
@@ -196,3 +242,26 @@ def display_app_variant(variant: AppVariant):
     click.echo(
         click.style("-" * 50, bold=True, fg="white")
     )  # a line for separating each variant
+
+
+def read_config_file(file_path):
+    try:
+        with open(file_path, "r") as file:
+            config_data = toml.load(file)
+        return config_data
+    except Exception as e:
+        raise Exception(f"Error reading config file: {e}")
+
+
+def extract_parameters(config_data):
+    parameters = {}
+
+    try:
+        if "parameters" in config_data and isinstance(config_data["parameters"], dict) and config_data["parameters"]:
+            parameters = config_data["parameters"]
+            return parameters
+        else:
+            raise Exception("Parameters not found or empty in the config file. Please make sure you have a non-empty parameters section in the config file. \nIf you are creating a new variant based on an existing variant, please pull the config for the existing variant first using 'agenta config pull <variant_name>'")
+    except Exception as e:
+        raise Exception(f"Error extracting parameters: {e}")
+
