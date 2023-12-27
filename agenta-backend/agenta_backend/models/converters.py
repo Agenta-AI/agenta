@@ -80,16 +80,24 @@ async def evaluation_db_to_pydantic(
         variant_names=variant_names,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
+        aggregated_results=aggregated_result_to_pydantic(
+            evaluation_db.aggregated_results
+        ),
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
 
 
 def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
-    list_of_aggregated_results = []
-    for aggregated_result in results:
-        list_of_aggregated_results.append(aggregated_result.dict())
-    return list_of_aggregated_results
+    return [
+        {
+            "evaluator_config": str(
+                result.evaluator_config
+            ),
+            "result": result.result.dict(),
+        }
+        for result in results
+    ]
 
 
 def evaluation_scenario_db_to_pydantic(
