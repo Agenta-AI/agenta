@@ -175,7 +175,7 @@ const evaluatorConfigs: EvaluatorConfig[] = pickRandom(evaluators, 7).map((item,
 const evaluations: _Evaluation[] = [
     {
         id: "evaluation1",
-        organization: organizations[0],
+        appId: "app1",
         user: users[0],
         testset: testsets[0],
         status: EvaluationStatus.FINISHED,
@@ -194,7 +194,7 @@ const evaluations: _Evaluation[] = [
     },
     {
         id: "evaluation2",
-        organization: organizations[0],
+        appId: "app1",
         user: users[0],
         testset: testsets[0],
         status: EvaluationStatus.INITIALIZED,
@@ -213,7 +213,7 @@ const evaluations: _Evaluation[] = [
     },
     {
         id: "evaluation3",
-        organization: organizations[0],
+        appId: "app1",
         user: users[0],
         testset: testsets[0],
         status: EvaluationStatus.STARTED,
@@ -232,7 +232,7 @@ const evaluations: _Evaluation[] = [
     },
     {
         id: "evaluation4",
-        organization: organizations[0],
+        appId: "app1",
         user: users[0],
         testset: testsets[0],
         status: EvaluationStatus.ERROR,

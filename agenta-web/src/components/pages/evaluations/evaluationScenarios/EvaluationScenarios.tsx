@@ -100,7 +100,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
         setFetching(true)
         Promise.all([
             fetchAllEvaluationScenarios(appId, evaluationId),
-            fetchEvaluation(appId, evaluationId),
+            fetchEvaluation(evaluationId),
         ])
             .then(([scenarios, evaluation]) => {
                 setScenarios(scenarios)

@@ -339,11 +339,17 @@ export enum EvaluationStatus {
 
 export interface _Evaluation {
     id: string
-    organization: Org
-    user: User
-    testset: TestSet
+    appId: string
+    user: {
+        id: string
+        username: string
+    }
+    testset: {
+        id: string
+        name: string
+    }
     status: EvaluationStatus
-    variants: Variant[]
+    variants: {variantId: string; variantName: string}[]
     aggregated_results: {
         evaluator_config: EvaluatorConfig
         result: TypedValue

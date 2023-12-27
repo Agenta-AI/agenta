@@ -5,27 +5,29 @@ import {ColDef, ICellRendererParams} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
 import {Button, GlobalToken, Space, Spin, Typography, theme} from "antd"
 import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
-import {EvaluationStatus, _Evaluation} from "@/lib/Types"
+import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
 import {uniqBy} from "lodash"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import NewEvaluationModal from "./NewEvaluationModal"
 import {useAppId} from "@/hooks/useAppId"
-import {fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
+import {deleteEvaluations, fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
 import {useRouter} from "next/router"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
+import AlertPopup from "@/components/AlertPopup/AlertPopup"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     root: {
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
     },
     table: {
+        width: "100%",
         height: 500,
     },
     buttonsGroup: {
@@ -39,18 +41,22 @@ const useStyles = createUseStyles({
         marginBottom: 0,
 
         "& > div:nth-of-type(1)": {
-            width: 6,
             height: 6,
+            aspectRatio: 1 / 1,
             borderRadius: "50%",
         },
     },
     dot: {
-        width: 3,
         height: 3,
+        aspectRatio: 1 / 1,
         borderRadius: "50%",
-        backgroundColor: "#444",
+        backgroundColor: theme.colorTextSecondary,
+        marginTop: 2,
     },
-})
+    date: {
+        color: theme.colorTextSecondary,
+    },
+}))
 
 const statusMapper = (token: GlobalToken) => ({
     [EvaluationStatus.INITIALIZED]: {
@@ -81,6 +87,7 @@ const EvaluationResults: React.FC<Props> = () => {
     const [evaluations, setEvaluations] = useState<_Evaluation[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const [fetching, setFetching] = useState(false)
+    const [selected, setSelected] = useState<_Evaluation[]>([])
     const stoppers = useRef<Function>()
     const {token} = theme.useToken()
 
@@ -93,6 +100,17 @@ const EvaluationResults: React.FC<Props> = () => {
                 .map((item) => item.id),
         [evaluations],
     )
+
+    const onDelete = () => {
+        AlertPopup({
+            title: "Delete Evaluations",
+            message: `Are you sure you want to delete all ${selected.length} selected evaluations?`,
+            onOk: () =>
+                deleteEvaluations(selected.map((item) => item.id))
+                    .catch(console.error)
+                    .then(fetcher),
+        })
+    }
 
     const fetcher = () => {
         setFetching(true)
@@ -113,7 +131,7 @@ const EvaluationResults: React.FC<Props> = () => {
         if (runningEvaluationIds.length) {
             stoppers.current = shortPoll(
                 () =>
-                    Promise.all(runningEvaluationIds.map((id) => fetchEvaluationStatus(appId, id)))
+                    Promise.all(runningEvaluationIds.map((id) => fetchEvaluationStatus(id)))
                         .then((res) => {
                             setEvaluations((prev) => {
                                 const newEvals = [...prev]
@@ -149,6 +167,12 @@ const EvaluationResults: React.FC<Props> = () => {
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_Evaluation>[] = [
+            {
+                field: "id",
+                headerCheckboxSelection: true,
+                checkboxSelection: true,
+                showDisabledCheckboxes: true,
+            },
             {field: "testset.name"},
             {
                 field: "variants",
@@ -181,7 +205,7 @@ const EvaluationResults: React.FC<Props> = () => {
                             <div style={{backgroundColor: color}} />
                             <span>{label}</span>
                             <span className={classes.dot}></span>
-                            <span style={{color: token.colorTextSecondary}}>
+                            <span className={classes.date}>
                                 {dayjs
                                     .duration(params.data?.duration || 0, "milliseconds")
                                     .humanize()}
@@ -202,10 +226,28 @@ const EvaluationResults: React.FC<Props> = () => {
     return (
         <div className={classes.root}>
             <Space className={classes.buttonsGroup}>
-                <Button icon={<DeleteOutlined />} type="primary" danger>
+                <Button
+                    disabled={selected.length === 0}
+                    icon={<DeleteOutlined />}
+                    type="primary"
+                    danger
+                    onClick={onDelete}
+                >
                     Delete
                 </Button>
-                <Button icon={<SwapOutlined />} type="primary">
+                <Button
+                    disabled={
+                        selected.length < 2 ||
+                        selected.some(
+                            (item) =>
+                                [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED].includes(
+                                    item.status,
+                                ) || item.testset.id !== selected[0].testset.id,
+                        )
+                    }
+                    icon={<SwapOutlined />}
+                    type="primary"
+                >
                     Compare
                 </Button>
                 <Button
@@ -227,8 +269,11 @@ const EvaluationResults: React.FC<Props> = () => {
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.id}
                         onRowClicked={(params) =>
-                            router.push(`/${router.asPath}/${params.data?.id}`)
+                            router.push(`/apps/${appId}/evaluations-new/${params.data?.id}`)
                         }
+                        rowSelection="multiple"
+                        suppressRowClickSelection
+                        onSelectionChanged={(event) => setSelected(event.api.getSelectedRows())}
                     />
                 </div>
             </Spin>

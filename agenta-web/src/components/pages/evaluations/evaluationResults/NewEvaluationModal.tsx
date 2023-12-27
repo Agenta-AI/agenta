@@ -8,7 +8,7 @@ import {
     fetchAllEvaluators,
 } from "@/services/evaluations"
 import {PlusOutlined} from "@ant-design/icons"
-import {Form, Modal, Select, Spin, Tag, Typography} from "antd"
+import {Divider, Form, Modal, Select, Spin, Tag, Typography} from "antd"
 import dayjs from "dayjs"
 import Image from "next/image"
 import React, {useEffect, useState} from "react"
@@ -44,6 +44,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     tag: {
         transform: "scale(0.8)",
+    },
+    divider: {
+        margin: "1rem -1.5rem",
+        width: "unset",
     },
 }))
 
@@ -97,6 +101,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             okButtonProps={{icon: <PlusOutlined />, loading: submitLoading}}
             {...props}
         >
+            <Divider className={classes.divider} />
             <Spin spinning={fetching}>
                 <Form
                     requiredMark={false}

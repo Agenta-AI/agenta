@@ -100,7 +100,7 @@ def evaluation_scenario_db_to_pydantic(
         evaluation_id=str(evaluation_scenario_db.evaluation.id),
         inputs=evaluation_scenario_db.inputs,
         outputs=evaluation_scenario_db.outputs,
-        vote=evaluation_scenario_db.vote,
+        vote="",
         score=evaluation_scenario_db.score,
         correct_answer=evaluation_scenario_db.correct_answer,
         is_pinned=evaluation_scenario_db.is_pinned or False,
