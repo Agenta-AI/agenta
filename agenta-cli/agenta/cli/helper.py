@@ -177,8 +177,8 @@ def update_config_from_backend(
     config_file: Path,
     host: str,
     app_folder: Path,
-    delete_config_file: bool = True,
-    update_config_file: bool = True,
+    delete_config_files: bool = True,
+    update_config_files: bool = True,
 ):
     """Updates the config file with new information from the backend
 
@@ -197,7 +197,7 @@ def update_config_from_backend(
     toml.dump(config, config_file.open("w"))
 
     # update variant config files
-    if update_config_file:
+    if update_config_files:
         command_utils.pull_config_from_backend(
             config=config,
             app_folder=app_folder,
@@ -208,7 +208,7 @@ def update_config_from_backend(
         )
 
     # remove variant config files that are not in the backend
-    if delete_config_file:
+    if delete_config_files:
         variant_config_files = [
             file for file in app_folder.glob("*.toml") if file.name != "config.toml"
         ]
