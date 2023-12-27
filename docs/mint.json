@@ -164,7 +164,7 @@
       "group": "Contributing",
       "pages": [
         "developer_guides/contributing/getting-started",
-        "developer_guides/ontributing/development-mode",
+        "developer_guides/contributing/development-mode",
         "developer_guides/contributing/file-issue"
       ]
     },
