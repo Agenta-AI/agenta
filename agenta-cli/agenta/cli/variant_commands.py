@@ -240,13 +240,13 @@ def add_variant(
 
         # get parameters from config file
         variant_config_file = app_path / file_name
-        
+
         try:
             config_data = helper.read_config_file(variant_config_file)
         except Exception as ex:
             click.echo(click.style(f"{ex}", fg="red"))
             return
-        
+
         try:
             parameters = helper.extract_parameters(config_data)
         except Exception as ex:
