@@ -303,7 +303,7 @@ def add_variant(
             return variant_id
 
 
-def config_check(app_folder: str, delete_config_file=True, update_config_file=True):
+def config_check(app_folder: str, delete_config_files=True, update_config_files=True):
     """Check the config file and update it from the backend
 
     Arguments:
@@ -326,8 +326,8 @@ def config_check(app_folder: str, delete_config_file=True, update_config_file=Tr
         config_file,
         host=host,
         app_folder=app_folder,
-        delete_config_file=delete_config_file,
-        update_config_file=update_config_file,
+        delete_config_files=delete_config_files,
+        update_config_files=update_config_files,
     )
 
 
@@ -459,7 +459,7 @@ def add_new_variant(ctx, app_folder: str, config_file: str, from_variant: str):
 
     # check and update config file
     try:
-        config_check(app_folder, delete_config_file=False)
+        config_check(app_folder, delete_config_files=False)
     except Exception as e:
         click.echo(click.style("Failed during configuration check.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))

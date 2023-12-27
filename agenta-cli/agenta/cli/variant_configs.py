@@ -56,7 +56,7 @@ def get_variant_config(ctx, app_folder: str):
 
     # check and update config file
     try:
-        variant_commands.config_check(app_folder)
+        variant_commands.config_check(app_folder, update_config_files=False)
     except Exception as e:
         click.echo(click.style("Failed during configuration check.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
@@ -150,7 +150,7 @@ def update_variant_config(ctx, app_folder: str):
 
     # check and update config file without updating variant config files
     try:
-        variant_commands.config_check(app_folder, update_config_file=False)
+        variant_commands.config_check(app_folder, update_config_files=False)
     except Exception as e:
         click.echo(click.style("Failed during configuration check.", fg="red"))
         click.echo(click.style(f"Error message: {str(e)}", fg="red"))
