@@ -35,9 +35,9 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const appId = useAppId()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
-    const evaluationId = router.query.evaluation_id as string
+    const evaluationIds = router.query.evaluations as string
     const [scenarios, setScenarios] = useState<_EvaluationScenario[]>([])
-    const [evalaution, setEvaluation] = useState<_Evaluation>()
+    const [evalaution, setEvaluation] = useState<_Evaluation[]>()
     const [fetching, setFetching] = useState(false)
 
     const colDefs = useMemo(() => {
@@ -61,51 +61,68 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             },
         })
 
-        Array.from({length: 3}).map((_) => {
-            evalaution?.variants.forEach((variant, index) => {
-                colDefs.push({
-                    headerName: `Output (${variant.variantName})`,
-                    field: `outputs.${index}`,
-                    valueGetter: (params) => {
-                        return params.data?.outputs[index].value || ""
-                    },
-                })
-            })
-            scenarios[0]?.evaluators_configs.forEach((config, index) => {
-                colDefs.push({
-                    headerName: `Evaluator: ${config.name}`,
-                    field: `results`,
-                    valueGetter: (params) => {
-                        return (
-                            params.data?.results.find(
-                                (item) => item.evaluator.key === config.evaluator_key,
-                            )?.result || ""
-                        )
-                    },
-                })
-            })
-        })
+        evalaution.map(
+            (evalaution) =>
+                evalaution?.variants.forEach((variant, index) => {
+                    colDefs.push({
+                        headerName: `Output (${variant.variantName})`,
+                        field: `outputs.${index}`,
+                        valueGetter: (params) => {
+                            return params.data?.outputs[index].value || ""
+                        },
+                    })
+                }),
+        )
+
+        scenarios.map(
+            (scenario) =>
+                scenario?.evaluators_configs.forEach((config, index) => {
+                    colDefs.push({
+                        headerName: `Evaluator: ${config.name}`,
+                        field: `results`,
+                        valueGetter: (params) => {
+                            return (
+                                params.data?.results.find(
+                                    (item) => item.evaluator.key === config.evaluator_key,
+                                )?.result || ""
+                            )
+                        },
+                    })
+                }),
+        )
 
         return colDefs
     }, [evalaution, scenarios])
 
-    const fetcher = () => {
-        setFetching(true)
-        Promise.all([
-            fetchAllEvaluationScenarios(appId, evaluationId),
-            fetchEvaluation(evaluationId),
-        ])
-            .then(([scenarios, evaluation]) => {
-                setScenarios(scenarios)
-                setEvaluation(evaluation)
-            })
-            .catch(console.error)
-            .finally(() => setFetching(false))
-    }
-
     useEffect(() => {
+        const fetcher = async () => {
+            setFetching(true)
+
+            try {
+                const evaluationIdsArray = evaluationIds?.split(",") || []
+
+                const fetchPromises = evaluationIdsArray.map((evalId) => {
+                    return Promise.all([
+                        fetchAllEvaluationScenarios(appId, evalId),
+                        fetchEvaluation(evalId),
+                    ])
+                })
+
+                const results = await Promise.all(fetchPromises)
+                const fetchedScenarios = results.map(([[scenarios]]) => scenarios)
+                const fetchedEvaluations = results.map(([_, evaluation]) => evaluation)
+
+                setScenarios(fetchedScenarios)
+                setEvaluation(fetchedEvaluations)
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setFetching(false)
+            }
+        }
+
         fetcher()
-    }, [appId, evaluationId])
+    }, [appId, evaluationIds])
 
     const handleDeleteVariant = (variantId: string) => {
         console.log(variantId)
@@ -115,20 +132,23 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         <div>
             <div className={classes.header}>
                 <Typography.Title level={3}>
-                    Testset: {evalaution?.testset.name || ""}
+                    Testset: {evalaution ? evalaution[0]?.testset.name : ""}
                 </Typography.Title>
                 <Space>
                     <Typography.Text>Variants:</Typography.Text>
-                    {evalaution?.variants?.map((variant) => (
-                        <Tag
-                            color="blue"
-                            key={variant.variantId}
-                            onClose={() => handleDeleteVariant(variant.variantId)}
-                            closable
-                        >
-                            {variant.variantName}
-                        </Tag>
-                    ))}
+                    {evalaution?.map(
+                        (evalaution) =>
+                            evalaution?.variants?.map((variant) => (
+                                <Tag
+                                    color="blue"
+                                    key={variant.variantId}
+                                    onClose={() => handleDeleteVariant(variant.variantId)}
+                                    closable
+                                >
+                                    {variant.variantName}
+                                </Tag>
+                            )),
+                    )}
                 </Space>
             </div>
 
