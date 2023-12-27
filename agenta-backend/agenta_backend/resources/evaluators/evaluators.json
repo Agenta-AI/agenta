@@ -28,6 +28,12 @@
                 "type": "regex",
                 "default": "",
                 "description": "Pattern for regex testing (ex: ^this_word\\d{3}$)"
+            },
+            "regex_should_match": {
+                "label": "Match/Mismatch",
+                "type": "boolean",
+                "default": true,
+                "description": "If the regex should match or mismatch"
             }
         }
     },
