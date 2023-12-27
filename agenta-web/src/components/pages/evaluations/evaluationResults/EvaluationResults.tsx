@@ -197,7 +197,6 @@ const EvaluationResults: React.FC<Props> = () => {
             {
                 field: "status",
                 cellRenderer: (params: ICellRendererParams<_Evaluation>) => {
-                    const classes = useStyles()
                     const {label, color} = statusMapper(token)[params.value as EvaluationStatus]
 
                     return (
@@ -247,6 +246,13 @@ const EvaluationResults: React.FC<Props> = () => {
                     }
                     icon={<SwapOutlined />}
                     type="primary"
+                    onClick={() =>
+                        router.push(
+                            `/apps/${appId}/evaluations-new/compare/?evalautions=${selected
+                                .map((item) => item.id)
+                                .join(",")}`,
+                        )
+                    }
                 >
                     Compare
                 </Button>
