@@ -2,16 +2,11 @@ import os
 import httpx
 import pytest
 from pathlib import Path
-from bson import ObjectId
-from datetime import datetime
 
 from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
-    AppDB,
-    AppVariantDB,
+    UserDB,
     OrganizationDB,
-    TestSetDB,
 )
 
 
@@ -42,84 +37,44 @@ def fetch_single_prompt_template(fetch_templates):
     return fetch_templates[1]
 
 
-@pytest.fixture(scope="session")
-def ensure_frontend_reachable():
-    response = httpx.get(f"{BASE_URI}apps/")
-    response.raise_for_status()
-    return response.text
+@pytest.fixture()
+async def fetch_user_organization():
+    organization = await engine.find(OrganizationDB)
+    return {"org_id": str(organization[0].id)}
 
 
 @pytest.fixture()
-async def fetch_app():
-    apps = await engine.find(AppDB)
+def app_from_template():
     return {
-        "app_id": str(apps[0].id),
-        "app_name": apps[0].app_name,
-        "org_id": str(apps[0].user.organizations[0]),
-    }
-
-
-@pytest.fixture()
-async def fetch_app_variant(fetch_app):
-    app = await fetch_app
-    app_variant = await engine.find_one(
-        AppVariantDB, AppVariantDB.app == ObjectId(app["app_id"])
-    )
-    return {"variant_id": str(app_variant.id), "app_id": app["app_id"]}
-
-
-@pytest.fixture()
-async def create_app_from_template(fetch_app, fetch_single_prompt_template):
-    app = await fetch_app
-    payload = {
-        "app_name": app["app_name"],
-        "template_id": fetch_single_prompt_template["id"],
+        "app_name": "string",
         "env_vars": {"OPENAI_API_KEY": OPEN_AI_KEY},
-        "organization_id": app["org_id"],
+        "organization_id": "string",
+        "template_id": "string",
     }
-    print("Payload: ", payload)
-    response = httpx.post(
-        f"{BACKEND_URI}apps/app_and_variant_from_template/", json=payload
-    )
-    return response.json()
+
+
+@pytest.fixture(scope="session")
+async def create_user_and_organization():
+    user = await engine.find_one(UserDB, UserDB.uid == "0")
+    if user is None:
+        create_user = UserDB(uid="xxxx", username="evaluator")
+        await engine.save(create_user)
+
+        org = OrganizationDB(type="evaluator", owner=str(create_user.id))
+        await engine.save(org)
+
+        create_user.organizations.append(org.id)
+        await engine.save(create_user)
+        await engine.save(org)
+
+        return create_user
+    return user
 
 
 @pytest.fixture()
-async def prepare_testset_csvdata(create_app_from_template):
-    app_variant = await create_app_from_template
-    print("AppV: ", app_variant)
-    app_db = await engine.find_one(AppDB, AppDB.id == ObjectId(app_variant["app_id"]))
-    org_db = await engine.find_one(
-        OrganizationDB, OrganizationDB.id == ObjectId(app_variant["organization_id"])
-    )
-    json_path = os.path.join(
-        PARENT_DIRECTORY,
-        "resources",
-        "default_testsets",
-        "chat_openai_testset.json",
-    )
-
-    csvdata = get_json(json_path)
-    testset = {
-        "name": f"{app_db.app_name}_testset",
-        "app_name": app_db.app_name,
-        "created_at": datetime.now().isoformat(),
-        "csvdata": csvdata,
-    }
-    testset_db = TestSetDB(**testset, app=app_db, user=app_db.user, organization=org_db)
-    await engine.save(testset_db)
+def auto_exact_match_evaluator_config():
     return {
-        "testset_id": str(testset_db.id),
-        "variant_id": app_variant["variant_id"],
-        "app_id": app_variant["app_id"],
-    }
-
-
-@pytest.fixture()
-async def auto_exact_match_evaluator_config(fetch_app):
-    app = await fetch_app
-    return {
-        "app_id": app["app_id"],
+        "app_id": "string",
         "name": "ExactMatchEvaluator",
         "evaluator_key": "auto_exact_match",
         "settings_values": {},
@@ -127,10 +82,9 @@ async def auto_exact_match_evaluator_config(fetch_app):
 
 
 @pytest.fixture()
-async def auto_similarity_match_evaluator_config(fetch_app):
-    app = await fetch_app
+def auto_similarity_match_evaluator_config():
     return {
-        "app_id": app["app_id"],
+        "app_id": "string",
         "name": "SimilarityMatchEvaluator",
         "evaluator_key": "auto_similarity_match",
         "settings_values": {"similarity_threshold": 0.3},
@@ -138,10 +92,9 @@ async def auto_similarity_match_evaluator_config(fetch_app):
 
 
 @pytest.fixture()
-async def auto_regex_test_evaluator_config(fetch_app):
-    app = await fetch_app
+def auto_regex_test_evaluator_config():
     return {
-        "app_id": app["app_id"],
+        "app_id": "string",
         "name": "RegexEvaluator",
         "evaluator_key": "auto_regex_test",
         "settings_values": {
@@ -152,10 +105,9 @@ async def auto_regex_test_evaluator_config(fetch_app):
 
 
 @pytest.fixture()
-async def auto_webhook_test_evaluator_config(fetch_app):
-    app = await fetch_app
+def auto_webhook_test_evaluator_config():
     return {
-        "app_id": app["app_id"],
+        "app_id": "string",
         "name": "WebhookEvaluator",
         "evaluator_key": "auto_webhook_test",
         "settings_values": {
@@ -166,10 +118,9 @@ async def auto_webhook_test_evaluator_config(fetch_app):
 
 
 @pytest.fixture()
-async def auto_ai_critique_evaluator_config(fetch_app):
-    app = await fetch_app
+def auto_ai_critique_evaluator_config():
     return {
-        "app_id": app["app_id"],
+        "app_id": "string",
         "name": "AICritique_Evaluator",
         "evaluator_key": "auto_ai_critique",
         "settings_values": {
