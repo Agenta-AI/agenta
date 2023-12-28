@@ -1,6 +1,8 @@
 name: Run Backend tests
 
 on: [pull_request]
+env:
+  OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
 
 jobs:
   continous_integration:
@@ -9,6 +11,8 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Start Docker Compose
+        env:
+          OPEN_AI_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
         run: docker-compose -f "docker-compose.test.yml" up -d --build
 
       - name: Install Curl
