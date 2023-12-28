@@ -20,9 +20,9 @@ BACKEND_API_HOST = "http://host.docker.internal/api"
 
 @pytest.mark.asyncio
 async def test_create_app_from_template(
-    app_from_template, create_user_and_organization, fetch_single_prompt_template
+    app_from_template, fetch_user, fetch_single_prompt_template
 ):
-    user = await create_user_and_organization
+    user = await fetch_user
     payload = app_from_template
     payload["app_name"] = APP_NAME
     payload["organization_id"] = str(user.organizations[0])
@@ -163,14 +163,12 @@ async def test_create_evaluation():
 
     # Update payload with list of configs ids
     payload["evaluators_configs"] = list_of_configs_ids
-    print("Payload: ", payload)
 
     # Make request to create evaluation
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluations/", json=payload, timeout=timeout
     )
     response_data = response.json()
-    print("RD: ", response_data)
 
     assert response.status_code == 200
     assert response_data["app_id"] == payload["app_id"]
@@ -183,7 +181,7 @@ async def test_fetch_evaluation_status():
     evaluations = await engine.find(EvaluationDB)  # will return only one in this case
     evaluation = evaluations[0]
 
-    # Prepare short-polling request
+    # Prepare and start short-polling request
     max_attempts = 10
     intervals = 2  # seconds
     for _ in range(max_attempts):
