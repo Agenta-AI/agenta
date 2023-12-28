@@ -37,6 +37,16 @@ class EvaluationScenarioStatusEnum(str, Enum):
     COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
 
 
+class Result(BaseModel):
+    type: str
+    value: Any
+
+
+class AggregatedResult(BaseModel):
+    evaluator_config: str
+    result: Result
+
+
 class Evaluation(BaseModel):
     id: str
     app_id: str
@@ -47,6 +57,7 @@ class Evaluation(BaseModel):
     testset_id: str
     testset_name: str
     status: str
+    aggregated_results: List[AggregatedResult]
     created_at: datetime
     updated_at: datetime
 
@@ -64,6 +75,11 @@ class EvaluationUpdate(BaseModel):
     evaluation_type_settings: Optional[EvaluationTypeSettings]
 
 
+class EvaluationScenarioResult(BaseModel):
+    evaluator_config: str
+    result: Result
+
+
 class EvaluationScenarioInput(BaseModel):
     input_name: str
     input_value: str
@@ -79,12 +95,11 @@ class EvaluationScenario(BaseModel):
     evaluation_id: str
     inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]
-    vote: Optional[str]
-    score: Optional[Union[str, int]]
     evaluation: Optional[str]
     correct_answer: Optional[str]
     is_pinned: Optional[bool]
     note: Optional[str]
+    results: List[EvaluationScenarioResult]
 
 
 class AICritiqueCreate(BaseModel):
