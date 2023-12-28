@@ -58,9 +58,6 @@ class DBEngine(object):
             )
             logger.info(f"Using {self.mode} database...")
             return aio_engine
-        raise ValueError(
-            "Mode of database is unknown. Did you mean 'default' or 'test'?"
-        )
 
     def remove_db(self) -> None:
         """
