@@ -81,13 +81,14 @@ class EvaluationScenarioResult(BaseModel):
 
 
 class EvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: str
+    name: str
+    type: str
+    value: Any
 
 
 class EvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: str
+    type: str
+    value: Any
 
 
 class EvaluationScenario(BaseModel):
