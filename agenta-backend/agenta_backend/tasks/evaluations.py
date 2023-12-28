@@ -137,13 +137,9 @@ async def aggregate_evaluator_results(
     aggregated_results = []
     for evaluator_key, results in evaluators_aggregated_data.items():
         average_value = (
-            sum([result.value for result in results]) / len(results)
-            if results
-            else 0
+            sum([result.value for result in results]) / len(results) if results else 0
         )
-        evaluator_config = await fetch_evaluator_config_by_appId(
-            app.id, evaluator_key
-        )
+        evaluator_config = await fetch_evaluator_config_by_appId(app.id, evaluator_key)
         aggregated_result = AggregatedResult(
             evaluator_config=evaluator_config.id,
             result=Result(type="number", value=average_value),
