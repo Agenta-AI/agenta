@@ -21,7 +21,12 @@
     "suggestEdit": true,
     "raiseIssue": true
   },
-  "topbarLinks": [],
+  "topbarLinks": [
+    {
+      "name": "Request a demo",
+      "url": "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
+    }
+  ],
   "topbarCtaButton": {
     "name": "Start for Free",
     "url": "https://cloud.agenta.ai"

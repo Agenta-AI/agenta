@@ -1,0 +1,16 @@
+draft
+Test sets in agenta can be used to quickly test configurations in the playground, evaluate configuration in the evaluation view, or run human evaluation / annotation. 
+
+You can create a test set in agenta, using the API, from the UI, by uploading a CSV, or directly from the playground. 
+
+
+The test set can include the ground truth (the correct answer) or not. 
+
+
+The test set schema:
+
+The test set should have the following columnts:
+
+
+one column per each input name (for instance in case of an application that takes as input a text and an instruction (text, instruction)), the test set should have two columns: text and instruction.
+
