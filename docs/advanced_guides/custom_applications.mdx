@@ -34,7 +34,7 @@ def generate(subject:txt):
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
     )
     return chat_completion.choices[0].message.content
-````
+```
 
 As you can see, the application is a simple function that takes a blog post subject as input, format the prompt using f-strings, then calls gpt-3.5-turbo with the formatted prompt and return its output.
 
@@ -74,7 +74,7 @@ ag.config.register_default(prompt=TextParam("Write an blog post about {subject}"
 
 Here, we informed Agenta that the configuration for this application is a single parameter of type text, and its default value is `"Write a blog post about {subject}"`. 
 
-This tells Agenta how to render the playground for this application. In this case, the playground will have a single text input with the default value "Write a blog post about {subject}".
+This tells Agenta how to render the playground for this application. In this case, the playground will have a single text input with the default value `"Write a blog post about {subject}"`.
 
 ### Specifying the entrypoint of the application
 ```python
@@ -196,7 +196,7 @@ You can read more about the SDK in the . You can also check the growing list of 
     icon="code"
     color="#337BFF"
     href="/cookbook/list_templates">
-        Explore a growing list of templates and tutorials.
+        
   </Card>
 
 </CardGroup>
