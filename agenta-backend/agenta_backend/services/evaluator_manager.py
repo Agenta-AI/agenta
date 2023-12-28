@@ -1,33 +1,42 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from agenta_backend.services import db_manager
 
 
 from agenta_backend.models.db_models import EvaluatorConfigDB
+from agenta_backend.models.api.evaluation_model import EvaluatorConfig
+from agenta_backend.models.converters import evaluator_config_db_to_pydantic
 
 
-async def get_evaluators_configs(app_id: str):
-    """Get evaluators configs by app_id.
+async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:
+    """
+    Get evaluators configs by app_id.
 
     Args:
         app_id (str): The ID of the app.
 
     Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+        List[EvaluatorConfig]: A list of evaluator configuration objects.
     """
-    return await db_manager.fetch_evaluators_configs(app_id)
+    evaluator_configs_db = await db_manager.fetch_evaluators_configs(app_id)
+    return [
+        evaluator_config_db_to_pydantic(evaluator_config_db)
+        for evaluator_config_db in evaluator_configs_db
+    ]
 
 
-async def get_evaluator_config(config_id: str):
-    """Get evaluators configs by app_id.
+async def get_evaluator_config(evaluator_config_id: str) -> EvaluatorConfig:
+    """
+    Get an evaluator configuration by its ID.
 
     Args:
-        config_id (str): The ID of the evaluator configuration.
+        evaluator_config_id (str): The ID of the evaluator configuration.
 
     Returns:
-        EvaluatorConfigDB: the evaluator configuration object.
+        EvaluatorConfig: The evaluator configuration object.
     """
-    return await db_manager.fetch_evaluator_config(config_id)
+    evaluator_config_db = await db_manager.fetch_evaluator_config(evaluator_config_id)
+    return evaluator_config_db_to_pydantic(evaluator_config_db)
 
 
 async def create_evaluator_config(
@@ -35,7 +44,7 @@ async def create_evaluator_config(
     name: str,
     evaluator_key: str,
     settings_values: Optional[Dict[str, Any]] = None,
-) -> EvaluatorConfigDB:
+) -> EvaluatorConfig:
     """
     Create a new evaluator configuration for an app.
 
@@ -49,7 +58,7 @@ async def create_evaluator_config(
         EvaluatorConfigDB: The newly created evaluator configuration object.
     """
     app = await db_manager.fetch_app_by_id(app_id)
-    return await db_manager.create_evaluator_config(
+    evaluator_config = await db_manager.create_evaluator_config(
         app=app,
         organization=app.organization,
         user=app.user,
@@ -57,6 +66,7 @@ async def create_evaluator_config(
         evaluator_key=evaluator_key,
         settings_values=settings_values,
     )
+    return evaluator_config_db_to_pydantic(evaluator_config=evaluator_config)
 
 
 async def update_evaluator_config(
@@ -72,7 +82,10 @@ async def update_evaluator_config(
     Returns:
         EvaluatorConfigDB: The updated evaluator configuration object.
     """
-    return await db_manager.update_evaluator_config(evaluator_config_id, updates)
+    evaluator_config = await db_manager.update_evaluator_config(
+        evaluator_config_id, updates
+    )
+    return evaluator_config_db_to_pydantic(evaluator_config=evaluator_config)
 
 
 async def delete_evaluator_config(evaluator_config_id: str) -> bool:

@@ -24,7 +24,7 @@ import {
     fromEvaluationScenarioResponseToEvaluationScenario,
 } from "../transformers"
 import {EvaluationFlow, EvaluationType} from "../enums"
-import {delay, getAgentaApiUrl, removeKeys} from "../helpers/utils"
+import {delay, getAgentaApiUrl, removeKeys, shortPoll} from "../helpers/utils"
 import {useProfileData} from "@/contexts/profile.context"
 /**
  * Raw interface for the parameters parsed from the openapi.json
@@ -250,6 +250,11 @@ export const useLoadTestsetsList = (appId: string) => {
         isTestsetsLoadingError: error,
         mutate,
     }
+}
+
+export const fetchTestsets = async (appId: string) => {
+    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`)
+    return response.data
 }
 
 export async function createNewTestset(appId: string, testsetName: string, testsetData: any) {
@@ -562,25 +567,17 @@ export const waitForAppToStart = async ({
 }) => {
     const _variant = variant || (await fetchVariants(appId, true))[0]
     if (_variant) {
-        const shortPoll = async () => {
-            let started = false
-            while (!started) {
-                try {
-                    await getVariantParametersFromOpenAPI(
-                        appId,
-                        _variant.variantId,
-                        _variant.baseId,
-                        true,
-                    )
-                    started = true
-                } catch {}
-                await delay(interval)
-            }
-        }
-        await Promise.race([
-            shortPoll(),
-            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), timeout)),
-        ])
+        const {stopper, promise} = shortPoll(
+            () =>
+                getVariantParametersFromOpenAPI(
+                    appId,
+                    _variant.variantId,
+                    _variant.baseId,
+                    true,
+                ).then(() => stopper()),
+            {delayMs: interval, timeoutMs: timeout},
+        )
+        await promise
     }
 }
 
