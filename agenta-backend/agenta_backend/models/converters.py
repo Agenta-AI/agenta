@@ -83,7 +83,7 @@ async def evaluation_db_to_pydantic(
         variant_names=variant_names,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
-        aggregated_results=aggregated_result_to_pydantic(
+        aggregated_results= await aggregated_result_to_pydantic(
             evaluation_db.aggregated_results
         ),
         created_at=evaluation_db.created_at,
@@ -91,14 +91,21 @@ async def evaluation_db_to_pydantic(
     )
 
 
-def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
-    return [
-        {
-            "evaluator_config": str(result.evaluator_config),
+async def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
+    transformed_results = []
+    for result in results:
+        evaluator_config_db = await db_manager.fetch_evaluator_config(str(result.evaluator_config))
+        evaluator_config_dict = evaluator_config_db.dict() if evaluator_config_db else None
+
+        if evaluator_config_dict:
+            evaluator_config_dict['id'] = str(evaluator_config_dict['id'])
+
+        transformed_results.append({
+            "evaluator_config": evaluator_config_dict,
             "result": result.result.dict(),
-        }
-        for result in results
-    ]
+        })
+
+    return transformed_results
 
 
 def evaluation_scenarios_results_to_pydantic(

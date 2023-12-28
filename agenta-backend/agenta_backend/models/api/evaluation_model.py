@@ -4,6 +4,19 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union
 
 
+class Evaluator(BaseModel):
+    name: str
+    key: str
+    settings_template: dict
+
+
+class EvaluatorConfig(BaseModel):
+    id: str
+    name: str
+    evaluator_key: str
+    settings_values: Optional[Dict[str, Any]]
+
+
 class EvaluationTypeSettings(BaseModel):
     similarity_threshold: Optional[float]
     regex_pattern: Optional[str]
@@ -43,7 +56,7 @@ class Result(BaseModel):
 
 
 class AggregatedResult(BaseModel):
-    evaluator_config: str
+    evaluator_config: EvaluatorConfig
     result: Result
 
 
@@ -175,24 +188,11 @@ class EvaluationSettingsTemplate(BaseModel):
     description: str
 
 
-class EvaluatorConfig(BaseModel):
-    id: str
-    name: str
-    evaluator_key: str
-    settings_values: Optional[Dict[str, Any]]
-
-
 class NewEvaluation(BaseModel):
     app_id: str
     variant_ids: List[str]
     evaluators_configs: List[str]
     testset_id: str
-
-
-class Evaluator(BaseModel):
-    name: str
-    key: str
-    settings_template: dict
 
 
 class NewEvaluatorConfig(BaseModel):
