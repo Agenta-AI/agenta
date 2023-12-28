@@ -54,7 +54,7 @@ async def test_list_apps():
     response = await test_client.get(f"{BACKEND_API_HOST}/apps/")
 
     assert response.status_code == 200
-    assert len(response.json()) == 2
+    assert len(response.json()) == 3
 
 
 @pytest.mark.asyncio
