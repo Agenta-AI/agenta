@@ -1,28 +1,37 @@
 # Creating LLM Applications in Agenta
-draft
-<Note>You can create applications in Agenta either from the web interface or from code. This guide will focus on creating an application based on a template from the UI. You can read more about creating a custom application using code [here](/advanced_guides/custom_applications)</Note>
+
+<Note>You can create applications in Agenta either from the web interface or from code. This guide will focus on creating an application using a template from the UI. You can read more about creating a custom application using code  [here](/advanced_guides/custom_applications)</Note>
 
 ## Step-by-step Guide
 
-1. **Navigate to the main page**: From here, you'll be able to create a new application.
-2. **Choose a template**: Currently, we offer two templates: one for single prompt applications and another for chat applications.
+1. **Navigate to the main page**: This is where you can create a new application.
+
+@bekossy, please add a screenshot of the main page here.
+
+2. **Choose a template**: Currently, we offer templates for single prompt applications and chat applications.
+
+@bekossy, please add a screenshot of the template selection page here.
 
 ### Single Prompt Application
 
-This template is based on the OpenAI specification and utilizes the system prompt and user prompt.
+The single prompt application is useful for single turn LLM applications such as question answering, text generation, entity extraction, and classification, etc.
 
-- **System Prompt**: (Provide definition here)
-- **User Prompt**: (Provide definition here)
+This template is based on the OpenAI specification and uses both the system prompt and user prompt:
 
-The single prompt application is particularly useful for (Provide example use cases here).
+- **System Prompt**: The system prompt is a message written by the developer to guide the model's behavior. It provides a high-level instruction, such as defining the model's role or setting specific goals.
+
+- **User Prompt**: The user message is the message sent to the model by the user.
+
+While you could write the same application using only the user prompt or the system prompt, it is best to experiment with both approaches. Usually, the system-prompt is typically used for high-level instruction.
+
+@bekossy, please add a screenshot of the playground fo single prompt application here.
 
 ### Chat Application
+Like the single prompt application, the chat application is based on the OpenAI specification and uses both the system prompt and user prompt, but it is designed for multi-turn applications like chatbots.
 
-The chat application also follows the OpenAI specification and uses the system prompt and user prompt.
+@bekossy, please add a screenshot of the playground fo chat application here.
 
-- **System Prompt**: (Provide definition here)
-- **User Prompt**: (Provide definition here)
 
-This template is beneficial for (Provide example use cases here).
+## Next steps
 
-Remember to consider your needs and the specific use case of your application when selecting a template. Happy creating!
+Now that you've created an application, you can learn how to do [prompt engineering in the playground](/basic_guides/prompt_engineering).
