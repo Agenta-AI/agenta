@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Set global variables
-BACKEND_API_HOST = "http://host.docker.internal/api"
+BACKEND_API_HOST = "http://localhost:8001/api"
 
 
 @pytest.mark.asyncio

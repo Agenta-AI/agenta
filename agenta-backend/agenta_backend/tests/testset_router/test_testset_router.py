@@ -18,7 +18,7 @@ test_client = httpx.AsyncClient()
 timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 # Set global variables
-BACKEND_API_HOST = "http://host.docker.internal/api"
+BACKEND_API_HOST = "http://localhost:8001/api"
 TESTSET_SUBMODULE_DIR = Path(__file__).parent
 
 
