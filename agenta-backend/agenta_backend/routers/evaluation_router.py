@@ -90,11 +90,12 @@ async def create_evaluation(
             new_evaluation_data=new_evaluation_data,
             evaluators_configs=payload.evaluators_configs,
         )
-        if (
-            len(payload.evaluators_configs) == 1
-            and payload.evaluators_configs.evaluator_key
-            in ["human_a_b_testing", "human_single_model_test"]
-        ):
+        if len(
+            payload.evaluators_configs
+        ) == 1 and payload.evaluators_configs.evaluator_key in [
+            "human_a_b_testing",
+            "human_single_model_test",
+        ]:
             return evaluation
         else:
             evaluate.delay(
