@@ -13,7 +13,7 @@ from agenta_backend.models.db_models import (
 engine = DBEngine().engine()
 
 # Set global variables
-OPEN_AI_KEY = os.environ.get("OPEN_AI_KEY")
+OPEN_AI_KEY = os.environ.get("OPENAI_API_KEY")
 BACKEND_URI = "http://host.docker.internal/api/"
 
 
@@ -51,20 +51,8 @@ def app_from_template():
 
 
 @pytest.fixture(scope="session")
-async def create_user_and_organization():
+async def fetch_user():
     user = await engine.find_one(UserDB, UserDB.uid == "0")
-    if user is None:
-        create_user = UserDB(uid="xxxx", username="evaluator")
-        await engine.save(create_user)
-
-        org = OrganizationDB(type="evaluator", owner=str(create_user.id))
-        await engine.save(org)
-
-        create_user.organizations.append(org.id)
-        await engine.save(create_user)
-        await engine.save(org)
-
-        return create_user
     return user
 
 
