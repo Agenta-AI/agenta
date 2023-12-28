@@ -1,4 +1,3 @@
-import Mock from "@/components/pages/evaluations/evaluationResults/mock"
 import axios from "@/lib//helpers/axiosConfig"
 import {
     EvaluationStatus,
@@ -8,7 +7,7 @@ import {
     _EvaluationScenario,
 } from "@/lib/Types"
 import {getTagColors} from "@/lib/helpers/colors"
-import {delay, stringToNumberInRange} from "@/lib/helpers/utils"
+import {stringToNumberInRange} from "@/lib/helpers/utils"
 import exactMatchImg from "@/media/target.png"
 import similarityImg from "@/media/transparency.png"
 import regexImg from "@/media/programming.png"

@@ -212,112 +212,103 @@ const App: React.FC<LayoutProps> = ({children}) => {
     return (
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
-                <ConfigProvider
-                    theme={{
-                        algorithm: isDarkTheme ? theme.darkAlgorithm : theme.defaultAlgorithm,
-                    }}
-                >
-                    <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
-                        <Layout hasSider className={classes.layout}>
-                            <Sidebar />
-                            <Layout className={classes.layout}>
-                                <Content className={classes.content}>
-                                    <Space className={classes.breadcrumbContainer}>
-                                        <Breadcrumb
-                                            className={classes.breadcrumb}
-                                            items={[
-                                                {title: <Link href="/apps">Apps</Link>},
-                                                {title: capitalizedAppName},
-                                            ]}
-                                        />
-                                        <div className={classes.topRightBar}>
-                                            <Dropdown
-                                                trigger={["click"]}
-                                                menu={{
-                                                    items: [
-                                                        {
-                                                            key: "system",
-                                                            label: "System",
-                                                            onClick: () => toggleAppTheme("system"),
-                                                        },
-                                                        {
-                                                            key: "light",
-                                                            label: "Light",
-                                                            onClick: () => toggleAppTheme("light"),
-                                                        },
-                                                        {
-                                                            key: "dark",
-                                                            label: "Dark",
-                                                            onClick: () => toggleAppTheme("dark"),
-                                                        },
-                                                    ],
-                                                    selectedKeys: [themeMode],
-                                                }}
-                                            >
-                                                <a onClick={(e) => e.preventDefault()}>
-                                                    <Tooltip title="Change theme">
-                                                        <Image
-                                                            alt={`Curren Theme: ${
-                                                                isDarkTheme ? "dark" : "light"
-                                                            }`}
-                                                            src={isDarkTheme ? sunIcon : moonIcon}
-                                                            width={24}
-                                                            height={24}
-                                                        />
-                                                    </Tooltip>
-                                                </a>
-                                            </Dropdown>
-                                            <Button
-                                                href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
-                                                target="_blank"
-                                                className={classes.joinBtn}
-                                            >
-                                                <img src="/assets/slack.png" alt="Slack Image" />
-                                                <span>Join us</span>
-                                            </Button>
-                                            <Button
-                                                className={classes.star}
-                                                href="https://github.com/Agenta-AI/agenta"
-                                            >
-                                                <div>
-                                                    <GithubFilled style={{fontSize: 18}} />
-                                                    <p>Star</p>
-                                                </div>
-                                                <div>{starCount || 0}</div>
-                                            </Button>
-                                        </div>
-                                    </Space>
-                                    <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                        {children}
-                                    </ErrorBoundary>
-                                </Content>
-                                <Footer ref={footerRef} className={classes.footer}>
-                                    <Space className={classes.footerLeft} size={10}>
-                                        <Link
-                                            href={"https://github.com/Agenta-AI/agenta"}
-                                            target="_blank"
+                <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
+                    <Layout hasSider className={classes.layout}>
+                        <Sidebar />
+                        <Layout className={classes.layout}>
+                            <Content className={classes.content}>
+                                <Space className={classes.breadcrumbContainer}>
+                                    <Breadcrumb
+                                        className={classes.breadcrumb}
+                                        items={[
+                                            {title: <Link href="/apps">Apps</Link>},
+                                            {title: capitalizedAppName},
+                                        ]}
+                                    />
+                                    <div className={classes.topRightBar}>
+                                        <Dropdown
+                                            trigger={["click"]}
+                                            menu={{
+                                                items: [
+                                                    {
+                                                        key: "system",
+                                                        label: "System",
+                                                        onClick: () => toggleAppTheme("system"),
+                                                    },
+                                                    {
+                                                        key: "light",
+                                                        label: "Light",
+                                                        onClick: () => toggleAppTheme("light"),
+                                                    },
+                                                    {
+                                                        key: "dark",
+                                                        label: "Dark",
+                                                        onClick: () => toggleAppTheme("dark"),
+                                                    },
+                                                ],
+                                                selectedKeys: [themeMode],
+                                            }}
                                         >
-                                            <GithubFilled className={classes.footerLinkIcon} />
-                                        </Link>
-                                        <Link
-                                            href={"https://www.linkedin.com/company/agenta-ai/"}
+                                            <a onClick={(e) => e.preventDefault()}>
+                                                <Tooltip title="Change theme">
+                                                    <Image
+                                                        alt={`Curren Theme: ${
+                                                            isDarkTheme ? "dark" : "light"
+                                                        }`}
+                                                        src={isDarkTheme ? sunIcon : moonIcon}
+                                                        width={24}
+                                                        height={24}
+                                                    />
+                                                </Tooltip>
+                                            </a>
+                                        </Dropdown>
+                                        <Button
+                                            href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
                                             target="_blank"
+                                            className={classes.joinBtn}
                                         >
-                                            <LinkedinFilled className={classes.footerLinkIcon} />
-                                        </Link>
-                                        <Link
-                                            href={"https://twitter.com/agenta_ai"}
-                                            target="_blank"
+                                            <img src="/assets/slack.png" alt="Slack Image" />
+                                            <span>Join us</span>
+                                        </Button>
+                                        <Button
+                                            className={classes.star}
+                                            href="https://github.com/Agenta-AI/agenta"
                                         >
-                                            <TwitterOutlined className={classes.footerLinkIcon} />
-                                        </Link>
-                                    </Space>
-                                    <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
-                                </Footer>
-                            </Layout>
+                                            <div>
+                                                <GithubFilled style={{fontSize: 18}} />
+                                                <p>Star</p>
+                                            </div>
+                                            <div>{starCount || 0}</div>
+                                        </Button>
+                                    </div>
+                                </Space>
+                                <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                    {children}
+                                </ErrorBoundary>
+                            </Content>
+                            <Footer ref={footerRef} className={classes.footer}>
+                                <Space className={classes.footerLeft} size={10}>
+                                    <Link
+                                        href={"https://github.com/Agenta-AI/agenta"}
+                                        target="_blank"
+                                    >
+                                        <GithubFilled className={classes.footerLinkIcon} />
+                                    </Link>
+                                    <Link
+                                        href={"https://www.linkedin.com/company/agenta-ai/"}
+                                        target="_blank"
+                                    >
+                                        <LinkedinFilled className={classes.footerLinkIcon} />
+                                    </Link>
+                                    <Link href={"https://twitter.com/agenta_ai"} target="_blank">
+                                        <TwitterOutlined className={classes.footerLinkIcon} />
+                                    </Link>
+                                </Space>
+                                <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
+                            </Footer>
                         </Layout>
-                    </ThemeProvider>
-                </ConfigProvider>
+                    </Layout>
+                </ThemeProvider>
             )}
         </NoSSRWrapper>
     )

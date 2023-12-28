@@ -5,6 +5,7 @@ from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.db_models import (
     AppVariantDB,
+    EvaluationScenarioResult,
     EvaluatorConfigDB,
     ImageDB,
     TemplateDB,
@@ -80,16 +81,34 @@ async def evaluation_db_to_pydantic(
         variant_names=variant_names,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
+        aggregated_results=aggregated_result_to_pydantic(
+            evaluation_db.aggregated_results
+        ),
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
 
 
 def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
-    list_of_aggregated_results = []
-    for aggregated_result in results:
-        list_of_aggregated_results.append(aggregated_result.dict())
-    return list_of_aggregated_results
+    return [
+        {
+            "evaluator_config": str(result.evaluator_config),
+            "result": result.result.dict(),
+        }
+        for result in results
+    ]
+
+
+def evaluation_scenarios_results_to_pydantic(
+    results: List[EvaluationScenarioResult],
+) -> List[dict]:
+    return [
+        {
+            "evaluator_config": str(result.evaluator_config),
+            "result": result.result.dict(),
+        }
+        for result in results
+    ]
 
 
 def evaluation_scenario_db_to_pydantic(
@@ -100,11 +119,12 @@ def evaluation_scenario_db_to_pydantic(
         evaluation_id=str(evaluation_scenario_db.evaluation.id),
         inputs=evaluation_scenario_db.inputs,
         outputs=evaluation_scenario_db.outputs,
-        vote="",
-        score=evaluation_scenario_db.score,
         correct_answer=evaluation_scenario_db.correct_answer,
         is_pinned=evaluation_scenario_db.is_pinned or False,
         note=evaluation_scenario_db.note or "",
+        results=evaluation_scenarios_results_to_pydantic(
+            evaluation_scenario_db.results
+        ),
     )
 
 

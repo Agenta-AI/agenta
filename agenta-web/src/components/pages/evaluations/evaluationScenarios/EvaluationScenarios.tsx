@@ -29,13 +29,14 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     date: {
+        marginTop: "0.25rem",
         fontSize: "0.75rem",
         color: "#8c8c8c",
         display: "inline-block",
         marginBottom: "1rem",
     },
     table: {
-        height: 500,
+        height: "calc(100vh - 220px)",
     },
 }))
 
@@ -126,7 +127,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 </div>
             </div>
             <Typography.Text className={classes.date}>
-                {dayjs(evalaution?.created_at).format("MM DD YYYY | H:M a")}
+                {dayjs(evalaution?.created_at).format("DD MMM YYYY | h:m a")}
             </Typography.Text>
 
             <Spin spinning={fetching}>

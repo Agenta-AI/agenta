@@ -28,10 +28,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         gap: "1rem",
     },
     table: {
-        width: "100%",
         height: "calc(100vh - 260px)",
     },
     buttonsGroup: {
+        marginTop: "1rem",
         alignSelf: "flex-end",
     },
     statusCell: {
@@ -176,17 +176,20 @@ const EvaluationResults: React.FC<Props> = () => {
                 checkboxSelection: true,
                 showDisabledCheckboxes: true,
             },
-            {field: "testset.name", flex: 1},
+            {field: "testset.name", flex: 1, minWidth: 160},
             {
                 field: "variants",
                 flex: 1,
-                valueGetter: (params) => params.data?.variants[0].variantName,
+                minWidth: 160,
+                valueGetter: (params) =>
+                    params.data?.variants.map((item) => item.variantName).join(","),
                 headerName: "Variant",
             },
             ...evaluatorConfigs.map(
                 (config) =>
                     ({
                         flex: 1,
+                        minWidth: 140,
                         field: "aggregated_results",
                         headerComponent: () => (
                             <span>
@@ -202,7 +205,7 @@ const EvaluationResults: React.FC<Props> = () => {
             {
                 flex: 1,
                 field: "status",
-                minWidth: 220,
+                minWidth: 200,
                 cellRenderer: (params: ICellRendererParams<_Evaluation>) => {
                     const classes = useStyles()
                     const duration = useDurationCounter(
@@ -227,6 +230,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 flex: 1,
                 field: "created_at",
                 headerName: "Created",
+                minWidth: 120,
                 valueFormatter: (params) => dayjs(params.value).fromNow(),
             },
         ]
@@ -257,6 +261,13 @@ const EvaluationResults: React.FC<Props> = () => {
                     }
                     icon={<SwapOutlined />}
                     type="primary"
+                    onClick={() =>
+                        router.push(
+                            `/apps/${appId}/evaluations-new/compare/?evaluations=${selected
+                                .map((item) => item.id)
+                                .join(",")}`,
+                        )
+                    }
                 >
                     Compare
                 </Button>
