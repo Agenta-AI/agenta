@@ -17,7 +17,7 @@ engine = DBEngine().engine()
 BASE_URI = "http://host.docker.internal/"
 BACKEND_URI = BASE_URI + "api/"
 PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent.parent
-OPEN_AI_KEY = "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"
+OPEN_AI_KEY = "sk-xxxxxx"
 
 
 @pytest.fixture(scope="session")
