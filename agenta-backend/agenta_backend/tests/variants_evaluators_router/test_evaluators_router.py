@@ -1,10 +1,9 @@
 import httpx
 import pytest
 import asyncio
-
 from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.models.db_models import EvaluationDB
-from agenta_backend.models.api.evaluation_model import Evaluation, EvaluationStatusEnum
+from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
+from agenta_backend.models.db_models import EvaluationDB, AppDB, TestSetDB, AppVariantDB
 
 
 # Initialize database engine
@@ -15,7 +14,24 @@ test_client = httpx.AsyncClient()
 timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 # Set global variables
+APP_NAME = "evaluation_in_backend"
 BACKEND_API_HOST = "http://host.docker.internal/api"
+
+
+@pytest.mark.asyncio
+async def test_create_app_from_template(
+    app_from_template, create_user_and_organization, fetch_single_prompt_template
+):
+    user = await create_user_and_organization
+    payload = app_from_template
+    payload["app_name"] = APP_NAME
+    payload["organization_id"] = str(user.organizations[0])
+    payload["template_id"] = fetch_single_prompt_template["id"]
+
+    response = httpx.post(
+        f"{BACKEND_API_HOST}/apps/app_and_variant_from_template/", json=payload
+    )
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -32,7 +48,10 @@ async def test_get_evaluators_endpoint():
 async def test_create_auto_exact_match_evaluator_config(
     auto_exact_match_evaluator_config,
 ):
-    payload = await auto_exact_match_evaluator_config
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    payload = auto_exact_match_evaluator_config
+    payload["app_id"] = str(app.id)
+
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
     )
@@ -45,7 +64,10 @@ async def test_create_auto_exact_match_evaluator_config(
 async def test_create_auto_similarity_match_evaluator_config(
     auto_similarity_match_evaluator_config,
 ):
-    payload = await auto_similarity_match_evaluator_config
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    payload = auto_similarity_match_evaluator_config
+    payload["app_id"] = str(app.id)
+
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
     )
@@ -58,8 +80,11 @@ async def test_create_auto_similarity_match_evaluator_config(
 async def test_create_auto_regex_test_evaluator_config(
     auto_regex_test_evaluator_config,
 ):
-    payload = await auto_regex_test_evaluator_config
-    payload["settings_values"]["regex_pattern"] = "^Nigeria\\d{3}$"
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    payload = auto_regex_test_evaluator_config
+    payload["app_id"] = str(app.id)
+    payload["settings_values"]["regex_pattern"] = "^ig\\d{3}$"
+
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
     )
@@ -72,7 +97,10 @@ async def test_create_auto_regex_test_evaluator_config(
 async def test_create_auto_webhook_test_evaluator_config(
     auto_webhook_test_evaluator_config,
 ):
-    payload = await auto_webhook_test_evaluator_config
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    payload = auto_webhook_test_evaluator_config
+    payload["app_id"] = str(app.id)
+
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
     )
@@ -85,7 +113,10 @@ async def test_create_auto_webhook_test_evaluator_config(
 async def test_create_auto_ai_critique_evaluator_config(
     auto_ai_critique_evaluator_config,
 ):
-    payload = await auto_ai_critique_evaluator_config
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    payload = auto_ai_critique_evaluator_config
+    payload["app_id"] = str(app.id)
+
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluators/configs/", json=payload, timeout=timeout
     )
@@ -95,10 +126,10 @@ async def test_create_auto_ai_critique_evaluator_config(
 
 
 @pytest.mark.asyncio
-async def test_get_evaluator_configs(fetch_app):
-    app = await fetch_app
+async def test_get_evaluator_configs():
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
     response = await test_client.get(
-        f"{BACKEND_API_HOST}/evaluators/configs/?app_id={app['app_id']}",
+        f"{BACKEND_API_HOST}/evaluators/configs/?app_id={str(app.id)}",
         timeout=timeout,
     )
     assert response.status_code == 200
@@ -106,23 +137,23 @@ async def test_get_evaluator_configs(fetch_app):
 
 
 @pytest.mark.asyncio
-async def test_create_evaluation(prepare_testset_csvdata):
-    # Fetch app variant and testset
-    testset = await prepare_testset_csvdata
+async def test_create_evaluation():
+    # Fetch app, app_variant and testset
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    app_variant = await engine.find_one(AppVariantDB, AppVariantDB.app == app.id)
+    testset = await engine.find_one(TestSetDB, TestSetDB.app == app.id)
 
     # Prepare payload
     payload = {
-        "app_id": testset["app_id"],
-        "variant_ids": [
-            testset["variant_id"],
-        ],
+        "app_id": str(app.id),
+        "variant_ids": [str(app_variant.id)],
         "evaluators_configs": [],
-        "testset_id": ""
+        "testset_id": str(testset.id),
     }
 
     # Fetch evaluator configs
     response = await test_client.get(
-        f"{BACKEND_API_HOST}/evaluators/configs/?app_id={testset['app_id']}",
+        f"{BACKEND_API_HOST}/evaluators/configs/?app_id={payload['app_id']}",
         timeout=timeout,
     )
     list_of_configs_ids = []
@@ -130,20 +161,21 @@ async def test_create_evaluation(prepare_testset_csvdata):
     for evaluator_config in evaluator_configs:
         list_of_configs_ids.append(evaluator_config["id"])
 
-    # Update payload with list of configs ids and testset id
+    # Update payload with list of configs ids
     payload["evaluators_configs"] = list_of_configs_ids
-    payload["testset_id"] = testset["testset_id"]
+    print("Payload: ", payload)
 
     # Make request to create evaluation
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluations/", json=payload, timeout=timeout
     )
     response_data = response.json()
+    print("RD: ", response_data)
 
     assert response.status_code == 200
     assert response_data["app_id"] == payload["app_id"]
     assert response_data["status"] == EvaluationStatusEnum.EVALUATION_STARTED
-    assert response_data is not None and isinstance(response_data, Evaluation)
+    assert response_data is not None
 
 
 @pytest.mark.asyncio
@@ -186,10 +218,10 @@ async def test_fetch_evaluation_results():
 
 
 @pytest.mark.asyncio
-async def test_delete_evaluator_config(fetch_app):
-    app = await fetch_app
+async def test_delete_evaluator_config():
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
     response = await test_client.get(
-        f"{BACKEND_API_HOST}/evaluators/configs/?app_id={app['app_id']}",
+        f"{BACKEND_API_HOST}/evaluators/configs/?app_id={str(app.id)}",
         timeout=timeout,
     )
     list_of_deleted_configs = []
@@ -203,3 +235,10 @@ async def test_delete_evaluator_config(fetch_app):
 
     count_of_deleted_configs = sum(list_of_deleted_configs)
     assert len(evaluator_configs) == count_of_deleted_configs
+
+
+# @pytest.mark.asyncio
+# async def remove_running_template_app_container():
+#     app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+#     container_name = f"{app.app_name}-app-{str(app.id)}"
+#     assert True
