@@ -5,6 +5,8 @@ from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.db_models import (
     AppVariantDB,
+    EvaluationScenarioResult,
+    EvaluatorConfigDB,
     ImageDB,
     TemplateDB,
     AppDB,
@@ -39,6 +41,9 @@ from agenta_backend.models.api.evaluation_model import (
     SimpleEvaluationOutput,
     EvaluationScenario,
     Evaluation,
+    EvaluatorConfig,
+    EvaluationScenarioInput,
+    EvaluationScenarioOutput,
 )
 
 import logging
@@ -78,16 +83,41 @@ async def evaluation_db_to_pydantic(
         variant_names=variant_names,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
+        aggregated_results= await aggregated_result_to_pydantic(
+            evaluation_db.aggregated_results
+        ),
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
 
 
-def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
-    list_of_aggregated_results = []
-    for aggregated_result in results:
-        list_of_aggregated_results.append(aggregated_result.dict())
-    return list_of_aggregated_results
+async def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
+    transformed_results = []
+    for result in results:
+        evaluator_config_db = await db_manager.fetch_evaluator_config(str(result.evaluator_config))
+        evaluator_config_dict = evaluator_config_db.dict() if evaluator_config_db else None
+
+        if evaluator_config_dict:
+            evaluator_config_dict['id'] = str(evaluator_config_dict['id'])
+
+        transformed_results.append({
+            "evaluator_config": evaluator_config_dict,
+            "result": result.result.dict(),
+        })
+
+    return transformed_results
+
+
+def evaluation_scenarios_results_to_pydantic(
+    results: List[EvaluationScenarioResult],
+) -> List[dict]:
+    return [
+        {
+            "evaluator_config": str(result.evaluator_config),
+            "result": result.result.dict(),
+        }
+        for result in results
+    ]
 
 
 def evaluation_scenario_db_to_pydantic(
@@ -96,13 +126,20 @@ def evaluation_scenario_db_to_pydantic(
     return EvaluationScenario(
         id=str(evaluation_scenario_db.id),
         evaluation_id=str(evaluation_scenario_db.evaluation.id),
-        inputs=evaluation_scenario_db.inputs,
-        outputs=evaluation_scenario_db.outputs,
-        vote=evaluation_scenario_db.vote,
-        score=evaluation_scenario_db.score,
+        inputs=[
+            EvaluationScenarioInput(**scenario_input.dict())
+            for scenario_input in evaluation_scenario_db.inputs
+        ],
+        outputs=[
+            EvaluationScenarioOutput(**scenario_output.dict())
+            for scenario_output in evaluation_scenario_db.outputs
+        ],
         correct_answer=evaluation_scenario_db.correct_answer,
         is_pinned=evaluation_scenario_db.is_pinned or False,
         note=evaluation_scenario_db.note or "",
+        results=evaluation_scenarios_results_to_pydantic(
+            evaluation_scenario_db.results
+        ),
     )
 
 
@@ -294,3 +331,12 @@ def user_db_to_pydantic(user_db: UserDB) -> User:
         username=user_db.username,
         email=user_db.email,
     ).dict(exclude_unset=True)
+
+
+def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
+    return EvaluatorConfig(
+        id=str(evaluator_config.id),
+        name=evaluator_config.name,
+        evaluator_key=evaluator_config.evaluator_key,
+        settings_values=evaluator_config.settings_values,
+    )

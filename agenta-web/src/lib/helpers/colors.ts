@@ -40,6 +40,22 @@ const colors = [
     "#0099FF",
 ]
 
+const tagColors = [
+    "blue",
+    "purple",
+    "cyan",
+    "green",
+    "magenta",
+    "pink",
+    "red",
+    "orange",
+    "yellow",
+    "volcano",
+    "geekblue",
+    "lime",
+    "gold",
+]
+
 export const getGradientFromStr = (value: string) => {
     return gradients[stringToNumberInRange(value, 0, gradients.length - 1)]
 }
@@ -61,3 +77,5 @@ export const fadeColor = (hex: string, opacity: number) => {
     // Create the faded color in RGBA format
     return `rgba(${r}, ${g}, ${b}, ${opacity})`
 }
+
+export const getTagColors = () => [...tagColors]

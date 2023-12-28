@@ -1784,19 +1784,26 @@ async def create_evaluator_config(
 async def update_evaluator_config(
     evaluator_config_id: str, updates: Dict[str, Any]
 ) -> EvaluatorConfigDB:
-    """Edit an existing evaluator configuration in the database."""
-    assert evaluator_config_id is not None, "Evaluator Config ID cannot be None"
+    """
+    Update an evaluator configuration in the database with the provided id.
 
-    try:
-        updated_evaluator_config = await engine.find_one_and_update(
-            EvaluatorConfigDB,
-            query.eq("_id", ObjectId(evaluator_config_id)),
-            {"$set": updates},
-            return_document=True,
-        )
-        return updated_evaluator_config
-    except Exception as e:
-        raise e
+    Arguments:
+        evaluator_config_id (str): The ID of the evaluator configuration to be updated.
+        updates (Dict[str, Any]): The updates to apply to the evaluator configuration.
+
+    Returns:
+        EvaluatorConfigDB: The updated evaluator configuration object.
+    """
+    evaluator_config = await engine.find_one(
+        EvaluatorConfigDB, EvaluatorConfigDB.id == ObjectId(evaluator_config_id)
+    )
+    updates_dict = updates.dict(exclude_unset=True)
+
+    for key, value in updates_dict.items():
+        if key in evaluator_config.__fields__:
+            setattr(evaluator_config, key, value)
+    await engine.save(evaluator_config)
+    return evaluator_config
 
 
 async def delete_evaluator_config(evaluator_config_id: str) -> bool:

@@ -4,6 +4,19 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union
 
 
+class Evaluator(BaseModel):
+    name: str
+    key: str
+    settings_template: dict
+
+
+class EvaluatorConfig(BaseModel):
+    id: str
+    name: str
+    evaluator_key: str
+    settings_values: Optional[Dict[str, Any]]
+
+
 class EvaluationTypeSettings(BaseModel):
     similarity_threshold: Optional[float]
     regex_pattern: Optional[str]
@@ -37,6 +50,16 @@ class EvaluationScenarioStatusEnum(str, Enum):
     COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
 
 
+class Result(BaseModel):
+    type: str
+    value: Any
+
+
+class AggregatedResult(BaseModel):
+    evaluator_config: EvaluatorConfig
+    result: Result
+
+
 class Evaluation(BaseModel):
     id: str
     app_id: str
@@ -47,6 +70,7 @@ class Evaluation(BaseModel):
     testset_id: str
     testset_name: str
     status: str
+    aggregated_results: List[AggregatedResult]
     created_at: datetime
     updated_at: datetime
 
@@ -64,14 +88,20 @@ class EvaluationUpdate(BaseModel):
     evaluation_type_settings: Optional[EvaluationTypeSettings]
 
 
+class EvaluationScenarioResult(BaseModel):
+    evaluator_config: str
+    result: Result
+
+
 class EvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: str
+    name: str
+    type: str
+    value: Any
 
 
 class EvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: str
+    type: str
+    value: Any
 
 
 class EvaluationScenario(BaseModel):
@@ -79,12 +109,11 @@ class EvaluationScenario(BaseModel):
     evaluation_id: str
     inputs: List[EvaluationScenarioInput]
     outputs: List[EvaluationScenarioOutput]
-    vote: Optional[str]
-    score: Optional[Union[str, int]]
     evaluation: Optional[str]
     correct_answer: Optional[str]
     is_pinned: Optional[bool]
     note: Optional[str]
+    results: List[EvaluationScenarioResult]
 
 
 class AICritiqueCreate(BaseModel):
@@ -159,12 +188,6 @@ class EvaluationSettingsTemplate(BaseModel):
     description: str
 
 
-class EvaluatorConfig(BaseModel):
-    id: str
-    evaluator_key: str
-    settings_values: Optional[Dict[str, Any]]
-
-
 class NewEvaluation(BaseModel):
     app_id: str
     variant_ids: List[str]
@@ -172,15 +195,14 @@ class NewEvaluation(BaseModel):
     testset_id: str
 
 
-class Evaluator(BaseModel):
-    name: str
-    key: str
-    icon: str
-    settings_template: dict
-
-
 class NewEvaluatorConfig(BaseModel):
     app_id: str
     name: str
     evaluator_key: str
     settings_values: dict
+
+
+class UpdateEvaluatorConfig(BaseModel):
+    name: Optional[str]
+    evaluator_key: Optional[str]
+    settings_values: Optional[dict]
