@@ -1,24 +1,51 @@
-Prompt engineering happens in the playground
-draft
-In this guide we would like to show the main capabilities of the playground
+---
+title: 'Prompt Engineering'
+description: 'Using the playground for prompt engineering.'
+---
+
+The agenta playground is a platform that lets you create, modify, and compare different prompts and configurations for your LLM application.
 
 
-Creating a variant.
+## Prompt Templates
+An LLM takes a prompt and returns a completion. To make the prompt reusable, we need to be able to dynamically modify it based on a set of inputs. A prompt template is a prompt that can be dynamically modified based on a set of inputs.
 
+For instance, a prompt to create a blog post might look like this:
+```
+Write a blog post about {subject}
+```
 
-Testing a variant
+Here, the input is the subject of the blog post. The prompt can be reused for different subjects.
 
-Adding new inputs
+The LLM app templates in agenta use the f-string templating language, with prompt variables referenced using a curly bracket syntax.
 
+## Adding new inputs 
 
-Using these inputs in the prompt.
+To add new inputs to the LLM app, navigate to the playground and modify the inputs under "Modify Parameters."
 
+@bekossy please add screenshot
 
-Loading a test set
+After adding an input, incorporate it into the prompt templates using the curly bracket syntax.
 
+## Creating a variant
 
-Adding to a test set 
+You can create a new variant of an application by clicking on "Add Variant" in the "Side-by-side" view or the "+" tab in the "Tab view".
 
-Comparing side by side the results of multiple variants
+@bekossy please add screenshot
 
+You'll then see a window where you can select the source variant to use as a template and provide a new name for your variant.
 
+After creating a variant, you can alter its parameters. Remember to save your changes before deploying the variant.
+
+## Testing a variant
+
+Fill in the inputs in the cards and click "Run" to test a variant dynamically.
+
+You can also load a test set to populate the playground with a set of inputs. Then You can click Run all to run all the inputs in the test set.
+
+@bekossy please add one screenshot with arrows pointing to load test set, run all  and run
+
+## Comparing variants side by side
+
+Click on the "Side-by-side" tab to compare variants. From the dropdowns, select the variants you wish to compare. This allows you to view the results of multiple variants simultaneously. When using a chat application, you can interact with different variants in parallel.
+
+@bekossy please add screenshot of side by side in chat mode with a chat happening in each variant
