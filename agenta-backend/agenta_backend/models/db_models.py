@@ -245,7 +245,7 @@ class EvaluationScenarioInputDB(EmbeddedModel):
 
 class EvaluationScenarioOutputDB(EmbeddedModel):
     type: str
-    value: str
+    value: Any
 
 
 class EvaluationDB(Model):
