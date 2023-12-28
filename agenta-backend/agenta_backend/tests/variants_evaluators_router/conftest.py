@@ -1,7 +1,6 @@
 import os
 import httpx
 import pytest
-from pathlib import Path
 
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
@@ -14,10 +13,8 @@ from agenta_backend.models.db_models import (
 engine = DBEngine().engine()
 
 # Set global variables
-BASE_URI = "http://host.docker.internal/"
-BACKEND_URI = BASE_URI + "api/"
-PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent.parent
-OPEN_AI_KEY = "sk-xxxxxx"
+OPEN_AI_KEY = os.environ.get("OPEN_AI_KEY")
+BACKEND_URI = "http://host.docker.internal/api/"
 
 
 @pytest.fixture(scope="session")
