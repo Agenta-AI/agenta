@@ -469,9 +469,10 @@ def add_new_variant(ctx, app_folder: str, config_file: str, from_variant: str):
     error_msg = "Invalid command. Either run:\n"
     error_msg += ">>> agenta variant add === To add a variant based on any existing variant listed out.\n"
     error_msg += "or\n"
-    error_msg += ">>> agenta variant add --from_variant app.<variant_name> === To add a variant based on an existing variant.\n"
+    error_msg += ">>> agenta variant add --from_variant <codebase_name>.<config_name> === To add a variant based on an existing variant.\n"
     error_msg += "or\n"
-    error_msg += ">>> agenta variant add --config app.<variant_name>.toml === To add a variant based on an existing config file.\n"
+    error_msg += ">>> agenta variant add --config <codebase_name>.<config_name>.toml === To add a variant based on an existing config file.\n"
+    error_msg += "where <codebase_name> is the name of the codebase file ( e.g app.py ) and <config_name> is the name of the variant and config\n"
 
     # be double sure that there's an app and an existing variant in the config file
     app_folder = Path(app_folder)
@@ -516,7 +517,7 @@ def add_new_variant(ctx, app_folder: str, config_file: str, from_variant: str):
             if not re.match("^[a-zA-Z0-9_]+\.[a-zA-Z0-9_]+\.toml$", config_file):
                 click.echo(
                     click.style(
-                        "Invalid config name. Please make sure you are using the format <app_name>.<variant_name>.toml",
+                        "Invalid config name. Please make sure you are using the format <codebase_name>.<config_name>.toml",
                         fg="red",
                     )
                 )
@@ -562,7 +563,7 @@ def add_new_variant(ctx, app_folder: str, config_file: str, from_variant: str):
         if len(variant_to_use.split(".")) != 2:
             click.echo(
                 click.style(
-                    f"Invalid variant name {variant_to_use}. Please provide a variant name in the format 'app.variant_name'",
+                    f"Invalid variant name {variant_to_use}. Please provide a variant name in the format '<codebase_name>.<config_name>'",
                     fg="red",
                 )
             )
