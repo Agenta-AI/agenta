@@ -42,6 +42,8 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenario,
     Evaluation,
     EvaluatorConfig,
+    EvaluationScenarioInput,
+    EvaluationScenarioOutput
 )
 
 import logging
@@ -117,8 +119,8 @@ def evaluation_scenario_db_to_pydantic(
     return EvaluationScenario(
         id=str(evaluation_scenario_db.id),
         evaluation_id=str(evaluation_scenario_db.evaluation.id),
-        inputs=evaluation_scenario_db.inputs,
-        outputs=evaluation_scenario_db.outputs,
+        inputs=[EvaluationScenarioInput(**scenario_input.dict()) for scenario_input in evaluation_scenario_db.inputs],
+        outputs=[EvaluationScenarioOutput(**scenario_output.dict()) for scenario_output in evaluation_scenario_db.outputs],
         correct_answer=evaluation_scenario_db.correct_answer,
         is_pinned=evaluation_scenario_db.is_pinned or False,
         note=evaluation_scenario_db.note or "",
