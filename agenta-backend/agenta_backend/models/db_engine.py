@@ -67,5 +67,7 @@ class DBEngine(object):
         client = MongoClient(self.db_url)
         if self.mode == "default":
             client.drop_database("agenta")
+        elif self.mode == "v2":
+            client.drop_database("agenta_v2")
         elif self.mode == "test":
             client.drop_database("agenta_test")
