@@ -12,7 +12,7 @@ jobs:
 
       - name: Start Docker Compose
         env:
-          OPEN_AI_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
         run: docker-compose -f "docker-compose.test.yml" up -d --build
 
       - name: Install Curl
