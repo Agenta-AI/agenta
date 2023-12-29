@@ -10,13 +10,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Set Environment Variables
+        run: |
+          echo "OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}" >> $GITHUB_ENV
+
+      - name: Install Curl
+        run: sudo apt install curl -y
+
       - name: Start Docker Compose
         env:
           OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
         run: docker-compose -f "docker-compose.test.yml" up -d --build
-
-      - name: Install Curl
-        run: sudo apt install curl -y
 
       - name: Wait for Backend Service
         run: |
@@ -28,6 +32,8 @@ jobs:
           done
 
       - name: Run tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}
         run: docker exec agenta-backend-test pytest
 
       - name: Stop Docker Compose
