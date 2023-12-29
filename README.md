@@ -35,6 +35,9 @@
     <img src="https://img.shields.io/pypi/dm/agenta" alt="PyPI - Downloads">
   </a>
 
+  <a href="https://repo-rater.eddiehub.io/rate?owner=Agenta-AI&name=agenta">
+    <img src="https://repo-rater.eddiehub.io/api/badge?owner=Agenta-AI&name=agenta" alt="RepoRater">
+  </a>
 </br>
 </p>
 
