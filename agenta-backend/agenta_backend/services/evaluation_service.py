@@ -817,7 +817,9 @@ async def create_new_evaluation(
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
 
-async def retrieve_evaluation_results(evaluation_id: str, **user_org_data: dict) -> List[dict]:
+async def retrieve_evaluation_results(
+    evaluation_id: str, **user_org_data: dict
+) -> List[dict]:
     """Retrieve the aggregated results for a given evaluation.
 
     Args:
