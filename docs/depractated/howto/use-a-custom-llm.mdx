@@ -15,7 +15,7 @@ import requests
 default_prompt = "Please write a joke about {subject}"
 
 url = "https://<api-server-url>/generate"
-ag.config.default(prompt=default_prompt,
+ag.config.register_default(prompt=default_prompt,
                   temperature=0.8)
 
 @ag.entrypoint
@@ -31,7 +31,7 @@ def generate(subject:str)->str:
 
 The above code is a simple LLM app that generates jokes about a given subject, using a vLLM hosted model. It is structured as follows:
 
-`ag.config.default` sets the default values for the configuration of the LLM application. In this example, the default prompt is "Please write a joke about {subject}", and the temperature is set at 0.8.
+`ag.config.register_default` sets the default values for the configuration of the LLM application. In this example, the default prompt is "Please write a joke about {subject}", and the temperature is set at 0.8.
 
 The `@ag.entrypoint` decorator marks the function that will be called. The function `generate` accepts a subject as input and returns a joke as output. It calls the vLLM hosted model using the requests library.
 
