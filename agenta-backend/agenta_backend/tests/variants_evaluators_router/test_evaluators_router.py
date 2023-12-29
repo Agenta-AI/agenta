@@ -235,8 +235,20 @@ async def test_delete_evaluator_config():
     assert len(evaluator_configs) == count_of_deleted_configs
 
 
-# @pytest.mark.asyncio
-# async def remove_running_template_app_container():
-#     app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
-#     container_name = f"{app.app_name}-app-{str(app.id)}"
-#     assert True
+@pytest.mark.asyncio
+async def test_remove_running_template_app_container():
+    import docker
+
+    # Connect to the Docker daemon
+    client = docker.from_env()
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    container_name = f"{app.app_name}-app-{str(app.organization.id)}"
+    try:
+        # Retrieve container
+        container = client.containers.get(container_name)
+        # Stop and remove container
+        container.stop()
+        container.remove()
+        assert True
+    except:
+        assert False
