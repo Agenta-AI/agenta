@@ -1,5 +1,6 @@
 """Converts db models to pydantic models
 """
+import json
 from typing import List
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
@@ -98,19 +99,14 @@ async def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List
             str(result.evaluator_config)
         )
         evaluator_config_dict = (
-            evaluator_config_db.dict() if evaluator_config_db else None
+            evaluator_config_db.json() if evaluator_config_db else None
         )
-
-        if evaluator_config_dict:
-            evaluator_config_dict["id"] = str(evaluator_config_dict["id"])
-
         transformed_results.append(
             {
-                "evaluator_config": evaluator_config_dict,
+                "evaluator_config": json.loads(evaluator_config_dict),
                 "result": result.result.dict(),
             }
         )
-
     return transformed_results
 
 
