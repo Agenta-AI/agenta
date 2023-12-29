@@ -140,7 +140,9 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
     try:
         # Get user and organization id
         user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        results = await evaluation_service.retrieve_evaluation_results(evaluation_id, **user_org_data)
+        results = await evaluation_service.retrieve_evaluation_results(
+            evaluation_id, **user_org_data
+        )
         return {"results": results, "evaluation_id": evaluation_id}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
