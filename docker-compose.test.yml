@@ -14,6 +14,7 @@ services:
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - DATABASE_MODE=v2
             - FEATURE_FLAG=oss
+            - OPENAI_API_KEY=${OPENAI_API_KEY}
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
         volumes:
