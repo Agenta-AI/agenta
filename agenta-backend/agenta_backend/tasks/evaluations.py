@@ -136,9 +136,28 @@ async def aggregate_evaluator_results(
 ) -> List[AggregatedResult]:
     aggregated_results = []
     for evaluator_key, results in evaluators_aggregated_data.items():
-        average_value = (
-            sum([result.value for result in results]) / len(results) if results else 0
-        )
+        if evaluator_key != "auto_ai_critique":
+            average_value = (
+                sum([result.value for result in results]) / len(results)
+                if results
+                else 0
+            )
+        elif evaluator_key == "auto_ai_critique":
+            try:
+                average_value = (
+                    sum(
+                        [
+                            int(result.value)
+                            for result in results
+                            if isinstance(int(result.value), int)
+                        ]
+                    )
+                    / len(results)
+                    if results
+                    else 0
+                )
+            except TypeError:
+                average_value = None
         evaluator_config = await fetch_evaluator_config_by_appId(app.id, evaluator_key)
         aggregated_result = AggregatedResult(
             evaluator_config=evaluator_config.id,
