@@ -14,7 +14,7 @@ engine = DBEngine().engine()
 
 # Set global variables
 OPEN_AI_KEY = os.environ.get("OPENAI_API_KEY")
-BACKEND_URI = "http://localhost:8001/api/"
+BACKEND_URI = "http://localhost:8001/"
 
 
 @pytest.fixture(scope="session")

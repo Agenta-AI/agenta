@@ -15,7 +15,7 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 # Set global variables
 APP_NAME = "evaluation_in_backend"
-BACKEND_API_HOST = "http://localhost:8001/api"
+BACKEND_API_HOST = "http://localhost:8001"
 
 
 @pytest.mark.asyncio
