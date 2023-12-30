@@ -37,20 +37,12 @@ async def start_service(
     logger.debug(f"container_name: {container_name}")
     logger.debug(f"env_vars: {env_vars}")
 
-    try:
-        results = docker_utils.start_container(
-            image_name=app_variant_db.image.tags,
-            uri_path=uri_path,
-            container_name=container_name,
-            env_vars=env_vars,
-        )
-    except Exception as exc:
-        import traceback
-
-        full_traceback = traceback.format_exc()
-        raise RuntimeError(
-            f"An error occurred while starting the container: {exc}\n\nFull Traceback:\n{full_traceback}"
-        )
+    results = docker_utils.start_container(
+        image_name=app_variant_db.image.tags,
+        uri_path=uri_path,
+        container_name=container_name,
+        env_vars=env_vars,
+    )
 
     uri = results["uri"]
     container_id = results["container_id"]

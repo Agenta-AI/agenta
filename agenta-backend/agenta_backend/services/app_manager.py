@@ -100,12 +100,12 @@ async def start_variant(
         # raise Exception(
         #     f"Failed to start Docker container for app variant {db_app_variant.app.app_name}/{db_app_variant.variant_name} \n {str(e)}"
         # ) from e
-        import traceback
+        # import traceback
 
-        full_traceback = traceback.format_exc()
-        raise RuntimeError(
-            f"An error occurred while starting the container: {str(e)}\n\nFull Traceback:\n{full_traceback}"
-        )
+        # full_traceback = traceback.format_exc()
+        # raise RuntimeError(
+        #     f"An error occurred while starting the container: {str(e)}\n\nFull Traceback:\n{full_traceback}"
+        # )
 
     return URI(uri=deployment.uri)
 
