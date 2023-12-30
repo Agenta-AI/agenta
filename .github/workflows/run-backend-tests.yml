@@ -42,5 +42,9 @@ jobs:
       - name: Run tests
         run: docker exec agenta-backend-test pytest
 
+      - name: Docker logs
+        if: always() #
+        run: docker ps -q | xargs -I {} docker logs {}
+
       - name: Stop Docker Compose
         run: docker-compose down
