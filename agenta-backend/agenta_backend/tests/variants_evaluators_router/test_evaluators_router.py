@@ -31,6 +31,7 @@ async def test_create_app_from_template(
     response = httpx.post(
         f"{BACKEND_API_HOST}/apps/app_and_variant_from_template/", json=payload
     )
+    print("Response: ", response.json())
     assert response.status_code == 200
 
 
