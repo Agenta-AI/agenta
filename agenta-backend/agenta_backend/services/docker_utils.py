@@ -106,23 +106,15 @@ def start_container(
 
         env_vars = {} if env_vars is None else env_vars
         extra_hosts = {"host.docker.internal": "host-gateway"}
-        try:
-            container = client.containers.run(
-                image,
-                detach=True,
-                labels=labels,
-                network="agenta-network",
-                name=container_name,
-                environment=env_vars,
-                extra_hosts=extra_hosts,
-            )
-        except Exception as e:
-            import traceback
-
-            full_traceback = traceback.format_exc()
-            raise RuntimeError(
-                f"An error occurred while running the container: {str(e)}\n\nFull Traceback:\n{full_traceback}"
-            )
+        container = client.containers.run(
+            image,
+            detach=True,
+            labels=labels,
+            network="agenta-network",
+            name=container_name,
+            environment=env_vars,
+            extra_hosts=extra_hosts,
+        )
         # Check the container's status
         sleep(0.5)
         container.reload()  # Refresh container data

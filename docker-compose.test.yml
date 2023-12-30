@@ -39,7 +39,7 @@ services:
             mongo:
                 condition: service_healthy
         networks:
-            - agenta-test-network
+            - agenta-network
 
     agenta-web:
         container_name: agenta-web-test
@@ -53,7 +53,7 @@ services:
         ports:
             - "3000:3000"
         networks:
-            - agenta-test-network
+            - agenta-network
 
     mongo:
         image: mongo:5.0
@@ -69,13 +69,13 @@ services:
             timeout: 10s
             retries: 20
         networks:
-            - agenta-test-network
+            - agenta-network
 
     redis:
         image: redis:latest
         container_name: agenta-redis-test
         networks:
-            - agenta-test-network
+            - agenta-network
         volumes:
             - redis_data:/data
 
@@ -91,7 +91,7 @@ services:
             RABBITMQ_DEFAULT_USER: "guest"
             RABBITMQ_DEFAULT_PASS: "guest"
         networks:
-            - agenta-test-network
+            - agenta-network
 
     celery_worker:
         build: ./agenta-backend
@@ -111,11 +111,11 @@ services:
             - rabbitmq
             - redis
         networks:
-            - agenta-test-network
+            - agenta-network
 
 networks:
-    agenta-test-network:
-        name: agenta-test-network
+    agenta-network:
+        name: agenta-network
 
 volumes:
     mongodb_data:
