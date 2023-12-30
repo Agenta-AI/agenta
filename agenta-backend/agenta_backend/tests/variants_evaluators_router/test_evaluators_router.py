@@ -31,8 +31,20 @@ async def test_create_app_from_template(
     response = httpx.post(
         f"{BACKEND_API_HOST}/apps/app_and_variant_from_template/", json=payload
     )
-    print("Response: ", response.json())
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_app_from_template_container_is_running():
+    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+
+    response = httpx.client(
+        f"{BACKEND_API_HOST}/{str(app.organization.id)}/{app.app_name}/app/openapi.json"
+    )
+    response_data = response.json()
+    assert response.status_code == 200
+    assert "openapi" in response_data
+    assert isinstance(response_data, dict)
 
 
 @pytest.mark.asyncio
