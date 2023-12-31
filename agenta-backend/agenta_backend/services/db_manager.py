@@ -1882,7 +1882,9 @@ async def fetch_annotation_by_id(annotation_id: str) -> Optional[AnnotationsDB]:
     return annotation
 
 
-async def fetch_annotation_scenario_by_id(annotation_id: str) -> Optional[AnnotationsScenariosDB]:
+async def fetch_annotation_scenario_by_id(
+    annotation_id: str,
+) -> Optional[AnnotationsScenariosDB]:
     """
     Fetches an annotation from the database based on its ID.
 
@@ -1903,7 +1905,7 @@ async def create_annotation_scenario(
     annotation: AnnotationsDB,
     scenario_inputs: List[dict],
     user: UserDB,
-    organization: OrganizationDB
+    organization: OrganizationDB,
 ) -> AnnotationsScenariosDB:
     """
     Create a new annotation scenario in the database.
@@ -1946,8 +1948,8 @@ def insert_many_documents_using_driver(documents: list, collection_name: str) ->
     collection = db.get_collection(collection_name)
 
     for document in documents:
-        if '_id' in document and isinstance(document['_id'], str):
-            document['_id'] = ObjectId(document['_id'])
+        if "_id" in document and isinstance(document["_id"], str):
+            document["_id"] = ObjectId(document["_id"])
 
     inserted = collection.insert_many(documents)
     print(

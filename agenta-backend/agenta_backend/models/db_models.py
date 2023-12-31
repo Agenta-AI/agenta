@@ -368,6 +368,7 @@ class AnnotationsDB(Model):
     class Config:
         collection = "annotations"
 
+
 class AnnotationsScenariosDB(Model):
     app: AppDB = Reference(key_name="app")
     organization: OrganizationDB = Reference(key_name="organization")
