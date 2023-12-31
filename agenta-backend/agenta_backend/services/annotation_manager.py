@@ -30,7 +30,6 @@ from agenta_backend.utils.common import engine, check_access_to_app
 async def _fetch_annotation_and_check_access(
     annotation_id: str, **user_org_data: dict
 ) -> AnnotationsDB:
-
     annotation = await db_manager.fetch_annotation_by_id(annotation_id=annotation_id)
 
     if annotation is None:
@@ -164,13 +163,15 @@ async def create_new_annotation(
         # TODO: make inputs dynamic
         annotation_scenario = {
             "annotation_id": ObjectId(annotation_db.id),
-            "inputs": [{"input_name": "country", "input_value": datapoint['country']}],
+            "inputs": [{"input_name": "country", "input_value": datapoint["country"]}],
             "user": ObjectId(app.user.id),
-            "organization": ObjectId(app.organization.id)
+            "organization": ObjectId(app.organization.id),
         }
         annotations_scenarios.append(annotation_scenario)
 
-    db_manager.insert_many_documents_using_driver(annotations_scenarios, 'annotations_scenarios_db')
+    db_manager.insert_many_documents_using_driver(
+        annotations_scenarios, "annotations_scenarios_db"
+    )
 
     return converters.annotation_db_to_pydantic(annotation_db)
 
