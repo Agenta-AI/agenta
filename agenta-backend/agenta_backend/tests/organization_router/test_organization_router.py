@@ -1,4 +1,4 @@
-import pytest
+import os
 
 from agenta_backend.services import selectors
 from agenta_backend.models.db_models import UserDB
@@ -6,6 +6,7 @@ from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.api.organization_models import OrganizationOutput
 
 import httpx
+import pytest
 
 
 # Initialize database engine
@@ -16,7 +17,11 @@ test_client = httpx.AsyncClient()
 timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 # Set global variables
-BACKEND_API_HOST = "http://localhost:8000"
+ENVIRONMENT = os.environ.get("ENVIRONMENT")
+if ENVIRONMENT == "development":
+    BACKEND_API_HOST = "http://localhost:8000"
+elif ENVIRONMENT == "test":  # github actions environment
+    BACKEND_API_HOST = "http://localhost/api"
 
 
 @pytest.mark.asyncio

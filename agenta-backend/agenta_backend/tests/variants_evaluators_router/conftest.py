@@ -13,14 +13,18 @@ from agenta_backend.models.db_models import (
 engine = DBEngine().engine()
 
 # Set global variables
-BACKEND_URI = "http://localhost:8000/"
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
 OPEN_AI_KEY = os.environ.get("OPENAI_API_KEY")
+
+if ENVIRONMENT == "development":
+    BACKEND_API_HOST = "http://localhost:8000"
+elif ENVIRONMENT == "test":  # github actions environment
+    BACKEND_API_HOST = "http://localhost/api"
 
 
 @pytest.fixture(scope="session")
 def fetch_templates():
-    response = httpx.get(f"{BACKEND_URI}containers/templates/")
+    response = httpx.get(f"{BACKEND_API_HOST}/containers/templates/")
     response_data = response.json()
     return response_data
 

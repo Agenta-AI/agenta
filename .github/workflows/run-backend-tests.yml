@@ -16,7 +16,7 @@ jobs:
         run: sudo apt install curl -y
 
       - name: Start Docker Compose
-        run: OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }} docker-compose -f "docker-compose.test.yml" up -d --build
+        run: OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }} ENVIRONMENT=test docker-compose -f "docker-compose.test.yml" up -d --build
 
       - name: Restart Backend Service To Fetch Template Images
         run: docker container restart agenta-backend-test
