@@ -2,6 +2,7 @@ from enum import Enum
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union
+from agenta_backend.models.api.api_models import Result
 
 
 class Evaluator(BaseModel):
@@ -48,11 +49,6 @@ class EvaluationStatusEnum(str, Enum):
 
 class EvaluationScenarioStatusEnum(str, Enum):
     COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
-
-
-class Result(BaseModel):
-    type: str
-    value: Any
 
 
 class AggregatedResult(BaseModel):
