@@ -1861,8 +1861,8 @@ async def create_new_annotation(
         created_at=datetime.now().isoformat(),
         updated_at=datetime.now().isoformat(),
     )
-    await engine.save(annotation)
-    return annotation
+    new_annotation = await engine.save(annotation)
+    return new_annotation
 
 
 async def fetch_annotation_by_id(annotation_id: str) -> Optional[AnnotationsDB]:
@@ -1901,11 +1901,16 @@ async def fetch_annotation_scenario_by_id(
     return annotation
 
 
-async def create_annotation_scenario(
-    annotation: AnnotationsDB,
-    scenario_inputs: List[dict],
-    user: UserDB,
+async def create_new_annotation_scenario(
+    app: AppDB,
     organization: OrganizationDB,
+    user: UserDB,
+    annotation_id: str,
+    inputs: List[dict],
+    outputs: List[dict],
+    isPinned: bool,
+    results: List,
+    note: str,
 ) -> AnnotationsScenariosDB:
     """
     Create a new annotation scenario in the database.
@@ -1920,13 +1925,15 @@ async def create_annotation_scenario(
         AnnotationsScenariosDB: The created annotation scenario.
     """
     new_annotation_scenario = AnnotationsScenariosDB(
+        app=app,
         user=user,
         organization=organization,
-        annotation=annotation,
-        inputs=scenario_inputs,
-        outputs=[],
-        is_pinned=False,
-        note="",
+        annotation_id=annotation_id,
+        inputs=inputs,
+        outputs=outputs,
+        is_pinned=isPinned,
+        note=note,
+        results=results,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -1955,3 +1962,33 @@ def insert_many_documents_using_driver(documents: list, collection_name: str) ->
     print(
         f"Inserted {len(inserted.inserted_ids)} documents into {collection_name} collection. Acknowledged: {inserted.acknowledged}"
     )
+
+
+async def update_annotation_scenario(
+    annotation_scenario_id: str, updates: Dict[str, Any]
+) -> AnnotationsScenariosDB:
+    """
+    Update an annotation scenario in the database with the provided id.
+
+    Arguments:
+        annotation_scenario_id (str): The ID of the annotation scenario to be updated.
+        updates (Dict[str, Any]): The updates to apply to the annotation scenario.
+
+    Returns:
+        AnnotationsScenariosDB: The updated annotation scenario object.
+    """
+
+    annotation_scenario = await engine.find_one(
+        AnnotationsScenariosDB,
+        AnnotationsScenariosDB.id == ObjectId(annotation_scenario_id),
+    )
+
+    if not annotation_scenario:
+        raise HTTPException(status_code=404, detail="Annotation scenario not found")
+
+    for key, value in updates.items():
+        if hasattr(annotation_scenario, key):
+            setattr(annotation_scenario, key, value)
+
+    await engine.save(annotation_scenario)
+    return annotation_scenario

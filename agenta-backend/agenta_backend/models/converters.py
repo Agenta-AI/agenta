@@ -5,7 +5,9 @@ from typing import List
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.db_models import (
+    AnnoatationScenarioResult,
     AnnotationsDB,
+    AnnotationsScenariosDB,
     AppVariantDB,
     EvaluationScenarioResult,
     EvaluatorConfigDB,
@@ -48,7 +50,12 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioOutput,
 )
 
-from agenta_backend.models.api.annotation_models import Annotation
+from agenta_backend.models.api.annotation_models import (
+    Annotation,
+    AnnotationScenario,
+    AnnotationScenarioInput,
+    AnnotationScenarioOutput,
+)
 
 import logging
 
@@ -355,4 +362,29 @@ def annotation_db_to_pydantic(annotation_db: AnnotationsDB):
         variants_ids=[str(variants_id) for variants_id in annotation_db.variants_ids],
         testset_id=str(annotation_db.testset_id),
         aggregated_results=annotation_db.aggregated_results,
+    )
+
+
+def annotation_scenario_db_to_pydantic(
+    annotation_scenario_db: AnnotationsScenariosDB,
+) -> AnnotationScenario:
+    return AnnotationScenario(
+        id=str(annotation_scenario_db.id),
+        annotation_id=str(annotation_scenario_db.annotation_id),
+        inputs=[
+            AnnotationScenarioInput(**input_dict)
+            for input_dict in annotation_scenario_db.inputs
+        ],
+        outputs=[
+            AnnotationScenarioOutput(**output_dict)
+            for output_dict in annotation_scenario_db.outputs
+        ],
+        is_pinned=annotation_scenario_db.is_pinned,
+        note=annotation_scenario_db.note,
+        results=[
+            AnnoatationScenarioResult(**result_dict)
+            for result_dict in annotation_scenario_db.results
+        ],
+        created_at=annotation_scenario_db.created_at,
+        updated_at=annotation_scenario_db.updated_at,
     )
