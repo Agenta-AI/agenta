@@ -5,6 +5,7 @@ from typing import List
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.db_models import (
+    AnnotationsDB,
     AppVariantDB,
     EvaluationScenarioResult,
     EvaluatorConfigDB,
@@ -46,6 +47,8 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioInput,
     EvaluationScenarioOutput,
 )
+
+from agenta_backend.models.api.annotation_models import Annotation
 
 import logging
 
@@ -341,4 +344,15 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
         name=evaluator_config.name,
         evaluator_key=evaluator_config.evaluator_key,
         settings_values=evaluator_config.settings_values,
+    )
+
+
+def annotation_db_to_pydantic(annotation_db: AnnotationsDB):
+    return Annotation(
+        id=str(annotation_db.id),
+        app_id=str(annotation_db.app.id),
+        annotation_name=annotation_db.annotation_name,
+        variants_ids=[str(variants_id) for variants_id in annotation_db.variants_ids],
+        testset_id=str(annotation_db.testset_id),
+        aggregated_results=annotation_db.aggregated_results,
     )
