@@ -330,3 +330,38 @@ class TraceDB(Model):
 
     class Config:
         collection = "traces"
+
+
+class ABTestingAggregatedResult(EmbeddedModel):
+    variant_id: str
+    result: Result
+
+
+class AnnotationsDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    variants_ids: List[ObjectId]
+    testset_id: ObjectId
+    status: str = Field(default="ANNOTATION_INITIALIZED")
+    annotation_name: str
+    aggregated_results: List[ABTestingAggregatedResult]
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+
+class AnnotationsScenariosDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    variants_ids: List[ObjectId]
+
+    inputs: List[EvaluationScenarioInputDB]
+    outputs: List[EvaluationScenarioOutputDB]
+    correct_answer: Optional[str]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+    evaluators_configs: List[ObjectId]
+    results: List[EvaluationScenarioResult]
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())

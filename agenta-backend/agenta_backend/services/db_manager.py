@@ -19,6 +19,7 @@ from agenta_backend.models.converters import (
 )
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
+    AnnotationsDB,
     Result,
     AggregatedResult,
     AppDB,
@@ -1817,3 +1818,65 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
         return delete_result is not None
     except Exception as e:
         raise e
+
+
+async def fetch_annotations_by_app_id(app_id: str) -> List[AnnotationsDB]:
+    """
+    Fetches annotations from the database based on the provided app ID.
+
+    Args:
+        app_id (str): The app ID to filter the annotations.
+
+    Returns:
+        List[AnnotationsDB]: A list of annotation database objects.
+    """
+    annotations_db = await engine.find(
+        AnnotationsDB, AnnotationsDB.app == ObjectId(app_id)
+    )
+    return annotations_db
+
+
+async def create_new_annotation(
+    app: AppDB,
+    organization: OrganizationDB,
+    user: UserDB,
+    testset_id: str,
+    status: str,
+    variants_ids: [str],
+    annotation_name: str,
+) -> AnnotationsDB:
+    """Create a new annotation scenario.
+    Returns:
+        Annotation: The created annotation scenario.
+    """
+    annotation = AnnotationsDB(
+        app=app,
+        organization=organization,
+        user=user,
+        testset_id=testset_id,
+        variants_ids=variants_ids,
+        annotation_name=annotation_name,
+        status=status,
+        aggregated_results=[],
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat(),
+    )
+    await engine.save(annotation)
+    return annotation
+
+
+async def fetch_annotation_by_id(annotation_id: str) -> Optional[AnnotationsDB]:
+    """
+    Fetches an annotation from the database based on its ID.
+
+    Args:
+        annotation_id (str): The unique identifier of the annotation.
+
+    Returns:
+        Optional[AnnotationsDB]: The annotation database object if found, otherwise None.
+    """
+
+    annotation = await engine.find_one(
+        AnnotationsDB, AnnotationsDB.id == ObjectId(annotation_id)
+    )
+    return annotation
