@@ -112,7 +112,6 @@ async def create_new_annotation(
     new_annotation = NewAnnotation(**new_annotation_data)
     app = AppDB(**app_data)
 
-    print("are we here fel annotation!")
     annotation_db = await db_manager.create_new_annotation(
         app=app,
         organization=app.organization,
