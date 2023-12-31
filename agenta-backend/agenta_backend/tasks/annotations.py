@@ -22,6 +22,7 @@ from agenta_backend.models.db_models import (
 
 from agenta_backend.models.api.annotation_models import NewAnnotation
 
+
 @shared_task(queue="agenta_backend.tasks.annotations.prepare_scenarios")
 def prepare_scenarios(
     app_data: dict, new_annotation_data: dict, annotation_id: str, testset_id: str
@@ -72,12 +73,12 @@ def prepare_scenarios(
                     user=app.user,
                     organization=app.organization,
                     annotation_id=new_annotation_db.id,
-                    inputs= inputs,
+                    inputs=inputs,
                     outputs=[
                         AnnotationScenarioOutputDB(type="text", value=variant_output)
                     ],
-                    isPinned= False,
+                    isPinned=False,
                     note="",
-                    results=[]
+                    results=[],
                 )
             )

@@ -34,7 +34,7 @@ router = APIRouter()
 async def create_annotation(
     payload: NewAnnotation,
     request: Request,
-)-> Annotation:
+) -> Annotation:
     """Creates a new annotation document
     Raises:
         HTTPException: _description_
