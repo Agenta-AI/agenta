@@ -12,8 +12,13 @@ from agenta_backend.models.api.annotation_models import (
     AnnotationScenarioUpdate,
 )
 
+from agenta_backend.services.annotation_manager import update_annotation_scenario
+from agenta_backend.tasks.evaluations import evaluate
+
 from agenta_backend.utils.common import check_access_to_app
 from agenta_backend.services import db_manager, annotation_manager
+
+from agenta_backend.tasks.annotations import prepare_scenarios
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
@@ -29,7 +34,7 @@ router = APIRouter()
 async def create_annotation(
     payload: NewAnnotation,
     request: Request,
-):
+)-> Annotation:
     """Creates a new annotation document
     Raises:
         HTTPException: _description_
@@ -58,6 +63,10 @@ async def create_annotation(
         annotation = await annotation_manager.create_new_annotation(
             app_data=app_data,
             new_annotation_data=new_annotation_data,
+        )
+
+        prepare_scenarios.delay(
+            app_data, new_annotation_data, annotation.id, annotation.testset_id
         )
 
         return annotation
@@ -120,12 +129,10 @@ async def update_annotation_scenario_router(
         None: 204 No Content status code upon successful update.
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
-    try:
-        await update_annotation_scenario(
-            annotation_scenario_id,
-            annotation_scenario,
-            **user_org_data,
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except UpdateAnnotationScenarioError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    await update_annotation_scenario(
+        annotation_scenario_id,
+        annotation_scenario,
+        **user_org_data,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

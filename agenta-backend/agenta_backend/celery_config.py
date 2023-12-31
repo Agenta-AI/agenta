@@ -14,4 +14,9 @@ CELERY_QUEUES = (
         Exchange("agenta_backend.tasks.evaluations.evaluate"),
         routing_key="agenta_backend.tasks.evaluations.evaluate",
     ),
+    Queue(
+        "agenta_backend.tasks.annotations.prepare_scenarios",
+        Exchange("agenta_backend.tasks.annotations.prepare_scenarios"),
+        routing_key="agenta_backend.tasks.annotations.prepare_scenarios",
+    ),
 )
