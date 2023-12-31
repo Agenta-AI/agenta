@@ -1,5 +1,6 @@
 import os
 import logging
+import pymongo
 from pathlib import Path
 from bson import ObjectId
 from datetime import datetime
@@ -20,6 +21,7 @@ from agenta_backend.models.converters import (
 from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
     AnnotationsDB,
+    AnnotationsScenariosDB,
     Result,
     AggregatedResult,
     AppDB,
@@ -1432,8 +1434,6 @@ async def remove_old_template_from_db(tag_ids: list) -> None:
 def remove_document_using_driver(document_id: str, collection_name: str) -> None:
     """Deletes document from using pymongo driver"""
 
-    import pymongo
-
     client = pymongo.MongoClient(os.environ["MONGODB_URI"])
     db = client.get_database("agenta_v2")
 
@@ -1880,3 +1880,76 @@ async def fetch_annotation_by_id(annotation_id: str) -> Optional[AnnotationsDB]:
         AnnotationsDB, AnnotationsDB.id == ObjectId(annotation_id)
     )
     return annotation
+
+
+async def fetch_annotation_scenario_by_id(annotation_id: str) -> Optional[AnnotationsScenariosDB]:
+    """
+    Fetches an annotation from the database based on its ID.
+
+    Args:
+        annotation_id (str): The unique identifier of the annotation.
+
+    Returns:
+        Optional[AnnotationsDB]: The annotation database object if found, otherwise None.
+    """
+
+    annotation = await engine.find_one(
+        AnnotationsScenariosDB, AnnotationsScenariosDB.id == ObjectId(annotation_id)
+    )
+    return annotation
+
+
+async def create_annotation_scenario(
+    annotation: AnnotationsDB,
+    scenario_inputs: List[dict],
+    user: UserDB,
+    organization: OrganizationDB
+) -> AnnotationsScenariosDB:
+    """
+    Create a new annotation scenario in the database.
+
+    Args:
+        annotation (AnnotationsDB): The annotation to which the scenario belongs.
+        scenario_inputs (List[dict]): List of inputs for the annotation scenario.
+        user (UserDB): User information.
+        organization (OrganizationDB): Organization information.
+
+    Returns:
+        AnnotationsScenariosDB: The created annotation scenario.
+    """
+    new_annotation_scenario = AnnotationsScenariosDB(
+        user=user,
+        organization=organization,
+        annotation=annotation,
+        inputs=scenario_inputs,
+        outputs=[],
+        is_pinned=False,
+        note="",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    await engine.save(new_annotation_scenario)
+    return new_annotation_scenario
+
+
+def insert_many_documents_using_driver(documents: list, collection_name: str) -> None:
+    """
+    Inserts multiple documents into a MongoDB collection using the pymongo driver.
+
+    Args:
+        documents (list): A list of dictionaries, each representing a document to insert.
+        collection_name (str): The name of the MongoDB collection where documents will be inserted.
+    """
+    client = pymongo.MongoClient(os.environ["MONGODB_URI"])
+    db = client.get_database("agenta_v2")
+
+    collection = db.get_collection(collection_name)
+
+    for document in documents:
+        if '_id' in document and isinstance(document['_id'], str):
+            document['_id'] = ObjectId(document['_id'])
+
+    inserted = collection.insert_many(documents)
+    print(
+        f"Inserted {len(inserted.inserted_ids)} documents into {collection_name} collection. Acknowledged: {inserted.acknowledged}"
+    )

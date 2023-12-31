@@ -12,6 +12,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenario,
     CustomEvaluationOutput,
     CustomEvaluationDetail,
+    EvaluationScenarioInput,
     EvaluationType,
     NewEvaluation,
     EvaluationScenarioUpdate,
