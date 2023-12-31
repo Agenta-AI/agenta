@@ -1,9 +1,16 @@
 import httpx
 import pytest
 import asyncio
+
 from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
-from agenta_backend.models.db_models import EvaluationDB, AppDB, TestSetDB, AppVariantDB
+from agenta_backend.models.db_models import (
+    EvaluationDB,
+    AppDB,
+    TestSetDB,
+    AppVariantDB,
+    DeploymentDB,
+)
 
 
 # Initialize database engine
@@ -15,7 +22,7 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 # Set global variables
 APP_NAME = "evaluation_in_backend"
-BACKEND_API_HOST = "http://localhost:8001"
+BACKEND_API_HOST = "http://localhost:8000"
 
 
 @pytest.mark.asyncio
@@ -37,14 +44,24 @@ async def test_create_app_from_template(
 @pytest.mark.asyncio
 async def test_app_from_template_container_is_running():
     app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    deployment = await engine.find_one(DeploymentDB, DeploymentDB.app == app.id)
 
-    response = httpx.client(
-        f"{BACKEND_API_HOST}/{str(app.organization.id)}/{app.app_name}/app/openapi.json"
-    )
-    response_data = response.json()
-    assert response.status_code == 200
-    assert "openapi" in response_data
-    assert isinstance(response_data, dict)
+    # Prepare and start short-polling request
+    max_attempts = 10
+    intervals = 2  # seconds
+    for _ in range(max_attempts):
+        uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
+        response = httpx.get(url=uri + "/openapi.json", timeout=timeout)
+        if response.status_code == 200:
+            response_data = response.json()
+            assert "openapi" in response_data
+            assert isinstance(response_data, dict)
+            return
+        await asyncio.sleep(intervals)
+
+    assert (
+        False
+    ), f"Could not reach {app.app_name} running container within the specified polling time"
 
 
 @pytest.mark.asyncio
