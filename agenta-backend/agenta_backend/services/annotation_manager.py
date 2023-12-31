@@ -1,7 +1,7 @@
 import datetime
 import os
 import secrets
-from typing import List, Dict
+from typing import Any, List, Dict
 
 from bson import ObjectId
 from fastapi import HTTPException
@@ -146,8 +146,6 @@ async def create_new_annotation(
     new_annotation = NewAnnotation(**new_annotation_data)
     app = AppDB(**app_data)
 
-    testset = await db_manager.fetch_testset_by_id(new_annotation.testset_id)
-
     annotation_db = await db_manager.create_new_annotation(
         app=app,
         organization=app.organization,
@@ -156,21 +154,6 @@ async def create_new_annotation(
         testset_id=new_annotation.testset_id,
         status=AnnotationStatusEnum.ANNOTATION_STARTED,
         variants_ids=new_annotation.variants_ids,
-    )
-
-    annotations_scenarios = []
-    for datapoint in testset.csvdata:
-        # TODO: make inputs dynamic
-        annotation_scenario = {
-            "annotation_id": ObjectId(annotation_db.id),
-            "inputs": [{"input_name": "country", "input_value": datapoint["country"]}],
-            "user": ObjectId(app.user.id),
-            "organization": ObjectId(app.organization.id),
-        }
-        annotations_scenarios.append(annotation_scenario)
-
-    db_manager.insert_many_documents_using_driver(
-        annotations_scenarios, "annotations_scenarios_db"
     )
 
     return converters.annotation_db_to_pydantic(annotation_db)
@@ -216,27 +199,22 @@ async def create_annotation_scenario(
 
 async def update_annotation_scenario(
     annotation_scenario_id: str,
-    annotation_scenario_data: AnnotationScenarioUpdate,
+    updates: Dict[str, Any],
     **user_org_data,
-) -> None:
+) -> AnnotationScenario:
     """
-    Updates an annotation scenario.
+    Edit an existing annotation scenario.
 
     Args:
-        annotation_scenario_id (str): The ID of the annotation scenario.
-        annotation_scenario_data (AnnotationScenarioUpdate): New data for the scenario.
-        annotation_type (AnnotationType): Type of the annotation.
-        user_org_data (dict): User and organization data.
+        annotation_scenario_id (str): The ID of the annotation scenario to be updated.
+        updates (Dict[str, Any]): A dictionary containing the updates.
 
-    Raises:
-        HTTPException: If annotation scenario not found or access denied.
+    Returns:
+        AnnotationScenario: The updated annotation scenario object.
     """
-    annotation_scenario = await _fetch_annotation_scenario_and_check_access(
-        annotation_scenario_id=annotation_scenario_id,
-        **user_org_data,
+    print("update_annotation_scenario")
+    annotation_scenario = await db_manager.update_annotation_scenario(
+        annotation_scenario_id, updates
     )
-
-    updated_data = annotation_scenario_data.dict()
-    updated_data["updated_at"] = datetime.utcnow()
-
-    await engine.save(annotation_scenario)
+    print(annotation_scenario)
+    return converters.annotation_scenario_db_to_pydantic(annotation_scenario)

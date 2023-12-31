@@ -1,6 +1,7 @@
 from pydantic import BaseModel
-from typing import List, Any
+from typing import Optional, List, Any
 from enum import Enum
+from agenta_backend.models.api.api_models import Result
 
 
 class AnnotationStatusEnum(str, Enum):
@@ -11,6 +12,7 @@ class AnnotationStatusEnum(str, Enum):
 
 
 class Annotation(BaseModel):
+    id: str
     app_id: str
     variants_ids: List[str]
     annotation_name: str
@@ -26,14 +28,33 @@ class NewAnnotation(BaseModel):
 
 
 class AnnotationScenarioUpdate(BaseModel):
-    app_id: str
-    variants_ids: List[str]
-    annotation_name: str
-    testset_id: str
+    result: Result
+
+
+class AnnotationScenarioInput(BaseModel):
+    name: str
+    type: str
+    value: Any
+
+
+class AnnotationScenarioOutput(BaseModel):
+    type: str
+    value: Any
+
+
+class AnnoatationScenarioResult(BaseModel):
+    variant_id: str
+    result: Result
 
 
 class AnnotationScenario(BaseModel):
-    annotation: str
+    id: Optional[str]
+    annotation_id: str
+    inputs: List[AnnotationScenarioInput]
+    outputs: List[AnnotationScenarioOutput]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+    result: AnnoatationScenarioResult
 
 
 class AnnotationScenarioInput(BaseModel):

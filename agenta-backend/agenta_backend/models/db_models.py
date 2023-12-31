@@ -374,7 +374,6 @@ class AnnotationsScenariosDB(Model):
     organization: OrganizationDB = Reference(key_name="organization")
     user: UserDB = Reference(key_name="user")
     annotation_id: ObjectId
-    variants_ids: List[ObjectId]
     inputs: List[AnnotationScenarioInputDB]
     outputs: List[AnnotationScenarioOutputDB]
     is_pinned: Optional[bool]
