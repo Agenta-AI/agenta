@@ -1,4 +1,4 @@
-import json
+import os
 import pytest
 import random
 from typing import List
@@ -28,7 +28,11 @@ test_client = httpx.AsyncClient()
 timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 # Set global variables
-BACKEND_API_HOST = "http://localhost:8000"
+ENVIRONMENT = os.environ.get("ENVIRONMENT")
+if ENVIRONMENT == "development":
+    BACKEND_API_HOST = "http://localhost:8000"
+elif ENVIRONMENT == "test":  # github actions environment
+    BACKEND_API_HOST = "http://localhost/api"
 
 
 @pytest.mark.asyncio
