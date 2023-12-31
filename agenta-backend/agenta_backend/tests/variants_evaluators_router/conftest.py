@@ -13,8 +13,9 @@ from agenta_backend.models.db_models import (
 engine = DBEngine().engine()
 
 # Set global variables
+BACKEND_URI = "http://localhost:8000/"
+ENVIRONMENT = os.environ.get("ENVIRONMENT")
 OPEN_AI_KEY = os.environ.get("OPENAI_API_KEY")
-BACKEND_URI = "http://localhost:8001/"
 
 
 @pytest.fixture(scope="session")
@@ -91,12 +92,17 @@ def auto_regex_test_evaluator_config():
 
 @pytest.fixture()
 def auto_webhook_test_evaluator_config():
+    url = (
+        "http://host.docker.internal/api"
+        if ENVIRONMENT == "development"
+        else "http://agenta-backend-test:8000"
+    )
     return {
         "app_id": "string",
         "name": "WebhookEvaluator",
         "evaluator_key": "auto_webhook_test",
         "settings_values": {
-            "webhook_url": f"{BACKEND_URI}evaluations/webhook_example_fake/",
+            "webhook_url": f"{url}/evaluations/webhook_example_fake/",
             "webhook_body": {},
         },
     }
