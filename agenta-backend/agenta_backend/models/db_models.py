@@ -330,3 +330,57 @@ class TraceDB(Model):
 
     class Config:
         collection = "traces"
+
+
+class AnnotationScenarioInputDB(EmbeddedModel):
+    name: str
+    type: str
+    value: str
+
+
+class AnnotationScenarioOutputDB(EmbeddedModel):
+    type: str
+    value: Any
+
+
+class AnnoationResult(EmbeddedModel):
+    variant_id: str
+    result: Result
+
+
+class AnnotationScenarioResult(EmbeddedModel):
+    variant_id: str
+    result: Result
+
+
+class AnnotationsDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    variants_ids: List[ObjectId]
+    testset_id: ObjectId
+    status: str = Field(default="ANNOTATION_INITIALIZED")
+    annotation_name: str
+    aggregated_results: List[AnnoationResult]
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "annotations"
+
+
+class AnnotationsScenariosDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    annotation_id: ObjectId
+    inputs: List[AnnotationScenarioInputDB]
+    outputs: List[AnnotationScenarioOutputDB]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+    result: Optional[AnnotationScenarioResult] = None
+    created_at: datetime = Field(default=datetime.utcnow())
+    updated_at: datetime = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "annotations_scenarios"

@@ -12,6 +12,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenario,
     CustomEvaluationOutput,
     CustomEvaluationDetail,
+    EvaluationScenarioInput,
     EvaluationType,
     NewEvaluation,
     EvaluationScenarioUpdate,
@@ -817,7 +818,9 @@ async def create_new_evaluation(
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
 
-async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
+async def retrieve_evaluation_results(
+    evaluation_id: str, **user_org_data: dict
+) -> List[dict]:
     """Retrieve the aggregated results for a given evaluation.
 
     Args:
@@ -827,5 +830,14 @@ async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
         List[dict]: evaluation aggregated results
     """
 
+    # Check for access rights
     evaluation = await db_manager.fetch_evaluation_by_id(evaluation_id)
-    return converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
+    access = await check_access_to_app(
+        user_org_data=user_org_data, app_id=str(evaluation.app.id)
+    )
+    if not access:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
+        )
+    return await converters.aggregated_result_to_pydantic(evaluation.aggregated_results)

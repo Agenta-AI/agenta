@@ -1,9 +1,13 @@
 """Converts db models to pydantic models
 """
+import json
 from typing import List
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.db_models import (
+    AnnotationScenarioResult,
+    AnnotationsDB,
+    AnnotationsScenariosDB,
     AppVariantDB,
     EvaluationScenarioResult,
     EvaluatorConfigDB,
@@ -46,6 +50,13 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioOutput,
 )
 
+from agenta_backend.models.api.annotation_models import (
+    Annotation,
+    AnnotationScenario,
+    AnnotationScenarioInput,
+    AnnotationScenarioOutput,
+)
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -83,7 +94,7 @@ async def evaluation_db_to_pydantic(
         variant_names=variant_names,
         testset_id=str(evaluation_db.testset.id),
         testset_name=evaluation_db.testset.name,
-        aggregated_results= await aggregated_result_to_pydantic(
+        aggregated_results=await aggregated_result_to_pydantic(
             evaluation_db.aggregated_results
         ),
         created_at=evaluation_db.created_at,
@@ -94,17 +105,18 @@ async def evaluation_db_to_pydantic(
 async def aggregated_result_to_pydantic(results: List[AggregatedResult]) -> List[dict]:
     transformed_results = []
     for result in results:
-        evaluator_config_db = await db_manager.fetch_evaluator_config(str(result.evaluator_config))
-        evaluator_config_dict = evaluator_config_db.dict() if evaluator_config_db else None
-
-        if evaluator_config_dict:
-            evaluator_config_dict['id'] = str(evaluator_config_dict['id'])
-
-        transformed_results.append({
-            "evaluator_config": evaluator_config_dict,
-            "result": result.result.dict(),
-        })
-
+        evaluator_config_db = await db_manager.fetch_evaluator_config(
+            str(result.evaluator_config)
+        )
+        evaluator_config_dict = (
+            evaluator_config_db.json() if evaluator_config_db else None
+        )
+        transformed_results.append(
+            {
+                "evaluator_config": json.loads(evaluator_config_dict),
+                "result": result.result.dict(),
+            }
+        )
     return transformed_results
 
 
@@ -339,4 +351,36 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
         name=evaluator_config.name,
         evaluator_key=evaluator_config.evaluator_key,
         settings_values=evaluator_config.settings_values,
+    )
+
+
+def annotation_db_to_pydantic(annotation_db: AnnotationsDB):
+    return Annotation(
+        id=str(annotation_db.id),
+        app_id=str(annotation_db.app.id),
+        annotation_name=annotation_db.annotation_name,
+        variants_ids=[str(variants_id) for variants_id in annotation_db.variants_ids],
+        testset_id=str(annotation_db.testset_id),
+        aggregated_results=annotation_db.aggregated_results,
+    )
+
+
+def annotation_scenario_db_to_pydantic(
+    annotation_scenario_db: AnnotationsScenariosDB,
+) -> AnnotationScenario:
+    return AnnotationScenario(
+        id=str(annotation_scenario_db.id),
+        annotation_id=str(annotation_scenario_db.annotation_id),
+        inputs=[
+            AnnotationScenarioInput(**input_dict.dict()) for input_dict in annotation_scenario_db.inputs
+        ],
+        outputs=[
+            AnnotationScenarioOutput(**output_dict.dict()) for output_dict in annotation_scenario_db.outputs
+        ],
+        is_pinned=annotation_scenario_db.is_pinned,
+        note=annotation_scenario_db.note,
+        result=AnnotationScenarioResult(**annotation_scenario_db.result.dict()),
+
+        created_at=annotation_scenario_db.created_at,
+        updated_at=annotation_scenario_db.updated_at,
     )

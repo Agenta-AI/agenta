@@ -8,12 +8,18 @@ from fastapi import HTTPException, APIRouter, Body, Request, status, Response
 
 from agenta_backend.models.api.annotation_models import (
     Annotation,
+    AnnotationScenario,
     NewAnnotation,
-    AnnotationScenarioUpdate
+    AnnotationScenarioUpdate,
 )
 
+from agenta_backend.services.annotation_manager import update_annotation_scenario
+from agenta_backend.tasks.evaluations import evaluate
+
 from agenta_backend.utils.common import check_access_to_app
-from agenta_backend.services import db_manager
+from agenta_backend.services import db_manager, annotation_manager
+
+from agenta_backend.tasks.annotations import prepare_scenarios
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (  # noqa pylint: disable-all
@@ -24,11 +30,12 @@ else:
 
 router = APIRouter()
 
+
 @router.post("/")
 async def create_annotation(
     payload: NewAnnotation,
     request: Request,
-):
+) -> Annotation:
     """Creates a new annotation document
     Raises:
         HTTPException: _description_
@@ -54,9 +61,13 @@ async def create_annotation(
 
         app_data = jsonable_encoder(app)
         new_annotation_data = payload.dict()
-        annotation = await annotation_service.create_new_annotation(
+        annotation = await annotation_manager.create_new_annotation(
             app_data=app_data,
             new_annotation_data=new_annotation_data,
+        )
+
+        prepare_scenarios.delay(
+            app_data, new_annotation_data, annotation.id, annotation.testset_id
         )
 
         return annotation
@@ -81,7 +92,7 @@ async def fetch_list_annotations(
         List[Annotation]: A list of annotations.
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await annotation_service.fetch_list_annotations(
+    return await annotation_manager.fetch_list_annotations(
         app_id=app_id, **user_org_data
     )
 
@@ -100,12 +111,27 @@ async def fetch_annotation(
         Annotation: The fetched annotation.
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await annotation_service.fetch_annotation(annotation_id, **user_org_data)
+    return await annotation_manager.fetch_annotation(annotation_id, **user_org_data)
 
 
-@router.put(
-    "/{annotation_id}/annotation_scenario/{annotation_scenario_id}/"
-)
+@router.get("/{annotation_id}/annotations_scenarios/", response_model=List[AnnotationScenario])
+async def fetch_annotations_scenarios(
+    annotation_id: str,
+    request: Request,
+):
+    """Fetches a single annotation based on its ID.
+
+    Args:
+        annotation_id (str): The ID of the annotation to fetch.
+
+    Returns:
+        Annotation: The fetched annotation.
+    """
+    user_org_data = await get_user_and_org_id(request.state.user_id)
+    return await annotation_manager.fetch_annotations_scenarios(annotation_id, **user_org_data)
+
+
+@router.put("/{annotation_id}/annotations_scenarios/{annotation_scenario_id}/")
 async def update_annotation_scenario_router(
     annotation_id: str,
     annotation_scenario_id: str,
@@ -121,12 +147,10 @@ async def update_annotation_scenario_router(
         None: 204 No Content status code upon successful update.
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
-    try:
-        await update_annotation_scenario(
-            annotation_scenario_id,
-            annotation_scenario,
-            **user_org_data,
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except UpdateAnnotationScenarioError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+
+    await update_annotation_scenario(
+        annotation_scenario_id,
+        annotation_scenario,
+        **user_org_data,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
