@@ -23,18 +23,10 @@ jobs:
 
       - name: Check Templates Exists
         run: |
-          while true; do
-              if curl -s http://localhost/api/containers/templates/; then
-                break
-              fi
-              sleep 5
-            done
-          while true; do
-            if curl -s http://localhost:8000/containers/templates/; then
-              break
-            fi
-            sleep 5
-          done
+          curl -s http://localhost/api/containers/templates/
+          curl -s http://localhost:8000/containers/templates/
+          curl -s http://localhost:80/api/containers/templates/
+          curl -s http://localhost:8000/api/containers/templates/
 
       # - name: Wait for Backend Service
       #   run: |
