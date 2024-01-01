@@ -39,88 +39,88 @@ def evaluate(
     new_evaluation_db = loop.run_until_complete(fetch_evaluation_by_id(evaluation_id))
     evaluators_aggregated_data = defaultdict(list)
 
-    for variant_id in evaluation.variant_ids:
-        variant_id = str(variant_id)
 
-        app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
-        deployment = loop.run_until_complete(
-            get_deployment_by_objectid(app_variant_db.base.deployment)
+    variant_id = str(evaluation.variant_ids[0])
+
+    app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
+    deployment = loop.run_until_complete(
+        get_deployment_by_objectid(app_variant_db.base.deployment)
+    )
+
+    # TODO: remove if abraham's fix is working
+    uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
+
+    for data_point in testset.csvdata:
+        # 1. We prepare the inputs
+        raw_inputs = (
+            app_variant_db.parameters.get("inputs", [])
+            if app_variant_db.parameters
+            else []
         )
+        inputs = []
+        if raw_inputs:
+            inputs = [
+                EvaluationScenarioInputDB(
+                    name=input_item["name"],
+                    type="text",
+                    value=data_point[input_item["name"]],
+                )
+                for input_item in raw_inputs
+            ]
 
-        # TODO: remove if abraham's fix is working
-        uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
+        # 2. We get the output from the llm app
+        variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
-        for data_point in testset.csvdata:
-            # 1. We prepare the inputs
-            raw_inputs = (
-                app_variant_db.parameters.get("inputs", [])
-                if app_variant_db.parameters
-                else []
+        # 3. We evaluate
+        evaluators_results: [EvaluationScenarioResult] = []
+        for evaluator_config_id in evaluation.evaluators_configs:
+            evaluator_config = loop.run_until_complete(
+                fetch_evaluator_config(evaluator_config_id)
             )
-            inputs = []
-            if raw_inputs:
-                inputs = [
-                    EvaluationScenarioInputDB(
-                        name=input_item["name"],
-                        type="text",
-                        value=data_point[input_item["name"]],
-                    )
-                    for input_item in raw_inputs
-                ]
 
-            # 2. We get the output from the llm app
-            variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
-
-            # 3. We evaluate
-            evaluators_results: [EvaluationScenarioResult] = []
-            for evaluator_config_id in evaluation.evaluators_configs:
-                evaluator_config = loop.run_until_complete(
-                    fetch_evaluator_config(evaluator_config_id)
-                )
-
-                additional_kwargs = (
-                    {
-                        "app_params": app_variant_db.config.parameters,
-                        "inputs": data_point,  # TODO: fetch input from config parameters when #1102 has been fixed
-                    }
-                    if evaluator_config.evaluator_key == "custom_code_run"
-                    else {}
-                )
-                result = evaluators_service.evaluate(
-                    evaluator_config.evaluator_key,
-                    variant_output,
-                    data_point["correct_answer"],
-                    evaluator_config.settings_values,
-                    **additional_kwargs
-                )
-
-                result_object = EvaluationScenarioResult(
-                    evaluator_config=evaluator_config.id,
-                    result=result,
-                )
-                evaluators_results.append(result_object)
-                evaluators_aggregated_data[evaluator_config.evaluator_key].append(
-                    result
-                )
-
-            # 4. We create a new evaluation scenario
-            evaluation_scenario = loop.run_until_complete(
-                create_new_evaluation_scenario(
-                    user=app.user,
-                    organization=app.organization,
-                    evaluation=new_evaluation_db,
-                    variant_id=variant_id,
-                    evaluators_configs=new_evaluation_db.evaluators_configs,
-                    inputs=inputs,
-                    is_pinned=False,
-                    note="",
-                    correct_answer=data_point["correct_answer"],
-                    outputs=[
-                        EvaluationScenarioOutputDB(type="text", value=variant_output)
-                    ],
-                    results=evaluators_results,
-                )
+            additional_kwargs = (
+                {
+                    "app_params": app_variant_db.config.parameters,
+                    "inputs": data_point,  # TODO: fetch input from config parameters when #1102 has been fixed
+                }
+                if evaluator_config.evaluator_key == "custom_code_run"
+                else {}
             )
+            result = evaluators_service.evaluate(
+                evaluator_config.evaluator_key,
+                variant_output,
+                data_point["correct_answer"],
+                evaluator_config.settings_values,
+                **additional_kwargs
+            )
+
+            result_object = EvaluationScenarioResult(
+                evaluator_config=evaluator_config.id,
+                result=result,
+            )
+            evaluators_results.append(result_object)
+            evaluators_aggregated_data[evaluator_config.evaluator_key].append(
+                result
+            )
+
+        # 4. We create a new evaluation scenario
+        evaluation_scenario = loop.run_until_complete(
+            create_new_evaluation_scenario(
+                user=app.user,
+                organization=app.organization,
+                evaluation=new_evaluation_db,
+                variant_id=variant_id,
+                evaluators_configs=new_evaluation_db.evaluators_configs,
+                inputs=inputs,
+                is_pinned=False,
+                note="",
+                correct_answer=data_point["correct_answer"],
+                outputs=[
+                    EvaluationScenarioOutputDB(type="text", value=variant_output)
+                ],
+                results=evaluators_results,
+            )
+        )
 
     aggregated_results = loop.run_until_complete(
         aggregate_evaluator_results(app, evaluators_aggregated_data)
