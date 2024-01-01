@@ -12,7 +12,7 @@ There are multiple data types that can be used for the parameters in the configu
 This display a text area widget in the playground. 
 
 ```python
-agenta.config.default(prompt_system = ag.TextParam("You are an expert in geography."),
+agenta.config.register_default(prompt_system = ag.TextParam("You are an expert in geography."),
                       prompt_user = ag.TextParam("What is the capital of {country}?"))
 ``` 
 
@@ -21,7 +21,7 @@ agenta.config.default(prompt_system = ag.TextParam("You are an expert in geograp
 This displays a slider widget in the playground with a step 1 (integers). 
 
 ```python
-agenta.config.default(intval1 = ag.IntParam(default=1, minval=0, maxval=2),
+agenta.config.register_default(intval1 = ag.IntParam(default=1, minval=0, maxval=2),
                       intval2 = ag.IntParam(1)
 ```
 
@@ -31,7 +31,7 @@ This displays a slider widget in the playground with a step 0.1 (float).
 
 
 ```python
-agenta.config.default(temperature = ag.IntParam(default=0.5, minval=0, maxval=2),
+agenta.config.register_default(temperature = ag.IntParam(default=0.5, minval=0, maxval=2),
                       temperature2 = ag.IntParam(0.5)
 ```
 
@@ -41,7 +41,7 @@ This displays a binary switch in the playground.
 
 
 ```python
-agenta.config.default(temperature = ag.IntParam(default=0.5, minval=0, maxval=2),
+agenta.config.register_default(temperature = ag.IntParam(default=0.5, minval=0, maxval=2),
                       force_json = BinaryParam())
 ```
 

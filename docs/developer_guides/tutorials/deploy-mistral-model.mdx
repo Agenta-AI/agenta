@@ -39,7 +39,7 @@ API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-v0.1
 headers = {"Authorization": "Bearer [Your_Token]"}
 
 ag.init()
-ag.config.default(
+ag.config.register_default(
     prompt_template=ag.TextParam("Summarize the following text: {text}"),
 )
 
@@ -116,7 +116,7 @@ agenta variant serve app.py
    headers = {"Authorization": f"Bearer [Your_Token]"}
 
    ag.init()
-   ag.config.default(
+   ag.config.register_default(
        prompt_template=ag.TextParam("Summarize the following text: {text}")
    )
 

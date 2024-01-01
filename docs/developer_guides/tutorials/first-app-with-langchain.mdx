@@ -92,7 +92,7 @@ default_prompt = """
     startup idea: {startup_idea}"""
 
 ag.init()
-ag.config.default(prompt_template=default_prompt, temperature=0.5)
+ag.config.register_default(prompt_template=default_prompt, temperature=0.5)
 
 @ag.entrypoint
 def generate(
@@ -113,7 +113,7 @@ Let's examine how we modified the original code.
 
 ```python
 ag.init()
-ag.config.default(prompt_template=ag.TextParam(default_prompt), temperature=ag.FloatParam(0.5))
+ag.config.register_default(prompt_template=ag.TextParam(default_prompt), temperature=ag.FloatParam(0.5))
 ```
 
 These two lines initialize agenta, then set a default configuration for the app. 
