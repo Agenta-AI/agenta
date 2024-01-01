@@ -18,23 +18,14 @@ jobs:
       - name: Start Docker Compose
         run: OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }} ENVIRONMENT=github docker-compose -f "docker-compose.test.yml" up -d --build
 
-      - name: Restart Backend Service To Fetch Template Images
-        run: docker container restart agenta-backend-test
+      - name: Wait for services to be ready
+        run: sleep 10
 
       - name: Check Templates Exists
-        run: |
-          curl -s http://localhost:8000/containers/templates/
-          curl -s http://localhost:80/api/containers/templates/
-          curl -s http://localhost:8000/api/containers/templates/
+        run: curl -i http://localhost/api/containers/templates/
 
-      # - name: Wait for Backend Service
-      #   run: |
-      #     while true; do
-      #       if curl -s http://localhost/api/openapi.json; then
-      #         break
-      #       fi
-      #       sleep 5
-      #     done
+      - name: Wait for Backend Service
+        run: curl -i http://localhost/api/openapi.json
 
       # - name: Run tests
       #   run: docker exec agenta-backend-test pytest
