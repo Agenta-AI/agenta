@@ -84,17 +84,28 @@ async def create_evaluation(
             raise HTTPException(status_code=404, detail="App not found")
 
         app_data = jsonable_encoder(app)
-        new_evaluation_data = payload.dict()
-        evaluation = await evaluation_service.create_new_evaluation(
-            app_data=app_data,
-            new_evaluation_data=new_evaluation_data,
-            evaluators_configs=payload.evaluators_configs,
-        )
+        evaluations = []
 
-        evaluate.delay(
-            app_data, new_evaluation_data, evaluation.id, evaluation.testset_id
-        )
-        return evaluation
+        for variant_id in payload.variant_ids:
+            new_evaluation_data = {
+                "app_id": payload.app_id,
+                "variant_ids": [variant_id],  # Only this variant ID
+                "evaluators_configs": payload.evaluators_configs,
+                "testset_id": payload.testset_id
+            }
+
+            evaluation = await evaluation_service.create_new_evaluation(
+                app_data=app_data,
+                new_evaluation_data=new_evaluation_data,
+                evaluators_configs=payload.evaluators_configs,
+            )
+
+            evaluate.delay(
+                app_data, new_evaluation_data, evaluation.id, evaluation.testset_id
+            )
+            evaluations.append(evaluation)
+
+        return evaluations
     except KeyError:
         raise HTTPException(
             status_code=400,
