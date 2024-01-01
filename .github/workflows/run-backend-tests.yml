@@ -23,21 +23,11 @@ jobs:
 
       - name: Check Templates Exists
         run: |
-          while true; do
-            if curl -i http://localhost/api/containers/templates/; then
-              break
-            fi
-            sleep 5
-          done
+          sleep 10 && curl -i http://localhost/api/containers/templates/
 
       - name: Wait for Backend Service
         run: |
-          while true; do
-            if curl -i http://localhost/api/openapi.json; then
-              break
-            fi
-            sleep 5
-          done
+          sleep 10 && curl -i http://localhost/api/openapi.json
 
       # - name: Run tests
       #   run: docker exec agenta-backend-test pytest
