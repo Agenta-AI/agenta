@@ -109,6 +109,7 @@ def evaluate(
                     user=app.user,
                     organization=app.organization,
                     evaluation=new_evaluation_db,
+                    variant_id=variant_id,
                     evaluators_configs=new_evaluation_db.evaluators_configs,
                     inputs=inputs,
                     is_pinned=False,
