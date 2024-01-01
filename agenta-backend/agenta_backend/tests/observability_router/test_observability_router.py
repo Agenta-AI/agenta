@@ -32,7 +32,7 @@ ENVIRONMENT = os.environ.get("ENVIRONMENT")
 if ENVIRONMENT == "development":
     BACKEND_API_HOST = "http://host.docker.internal/api"
 elif ENVIRONMENT == "github":
-    BACKEND_API_HOST = "http://localhost/api"
+    BACKEND_API_HOST = "http://agenta-backend-test:8000"
 
 
 @pytest.mark.asyncio
