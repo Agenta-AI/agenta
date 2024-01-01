@@ -2,7 +2,6 @@ version: '3.8'
 services:
     reverse-proxy:
         image: traefik:v2.10
-        container_name: agenta-reverse_proxy-test
         command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
         ports:
             - "80:80"
@@ -32,14 +31,6 @@ services:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
-        labels:
-            - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
-            - "traefik.http.routers.backend.entrypoints=web"
-            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
-            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.backend.middlewares=backend-strip"
-            - "traefik.http.services.backend.loadbalancer.server.port=8000"
-            - "traefik.http.routers.backend.service=backend"
         command:
             [
                 "uvicorn",
@@ -54,6 +45,14 @@ services:
                 "--root-path",
                 "/api",
             ]
+        labels:
+            - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
+            - "traefik.http.routers.backend.entrypoints=web"
+            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.backend.middlewares=backend-strip"
+            - "traefik.http.services.backend.loadbalancer.server.port=8000"
+            - "traefik.http.routers.backend.service=backend"
         depends_on:
             mongo:
                 condition: service_healthy
@@ -108,6 +107,7 @@ services:
         environment:
             - MONGODB_URI=mongodb://username:password@mongo:27017
             - REDIS_URL=redis://redis:6379/0
+            - ENVIRONMENT=${ENVIRONMENT}
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - FEATURE_FLAG=oss

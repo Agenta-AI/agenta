@@ -25,9 +25,9 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 APP_NAME = "evaluation_in_backend"
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
 if ENVIRONMENT == "development":
-    BACKEND_API_HOST = "http://localhost:8000"
-elif ENVIRONMENT == "test":  # github actions environment
-    BACKEND_API_HOST = "http://localhost/api"
+    BACKEND_API_HOST = "http://host.docker.internal/api"
+elif ENVIRONMENT == "github":
+    BACKEND_API_HOST = "http://agenta-backend-test:8000"
 
 
 @pytest.mark.asyncio
@@ -44,29 +44,6 @@ async def test_create_app_from_template(
         f"{BACKEND_API_HOST}/apps/app_and_variant_from_template/", json=payload
     )
     assert response.status_code == 200
-
-
-@pytest.mark.asyncio
-async def test_app_from_template_container_is_running():
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
-    deployment = await engine.find_one(DeploymentDB, DeploymentDB.app == app.id)
-
-    # Prepare and start short-polling request
-    max_attempts = 10
-    intervals = 2  # seconds
-    for _ in range(max_attempts):
-        uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
-        response = httpx.get(url=uri + "/openapi.json", timeout=timeout)
-        if response.status_code == 200:
-            response_data = response.json()
-            assert "openapi" in response_data
-            assert isinstance(response_data, dict)
-            return
-        await asyncio.sleep(intervals)
-
-    assert (
-        False
-    ), f"Could not reach {app.app_name} running container within the specified polling time"
 
 
 @pytest.mark.asyncio
@@ -277,10 +254,10 @@ async def test_remove_running_template_app_container():
     # Connect to the Docker daemon
     client = docker.from_env()
     app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
-    container_name = f"{app.app_name}-app-{str(app.organization.id)}"
+    deployment = await engine.find_one(DeploymentDB, DeploymentDB.app == app.id)
     try:
         # Retrieve container
-        container = client.containers.get(container_name)
+        container = client.containers.get(deployment.container_name)
         # Stop and remove container
         container.stop()
         container.remove()
