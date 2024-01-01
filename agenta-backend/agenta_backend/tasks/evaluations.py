@@ -1,6 +1,6 @@
+import os
 import asyncio
 from typing import List
-from bson import ObjectId
 from celery import shared_task
 from collections import defaultdict
 
@@ -47,8 +47,14 @@ def evaluate(
             get_deployment_by_objectid(app_variant_db.base.deployment)
         )
 
-        # TODO: remove if abraham's fix is working
-        uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
+        #!NOTE: do not remove! this will be used in github workflow!
+        backend_environment = os.environ.get("ENVIRONMENT")
+        if backend_environment is not None and backend_environment == "github":
+            uri = f"http://{deployment.container_name}"
+        else:
+            uri = deployment.uri.replace(
+                "http://localhost", "http://host.docker.internal"
+            )
 
         for data_point in testset.csvdata:
             # 1. We prepare the inputs
@@ -91,7 +97,7 @@ def evaluate(
                     variant_output,
                     data_point["correct_answer"],
                     evaluator_config.settings_values,
-                    **additional_kwargs
+                    **additional_kwargs,
                 )
 
                 result_object = EvaluationScenarioResult(

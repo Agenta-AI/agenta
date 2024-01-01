@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx
 import backoff
 
@@ -7,7 +9,7 @@ import backoff
     (httpx.TimeoutException, httpx.ConnectTimeout, httpx.ConnectError),
     max_tries=2,
 )
-def get_llm_app_output(uri, input):
+def get_llm_app_output(uri: str, input: Any) -> Any:
     url = f"{uri}/generate"
 
     # TODO: adjust these hardcoded values in this payload

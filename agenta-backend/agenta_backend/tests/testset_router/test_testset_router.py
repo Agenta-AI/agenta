@@ -21,10 +21,9 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 # Set global variables
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
 if ENVIRONMENT == "development":
-    BACKEND_API_HOST = "http://localhost:8000"
-elif ENVIRONMENT == "test":  # github actions environment
-    BACKEND_API_HOST = "http://localhost/api"
-TESTSET_SUBMODULE_DIR = Path(__file__).parent
+    BACKEND_API_HOST = "http://host.docker.internal/api"
+elif ENVIRONMENT == "github":
+    BACKEND_API_HOST = "http://agenta-backend-test:8000"
 
 
 # TODO: test_csv_upload_file

@@ -32,9 +32,9 @@ logger.setLevel(logging.DEBUG)
 # Set global variables
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
 if ENVIRONMENT == "development":
-    BACKEND_API_HOST = "http://localhost:8000"
-elif ENVIRONMENT == "test":  # github actions environment
-    BACKEND_API_HOST = "http://localhost/api"
+    BACKEND_API_HOST = "http://host.docker.internal/api"
+elif ENVIRONMENT == "github":
+    BACKEND_API_HOST = "http://agenta-backend-test:8000"
 
 
 @pytest.mark.asyncio
