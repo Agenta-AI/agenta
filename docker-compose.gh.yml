@@ -50,6 +50,8 @@ services:
             - "traefik.http.routers.backend.service=backend"
         networks:
             - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
         depends_on:
             mongo:
                 condition: service_healthy
