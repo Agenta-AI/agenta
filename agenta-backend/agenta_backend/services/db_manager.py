@@ -1909,7 +1909,6 @@ async def create_new_annotation_scenario(
     inputs: List[dict],
     outputs: List[dict],
     isPinned: bool,
-    results: List,
     note: str,
 ) -> AnnotationsScenariosDB:
     """
@@ -1933,7 +1932,7 @@ async def create_new_annotation_scenario(
         outputs=outputs,
         is_pinned=isPinned,
         note=note,
-        results=results,
+        result=None,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )

@@ -8,6 +8,7 @@ from fastapi import HTTPException, APIRouter, Body, Request, status, Response
 
 from agenta_backend.models.api.annotation_models import (
     Annotation,
+    AnnotationScenario,
     NewAnnotation,
     AnnotationScenarioUpdate,
 )
@@ -113,7 +114,24 @@ async def fetch_annotation(
     return await annotation_manager.fetch_annotation(annotation_id, **user_org_data)
 
 
-@router.put("/{annotation_id}/annotation_scenario/{annotation_scenario_id}/")
+@router.get("/{annotation_id}/annotations_scenarios/", response_model=List[AnnotationScenario])
+async def fetch_annotations_scenarios(
+    annotation_id: str,
+    request: Request,
+):
+    """Fetches a single annotation based on its ID.
+
+    Args:
+        annotation_id (str): The ID of the annotation to fetch.
+
+    Returns:
+        Annotation: The fetched annotation.
+    """
+    user_org_data = await get_user_and_org_id(request.state.user_id)
+    return await annotation_manager.fetch_annotations_scenarios(annotation_id, **user_org_data)
+
+
+@router.put("/{annotation_id}/annotations_scenarios/{annotation_scenario_id}/")
 async def update_annotation_scenario_router(
     annotation_id: str,
     annotation_scenario_id: str,
