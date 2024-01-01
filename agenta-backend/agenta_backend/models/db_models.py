@@ -348,7 +348,7 @@ class AnnoationResult(EmbeddedModel):
     result: Result
 
 
-class AnnoatationScenarioResult(EmbeddedModel):
+class AnnotationScenarioResult(EmbeddedModel):
     variant_id: str
     result: Result
 
@@ -378,7 +378,7 @@ class AnnotationsScenariosDB(Model):
     outputs: List[AnnotationScenarioOutputDB]
     is_pinned: Optional[bool]
     note: Optional[str]
-    results: List[AnnoatationScenarioResult]
+    result: Optional[AnnotationScenarioResult] = None
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 

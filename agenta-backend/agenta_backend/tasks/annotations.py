@@ -17,7 +17,7 @@ from agenta_backend.models.db_models import (
     AnnotationScenarioInputDB,
     AnnotationScenarioOutputDB,
     AnnotationScenarioInputDB,
-    AnnoatationScenarioResult,
+    AnnotationScenarioResult,
 )
 
 from agenta_backend.models.api.annotation_models import NewAnnotation
@@ -79,6 +79,5 @@ def prepare_scenarios(
                     ],
                     isPinned=False,
                     note="",
-                    results=[],
                 )
             )

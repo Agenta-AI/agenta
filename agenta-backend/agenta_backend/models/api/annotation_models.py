@@ -42,7 +42,7 @@ class AnnotationScenarioOutput(BaseModel):
     value: Any
 
 
-class AnnoatationScenarioResult(BaseModel):
+class AnnotationScenarioResult(BaseModel):
     variant_id: str
     result: Result
 
@@ -54,10 +54,5 @@ class AnnotationScenario(BaseModel):
     outputs: List[AnnotationScenarioOutput]
     is_pinned: Optional[bool]
     note: Optional[str]
-    result: AnnoatationScenarioResult
+    result: AnnotationScenarioResult
 
-
-class AnnotationScenarioInput(BaseModel):
-    name: str
-    type: str
-    value: Any
