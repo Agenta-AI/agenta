@@ -23,7 +23,6 @@ jobs:
 
       - name: Check Templates Exists
         run: |
-          curl -s http://localhost/api/containers/templates/
           curl -s http://localhost:8000/containers/templates/
           curl -s http://localhost:80/api/containers/templates/
           curl -s http://localhost:8000/api/containers/templates/
