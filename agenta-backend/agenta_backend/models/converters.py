@@ -386,4 +386,6 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
         name=evaluator_config.name,
         evaluator_key=evaluator_config.evaluator_key,
         settings_values=evaluator_config.settings_values,
+        created_at=evaluator_config.created_at,
+        updated_at=evaluator_config.updated_at,
     )
