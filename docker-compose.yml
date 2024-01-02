@@ -145,6 +145,8 @@ services:
         depends_on:
             - rabbitmq
             - redis
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
         networks:
             - agenta-network
 
