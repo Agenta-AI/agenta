@@ -1,18 +1,10 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React, {useEffect, useMemo, useRef, useState} from "react"
 import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {ColDef, ICellRendererParams} from "ag-grid-community"
+import {ColDef} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, GlobalToken, Space, Spin, Typography, message, theme} from "antd"
-import {
-    CopyOutlined,
-    DeleteOutlined,
-    FullscreenExitOutlined,
-    FullscreenOutlined,
-    PlusCircleOutlined,
-    SlidersOutlined,
-    SwapOutlined,
-} from "@ant-design/icons"
+import {Button, Space, Spin, Tooltip, theme} from "antd"
+import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
 import {EvaluationStatus, GenericObject, JSSTheme, TypedValue, _Evaluation} from "@/lib/Types"
 import {capitalize, round, uniqBy} from "lodash"
 import dayjs from "dayjs"
@@ -25,7 +17,12 @@ import {useRouter} from "next/router"
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
-import {useDurationCounter} from "@/hooks/useDurationCounter"
+import {
+    LinkCellRenderer,
+    StatusRenderer,
+    runningStatuses,
+    statusMapper,
+} from "../cellRenderers/cellRenderers"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -42,70 +39,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         marginTop: "1rem",
         alignSelf: "flex-end",
     },
-    statusCell: {
-        display: "flex",
-        alignItems: "center",
-        gap: "0.25rem",
-        height: "100%",
-        marginBottom: 0,
-
-        "& > div:nth-of-type(1)": {
-            height: 6,
-            aspectRatio: 1 / 1,
-            borderRadius: "50%",
-        },
-    },
-    dot: {
-        height: 3,
-        aspectRatio: 1 / 1,
-        borderRadius: "50%",
-        backgroundColor: "#8c8c8c",
-        marginTop: 2,
-    },
-    date: {
-        color: "#8c8c8c",
-    },
-    longCell: {
-        height: "100%",
-        position: "relative",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        "& .ant-space": {
-            position: "absolute",
-            bottom: 2,
-            right: 0,
-            height: 35,
-            backgroundColor: theme.colorBgContainer,
-            padding: "0.5rem",
-            borderRadius: theme.borderRadius,
-            border: `1px solid ${theme.colorBorder}`,
-            display: "none",
-        },
-        "&:hover .ant-space": {
-            display: "inline-flex",
-        },
-    },
 }))
-
-const statusMapper = (token: GlobalToken) => ({
-    [EvaluationStatus.INITIALIZED]: {
-        label: "Queued",
-        color: token.colorTextSecondary,
-    },
-    [EvaluationStatus.STARTED]: {
-        label: "Running",
-        color: token.colorWarning,
-    },
-    [EvaluationStatus.FINISHED]: {
-        label: "Completed",
-        color: token.colorSuccess,
-    },
-    [EvaluationStatus.ERROR]: {
-        label: "Failed",
-        color: token.colorError,
-    },
-})
 
 export function getTypedValue(res?: TypedValue) {
     const {value, type} = res || {}
@@ -150,75 +84,6 @@ export function getFilterParams(type: "number" | "text" | "date") {
         filterParams,
     }
 }
-
-export function LongTextCellRenderer(params: ICellRendererParams) {
-    const {value, api, node} = params
-    const [expanded, setExpanded] = useState(
-        node.rowHeight !== api.getSizesForCurrentTheme().rowHeight,
-    )
-    const classes = useStyles()
-
-    const onCopy = useCallback(() => {
-        navigator.clipboard
-            .writeText(value as string)
-            .then(() => {
-                message.success("Copied to clipboard")
-            })
-            .catch(console.error)
-    }, [])
-
-    const onExpand = useCallback(() => {
-        node.setRowHeight(api.getSizesForCurrentTheme().rowHeight * (expanded ? 1 : 5))
-        api.onRowHeightChanged()
-    }, [expanded])
-
-    useEffect(() => {
-        node.addEventListener("heightChanged", () => {
-            setExpanded(node.rowHeight !== api.getSizesForCurrentTheme().rowHeight)
-        })
-    }, [])
-
-    return (
-        <div
-            className={classes.longCell}
-            style={expanded ? {textWrap: "wrap", lineHeight: "2em", paddingTop: 6.5} : undefined}
-        >
-            {value}
-            <Space align="center" size="middle">
-                {expanded ? (
-                    <FullscreenExitOutlined onClick={onExpand} />
-                ) : (
-                    <FullscreenOutlined onClick={onExpand} />
-                )}
-                <CopyOutlined onClick={onCopy} />
-            </Space>
-        </div>
-    )
-}
-
-const StatusRenderer = React.memo(
-    (params: ICellRendererParams<_Evaluation>) => {
-        const classes = useStyles()
-        const {token} = theme.useToken()
-        const duration = useDurationCounter(
-            params.data?.duration || 0,
-            [EvaluationStatus.STARTED, EvaluationStatus.INITIALIZED].includes(params.value),
-        )
-        const {label, color} = statusMapper(token)[params.value as EvaluationStatus]
-
-        return (
-            <Typography.Text className={classes.statusCell}>
-                <div style={{backgroundColor: color}} />
-                <span>{label}</span>
-                <span className={classes.dot}></span>
-                <span className={classes.date}>{duration}</span>
-            </Typography.Text>
-        )
-    },
-    (prev, next) => prev.value === next.value && prev.data?.duration === next.data?.duration,
-)
-
-const runningStatuses = [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED]
 
 export const calcEvalDuration = (evaluation: _Evaluation) => {
     return dayjs(
@@ -318,31 +183,35 @@ const EvaluationResults: React.FC<Props> = () => {
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_Evaluation>[] = [
             {
-                minWidth: 280,
-                field: "id",
-                flex: 1,
-                headerCheckboxSelection: true,
-                checkboxSelection: true,
-                showDisabledCheckboxes: true,
-                ...getFilterParams("text"),
-                pinned: "left",
-            },
-            {
-                field: "testset.name",
-                flex: 1,
-                minWidth: 160,
-                tooltipValueGetter: (params) => params.value,
-                ...getFilterParams("text"),
-            },
-            {
                 field: "variants",
                 flex: 1,
                 minWidth: 160,
-                valueGetter: (params) =>
-                    params.data?.variants.map((item) => item.variantName).join(","),
-                headerName: "Variant(s)",
-                tooltipValueGetter: (params) =>
-                    params.data?.variants.map((item) => item.variantName).join(","),
+                pinned: "left",
+                headerCheckboxSelection: true,
+                checkboxSelection: true,
+                showDisabledCheckboxes: true,
+                cellRenderer: (params: any) => (
+                    <LinkCellRenderer
+                        {...params}
+                        href={`/apps/${appId}/playground/?variant=${params.value}`}
+                    />
+                ),
+                valueGetter: (params) => params.data?.variants[0].variantName,
+                headerName: "Variant",
+                tooltipValueGetter: (params) => params.data?.variants[0].variantName,
+                ...getFilterParams("text"),
+            },
+            {
+                field: "testset.name",
+                cellRenderer: (params: any) => (
+                    <LinkCellRenderer
+                        {...params}
+                        href={`/apps/${appId}/testsets/${params.data?.testset.id}`}
+                    />
+                ),
+                flex: 1,
+                minWidth: 160,
+                tooltipValueGetter: (params) => params.value,
                 ...getFilterParams("text"),
             },
             ...evaluatorConfigs.map(
@@ -390,6 +259,34 @@ const EvaluationResults: React.FC<Props> = () => {
         return colDefs
     }, [evaluatorConfigs])
 
+    const compareDisabled = useMemo(
+        () =>
+            selected.length < 2 ||
+            selected.some(
+                (item) =>
+                    runningStatuses.includes(item.status) ||
+                    item.testset.id !== selected[0].testset.id,
+            ),
+        [selected],
+    )
+
+    const compareBtnNode = (
+        <Button
+            disabled={compareDisabled}
+            icon={<SwapOutlined />}
+            type="primary"
+            onClick={() =>
+                router.push(
+                    `/apps/${appId}/evaluations/compare/?evaluations=${selected
+                        .map((item) => item.id)
+                        .join(",")}`,
+                )
+            }
+        >
+            Compare
+        </Button>
+    )
+
     return (
         <div className={classes.root}>
             <Space className={classes.buttonsGroup}>
@@ -402,27 +299,13 @@ const EvaluationResults: React.FC<Props> = () => {
                 >
                     Delete
                 </Button>
-                <Button
-                    disabled={
-                        selected.length < 2 ||
-                        selected.some(
-                            (item) =>
-                                runningStatuses.includes(item.status) ||
-                                item.testset.id !== selected[0].testset.id,
-                        )
-                    }
-                    icon={<SwapOutlined />}
-                    type="primary"
-                    onClick={() =>
-                        router.push(
-                            `/apps/${appId}/evaluations/compare/?evaluations=${selected
-                                .map((item) => item.id)
-                                .join(",")}`,
-                        )
-                    }
-                >
-                    Compare
-                </Button>
+                {compareDisabled ? (
+                    <Tooltip title="Select 2 or more evaluations from the same testset to compare">
+                        {compareBtnNode}
+                    </Tooltip>
+                ) : (
+                    compareBtnNode
+                )}
                 <Button
                     icon={<PlusCircleOutlined />}
                     type="primary"
@@ -441,7 +324,7 @@ const EvaluationResults: React.FC<Props> = () => {
                         rowData={evaluations}
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.id}
-                        onRowClicked={(params) =>
+                        onRowDoubleClicked={(params) =>
                             EvaluationStatus.FINISHED === params.data?.status &&
                             router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
                         }

@@ -46,6 +46,20 @@ export const exportSingleModelEvaluationData = (evaluation: Evaluation, rows: Ge
     downloadCsv(csvData, filename)
 }
 
+export const calculateResultsDataAvg = (
+    resultsData: Record<string, number>,
+    multiplier: number = 10,
+) => {
+    const obj = {...resultsData}
+    Object.keys(obj).forEach((key) => {
+        if (isNaN(+key)) delete obj[key]
+    })
+
+    const count = Object.values(obj).reduce((acc, value) => acc + +value, 0)
+    const sum = Object.keys(obj).reduce((acc, key) => acc + (parseFloat(key) || 0) * +obj[key], 0)
+    return (sum / count) * multiplier
+}
+
 export const getVotesPercentage = (record: HumanEvaluationListTableDataType, index: number) => {
     const variant = record.votesData.variants[index]
     return record.votesData.variants_votes_data[variant]?.percentage

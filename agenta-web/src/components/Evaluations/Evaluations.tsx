@@ -15,7 +15,7 @@ import {DownOutlined} from "@ant-design/icons"
 import {createNewEvaluation, fetchVariants, useLoadTestsetsList} from "@/lib/services/api"
 import {dynamicComponent, getApikeys, isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
-import {Variant, Parameter, GenericObject} from "@/lib/Types"
+import {Variant, Parameter, GenericObject, JSSTheme} from "@/lib/Types"
 import {EvaluationType} from "@/lib/enums"
 import {EvaluationTypeLabels} from "@/lib/helpers/utils"
 import EvaluationErrorModal from "./EvaluationErrorModal"
@@ -28,12 +28,13 @@ import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"
 import HumanEvaluationResult from "./HumanEvaluationResult"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
+import AutomaticEvaluationResult from "./AutomaticEvaluationResult"
 
 type StyleProps = {
     themeMode: "dark" | "light"
 }
 
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluationContainer: {
         border: "1px solid lightgrey",
         padding: "20px",
@@ -74,6 +75,17 @@ const useStyles = createUseStyles({
     },
     radioGroup: {
         width: "100%",
+        "& .ant-radio-button-wrapper": {
+            marginBottom: "0.5rem",
+            borderRadius: theme.borderRadius,
+            borderLeft: `1px solid ${theme.colorBorder}`,
+            "&::before": {
+                display: "none",
+            },
+        },
+        "& .ant-radio-button-wrapper-checked ": {
+            borderLeft: `1px solid ${theme.colorPrimary}`,
+        },
     },
     radioBtn: {
         display: "block",
@@ -117,7 +129,7 @@ const useStyles = createUseStyles({
         alignItems: "center",
         justifyContent: "space-between",
     },
-})
+}))
 const {Title} = Typography
 
 export default function Evaluations() {
@@ -503,6 +515,7 @@ export default function Evaluations() {
                 btnText={error.btnText}
             />
             <div>
+                <AutomaticEvaluationResult />
                 <HumanEvaluationResult />
             </div>
 
