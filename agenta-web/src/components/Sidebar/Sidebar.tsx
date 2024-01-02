@@ -266,7 +266,7 @@ const Sidebar: React.FC = () => {
                                                 >
                                                     {collapsed
                                                         ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                                        : "Evaluate New"}
+                                                        : "Evaluate"}
                                                 </Link>
                                             </Menu.Item>
                                         </Tooltip>
