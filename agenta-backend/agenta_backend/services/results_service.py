@@ -81,7 +81,7 @@ async def fetch_results_for_single_model_test(evaluation_id: str):
     ]
 
     results = {}
-    collection = engine.get_collection(EvaluationScenarioDB)
+    collection = engine.get_collection(HumanEvaluationScenarioDB)
     aggregation_cursor = await collection.aggregate(pipeline).to_list(length=None)
     for doc in aggregation_cursor:
         results[doc["_id"]] = doc["count"]
