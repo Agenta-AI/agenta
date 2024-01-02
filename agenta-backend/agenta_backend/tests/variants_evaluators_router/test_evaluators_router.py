@@ -180,7 +180,7 @@ async def test_create_evaluation():
     response = await test_client.post(
         f"{BACKEND_API_HOST}/evaluations/", json=payload, timeout=timeout
     )
-    response_data = response.json()
+    response_data = response.json()[0]
 
     assert response.status_code == 200
     assert response_data["app_id"] == payload["app_id"]
