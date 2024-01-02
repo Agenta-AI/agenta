@@ -14,18 +14,12 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenario,
     CustomEvaluationOutput,
     CustomEvaluationDetail,
-    EvaluationScenarioScoreUpdate,
-    EvaluationScenarioUpdate,
     ExecuteCustomEvaluationCode,
-    HumanEvaluation,
-    HumanEvaluationScenarioUpdate,
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
     CreateCustomEvaluation,
-    EvaluationUpdate,
     EvaluationWebhook,
-    NewHumanEvaluation,
     SimpleEvaluationOutput,
 )
 from agenta_backend.services.evaluation_service import (
@@ -35,11 +29,9 @@ from agenta_backend.services.evaluation_service import (
     fetch_custom_evaluation_detail,
     get_evaluation_scenario_score,
     update_evaluation_scenario_score,
-    update_evaluation,
     create_custom_code_evaluation,
     update_custom_code_evaluation,
     execute_custom_code_evaluation,
-    update_human_evaluation_scenario,
 )
 from agenta_backend.services import evaluation_service
 from agenta_backend.utils.common import check_access_to_app
@@ -161,33 +153,6 @@ async def fetch_evaluation_results(evaluation_id: str, request: Request):
         return {"results": results, "evaluation_id": evaluation_id}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
-
-
-@router.put("/{evaluation_id}/")
-async def update_evaluation_router(
-    request: Request,
-    evaluation_id: str,
-    update_data: EvaluationUpdate = Body(...),
-):
-    """Updates an evaluation's status.
-
-    Raises:
-        HTTPException: If the columns in the test set do not match with the inputs in the variant.
-
-    Returns:
-        None: A 204 No Content status code, indicating that the update was successful.
-    """
-    try:
-        # Get user and organization id
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        await update_evaluation(evaluation_id, update_data, **user_org_data)
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-    except KeyError:
-        raise HTTPException(
-            status_code=400,
-            detail="columns in the test set should match the names of the inputs in the variant",
-        )
 
 
 @router.get(

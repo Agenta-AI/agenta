@@ -1,3 +1,4 @@
+import os
 import httpx
 import pytest
 import logging
@@ -29,7 +30,11 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Set global variables
-BACKEND_API_HOST = "http://localhost:8001"
+ENVIRONMENT = os.environ.get("ENVIRONMENT")
+if ENVIRONMENT == "development":
+    BACKEND_API_HOST = "http://host.docker.internal/api"
+elif ENVIRONMENT == "github":
+    BACKEND_API_HOST = "http://agenta-backend-test:8000"
 
 
 @pytest.mark.asyncio
@@ -54,7 +59,7 @@ async def test_list_apps():
     response = await test_client.get(f"{BACKEND_API_HOST}/apps/")
 
     assert response.status_code == 200
-    assert len(response.json()) == 2
+    assert len(response.json()) == 3
 
 
 @pytest.mark.asyncio

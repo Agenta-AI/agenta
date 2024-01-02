@@ -14,11 +14,13 @@ from agenta_backend.models.api.evaluation_model import (
     CustomEvaluationDetail,
     EvaluationScenarioInput,
     EvaluationType,
+    EvaluationTypeSettings,
     HumanEvaluation,
+    HumanEvaluationScenario,
+    HumanEvaluationUpdate,
     NewEvaluation,
     EvaluationScenarioUpdate,
     CreateCustomEvaluation,
-    EvaluationUpdate,
     EvaluationStatusEnum,
     NewHumanEvaluation,
 )
@@ -36,8 +38,6 @@ from agenta_backend.models.db_models import (
     HumanEvaluationScenarioOutput,
     UserDB,
     AppDB,
-    EvaluationScenarioInputDB,
-    EvaluationScenarioOutputDB,
     CustomEvaluationDB,
 )
 
@@ -114,6 +114,9 @@ async def _fetch_human_evaluation_scenario_and_check_access(
     evaluation_scenario = await db_manager.fetch_human_evaluation_scenario_by_id(
         evaluation_scenario_id=evaluation_scenario_id
     )
+
+    print("evaluation_scenario")
+    print(evaluation_scenario)
     if evaluation_scenario is None:
         raise HTTPException(
             status_code=404,
@@ -250,8 +253,8 @@ async def create_evaluation_scenario(
     await engine.save(new_eval_scenario)
 
 
-async def update_evaluation(
-    evaluation_id: str, update_payload: EvaluationUpdate, **user_org_data: dict
+async def update_human_evaluation_service(
+    evaluation_id: str, update_payload: HumanEvaluationUpdate, **user_org_data: dict
 ) -> None:
     """
     Update an existing evaluation based on the provided payload.
@@ -264,7 +267,7 @@ async def update_evaluation(
         HTTPException: If the evaluation is not found or access is denied.
     """
     # Fetch the evaluation by ID
-    evaluation = await _fetch_evaluation_and_check_access(
+    evaluation = await _fetch_human_evaluation_and_check_access(
         evaluation_id=evaluation_id,
         **user_org_data,
     )
@@ -320,6 +323,39 @@ async def fetch_evaluation_scenarios_for_evaluation(
     )
     eval_scenarios = [
         converters.evaluation_scenario_db_to_pydantic(scenario)
+        for scenario in scenarios
+    ]
+    return eval_scenarios
+
+
+async def fetch_human_evaluation_scenarios_for_evaluation(
+    evaluation_id: str, **user_org_data: dict
+) -> List[HumanEvaluationScenario]:
+    """
+    Fetch evaluation scenarios for a given evaluation ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation.
+        user_org_data (dict): User and organization data.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+    """
+    evaluation = await _fetch_human_evaluation_and_check_access(
+        evaluation_id=evaluation_id,
+        **user_org_data,
+    )
+    print("$$$$$$ evaluation")
+    print(evaluation)
+    scenarios = await engine.find(
+        HumanEvaluationScenarioDB,
+        HumanEvaluationScenarioDB.evaluation == ObjectId(evaluation.id),
+    )
+    eval_scenarios = [
+        converters.human_evaluation_scenario_db_to_pydantic(scenario)
         for scenario in scenarios
     ]
     return eval_scenarios
