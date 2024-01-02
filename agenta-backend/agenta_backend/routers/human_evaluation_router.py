@@ -13,6 +13,7 @@ from agenta_backend.models.api.evaluation_model import (
     HumanEvaluationScenario,
     HumanEvaluationScenarioUpdate,
     EvaluationType,
+    HumanEvaluationUpdate,
     NewHumanEvaluation,
     SimpleEvaluationOutput,
 )
@@ -28,6 +29,7 @@ from agenta_backend.services.evaluation_service import (
     get_evaluation_scenario_score,
     update_evaluation_scenario_score,
     update_human_evaluation_scenario,
+    update_human_evaluation_service,
 )
 
 
@@ -153,6 +155,35 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
+@router.put("/{evaluation_id}/", operation_id="update_evaluation")
+async def update_evaluation(
+    request: Request,
+    evaluation_id: str,
+    update_data: HumanEvaluationUpdate = Body(...),
+):
+    """Updates an evaluation's status.
+
+    Raises:
+        HTTPException: If the columns in the test set do not match with the inputs in the variant.
+
+    Returns:
+        None: A 204 No Content status code, indicating that the update was successful.
+    """
+    try:
+        # Get user and organization id
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        await update_human_evaluation_service(
+            evaluation_id, update_data, **user_org_data
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail="columns in the test set should match the names of the inputs in the variant",
+        )
+
+
 @router.put(
     "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/"
 )
@@ -244,10 +275,8 @@ async def fetch_results(
     # Get user and organization id
     print("are we here")
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    evaluation = (
-        await evaluation_service._fetch_human_evaluation_scenario_and_check_access(
-            evaluation_id, **user_org_data
-        )
+    evaluation = await evaluation_service._fetch_human_evaluation_and_check_access(
+        evaluation_id, **user_org_data
     )
     print("really???")
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
