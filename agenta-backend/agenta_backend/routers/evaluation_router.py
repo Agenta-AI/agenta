@@ -282,7 +282,7 @@ async def create_evaluation_scenario(
 
 
 @router.put(
-    "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/"
+    "/human-evaluations/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/"
 )
 async def update_evaluation_scenario_router(
     evaluation_id: str,
@@ -349,7 +349,7 @@ async def evaluate_ai_critique(
         raise HTTPException(400, f"Failed to evaluate AI critique: {str(e)}")
 
 
-@router.get("/evaluation_scenario/{evaluation_scenario_id}/score/")
+@router.get("/human-evaluations/evaluation_scenario/{evaluation_scenario_id}/score/")
 async def get_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     request: Request,
@@ -368,7 +368,7 @@ async def get_evaluation_scenario_score_router(
     return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
 
 
-@router.put("/evaluation_scenario/{evaluation_scenario_id}/score/")
+@router.put("/human-evaluations/evaluation_scenario/{evaluation_scenario_id}/score/")
 async def update_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     payload: EvaluationScenarioScoreUpdate,
@@ -426,6 +426,41 @@ async def fetch_evaluation(
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
     return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
+
+
+@router.get("/human-evaluations/", response_model=List[Evaluation])
+async def fetch_list_evaluations(
+    app_id: str,
+    request: Request,
+):
+    """Fetches a list of evaluations, optionally filtered by an app ID.
+
+    Args:
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
+
+    Returns:
+        List[Evaluation]: A list of evaluations.
+    """
+    user_org_data = await get_user_and_org_id(request.state.user_id)
+    return await evaluation_service.fetch_list_evaluations(
+        app_id=app_id, **user_org_data
+    )
+
+@router.get("/human-evaluations/{evaluation_id}/", response_model=Evaluation)
+async def fetch_evaluation(
+    evaluation_id: str,
+    request: Request,
+):
+    """Fetches a single evaluation based on its ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation to fetch.
+
+    Returns:
+        Evaluation: The fetched evaluation.
+    """
+    user_org_data = await get_user_and_org_id(request.state.user_id)
+    return await evaluation_service.fetch_human_evaluation(evaluation_id, **user_org_data)
 
 
 @router.delete("/", response_model=List[str])
