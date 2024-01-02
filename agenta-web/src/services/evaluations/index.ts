@@ -5,7 +5,6 @@ import {
     EvaluationStatus,
     Evaluator,
     EvaluatorConfig,
-    TypedValue,
     _Evaluation,
     _EvaluationScenario,
 } from "@/lib/Types"
@@ -17,7 +16,6 @@ import regexImg from "@/media/programming.png"
 import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
-import dayjs from "dayjs"
 import {calcEvalDuration} from "@/components/pages/evaluations/evaluationResults/EvaluationResults"
 
 //Prefix convention:

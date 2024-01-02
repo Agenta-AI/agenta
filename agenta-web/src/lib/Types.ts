@@ -310,6 +310,7 @@ export interface Evaluator {
     settings_template: Record<string, EvaluationSettingsTemplate>
     icon_url?: string | StaticImageData
     color?: string
+    direct_use?: boolean
 }
 
 export interface EvaluatorConfig {

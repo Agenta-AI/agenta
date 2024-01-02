@@ -287,16 +287,14 @@ export const deleteTestsets = async (ids: string[]) => {
     return response.data
 }
 
-export const loadEvaluations = async (appId: string) => {
-    return await axios
-        .get(`${getAgentaApiUrl()}/api/human-evaluations/?app_id=${appId}`)
-        .then((responseData) => {
-            const evaluations = responseData.data.map((item: EvaluationResponseType) => {
-                return fromEvaluationResponseToEvaluation(item)
-            })
-
-            return evaluations
-        })
+export const loadEvaluations = async (appId: string, ignoreAxiosError: boolean = false) => {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/human-evaluations/?app_id=${appId}`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
+    return response.data
 }
 
 export const loadEvaluation = async (evaluationId: string) => {
@@ -369,13 +367,9 @@ export const createNewEvaluation = async (
         status: EvaluationFlow.EVALUATION_INITIALIZED,
     }
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/api/human-evaluations/`,
-        data,
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/api/human-evaluations/`, data, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
     return response.data.id
 }
 
@@ -420,9 +414,15 @@ export const evaluateAICritiqueForEvalScenario = async (
     return response
 }
 
-export const fetchEvaluationResults = async (evaluationId: string) => {
+export const fetchEvaluationResults = async (
+    evaluationId: string,
+    ignoreAxiosError: boolean = false,
+) => {
     const response = await axios.get(
         `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/results/`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
     )
     return response.data
 }

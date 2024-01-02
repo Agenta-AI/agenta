@@ -7,16 +7,13 @@ import {AgGridReact} from "ag-grid-react"
 import {Space, Spin, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {
-    LongTextCellRenderer,
-    getFilterParams,
-    getTypedValue,
-} from "../evaluationResults/EvaluationResults"
+import {getFilterParams, getTypedValue} from "../evaluationResults/EvaluationResults"
 import {uniqBy} from "lodash"
 import {getTagColors} from "@/lib/helpers/colors"
 import {DownloadOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
+import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -42,11 +39,16 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const [fetching, setFetching] = useState(false)
     const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
 
-    const evalautions = useMemo(() => {
-        return uniqBy(
+    const [evalautions, variants] = useMemo(() => {
+        const evalautions = uniqBy(
             scenarios.map((scenario) => scenario.evaluation),
             "id",
         )
+        const variants = uniqBy(
+            evalautions.map((evaluation) => ({...evaluation.variants[0], evaluation})).flat(1),
+            "variantId",
+        )
+        return [evalautions, variants]
     }, [scenarios])
 
     const colors = useMemo(() => getTagColors(), [evalautions])
@@ -68,63 +70,61 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             cellRenderer: LongTextCellRenderer,
         })
 
-        evalautions.forEach((evalaution, vi) => {
-            evalaution?.variants.forEach((variant, index) => {
-                scenarios
-                    .find((scenario) => scenario.evaluation.id === evalaution.id)
-                    ?.inputs.forEach((input, index) => {
-                        colDefs.push({
-                            headerComponent: () => (
-                                <Space direction="vertical">
-                                    <span>Input: {input.name}</span>
-                                    <Tag color={colors[vi]}> {variant.variantName}</Tag>
-                                </Space>
-                            ),
-                            minWidth: 200,
-                            flex: 1,
-                            field: `inputs.${index}`,
-                            ...getFilterParams(input.type === "number" ? "number" : "text"),
-                            valueGetter: (params) => {
-                                return getTypedValue(params.data?.inputs[index])
-                            },
-                            cellRenderer: LongTextCellRenderer,
-                        })
+        variants.forEach((variant, vi) => {
+            const evalaution = (variant as any).evaluation as _Evaluation
+            scenarios
+                .find((scenario) => scenario.evaluation.id === evalaution.id)
+                ?.inputs.forEach((input, index) => {
+                    colDefs.push({
+                        headerComponent: () => (
+                            <Space direction="vertical">
+                                <span>Input: {input.name}</span>
+                                <Tag color={colors[vi]}> {variant.variantName}</Tag>
+                            </Space>
+                        ),
+                        minWidth: 200,
+                        flex: 1,
+                        field: `inputs.${index}`,
+                        ...getFilterParams(input.type === "number" ? "number" : "text"),
+                        valueGetter: (params) => {
+                            return getTypedValue(params.data?.inputs[index])
+                        },
+                        cellRenderer: LongTextCellRenderer,
                     })
+                })
+            colDefs.push({
+                headerComponent: () => (
+                    <Space direction="vertical">
+                        <span>Output</span>
+                        <Tag color={colors[vi]}>{variant.variantName}</Tag>
+                    </Space>
+                ),
+                minWidth: 280,
+                flex: 1,
+                field: `outputs.0`,
+                ...getFilterParams("text"),
+                valueGetter: (params) => {
+                    return getTypedValue(params.data?.outputs[0])
+                },
+                cellRenderer: LongTextCellRenderer,
+            })
+            evalaution.aggregated_results.forEach(({evaluator_config: config}) => {
                 colDefs.push({
+                    flex: 1,
                     headerComponent: () => (
                         <Space direction="vertical">
-                            <span>Output</span>
+                            <span>Evaluator: {config.name}</span>
                             <Tag color={colors[vi]}>{variant.variantName}</Tag>
                         </Space>
                     ),
-                    minWidth: 280,
-                    flex: 1,
-                    field: `outputs.${index}`,
+                    field: "results",
                     ...getFilterParams("text"),
                     valueGetter: (params) => {
-                        return getTypedValue(params.data?.outputs[index])
+                        return getTypedValue(
+                            params.data?.results.find((item) => item.evaluator_config === config.id)
+                                ?.result,
+                        )
                     },
-                    cellRenderer: LongTextCellRenderer,
-                })
-                evalaution.aggregated_results.forEach(({evaluator_config: config}) => {
-                    colDefs.push({
-                        flex: 1,
-                        headerComponent: () => (
-                            <Space direction="vertical">
-                                <span>Evaluator: {config.name}</span>
-                                <Tag color={colors[vi]}>{variant.variantName}</Tag>
-                            </Space>
-                        ),
-                        field: "results",
-                        ...getFilterParams("text"),
-                        valueGetter: (params) => {
-                            return getTypedValue(
-                                params.data?.results.find(
-                                    (item) => item.evaluator_config === config.id,
-                                )?.result,
-                            )
-                        },
-                    })
                 })
             })
         })
@@ -139,8 +139,8 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 fetchAllEvaluationScenarios(appId, evalId),
             ),
         )
-            .then((scenariosNest) => {
-                setScenarios(scenariosNest.flat(1))
+            .then((scenariosNest: _EvaluationScenario[][]) => {
+                setScenarios(uniqBy(scenariosNest.flat(1), "id"))
                 setTimeout(() => {
                     if (!gridRef.current) return
 
@@ -186,19 +186,23 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 <Space size="large">
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        <Typography.Text>{evalautions[0]?.testset.name || ""}</Typography.Text>
+                        <Typography.Link
+                            href={`/apps/${appId}/testsets/${evalautions[0]?.testset.id}`}
+                        >
+                            {evalautions[0]?.testset.name || ""}
+                        </Typography.Link>
                     </Space>
                     <Space>
                         <Typography.Text strong>Variants:</Typography.Text>
                         <div>
-                            {evalautions?.map(({variants, id}, vi) => (
+                            {variants?.map((v, vi) => (
                                 <Tag
-                                    key={id}
+                                    key={v.variantId}
                                     color={colors[vi]}
-                                    onClose={() => handleDeleteVariant(id)}
+                                    onClose={() => handleDeleteVariant((v as any).evaluation.id)}
                                     closable
                                 >
-                                    {variants[0].variantName}
+                                    {v.variantName}
                                 </Tag>
                             ))}
                         </div>

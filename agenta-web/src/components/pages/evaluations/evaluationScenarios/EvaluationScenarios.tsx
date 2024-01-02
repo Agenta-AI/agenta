@@ -6,17 +6,14 @@ import {DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
 import {Space, Spin, Tooltip, Typography} from "antd"
-import dayjs from "dayjs"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {
-    LongTextCellRenderer,
-    getFilterParams,
-    getTypedValue,
-} from "../evaluationResults/EvaluationResults"
+import {getFilterParams, getTypedValue} from "../evaluationResults/EvaluationResults"
 import {getAppValues} from "@/contexts/app.context"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
+import {formatDate} from "@/lib/helpers/dateTimeHelper"
+import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -153,17 +150,21 @@ const EvaluationScenarios: React.FC<Props> = () => {
             <div className={classes.infoRow}>
                 <Space size="large">
                     <Typography.Text className={classes.date}>
-                        {dayjs(evalaution?.created_at).format("DD MMM YYYY | h:m a")}
+                        {formatDate(evalaution?.created_at)}
                     </Typography.Text>
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        <Typography.Text>{evalaution?.testset.name || ""}</Typography.Text>
+                        <Typography.Link href={`/apps/${appId}/testsets/${evalaution?.testset.id}`}>
+                            {evalaution?.testset.name || ""}
+                        </Typography.Link>
                     </Space>
                     <Space>
                         <Typography.Text strong>Variant:</Typography.Text>
-                        <Typography.Text>
+                        <Typography.Link
+                            href={`/apps/${appId}/playground/?variant=${evalaution?.variants[0].variantName}`}
+                        >
                             {evalaution?.variants[0].variantName || ""}
-                        </Typography.Text>
+                        </Typography.Link>
                     </Space>
                 </Space>
                 <Space size="middle" align="center">
