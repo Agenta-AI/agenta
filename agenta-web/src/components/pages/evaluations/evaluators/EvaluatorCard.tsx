@@ -42,7 +42,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     date: {
         fontSize: "0.75rem",
-        color: theme.colorTextSecondary,
+        color: "#8c8c8c",
     },
 }))
 

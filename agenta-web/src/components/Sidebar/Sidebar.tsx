@@ -278,17 +278,17 @@ const Sidebar: React.FC = () => {
                                                     ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
                                                     : ""
                                             }
-                                            key="evaluations-new"
+                                            key="annotations"
                                         >
                                             <Menu.Item icon={<LineChartOutlined />}>
                                                 <Link
-                                                    data-cy="app-evaluations-link"
-                                                    href={getNavigationPath("evaluations-new")}
+                                                    data-cy="app-annotations-link"
+                                                    href={getNavigationPath("annotations")}
                                                     className={classes.menuLinks}
                                                 >
                                                     {collapsed
                                                         ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                                        : "Evaluate New"}
+                                                        : "Annotations"}
                                                 </Link>
                                             </Menu.Item>
                                         </Tooltip>

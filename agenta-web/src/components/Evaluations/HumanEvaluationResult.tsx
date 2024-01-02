@@ -98,11 +98,15 @@ export default function HumanEvaluationResult() {
         }
         const fetchEvaluations = async () => {
             try {
-                fetchData(`${getAgentaApiUrl()}/api/evaluations/?app_id=${app_id}`)
+                fetchData(
+                    `${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`,
+                )
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
                             return fetchData(
-                                `${getAgentaApiUrl()}/api/evaluations/${item.id}/results/`,
+                                `${getAgentaApiUrl()}/api/human-evaluations/${
+                                    item.id
+                                }/results/`,
                             )
                                 .then((results) => {
                                     if (item.evaluation_type === EvaluationType.human_a_b_testing) {
@@ -153,7 +157,7 @@ export default function HumanEvaluationResult() {
             EvaluationType[evaluation.evaluationType as keyof typeof EvaluationType]
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${app_id}/evaluations/${evaluation.key}/human_a_b_testing`)
+            router.push(`/apps/${app_id}/annotations/${evaluation.key}/human_a_b_testing`)
         }
     }
 
@@ -286,9 +290,7 @@ export default function HumanEvaluationResult() {
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Title level={3}>
-                        {EvaluationTypeLabels.human_a_b_testing} Evaluation Results
-                    </Title>
+                    <Title level={3}>Annotation Results</Title>
                 </div>
             ),
             children: (

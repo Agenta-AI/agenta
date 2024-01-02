@@ -154,7 +154,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
         <Modal
             title="New Evaluation"
             onOk={form.submit}
-            okText={editMode ? "Edit" : "Create"}
+            okText={editMode ? "Update" : "Create"}
             okButtonProps={{
                 icon: editMode ? <EditOutlined /> : <PlusOutlined />,
                 loading: submitLoading,

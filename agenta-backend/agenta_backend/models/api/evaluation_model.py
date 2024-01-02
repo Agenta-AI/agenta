@@ -56,6 +56,16 @@ class AggregatedResult(BaseModel):
     result: Result
 
 
+class NewHumanEvaluation(BaseModel):
+    app_id: str
+    variant_ids: List[str]
+    evaluation_type: EvaluationType
+    evaluation_type_settings: Optional[EvaluationTypeSettings]
+    inputs: List[str]
+    testset_id: str
+    status: str
+
+
 class Evaluation(BaseModel):
     id: str
     app_id: str
@@ -98,6 +108,42 @@ class EvaluationScenarioInput(BaseModel):
 class EvaluationScenarioOutput(BaseModel):
     type: str
     value: Any
+
+
+class HumanEvaluation(BaseModel):
+    id: str
+    app_id: str
+    user_id: str
+    user_username: str
+    evaluation_type: EvaluationType
+    evaluation_type_settings: Optional[EvaluationTypeSettings]
+    variant_ids: List[str]
+    variant_names: List[str]
+    testset_id: str
+    testset_name: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class HumanEvaluationScenarioInput(BaseModel):
+    input_name: str
+    input_value: str
+
+
+class HumanEvaluationScenarioOutput(BaseModel):
+    variant_id: str
+    variant_output: str
+
+
+class HumanEvaluationScenarioUpdate(BaseModel):
+    vote: Optional[str]
+    score: Optional[Union[str, int]]
+    correct_answer: Optional[str]  # will be used when running custom code evaluation
+    outputs: Optional[List[HumanEvaluationScenarioOutput]]
+    inputs: Optional[List[HumanEvaluationScenarioInput]]
+    is_pinned: Optional[bool]
+    note: Optional[str]
 
 
 class EvaluationScenario(BaseModel):

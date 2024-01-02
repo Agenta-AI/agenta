@@ -17,7 +17,7 @@ from agenta_backend.models.db_models import (
     AnnotationScenarioInputDB,
     AnnotationScenarioOutputDB,
     AnnotationScenarioInputDB,
-    AnnoatationScenarioResult,
+    AnnotationScenarioResult,
 )
 
 from agenta_backend.models.api.annotation_models import NewAnnotation
@@ -35,8 +35,6 @@ def prepare_scenarios(
     new_annotation_db = loop.run_until_complete(fetch_annotation_by_id(annotation_id))
 
     for variant_id in annotation.variants_ids:
-        variant_id = str(variant_id)
-
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         deployment = loop.run_until_complete(
             get_deployment_by_objectid(app_variant_db.base.deployment)
@@ -79,6 +77,5 @@ def prepare_scenarios(
                     ],
                     isPinned=False,
                     note="",
-                    results=[],
                 )
             )

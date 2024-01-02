@@ -1,15 +1,12 @@
 import {useAppId} from "@/hooks/useAppId"
-import {Evaluator, EvaluatorConfig, JSSTheme, Variant, testset} from "@/lib/Types"
+import {JSSTheme, Variant, testset} from "@/lib/Types"
+import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {fetchTestsets, fetchVariants} from "@/lib/services/api"
-import {
-    CreateEvaluationData,
-    createEvalutaiton,
-    fetchAllEvaluatorConfigs,
-    fetchAllEvaluators,
-} from "@/services/evaluations"
+import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations"
 import {PlusOutlined} from "@ant-design/icons"
 import {Divider, Form, Modal, Select, Spin, Tag, Typography} from "antd"
 import dayjs from "dayjs"
+import {useAtom} from "jotai"
 import Image from "next/image"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -40,7 +37,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     date: {
         fontSize: "0.75rem",
-        color: "#888",
+        color: "#8c8c8c",
     },
     tag: {
         transform: "scale(0.8)",
@@ -61,25 +58,18 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [fetching, setFetching] = useState(false)
     const [testSets, setTestSets] = useState<testset[]>([])
     const [variants, setVariants] = useState<Variant[]>([])
-    const [evaluatorConfigs, setEvaluatorConfigs] = useState<EvaluatorConfig[]>([])
-    const [evaluators, setEvaluators] = useState<Evaluator[]>([])
+    const [evaluatorConfigs] = useAtom(evaluatorConfigsAtom)
+    const [evaluators] = useAtom(evaluatorsAtom)
     const [submitLoading, setSubmitLoading] = useState(false)
     const [form] = Form.useForm()
 
     useEffect(() => {
         setFetching(true)
         form.resetFields()
-        Promise.all([
-            fetchTestsets(appId),
-            fetchVariants(appId),
-            fetchAllEvaluatorConfigs(appId),
-            fetchAllEvaluators(),
-        ])
-            .then(([testSets, variants, evaluatorConfigs, evaluators]) => {
+        Promise.all([fetchTestsets(appId), fetchVariants(appId)])
+            .then(([testSets, variants]) => {
                 setTestSets(testSets)
                 setVariants(variants)
-                setEvaluatorConfigs(evaluatorConfigs)
-                setEvaluators(evaluators)
             })
             .catch(console.error)
             .finally(() => setFetching(false))

@@ -248,6 +248,49 @@ class EvaluationScenarioOutputDB(EmbeddedModel):
     value: Any
 
 
+class HumanEvaluationScenarioInput(EmbeddedModel):
+    input_name: str
+    input_value: str
+
+
+class HumanEvaluationScenarioOutput(EmbeddedModel):
+    variant_id: str
+    variant_output: str
+
+
+class HumanEvaluationDB(Model):
+    app: AppDB = Reference(key_name="app")
+    organization: OrganizationDB = Reference(key_name="organization")
+    user: UserDB = Reference(key_name="user")
+    status: str
+    evaluation_type: str
+    variants: List[ObjectId]
+    testset: TestSetDB = Reference(key_name="testsets")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+
+    class Config:
+        collection = "human_evaluations"
+
+
+class HumanEvaluationScenarioDB(Model):
+    user: UserDB = Reference(key_name="user")
+    organization: OrganizationDB = Reference(key_name="organization")
+    evaluation: HumanEvaluationDB = Reference(key_name="evaluations")
+    inputs: List[HumanEvaluationScenarioInput]
+    outputs: List[HumanEvaluationScenarioOutput]
+    vote: Optional[str]
+    score: Optional[Union[str, int]]
+    correct_answer: Optional[str]
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
+    is_pinned: Optional[bool]
+    note: Optional[str]
+
+    class Config:
+        collection = "human_evaluations_scenarios"
+
+
 class EvaluationDB(Model):
     app: AppDB = Reference(key_name="app")
     organization: OrganizationDB = Reference(key_name="organization")
@@ -268,6 +311,7 @@ class EvaluationScenarioDB(Model):
     user: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     evaluation: EvaluationDB = Reference(key_name="evaluations")
+    variant_id: ObjectId
     inputs: List[EvaluationScenarioInputDB]
     outputs: List[EvaluationScenarioOutputDB]
     correct_answer: Optional[str]
@@ -348,8 +392,7 @@ class AnnoationResult(EmbeddedModel):
     result: Result
 
 
-class AnnoatationScenarioResult(EmbeddedModel):
-    variant_id: str
+class AnnotationScenarioResult(EmbeddedModel):
     result: Result
 
 
@@ -358,7 +401,7 @@ class AnnotationsDB(Model):
     organization: OrganizationDB = Reference(key_name="organization")
     user: UserDB = Reference(key_name="user")
     variants_ids: List[ObjectId]
-    testset_id: ObjectId
+    testset: TestSetDB = Reference()
     status: str = Field(default="ANNOTATION_INITIALIZED")
     annotation_name: str
     aggregated_results: List[AnnoationResult]
@@ -378,7 +421,7 @@ class AnnotationsScenariosDB(Model):
     outputs: List[AnnotationScenarioOutputDB]
     is_pinned: Optional[bool]
     note: Optional[str]
-    results: List[AnnoatationScenarioResult]
+    result: Optional[Union[dict, Result]] = Field(default=None)
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
 

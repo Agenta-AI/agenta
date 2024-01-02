@@ -39,8 +39,8 @@ describe("A/B Testing Evaluation workflow", () => {
 
     context("When executing the evaluation", () => {
         it("Should successfully execute the evaluation process", () => {
-            cy.visit(`/apps/${app_id}/evaluations`)
-            cy.url().should("include", "/evaluations")
+            cy.visit(`/apps/${app_id}/annotations`)
+            cy.url().should("include", "/annotations")
             cy.clickLinkAndWait('[data-cy="abTesting-button"]')
 
             cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
