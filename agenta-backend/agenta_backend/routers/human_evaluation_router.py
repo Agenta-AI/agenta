@@ -7,6 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi import HTTPException, APIRouter, Body, Request, status, Response
 
 from agenta_backend.models.api.evaluation_model import (
+    DeleteEvaluation,
     EvaluationScenarioScoreUpdate,
     HumanEvaluation,
     HumanEvaluationScenarioUpdate,
@@ -181,3 +182,58 @@ async def update_evaluation_scenario_score_router(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/{evaluation_id}/results/", operation_id="fetch_results")
+async def fetch_results(
+    evaluation_id: str,
+    request: Request,
+):
+    """Fetch all the results for one the comparison table
+
+    Arguments:
+        evaluation_id -- _description_
+
+    Returns:
+        _description_
+    """
+
+    # Get user and organization id
+    print("are we here")
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    evaluation = await evaluation_service._fetch_human_evaluation_scenario_and_check_access(
+        evaluation_id, **user_org_data
+    )
+    print("really???")
+    if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
+        results = await results_service.fetch_results_for_evaluation(evaluation)
+        return {"votes_data": results}
+
+    elif evaluation.evaluation_type == EvaluationType.single_model_test:
+        results = await results_service.fetch_results_for_single_model_test(
+            evaluation_id
+        )
+        return {"results_data": results}
+
+
+@router.delete("/", response_model=List[str])
+async def delete_evaluations(
+    delete_evaluations: DeleteEvaluation,
+    request: Request,
+):
+    """
+    Delete specific comparison tables based on their unique IDs.
+
+    Args:
+    delete_evaluations (List[str]): The unique identifiers of the comparison tables to delete.
+
+    Returns:
+    A list of the deleted comparison tables' IDs.
+    """
+
+    # Get user and organization id
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    await evaluation_service.delete_evaluations(
+        delete_evaluations.evaluations_ids, **user_org_data
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
