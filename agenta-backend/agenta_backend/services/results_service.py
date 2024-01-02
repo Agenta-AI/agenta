@@ -74,7 +74,7 @@ async def _compute_stats_for_human_a_b_testing_evaluation(evaluation_scenarios: 
     return results
 
 
-async def fetch_results_for_auto_ai_critique(evaluation_id: str):
+async def fetch_results_for_single_model_test(evaluation_id: str):
     pipeline = [
         {"$match": {"evaluations": ObjectId(evaluation_id)}},
         {"$group": {"_id": "$score", "count": {"$sum": 1}}},
