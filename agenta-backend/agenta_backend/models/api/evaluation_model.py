@@ -17,6 +17,8 @@ class EvaluatorConfig(BaseModel):
     name: str
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]]
+    created_at: datetime
+    updated_at: datetime
 
 
 class EvaluationTypeSettings(BaseModel):
