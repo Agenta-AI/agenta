@@ -17,6 +17,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioScoreUpdate,
     EvaluationScenarioUpdate,
     ExecuteCustomEvaluationCode,
+    HumanEvaluation,
     HumanEvaluationScenarioUpdate,
     NewEvaluation,
     DeleteEvaluation,
@@ -56,49 +57,6 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
-
-
-@router.post(
-    "/human-evaluations/", response_model=SimpleEvaluationOutput, operation_id="create_evaluation"
-)
-async def create_evaluation(
-    payload: NewHumanEvaluation,
-    request: Request,
-):
-    """Creates a new comparison table document
-    Raises:
-        HTTPException: _description_
-    Returns:
-        _description_
-    """
-    try:
-        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-        access_app = await check_access_to_app(
-            user_org_data=user_org_data,
-            app_id=payload.app_id,
-            check_owner=False,
-        )
-        if not access_app:
-            error_msg = f"You do not have access to this app: {payload.app_id}"
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=400,
-            )
-        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
-
-        if app is None:
-            raise HTTPException(status_code=404, detail="App not found")
-
-        new_evaluation_db = await evaluation_service.create_new_human_evaluation(
-            payload, **user_org_data
-        )
-        print(new_evaluation_db)
-        return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
-    except KeyError:
-        raise HTTPException(
-            status_code=400,
-            detail="columns in the test set should match the names of the inputs in the variant",
-        )
 
 
 @router.post("/")
@@ -281,35 +239,7 @@ async def create_evaluation_scenario(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put(
-    "/human-evaluations/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/"
-)
-async def update_evaluation_scenario_router(
-    evaluation_id: str,
-    evaluation_scenario_id: str,
-    evaluation_type: EvaluationType,
-    evaluation_scenario: HumanEvaluationScenarioUpdate,
-    request: Request,
-):
-    """Updates an evaluation scenario's vote or score based on its type.
 
-    Raises:
-        HTTPException: If update fails or unauthorized.
-
-    Returns:
-        None: 204 No Content status code upon successful update.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    try:
-        await update_human_evaluation_scenario(
-            evaluation_scenario_id,
-            evaluation_scenario,
-            evaluation_type,
-            **user_org_data,
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except UpdateEvaluationScenarioError as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/evaluation_scenario/ai_critique/", response_model=str)
@@ -349,49 +279,6 @@ async def evaluate_ai_critique(
         raise HTTPException(400, f"Failed to evaluate AI critique: {str(e)}")
 
 
-@router.get("/human-evaluations/evaluation_scenario/{evaluation_scenario_id}/score/")
-async def get_evaluation_scenario_score_router(
-    evaluation_scenario_id: str,
-    request: Request,
-) -> Dict[str, str]:
-    """
-    Fetch the score of a specific evaluation scenario.
-
-    Args:
-        evaluation_scenario_id: The ID of the evaluation scenario to fetch.
-        stoken_session: Session data, verified by `verify_session`.
-
-    Returns:
-        Dictionary containing the scenario ID and its score.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
-
-
-@router.put("/human-evaluations/evaluation_scenario/{evaluation_scenario_id}/score/")
-async def update_evaluation_scenario_score_router(
-    evaluation_scenario_id: str,
-    payload: EvaluationScenarioScoreUpdate,
-    request: Request,
-):
-    """Updates the score of an evaluation scenario.
-
-    Raises:
-        HTTPException: Server error if the evaluation update fails.
-
-    Returns:
-        None: 204 No Content status code upon successful update.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    try:
-        await update_evaluation_scenario_score(
-            evaluation_scenario_id, payload.score, **user_org_data
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
 @router.get("/", response_model=List[Evaluation])
 async def fetch_list_evaluations(
     app_id: str,
@@ -426,41 +313,6 @@ async def fetch_evaluation(
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
     return await evaluation_service.fetch_evaluation(evaluation_id, **user_org_data)
-
-
-@router.get("/human-evaluations/", response_model=List[Evaluation])
-async def fetch_list_evaluations(
-    app_id: str,
-    request: Request,
-):
-    """Fetches a list of evaluations, optionally filtered by an app ID.
-
-    Args:
-        app_id (Optional[str]): An optional app ID to filter the evaluations.
-
-    Returns:
-        List[Evaluation]: A list of evaluations.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await evaluation_service.fetch_list_evaluations(
-        app_id=app_id, **user_org_data
-    )
-
-@router.get("/human-evaluations/{evaluation_id}/", response_model=Evaluation)
-async def fetch_evaluation(
-    evaluation_id: str,
-    request: Request,
-):
-    """Fetches a single evaluation based on its ID.
-
-    Args:
-        evaluation_id (str): The ID of the evaluation to fetch.
-
-    Returns:
-        Evaluation: The fetched evaluation.
-    """
-    user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await evaluation_service.fetch_human_evaluation(evaluation_id, **user_org_data)
 
 
 @router.delete("/", response_model=List[str])

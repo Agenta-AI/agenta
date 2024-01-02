@@ -523,7 +523,7 @@ async def fetch_list_human_evaluations(
         HumanEvaluationDB, HumanEvaluationDB.app == ObjectId(app_id)
     )
     return [
-        await converters.evaluation_db_to_pydantic(evaluation)
+        await converters.human_evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
     ]
 
@@ -542,7 +542,7 @@ async def fetch_human_evaluation(evaluation_id: str, **user_org_data: dict) -> H
     evaluation = await _fetch_human_evaluation_scenario_and_check_access(
         evaluation_id=evaluation_id, **user_org_data
     )
-    return await converters.evaluation_db_to_pydantic(evaluation)
+    return await converters.human_evaluation_db_to_pydantic(evaluation)
 
 
 async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -> None:
