@@ -270,7 +270,7 @@ class HumanEvaluationDB(Model):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Config:
-        collection = "evaluations"
+        collection = "human_evaluations"
 
 
 class HumanEvaluationScenarioDB(Model):
@@ -288,7 +288,7 @@ class HumanEvaluationScenarioDB(Model):
     note: Optional[str]
 
     class Config:
-        collection = "evaluation_scenarios"
+        collection = "human_evaluations_scenarios"
 
 
 class EvaluationDB(Model):

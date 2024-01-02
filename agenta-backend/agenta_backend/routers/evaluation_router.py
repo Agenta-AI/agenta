@@ -17,6 +17,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioScoreUpdate,
     EvaluationScenarioUpdate,
     ExecuteCustomEvaluationCode,
+    HumanEvaluationScenarioUpdate,
     NewEvaluation,
     DeleteEvaluation,
     EvaluationType,
@@ -32,12 +33,12 @@ from agenta_backend.services.evaluation_service import (
     fetch_custom_evaluations,
     fetch_custom_evaluation_detail,
     get_evaluation_scenario_score,
-    update_evaluation_scenario,
     update_evaluation_scenario_score,
     update_evaluation,
     create_custom_code_evaluation,
     update_custom_code_evaluation,
     execute_custom_code_evaluation,
+    update_human_evaluation_scenario,
 )
 from agenta_backend.services import evaluation_service
 from agenta_backend.utils.common import check_access_to_app
@@ -287,7 +288,7 @@ async def update_evaluation_scenario_router(
     evaluation_id: str,
     evaluation_scenario_id: str,
     evaluation_type: EvaluationType,
-    evaluation_scenario: EvaluationScenarioUpdate,
+    evaluation_scenario: HumanEvaluationScenarioUpdate,
     request: Request,
 ):
     """Updates an evaluation scenario's vote or score based on its type.
@@ -300,7 +301,7 @@ async def update_evaluation_scenario_router(
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
     try:
-        await update_evaluation_scenario(
+        await update_human_evaluation_scenario(
             evaluation_scenario_id,
             evaluation_scenario,
             evaluation_type,
