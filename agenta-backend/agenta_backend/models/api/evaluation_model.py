@@ -56,6 +56,16 @@ class AggregatedResult(BaseModel):
     result: Result
 
 
+class NewHumanEvaluation(BaseModel):
+    app_id: str
+    variant_ids: List[str]
+    evaluation_type: EvaluationType
+    evaluation_type_settings: Optional[EvaluationTypeSettings]
+    inputs: List[str]
+    testset_id: str
+    status: str
+
+
 class Evaluation(BaseModel):
     id: str
     app_id: str

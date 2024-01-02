@@ -19,6 +19,7 @@ from agenta_backend.models.api.evaluation_model import (
     CreateCustomEvaluation,
     EvaluationUpdate,
     EvaluationStatusEnum,
+    NewHumanEvaluation,
 )
 from agenta_backend.models import converters
 from agenta_backend.utils.common import engine, check_access_to_app
@@ -28,6 +29,9 @@ from agenta_backend.models.db_models import (
     AppVariantDB,
     EvaluationDB,
     EvaluationScenarioDB,
+    HumanEvaluationDB,
+    HumanEvaluationScenarioDB,
+    HumanEvaluationScenarioInput,
     UserDB,
     AppDB,
     EvaluationScenarioInputDB,
@@ -111,7 +115,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
     csvdata: List[Dict[str, str]],
     payload_inputs: List[str],
     evaluation_type: EvaluationType,
-    new_evaluation: EvaluationDB,
+    new_evaluation: HumanEvaluationDB,
     user: UserDB,
     app: AppDB,
 ):
@@ -149,7 +153,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         # Create evaluation scenarios
         list_of_scenario_input = []
         for scenario_input in inputs:
-            eval_scenario_input_instance = EvaluationScenarioInputDB(
+            eval_scenario_input_instance = HumanEvaluationScenarioInput(
                 input_name=scenario_input["input_name"],
                 input_value=scenario_input["input_value"],
             )
@@ -164,7 +168,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             **_extend_with_correct_answer(evaluation_type, datum),
         }
 
-        eval_scenario_instance = EvaluationScenarioDB(
+        eval_scenario_instance = HumanEvaluationScenarioDB(
             **evaluation_scenario_payload,
             user=user,
             organization=app.organization,
@@ -786,6 +790,69 @@ async def fetch_custom_evaluation_names(
     return list_of_custom_eval_names
 
 
+async def create_new_human_evaluation(
+    payload: NewHumanEvaluation, **user_org_data: dict
+) -> EvaluationDB:
+    """
+    Create a new evaluation based on the provided payload and additional arguments.
+
+    Args:
+        payload (NewEvaluation): The evaluation payload.
+        **user_org_data (dict): Additional keyword arguments, e.g., user id.
+
+    Returns:
+        EvaluationDB
+    """
+    user = await get_user(user_uid=user_org_data["uid"])
+
+    # Initialize evaluation type settings
+    settings = payload.evaluation_type_settings
+    evaluation_type_settings = {}
+
+    current_time = datetime.utcnow()
+
+    # Fetch app
+    app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
+    if app is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"App with id {payload.app_id} does not exist",
+        )
+
+    variants = [ObjectId(variant_id) for variant_id in payload.variant_ids]
+
+    testset = await db_manager.fetch_testset_by_id(testset_id=payload.testset_id)
+    # Initialize and save evaluation instance to database
+    eval_instance = HumanEvaluationDB(
+        app=app,
+        organization=app.organization,  # Assuming user has an organization_id attribute
+        user=user,
+        status=payload.status,
+        evaluation_type=payload.evaluation_type,
+        evaluation_type_settings=evaluation_type_settings,
+        variants=variants,
+        testset=testset,
+        created_at=current_time,
+        updated_at=current_time,
+    )
+    newEvaluation = await engine.save(eval_instance)
+
+    if newEvaluation is None:
+        raise HTTPException(
+            status_code=500, detail="Failed to create evaluation_scenario"
+        )
+
+    await prepare_csvdata_and_create_evaluation_scenario(
+        testset.csvdata,
+        payload.inputs,
+        payload.evaluation_type,
+        newEvaluation,
+        user,
+        app,
+    )
+    return newEvaluation
+
+
 async def create_new_evaluation(
     app_data: dict, new_evaluation_data: dict, evaluators_configs: List[str]
 ) -> Evaluation:
@@ -816,6 +883,9 @@ async def create_new_evaluation(
         evaluators_configs=new_evaluation.evaluators_configs,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
+
+
+
 
 
 async def retrieve_evaluation_results(
