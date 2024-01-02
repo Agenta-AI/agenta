@@ -58,9 +58,6 @@ class DBEngine(object):
             )
             logger.info(f"Using {self.mode} database...")
             return aio_engine
-        raise ValueError(
-            "Mode of database is unknown. Did you mean 'default' or 'test'?"
-        )
 
     def remove_db(self) -> None:
         """
@@ -70,5 +67,7 @@ class DBEngine(object):
         client = MongoClient(self.db_url)
         if self.mode == "default":
             client.drop_database("agenta")
+        elif self.mode == "v2":
+            client.drop_database("agenta_v2")
         elif self.mode == "test":
             client.drop_database("agenta_test")

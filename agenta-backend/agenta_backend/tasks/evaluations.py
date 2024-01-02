@@ -1,6 +1,6 @@
+import os
 import asyncio
 from typing import List
-from bson import ObjectId
 from celery import shared_task
 from collections import defaultdict
 
@@ -67,6 +67,14 @@ def evaluate(
                 for input_item in raw_inputs
             ]
 
+        #!NOTE: do not remove! this will be used in github workflow!
+        backend_environment = os.environ.get("ENVIRONMENT")
+        if backend_environment is not None and backend_environment == "github":
+            uri = f"http://{deployment.container_name}"
+        else:
+            uri = deployment.uri.replace(
+                "http://localhost", "http://host.docker.internal"
+            )
         # 2. We get the output from the llm app
         variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
 
@@ -90,7 +98,7 @@ def evaluate(
                 variant_output,
                 data_point["correct_answer"],
                 evaluator_config.settings_values,
-                **additional_kwargs
+                **additional_kwargs,
             )
 
             result_object = EvaluationScenarioResult(

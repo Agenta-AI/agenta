@@ -1850,6 +1850,8 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
         delete_result = remove_document_using_driver(
             str(evaluator_config_id), "evaluators_configs"
         )
-        return delete_result is not None
+        return (
+            delete_result is None
+        )  # checking if delete_result is None (has been deleted)
     except Exception as e:
         raise e

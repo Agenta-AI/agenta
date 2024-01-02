@@ -21,71 +21,51 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 async def get_first_user_object():
     """Get the user object from the database or create a new one if not found."""
 
-    try:
-        user = await engine.find_one(UserDB, UserDB.uid == "0")
-        if user is None:
-            create_user = UserDB(uid="0")
-            await engine.save(create_user)
+    user = await engine.find_one(UserDB, UserDB.uid == "0")
+    if user is None:
+        create_user = UserDB(uid="0")
+        await engine.save(create_user)
 
-            org = OrganizationDB(type="default", owner=str(create_user.id))
-            await engine.save(org)
+        org = OrganizationDB(type="default", owner=str(create_user.id))
+        await engine.save(org)
 
-            create_user.organizations.append(org.id)
-            await engine.save(create_user)
-            await engine.save(org)
+        create_user.organizations.append(org.id)
+        await engine.save(create_user)
+        await engine.save(org)
 
-            return create_user
-        else:
-            return user
-    except Exception as e:
-        pytest.fail(f"Failed to get or create the first user: {e}")
-
-
-@pytest.fixture(scope="function")
-async def get_second_user_object():
-    """Create a second user object."""
-
-    try:
-        user = await engine.find_one(UserDB, UserDB.uid == "1")
-        if user is None:
-            create_user = UserDB(
-                uid="1", username="test_user1", email="test_user1@email.com"
-            )
-            await engine.save(create_user)
-
-            org = OrganizationDB(type="default", owner=str(create_user.id))
-            await engine.save(org)
-
-            create_user.organizations.append(org.id)
-            await engine.save(create_user)
-            await engine.save(org)
-
-            return create_user
-        else:
-            return user
-
-    except Exception as e:
-        pytest.fail(f"Failed to get or create the second user: {e}")
+        return create_user
+    return user
 
 
 @pytest.fixture()
-async def get_first_user_app():
-    user = await engine.find_one(UserDB, UserDB.uid == "0")
+async def get_second_user_object():
+    """Create a second user object."""
+
+    user = await engine.find_one(UserDB, UserDB.uid == "1")
     if user is None:
-        user = UserDB(uid="0")
-        await engine.save(user)
+        create_user = UserDB(
+            uid="1", username="test_user1", email="test_user1@email.com"
+        )
+        await engine.save(create_user)
 
-        organization = OrganizationDB(type="default", owner=str(user.id))
-        await engine.save(organization)
+        org = OrganizationDB(type="default", owner=str(create_user.id))
+        await engine.save(org)
 
-        user.organizations.append(organization.id)
-        await engine.save(user)
-        await engine.save(organization)
+        create_user.organizations.append(org.id)
+        await engine.save(create_user)
+        await engine.save(org)
 
+        return create_user
+    return user
+
+
+@pytest.fixture()
+async def get_first_user_app(get_first_user_object):
+    user = await get_first_user_object
     organization = await selectors.get_user_own_org(user.uid)
 
     app = AppDB(app_name="myapp", organization=organization, user=user)
