@@ -218,11 +218,17 @@ const StatusRenderer = React.memo(
     (prev, next) => prev.value === next.value && prev.data?.duration === next.data?.duration,
 )
 
-interface Props {
-    type?: "auto" | "human"
+const runningStatuses = [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED]
+
+export const calcEvalDuration = (evaluation: _Evaluation) => {
+    return dayjs(
+        runningStatuses.includes(evaluation.status) ? Date.now() : evaluation.updated_at,
+    ).diff(dayjs(evaluation.created_at), "milliseconds")
 }
 
-const EvaluationResults: React.FC<Props> = ({type = "auto"}) => {
+interface Props {}
+
+const EvaluationResults: React.FC<Props> = () => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const appId = useAppId()
@@ -237,9 +243,7 @@ const EvaluationResults: React.FC<Props> = ({type = "auto"}) => {
     const runningEvaluationIds = useMemo(
         () =>
             evaluations
-                .filter((item) =>
-                    [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED].includes(item.status),
-                )
+                .filter((item) => runningStatuses.includes(item.status))
                 .map((item) => item.id),
         [evaluations],
     )
@@ -282,8 +286,11 @@ const EvaluationResults: React.FC<Props> = ({type = "auto"}) => {
                                     const index = newEvals.findIndex((e) => e.id === id)
                                     if (index !== -1) {
                                         newEvals[index].status = res[ix].status
+                                        newEvals[index].duration = calcEvalDuration(newEvals[index])
                                     }
                                 })
+                                if (res.some((item) => !runningStatuses.includes(item.status)))
+                                    fetcher()
                                 return newEvals
                             })
                         })
@@ -400,9 +407,8 @@ const EvaluationResults: React.FC<Props> = ({type = "auto"}) => {
                         selected.length < 2 ||
                         selected.some(
                             (item) =>
-                                [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED].includes(
-                                    item.status,
-                                ) || item.testset.id !== selected[0].testset.id,
+                                runningStatuses.includes(item.status) ||
+                                item.testset.id !== selected[0].testset.id,
                         )
                     }
                     icon={<SwapOutlined />}
