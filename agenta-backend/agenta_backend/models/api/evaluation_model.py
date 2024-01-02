@@ -109,6 +109,7 @@ class EvaluationScenarioOutput(BaseModel):
     type: str
     value: Any
 
+
 class HumanEvaluation(BaseModel):
     id: str
     app_id: str

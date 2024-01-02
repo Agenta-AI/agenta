@@ -399,15 +399,16 @@ def annotation_scenario_db_to_pydantic(
         id=str(annotation_scenario_db.id),
         annotation_id=str(annotation_scenario_db.annotation_id),
         inputs=[
-            AnnotationScenarioInput(**input_dict.dict()) for input_dict in annotation_scenario_db.inputs
+            AnnotationScenarioInput(**input_dict.dict())
+            for input_dict in annotation_scenario_db.inputs
         ],
         outputs=[
-            AnnotationScenarioOutput(**output_dict.dict()) for output_dict in annotation_scenario_db.outputs
+            AnnotationScenarioOutput(**output_dict.dict())
+            for output_dict in annotation_scenario_db.outputs
         ],
         is_pinned=annotation_scenario_db.is_pinned,
         note=annotation_scenario_db.note,
         result=AnnotationScenarioResult(**annotation_scenario_db.result.dict()),
-
         created_at=annotation_scenario_db.created_at,
         updated_at=annotation_scenario_db.updated_at,
     )

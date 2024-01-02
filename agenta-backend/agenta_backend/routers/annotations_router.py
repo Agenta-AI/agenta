@@ -114,7 +114,9 @@ async def fetch_annotation(
     return await annotation_manager.fetch_annotation(annotation_id, **user_org_data)
 
 
-@router.get("/{annotation_id}/annotations_scenarios/", response_model=List[AnnotationScenario])
+@router.get(
+    "/{annotation_id}/annotations_scenarios/", response_model=List[AnnotationScenario]
+)
 async def fetch_annotations_scenarios(
     annotation_id: str,
     request: Request,
@@ -128,7 +130,9 @@ async def fetch_annotations_scenarios(
         Annotation: The fetched annotation.
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await annotation_manager.fetch_annotations_scenarios(annotation_id, **user_org_data)
+    return await annotation_manager.fetch_annotations_scenarios(
+        annotation_id, **user_org_data
+    )
 
 
 @router.put("/{annotation_id}/annotations_scenarios/{annotation_scenario_id}/")

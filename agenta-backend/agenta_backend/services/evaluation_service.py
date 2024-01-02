@@ -528,7 +528,9 @@ async def fetch_list_human_evaluations(
     ]
 
 
-async def fetch_human_evaluation(evaluation_id: str, **user_org_data: dict) -> HumanEvaluation:
+async def fetch_human_evaluation(
+    evaluation_id: str, **user_org_data: dict
+) -> HumanEvaluation:
     """
     Fetches a single evaluation based on its ID.
 

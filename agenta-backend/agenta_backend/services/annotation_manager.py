@@ -197,7 +197,9 @@ async def create_annotation_scenario(
     await engine.save(new_annotation_scenario)
 
 
-async def fetch_annotations_scenarios(annotation_id: str, **user_org_data: dict) -> [AnnotationScenario]:
+async def fetch_annotations_scenarios(
+    annotation_id: str, **user_org_data: dict
+) -> [AnnotationScenario]:
     """
     Fetches a single annotation based on its ID.
 
