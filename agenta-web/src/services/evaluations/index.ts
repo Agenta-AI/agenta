@@ -125,11 +125,18 @@ export const deleteEvaluations = async (evaluationsIds: string[]) => {
 
 // Evaluation Scenarios
 export const fetchAllEvaluationScenarios = async (appId: string, evaluationId: string) => {
-    // await delay(1000)
-    // return Mock.evaluationScenarios
+    const [{data: evaluationScenarios}, evaluation] = await Promise.all([
+        axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios/`, {
+            params: {app_id: appId},
+        }),
+        fetchEvaluation(evaluationId),
+    ])
 
-    const response = await axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios/`, {
-        params: {app_id: appId},
+    evaluationScenarios.forEach((scenario: _EvaluationScenario) => {
+        scenario.evaluation = evaluation
+        scenario.evaluators_configs = evaluation.aggregated_results.map(
+            (item) => item.evaluator_config,
+        )
     })
-    return response.data as _EvaluationScenario[]
+    return evaluationScenarios as _EvaluationScenario[]
 }

@@ -1,12 +1,20 @@
-import React, {useEffect, useMemo, useRef, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {AgGridReact} from "ag-grid-react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {ColDef, ICellRendererParams} from "ag-grid-community"
 import {createUseStyles} from "react-jss"
-import {Button, GlobalToken, Space, Spin, Typography, theme} from "antd"
-import {DeleteOutlined, PlusCircleOutlined, SlidersOutlined, SwapOutlined} from "@ant-design/icons"
-import {EvaluationStatus, JSSTheme, _Evaluation} from "@/lib/Types"
-import {uniqBy} from "lodash"
+import {Button, GlobalToken, Space, Spin, Typography, message, theme} from "antd"
+import {
+    CopyOutlined,
+    DeleteOutlined,
+    FullscreenExitOutlined,
+    FullscreenOutlined,
+    PlusCircleOutlined,
+    SlidersOutlined,
+    SwapOutlined,
+} from "@ant-design/icons"
+import {EvaluationStatus, GenericObject, JSSTheme, TypedValue, _Evaluation} from "@/lib/Types"
+import {capitalize, round, uniqBy} from "lodash"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
@@ -15,7 +23,7 @@ import {useAppId} from "@/hooks/useAppId"
 import {deleteEvaluations, fetchAllEvaluations, fetchEvaluationStatus} from "@/services/evaluations"
 import {useRouter} from "next/router"
 import {useUpdateEffect} from "usehooks-ts"
-import {durationToStr, shortPoll} from "@/lib/helpers/utils"
+import {shortPoll} from "@/lib/helpers/utils"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useDurationCounter} from "@/hooks/useDurationCounter"
 dayjs.extend(relativeTime)
@@ -57,6 +65,27 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     date: {
         color: "#8c8c8c",
     },
+    longCell: {
+        height: "100%",
+        position: "relative",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        "& .ant-space": {
+            position: "absolute",
+            bottom: 2,
+            right: 0,
+            height: 35,
+            backgroundColor: theme.colorBgContainer,
+            padding: "0.5rem",
+            borderRadius: theme.borderRadius,
+            border: `1px solid ${theme.colorBorder}`,
+            display: "none",
+        },
+        "&:hover .ant-space": {
+            display: "inline-flex",
+        },
+    },
 }))
 
 const statusMapper = (token: GlobalToken) => ({
@@ -78,9 +107,100 @@ const statusMapper = (token: GlobalToken) => ({
     },
 })
 
-interface Props {}
+export function getTypedValue(res?: TypedValue) {
+    const {value, type} = res || {}
+    return type === "number"
+        ? round(Number(value), 2)
+        : ["boolean", "bool"].includes(type as string)
+          ? capitalize(value?.toString())
+          : value?.toString()
+}
 
-const EvaluationResults: React.FC<Props> = () => {
+export function getFilterParams(type: "number" | "text" | "date") {
+    const filterParams: GenericObject = {}
+    if (type == "date") {
+        filterParams.comparator = function (
+            filterLocalDateAtMidnight: Date,
+            cellValue: string | null,
+        ) {
+            if (cellValue == null) return -1
+            const cellDate = dayjs(cellValue).startOf("day").toDate()
+            if (filterLocalDateAtMidnight.getTime() === cellDate.getTime()) {
+                return 0
+            }
+            if (cellDate < filterLocalDateAtMidnight) {
+                return -1
+            }
+            if (cellDate > filterLocalDateAtMidnight) {
+                return 1
+            }
+        }
+    }
+
+    return {
+        sortable: true,
+        floatingFilter: true,
+        filter:
+            type === "number"
+                ? "agNumberColumnFilter"
+                : type === "date"
+                  ? "agDateColumnFilter"
+                  : "agTextColumnFilter",
+        cellDataType: type,
+        filterParams,
+    }
+}
+
+export function LongTextCellRenderer(params: ICellRendererParams) {
+    const {value, api, node} = params
+    const [expanded, setExpanded] = useState(
+        node.rowHeight !== api.getSizesForCurrentTheme().rowHeight,
+    )
+    const classes = useStyles()
+
+    const onCopy = useCallback(() => {
+        navigator.clipboard
+            .writeText(value as string)
+            .then(() => {
+                message.success("Copied to clipboard")
+            })
+            .catch(console.error)
+    }, [])
+
+    const onExpand = useCallback(() => {
+        node.setRowHeight(api.getSizesForCurrentTheme().rowHeight * (expanded ? 1 : 5))
+        api.onRowHeightChanged()
+    }, [expanded])
+
+    useEffect(() => {
+        node.addEventListener("heightChanged", () => {
+            setExpanded(node.rowHeight !== api.getSizesForCurrentTheme().rowHeight)
+        })
+    }, [])
+
+    return (
+        <div
+            className={classes.longCell}
+            style={expanded ? {textWrap: "wrap", lineHeight: "2em", paddingTop: 6.5} : undefined}
+        >
+            {value}
+            <Space align="center" size="middle">
+                {expanded ? (
+                    <FullscreenExitOutlined onClick={onExpand} />
+                ) : (
+                    <FullscreenOutlined onClick={onExpand} />
+                )}
+                <CopyOutlined onClick={onCopy} />
+            </Space>
+        </div>
+    )
+}
+
+interface Props {
+    type?: "auto" | "human"
+}
+
+const EvaluationResults: React.FC<Props> = ({type = "auto"}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const appId = useAppId()
@@ -175,15 +295,26 @@ const EvaluationResults: React.FC<Props> = () => {
                 headerCheckboxSelection: true,
                 checkboxSelection: true,
                 showDisabledCheckboxes: true,
+                ...getFilterParams("text"),
+                pinned: "left",
             },
-            {field: "testset.name", flex: 1, minWidth: 160},
+            {
+                field: "testset.name",
+                flex: 1,
+                minWidth: 160,
+                tooltipValueGetter: (params) => params.value,
+                ...getFilterParams("text"),
+            },
             {
                 field: "variants",
                 flex: 1,
                 minWidth: 160,
                 valueGetter: (params) =>
                     params.data?.variants.map((item) => item.variantName).join(","),
-                headerName: "Variant",
+                headerName: "Variant(s)",
+                tooltipValueGetter: (params) =>
+                    params.data?.variants.map((item) => item.variantName).join(","),
+                ...getFilterParams("text"),
             },
             ...evaluatorConfigs.map(
                 (config) =>
@@ -196,16 +327,26 @@ const EvaluationResults: React.FC<Props> = () => {
                                 <SlidersOutlined /> {config.name}
                             </span>
                         ),
+                        ...getFilterParams("number"),
                         valueGetter: (params) =>
-                            params.data?.aggregated_results.find(
-                                (item) => item.evaluator_config.id === config.id,
-                            )?.result?.value || "",
+                            getTypedValue(
+                                params.data?.aggregated_results.find(
+                                    (item) => item.evaluator_config.id === config.id,
+                                )?.result,
+                            ),
+                        tooltipValueGetter: (params) =>
+                            params.data?.aggregated_results
+                                .find((item) => item.evaluator_config.id === config.id)
+                                ?.result?.value?.toString() || "",
                     }) as ColDef<_Evaluation>,
             ),
             {
                 flex: 1,
                 field: "status",
                 minWidth: 200,
+                ...getFilterParams("text"),
+                filterValueGetter: (params) =>
+                    statusMapper(token)[params.data?.status as EvaluationStatus].label,
                 cellRenderer: (params: ICellRendererParams<_Evaluation>) => {
                     const classes = useStyles()
                     const duration = useDurationCounter(
@@ -231,6 +372,7 @@ const EvaluationResults: React.FC<Props> = () => {
                 field: "created_at",
                 headerName: "Created",
                 minWidth: 120,
+                ...getFilterParams("date"),
                 valueFormatter: (params) => dayjs(params.value).fromNow(),
             },
         ]
@@ -290,11 +432,13 @@ const EvaluationResults: React.FC<Props> = () => {
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.id}
                         onRowClicked={(params) =>
+                            EvaluationStatus.FINISHED === params.data?.status &&
                             router.push(`/apps/${appId}/evaluations-new/${params.data?.id}`)
                         }
                         rowSelection="multiple"
                         suppressRowClickSelection
                         onSelectionChanged={(event) => setSelected(event.api.getSelectedRows())}
+                        tooltipShowDelay={0}
                     />
                 </div>
             </Spin>

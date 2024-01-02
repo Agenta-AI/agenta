@@ -1,155 +1,212 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, _Evaluation, _EvaluationScenario} from "@/lib/Types"
-import {fetchAllEvaluationScenarios, fetchEvaluation} from "@/services/evaluations"
+import {fetchAllEvaluationScenarios} from "@/services/evaluations"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {Space, Spin, Tag, Typography} from "antd"
-import dayjs from "dayjs"
-import {useRouter} from "next/router"
-import React, {useEffect, useMemo, useState} from "react"
+import {Space, Spin, Tag, Tooltip, Typography} from "antd"
+import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {
+    LongTextCellRenderer,
+    getFilterParams,
+    getTypedValue,
+} from "../evaluationResults/EvaluationResults"
+import {uniqBy} from "lodash"
+import {getTagColors} from "@/lib/helpers/colors"
+import {DownloadOutlined} from "@ant-design/icons"
+import {getAppValues} from "@/contexts/app.context"
+import {useQueryParam} from "@/hooks/useQuery"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    header: {
-        margin: "1rem 0",
-        "& > h3": {
-            textAlign: "center",
-        },
-    },
-    date: {
-        fontSize: "0.75rem",
-        color: theme.colorTextSecondary,
-        display: "inline-block",
-        marginBottom: "1rem",
-    },
     table: {
-        height: 500,
+        height: "calc(100vh - 240px)",
+    },
+    infoRow: {
+        marginTop: "1rem",
+        margin: "0.75rem 0",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
     },
 }))
 
 interface Props {}
 
 const EvaluationCompareMode: React.FC<Props> = () => {
-    const router = useRouter()
     const appId = useAppId()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
-    const evaluationIds = router.query.evaluations as string
+    const [evaluationIds, setEvaluationIds] = useQueryParam("evaluations")
     const [scenarios, setScenarios] = useState<_EvaluationScenario[]>([])
-    const [evalaution, setEvaluation] = useState<_Evaluation[]>()
     const [fetching, setFetching] = useState(false)
+    const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
+
+    const evalautions = useMemo(() => {
+        return uniqBy(
+            scenarios.map((scenario) => scenario.evaluation),
+            "id",
+        )
+    }, [scenarios])
+
+    const colors = useMemo(() => getTagColors(), [evalautions])
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
-        if (!scenarios.length || !evalaution) return colDefs
+        if (!scenarios.length || !evalautions.length) return colDefs
 
-        scenarios[0]?.inputs.forEach((input, index) => {
-            colDefs.push({
-                headerName: `Input: ${input.name}`,
-                field: `inputs.${index}`,
-                valueGetter: (params) => {
-                    return params.data?.inputs[index].value || ""
-                },
-            })
-        })
         colDefs.push({
             headerName: "Expected Output",
+            minWidth: 280,
+            flex: 1,
             field: "correct_answer",
+            ...getFilterParams("text"),
             valueGetter: (params) => {
-                return params.data?.correct_answer?.value || ""
+                return params.data?.correct_answer?.toString() || ""
             },
+            pinned: "left",
+            cellRenderer: LongTextCellRenderer,
         })
 
-        evalaution.map(
-            (evalaution) =>
-                evalaution?.variants.forEach((variant, index) => {
-                    colDefs.push({
-                        headerName: `Output (${variant.variantName})`,
-                        field: `outputs.${index}`,
-                        valueGetter: (params) => {
-                            return params.data?.outputs[index].value || ""
-                        },
+        evalautions.forEach((evalaution, vi) => {
+            evalaution?.variants.forEach((variant, index) => {
+                scenarios
+                    .find((scenario) => scenario.evaluation.id === evalaution.id)
+                    ?.inputs.forEach((input, index) => {
+                        colDefs.push({
+                            headerComponent: () => (
+                                <Space>
+                                    <span>Input: {input.name}</span>
+                                    <Tag color={colors[vi]}> {variant.variantName}</Tag>
+                                </Space>
+                            ),
+                            minWidth: 200,
+                            flex: 1,
+                            field: `inputs.${index}`,
+                            ...getFilterParams(input.type === "number" ? "number" : "text"),
+                            valueGetter: (params) => {
+                                return getTypedValue(params.data?.inputs[index])
+                            },
+                            cellRenderer: LongTextCellRenderer,
+                        })
                     })
-                }),
-        )
-
-        scenarios.map(
-            (scenario) =>
-                scenario?.evaluators_configs.forEach((config, index) => {
+                colDefs.push({
+                    headerComponent: () => (
+                        <Space>
+                            <span>Output</span>
+                            <Tag color={colors[vi]}>{variant.variantName}</Tag>
+                        </Space>
+                    ),
+                    minWidth: 280,
+                    flex: 1,
+                    field: `outputs.${index}`,
+                    ...getFilterParams("text"),
+                    valueGetter: (params) => {
+                        return getTypedValue(params.data?.outputs[index])
+                    },
+                    cellRenderer: LongTextCellRenderer,
+                })
+                evalaution.aggregated_results.forEach(({evaluator_config: config}) => {
                     colDefs.push({
-                        headerName: `Evaluator: ${config.name}`,
-                        field: `results`,
+                        flex: 1,
+                        headerComponent: () => (
+                            <Space>
+                                <span>Evaluator: {config.name}</span>
+                                <Tag color={colors[vi]}>{variant.variantName}</Tag>
+                            </Space>
+                        ),
+                        field: "results",
+                        ...getFilterParams("text"),
                         valueGetter: (params) => {
-                            return (
+                            return getTypedValue(
                                 params.data?.results.find(
-                                    (item) => item.evaluator.key === config.evaluator_key,
-                                )?.result || ""
+                                    (item) => item.evaluator_config === config.id,
+                                )?.result,
                             )
                         },
                     })
-                }),
-        )
+                })
+            })
+        })
 
         return colDefs
-    }, [evalaution, scenarios])
+    }, [scenarios])
+
+    const fetcher = () => {
+        setFetching(true)
+        Promise.all(
+            (evaluationIds?.split(",") || []).map((evalId) =>
+                fetchAllEvaluationScenarios(appId, evalId),
+            ),
+        )
+            .then((scenariosNest) => {
+                setScenarios(scenariosNest.flat(1))
+                setTimeout(() => {
+                    if (!gridRef.current) return
+
+                    const ids: string[] =
+                        gridRef.current.api
+                            .getColumns()
+                            ?.filter((column) => column.getColDef().field?.startsWith("results"))
+                            ?.map((item) => item.getColId()) || []
+                    gridRef.current.api.autoSizeColumns(ids, false)
+                    setFetching(false)
+                }, 100)
+            })
+            .catch(() => setFetching(false))
+    }
 
     useEffect(() => {
-        const fetcher = async () => {
-            setFetching(true)
-
-            try {
-                const evaluationIdsArray = evaluationIds?.split(",") || []
-
-                const fetchPromises = evaluationIdsArray.map((evalId) => {
-                    return Promise.all([
-                        fetchAllEvaluationScenarios(appId, evalId),
-                        fetchEvaluation(evalId),
-                    ])
-                })
-
-                const results = await Promise.all(fetchPromises)
-                const fetchedScenarios = results.map(([[scenarios]]) => scenarios)
-                const fetchedEvaluations = results.map(([_, evaluation]) => evaluation)
-
-                setScenarios(fetchedScenarios)
-                setEvaluation(fetchedEvaluations)
-            } catch (error) {
-                console.error(error)
-            } finally {
-                setFetching(false)
-            }
-        }
-
         fetcher()
     }, [appId, evaluationIds])
 
-    const handleDeleteVariant = (variantId: string) => {
-        console.log(variantId)
+    const handleDeleteVariant = (evalId: string) => {
+        setEvaluationIds(
+            evaluationIds
+                ?.split(",")
+                .filter((item) => item !== evalId)
+                .join(","),
+        )
+    }
+
+    const onExport = () => {
+        if (!gridRef.current) return
+        const {currentApp} = getAppValues()
+        gridRef.current.api.exportDataAsCsv({
+            fileName: `${currentApp?.app_name}_${evalautions
+                .map(({variants}) => variants[0].variantName)
+                .join("_")}.csv`,
+        })
     }
 
     return (
         <div>
-            <div className={classes.header}>
-                <Typography.Title level={3}>
-                    Testset: {evalaution ? evalaution[0]?.testset.name : ""}
-                </Typography.Title>
-                <Space>
-                    <Typography.Text>Variants:</Typography.Text>
-                    {evalaution?.map(
-                        (evalaution) =>
-                            evalaution?.variants?.map((variant) => (
+            <Typography.Title level={3}>Evaluations Comparison</Typography.Title>
+            <div className={classes.infoRow}>
+                <Space size="large">
+                    <Space>
+                        <Typography.Text strong>Testset:</Typography.Text>
+                        <Typography.Text>{evalautions[0]?.testset.name || ""}</Typography.Text>
+                    </Space>
+                    <Space>
+                        <Typography.Text strong>Variants:</Typography.Text>
+                        <div>
+                            {evalautions?.map(({variants, id}, vi) => (
                                 <Tag
-                                    color="blue"
-                                    key={variant.variantId}
-                                    onClose={() => handleDeleteVariant(variant.variantId)}
+                                    key={id}
+                                    color={colors[vi]}
+                                    onClose={() => handleDeleteVariant(id)}
                                     closable
                                 >
-                                    {variant.variantName}
+                                    {variants[0].variantName}
                                 </Tag>
-                            )),
-                    )}
+                            ))}
+                        </div>
+                    </Space>
                 </Space>
+                <Tooltip title="Export as CSV">
+                    <DownloadOutlined onClick={onExport} style={{fontSize: 16}} />
+                </Tooltip>
             </div>
 
             <Spin spinning={fetching}>
@@ -159,6 +216,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     } ${classes.table}`}
                 >
                     <AgGridReact<_EvaluationScenario>
+                        ref={gridRef as any}
                         rowData={scenarios}
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.id}
