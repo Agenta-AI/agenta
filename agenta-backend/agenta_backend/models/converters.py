@@ -5,12 +5,13 @@ from typing import List
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.user_models import User
 from agenta_backend.models.db_models import (
-    AnnoatationScenarioResult,
+    AnnotationScenarioResult,
     AnnotationsDB,
     AnnotationsScenariosDB,
     AppVariantDB,
     EvaluationScenarioResult,
     EvaluatorConfigDB,
+    HumanEvaluationDB,
     ImageDB,
     TemplateDB,
     AppDB,
@@ -42,6 +43,7 @@ from agenta_backend.models.api.observability_models import (
     Feedback as FeedbackOutput,
 )
 from agenta_backend.models.api.evaluation_model import (
+    HumanEvaluation,
     SimpleEvaluationOutput,
     EvaluationScenario,
     Evaluation,
@@ -97,6 +99,31 @@ async def evaluation_db_to_pydantic(
         aggregated_results=await aggregated_result_to_pydantic(
             evaluation_db.aggregated_results
         ),
+        created_at=evaluation_db.created_at,
+        updated_at=evaluation_db.updated_at,
+    )
+
+
+async def human_evaluation_db_to_pydantic(
+    evaluation_db: HumanEvaluationDB,
+) -> HumanEvaluation:
+    variant_names = []
+    for variant_id in evaluation_db.variants:
+        variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
+        variant_name = variant.variant_name if variant else str(variant_id)
+        variant_names.append(str(variant_name))
+
+    return HumanEvaluation(
+        id=str(evaluation_db.id),
+        app_id=str(evaluation_db.app.id),
+        user_id=str(evaluation_db.user.id),
+        user_username=evaluation_db.user.username or "",
+        status=evaluation_db.status,
+        evaluation_type=evaluation_db.evaluation_type,
+        variant_ids=[str(variant) for variant in evaluation_db.variants],
+        variant_names=variant_names,
+        testset_id=str(evaluation_db.testset.id),
+        testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
@@ -372,19 +399,16 @@ def annotation_scenario_db_to_pydantic(
         id=str(annotation_scenario_db.id),
         annotation_id=str(annotation_scenario_db.annotation_id),
         inputs=[
-            AnnotationScenarioInput(**input_dict)
+            AnnotationScenarioInput(**input_dict.dict())
             for input_dict in annotation_scenario_db.inputs
         ],
         outputs=[
-            AnnotationScenarioOutput(**output_dict)
+            AnnotationScenarioOutput(**output_dict.dict())
             for output_dict in annotation_scenario_db.outputs
         ],
         is_pinned=annotation_scenario_db.is_pinned,
         note=annotation_scenario_db.note,
-        results=[
-            AnnoatationScenarioResult(**result_dict)
-            for result_dict in annotation_scenario_db.results
-        ],
+        result=AnnotationScenarioResult(**annotation_scenario_db.result.dict()),
         created_at=annotation_scenario_db.created_at,
         updated_at=annotation_scenario_db.updated_at,
     )

@@ -197,6 +197,34 @@ async def create_annotation_scenario(
     await engine.save(new_annotation_scenario)
 
 
+async def fetch_annotations_scenarios(
+    annotation_id: str, **user_org_data: dict
+) -> [AnnotationScenario]:
+    """
+    Fetches a single annotation based on its ID.
+
+    Args:
+        annotation_id (str): The ID of the annotation.
+        user_org_data (dict): User and organization data.
+
+    Returns:
+        Annotation: The fetched annotation.
+    """
+    annotation = await _fetch_annotation_and_check_access(
+        annotation_id=annotation_id,
+        **user_org_data,
+    )
+    scenarios = await engine.find(
+        AnnotationsScenariosDB,
+        AnnotationsScenariosDB.annotation_id == ObjectId(annotation_id),
+    )
+    annotations_scenarios = [
+        converters.annotation_scenario_db_to_pydantic(scenario)
+        for scenario in scenarios
+    ]
+    return annotations_scenarios
+
+
 async def update_annotation_scenario(
     annotation_scenario_id: str,
     updates: Dict[str, Any],
@@ -212,7 +240,7 @@ async def update_annotation_scenario(
     Returns:
         AnnotationScenario: The updated annotation scenario object.
     """
-    print("update_annotation_scenario")
+
     annotation_scenario = await db_manager.update_annotation_scenario(
         annotation_scenario_id, updates
     )

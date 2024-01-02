@@ -3,6 +3,7 @@ import {getErrorMessage, globalErrorHandler} from "./errorHandler"
 import {signOut} from "supertokens-auth-react/recipe/thirdpartypasswordless"
 import router from "next/router"
 import {getAgentaApiUrl} from "./utils"
+import {isObject} from "lodash"
 
 const axios = axiosApi.create({
     baseURL: getAgentaApiUrl(),
@@ -12,7 +13,19 @@ const axios = axiosApi.create({
 })
 
 axios.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        const {data} = response
+        // deep convert all UTC dats to local
+        if (data && isObject(data))
+            response.data = JSON.parse(JSON.stringify(data), (k, v) => {
+                return ["created_at", "updated_at"].includes(k) &&
+                    typeof v === "string" &&
+                    !v.endsWith("Z")
+                    ? v + "Z"
+                    : v
+            })
+        return response
+    },
     (error) => {
         // if axios config has _ignoreError set to true, then don't handle error
         if (error.config?._ignoreError) throw error
