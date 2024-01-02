@@ -23,6 +23,8 @@ from agenta_backend.models.api.evaluation_model import (
     CreateCustomEvaluation,
     EvaluationUpdate,
     EvaluationWebhook,
+    NewHumanEvaluation,
+    SimpleEvaluationOutput,
 )
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
@@ -53,6 +55,49 @@ else:
     from agenta_backend.services.selectors import get_user_and_org_id
 
 router = APIRouter()
+
+
+@router.post(
+    "/human-evaluations/", response_model=SimpleEvaluationOutput, operation_id="create_evaluation"
+)
+async def create_evaluation(
+    payload: NewHumanEvaluation,
+    request: Request,
+):
+    """Creates a new comparison table document
+    Raises:
+        HTTPException: _description_
+    Returns:
+        _description_
+    """
+    try:
+        user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+        access_app = await check_access_to_app(
+            user_org_data=user_org_data,
+            app_id=payload.app_id,
+            check_owner=False,
+        )
+        if not access_app:
+            error_msg = f"You do not have access to this app: {payload.app_id}"
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=400,
+            )
+        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
+
+        if app is None:
+            raise HTTPException(status_code=404, detail="App not found")
+
+        new_evaluation_db = await evaluation_service.create_new_human_evaluation(
+            payload, **user_org_data
+        )
+        print(new_evaluation_db)
+        return converters.evaluation_db_to_simple_evaluation_output(new_evaluation_db)
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail="columns in the test set should match the names of the inputs in the variant",
+        )
 
 
 @router.post("/")
