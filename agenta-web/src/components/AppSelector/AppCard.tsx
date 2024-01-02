@@ -9,20 +9,25 @@ import {getGradientFromStr} from "@/lib/helpers/colors"
 import {ListAppsItem} from "@/lib/Types"
 import {useProfileData, Role} from "@/contexts/profile.context"
 import {useAppsData} from "@/contexts/app.context"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
+
+type StyleProps = {
+    themeMode: "dark" | "light"
+}
 
 const useStyles = createUseStyles({
-    card: {
+    card: ({themeMode}: StyleProps) => ({
         width: 300,
         height: 120,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
         overflow: "hidden",
+        background: themeMode === "light" && "white",
         "& svg": {
             color: "red",
         },
         "& .ant-card-meta": {
-            height: "90%",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -30,25 +35,12 @@ const useStyles = createUseStyles({
         "& .ant-card-meta-title div": {
             textAlign: "center",
         },
-    },
-    cardCover: {
-        "z-index": 1,
-        position: "absolute",
-        top: 0,
-        right: 0,
-        left: 0,
-        background: "transparent",
-        margin: "auto",
-        width: "300px",
-        height: "70px",
-        display: "flex",
-        overflow: "hidden",
-        "flex-direction": "column",
-        "justify-content": "space-between",
-    },
-    cardLink: {
-        padding: "24px",
-    },
+        "& .ant-card-actions": {
+            "& li": {
+                margin: "8px 0",
+            },
+        },
+    }),
 })
 
 const DeleteModal: React.FC<{
@@ -102,7 +94,8 @@ const AppCard: React.FC<{
         setVisibleDelete(false)
     }
 
-    const classes = useStyles()
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
 
     return (
         <>
@@ -113,17 +106,23 @@ const AppCard: React.FC<{
                         ? [<DeleteOutlined key="delete" onClick={showDeleteModal} />]
                         : undefined
                 }
+                style={{background: appTheme === "light" ? "" : getGradientFromStr(app.app_id)}}
             >
                 <Link data-cy="app-card-link" href={`/apps/${app.app_id}/playground`}>
                     <Card.Meta
                         title={<div>{renameVariablesCapitalizeAll(app.app_name)}</div>}
                         avatar={
-                            <Avatar
-                                size="large"
-                                style={{backgroundImage: getGradientFromStr(app.app_id)}}
-                            >
-                                {app.app_name.charAt(0).toUpperCase()}
-                            </Avatar>
+                            appTheme === "light" && (
+                                <Avatar
+                                    size="large"
+                                    style={{
+                                        background: getGradientFromStr(app.app_id),
+                                        border: "none",
+                                    }}
+                                >
+                                    {app.app_name.charAt(0).toUpperCase()}
+                                </Avatar>
+                            )
                         }
                     />
                 </Link>
