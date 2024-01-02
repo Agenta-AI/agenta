@@ -39,7 +39,6 @@ def evaluate(
     new_evaluation_db = loop.run_until_complete(fetch_evaluation_by_id(evaluation_id))
     evaluators_aggregated_data = defaultdict(list)
 
-
     variant_id = str(evaluation.variant_ids[0])
 
     app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
@@ -99,9 +98,7 @@ def evaluate(
                 result=result,
             )
             evaluators_results.append(result_object)
-            evaluators_aggregated_data[evaluator_config.evaluator_key].append(
-                result
-            )
+            evaluators_aggregated_data[evaluator_config.evaluator_key].append(result)
 
         # 4. We create a new evaluation scenario
         evaluation_scenario = loop.run_until_complete(
@@ -115,9 +112,7 @@ def evaluate(
                 is_pinned=False,
                 note="",
                 correct_answer=data_point["correct_answer"],
-                outputs=[
-                    EvaluationScenarioOutputDB(type="text", value=variant_output)
-                ],
+                outputs=[EvaluationScenarioOutputDB(type="text", value=variant_output)],
                 results=evaluators_results,
             )
         )

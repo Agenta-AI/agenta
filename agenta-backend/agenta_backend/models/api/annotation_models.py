@@ -55,4 +55,3 @@ class AnnotationScenario(BaseModel):
     is_pinned: Optional[bool]
     note: Optional[str]
     result: AnnotationScenarioResult
-

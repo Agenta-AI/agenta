@@ -95,7 +95,7 @@ async def create_evaluation(
                 "app_id": payload.app_id,
                 "variant_ids": [variant_id],  # Only this variant ID
                 "evaluators_configs": payload.evaluators_configs,
-                "testset_id": payload.testset_id
+                "testset_id": payload.testset_id,
             }
 
             evaluation = await evaluation_service.create_new_evaluation(

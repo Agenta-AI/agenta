@@ -76,6 +76,7 @@ async def create_evaluation(
             detail="columns in the test set should match the names of the inputs in the variant",
         )
 
+
 @router.get("/", response_model=List[HumanEvaluation])
 async def fetch_list_human_evaluations(
     app_id: str,
@@ -94,6 +95,7 @@ async def fetch_list_human_evaluations(
         app_id=app_id, **user_org_data
     )
 
+
 @router.get("/{evaluation_id}/", response_model=HumanEvaluation)
 async def fetch_human_evaluation(
     evaluation_id: str,
@@ -108,7 +110,10 @@ async def fetch_human_evaluation(
         HumanEvaluation: The fetched evaluation.
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await evaluation_service.fetch_human_evaluation(evaluation_id, **user_org_data)
+    return await evaluation_service.fetch_human_evaluation(
+        evaluation_id, **user_org_data
+    )
+
 
 @router.put(
     "/{evaluation_id}/evaluation_scenario/{evaluation_scenario_id}/{evaluation_type}/"
@@ -201,8 +206,10 @@ async def fetch_results(
     # Get user and organization id
     print("are we here")
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    evaluation = await evaluation_service._fetch_human_evaluation_scenario_and_check_access(
-        evaluation_id, **user_org_data
+    evaluation = (
+        await evaluation_service._fetch_human_evaluation_scenario_and_check_access(
+            evaluation_id, **user_org_data
+        )
     )
     print("really???")
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:

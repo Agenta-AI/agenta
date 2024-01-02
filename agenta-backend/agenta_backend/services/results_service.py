@@ -1,6 +1,11 @@
 from agenta_backend.utils.common import engine
 from agenta_backend.services.db_manager import query
-from agenta_backend.models.db_models import EvaluationScenarioDB, EvaluationDB, HumanEvaluationDB, HumanEvaluationScenarioDB
+from agenta_backend.models.db_models import (
+    EvaluationScenarioDB,
+    EvaluationDB,
+    HumanEvaluationDB,
+    HumanEvaluationScenarioDB,
+)
 from agenta_backend.services import evaluation_service
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.evaluation_model import EvaluationType
@@ -9,7 +14,8 @@ from bson import ObjectId
 
 async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
     evaluation_scenarios = await engine.find(
-        HumanEvaluationScenarioDB, HumanEvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
+        HumanEvaluationScenarioDB,
+        HumanEvaluationScenarioDB.evaluation == ObjectId(evaluation.id),
     )
 
     results = {}
