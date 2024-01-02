@@ -32,6 +32,7 @@ from agenta_backend.models.db_models import (
     HumanEvaluationDB,
     HumanEvaluationScenarioDB,
     HumanEvaluationScenarioInput,
+    HumanEvaluationScenarioOutput,
     UserDB,
     AppDB,
     EvaluationScenarioInputDB,
@@ -78,11 +79,11 @@ async def _fetch_evaluation_and_check_access(
     return evaluation
 
 
-async def _fetch_evaluation_scenario_and_check_access(
+async def _fetch_human_evaluation_scenario_and_check_access(
     evaluation_scenario_id: str, **user_org_data: dict
-) -> EvaluationDB:
+) -> HumanEvaluationDB:
     # Fetch the evaluation by ID
-    evaluation_scenario = await db_manager.fetch_evaluation_scenario_by_id(
+    evaluation_scenario = await db_manager.fetch_human_evaluation_scenario_by_id(
         evaluation_scenario_id=evaluation_scenario_id
     )
     if evaluation_scenario is None:
@@ -296,7 +297,7 @@ async def fetch_evaluation_scenarios_for_evaluation(
     return eval_scenarios
 
 
-async def update_evaluation_scenario(
+async def update_human_evaluation_scenario(
     evaluation_scenario_id: str,
     evaluation_scenario_data: EvaluationScenarioUpdate,
     evaluation_type: EvaluationType,
@@ -314,7 +315,7 @@ async def update_evaluation_scenario(
     Raises:
         HTTPException: If evaluation scenario not found or access denied.
     """
-    eval_scenario = await _fetch_evaluation_scenario_and_check_access(
+    eval_scenario = await _fetch_human_evaluation_scenario_and_check_access(
         evaluation_scenario_id=evaluation_scenario_id,
         **user_org_data,
     )
@@ -342,7 +343,7 @@ async def update_evaluation_scenario(
 
     if updated_data["outputs"] is not None:
         new_outputs = [
-            EvaluationScenarioOutputDB(
+            HumanEvaluationScenarioOutput(
                 variant_id=output["variant_id"],
                 variant_output=output["variant_output"],
             ).dict()
@@ -352,7 +353,7 @@ async def update_evaluation_scenario(
 
     if updated_data["inputs"] is not None:
         new_inputs = [
-            EvaluationScenarioInputDB(
+            HumanEvaluationScenarioInput(
                 input_name=input_item["input_name"],
                 input_value=input_item["input_value"],
             ).dict()
@@ -387,7 +388,7 @@ async def update_evaluation_scenario_score(
     Raises:
         HTTPException: If evaluation scenario not found or access denied.
     """
-    eval_scenario = await _fetch_evaluation_scenario_and_check_access(
+    eval_scenario = await _fetch_human_evaluation_scenario_and_check_access(
         evaluation_scenario_id, **user_org_data
     )
     eval_scenario.score = score
@@ -409,7 +410,7 @@ async def get_evaluation_scenario_score(
     Returns:
         Dictionary with 'scenario_id' and 'score' keys.
     """
-    evaluation_scenario = await _fetch_evaluation_scenario_and_check_access(
+    evaluation_scenario = await _fetch_human_evaluation_scenario_and_check_access(
         evaluation_scenario_id, **user_org_data
     )
     return {

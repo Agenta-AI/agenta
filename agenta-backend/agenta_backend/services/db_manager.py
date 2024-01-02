@@ -22,6 +22,7 @@ from agenta_backend.services.json_importer_helper import get_json
 from agenta_backend.models.db_models import (
     AnnotationsDB,
     AnnotationsScenariosDB,
+    HumanEvaluationScenarioDB,
     Result,
     AggregatedResult,
     AppDB,
@@ -1300,6 +1301,23 @@ async def fetch_evaluation_scenario_by_id(
     evaluation_scenario = await engine.find_one(
         EvaluationScenarioDB,
         EvaluationScenarioDB.id == ObjectId(evaluation_scenario_id),
+    )
+    return evaluation_scenario
+
+
+async def fetch_human_evaluation_scenario_by_id(
+    evaluation_scenario_id: str,
+) -> Optional[HumanEvaluationScenarioDB]:
+    """Fetches and evaluation scenario by its ID.
+    Args:
+        evaluation_scenario_id (str): The ID of the evaluation scenario to fetch.
+    Returns:
+        EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
+    """
+    assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
+    evaluation_scenario = await engine.find_one(
+        HumanEvaluationScenarioDB,
+        HumanEvaluationScenarioDB.id == ObjectId(evaluation_scenario_id),
     )
     return evaluation_scenario
 
