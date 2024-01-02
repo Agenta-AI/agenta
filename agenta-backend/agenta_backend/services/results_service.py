@@ -1,15 +1,15 @@
 from agenta_backend.utils.common import engine
 from agenta_backend.services.db_manager import query
-from agenta_backend.models.db_models import EvaluationScenarioDB, EvaluationDB
+from agenta_backend.models.db_models import EvaluationScenarioDB, EvaluationDB, HumanEvaluationDB, HumanEvaluationScenarioDB
 from agenta_backend.services import evaluation_service
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.evaluation_model import EvaluationType
 from bson import ObjectId
 
 
-async def fetch_results_for_evaluation(evaluation: EvaluationDB):
+async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
     evaluation_scenarios = await engine.find(
-        EvaluationScenarioDB, EvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
+        HumanEvaluationScenarioDB, HumanEvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
     )
 
     results = {}
@@ -28,24 +28,7 @@ async def fetch_results_for_evaluation(evaluation: EvaluationDB):
         results.update(
             await _compute_stats_for_human_a_b_testing_evaluation(evaluation_scenarios)
         )
-    elif evaluation.evaluation_type == EvaluationType.auto_exact_match:
-        results.update(
-            await _compute_stats_for_evaluation(
-                evaluation_scenarios, classes=["correct", "wrong"]
-            )
-        )
-    elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
-        results.update(
-            await _compute_stats_for_evaluation(
-                evaluation_scenarios, classes=["true", "false"]
-            )
-        )
-    elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
-        results.update(
-            await _compute_stats_for_evaluation(
-                evaluation_scenarios, classes=["correct", "wrong"]
-            )
-        )
+
     return results
 
 

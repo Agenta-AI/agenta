@@ -239,9 +239,6 @@ async def create_evaluation_scenario(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-
-
-
 @router.post("/evaluation_scenario/ai_critique/", response_model=str)
 async def evaluate_ai_critique(
     payload: AICritiqueCreate,
@@ -336,66 +333,6 @@ async def delete_evaluations(
         delete_evaluations.evaluations_ids, **user_org_data
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/{evaluation_id}/results/")
-async def fetch_results(
-    evaluation_id: str,
-    request: Request,
-):
-    """Fetch all the results for one the comparison table
-
-    Arguments:
-        evaluation_id -- _description_
-
-    Returns:
-        _description_
-    """
-
-    # Get user and organization id
-    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    evaluation = await evaluation_service._fetch_evaluation_and_check_access(
-        evaluation_id, **user_org_data
-    )
-    if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"votes_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_exact_match:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"scores_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_similarity_match:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"scores_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_regex_test:
-        results = await results_service.fetch_results_for_evaluation(evaluation)
-        return {"scores_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_webhook_test:
-        results = await results_service.fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
-        return {"results_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.single_model_test:
-        results = await results_service.fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
-        return {"results_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.auto_ai_critique:
-        results = await results_service.fetch_results_for_auto_ai_critique(
-            evaluation_id
-        )
-        return {"results_data": results}
-
-    elif evaluation.evaluation_type == EvaluationType.custom_code_run:
-        results = await results_service.fetch_average_score_for_custom_code_run(
-            evaluation_id
-        )
-        return {"avg_score": results}
 
 
 @router.post("/custom_evaluation/")
