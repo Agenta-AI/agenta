@@ -89,7 +89,7 @@ class SimpleEvaluationOutput(BaseModel):
     evaluation_type: EvaluationType
 
 
-class EvaluationUpdate(BaseModel):
+class HumanEvaluationUpdate(BaseModel):
     status: Optional[EvaluationStatusEnum]
     evaluation_type_settings: Optional[EvaluationTypeSettings]
 
