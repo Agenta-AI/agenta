@@ -273,12 +273,10 @@ async def fetch_results(
     """
 
     # Get user and organization id
-    print("are we here")
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     evaluation = await evaluation_service._fetch_human_evaluation_and_check_access(
         evaluation_id, **user_org_data
     )
-    print("really???")
     if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
         results = await results_service.fetch_results_for_evaluation(evaluation)
         return {"votes_data": results}
