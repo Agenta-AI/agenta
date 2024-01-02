@@ -355,6 +355,7 @@ export interface _Evaluation {
         result: TypedValue
     }[]
     created_at?: string
+    updated_at?: string
     duration?: number
 }
 

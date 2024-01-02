@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluatorCard from "./EvaluatorCard"
-import {Button, Input, Space, Spin} from "antd"
+import {Button, Empty, Input, Space, Spin} from "antd"
 import {PlusCircleOutlined} from "@ant-design/icons"
 import NewEvaluatorModal from "./NewEvaluatorModal"
 import {useAppId} from "@/hooks/useAppId"
@@ -78,19 +78,23 @@ const Evaluators: React.FC<Props> = () => {
                 </Button>
             </Space>
             <Spin spinning={fetching}>
-                <div className={classes.grid}>
-                    {filtered.map((item, ix) => (
-                        <EvaluatorCard
-                            key={item.id}
-                            evaluatorConfig={item}
-                            onEdit={() => {
-                                setEditIndex(ix)
-                                setNewEvalModalOpen(true)
-                            }}
-                            onSuccessDelete={fetcher}
-                        />
-                    ))}
-                </div>
+                {!fetching && !evaluatorConfigs.length ? (
+                    <Empty description="No evaluators yet" style={{marginTop: "4rem"}} />
+                ) : (
+                    <div className={classes.grid}>
+                        {filtered.map((item, ix) => (
+                            <EvaluatorCard
+                                key={item.id}
+                                evaluatorConfig={item}
+                                onEdit={() => {
+                                    setEditIndex(ix)
+                                    setNewEvalModalOpen(true)
+                                }}
+                                onSuccessDelete={fetcher}
+                            />
+                        ))}
+                    </div>
+                )}
             </Spin>
 
             <NewEvaluatorModal

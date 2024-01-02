@@ -75,7 +75,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     ?.inputs.forEach((input, index) => {
                         colDefs.push({
                             headerComponent: () => (
-                                <Space>
+                                <Space direction="vertical">
                                     <span>Input: {input.name}</span>
                                     <Tag color={colors[vi]}> {variant.variantName}</Tag>
                                 </Space>
@@ -92,7 +92,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     })
                 colDefs.push({
                     headerComponent: () => (
-                        <Space>
+                        <Space direction="vertical">
                             <span>Output</span>
                             <Tag color={colors[vi]}>{variant.variantName}</Tag>
                         </Space>
@@ -110,7 +110,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     colDefs.push({
                         flex: 1,
                         headerComponent: () => (
-                            <Space>
+                            <Space direction="vertical">
                                 <span>Evaluator: {config.name}</span>
                                 <Tag color={colors[vi]}>{variant.variantName}</Tag>
                             </Space>
@@ -220,6 +220,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                         rowData={scenarios}
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.id}
+                        headerHeight={64}
                     />
                 </div>
             </Spin>
