@@ -80,6 +80,33 @@ async def _fetch_evaluation_and_check_access(
     return evaluation
 
 
+async def _fetch_human_evaluation_and_check_access(
+    evaluation_id: str, **user_org_data: dict
+) -> HumanEvaluationDB:
+    # Fetch the evaluation by ID
+    evaluation = await db_manager.fetch_human_evaluation_by_id(
+        evaluation_id=evaluation_id
+    )
+
+    # Check if the evaluation exists
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation with id {evaluation_id} not found",
+        )
+
+    # Check for access rights
+    access = await check_access_to_app(
+        user_org_data=user_org_data, app_id=evaluation.app.id
+    )
+    if not access:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to this app: {str(evaluation.app.id)}",
+        )
+    return evaluation
+
+
 async def _fetch_human_evaluation_scenario_and_check_access(
     evaluation_scenario_id: str, **user_org_data: dict
 ) -> HumanEvaluationDB:
@@ -541,7 +568,7 @@ async def fetch_human_evaluation(
     Returns:
         Evaluation: The fetched evaluation.
     """
-    evaluation = await _fetch_human_evaluation_scenario_and_check_access(
+    evaluation = await _fetch_human_evaluation_and_check_access(
         evaluation_id=evaluation_id, **user_org_data
     )
     return await converters.human_evaluation_db_to_pydantic(evaluation)

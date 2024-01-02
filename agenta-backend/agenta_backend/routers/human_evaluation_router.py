@@ -21,7 +21,13 @@ from agenta_backend.utils.common import check_access_to_app
 from agenta_backend.services import db_manager
 from agenta_backend.models import converters
 from agenta_backend.services import results_service
-from agenta_backend.tasks.evaluations import evaluate
+
+from agenta_backend.services.evaluation_service import (
+    UpdateEvaluationScenarioError,
+    get_evaluation_scenario_score,
+    update_evaluation_scenario_score,
+    update_human_evaluation_scenario,
+)
 
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
