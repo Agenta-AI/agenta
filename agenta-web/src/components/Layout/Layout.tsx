@@ -70,7 +70,8 @@ const useStyles = createUseStyles({
             padding: "0 15px",
         },
     }),
-    joinBtn: {
+    joinBtn: ({themeMode}) => ({
+        background: themeMode === "dark" ? "#333" : "#fff",
         display: "flex",
         alignItems: "center",
         gap: 8,
@@ -80,7 +81,7 @@ const useStyles = createUseStyles({
         "& img": {
             width: "15px",
         },
-    },
+    }),
     footer: {
         position: "absolute",
         bottom: 0,

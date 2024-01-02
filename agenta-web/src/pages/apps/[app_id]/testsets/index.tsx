@@ -112,7 +112,7 @@ export default function Testsets() {
                     </div>
 
                     <Link href={`/apps/${appId}/evaluations`} className={classes.startLink}>
-                        {testsets.length > 0 && <Button>Start an evaluation</Button>}
+                        {testsets.length > 0 && <Button type="primary">Start an evaluation</Button>}
                     </Link>
                 </div>
 
