@@ -110,6 +110,26 @@ class EvaluationScenarioOutput(BaseModel):
     value: Any
 
 
+class HumanEvaluationScenarioInput(BaseModel):
+    input_name: str
+    input_value: str
+
+
+class HumanEvaluationScenarioOutput(BaseModel):
+    variant_id: str
+    variant_output: str
+
+
+class HumanEvaluationScenarioUpdate(BaseModel):
+    vote: Optional[str]
+    score: Optional[Union[str, int]]
+    correct_answer: Optional[str]  # will be used when running custom code evaluation
+    outputs: Optional[List[HumanEvaluationScenarioOutput]]
+    inputs: Optional[List[HumanEvaluationScenarioInput]]
+    is_pinned: Optional[bool]
+    note: Optional[str]
+
+
 class EvaluationScenario(BaseModel):
     id: Optional[str]
     evaluation_id: str
