@@ -42,38 +42,43 @@ The CLI will also display the URL of the endpoint, which can be used to test the
   </Step>
 </Steps>
 
-## Adding a new configuration
+## Adding Configurations from the CLI
 
-In addition to the default configuration specified in the code, you can add more configurations to the application from the CLI.
-Configurations are specified in toml files and always named `<codebase_name>.<configuration_name>`.
-> When you serve your first app variant, the configuration of the created app variant is pulled from the Backend and saved in a toml file named `<codebase_name>.<configuration_name>.toml`
->
-> <img width="239" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/da80dd1b-c308-4ad0-baea-396ae727ba77" /><img width="700" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/d70cfa07-dc9a-4486-8090-54ba5a32bd3e" />
+### Configuration TOML Files
 
-You can change or add more configurations for an App Variant by modifying the variant configuration file and updating it to the backend by running the command;
-  ```bash
-  agenta config update <codebase_name>.<configuration_name>
-  ```
+Each time you create a new application using the CLI, a default configuration is automatically generated. The parameters for this configuration are defined in the `ag.config.register_default()` instruction within the code.
 
-> Where `<codebase_name>.<configuration_name>` is the name of the configuration file for the App Variant whose configuration you want to update.
+Besides the default configuration specified in the code, you can add extra configurations to the application via the CLI. These configurations are specified in TOML files and are always named `<codebase_name>.<configuration_name>.toml`.
 
-> Only `parameters` in the configuration file can be changed, hence if you modify any other variable/value in the configuration file, it won't take effect.
+When you serve your first app variant, the configuration of the created app variant is retrieved from the backend and saved in a TOML file named `<codebase_name>.default.toml`.
 
-## List Application Variants
+<Frame caption="Content of an app folder after running `agenta variant serve app.py`. Note that the file `app.default.toml` has been created automatically">
+<img width="239" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/da80dd1b-c308-4ad0-baea-396ae727ba77" />
+</Frame>
 
-To list all the variants for an application, run the command;
-  ```bash
-  agenta variant list
-  ```
+<br />
+<Frame caption="Content of `app.default.toml`">
+<img width="700" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/d70cfa07-dc9a-4486-8090-54ba5a32bd3e" />
+</Frame>
 
-## Removing an Application
+### Adding New Configurations
 
-To remove an application variant, run the command;
-  ```bash
-  agenta variant remove
-  ```
+To change or add more configurations for an App Variant, modify the variant configuration file and update it on the backend by running the command:
 
-> When you delete the only/last variant of an application, the whole application will be deleted.
+```bash
+agenta config update <codebase_name>.<configuration_name>
 
+```
 
-#### This guide only explains the basics of using Agenta from the CLI. For more details, please refer to the [CLI developer guide](/developer_guides/cli/quick-usage).
+Here, `<codebase_name>.<configuration_name>` is the name of the configuration file for the App Variant you want to update.
+
+Only `parameters` in the configuration file can be changed. Therefore, if you modify any other variable or value in the configuration file, it won't have any effect.
+
+<br />
+<Card
+title="CLI Developer Guide"
+icon="code"
+href="/developer_guides/cli/quick-usage"
+color="#5865F2">
+Jump to the CLI developer guide to learn more about using the CLI from Agenta.
+</Card>
