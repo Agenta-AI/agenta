@@ -339,9 +339,8 @@ async def create_app_and_variant_from_template(
             app_name, organization_id, **user_org_data
         )
         if app is not None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"App with name {app_name} already exists",
+            raise Exception(
+                f"App with name {app_name} already exists",
             )
 
         logger.debug("Step 4: Creating new app and initializing environments")
@@ -385,9 +384,8 @@ async def create_app_and_variant_from_template(
         logger.debug("Step 8: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
             if not os.environ["OPENAI_API_KEY"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Unable to start app container. Please file an issue by clicking on the button below.",
+                raise Exception(
+                    "Unable to start app container. Please file an issue by clicking on the button below.",
                 )
             envvars = {
                 **(payload.env_vars or {}),

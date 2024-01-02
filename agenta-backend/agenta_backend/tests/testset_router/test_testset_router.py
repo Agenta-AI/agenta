@@ -1,4 +1,4 @@
-import pytest
+import os
 from pathlib import Path
 
 from agenta_backend.models.db_engine import DBEngine
@@ -6,8 +6,9 @@ from agenta_backend.models.db_models import (
     AppDB,
     TestSetDB,
 )
-
 import httpx
+
+import pytest
 
 
 # Initialize database engine
@@ -18,8 +19,11 @@ test_client = httpx.AsyncClient()
 timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 # Set global variables
-BACKEND_API_HOST = "http://localhost:8001"
-TESTSET_SUBMODULE_DIR = Path(__file__).parent
+ENVIRONMENT = os.environ.get("ENVIRONMENT")
+if ENVIRONMENT == "development":
+    BACKEND_API_HOST = "http://host.docker.internal/api"
+elif ENVIRONMENT == "github":
+    BACKEND_API_HOST = "http://agenta-backend-test:8000"
 
 
 # TODO: test_csv_upload_file
