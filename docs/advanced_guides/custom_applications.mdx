@@ -27,7 +27,7 @@ from openai import OpenAI
 
 client = OpenAI()
 
-def generate(subject:txt):
+def generate(subject: str):
     prompt = "Write an blog post about {subject}"
     formatted_prompt = prompt.format(subject=subject)
     chat_completion = client.chat.completions.create(
@@ -49,7 +49,7 @@ ag.config.register_default(prompt=ag.TextParam("Write an blog post about {subjec
 client = OpenAI()
 
 @ag.entrypoint
-def generate(subject:txt):
+def generate(subject: str):
     formatted_prompt = ag.config.prompt.format(subject=subject)
     chat_completion = client.chat.completions.create(
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
@@ -79,7 +79,7 @@ This tells Agenta how to render the playground for this application. In this cas
 ### Specifying the entrypoint of the application
 ```python
 @ag.entrypoint
-def generate(subject:txt):
+def generate(subject: str):
 ```
 
 We added the `@ag.entrypoint` decorator to the main function of the application. This decorator informs Agenta that this function is the entry point to the application. It converts it (using FastAPI) into an API endpoint, allowing it to be used from the web interface.
@@ -156,7 +156,7 @@ ag.config.register_default(prompt=TextParam("Write a blog post about {subject}")
 client = OpenAI()
 
 @ag.entrypoint
-def generate(subject:txt):
+def generate(subject: str):
     formatted_prompt = ag.config.prompt.format(subject=subject)
     chat_completion = client.chat.completions.create(
         model="gpt-3.5-turbo",
