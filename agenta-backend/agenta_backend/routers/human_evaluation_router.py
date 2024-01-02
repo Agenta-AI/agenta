@@ -307,7 +307,7 @@ async def delete_evaluations(
 
     # Get user and organization id
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
-    await evaluation_service.delete_evaluations(
+    await evaluation_service.delete_human_evaluations(
         delete_evaluations.evaluations_ids, **user_org_data
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
