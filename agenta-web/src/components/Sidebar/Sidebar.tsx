@@ -293,7 +293,7 @@ const Sidebar: React.FC = () => {
                                             </Menu.Item>
                                         </Tooltip>
 
-                                        <Tooltip
+                                        {/* <Tooltip
                                             placement="right"
                                             title={
                                                 !collapsed
@@ -313,7 +313,7 @@ const Sidebar: React.FC = () => {
                                                         : "Annotations"}
                                                 </Link>
                                             </Menu.Item>
-                                        </Tooltip>
+                                        </Tooltip> */}
 
                                         <Tooltip
                                             placement="right"
