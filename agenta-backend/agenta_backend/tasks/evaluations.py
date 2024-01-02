@@ -98,7 +98,7 @@ def evaluate(
                 variant_output,
                 data_point["correct_answer"],
                 evaluator_config.settings_values,
-                **additional_kwargs
+                **additional_kwargs,
             )
 
             result_object = EvaluationScenarioResult(
