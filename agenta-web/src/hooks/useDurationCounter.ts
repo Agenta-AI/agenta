@@ -7,8 +7,8 @@ export const useDurationCounter = (duration: number, isRunning: boolean = true) 
     useEffect(() => {
         if (isRunning) {
             const interval = setInterval(() => {
-                setElapsed((prev) => prev + 100)
-            }, 100)
+                setElapsed((prev) => prev + 1000)
+            }, 1000)
             return () => clearInterval(interval)
         }
     }, [isRunning])

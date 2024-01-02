@@ -196,6 +196,28 @@ export function LongTextCellRenderer(params: ICellRendererParams) {
     )
 }
 
+const StatusRenderer = React.memo(
+    (params: ICellRendererParams<_Evaluation>) => {
+        const classes = useStyles()
+        const {token} = theme.useToken()
+        const duration = useDurationCounter(
+            params.data?.duration || 0,
+            [EvaluationStatus.STARTED, EvaluationStatus.INITIALIZED].includes(params.value),
+        )
+        const {label, color} = statusMapper(token)[params.value as EvaluationStatus]
+
+        return (
+            <Typography.Text className={classes.statusCell}>
+                <div style={{backgroundColor: color}} />
+                <span>{label}</span>
+                <span className={classes.dot}></span>
+                <span className={classes.date}>{duration}</span>
+            </Typography.Text>
+        )
+    },
+    (prev, next) => prev.value === next.value && prev.data?.duration === next.data?.duration,
+)
+
 interface Props {
     type?: "auto" | "human"
 }
@@ -343,35 +365,17 @@ const EvaluationResults: React.FC<Props> = ({type = "auto"}) => {
             {
                 flex: 1,
                 field: "status",
-                minWidth: 200,
+                minWidth: 185,
                 ...getFilterParams("text"),
                 filterValueGetter: (params) =>
                     statusMapper(token)[params.data?.status as EvaluationStatus].label,
-                cellRenderer: (params: ICellRendererParams<_Evaluation>) => {
-                    const classes = useStyles()
-                    const duration = useDurationCounter(
-                        params.data?.duration || 0,
-                        [EvaluationStatus.STARTED, EvaluationStatus.INITIALIZED].includes(
-                            params.value,
-                        ),
-                    )
-                    const {label, color} = statusMapper(token)[params.value as EvaluationStatus]
-
-                    return (
-                        <Typography.Text className={classes.statusCell}>
-                            <div style={{backgroundColor: color}} />
-                            <span>{label}</span>
-                            <span className={classes.dot}></span>
-                            <span className={classes.date}>{duration}</span>
-                        </Typography.Text>
-                    )
-                },
+                cellRenderer: StatusRenderer,
             },
             {
                 flex: 1,
                 field: "created_at",
                 headerName: "Created",
-                minWidth: 120,
+                minWidth: 160,
                 ...getFilterParams("date"),
                 valueFormatter: (params) => dayjs(params.value).fromNow(),
             },

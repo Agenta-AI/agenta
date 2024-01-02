@@ -4,6 +4,8 @@ import {GenericObject} from "../Types"
 import promiseRetry from "promise-retry"
 import {getErrorMessage} from "./errorHandler"
 import dayjs from "dayjs"
+import utc from "dayjs/plugin/utc"
+dayjs.extend(utc)
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -346,10 +348,10 @@ export function durationToStr(duration: number) {
     const mins = Math.floor(dayjs.duration(duration, "milliseconds").asMinutes())
     const secs = Math.floor(dayjs.duration(duration, "milliseconds").asSeconds())
 
-    if (days > 0) return `${days} days`
-    if (hours > 0) return `${hours} hours`
-    if (mins > 0) return `${mins} mins`
-    return `${secs} seconds`
+    if (days > 0) return `${days}d ${hours}h`
+    if (hours > 0) return `${hours}h ${mins}m`
+    if (mins > 0) return `${mins}m ${secs}s`
+    return `${secs}s`
 }
 
 type DayjsDate = Parameters<typeof dayjs>[0]
