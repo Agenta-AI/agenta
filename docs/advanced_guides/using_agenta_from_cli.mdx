@@ -45,8 +45,35 @@ The CLI will also display the URL of the endpoint, which can be used to test the
 ## Adding a new configuration
 
 In addition to the default configuration specified in the code, you can add more configurations to the application from the CLI.
+Configurations are specified in toml files and always named `<codebase_name>.<configuration_name>`.
+> When you serve your first app variant, the configuration of the created app variant is pulled from the Backend and saved in a toml file named `<codebase_name>.<configuration_name>.toml`
+>
+> <img width="239" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/da80dd1b-c308-4ad0-baea-396ae727ba77" /><img width="700" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/d70cfa07-dc9a-4486-8090-54ba5a32bd3e" />
 
-Configurations are specified in toml files and always named `<codebase_name>.<configuration_name>`. To add a new configuration, run the following command:
+You can change or add more configurations for an App Variant by modifying the variant configuration file and updating it to the backend by running the command;
+  ```bash
+  agenta config update <codebase_name>.<configuration_name>
+  ```
 
-@devgenix please continue here
+> Where `<codebase_name>.<configuration_name>` is the name of the configuration file for the App Variant whose configuration you want to update.
 
+> Only `parameters` in the configuration file can be changed, hence if you modify any other variable/value in the configuration file, it won't take effect.
+
+## List Application Variants
+
+To list all the variants for an application, run the command;
+  ```bash
+  agenta variant list
+  ```
+
+## Removing an Application
+
+To remove an application variant, run the command;
+  ```bash
+  agenta variant remove
+  ```
+
+> When you delete the only/last variant of an application, the whole application will be deleted.
+
+
+#### This guide only explains the basics of using Agenta from the CLI. For more details, please refer to the [CLI developer guide](/developer_guides/cli/quick-usage).
