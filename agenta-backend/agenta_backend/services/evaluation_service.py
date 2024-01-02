@@ -14,6 +14,7 @@ from agenta_backend.models.api.evaluation_model import (
     CustomEvaluationDetail,
     EvaluationScenarioInput,
     EvaluationType,
+    HumanEvaluation,
     NewEvaluation,
     EvaluationScenarioUpdate,
     CreateCustomEvaluation,
@@ -492,6 +493,53 @@ async def fetch_evaluation(evaluation_id: str, **user_org_data: dict) -> Evaluat
         Evaluation: The fetched evaluation.
     """
     evaluation = await _fetch_evaluation_and_check_access(
+        evaluation_id=evaluation_id, **user_org_data
+    )
+    return await converters.evaluation_db_to_pydantic(evaluation)
+
+
+async def fetch_list_human_evaluations(
+    app_id: str,
+    **user_org_data: dict,
+) -> List[HumanEvaluation]:
+    """
+    Fetches a list of evaluations based on the provided filtering criteria.
+
+    Args:
+        app_id (Optional[str]): An optional app ID to filter the evaluations.
+        user_org_data (dict): User and organization data.
+
+    Returns:
+        List[Evaluation]: A list of evaluations.
+    """
+    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
+    if not access:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to this app: {app_id}",
+        )
+
+    evaluations_db = await engine.find(
+        HumanEvaluationDB, HumanEvaluationDB.app == ObjectId(app_id)
+    )
+    return [
+        await converters.evaluation_db_to_pydantic(evaluation)
+        for evaluation in evaluations_db
+    ]
+
+
+async def fetch_human_evaluation(evaluation_id: str, **user_org_data: dict) -> HumanEvaluation:
+    """
+    Fetches a single evaluation based on its ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation.
+        user_org_data (dict): User and organization data.
+
+    Returns:
+        Evaluation: The fetched evaluation.
+    """
+    evaluation = await _fetch_human_evaluation_scenario_and_check_access(
         evaluation_id=evaluation_id, **user_org_data
     )
     return await converters.evaluation_db_to_pydantic(evaluation)
