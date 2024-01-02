@@ -409,7 +409,7 @@ const EvaluationResults: React.FC<Props> = ({type = "auto"}) => {
                     type="primary"
                     onClick={() =>
                         router.push(
-                            `/apps/${appId}/evaluations-new/compare/?evaluations=${selected
+                            `/apps/${appId}/evaluations/compare/?evaluations=${selected
                                 .map((item) => item.id)
                                 .join(",")}`,
                         )
@@ -437,7 +437,7 @@ const EvaluationResults: React.FC<Props> = ({type = "auto"}) => {
                         getRowId={(params) => params.data.id}
                         onRowClicked={(params) =>
                             EvaluationStatus.FINISHED === params.data?.status &&
-                            router.push(`/apps/${appId}/evaluations-new/${params.data?.id}`)
+                            router.push(`/apps/${appId}/evaluations/${params.data?.id}`)
                         }
                         rowSelection="multiple"
                         suppressRowClickSelection

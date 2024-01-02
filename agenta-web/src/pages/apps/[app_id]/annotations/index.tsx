@@ -1,10 +1,5 @@
-import EvaluationResults from "@/components/pages/evaluations/evaluationResults/EvaluationResults"
-import React from "react"
+import Evaluations from "@/components/Evaluations/Evaluations"
 
-interface Props {}
-
-const Annotations: React.FC<Props> = () => {
-    return <EvaluationResults type="human" />
+export default function Evaluation() {
+    return <Evaluations />
 }
-
-export default Annotations

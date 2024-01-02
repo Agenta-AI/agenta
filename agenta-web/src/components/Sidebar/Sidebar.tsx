@@ -266,34 +266,12 @@ const Sidebar: React.FC = () => {
                                                 >
                                                     {collapsed
                                                         ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                                        : "Evaluate"}
-                                                </Link>
-                                            </Menu.Item>
-                                        </Tooltip>
-
-                                        <Tooltip
-                                            placement="right"
-                                            title={
-                                                !collapsed
-                                                    ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
-                                                    : ""
-                                            }
-                                            key="evaluations-new"
-                                        >
-                                            <Menu.Item icon={<LineChartOutlined />}>
-                                                <Link
-                                                    data-cy="app-evaluations-link"
-                                                    href={getNavigationPath("evaluations-new")}
-                                                    className={classes.menuLinks}
-                                                >
-                                                    {collapsed
-                                                        ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
                                                         : "Evaluate New"}
                                                 </Link>
                                             </Menu.Item>
                                         </Tooltip>
 
-                                        {/* <Tooltip
+                                        <Tooltip
                                             placement="right"
                                             title={
                                                 !collapsed
@@ -313,7 +291,7 @@ const Sidebar: React.FC = () => {
                                                         : "Annotations"}
                                                 </Link>
                                             </Menu.Item>
-                                        </Tooltip> */}
+                                        </Tooltip>
 
                                         <Tooltip
                                             placement="right"
