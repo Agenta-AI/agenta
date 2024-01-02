@@ -99,12 +99,12 @@ export default function HumanEvaluationResult() {
         const fetchEvaluations = async () => {
             try {
                 fetchData(
-                    `${getAgentaApiUrl()}/api/evaluations/human-evaluations/?app_id=${app_id}`,
+                    `${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`,
                 )
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
                             return fetchData(
-                                `${getAgentaApiUrl()}/api/evaluations/human-evaluations/${
+                                `${getAgentaApiUrl()}/api/human-evaluations/${
                                     item.id
                                 }/results/`,
                             )

@@ -11,6 +11,7 @@ from agenta_backend.models.db_models import (
     AppVariantDB,
     EvaluationScenarioResult,
     EvaluatorConfigDB,
+    HumanEvaluationDB,
     ImageDB,
     TemplateDB,
     AppDB,
@@ -42,6 +43,7 @@ from agenta_backend.models.api.observability_models import (
     Feedback as FeedbackOutput,
 )
 from agenta_backend.models.api.evaluation_model import (
+    HumanEvaluation,
     SimpleEvaluationOutput,
     EvaluationScenario,
     Evaluation,
@@ -97,6 +99,31 @@ async def evaluation_db_to_pydantic(
         aggregated_results=await aggregated_result_to_pydantic(
             evaluation_db.aggregated_results
         ),
+        created_at=evaluation_db.created_at,
+        updated_at=evaluation_db.updated_at,
+    )
+
+
+async def human_evaluation_db_to_pydantic(
+    evaluation_db: HumanEvaluationDB,
+) -> HumanEvaluation:
+    variant_names = []
+    for variant_id in evaluation_db.variants:
+        variant = await db_manager.get_app_variant_instance_by_id(str(variant_id))
+        variant_name = variant.variant_name if variant else str(variant_id)
+        variant_names.append(str(variant_name))
+
+    return HumanEvaluation(
+        id=str(evaluation_db.id),
+        app_id=str(evaluation_db.app.id),
+        user_id=str(evaluation_db.user.id),
+        user_username=evaluation_db.user.username or "",
+        status=evaluation_db.status,
+        evaluation_type=evaluation_db.evaluation_type,
+        variant_ids=[str(variant) for variant in evaluation_db.variants],
+        variant_names=variant_names,
+        testset_id=str(evaluation_db.testset.id),
+        testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
     )
