@@ -8,6 +8,7 @@ from agenta_backend.models.api.api_models import Result
 class Evaluator(BaseModel):
     name: str
     key: str
+    direct_use: bool
     settings_template: dict
 
 
