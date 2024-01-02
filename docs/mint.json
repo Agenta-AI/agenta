@@ -154,8 +154,11 @@
           "pages": [
             "developer_guides/cli/init",
             "developer_guides/cli/variant_serve",
+            "developer_guides/cli/variant_add",
             "developer_guides/cli/variant_list",
-            "developer_guides/cli/variant_remove"
+            "developer_guides/cli/variant_remove",
+            "developer_guides/cli/variant_config_pull",
+            "developer_guides/cli/variant_config_update"
           ]
         }
       ]
