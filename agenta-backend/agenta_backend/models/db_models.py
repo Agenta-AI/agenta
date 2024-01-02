@@ -108,18 +108,9 @@ class VariantBaseDB(Model):
         collection = "bases"
 
 
-class ConfigVersionDB(EmbeddedModel):
-    version: int
-    parameters: Dict[str, Any]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-
 class ConfigDB(Model):
     config_name: str
-    current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
-    version_history: List[ConfigVersionDB] = Field(default=[])
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
@@ -130,11 +121,11 @@ class ConfigDB(Model):
 class AppVariantDB(Model):
     app: AppDB = Reference(key_name="app")
     variant_name: str
-    image: ImageDB = Reference(key_name="image")
+    revision: int
+    image: ImageDB = Reference(key_name="image")  # TODO: deprecated. remove
     user: UserDB = Reference(key_name="user")
+    modified_by: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
-    parameters: Dict[str, Any] = Field(default=dict)  # TODO: deprecated. remove
-    previous_variant_name: Optional[str]  # TODO: deprecated. remove
     base_name: Optional[str]
     base: VariantBaseDB = Reference(key_name="bases")
     config_name: Optional[str]
@@ -142,26 +133,39 @@ class AppVariantDB(Model):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    is_deleted: bool = Field(  # TODO: deprecated. remove
-        default=False
-    )  # soft deletion for using the template variants
-
     class Config:
         collection = "app_variants"
+
+
+class AppVariantRevisionsDB(Model):
+    variant: AppVariantDB = Reference(key_name="app_variants")
+    revision: int
+    modified_by: UserDB = Reference(key_name="user")
+    base: VariantBaseDB = Reference(key_name="bases")
+    config: ConfigDB = Reference(key_name="configs")
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
+    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
 
 class AppEnvironmentDB(Model):
     app: AppDB = Reference(key_name="app")
     name: str
+    revision: int
     user: UserDB = Reference(key_name="user")
+    modified_by: UserDB = Reference(key_name="user")
     organization: OrganizationDB = Reference(key_name="organization")
     deployed_app_variant: Optional[ObjectId]
     deployment: Optional[ObjectId]  # reference to deployment
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
-    class Config:
-        collection = "environments"
+
+class AppEnvironmentRevisionDB(Model):
+    environment: AppEnvironmentDB = Reference(key_name="app_environment")
+    revision: int
+    modified_by: UserDB = Reference(key_name="user")
+    deployed_app_variant_revision: Optional[ObjectId]  # reference to deployed app variant revision
+    deployment: Optional[ObjectId]  # reference to deployment | TODO: where do we use this? how do we user this?
+    created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
 
 class TemplateDB(Model):
