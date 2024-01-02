@@ -335,7 +335,7 @@ export enum EvaluationStatus {
     INITIALIZED = "EVALUATION_INITIALIZED",
     STARTED = "EVALUATION_STARTED",
     FINISHED = "EVALUATION_FINISHED",
-    ERROR = "EVALUATION_ERROR",
+    ERROR = "EVALUATION_FAILED",
 }
 
 export interface _Evaluation {
