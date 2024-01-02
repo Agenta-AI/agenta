@@ -15,6 +15,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluationScenarioInput,
     EvaluationType,
     HumanEvaluation,
+    HumanEvaluationScenario,
     NewEvaluation,
     EvaluationScenarioUpdate,
     CreateCustomEvaluation,
@@ -320,6 +321,39 @@ async def fetch_evaluation_scenarios_for_evaluation(
     )
     eval_scenarios = [
         converters.evaluation_scenario_db_to_pydantic(scenario)
+        for scenario in scenarios
+    ]
+    return eval_scenarios
+
+
+async def fetch_human_evaluation_scenarios_for_evaluation(
+    evaluation_id: str, **user_org_data: dict
+) -> List[HumanEvaluationScenario]:
+    """
+    Fetch evaluation scenarios for a given evaluation ID.
+
+    Args:
+        evaluation_id (str): The ID of the evaluation.
+        user_org_data (dict): User and organization data.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+    """
+    evaluation = await _fetch_human_evaluation_and_check_access(
+        evaluation_id=evaluation_id,
+        **user_org_data,
+    )
+    print("$$$$$$ evaluation")
+    print(evaluation)
+    scenarios = await engine.find(
+        HumanEvaluationScenarioDB,
+        HumanEvaluationScenarioDB.evaluation == ObjectId(evaluation.id),
+    )
+    eval_scenarios = [
+        converters.human_evaluation_scenario_db_to_pydantic(scenario)
         for scenario in scenarios
     ]
     return eval_scenarios

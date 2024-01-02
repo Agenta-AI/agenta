@@ -10,6 +10,7 @@ from agenta_backend.models.api.evaluation_model import (
     DeleteEvaluation,
     EvaluationScenarioScoreUpdate,
     HumanEvaluation,
+    HumanEvaluationScenario,
     HumanEvaluationScenarioUpdate,
     EvaluationType,
     NewHumanEvaluation,
@@ -119,6 +120,37 @@ async def fetch_human_evaluation(
     return await evaluation_service.fetch_human_evaluation(
         evaluation_id, **user_org_data
     )
+
+
+@router.get(
+    "/{evaluation_id}/evaluation_scenarios/",
+    response_model=List[HumanEvaluationScenario],
+    operation_id="fetch_evaluation_scenarios",
+)
+async def fetch_evaluation_scenarios(
+    evaluation_id: str,
+    request: Request,
+):
+    """Fetches evaluation scenarios for a given evaluation ID.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+    """
+
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    eval_scenarios = (
+        await evaluation_service.fetch_human_evaluation_scenarios_for_evaluation(
+            evaluation_id, **user_org_data
+        )
+    )
+
+    return eval_scenarios
 
 
 @router.put(
