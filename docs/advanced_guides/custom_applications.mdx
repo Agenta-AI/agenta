@@ -1,0 +1,202 @@
+---
+title: 'Creating Custom Applications'
+description: 'Learn how to use your custom application with Agenta'
+---
+
+Agenta comes with several pre-built template LLM applications for common use cases, such as single prompt and chatbot. However, you can also create your own custom application with Agenta. This could be a RAG application, a custom agent, a chain of prompts, or any custom logic.
+
+This guide will show you how to create a custom application and use it with Agenta.
+
+<Tip> We recommend reading ["How does Agenta work"](/developer_guides/how_does_agenta_work) beforehand to familiarize yourself with the main concepts of Agenta. </Tip>
+
+## How to create a custom application in Agenta ?
+
+To add your custom application in Agenta, you need to write the application code using the <Tooltip tip="The SDK is currently only available in Python">Agenta SDK</Tooltip>, then add the application to Agenta using the CLI.
+
+The [Agenta SDK](/developer_guides/sdk/quick_start) takes care of specifying the configuration of your application (prompts, model parameters, chunk size, etc.), and integrates it with Agenta. The [Agenta CLI](/developer_guides/cli/quick-usage) takes care of building the application image, deploying it, and exposing it to Agenta.
+
+## Converting an existing application to Agenta
+
+Writing an application for Agenta involves adding a few lines of code to your existing application. 
+
+Let's consider the code of a simple application that calls OpenAI to generate a text for a blog post.
+
+```python myapp.py before adding agenta
+
+from openai import OpenAI
+
+client = OpenAI()
+
+def generate(subject:txt):
+    prompt = "Write an blog post about {subject}"
+    formatted_prompt = prompt.format(subject=subject)
+    chat_completion = client.chat.completions.create(
+        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
+    )
+    return chat_completion.choices[0].message.content
+```
+
+As you can see, the application is a simple function that takes a blog post subject as input, format the prompt using f-strings, then calls gpt-3.5-turbo with the formatted prompt and return its output.
+
+To use the application in Agenta, we need to add a few lines of code. Here is the end result. We will go over each change in detail in the next sections.
+
+```python myapp.py after adding agenta
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(prompt=ag.TextParam("Write an blog post about {subject}"))
+client = OpenAI()
+
+@ag.entrypoint
+def generate(subject:txt):
+    formatted_prompt = ag.config.prompt.format(subject=subject)
+    chat_completion = client.chat.completions.create(
+        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
+    )
+    return chat_completion.choices[0].message.content
+```
+
+Below are the modifications we made to the code:
+
+### Importing and initializing the agenta SDK
+```python
+import agenta as ag
+ag.init()
+```
+
+1. We added the `ag.init()` call to initialize the application. Note that this call is always needed before using any other agenta function. 
+
+### Specifying the default configuration
+```python
+ag.config.register_default(prompt=TextParam("Write an blog post about {subject}"))
+```
+
+Here, we informed Agenta that the configuration for this application is a single parameter of type text, and its default value is `"Write a blog post about {subject}"`. 
+
+This tells Agenta how to render the playground for this application. In this case, the playground will have a single text input with the default value `"Write a blog post about {subject}"`.
+
+### Specifying the entrypoint of the application
+```python
+@ag.entrypoint
+def generate(subject:txt):
+```
+
+We added the `@ag.entrypoint` decorator to the main function of the application. This decorator informs Agenta that this function is the entry point to the application. It converts it (using FastAPI) into an API endpoint, allowing it to be used from the web interface.
+
+### Using the configuration in the application
+
+```python
+formatted_prompt = ag.config.prompt.format(subject=subject)
+```
+
+Instead of using the variable `prompt` directly, we are now using `ag.config.prompt`. This line tells the application to use the value set in the Agenta Here Agenta acts as a management system for the app configuration (a prompt management system). This allows you to change the application's configuration  from the web interface without modifying the code.
+
+When you call `ag.config.<var_name>`, the Agenta SDK calls the backend and retrieves the value of the variable for the requested variant.
+
+## Adding the requirements and environment variables
+
+Before serving the application in Agenta using the CLI, we need to add the application's requirements to the requirements.txt file.
+
+```python requirements.txt
+agenta
+openai
+```
+
+Additionally, we need to add the .env file with any required environment variables. In this case, we need to add the OpenAI API key.
+
+```bash .env
+OPENAI_API_KEY=sk-...
+```
+
+The Agenta SDK will automatically load the environment variables from the .env file.
+
+Both these files need to be in the same folder as the application code.
+
+## Serving the application 
+
+To serve the application, we first need to initialize the project in Agenta. We run the following command in the folder containing the application code and the rest of the files.
+
+```bash
+agenta init
+```
+
+This command will prompt you to provide the name of the application, the host for Agenta (Agenta cloud), and whether to start from a blank project (yes in this case since we wrote the code) or to populate the folder with a template application (no in this case).
+
+After running this command, you should see a new config.toml file containing the application's configuration in the folder. Additionally, you should see a new empty project in the Agenta web UI.
+
+Now, we can serve the application by running the following command.
+
+```bash
+agenta variant serve myapp.py
+```
+
+This command will serve the application in Agenta. The application is now added to the Agenta web interface and can be used from there.
+
+<Info> Under the hood, this command will build an image for the application, deploy a container with the image, and expose a REST API to the application which is used by Agenta to communicate with the application. </Info>
+
+## Using the application in agenta
+
+The application should now be visible in Agenta. A new application variant is always created under the name `<filename>.default`. Variants are always named in this format `<filename>.<variant_name>`. This allows you to determine which source code was used to create the application (`<filename>`). When first created, we always create a 'default' configuration. This is the configuration specified in the code (when using `register_default`).
+
+## Adding other parameters
+
+We are not limited to one configuration parameter in the playground. We can add as many as we'd like. These parameters can be prompts (TextParam), numbers (FloatParam, IntParam), or dropdowns (MultipleChoiceParam). You can read more about the types of parameters in the [parameters](/developer_guides/sdk/config_datatypes) section.
+
+Here is a modified version of the application that adds a new parameter `temperature` to the playground.
+
+
+```python
+import agenta as ag
+from openai import OpenAI
+
+ag.init()
+ag.config.register_default(prompt=TextParam("Write a blog post about {subject}"),
+                           temperature=FloatParam(0.2))
+client = OpenAI()
+
+@ag.entrypoint
+def generate(subject:txt):
+    formatted_prompt = ag.config.prompt.format(subject=subject)
+    chat_completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        temperature=ag.config.temperature,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return chat_completion.choices[0].message.content
+
+```
+
+## Where to go from here?
+
+Agenta provides the flexibility to add any LLM application to the platform, so that you collaborate on the prompt engineering, evaluation, and the management of the application's entire lifecycle all from one place.
+
+We've merely touched on what Agenta can do. You're not limited to apps that consist of a single file or function. You can create chains of prompts, or even agents. You can use the SDK allows you to track costs and log traces of your application.
+
+More information about the SDK can be found in the [SDK section in the developer guide](/developer_guides/sdk/quick_start). You can also explore a growing list of templates and tutorials in the [cookbook section](/cookbook/list_templates). 
+
+Finally, our team is always ready to assist you with any custom application. Simply reach out to us on Slack, or book a call to discuss your use case in detail.
+You can read more about the SDK in the . You can also check the growing list of templates and tutorials in the . Last please note, that our team is always available to help you with any custom applicatoin, just reach out to use on [Slack](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA) Or [book a call](https://cal.com/mahmoud-mabrouk-ogzgey/demo) to discuss your use case in details. 
+
+
+
+
+<CardGroup cols={2}>
+
+  <Card
+    title="SDK Reference"
+    icon="stars"
+    href="/developer_guides/sdk/quick_start"
+    color="#33FF57">
+        Learn how to use the SDK to create custom applications.
+  </Card>
+
+  <Card
+    title="Cookbook"
+    icon="code"
+    color="#337BFF"
+    href="/cookbook/list_templates">
+        
+  </Card>
+
+</CardGroup>
