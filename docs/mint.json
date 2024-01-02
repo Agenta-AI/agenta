@@ -69,10 +69,6 @@
     {
       "name": "Roadmap",
       "url": "https://github.com/orgs/Agenta-AI/projects/13/views/1"
-    },
-    {
-      "name": "Blog",
-      "url": "https://agenta.ai/blog"
     }
   ],
   "navigation": [
@@ -90,7 +86,6 @@
         "basic_guides/prompt_engineering",
         "basic_guides/test_sets",
         "basic_guides/automatic_evaluation",
-        "basic_guides/human_evaluation",
         "basic_guides/deployment",
         "basic_guides/team_management"
       ]
@@ -99,7 +94,6 @@
       "group": "Advanced Guides",
       "pages": [
         "advanced_guides/custom_applications",
-        "advanced_guides/using_custom_evaluators",
         "advanced_guides/using_agenta_from_cli"
       ]
     },
