@@ -297,6 +297,28 @@ const Sidebar: React.FC = () => {
                                             placement="right"
                                             title={
                                                 !collapsed
+                                                    ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                    : ""
+                                            }
+                                            key="annotations"
+                                        >
+                                            <Menu.Item icon={<LineChartOutlined />}>
+                                                <Link
+                                                    data-cy="app-annotations-link"
+                                                    href={getNavigationPath("annotations")}
+                                                    className={classes.menuLinks}
+                                                >
+                                                    {collapsed
+                                                        ? "Perform 1-to-1 variant comparisons on testsets to identify superior options."
+                                                        : "Annotations"}
+                                                </Link>
+                                            </Menu.Item>
+                                        </Tooltip>
+
+                                        <Tooltip
+                                            placement="right"
+                                            title={
+                                                !collapsed
                                                     ? "Monitor production logs to ensure seamless operations."
                                                     : ""
                                             }

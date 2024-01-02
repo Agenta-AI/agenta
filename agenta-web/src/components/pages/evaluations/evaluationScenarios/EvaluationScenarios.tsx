@@ -1,42 +1,38 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, _Evaluation, _EvaluationScenario} from "@/lib/Types"
-import {fetchAllEvaluationScenarios, fetchEvaluation} from "@/services/evaluations"
+import {deleteEvaluations, fetchAllEvaluationScenarios} from "@/services/evaluations"
 import {DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {ColDef} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
-import {Spin, Typography} from "antd"
+import {Space, Spin, Tooltip, Typography} from "antd"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {
+    LongTextCellRenderer,
+    getFilterParams,
+    getTypedValue,
+} from "../evaluationResults/EvaluationResults"
+import {getAppValues} from "@/contexts/app.context"
+import AlertPopup from "@/components/AlertPopup/AlertPopup"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    header: {
+    infoRow: {
         marginTop: "1rem",
+        margin: "0.75rem 0",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-
-        "& > h3": {
-            margin: 0,
-        },
-
-        "& > :last-child": {
-            display: "flex",
-            alignItems: "center",
-            gap: "1rem",
-        },
     },
     date: {
-        marginTop: "0.25rem",
         fontSize: "0.75rem",
         color: "#8c8c8c",
         display: "inline-block",
-        marginBottom: "1rem",
     },
     table: {
-        height: "calc(100vh - 220px)",
+        height: "calc(100vh - 240px)",
     },
 }))
 
@@ -49,8 +45,9 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const {appTheme} = useAppTheme()
     const evaluationId = router.query.evaluation_id as string
     const [scenarios, setScenarios] = useState<_EvaluationScenario[]>([])
-    const [evalaution, setEvaluation] = useState<_Evaluation>()
     const [fetching, setFetching] = useState(false)
+    const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
+    const evalaution = scenarios[0]?.evaluation
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
@@ -58,38 +55,47 @@ const EvaluationScenarios: React.FC<Props> = () => {
 
         scenarios[0]?.inputs.forEach((input, index) => {
             colDefs.push({
+                flex: 1,
                 headerName: `Input: ${input.name}`,
+                ...getFilterParams(input.type === "number" ? "number" : "text"),
                 field: `inputs.${index}`,
                 valueGetter: (params) => {
-                    return params.data?.inputs[index].value || ""
+                    return getTypedValue(params.data?.inputs[index])
                 },
+                cellRenderer: LongTextCellRenderer,
             })
         })
         colDefs.push({
+            flex: 1,
             headerName: "Expected Output",
             field: "correct_answer",
+            ...getFilterParams("text"),
             valueGetter: (params) => {
-                return params.data?.correct_answer?.value || ""
+                return params.data?.correct_answer?.toString() || ""
             },
+            cellRenderer: LongTextCellRenderer,
         })
-        evalaution?.variants.forEach((variant, index) => {
+        evalaution?.variants.forEach((_, index) => {
             colDefs.push({
-                headerName: `Output (${variant.variantName})`,
-                field: `outputs.${index}`,
+                flex: 1,
+                headerName: "Output",
+                ...getFilterParams("text"),
+                field: `outputs.0`,
                 valueGetter: (params) => {
-                    return params.data?.outputs[index].value || ""
+                    return getTypedValue(params.data?.outputs[index])
                 },
+                cellRenderer: LongTextCellRenderer,
             })
         })
-        scenarios[0]?.evaluators_configs.forEach((config, index) => {
+        scenarios[0]?.evaluators_configs.forEach((config) => {
             colDefs.push({
                 headerName: `Evaluator: ${config.name}`,
                 field: `results`,
+                ...getFilterParams("text"),
                 valueGetter: (params) => {
-                    return (
-                        params.data?.results.find(
-                            (item) => item.evaluator.key === config.evaluator_key,
-                        )?.result || ""
+                    return getTypedValue(
+                        params.data?.results.find((item) => item.evaluator_config === config.id)
+                            ?.result,
                     )
                 },
             })
@@ -99,13 +105,20 @@ const EvaluationScenarios: React.FC<Props> = () => {
 
     const fetcher = () => {
         setFetching(true)
-        Promise.all([
-            fetchAllEvaluationScenarios(appId, evaluationId),
-            fetchEvaluation(evaluationId),
-        ])
-            .then(([scenarios, evaluation]) => {
+        fetchAllEvaluationScenarios(appId, evaluationId)
+            .then((scenarios) => {
                 setScenarios(scenarios)
-                setEvaluation(evaluation)
+                setTimeout(() => {
+                    if (!gridRef.current) return
+
+                    const ids: string[] =
+                        gridRef.current.api
+                            .getColumns()
+                            ?.filter((column) => column.getColDef().field === "results")
+                            ?.map((item) => item.getColId()) || []
+                    gridRef.current.api.autoSizeColumns(ids, false)
+                    setFetching(false)
+                }, 100)
             })
             .catch(console.error)
             .finally(() => setFetching(false))
@@ -115,20 +128,53 @@ const EvaluationScenarios: React.FC<Props> = () => {
         fetcher()
     }, [appId, evaluationId])
 
+    const onExport = () => {
+        if (!gridRef.current) return
+        const {currentApp} = getAppValues()
+        gridRef.current.api.exportDataAsCsv({
+            fileName: `${currentApp?.app_name}_${evalaution.variants[0].variantName}.csv`,
+        })
+    }
+
+    const onDelete = () => {
+        AlertPopup({
+            title: "Delete Evaluation",
+            message: "Are you sure you want to delete this evaluation?",
+            onOk: () =>
+                deleteEvaluations([evaluationId])
+                    .then(() => router.push(`/apps/${appId}/evaluations-new`))
+                    .catch(console.error),
+        })
+    }
+
     return (
         <div>
-            <div className={classes.header}>
-                <Typography.Title level={3}>
-                    Evaluation Result (Testset: {evalaution?.testset.name || ""})
-                </Typography.Title>
-                <div>
-                    <DownloadOutlined />
-                    <DeleteOutlined />
-                </div>
+            <Typography.Title level={3}>Evaluation Results</Typography.Title>
+            <div className={classes.infoRow}>
+                <Space size="large">
+                    <Typography.Text className={classes.date}>
+                        {dayjs(evalaution?.created_at).format("DD MMM YYYY | h:m a")}
+                    </Typography.Text>
+                    <Space>
+                        <Typography.Text strong>Testset:</Typography.Text>
+                        <Typography.Text>{evalaution?.testset.name || ""}</Typography.Text>
+                    </Space>
+                    <Space>
+                        <Typography.Text strong>Variant:</Typography.Text>
+                        <Typography.Text>
+                            {evalaution?.variants[0].variantName || ""}
+                        </Typography.Text>
+                    </Space>
+                </Space>
+                <Space size="middle" align="center">
+                    <Tooltip title="Export as CSV">
+                        <DownloadOutlined onClick={onExport} style={{fontSize: 16}} />
+                    </Tooltip>
+                    <Tooltip title="Delete Evaluation">
+                        <DeleteOutlined onClick={onDelete} style={{fontSize: 16}} />
+                    </Tooltip>
+                </Space>
             </div>
-            <Typography.Text className={classes.date}>
-                {dayjs(evalaution?.created_at).format("DD MMM YYYY | h:m a")}
-            </Typography.Text>
 
             <Spin spinning={fetching}>
                 <div
@@ -137,6 +183,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     } ${classes.table}`}
                 >
                     <AgGridReact<_EvaluationScenario>
+                        ref={gridRef as any}
                         rowData={scenarios}
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.id}

@@ -294,7 +294,7 @@ export type ChatMessage = {
 }
 
 type ValueType = number | string | boolean | GenericObject | null
-type ValueTypeOptions = "text" | "number" | "boolean" | "string" | "code" | "regex"
+type ValueTypeOptions = "text" | "number" | "boolean" | "bool" | "string" | "code" | "regex"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {
@@ -360,16 +360,13 @@ export interface _Evaluation {
 
 export interface _EvaluationScenario {
     id: string
-    user: User
-    organization: Org
+    evaluation_id: string
     evaluation: _Evaluation
+    evaluators_configs: EvaluatorConfig[]
     inputs: (TypedValue & {name: string})[]
     outputs: TypedValue[]
-    correct_answer?: TypedValue
-    created_at?: string
-    updated_at?: string
+    correct_answer?: string
     is_pinned?: boolean
     note?: string
-    evaluators_configs: EvaluatorConfig[]
-    results: {evaluator: Evaluator; result: ValueType}[]
+    results: {evaluator_config: string; result: TypedValue}[]
 }
