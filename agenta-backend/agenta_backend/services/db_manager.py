@@ -1855,3 +1855,27 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
         )  # checking if delete_result is None (has been deleted)
     except Exception as e:
         raise e
+
+
+async def update_evaluation(
+    evaluation_id: str, updates: Dict[str, Any]
+) -> EvaluationDB:
+    """
+    Update an evaluator configuration in the database with the provided id.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluator configuration to be updated.
+        updates (Dict[str, Any]): The updates to apply to the evaluator configuration.
+
+    Returns:
+        EvaluatorConfigDB: The updated evaluator configuration object.
+    """
+    evaluation = await engine.find_one(
+        EvaluationDB, EvaluationDB.id == ObjectId(evaluation_id)
+    )
+
+    for key, value in updates.items():
+        if key in evaluation.__fields__:
+            setattr(evaluation, key, value)
+    await engine.save(evaluation)
+    return evaluation
