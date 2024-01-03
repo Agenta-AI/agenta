@@ -56,7 +56,7 @@ def evaluate(
     else:
         uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
 
-    # 2. We get the output from the llm app
+    # 1. We get the output from the llm app
     app_outputs: List[AppOutput] = loop.run_until_complete(
         llm_apps_service.batch_invoke(
             uri, testset.csvdata, evaluation.rate_limit.dict()

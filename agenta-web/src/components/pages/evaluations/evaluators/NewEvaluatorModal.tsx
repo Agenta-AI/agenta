@@ -18,11 +18,6 @@ import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    spinContainer: {
-        display: "grid",
-        placeItems: "center",
-        height: "100%",
-    },
     label: {
         display: "flex",
         alignItems: "center",
@@ -33,6 +28,19 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         height: 20,
         marginRight: "8px",
         filter: theme.isDark ? "invert(1)" : "none",
+    },
+    radioGroup: {
+        "& .ant-radio-button-wrapper": {
+            margin: "0.25rem",
+            borderRadius: theme.borderRadius,
+            borderLeft: `1px solid ${theme.colorBorder}`,
+            "&::before": {
+                display: "none",
+            },
+        },
+        "& .ant-radio-button-wrapper-checked ": {
+            borderLeft: `1px solid ${theme.colorPrimary}`,
+        },
     },
     radioBtn: {
         display: "flex",
@@ -113,7 +121,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
     ...props
 }) => {
     const classes = useStyles()
-    const [evaluators] = useAtom(evaluatorsAtom)
+    const evaluators = useAtom(evaluatorsAtom)[0].filter((item) => !item.direct_use)
     const [selectedEval, setSelectedEval] = useState<Evaluator | null>(null)
     const [submitLoading, setSubmitLoading] = useState(false)
     const appId = useAppId()
@@ -159,6 +167,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                 icon: editMode ? <EditOutlined /> : <PlusOutlined />,
                 loading: submitLoading,
             }}
+            width={540}
             {...props}
         >
             <Divider className={classes.divider} />
@@ -188,6 +197,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                                 evaluators.find((item) => item.key === e.target.value) || null,
                             )
                         }
+                        className={classes.radioGroup}
                     >
                         {evaluators.map((evaluator) => (
                             <Radio.Button key={evaluator.key} value={evaluator.key}>

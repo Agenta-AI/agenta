@@ -9,6 +9,7 @@ from agenta_backend.models.db_models import (
     EvaluationScenarioResult,
     EvaluatorConfigDB,
     HumanEvaluationDB,
+    HumanEvaluationScenarioDB,
     ImageDB,
     TemplateDB,
     AppDB,
@@ -41,6 +42,7 @@ from agenta_backend.models.api.observability_models import (
 )
 from agenta_backend.models.api.evaluation_model import (
     HumanEvaluation,
+    HumanEvaluationScenario,
     SimpleEvaluationOutput,
     EvaluationScenario,
     Evaluation,
@@ -116,6 +118,22 @@ async def human_evaluation_db_to_pydantic(
         testset_name=evaluation_db.testset.name,
         created_at=evaluation_db.created_at,
         updated_at=evaluation_db.updated_at,
+    )
+
+
+def human_evaluation_scenario_db_to_pydantic(
+    evaluation_scenario_db: HumanEvaluationScenarioDB,
+) -> HumanEvaluationScenario:
+    return HumanEvaluationScenario(
+        id=str(evaluation_scenario_db.id),
+        evaluation_id=str(evaluation_scenario_db.evaluation.id),
+        inputs=evaluation_scenario_db.inputs,
+        outputs=evaluation_scenario_db.outputs,
+        vote=evaluation_scenario_db.vote,
+        score=evaluation_scenario_db.score,
+        correct_answer=evaluation_scenario_db.correct_answer,
+        is_pinned=evaluation_scenario_db.is_pinned or False,
+        note=evaluation_scenario_db.note or "",
     )
 
 
@@ -368,4 +386,6 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
         name=evaluator_config.name,
         evaluator_key=evaluator_config.evaluator_key,
         settings_values=evaluator_config.settings_values,
+        created_at=evaluator_config.created_at,
+        updated_at=evaluator_config.updated_at,
     )

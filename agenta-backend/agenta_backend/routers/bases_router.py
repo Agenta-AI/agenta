@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import Request, HTTPException
+from agenta_backend.utils.common import APIRouter
 from agenta_backend.models.api.api_models import BaseOutput
 from fastapi.responses import JSONResponse
 from agenta_backend.services import db_manager
@@ -22,7 +23,7 @@ logger.setLevel(logging.DEBUG)
 router = APIRouter()
 
 
-@router.get("/", response_model=List[BaseOutput])
+@router.get("/", response_model=List[BaseOutput], operation_id="list_bases")
 async def list_bases(
     request: Request,
     app_id: Optional[str] = None,
