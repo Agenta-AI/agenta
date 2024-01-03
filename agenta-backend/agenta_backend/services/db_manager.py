@@ -1373,12 +1373,12 @@ async def add_template(**kwargs: dict) -> str:
     Returns:
         template_id (Str): The Id of the created template.
     """
-    existing_template = await engine.find_one(
-        TemplateDB, TemplateDB.tag_id == kwargs["tag_id"]
+    existing_template = await TemplateDB.find_one(
+        TemplateDB.tag_id == kwargs["tag_id"]
     )
     if existing_template is None:
         db_template = TemplateDB(**kwargs)
-        await engine.save(db_template)
+        await db_template.create()
         return str(db_template.id)
 
 
@@ -1452,14 +1452,14 @@ async def remove_old_template_from_db(tag_ids: list) -> None:
 
     templates_to_delete = []
     try:
-        templates: List[TemplateDB] = await engine.find(TemplateDB)
+        templates: List[TemplateDB] = await TemplateDB.find().to_list()
 
         for temp in templates:
             if temp.tag_id not in tag_ids:
                 templates_to_delete.append(temp)
 
         for template in templates_to_delete:
-            await engine.delete(template)
+            await template.delete()
     except DocumentParsingError as exc:
         remove_document_using_driver(str(exc.primary_value), "templates")
 
