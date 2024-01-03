@@ -17,6 +17,7 @@ import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import ParamsForm from "../ParamsForm/ParamsForm"
 import {TestContext} from "../TestContextProvider"
 import {isEqual} from "lodash"
+import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 
 const {TextArea} = Input
 const LOADING_TEXT = "Loading..."
@@ -116,6 +117,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     isChatVariant = false,
     variant,
 }) => {
+    const {appTheme} = useAppTheme()
     const classes = useStylesBox()
     const loading = result === LOADING_TEXT
     const [form] = Form.useForm()
@@ -197,6 +199,18 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         rows={6}
                         placeholder="Results will be shown here"
                         disabled={!result || result === LOADING_TEXT}
+                        style={{
+                            background: result.startsWith("❌ Error code")
+                                ? appTheme === "dark"
+                                    ? "#490b0b"
+                                    : "#fff1f0"
+                                : "",
+                            color: result.startsWith("❌ Error code")
+                                ? appTheme === "dark"
+                                    ? "#ffffffd9"
+                                    : "#000000e0"
+                                : "",
+                        }}
                     />
                 </Row>
             )}
@@ -308,12 +322,7 @@ const App: React.FC<TestViewProps> = ({
 
             setResultForIndex(res, index)
         } catch (e) {
-            setResultForIndex(
-                "The code has resulted in the following error: \n\n --------------------- \n" +
-                    getErrorMessage(e) +
-                    "\n---------------------\n\nPlease update your code, and re-serve it using cli and try again.\n\nFor more information please read https://docs.agenta.ai/howto/how-to-debug\n\nIf you believe this is a bug, please create a new issue here: https://github.com/Agenta-AI/agenta/issues/new?title=Issue%20in%20playground",
-                index,
-            )
+            setResultForIndex(`❌ ${getErrorMessage(e)}`, index)
         } finally {
             setIsRunning((prevState) => {
                 const newState = [...prevState]
