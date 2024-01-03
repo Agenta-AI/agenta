@@ -26,8 +26,8 @@ from agenta_backend.services import results_service
 
 from agenta_backend.services.evaluation_service import (
     UpdateEvaluationScenarioError,
-    get_evaluation_scenario_score,
-    update_evaluation_scenario_score,
+    get_evaluation_scenario_score_service,
+    update_evaluation_scenario_score_service,
     update_human_evaluation_scenario,
     update_human_evaluation_service,
 )
@@ -231,11 +231,13 @@ async def get_evaluation_scenario_score_router(
         Dictionary containing the scenario ID and its score.
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
-    return await get_evaluation_scenario_score(evaluation_scenario_id, **user_org_data)
+    return await get_evaluation_scenario_score_service(
+        evaluation_scenario_id, **user_org_data
+    )
 
 
 @router.put("/evaluation_scenario/{evaluation_scenario_id}/score/")
-async def update_evaluation_scenario_score_router(
+async def update_evaluation_scenario_score_service_router(
     evaluation_scenario_id: str,
     payload: EvaluationScenarioScoreUpdate,
     request: Request,
@@ -250,7 +252,7 @@ async def update_evaluation_scenario_score_router(
     """
     user_org_data = await get_user_and_org_id(request.state.user_id)
     try:
-        await update_evaluation_scenario_score(
+        await update_evaluation_scenario_score_service(
             evaluation_scenario_id, payload.score, **user_org_data
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
