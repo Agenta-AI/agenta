@@ -51,9 +51,6 @@ def evaluate(
             get_deployment_by_objectid(app_variant_db.base.deployment)
         )
 
-        # TODO: remove if abraham's fix is working
-        uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
-
         for data_point in testset.csvdata:
             # 1. We prepare the inputs
             raw_inputs = (
