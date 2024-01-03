@@ -66,6 +66,11 @@ class NewHumanEvaluation(BaseModel):
     status: str
 
 
+class AppOutput(BaseModel):
+   output: Any
+   status: str
+
+
 class Evaluation(BaseModel):
     id: str
     app_id: str
