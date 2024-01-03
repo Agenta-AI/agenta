@@ -102,7 +102,6 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         setShowRateLimitInputs(checked)
     }
 
-
     const onSubmit = (values: CreateEvaluationData) => {
         setSubmitLoading(true)
         const EvaluationRateLimit: LLMRunRateLimit = rateLimitValues
@@ -207,7 +206,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                     </Form.Item>
                     <Form.Item
                         label="Advanced Rate-Limit Configuration"
-                        style={{ marginBottom: '0' }}
+                        style={{marginBottom: "0"}}
                     >
                         <Switch checked={showRateLimitInputs} onChange={onRateLimitSwitchChange} />
                     </Form.Item>
@@ -228,7 +227,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                         }
                                         name="batch_size"
                                         style={{marginBottom: "0"}}
-                                        rules={[{required: true, message: "This field is required"}]}
+                                        rules={[
+                                            {required: true, message: "This field is required"},
+                                        ]}
                                     >
                                         <InputNumber
                                             defaultValue={rateLimitValues.batch_size}
@@ -250,7 +251,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                             </>
                                         }
                                         name="max_retries"
-                                        rules={[{required: true, message: "This field is required"}]}
+                                        rules={[
+                                            {required: true, message: "This field is required"},
+                                        ]}
                                     >
                                         <InputNumber
                                             defaultValue={rateLimitValues.max_retries}
@@ -271,9 +274,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                                 </Tooltip>
                                             </>
                                         }
-                                        style={{ marginBottom: '0' }}
+                                        style={{marginBottom: "0"}}
                                         name="retry_delay"
-                                        rules={[{required: true, message: "This field is required"}]}
+                                        rules={[
+                                            {required: true, message: "This field is required"},
+                                        ]}
                                     >
                                         <InputNumber
                                             defaultValue={rateLimitValues.retry_delay}
@@ -295,13 +300,18 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                             </>
                                         }
                                         name="delay_between_batches"
-                                        style={{ marginBottom: '0' }}
-                                        rules={[{required: true, message: "This field is required"}]}
+                                        style={{marginBottom: "0"}}
+                                        rules={[
+                                            {required: true, message: "This field is required"},
+                                        ]}
                                     >
                                         <InputNumber
                                             defaultValue={rateLimitValues.delay_between_batches}
                                             onChange={(value: number) =>
-                                                onRateLimitInputChange("delay_between_batches", value)
+                                                onRateLimitInputChange(
+                                                    "delay_between_batches",
+                                                    value,
+                                                )
                                             }
                                             style={{width: "100%"}}
                                         />
