@@ -317,6 +317,7 @@ export interface Evaluator {
     settings_template: Record<string, EvaluationSettingsTemplate>
     icon_url?: string | StaticImageData
     color?: string
+    direct_use?: boolean
 }
 
 export interface EvaluatorConfig {
@@ -341,7 +342,7 @@ export enum EvaluationStatus {
     INITIALIZED = "EVALUATION_INITIALIZED",
     STARTED = "EVALUATION_STARTED",
     FINISHED = "EVALUATION_FINISHED",
-    ERROR = "EVALUATION_ERROR",
+    ERROR = "EVALUATION_FAILED",
 }
 
 export interface _Evaluation {
@@ -362,6 +363,7 @@ export interface _Evaluation {
         result: TypedValue
     }[]
     created_at?: string
+    updated_at?: string
     duration?: number
 }
 

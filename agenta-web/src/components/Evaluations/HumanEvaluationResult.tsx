@@ -1,4 +1,9 @@
-import {deleteEvaluations, fetchData} from "@/lib/services/api"
+import {
+    deleteEvaluations,
+    fetchData,
+    fetchEvaluationResults,
+    loadEvaluations,
+} from "@/lib/services/api"
 import {Button, Collapse, Statistic, Table, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
@@ -10,7 +15,7 @@ import {createUseStyles} from "react-jss"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
-import {EvaluationTypeLabels, getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
+import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
 
 interface VariantVotesData {
     number_of_votes: number
@@ -286,7 +291,7 @@ export default function HumanEvaluationResult() {
             key: "1",
             label: (
                 <div className={classes.container}>
-                    <Title level={3}>Annotation Results</Title>
+                    <Title level={3}>A/B Test Results</Title>
                 </div>
             ),
             children: (

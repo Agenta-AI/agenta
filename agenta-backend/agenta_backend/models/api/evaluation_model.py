@@ -8,6 +8,7 @@ from agenta_backend.models.api.api_models import Result
 class Evaluator(BaseModel):
     name: str
     key: str
+    direct_use: bool
     settings_template: dict
 
 
@@ -16,6 +17,8 @@ class EvaluatorConfig(BaseModel):
     name: str
     evaluator_key: str
     settings_values: Optional[Dict[str, Any]]
+    created_at: datetime
+    updated_at: datetime
 
 
 class EvaluationTypeSettings(BaseModel):
@@ -44,7 +47,7 @@ class EvaluationStatusEnum(str, Enum):
     EVALUATION_INITIALIZED = "EVALUATION_INITIALIZED"
     EVALUATION_STARTED = "EVALUATION_STARTED"
     EVALUATION_FINISHED = "EVALUATION_FINISHED"
-    EVALUATION_ERROR = "EVALUATION_ERROR"
+    EVALUATION_FAILED = "EVALUATION_FAILED"
 
 
 class EvaluationScenarioStatusEnum(str, Enum):
@@ -94,7 +97,7 @@ class SimpleEvaluationOutput(BaseModel):
     evaluation_type: EvaluationType
 
 
-class EvaluationUpdate(BaseModel):
+class HumanEvaluationUpdate(BaseModel):
     status: Optional[EvaluationStatusEnum]
     evaluation_type_settings: Optional[EvaluationTypeSettings]
 
@@ -115,6 +118,16 @@ class EvaluationScenarioOutput(BaseModel):
     value: Any
 
 
+class HumanEvaluationScenarioInput(BaseModel):
+    input_name: str
+    input_value: str
+
+
+class HumanEvaluationScenarioOutput(BaseModel):
+    variant_id: str
+    variant_output: str
+
+
 class HumanEvaluation(BaseModel):
     id: str
     app_id: str
@@ -131,14 +144,17 @@ class HumanEvaluation(BaseModel):
     updated_at: datetime
 
 
-class HumanEvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: str
-
-
-class HumanEvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: str
+class HumanEvaluationScenario(BaseModel):
+    id: Optional[str]
+    evaluation_id: str
+    inputs: List[HumanEvaluationScenarioInput]
+    outputs: List[HumanEvaluationScenarioOutput]
+    vote: Optional[str]
+    score: Optional[Union[str, int]]
+    evaluation: Optional[str]
+    correct_answer: Optional[str]
+    is_pinned: Optional[bool]
+    note: Optional[str]
 
 
 class HumanEvaluationScenarioUpdate(BaseModel):
