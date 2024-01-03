@@ -1,8 +1,8 @@
+from agenta import FloatParam, TextParam
 import agenta as ag
 from openai import OpenAI
 
 client = OpenAI()
-from agenta import FloatParam, TextParam
 
 default_prompt = (
     "Give me 10 names for a baby from this country {country} with gender {gender}!!!!"

@@ -1,8 +1,7 @@
 import logging
-from agenta_backend.services.security.sandbox import execute_code_safely
 from bson import ObjectId
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 from fastapi import HTTPException
 
@@ -25,9 +24,10 @@ from agenta_backend.models.api.evaluation_model import (
     NewHumanEvaluation,
 )
 from agenta_backend.models import converters
-from agenta_backend.utils.common import engine, check_access_to_app
-from agenta_backend.services.db_manager import query, get_user
 from agenta_backend.services import db_manager
+from agenta_backend.services.db_manager import query, get_user
+from agenta_backend.utils.common import engine, check_access_to_app
+from agenta_backend.services.security.sandbox import execute_code_safely
 from agenta_backend.models.db_models import (
     AppVariantDB,
     EvaluationDB,
@@ -438,7 +438,7 @@ async def update_human_evaluation_scenario(
     await engine.save(eval_scenario)
 
 
-async def update_evaluation_scenario_score(
+async def update_evaluation_scenario_score_service(
     evaluation_scenario_id: str, score: float, **user_org_data: dict
 ) -> None:
     """
@@ -461,7 +461,7 @@ async def update_evaluation_scenario_score(
     await engine.save(eval_scenario)
 
 
-async def get_evaluation_scenario_score(
+async def get_evaluation_scenario_score_service(
     evaluation_scenario_id: str, **user_org_data: dict
 ) -> Dict[str, str]:
     """

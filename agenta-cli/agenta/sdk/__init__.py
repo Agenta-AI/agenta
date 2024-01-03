@@ -12,6 +12,7 @@ from .types import (
     TextParam,
     MessagesInput,
     FileInputURL,
+    BinaryParam,
 )
 from .agenta_init import Config, init
 
