@@ -237,7 +237,7 @@ async def get_evaluation_scenario_score_router(
 
 
 @router.put("/evaluation_scenario/{evaluation_scenario_id}/score/")
-async def update_evaluation_scenario_score_service_router(
+async def update_evaluation_scenario_score_router(
     evaluation_scenario_id: str,
     payload: EvaluationScenarioScoreUpdate,
     request: Request,
