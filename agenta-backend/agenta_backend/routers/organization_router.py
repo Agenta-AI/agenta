@@ -4,7 +4,8 @@ Does not deal with the instanciation of the images
 
 import os
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import HTTPException, Request
+from agenta_backend.utils.common import APIRouter
 from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.models.api.organization_models import (
     OrganizationOutput,
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-@router.get("/", response_model=list[Organization])
+@router.get("/", response_model=list[Organization], operation_id="list_organizations")
 async def list_organizations(
     request: Request,
 ):
@@ -66,7 +67,7 @@ async def list_organizations(
         )
 
 
-@router.get("/own/")
+@router.get("/own/", response_model=OrganizationOutput, operation_id="get_own_org")
 async def get_user_organization(
     request: Request,
 ):

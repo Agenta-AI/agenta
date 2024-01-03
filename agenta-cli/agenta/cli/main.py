@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import sys
@@ -9,10 +10,13 @@ import questionary
 import toml
 
 from agenta.cli import helper
-from agenta.client import client
 from agenta.cli import variant_configs
 from agenta.cli import variant_commands
 from agenta.cli import evaluation_commands
+
+from agenta.client.backend.client import AgentaApi
+
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
 
 
 def print_version(ctx, param, value):
@@ -110,7 +114,6 @@ def init(app_name: str):
                 backend_host = "https://cloud.agenta.ai"
 
             api_key = helper.get_api_key(backend_host)
-            client.validate_api_key(api_key, backend_host)
 
         elif where_question is None:  # User pressed Ctrl+C
             sys.exit(0)
@@ -120,12 +123,31 @@ def init(app_name: str):
             else "http://" + backend_host
         )
 
-        # Get app_id after creating new app in the backend server
-        app_id = client.create_new_app(
-            app_name,
-            backend_host,
-            api_key if where_question == "On agenta cloud" else None,
+        # initialize the client with the backend url and api key
+        client = AgentaApi(
+            base_url=f"{backend_host}/{BACKEND_URL_SUFFIX}",
+            api_key=api_key if where_question == "On agenta cloud" else "",
         )
+
+        # validate the api key if it is provided
+        if where_question == "On agenta cloud":
+            try:
+                key_prefix = api_key.split(".")[0]
+                client.validate_api_key(key_prefix=key_prefix)
+            except Exception as ex:
+                if ex.status_code == 401:
+                    click.echo(click.style("Error: Invalid API key", fg="red"))
+                    sys.exit(1)
+                else:
+                    click.echo(click.style(f"Error: {ex}", fg="red"))
+                    sys.exit(1)
+
+        # Get app_id after creating new app in the backend server
+        try:
+            app_id = client.create_app(app_name=app_name).app_id
+        except Exception as ex:
+            click.echo(click.style(f"Error: {ex}", fg="red"))
+            sys.exit(1)
 
         # Set app toml configuration
         config = {

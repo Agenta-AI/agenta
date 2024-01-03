@@ -114,6 +114,7 @@ def start_container(
             name=container_name,
             environment=env_vars,
             extra_hosts=extra_hosts,
+            restart_policy={"Name": "always"},
         )
         # Check the container's status
         sleep(0.5)

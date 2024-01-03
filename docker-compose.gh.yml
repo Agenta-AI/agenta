@@ -9,6 +9,7 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
             - agenta-network
+        restart: always
 
     agenta-backend:
         container_name: agenta-backend-1
@@ -49,9 +50,12 @@ services:
             - "traefik.http.routers.backend.service=backend"
         networks:
             - agenta-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
         depends_on:
             mongo:
                 condition: service_healthy
+        restart: always
 
     agenta-web:
         container_name: agenta-web-1
@@ -69,6 +73,8 @@ services:
             - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME:-http://localhost}
             - NEXT_PUBLIC_FF=oss
             - NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED=true
+        restart: always
+
     mongo:
         image: mongo:5.0
         environment:
@@ -85,6 +91,7 @@ services:
             interval: 10s
             timeout: 10s
             retries: 20
+        restart: always
 
     mongo_express:
         image: mongo-express
@@ -99,6 +106,7 @@ services:
         depends_on:
             mongo:
                 condition: service_healthy
+        restart: always
 
     redis:
         image: redis:latest
@@ -106,6 +114,7 @@ services:
             - agenta-network
         volumes:
             - redis_data:/data
+        restart: always
 
 networks:
     agenta-network:
