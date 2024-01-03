@@ -133,9 +133,9 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
         })
         params.correct_answer = result
         if (isChatVariant) {
-            const messages = testData.chat.filter((item: ChatMessage) => !!item.content)
-            params.chat = messages.slice(0, -1)
-            params.correct_answer = messages.at(-1)
+            const messages = testData?.chat?.filter((item: ChatMessage) => !!item.content)
+            params.chat = messages?.slice(0, -1)
+            params.correct_answer = messages?.at(-1)
         }
 
         onAddToTestset(params)
