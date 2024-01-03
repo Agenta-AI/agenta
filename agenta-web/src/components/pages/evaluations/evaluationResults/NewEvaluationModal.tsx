@@ -15,6 +15,7 @@ import {
     InputNumber,
     Row,
     Col,
+    Switch,
     Tooltip,
 } from "antd"
 import dayjs from "dayjs"
@@ -73,6 +74,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [evaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [evaluators] = useAtom(evaluatorsAtom)
     const [submitLoading, setSubmitLoading] = useState(false)
+    const [showRateLimitInputs, setShowRateLimitInputs] = useState(false)
     const [form] = Form.useForm()
 
     useEffect(() => {
@@ -96,6 +98,10 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const onRateLimitInputChange = (field: keyof LLMRunRateLimit, value: number) => {
         setRateLimitValues((prevValues: any) => ({...prevValues, [field]: value}))
     }
+    const onRateLimitSwitchChange = (checked: boolean) => {
+        setShowRateLimitInputs(checked)
+    }
+
 
     const onSubmit = (values: CreateEvaluationData) => {
         setSubmitLoading(true)
@@ -199,101 +205,111 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                             })}
                         </Select>
                     </Form.Item>
-                    <Divider className={classes.divider} />
-
-                    <Form.Item label="Evaluation Run Rate Limit" required>
-                        <Row gutter={16}>
-                            <Col span={12}>
-                                <Form.Item
-                                    label={
-                                        <>
-                                            Batch Size&nbsp;
-                                            <Tooltip title="Number of testset to make in each batch">
-                                                <QuestionCircleOutlined />
-                                            </Tooltip>
-                                        </>
-                                    }
-                                    name="batch_size"
-                                    style={{marginBottom: "0"}}
-                                    rules={[{required: true, message: "This field is required"}]}
-                                >
-                                    <InputNumber
-                                        defaultValue={rateLimitValues.batch_size}
-                                        onChange={(value: number) =>
-                                            onRateLimitInputChange("batch_size", value)
-                                        }
-                                        style={{width: "100%"}}
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                                <Form.Item
-                                    label={
-                                        <>
-                                            Max Retries&nbsp;
-                                            <Tooltip title="Maximum number of times to retry the failed llm call">
-                                                <QuestionCircleOutlined />
-                                            </Tooltip>
-                                        </>
-                                    }
-                                    name="max_retries"
-                                    rules={[{required: true, message: "This field is required"}]}
-                                >
-                                    <InputNumber
-                                        defaultValue={rateLimitValues.max_retries}
-                                        onChange={(value: number) =>
-                                            onRateLimitInputChange("max_retries", value)
-                                        }
-                                        style={{width: "100%"}}
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                                <Form.Item
-                                    label={
-                                        <>
-                                            Retry Delay&nbsp;
-                                            <Tooltip title="Delay before retrying the failed llm call (in seconds)">
-                                                <QuestionCircleOutlined />
-                                            </Tooltip>
-                                        </>
-                                    }
-                                    name="retry_delay"
-                                    rules={[{required: true, message: "This field is required"}]}
-                                >
-                                    <InputNumber
-                                        defaultValue={rateLimitValues.retry_delay}
-                                        onChange={(value: number) =>
-                                            onRateLimitInputChange("retry_delay", value)
-                                        }
-                                        style={{width: "100%"}}
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col span={12}>
-                                <Form.Item
-                                    label={
-                                        <>
-                                            Delay Between Batches&nbsp;
-                                            <Tooltip title="Delay between batches (in seconds)">
-                                                <QuestionCircleOutlined />
-                                            </Tooltip>
-                                        </>
-                                    }
-                                    name="delay_between_batches"
-                                    rules={[{required: true, message: "This field is required"}]}
-                                >
-                                    <InputNumber
-                                        defaultValue={rateLimitValues.delay_between_batches}
-                                        onChange={(value: number) =>
-                                            onRateLimitInputChange("delay_between_batches", value)
-                                        }
-                                        style={{width: "100%"}}
-                                    />
-                                </Form.Item>
-                            </Col>
-                        </Row>
+                    <Form.Item
+                        label="Advanced Rate-Limit Configuration"
+                        style={{ marginBottom: '0' }}
+                    >
+                        <Switch checked={showRateLimitInputs} onChange={onRateLimitSwitchChange} />
                     </Form.Item>
+
+                    {showRateLimitInputs && (
+                        <Form.Item required>
+                            <Divider className={classes.divider} />
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item
+                                        label={
+                                            <>
+                                                Batch Size&nbsp;
+                                                <Tooltip title="Number of testset to have in each batch">
+                                                    <QuestionCircleOutlined />
+                                                </Tooltip>
+                                            </>
+                                        }
+                                        name="batch_size"
+                                        style={{marginBottom: "0"}}
+                                        rules={[{required: true, message: "This field is required"}]}
+                                    >
+                                        <InputNumber
+                                            defaultValue={rateLimitValues.batch_size}
+                                            onChange={(value: number) =>
+                                                onRateLimitInputChange("batch_size", value)
+                                            }
+                                            style={{width: "100%"}}
+                                        />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item
+                                        label={
+                                            <>
+                                                Max Retries&nbsp;
+                                                <Tooltip title="Maximum number of times to retry the failed llm call">
+                                                    <QuestionCircleOutlined />
+                                                </Tooltip>
+                                            </>
+                                        }
+                                        name="max_retries"
+                                        rules={[{required: true, message: "This field is required"}]}
+                                    >
+                                        <InputNumber
+                                            defaultValue={rateLimitValues.max_retries}
+                                            onChange={(value: number) =>
+                                                onRateLimitInputChange("max_retries", value)
+                                            }
+                                            style={{width: "100%"}}
+                                        />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item
+                                        label={
+                                            <>
+                                                Retry Delay&nbsp;
+                                                <Tooltip title="Delay before retrying the failed llm call (in seconds)">
+                                                    <QuestionCircleOutlined />
+                                                </Tooltip>
+                                            </>
+                                        }
+                                        style={{ marginBottom: '0' }}
+                                        name="retry_delay"
+                                        rules={[{required: true, message: "This field is required"}]}
+                                    >
+                                        <InputNumber
+                                            defaultValue={rateLimitValues.retry_delay}
+                                            onChange={(value: number) =>
+                                                onRateLimitInputChange("retry_delay", value)
+                                            }
+                                            style={{width: "100%"}}
+                                        />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item
+                                        label={
+                                            <>
+                                                Delay Between Batches&nbsp;
+                                                <Tooltip title="Delay to run batches (in seconds)">
+                                                    <QuestionCircleOutlined />
+                                                </Tooltip>
+                                            </>
+                                        }
+                                        name="delay_between_batches"
+                                        style={{ marginBottom: '0' }}
+                                        rules={[{required: true, message: "This field is required"}]}
+                                    >
+                                        <InputNumber
+                                            defaultValue={rateLimitValues.delay_between_batches}
+                                            onChange={(value: number) =>
+                                                onRateLimitInputChange("delay_between_batches", value)
+                                            }
+                                            style={{width: "100%"}}
+                                        />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+                        </Form.Item>
+                    )}
                 </Form>
             </Spin>
         </Modal>
