@@ -4,7 +4,19 @@ import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {fetchTestsets, fetchVariants} from "@/lib/services/api"
 import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations"
 import {PlusOutlined, QuestionCircleOutlined} from "@ant-design/icons"
-import {Divider, Form, Modal, Select, Spin, Tag, Typography, InputNumber, Row, Col, Tooltip} from "antd"
+import {
+    Divider,
+    Form,
+    Modal,
+    Select,
+    Spin,
+    Tag,
+    Typography,
+    InputNumber,
+    Row,
+    Col,
+    Tooltip,
+} from "antd"
 import dayjs from "dayjs"
 import {useAtom} from "jotai"
 import Image from "next/image"
@@ -82,7 +94,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         delay_between_batches: 5,
     })
     const onRateLimitInputChange = (field: keyof LLMRunRateLimit, value: number) => {
-        setRateLimitValues((prevValues: any) => ({ ...prevValues, [field]: value }));
+        setRateLimitValues((prevValues: any) => ({...prevValues, [field]: value}))
     }
 
     const onSubmit = (values: CreateEvaluationData) => {
@@ -189,10 +201,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                     </Form.Item>
                     <Divider className={classes.divider} />
 
-                    <Form.Item
-                        label="Evaluation Run Rate Limit"
-                        required
-                    >
+                    <Form.Item label="Evaluation Run Rate Limit" required>
                         <Row gutter={16}>
                             <Col span={12}>
                                 <Form.Item
@@ -205,15 +214,15 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                         </>
                                     }
                                     name="batch_size"
-                                    style={{ marginBottom: '0' }}
+                                    style={{marginBottom: "0"}}
                                     rules={[{required: true, message: "This field is required"}]}
                                 >
                                     <InputNumber
                                         defaultValue={rateLimitValues.batch_size}
                                         onChange={(value: number) =>
-                                            onRateLimitInputChange('batch_size', value)
+                                            onRateLimitInputChange("batch_size", value)
                                         }
-                                        style={{ width: '100%' }}
+                                        style={{width: "100%"}}
                                     />
                                 </Form.Item>
                             </Col>
@@ -233,9 +242,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                     <InputNumber
                                         defaultValue={rateLimitValues.max_retries}
                                         onChange={(value: number) =>
-                                            onRateLimitInputChange('max_retries', value)
+                                            onRateLimitInputChange("max_retries", value)
                                         }
-                                        style={{ width: '100%' }}
+                                        style={{width: "100%"}}
                                     />
                                 </Form.Item>
                             </Col>
@@ -255,9 +264,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                     <InputNumber
                                         defaultValue={rateLimitValues.retry_delay}
                                         onChange={(value: number) =>
-                                            onRateLimitInputChange('retry_delay', value)
+                                            onRateLimitInputChange("retry_delay", value)
                                         }
-                                        style={{ width: '100%' }}
+                                        style={{width: "100%"}}
                                     />
                                 </Form.Item>
                             </Col>
@@ -277,9 +286,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                     <InputNumber
                                         defaultValue={rateLimitValues.delay_between_batches}
                                         onChange={(value: number) =>
-                                            onRateLimitInputChange('delay_between_batches', value)
+                                            onRateLimitInputChange("delay_between_batches", value)
                                         }
-                                        style={{ width: '100%' }}
+                                        style={{width: "100%"}}
                                     />
                                 </Form.Item>
                             </Col>

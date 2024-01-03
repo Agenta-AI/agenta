@@ -98,15 +98,11 @@ export default function HumanEvaluationResult() {
         }
         const fetchEvaluations = async () => {
             try {
-                fetchData(
-                    `${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`,
-                )
+                fetchData(`${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`)
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
                             return fetchData(
-                                `${getAgentaApiUrl()}/api/human-evaluations/${
-                                    item.id
-                                }/results/`,
+                                `${getAgentaApiUrl()}/api/human-evaluations/${item.id}/results/`,
                             )
                                 .then((results) => {
                                     if (item.evaluation_type === EvaluationType.human_a_b_testing) {

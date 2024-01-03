@@ -37,7 +37,6 @@ async def get_llm_app_output(uri: str, input: Any) -> AppOutput:
 async def run_with_retry(
     uri: str, input_data: Any, max_retry_count: int, retry_delay: int
 ) -> AppOutput:
-
     retries = 0
     last_exception = None
     while retries < max_retry_count:

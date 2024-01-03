@@ -112,8 +112,8 @@ export function getTypedValue(res?: TypedValue) {
     return type === "number"
         ? round(Number(value), 2)
         : ["boolean", "bool"].includes(type as string)
-          ? capitalize(value?.toString())
-          : value?.toString()
+        ? capitalize(value?.toString())
+        : value?.toString()
 }
 
 export function getFilterParams(type: "number" | "text" | "date") {
@@ -144,8 +144,8 @@ export function getFilterParams(type: "number" | "text" | "date") {
             type === "number"
                 ? "agNumberColumnFilter"
                 : type === "date"
-                  ? "agDateColumnFilter"
-                  : "agTextColumnFilter",
+                ? "agDateColumnFilter"
+                : "agTextColumnFilter",
         cellDataType: type,
         filterParams,
     }
