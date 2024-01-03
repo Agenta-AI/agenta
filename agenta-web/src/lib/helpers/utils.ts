@@ -34,7 +34,11 @@ export const getAllLlmProviderKeysAsEnvVariable = () => {
 }
 
 export const renameVariables = (name: string) => {
-    return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
+    if (name === "inputs") {
+        return "Prompt Variables"
+    } else {
+        return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
+    }
 }
 
 export const renameVariablesCapitalizeAll = (name: string) => {
