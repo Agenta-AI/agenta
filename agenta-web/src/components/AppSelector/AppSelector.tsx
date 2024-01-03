@@ -246,7 +246,8 @@ const AppSelector: React.FC = () => {
     }
 
     const appNameExist = useMemo(
-        () => apps.some((app: GenericObject) => app.app_name === newApp),
+        () =>
+            apps.some((app: GenericObject) => app.app_name.toLowerCase() === newApp.toLowerCase()),
         [apps, newApp],
     )
 
