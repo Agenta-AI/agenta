@@ -235,11 +235,19 @@ class EvaluationSettingsTemplate(BaseModel):
     description: str
 
 
+class LLMRunRateLimit(BaseModel):
+    batch_size: int = Field(default=10)
+    max_retries: int = Field(default=3)
+    retry_delay: int = Field(default=3)
+    delay_between_batches: int = Field(default=5)
+
+
 class NewEvaluation(BaseModel):
     app_id: str
     variant_ids: List[str]
     evaluators_configs: List[str]
     testset_id: str
+    rate_limit: LLMRunRateLimit
 
 
 class NewEvaluatorConfig(BaseModel):
