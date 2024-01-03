@@ -32,9 +32,7 @@ else:
 router = APIRouter()
 
 
-@router.post(
-    "/", response_model=List[Evaluation], operation_id="create_evaluation"
-)
+@router.post("/", response_model=List[Evaluation], operation_id="create_evaluation")
 async def create_evaluation(
     payload: NewEvaluation,
     request: Request,

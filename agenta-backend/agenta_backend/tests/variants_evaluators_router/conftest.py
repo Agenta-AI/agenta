@@ -14,7 +14,7 @@ engine = DBEngine().engine()
 
 # Set global variables
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
-OPEN_AI_KEY = os.environ.get("OPENAI_API_KEY")
+OPEN_AI_KEY = "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"  # os.environ.get("OPENAI_API_KEY")
 if ENVIRONMENT == "development":
     BACKEND_API_HOST = "http://host.docker.internal/api"
 elif ENVIRONMENT == "github":
