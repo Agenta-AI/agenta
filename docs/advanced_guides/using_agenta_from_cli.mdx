@@ -1,0 +1,52 @@
+---
+title: 'Using Agenta from CLI'
+description: 'Create, experiment, and evaluate your applications all from the CLI'
+---
+
+Agenta was designed for use both from the CLI and from the web interface. This guide explains the basics of using Agenta from the CLI. For more details, refer to the [CLI developer guide](/developer_guides/cli/quick-usage).
+
+## Installation
+The agenta CLI can be easily installed through pip:
+```bash
+pip install -U agenta
+````
+
+## Creating an application
+<Steps>
+  <Step title="Create a new project">
+
+To create an application in Agenta, first, initialize an empty project. Run the following command in <Tooltip tip="If you would like to start somewhere you can clone https://github.com/Agenta-AI/simple_prompt">the folder containing your application code</Tooltip>:
+
+```bash
+agenta init
+``` 
+
+This will prompt you for the project name, the Agenta host, and the API key (if using the cloud or enterprise version).
+
+
+Running `agenta init` creates a blank project in Agenta and generates a config.toml file in that folder, which contains all the information about your project.
+
+  </Step>
+  <Step title="Serve the first app variant">
+With the project created, we need to add the first <Tooltip tip="An app variant is one 'version' of an app. It can be created by modifying the code, or the configuration of an existing code base">app variant</Tooltip> to it.
+This can be done by running the following command:
+    ```bash
+    agenta variant serve <filename.py>
+    ```
+
+This will create a new app variant in Agenta under the name filename.default. Here, filename is the name of the codebase containing the app logic, while default is a default configuration created for that codebase. Each new app variant created from the web interface or from the CLI will always have the name format `<codebase_name>.<configuration_name>`.
+
+    Running this comand will [create a container for the application](developer_guides/how_does_agenta_work) with a REST API endpoint. This endpoint is what is used by the agenta web interface to communicate with the application.
+
+The CLI will also display the URL of the endpoint, which can be used to test the application.
+  </Step>
+</Steps>
+
+## Adding a new configuration
+
+In addition to the default configuration specified in the code, you can add more configurations to the application from the CLI.
+
+Configurations are specified in toml files and always named `<codebase_name>.<configuration_name>`. To add a new configuration, run the following command:
+
+@devgenix please continue here
+

@@ -1,12 +1,25 @@
 import os
 import logging
 from typing import Any, Optional
-from agenta.client import client
 
 from .utils.globals import set_global
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+from agenta.client.backend.client import AgentaApi
+from agenta.client.exceptions import APIRequestError
+
+BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
+CLIENT_API_KEY = os.environ.get("AGENTA_API_KEY")
+CLIENT_HOST = os.environ.get("AGENTA_HOST", "http://localhost")
+
+# initialize the client with the backend url and api key
+backend_url = f"{CLIENT_HOST}/{BACKEND_URL_SUFFIX}"
+client = AgentaApi(
+    base_url=backend_url,
+    api_key=CLIENT_API_KEY if CLIENT_API_KEY else "",
+)
 
 
 class AgentaSingleton:
@@ -61,23 +74,31 @@ class AgentaSingleton:
                     f"Warning: Your configuration will not be saved permanently since app_name and base_name are not provided."
                 )
             else:
-                app_id = client.get_app_by_name(
-                    app_name=app_name, host=host, api_key=api_key
-                )
-                base_id = client.get_base_by_app_id_and_name(
-                    app_id=app_id, base_name=base_name, host=host, api_key=api_key
-                )
+                try:
+                    get_app_id = client.list_apps(app_name=app_name)
+                    app_id = get_app_id.app_id
+
+                    if not app_id:
+                        raise APIRequestError(
+                            f"App with name {app_name} does not exist on the server."
+                        )
+
+                    get_base_id = client.list_bases(app_id=app_id, base_name=base_name)
+                    base_id = get_base_id.base_id
+                except Exception as ex:
+                    raise APIRequestError(
+                        f"Failed to get base id and/or app_id from the server with error: {ex}"
+                    )
         self.base_id = base_id
         self.host = host
         self.api_key = api_key
-        self.config = Config(base_id=base_id, host=host, api_key=api_key)
+        self.config = Config(base_id=base_id, host=host)
 
 
 class Config:
-    def __init__(self, base_id, host, api_key):
+    def __init__(self, base_id, host):
         self.base_id = base_id
         self.host = host
-        self.api_key = api_key
         if base_id is None or host is None:
             self.persist = False
         else:
@@ -113,13 +134,11 @@ class Config:
         if not self.persist:
             return
         try:
-            client.save_variant_config(
+            client.save_config(
                 base_id=self.base_id,
                 config_name=config_name,
                 parameters=kwargs,
                 overwrite=overwrite,
-                host=self.host,
-                api_key=self.api_key,
             )
         except Exception as ex:
             logger.warning(
@@ -137,18 +156,13 @@ class Config:
         if self.persist:
             try:
                 if environment_name:
-                    config = client.fetch_variant_config(
-                        base_id=self.base_id,
-                        host=self.host,
-                        api_key=self.api_key,
-                        environment_name=environment_name,
+                    config = client.get_config(
+                        base_id=self.base_id, environment_name=environment_name
                     )
 
                 else:
-                    config = client.fetch_variant_config(
+                    config = client.get_config(
                         base_id=self.base_id,
-                        host=self.host,
-                        api_key=self.api_key,
                         config_name=config_name,
                     )
             except Exception as ex:
