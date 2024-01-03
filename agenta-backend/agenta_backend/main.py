@@ -29,6 +29,8 @@ else:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from agenta_backend.models.db_engine import DBEngine
+
 origins = [
     "http://localhost:3000",
     "http://localhost:3001",
@@ -48,6 +50,9 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
+    # first initialize the database
+    await DBEngine().init_db()
+    
     await templates_manager.update_and_sync_templates(cache=cache)
     yield
 
