@@ -236,10 +236,10 @@ class EvaluationSettingsTemplate(BaseModel):
 
 
 class LLMRunRateLimit(BaseModel):
-    batch_size: int = Field(default=10)
-    max_retries: int = Field(default=3)
-    retry_delay: int = Field(default=3)
-    delay_between_batches: int = Field(default=5)
+    batch_size: int
+    max_retries: int
+    retry_delay: int
+    delay_between_batches: int
 
 
 class NewEvaluation(BaseModel):
