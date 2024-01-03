@@ -369,13 +369,9 @@ export const createNewEvaluation = async (
         status: EvaluationFlow.EVALUATION_INITIALIZED,
     }
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/api/human-evaluations/`,
-        data,
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/api/human-evaluations/`, data, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
     return response.data.id
 }
 

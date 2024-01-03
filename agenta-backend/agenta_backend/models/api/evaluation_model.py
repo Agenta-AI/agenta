@@ -67,8 +67,8 @@ class NewHumanEvaluation(BaseModel):
 
 
 class AppOutput(BaseModel):
-   output: Any
-   status: str
+    output: Any
+    status: str
 
 
 class Evaluation(BaseModel):
