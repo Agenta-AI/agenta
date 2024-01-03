@@ -96,6 +96,7 @@ async def create_evaluation(
                 "variant_ids": [variant_id],  # Only this variant ID
                 "evaluators_configs": payload.evaluators_configs,
                 "testset_id": payload.testset_id,
+                "rate_limit": payload.rate_limit.dict()
             }
 
             evaluation = await evaluation_service.create_new_evaluation(
@@ -105,7 +106,10 @@ async def create_evaluation(
             )
 
             evaluate.delay(
-                app_data, new_evaluation_data, evaluation.id, evaluation.testset_id
+                app_data,
+                new_evaluation_data,
+                evaluation.id,
+                evaluation.testset_id,
             )
             evaluations.append(evaluation)
 
