@@ -41,7 +41,9 @@ def evaluate(
 
     try:
         testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
-        new_evaluation_db = loop.run_until_complete(fetch_evaluation_by_id(evaluation_id))
+        new_evaluation_db = loop.run_until_complete(
+            fetch_evaluation_by_id(evaluation_id)
+        )
         evaluators_aggregated_data = defaultdict(list)
 
         variant_id = str(evaluation.variant_ids[0])
@@ -56,7 +58,9 @@ def evaluate(
         if backend_environment is not None and backend_environment == "github":
             uri = f"http://{deployment.container_name}"
         else:
-            uri = deployment.uri.replace("http://localhost", "http://host.docker.internal")
+            uri = deployment.uri.replace(
+                "http://localhost", "http://host.docker.internal"
+            )
 
         # 1. We get the output from the llm app
         app_outputs: List[AppOutput] = loop.run_until_complete(
@@ -114,7 +118,9 @@ def evaluate(
                     result=result,
                 )
                 evaluators_results.append(result_object)
-                evaluators_aggregated_data[evaluator_config.evaluator_key].append(result)
+                evaluators_aggregated_data[evaluator_config.evaluator_key].append(
+                    result
+                )
 
         # 4. We create a new evaluation scenario
         evaluation_scenario = loop.run_until_complete(
@@ -128,7 +134,9 @@ def evaluate(
                 is_pinned=False,
                 note="",
                 correct_answer=data_point["correct_answer"],
-                outputs=[EvaluationScenarioOutputDB(type="text", value=app_output.output)],
+                outputs=[
+                    EvaluationScenarioOutputDB(type="text", value=app_output.output)
+                ],
                 results=evaluators_results,
             )
         )
