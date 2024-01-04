@@ -1062,7 +1062,6 @@ async def compare_evaluations_scenarios(
         )
         all_scenarios.append(eval_scenarios)
 
-
     groupped_scenarios_by_inputs = find_scenarios_by_input(
         formatted_inputs, all_scenarios
     )
@@ -1077,7 +1076,7 @@ def extract_inputs_values_from_testset(testset):
 
     for entry in testset:
         for key in input_keys:
-            if key != 'correct_answer':
+            if key != "correct_answer":
                 extracted_values.append({"input_name": key, "input_value": entry[key]})
 
     return extracted_values
@@ -1085,7 +1084,9 @@ def extract_inputs_values_from_testset(testset):
 
 def find_scenarios_by_input(formatted_inputs, all_scenarios):
     results = []
-    flattened_scenarios = [scenario for sublist in all_scenarios for scenario in sublist]
+    flattened_scenarios = [
+        scenario for sublist in all_scenarios for scenario in sublist
+    ]
 
     for formatted_input in formatted_inputs:
         input_name = formatted_input["input_name"]
@@ -1110,7 +1111,7 @@ def find_scenarios_by_input(formatted_inputs, all_scenarios):
 
     return {
         "inputs": formatted_inputs,
-        "data" : results,
+        "data": results,
     }
 
 
