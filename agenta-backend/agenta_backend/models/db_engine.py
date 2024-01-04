@@ -55,53 +55,52 @@ document_models = [
 ]
 
 
-class DBEngine(object):
+class DBEngine:
     """
-    Database engine to initialize client and return engine based on mode
+    Database engine to initialize Beanie and return the engine based on mode.
     """
 
     def __init__(self) -> None:
         self.mode = os.environ.get("DATABASE_MODE", "v2")
         self.db_url = os.environ["MONGODB_URI"]
-
-    def engine(self) -> AIOEngine:
-        return True
+        self._engine: AIOEngine = None  # Store the engine for reuse
 
     async def init_db(self) -> AIOEngine:
         """
-        Initialize the database based on the mode.
+        Initialize Beanie based on the mode and store the engine.
         """
-        client = AsyncIOMotorClient(os.environ["MONGODB_URI"])
-        db_mode = os.environ.get("DATABASE_MODE", "v2")
+        if self._engine is not None:
+            return self._engine  # Return the existing engine if already initialized
 
-        if db_mode == "test":
-            await init_beanie(
-                database=client["agenta_test"],
-                document_models=document_models
-            )
-            logger.info("Using test database...")
-        elif db_mode == "default":
-            await init_beanie(
-                database=client["agenta"],
-                document_models=document_models
-            )
-            logger.info("Using default database...")
-        elif db_mode == "v2":
-            await init_beanie(
-                database=client["agenta_v2"],
-                document_models=document_models
-            )
-            logger.info("Using v2 database...")
-        else:
-            # make sure that self.mode does only contain alphanumeric characters
-            if not db_mode.isalnum():
-                raise ValueError("Mode of database needs to be alphanumeric.")
-            await init_beanie(
-                database=client[f"agenta_{db_mode}"],
-                document_models=document_models
-            )
-            logger.info(f"Using {db_mode} database...")
-            
+        client = AsyncIOMotorClient(self.db_url)
+        db_name = self._get_database_name(self.mode)
+
+        self._engine = await init_beanie(
+            database=client[db_name],
+            document_models=document_models
+        )
+
+        logger.info(f"Using {db_name} database...")
+        return self._engine
+
+    def _get_database_name(self, mode: str) -> str:
+        """
+        Determine the appropriate database name based on the mode.
+        """
+        if mode in ("test", "default", "v2"):
+            return f"agenta_{mode}"
+
+        if not mode.isalnum():
+            raise ValueError("Mode of database needs to be alphanumeric.")
+        return f"agenta_{mode}"
+
+    def engine(self) -> AIOEngine:
+        """
+        Return the initialized Beanie engine.
+        """
+        if self._engine is None:
+            raise RuntimeError("Database engine has not been initialized yet.")
+        return self._engine  
 
     def remove_db(self) -> None:
         """
