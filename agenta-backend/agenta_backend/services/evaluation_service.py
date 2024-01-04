@@ -1044,8 +1044,12 @@ async def retrieve_evaluation_results(
     return await converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
 
 
-
-async def compare_evaluations_scenarios(evaluations_ids: List[str], testset_id: str, app_variant_id: str, **user_org_data: dict):
+async def compare_evaluations_scenarios(
+    evaluations_ids: List[str],
+    testset_id: str,
+    app_variant_id: str,
+    **user_org_data: dict,
+):
     all_scenarios = []
     grouped_scenarios = {}
     for evaluation_id in evaluations_ids:
@@ -1063,7 +1067,9 @@ async def compare_evaluations_scenarios(evaluations_ids: List[str], testset_id: 
     # formatted_inputs: [{'input_name': 'country', 'input_values': ['Nauru', 'Tuvalu'...]}]
 
     print(formatted_inputs)
-    groupped_scenarios_by_inputs=find_scenarios_by_input(formatted_inputs, all_scenarios)
+    groupped_scenarios_by_inputs = find_scenarios_by_input(
+        formatted_inputs, all_scenarios
+    )
     print(groupped_scenarios_by_inputs)
     return groupped_scenarios_by_inputs
 
@@ -1072,11 +1078,11 @@ def extract_inputs_values_from_tesetset(inputs, testset):
     extracted_values = []
 
     for input_item in inputs:
-        key_name = input_item['name']
+        key_name = input_item["name"]
         values = [entry[key_name] for entry in testset if key_name in entry]
 
         # Create a dictionary for each input with its values
-        input_dict = {'input_name': key_name, 'input_values': values}
+        input_dict = {"input_name": key_name, "input_values": values}
         extracted_values.append(input_dict)
 
     return extracted_values
@@ -1084,21 +1090,28 @@ def extract_inputs_values_from_tesetset(inputs, testset):
 
 def find_scenarios_by_input(formatted_inputs, all_scenarios):
     results = []
-    flattened_scenarios = [scenario for sublist in all_scenarios for scenario in sublist]
+    flattened_scenarios = [
+        scenario for sublist in all_scenarios for scenario in sublist
+    ]
 
     for formatted_input in formatted_inputs:
-        input_name = formatted_input['input_name']
-        for input_value in formatted_input['input_values']:
+        input_name = formatted_input["input_name"]
+        for input_value in formatted_input["input_values"]:
             matching_scenarios = [
-                scenario for scenario in flattened_scenarios
-                if any(input_item.name == input_name and input_item.value == input_value
-                       for input_item in scenario.inputs)
+                scenario
+                for scenario in flattened_scenarios
+                if any(
+                    input_item.name == input_name and input_item.value == input_value
+                    for input_item in scenario.inputs
+                )
             ]
 
-            results.append({
-                'input_name': input_name,
-                'input_value': input_value,
-                'scenarios': matching_scenarios
-            })
+            results.append(
+                {
+                    "input_name": input_name,
+                    "input_value": input_value,
+                    "scenarios": matching_scenarios,
+                }
+            )
 
     return results
