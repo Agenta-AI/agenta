@@ -192,6 +192,10 @@ const ExactMatchEvaluationTable: React.FC<ExactMatchEvaluationTableProps> = ({
                         ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                         : [],
                 )
+                if (typeof result !== "string") {
+                    result = result.message
+                }
+
                 if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
                 setRowValue(rowIndex, columnName, result)
