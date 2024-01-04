@@ -122,24 +122,25 @@ def evaluate(
                     result
                 )
 
-        # 4. We create a new evaluation scenario
-        evaluation_scenario = loop.run_until_complete(
-            create_new_evaluation_scenario(
-                user=app.user,
-                organization=app.organization,
-                evaluation=new_evaluation_db,
-                variant_id=variant_id,
-                evaluators_configs=new_evaluation_db.evaluators_configs,
-                inputs=inputs,
-                is_pinned=False,
-                note="",
-                correct_answer=data_point["correct_answer"],
-                outputs=[
-                    EvaluationScenarioOutputDB(type="text", value=app_output.output)
-                ],
-                results=evaluators_results,
+            # 4. We create a new evaluation scenario
+            evaluation_scenario = loop.run_until_complete(
+                create_new_evaluation_scenario(
+                    user=app.user,
+                    organization=app.organization,
+                    evaluation=new_evaluation_db,
+                    variant_id=variant_id,
+                    evaluators_configs=new_evaluation_db.evaluators_configs,
+                    inputs=inputs,
+                    is_pinned=False,
+                    note="",
+                    correct_answer=data_point["correct_answer"],
+                    outputs=[
+                        EvaluationScenarioOutputDB(type="text", value=app_output.output)
+                    ],
+                    results=evaluators_results,
+                )
             )
-        )
+
     except Exception as e:
         print(f"An error occurred during evaluation: {e}")
         loop.run_until_complete(
