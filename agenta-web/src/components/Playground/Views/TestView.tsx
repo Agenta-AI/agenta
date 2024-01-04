@@ -340,13 +340,17 @@ const App: React.FC<TestViewProps> = ({
                 variant.baseId || "",
                 isChatVariant ? testItem.chat : [],
             )
-
-            setResultForIndex(res.message, index)
-            setAdditionalDataList((prev) => {
-                const newDataList = [...prev]
-                newDataList[index] = {cost: res.cost, latency: res.latency, usage: res.usage}
-                return newDataList
-            })
+            // check if res is an object or string
+            if (typeof res === "string") {
+                setResultForIndex(res, index)
+            } else {
+                setResultForIndex(res.message, index)
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {cost: res.cost, latency: res.latency, usage: res.usage}
+                    return newDataList
+                })
+            }
         } catch (e) {
             setResultForIndex(
                 "The code has resulted in the following error: \n\n --------------------- \n" +
