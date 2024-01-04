@@ -1,12 +1,14 @@
 import os
 import logging
+from typing import List
 
-from odmantic import AIOEngine
-from beanie import init_beanie
 from pymongo import MongoClient
+from beanie import init_beanie, Document
 from motor.motor_asyncio import AsyncIOMotorClient
+
 from agenta_backend.models.db_models import (
     APIKeyDB,
+    AppEnvironmentDB,
     OrganizationDB,
     UserDB,
     ImageDB,
@@ -32,8 +34,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Define Document Models
-document_models = [
+document_models: List[Document] = [
     APIKeyDB,
+    AppEnvironmentDB,
     OrganizationDB,
     UserDB,
     ImageDB,
@@ -63,25 +66,23 @@ class DBEngine:
     def __init__(self) -> None:
         self.mode = os.environ.get("DATABASE_MODE", "v2")
         self.db_url = os.environ["MONGODB_URI"]
-        self._engine: AIOEngine = None  # Store the engine for reuse
 
-    async def init_db(self) -> AIOEngine:
+    async def initialize_client(self):
+        return AsyncIOMotorClient(self.db_url)
+
+    async def init_db(self):
         """
         Initialize Beanie based on the mode and store the engine.
         """
-        if self._engine is not None:
-            return self._engine  # Return the existing engine if already initialized
 
-        client = AsyncIOMotorClient(self.db_url)
+        client = await self.initialize_client()
         db_name = self._get_database_name(self.mode)
 
-        self._engine = await init_beanie(
+        await init_beanie(
             database=client[db_name],
             document_models=document_models
         )
-
         logger.info(f"Using {db_name} database...")
-        return self._engine
 
     def _get_database_name(self, mode: str) -> str:
         """
@@ -93,14 +94,6 @@ class DBEngine:
         if not mode.isalnum():
             raise ValueError("Mode of database needs to be alphanumeric.")
         return f"agenta_{mode}"
-
-    def engine(self) -> AIOEngine:
-        """
-        Return the initialized Beanie engine.
-        """
-        if self._engine is None:
-            raise RuntimeError("Database engine has not been initialized yet.")
-        return self._engine  
 
     def remove_db(self) -> None:
         """

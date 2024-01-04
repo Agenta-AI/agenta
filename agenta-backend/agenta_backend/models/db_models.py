@@ -121,7 +121,7 @@ class ConfigDB(Document):
     config_name: str
     current_version: int = Field(default=1)
     parameters: Dict[str, Any] = Field(default=dict)
-    version_history: List[Link[ConfigVersionDB]] = Field(default=[])
+    version_history: List[ConfigVersionDB] = Field(default=[])
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 

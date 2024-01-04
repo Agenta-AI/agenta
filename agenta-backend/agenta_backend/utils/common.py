@@ -1,9 +1,9 @@
 import logging
-from beanie import Query
+from typing import Dict, List, Union, Optional, Any, Callable
+
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
-from agenta_backend.models.db_engine import DBEngine
-from typing import Dict, List, Union, Optional, Any, Callable
+
 from agenta_backend.models.db_models import (
     UserDB,
     AppVariantDB,
@@ -11,6 +11,9 @@ from agenta_backend.models.db_models import (
     AppDB,
     VariantBaseDB,
 )
+
+from beanie import PydanticObjectId as ObjectId
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -58,7 +61,7 @@ class APIRouter(FastAPIRouter):
 
 
 async def get_organization(org_id: str) -> OrganizationDB:
-    org = await OrganizationDB.find_one(OrganizationDB.id == org_id)
+    org = await OrganizationDB.find_one(OrganizationDB.id == ObjectId(org_id))
     if org is not None:
         return org
     else:
@@ -68,18 +71,11 @@ async def get_organization(org_id: str) -> OrganizationDB:
 async def get_app_instance(
     app_id: str, variant_name: str = None, show_deleted: bool = False
 ) -> AppVariantDB:
-    query = Query(AppVariantDB)
-    query = query.filter(AppVariantDB.is_deleted == show_deleted)
-    query = query.filter(AppVariantDB.app == app_id)
-
+    queries = (AppVariantDB.is_deleted == show_deleted, AppVariantDB.app == app_id)
     if variant_name is not None:
-        query = query.filter(AppVariantDB.variant_name == variant_name)
+        queries += (AppVariantDB.variant_name == variant_name)
 
-    print("query_expression:", query)
-
-    app_instance = await query.get()
-
-    print("app_instance:", app_instance)
+    app_instance = await AppVariantDB.find_one(*queries)
     return app_instance
 
 
@@ -99,7 +95,8 @@ async def check_user_org_access(
         logger.debug(
             f"object_organization_id: {object_organization_id}, user_organizations: {user_organizations}"
         )
-        return object_organization_id in user_organizations
+        user_exists_in_organizations = object_organization_id in user_organizations
+        return user_exists_in_organizations
 
 
 async def check_access_to_app(
@@ -129,7 +126,7 @@ async def check_access_to_app(
 
     # Fetch the app if only app_id is provided.
     if app is None:
-        app = await AppDB.find_one(AppDB.id == app_id)
+        app = await AppDB.find_one(AppDB.id == ObjectId(app_id), fetch_links=True)
         if app is None:
             logger.error("App not found")
             return False
@@ -147,7 +144,7 @@ async def check_access_to_variant(
     if variant_id is None:
         raise Exception("No variant_id provided")
     variant = await AppVariantDB.find_one(
-        AppVariantDB.id == variant_id
+        AppVariantDB.id == ObjectId(variant_id), fetch_links=True
     )
     if variant is None:
         logger.error("Variant not found")
@@ -163,7 +160,7 @@ async def check_access_to_base(
 ) -> bool:
     if base_id is None:
         raise Exception("No base_id provided")
-    base = await VariantBaseDB.find_one(VariantBaseDB.id == base_id)
+    base = await VariantBaseDB.find_one(VariantBaseDB.id == base_id, fetch_links=True)
     if base is None:
         logger.error("Base not found")
         return False
