@@ -1,16 +1,12 @@
 import logging
-from bson import ObjectId
 from datetime import datetime
 from typing import Dict, List, Any
 
 from fastapi import HTTPException
 
 from agenta_backend.models.api.evaluation_model import (
-    CustomEvaluationNames,
     Evaluation,
     EvaluationScenario,
-    CustomEvaluationOutput,
-    CustomEvaluationDetail,
     EvaluationScenarioInput,
     EvaluationType,
     EvaluationTypeSettings,
@@ -25,9 +21,8 @@ from agenta_backend.models.api.evaluation_model import (
 )
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
-from agenta_backend.services.db_manager import query, get_user
-from agenta_backend.utils.common import engine, check_access_to_app
-from agenta_backend.services.security.sandbox import execute_code_safely
+from agenta_backend.services.db_manager import get_user
+from agenta_backend.utils.common import check_access_to_app
 from agenta_backend.models.db_models import (
     AppVariantDB,
     EvaluationDB,
@@ -41,9 +36,8 @@ from agenta_backend.models.db_models import (
     CustomEvaluationDB,
 )
 
-from langchain.chains import LLMChain
-from langchain.llms import OpenAI
-from langchain.prompts import PromptTemplate
+from beanie import PydanticObjectId as ObjectId
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -172,7 +166,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
                 for name in payload_inputs
             ]
         except KeyError:
-            await engine.delete(new_evaluation)
+            await new_evaluation.delete()
             msg = f"""
             Columns in the test set should match the names of the inputs in the variant.
             Inputs names in variant are: {[variant_input for variant_input in payload_inputs]} while
@@ -208,7 +202,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             inputs=list_of_scenario_input,
             outputs=[],
         )
-        await engine.save(eval_scenario_instance)
+        await eval_scenario_instance.create()
 
 
 async def create_evaluation_scenario(
@@ -250,7 +244,7 @@ async def create_evaluation_scenario(
         updated_at=datetime.utcnow(),
     )
 
-    await engine.save(new_eval_scenario)
+    await new_eval_scenario.create()
 
 
 async def update_human_evaluation_service(
@@ -294,7 +288,7 @@ async def update_human_evaluation_service(
 
     # Update the evaluation
     evaluation.update(updates)
-    await engine.save(evaluation)
+    await evaluation.create()
 
 
 async def fetch_evaluation_scenarios_for_evaluation(
@@ -317,10 +311,9 @@ async def fetch_evaluation_scenarios_for_evaluation(
         evaluation_id=evaluation_id,
         **user_org_data,
     )
-    scenarios = await engine.find(
-        EvaluationScenarioDB,
-        EvaluationScenarioDB.evaluation == ObjectId(evaluation.id),
-    )
+    scenarios = await EvaluationScenarioDB.find(
+        EvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
+    ).to_list()
     eval_scenarios = [
         converters.evaluation_scenario_db_to_pydantic(scenario)
         for scenario in scenarios
@@ -348,12 +341,9 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
         evaluation_id=evaluation_id,
         **user_org_data,
     )
-    print("$$$$$$ evaluation")
-    print(evaluation)
-    scenarios = await engine.find(
-        HumanEvaluationScenarioDB,
-        HumanEvaluationScenarioDB.evaluation == ObjectId(evaluation.id),
-    )
+    scenarios = await HumanEvaluationScenarioDB.find(
+        HumanEvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
+    ).to_list()
     eval_scenarios = [
         converters.human_evaluation_scenario_db_to_pydantic(scenario)
         for scenario in scenarios
@@ -434,8 +424,7 @@ async def update_human_evaluation_scenario(
     if updated_data["correct_answer"] is not None:
         new_eval_set["correct_answer"] = updated_data["correct_answer"]
 
-    eval_scenario.update(new_eval_set)
-    await engine.save(eval_scenario)
+    await eval_scenario.update(new_eval_set)
 
 
 async def update_evaluation_scenario_score_service(
@@ -458,7 +447,7 @@ async def update_evaluation_scenario_score_service(
     eval_scenario.score = score
 
     # Save the updated evaluation scenario
-    await engine.save(eval_scenario)
+    await eval_scenario.create()
 
 
 async def get_evaluation_scenario_score_service(
@@ -535,9 +524,7 @@ async def fetch_list_evaluations(
             detail=f"You do not have access to this app: {app_id}",
         )
 
-    evaluations_db = await engine.find(
-        EvaluationDB, EvaluationDB.app == ObjectId(app_id)
-    )
+    evaluations_db = await EvaluationDB.find(EvaluationDB.app == ObjectId(app_id)).to_list()
     return [
         await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
@@ -582,9 +569,9 @@ async def fetch_list_human_evaluations(
             detail=f"You do not have access to this app: {app_id}",
         )
 
-    evaluations_db = await engine.find(
-        HumanEvaluationDB, HumanEvaluationDB.app == ObjectId(app_id)
-    )
+    evaluations_db = await HumanEvaluationDB.find(
+        HumanEvaluationDB.app == ObjectId(app_id)
+    ).to_list()
     return [
         await converters.human_evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
@@ -627,7 +614,7 @@ async def delete_human_evaluations(
         evaluation = await _fetch_human_evaluation_and_check_access(
             evaluation_id=evaluation_id, **user_org_data
         )
-        await engine.delete(evaluation)
+        await evaluation.delete()
 
 
 async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -> None:
@@ -645,7 +632,7 @@ async def delete_evaluations(evaluation_ids: List[str], **user_org_data: dict) -
         evaluation = await _fetch_evaluation_and_check_access(
             evaluation_id=evaluation_id, **user_org_data
         )
-        await engine.delete(evaluation)
+        await evaluation.delete()
 
 
 async def create_custom_code_evaluation(
@@ -680,7 +667,7 @@ async def create_custom_code_evaluation(
         updated_at=datetime.utcnow(),
     )
 
-    await engine.save(custom_eval)
+    await custom_eval.create()
     return str(custom_eval.id)
 
 
@@ -699,12 +686,13 @@ async def update_custom_code_evaluation(
     user = await get_user(user_uid=kwargs["uid"])
 
     # Build query expression
-    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
-        CustomEvaluationDB.id, ObjectId(id)
+    query_expression = (
+        CustomEvaluationDB.user == user.id,
+        CustomEvaluationDB.id == ObjectId(id),
     )
 
     # Get custom evaluation
-    custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
+    custom_eval = await CustomEvaluationDB.find_one(query_expression)
     if not custom_eval:
         raise HTTPException(status_code=404, detail="Custom evaluation not found")
 
@@ -714,214 +702,8 @@ async def update_custom_code_evaluation(
     custom_eval.updated_at = datetime.utcnow()
 
     # Save the updated custom evaluation
-    await engine.save(custom_eval)
-
+    await custom_eval.create()
     return str(custom_eval.id)
-
-
-async def execute_custom_code_evaluation(
-    evaluation_id: str,
-    app_id: str,
-    output: str,
-    correct_answer: str,
-    variant_id: str,
-    inputs: Dict[str, Any],
-    **user_org_data: dict,
-):
-    """Execute the custom evaluation code.
-
-    Args:
-        evaluation_id (str): the custom evaluation id
-        app_id (str): the ID of the app
-        output (str): required by the custom code
-        correct_answer (str): required by the custom code
-        variant_id (str): required by the custom code
-        inputs (Dict[str, Any]): required by the custom code
-
-    Raises:
-        HTTPException: Evaluation not found
-        HTTPException: You do not have access to this app: {app_id}
-        HTTPException: App variant not found
-        HTTPException: Failed to execute custom code evaluation
-
-    Returns:
-        result: The result of the executed custom code
-    """
-    logger.debug(
-        f"evaluation_id {evaluation_id} | app_id {app_id} | variant_id {variant_id} | inputs {inputs} | output {output} | correct_answer {correct_answer}"
-    )
-    # Get user object
-    user = await get_user(user_uid=user_org_data["uid"])
-
-    # Build query expression
-    query_expression = query.eq(
-        CustomEvaluationDB.id, ObjectId(evaluation_id)
-    ) & query.eq(CustomEvaluationDB.user, user.id)
-
-    # Get custom evaluation
-    custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
-    if not custom_eval:
-        raise HTTPException(status_code=404, detail="Evaluation not found")
-
-    # Check if user has app access
-    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {app_id}",
-        )
-
-    # Retrieve app from database
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
-
-    # Build query expression for app variant
-    appvar_query_expression = query.eq(AppVariantDB.app, app.id) & query.eq(
-        AppVariantDB.id, ObjectId(variant_id)
-    )
-
-    # Get app variant object
-    app_variant = await engine.find_one(AppVariantDB, appvar_query_expression)
-    if not app_variant:
-        raise HTTPException(status_code=404, detail="App variant not found")
-
-    # Execute the Python code with the provided inputs
-    try:
-        result = execute_code_safely(
-            app_variant.config.parameters,
-            inputs,
-            output,
-            correct_answer,
-            custom_eval.python_code,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to execute custom code evaluation: {str(e)}",
-        )
-    return result
-
-
-async def fetch_custom_evaluations(
-    app_id: str, **user_org_data: dict
-) -> List[CustomEvaluationOutput]:
-    """Fetch a list of custom evaluations from the database.
-
-    Args:
-        app_name (str): the name of the app
-
-    Returns:
-        List[CustomEvaluationOutput]: ls=ist of custom evaluations
-    """
-    # Get user object
-    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {app_id}",
-        )
-
-    # Retrieve app from database
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
-
-    # Get custom evaluations
-    custom_evals = await engine.find(
-        CustomEvaluationDB, CustomEvaluationDB.app == ObjectId(app.id)
-    )
-    if not custom_evals:
-        return []
-
-    # Convert custom evaluations to evaluations
-    evaluations = []
-    for custom_eval in custom_evals:
-        evaluations.append(
-            CustomEvaluationOutput(
-                id=str(custom_eval.id),
-                app_id=str(custom_eval.app.id),
-                evaluation_name=custom_eval.evaluation_name,
-                created_at=custom_eval.created_at,
-            )
-        )
-    return evaluations
-
-
-async def fetch_custom_evaluation_detail(
-    id: str, **user_org_data: dict
-) -> CustomEvaluationDetail:
-    """Fetch the detail of custom evaluation from the database.
-
-    Args:
-        id (str): the id of the custom evaluation
-
-    Returns:
-        CustomEvaluationDetail: Detail of the custom evaluation
-    """
-
-    # Get user object
-    user = await get_user(user_uid=user_org_data["uid"])
-
-    # Build query expression
-    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
-        CustomEvaluationDB.id, ObjectId(id)
-    )
-
-    # Get custom evaluation
-    custom_eval = await engine.find_one(CustomEvaluationDB, query_expression)
-    if not custom_eval:
-        raise HTTPException(status_code=404, detail="Custom evaluation not found")
-
-    return CustomEvaluationDetail(
-        id=str(custom_eval.id),
-        app_id=str(custom_eval.app.id),
-        python_code=custom_eval.python_code,
-        evaluation_name=custom_eval.evaluation_name,
-        created_at=custom_eval.created_at,
-        updated_at=custom_eval.updated_at,
-    )
-
-
-async def fetch_custom_evaluation_names(
-    app_id: str, **user_org_data: dict
-) -> List[CustomEvaluationNames]:
-    """Fetch the names of custom evaluation from the database.
-
-    Args:
-        id (str): the name of the app the evaluation belongs to
-
-    Returns:
-        List[CustomEvaluationNames]: the list of name of custom evaluations
-    """
-
-    # Get user object
-    user = await get_user(user_uid=user_org_data["uid"])
-
-    # Check if user has app access
-    access = await check_access_to_app(user_org_data=user_org_data, app_id=app_id)
-    if not access:
-        raise HTTPException(
-            status_code=403,
-            detail=f"You do not have access to this app: {app_id}",
-        )
-
-    # Retrieve app from database
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
-
-    # Build query expression
-    query_expression = query.eq(CustomEvaluationDB.user, user.id) & query.eq(
-        CustomEvaluationDB.app, app.id
-    )
-
-    # Get custom evaluation
-    custom_evals = await engine.find(CustomEvaluationDB, query_expression)
-
-    list_of_custom_eval_names = []
-    for custom_eval in custom_evals:
-        list_of_custom_eval_names.append(
-            CustomEvaluationNames(
-                id=str(custom_eval.id),
-                evaluation_name=custom_eval.evaluation_name,
-            )
-        )
-    return list_of_custom_eval_names
 
 
 async def create_new_human_evaluation(
@@ -969,8 +751,7 @@ async def create_new_human_evaluation(
         created_at=current_time,
         updated_at=current_time,
     )
-    newEvaluation = await engine.save(eval_instance)
-
+    newEvaluation = await eval_instance.create()
     if newEvaluation is None:
         raise HTTPException(
             status_code=500, detail="Failed to create evaluation_scenario"
