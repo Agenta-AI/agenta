@@ -166,7 +166,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     imageSize="large"
                 />
             </Row>
-            {additionalData.cost || additionalData.latency ? (
+            {additionalData?.cost || additionalData?.latency ? (
                 <Space>
                     <p>
                         Tokens:{" "}
