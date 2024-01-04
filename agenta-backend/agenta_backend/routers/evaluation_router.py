@@ -1,6 +1,6 @@
 import os
 import secrets
-from typing import List
+from typing import Any, List
 
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
@@ -250,12 +250,10 @@ async def webhook_example_fake():
 
 @router.get(
     "/evaluation_scenarios/comparison-results/",
-    response_model=List,
+    response_model=Any,
 )
 async def fetch_evaluation_scenarios(
     evaluations_ids: str,
-    testset_id: str,
-    app_variant_id: str,
     request: Request,
 ):
     """Fetches evaluation scenarios for a given evaluation ID.
@@ -272,7 +270,7 @@ async def fetch_evaluation_scenarios(
     evaluations_ids_list = evaluations_ids.split(",")
     user_org_data: dict = await get_user_and_org_id(request.state.user_id)
     eval_scenarios = await evaluation_service.compare_evaluations_scenarios(
-        evaluations_ids_list, testset_id, app_variant_id, **user_org_data
+        evaluations_ids_list, **user_org_data
     )
 
     return eval_scenarios

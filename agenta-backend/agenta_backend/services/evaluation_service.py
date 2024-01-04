@@ -1046,72 +1046,82 @@ async def retrieve_evaluation_results(
 
 async def compare_evaluations_scenarios(
     evaluations_ids: List[str],
-    testset_id: str,
-    app_variant_id: str,
     **user_org_data: dict,
 ):
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluations_ids[0])
+    testset = evaluation.testset
+    unique_tesetset_datapoints = remove_duplicates(testset.csvdata)
+    formatted_inputs = extract_inputs_values_from_testset(unique_tesetset_datapoints)
+    # # formatted_inputs: [{'input_name': 'country', 'input_value': 'Nauru'}]
+
     all_scenarios = []
-    grouped_scenarios = {}
+
     for evaluation_id in evaluations_ids:
         eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(
             evaluation_id, **user_org_data
         )
         all_scenarios.append(eval_scenarios)
 
-    app_variant_db = await fetch_app_variant_by_id(app_variant_id)
-    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
 
-    inputs = app_variant_db.parameters.get("inputs", [])
-    # inputs: [{'name': 'country'}]
-    formatted_inputs = extract_inputs_values_from_tesetset(inputs, testset.csvdata)
-    # formatted_inputs: [{'input_name': 'country', 'input_values': ['Nauru', 'Tuvalu'...]}]
-
-    print(formatted_inputs)
     groupped_scenarios_by_inputs = find_scenarios_by_input(
         formatted_inputs, all_scenarios
     )
-    print(groupped_scenarios_by_inputs)
+
     return groupped_scenarios_by_inputs
 
 
-def extract_inputs_values_from_tesetset(inputs, testset):
+def extract_inputs_values_from_testset(testset):
     extracted_values = []
 
-    for input_item in inputs:
-        key_name = input_item["name"]
-        values = [entry[key_name] for entry in testset if key_name in entry]
+    input_keys = testset[0].keys()
 
-        # Create a dictionary for each input with its values
-        input_dict = {"input_name": key_name, "input_values": values}
-        extracted_values.append(input_dict)
+    for entry in testset:
+        for key in input_keys:
+            if key != 'correct_answer':
+                extracted_values.append({"input_name": key, "input_value": entry[key]})
 
     return extracted_values
 
 
 def find_scenarios_by_input(formatted_inputs, all_scenarios):
     results = []
-    flattened_scenarios = [
-        scenario for sublist in all_scenarios for scenario in sublist
-    ]
+    flattened_scenarios = [scenario for sublist in all_scenarios for scenario in sublist]
 
     for formatted_input in formatted_inputs:
         input_name = formatted_input["input_name"]
-        for input_value in formatted_input["input_values"]:
-            matching_scenarios = [
-                scenario
-                for scenario in flattened_scenarios
-                if any(
-                    input_item.name == input_name and input_item.value == input_value
-                    for input_item in scenario.inputs
-                )
-            ]
+        input_value = formatted_input["input_value"]
 
-            results.append(
-                {
-                    "input_name": input_name,
-                    "input_value": input_value,
-                    "scenarios": matching_scenarios,
-                }
+        matching_scenarios = [
+            scenario
+            for scenario in flattened_scenarios
+            if any(
+                input_item.name == input_name and input_item.value == input_value
+                for input_item in scenario.inputs
             )
+        ]
 
-    return results
+        results.append(
+            {
+                "input_name": input_name,
+                "input_value": input_value,
+                "scenarios": matching_scenarios,
+            }
+        )
+
+    return {
+        "inputs": formatted_inputs,
+        "data" : results,
+    }
+
+
+def remove_duplicates(csvdata):
+    unique_data = set()
+    unique_entries = []
+
+    for entry in csvdata:
+        entry_tuple = tuple(entry.items())
+        if entry_tuple not in unique_data:
+            unique_data.add(entry_tuple)
+            unique_entries.append(entry)
+
+    return unique_entries
