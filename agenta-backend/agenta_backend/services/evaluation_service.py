@@ -25,7 +25,7 @@ from agenta_backend.models.api.evaluation_model import (
 )
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
-from agenta_backend.services.db_manager import query, get_user
+from agenta_backend.services.db_manager import fetch_app_variant_by_id, query, get_user
 from agenta_backend.utils.common import engine, check_access_to_app
 from agenta_backend.services.security.sandbox import execute_code_safely
 from agenta_backend.models.db_models import (
@@ -1042,3 +1042,63 @@ async def retrieve_evaluation_results(
             detail=f"You do not have access to this app: {str(evaluation.app.id)}",
         )
     return await converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
+
+
+
+async def compare_evaluations_scenarios(evaluations_ids: List[str], testset_id: str, app_variant_id: str, **user_org_data: dict):
+    all_scenarios = []
+    grouped_scenarios = {}
+    for evaluation_id in evaluations_ids:
+        eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(
+            evaluation_id, **user_org_data
+        )
+        all_scenarios.append(eval_scenarios)
+
+    app_variant_db = await fetch_app_variant_by_id(app_variant_id)
+    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+
+    inputs = app_variant_db.parameters.get("inputs", [])
+    # inputs: [{'name': 'country'}]
+    formatted_inputs = extract_inputs_values_from_tesetset(inputs, testset.csvdata)
+    # formatted_inputs: [{'input_name': 'country', 'input_values': ['Nauru', 'Tuvalu'...]}]
+
+    print(formatted_inputs)
+    groupped_scenarios_by_inputs=find_scenarios_by_input(formatted_inputs, all_scenarios)
+    print(groupped_scenarios_by_inputs)
+    return groupped_scenarios_by_inputs
+
+
+def extract_inputs_values_from_tesetset(inputs, testset):
+    extracted_values = []
+
+    for input_item in inputs:
+        key_name = input_item['name']
+        values = [entry[key_name] for entry in testset if key_name in entry]
+
+        # Create a dictionary for each input with its values
+        input_dict = {'input_name': key_name, 'input_values': values}
+        extracted_values.append(input_dict)
+
+    return extracted_values
+
+
+def find_scenarios_by_input(formatted_inputs, all_scenarios):
+    results = []
+    flattened_scenarios = [scenario for sublist in all_scenarios for scenario in sublist]
+
+    for formatted_input in formatted_inputs:
+        input_name = formatted_input['input_name']
+        for input_value in formatted_input['input_values']:
+            matching_scenarios = [
+                scenario for scenario in flattened_scenarios
+                if any(input_item.name == input_name and input_item.value == input_value
+                       for input_item in scenario.inputs)
+            ]
+
+            results.append({
+                'input_name': input_name,
+                'input_value': input_value,
+                'scenarios': matching_scenarios
+            })
+
+    return results
