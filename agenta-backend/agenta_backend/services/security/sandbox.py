@@ -61,7 +61,6 @@ def execute_code_safely(
         "random",
         "datetime",
         "json",
-        "jsonschema",
         "requests",
         "numpy",
     ]
