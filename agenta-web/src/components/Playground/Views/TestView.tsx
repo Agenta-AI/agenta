@@ -166,7 +166,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     imageSize="large"
                 />
             </Row>
-            {additionalData && (
+            {additionalData.cost || additionalData.latency ? (
                 <Space>
                     <p>
                         Tokens:{" "}
@@ -187,6 +187,8 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                             : "0ms"}
                     </p>
                 </Space>
+            ) : (
+                ""
             )}
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
                 <Col span={24} className={classes.row2Col} id={variant.variantId}>
