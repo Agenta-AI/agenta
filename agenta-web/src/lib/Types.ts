@@ -50,6 +50,13 @@ export interface PlaygroundTabsItem {
     closable: boolean
 }
 
+export interface LLMRunRateLimit {
+    batch_size: number
+    max_retries: number
+    retry_delay: number
+    delay_between_batches: number
+}
+
 export interface Evaluation {
     id: string
     createdAt: string

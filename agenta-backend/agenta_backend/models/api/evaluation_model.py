@@ -69,6 +69,11 @@ class NewHumanEvaluation(BaseModel):
     status: str
 
 
+class AppOutput(BaseModel):
+    output: Any
+    status: str
+
+
 class Evaluation(BaseModel):
     id: str
     app_id: str
@@ -246,11 +251,19 @@ class EvaluationSettingsTemplate(BaseModel):
     description: str
 
 
+class LLMRunRateLimit(BaseModel):
+    batch_size: int
+    max_retries: int
+    retry_delay: int
+    delay_between_batches: int
+
+
 class NewEvaluation(BaseModel):
     app_id: str
     variant_ids: List[str]
     evaluators_configs: List[str]
     testset_id: str
+    rate_limit: LLMRunRateLimit
 
 
 class NewEvaluatorConfig(BaseModel):
