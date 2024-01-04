@@ -10,10 +10,10 @@ from agenta_backend.services.db_manager import (
     fetch_app_variant_by_id,
     fetch_evaluator_config,
     get_deployment_by_objectid,
+    update_evaluation,
     fetch_testset_by_id,
     create_new_evaluation_scenario,
     fetch_evaluator_config_by_appId,
-    update_evaluation,
     update_evaluation_with_aggregated_results,
 )
 from agenta_backend.models.db_models import (
@@ -25,19 +25,21 @@ from agenta_backend.models.db_models import (
     Result,
 )
 from agenta_backend.services import evaluators_service
-from agenta_backend.models.api.evaluation_model import NewEvaluation
+from agenta_backend.models.api.evaluation_model import NewEvaluation, AppOutput
 
 
 @shared_task(queue="agenta_backend.tasks.evaluations.evaluate")
 def evaluate(
-    app_data: dict, new_evaluation_data: dict, evaluation_id: str, testset_id: str
+    app_data: dict,
+    new_evaluation_data: dict,
+    evaluation_id: str,
+    testset_id: str,
 ):
     loop = asyncio.get_event_loop()
+    app = AppDB(**app_data)
+    evaluation = NewEvaluation(**new_evaluation_data)
 
     try:
-        app = AppDB(**app_data)
-        evaluation = NewEvaluation(**new_evaluation_data)
-
         testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
         new_evaluation_db = loop.run_until_complete(
             fetch_evaluation_by_id(evaluation_id)
@@ -51,8 +53,27 @@ def evaluate(
             get_deployment_by_objectid(app_variant_db.base.deployment)
         )
 
-        for data_point in testset.csvdata:
-            # 1. We prepare the inputs
+        #!NOTE: do not remove! this will be used in github workflow!
+        backend_environment = os.environ.get("ENVIRONMENT")
+        if backend_environment is not None and backend_environment == "github":
+            uri = f"http://{deployment.container_name}"
+        else:
+            uri = deployment.uri.replace(
+                "http://localhost", "http://host.docker.internal"
+            )
+
+        # 1. We get the output from the llm app
+        app_outputs: List[AppOutput] = loop.run_until_complete(
+            llm_apps_service.batch_invoke(
+                uri, testset.csvdata, evaluation.rate_limit.dict()
+            )
+        )
+        for data_point, app_output in zip(testset.csvdata, app_outputs):
+            if len(testset.csvdata) != len(app_outputs):
+                # TODO: properly handle error in the case where the length are not the same
+                break
+
+            # 2. We prepare the inputs
             raw_inputs = (
                 app_variant_db.parameters.get("inputs", [])
                 if app_variant_db.parameters
@@ -68,25 +89,6 @@ def evaluate(
                     )
                     for input_item in raw_inputs
                 ]
-
-            #!NOTE: do not remove! this will be used in github workflow!
-            backend_environment = os.environ.get("ENVIRONMENT")
-            if backend_environment is not None and backend_environment == "github":
-                uri = f"http://{deployment.container_name}"
-            else:
-                uri = deployment.uri.replace(
-                    "http://localhost", "http://host.docker.internal"
-                )
-
-            # 2. We get the output from the llm app
-            try:
-                variant_output = llm_apps_service.get_llm_app_output(uri, data_point)
-            except Exception as e:
-                print(f"Error getting variant output: {e}")
-                loop.run_until_complete(
-                    update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
-                )
-                return
 
             # 3. We evaluate
             evaluators_results: [EvaluationScenarioResult] = []
@@ -105,7 +107,7 @@ def evaluate(
                 )
                 result = evaluators_service.evaluate(
                     evaluator_config.evaluator_key,
-                    variant_output,
+                    app_output.output,
                     data_point["correct_answer"],
                     evaluator_config.settings_values,
                     **additional_kwargs,
@@ -120,39 +122,38 @@ def evaluate(
                     result
                 )
 
-            # 4. We create a new evaluation scenario
-            evaluation_scenario = loop.run_until_complete(
-                create_new_evaluation_scenario(
-                    user=app.user,
-                    organization=app.organization,
-                    evaluation=new_evaluation_db,
-                    variant_id=variant_id,
-                    evaluators_configs=new_evaluation_db.evaluators_configs,
-                    inputs=inputs,
-                    is_pinned=False,
-                    note="",
-                    correct_answer=data_point["correct_answer"],
-                    outputs=[
-                        EvaluationScenarioOutputDB(type="text", value=variant_output)
-                    ],
-                    results=evaluators_results,
-                )
-            )
-
-        aggregated_results = loop.run_until_complete(
-            aggregate_evaluator_results(app, evaluators_aggregated_data)
-        )
-        updated_evaluation = loop.run_until_complete(
-            update_evaluation_with_aggregated_results(
-                new_evaluation_db.id, aggregated_results
+        # 4. We create a new evaluation scenario
+        evaluation_scenario = loop.run_until_complete(
+            create_new_evaluation_scenario(
+                user=app.user,
+                organization=app.organization,
+                evaluation=new_evaluation_db,
+                variant_id=variant_id,
+                evaluators_configs=new_evaluation_db.evaluators_configs,
+                inputs=inputs,
+                is_pinned=False,
+                note="",
+                correct_answer=data_point["correct_answer"],
+                outputs=[
+                    EvaluationScenarioOutputDB(type="text", value=app_output.output)
+                ],
+                results=evaluators_results,
             )
         )
-
     except Exception as e:
         print(f"An error occurred during evaluation: {e}")
         loop.run_until_complete(
             update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
         )
+
+    aggregated_results = loop.run_until_complete(
+        aggregate_evaluator_results(app, evaluators_aggregated_data)
+    )
+    updated_evaluation = loop.run_until_complete(
+        update_evaluation_with_aggregated_results(
+            new_evaluation_db.id, aggregated_results
+        )
+    )
 
 
 async def aggregate_evaluator_results(
