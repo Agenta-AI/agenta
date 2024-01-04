@@ -242,3 +242,33 @@ async def webhook_example_fake():
     random_generator = secrets.SystemRandom()
     random_number = random_generator.random()
     return {"score": random_number}
+
+
+@router.get(
+    "/evaluation_scenarios/comparison-results/",
+    response_model=List,
+)
+async def fetch_evaluation_scenarios(
+    evaluations_ids: str,
+    testset_id: str,
+    app_variant_id: str,
+    request: Request,
+):
+    """Fetches evaluation scenarios for a given evaluation ID.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+    """
+    evaluations_ids_list = evaluations_ids.split(',')
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    eval_scenarios = await evaluation_service.compare_evaluations_scenarios(
+        evaluations_ids_list, testset_id, app_variant_id, **user_org_data
+    )
+
+    return eval_scenarios
