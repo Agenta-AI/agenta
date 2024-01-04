@@ -1,24 +1,24 @@
-import React, {useEffect, useMemo, useState} from "react"
-import {Breadcrumb, Button, ConfigProvider, Dropdown, Layout, Space, Tooltip, theme} from "antd"
+import React, { useEffect, useMemo, useState } from "react"
+import { Breadcrumb, Button, ConfigProvider, Dropdown, Layout, Space, Tooltip, theme } from "antd"
 import Sidebar from "../Sidebar/Sidebar"
-import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
+import { GithubFilled, LinkedinFilled, TwitterOutlined } from "@ant-design/icons"
 import Link from "next/link"
-import {isDemo, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
-import {useAppTheme} from "./ThemeContextProvider"
-import {useElementSize} from "usehooks-ts"
-import {createUseStyles} from "react-jss"
+import { isDemo, renameVariablesCapitalizeAll } from "@/lib/helpers/utils"
+import { useAppTheme } from "./ThemeContextProvider"
+import { useElementSize } from "usehooks-ts"
+import { createUseStyles } from "react-jss"
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
-import {ErrorBoundary} from "react-error-boundary"
+import { ErrorBoundary } from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
-import {fetchData} from "@/lib/services/api"
-import {useAppsData} from "@/contexts/app.context"
-import {useRouter} from "next/router"
+import { fetchData } from "@/lib/services/api"
+import { useAppsData } from "@/contexts/app.context"
+import { useRouter } from "next/router"
 import Image from "next/image"
 import moonIcon from "@/media/night.png"
 import sunIcon from "@/media/sun.png"
-import {useProfileData} from "@/contexts/profile.context"
+import { useProfileData } from "@/contexts/profile.context"
 
-const {Content, Footer} = Layout
+const { Content, Footer } = Layout
 
 type StyleProps = {
     themeMode: "dark" | "light"
@@ -26,14 +26,14 @@ type StyleProps = {
 }
 
 const useStyles = createUseStyles({
-    layout: ({themeMode}: StyleProps) => ({
+    layout: ({ themeMode }: StyleProps) => ({
         display: "flex",
         background: themeMode === "dark" ? "#141414" : "#ffffff",
         height: "100%",
         minHeight: "100vh",
         position: "relative",
     }),
-    content: ({footerHeight}: StyleProps) => ({
+    content: ({ footerHeight }: StyleProps) => ({
         height: `calc(100% - ${footerHeight ?? 0}px)`,
         paddingLeft: "1.5rem",
         paddingRight: "1.5rem",
@@ -48,7 +48,7 @@ const useStyles = createUseStyles({
     breadcrumb: {
         padding: "24px 0",
     },
-    star: ({themeMode}: StyleProps) => ({
+    star: ({ themeMode }: StyleProps) => ({
         display: "flex",
         alignItems: "center",
         padding: 0,
@@ -95,7 +95,7 @@ const useStyles = createUseStyles({
     footerLeft: {
         fontSize: 18,
     },
-    footerLinkIcon: ({themeMode}: StyleProps) => ({
+    footerLinkIcon: ({ themeMode }: StyleProps) => ({
         color: themeMode === "dark" ? "#fff" : "#000",
     }),
     topRightBar: {
@@ -113,13 +113,13 @@ type LayoutProps = {
     children: React.ReactNode
 }
 
-const App: React.FC<LayoutProps> = ({children}) => {
-    const {user} = useProfileData()
-    const {appTheme, themeMode, toggleAppTheme} = useAppTheme()
-    const {currentApp} = useAppsData()
+const App: React.FC<LayoutProps> = ({ children }) => {
+    const { user } = useProfileData()
+    const { appTheme, themeMode, toggleAppTheme } = useAppTheme()
+    const { currentApp } = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
-    const [footerRef, {height: footerHeight}] = useElementSize()
-    const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
+    const [footerRef, { height: footerHeight }] = useElementSize()
+    const classes = useStyles({ themeMode: appTheme, footerHeight } as StyleProps)
     const [starCount, setStarCount] = useState(0)
     const router = useRouter()
     const appId = router.query.app_id as string
@@ -127,48 +127,48 @@ const App: React.FC<LayoutProps> = ({children}) => {
 
     useEffect(() => {
         if (user && isDemo()) {
-            ;(window as any).intercomSettings = {
+            ; (window as any).intercomSettings = {
                 api_base: "https://api-iam.intercom.io",
                 app_id: process.env.NEXT_PUBLIC_INTERCOM_APP_ID,
                 name: user.username,
                 email: user.email,
             }
-            ;(function () {
-                var w: any = window
-                var ic = w.Intercom
-                if (typeof ic === "function") {
-                    ic("reattach_activator")
-                    ic("update", (window as any).intercomSettings)
-                } else {
-                    var d = document
-                    var i: any = function () {
-                        i.c(arguments)
-                    }
-                    i.q = []
-                    i.c = function (args: any) {
-                        i.q.push(args)
-                    }
-                    w.Intercom = i
-                    var l = function () {
-                        var s = d.createElement("script")
-                        s.type = "text/javascript"
-                        s.async = true
-                        s.src = `https://widget.intercom.io/widget/${process.env.NEXT_PUBLIC_INTERCOM_APP_ID}`
-                        var x: any = d.getElementsByTagName("script")[0]
-                        x.parentNode.insertBefore(s, x)
-                    }
-                    if (document.readyState === "complete") {
-                        l()
-                    } else if (w.attachEvent) {
-                        w.attachEvent("onload", l)
+                ; (function () {
+                    var w: any = window
+                    var ic = w.Intercom
+                    if (typeof ic === "function") {
+                        ic("reattach_activator")
+                        ic("update", (window as any).intercomSettings)
                     } else {
-                        w.addEventListener("load", l, false)
+                        var d = document
+                        var i: any = function () {
+                            i.c(arguments)
+                        }
+                        i.q = []
+                        i.c = function (args: any) {
+                            i.q.push(args)
+                        }
+                        w.Intercom = i
+                        var l = function () {
+                            var s = d.createElement("script")
+                            s.type = "text/javascript"
+                            s.async = true
+                            s.src = `https://widget.intercom.io/widget/${process.env.NEXT_PUBLIC_INTERCOM_APP_ID}`
+                            var x: any = d.getElementsByTagName("script")[0]
+                            x.parentNode.insertBefore(s, x)
+                        }
+                        if (document.readyState === "complete") {
+                            l()
+                        } else if (w.attachEvent) {
+                            w.attachEvent("onload", l)
+                        } else {
+                            w.addEventListener("load", l, false)
+                        }
                     }
-                }
-            })()
+                })()
         } else {
             if ((window as any).Intercom) {
-                ;(window as any).Intercom("shutdown")
+                ; (window as any).Intercom("shutdown")
                 delete (window as any).intercomSettings
             }
         }
@@ -193,7 +193,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [])
 
     useEffect(() => {
-        if (typeof window === "undefined") return () => {}
+        if (typeof window === "undefined") return () => { }
 
         const body = document.body
         body.classList.remove("dark-mode", "light-mode")
@@ -213,6 +213,10 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 <ConfigProvider
                     theme={{
                         algorithm: isDarkTheme ? theme.darkAlgorithm : theme.defaultAlgorithm,
+                        token: {
+                            fontFamilyCode: "Liberation Mono", fontSize: 16, colorPrimary: "#10A37F",
+                            borderRadius: 7, lineWidth: 1.2, controlHeight: 33
+                        }
                     }}
                 >
                     <Layout hasSider className={classes.layout}>
@@ -223,8 +227,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                     <Breadcrumb
                                         className={classes.breadcrumb}
                                         items={[
-                                            {title: <Link href="/apps">Apps</Link>},
-                                            {title: capitalizedAppName},
+                                            { title: <Link href="/apps">Apps</Link> },
+                                            { title: capitalizedAppName },
                                         ]}
                                     />
                                     <div className={classes.topRightBar}>
@@ -254,9 +258,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             <a onClick={(e) => e.preventDefault()}>
                                                 <Tooltip title="Change theme">
                                                     <Image
-                                                        alt={`Curren Theme: ${
-                                                            isDarkTheme ? "dark" : "light"
-                                                        }`}
+                                                        alt={`Curren Theme: ${isDarkTheme ? "dark" : "light"
+                                                            }`}
                                                         src={isDarkTheme ? sunIcon : moonIcon}
                                                         width={24}
                                                         height={24}
@@ -277,7 +280,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             href="https://github.com/Agenta-AI/agenta"
                                         >
                                             <div>
-                                                <GithubFilled style={{fontSize: 18}} />
+                                                <GithubFilled style={{ fontSize: 18 }} />
                                                 <p>Star</p>
                                             </div>
                                             <div>{starCount || 0}</div>
