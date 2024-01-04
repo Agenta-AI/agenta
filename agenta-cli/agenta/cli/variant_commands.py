@@ -131,7 +131,7 @@ def add_variant(
                 base_name=base_name,
                 tar_file=tar_file,
             )
-            image = Image.parse_obj(built_image)
+            image = Image(**built_image.dict())
         if tar_path.exists():
             tar_path.unlink()
 
@@ -299,7 +299,7 @@ def remove_variant(variant_name: str, app_folder: str, host: str):
     config_file = Path(app_folder) / "config.toml"
     config = toml.load(config_file)
     app_name = config["app_name"]
-    api_key = config.get("api_key", None)
+    api_key = config.get("api_key", "")
 
     if not config["variants"]:
         click.echo(
