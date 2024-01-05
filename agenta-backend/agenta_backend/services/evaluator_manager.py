@@ -43,6 +43,7 @@ async def create_evaluator_config(
     app_id: str,
     name: str,
     evaluator_key: str,
+    direct_use: bool,
     settings_values: Optional[Dict[str, Any]] = None,
 ) -> EvaluatorConfig:
     """
@@ -64,6 +65,7 @@ async def create_evaluator_config(
         user=app.user,
         name=name,
         evaluator_key=evaluator_key,
+        direct_use=direct_use,
         settings_values=settings_values,
     )
     return evaluator_config_db_to_pydantic(evaluator_config=evaluator_config)
