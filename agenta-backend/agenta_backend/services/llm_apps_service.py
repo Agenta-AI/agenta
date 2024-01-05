@@ -12,18 +12,25 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-async def get_llm_app_output(uri: str, input: Any) -> AppOutput:
+async def get_llm_app_output(uri: str, datapoint: Any, parameters: dict) -> AppOutput:
+    prompt_user = replace_placeholders(parameters["prompt_user"], datapoint)
+    prompt_system = replace_placeholders(parameters["prompt_system"], datapoint)
+
     url = f"{uri}/generate"
 
-    # TODO: adjust these hardcoded values in this payload
     payload = {
-        "temperature": 1,
-        "model": "gpt-3.5-turbo",
-        "max_tokens": -1,
-        "prompt_system": "You are an expert in geography.",
-        "prompt_user": f"What is the capital of {input}?",
-        "top_p": 1,
-        "inputs": {"country": input},
+        "temperature": parameters["temperature"],
+        "model": parameters["model"],
+        "max_tokens": parameters["max_tokens"],
+        "prompt_system": prompt_system,
+        "prompt_user": prompt_user,
+        "top_p": parameters["top_p"],
+        "frequence_penalty": parameters["frequence_penalty"],
+        "presence_penalty": parameters["presence_penalty"],
+        "inputs": {
+            input_item["name"]: datapoint.get(input_item["name"], "")
+            for input_item in parameters["inputs"]
+        },
     }
 
     async with httpx.AsyncClient() as client:
@@ -35,13 +42,13 @@ async def get_llm_app_output(uri: str, input: Any) -> AppOutput:
 
 
 async def run_with_retry(
-    uri: str, input_data: Any, max_retry_count: int, retry_delay: int
+    uri: str, input_data: Any, parameters: dict, max_retry_count: int, retry_delay: int
 ) -> AppOutput:
     retries = 0
     last_exception = None
     while retries < max_retry_count:
         try:
-            result = await get_llm_app_output(uri, input_data)
+            result = await get_llm_app_output(uri, input_data, parameters)
             return result
         except (httpx.TimeoutException, httpx.ConnectTimeout, httpx.ConnectError) as e:
             last_exception = e
@@ -54,7 +61,7 @@ async def run_with_retry(
 
 
 async def batch_invoke(
-    uri: str, testset_data: List[dict], rate_limit_config: dict
+    uri: str, testset_data: List[dict], parameters: dict, rate_limit_config: dict
 ) -> List[AppOutput]:
     batch_size = rate_limit_config[
         "batch_size"
@@ -77,7 +84,7 @@ async def batch_invoke(
         for index in range(start_idx, end_idx):
             try:
                 batch_output: AppOutput = await run_with_retry(
-                    uri, testset_data[index], max_retries, retry_delay
+                    uri, testset_data[index], parameters, max_retries, retry_delay
                 )
                 list_of_app_outputs.append(batch_output)
                 print(f"Adding outputs to batch {start_idx}")
@@ -95,3 +102,9 @@ async def batch_invoke(
     # Start the first batch
     await run_batch(0)
     return list_of_app_outputs
+
+
+def replace_placeholders(text, data):
+    for key, value in data.items():
+        text = text.replace(f"{{{key}}}", value)
+    return text
