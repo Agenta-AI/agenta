@@ -1,7 +1,6 @@
 import pytest
 import logging
 
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     AppDB,
     UserDB,
@@ -14,9 +13,7 @@ from agenta_backend.models.db_models import (
 
 from agenta_backend.services import selectors
 
-# Initialize database engine
-engine = DBEngine().engine()
-
+# Initialize logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -25,17 +22,16 @@ logger.setLevel(logging.DEBUG)
 async def get_first_user_object():
     """Get the user object from the database or create a new one if not found."""
 
-    user = await engine.find_one(UserDB, UserDB.uid == "0")
+    user = await UserDB.find_one(UserDB.uid == "0")
     if user is None:
         create_user = UserDB(uid="0")
-        await engine.save(create_user)
+        await create_user.create()
 
         org = OrganizationDB(type="default", owner=str(create_user.id))
-        await engine.save(org)
+        await org.create()
 
         create_user.organizations.append(org.id)
-        await engine.save(create_user)
-        await engine.save(org)
+        await create_user.save()
 
         return create_user
     return user
@@ -45,19 +41,18 @@ async def get_first_user_object():
 async def get_second_user_object():
     """Create a second user object."""
 
-    user = await engine.find_one(UserDB, UserDB.uid == "1")
+    user = await UserDB.find_one(UserDB.uid == "1")
     if user is None:
         create_user = UserDB(
             uid="1", username="test_user1", email="test_user1@email.com"
         )
-        await engine.save(create_user)
+        await create_user.create()
 
         org = OrganizationDB(type="default", owner=str(create_user.id))
-        await engine.save(org)
+        await org.create()
 
         create_user.organizations.append(org.id)
-        await engine.save(create_user)
-        await engine.save(org)
+        await create_user.save()
 
         return create_user
     return user
@@ -69,7 +64,7 @@ async def get_first_user_app(get_first_user_object):
     organization = await selectors.get_user_own_org(user.uid)
 
     app = AppDB(app_name="myapp", organization=organization, user=user)
-    await engine.save(app)
+    await app.create()
 
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -77,18 +72,18 @@ async def get_first_user_app(get_first_user_object):
         user=user,
         organization=organization,
     )
-    await engine.save(db_image)
+    await db_image.create()
 
     db_config = ConfigDB(
         config_name="default",
         parameters={},
     )
-    await engine.save(db_config)
+    await db_config.create()
 
     db_base = VariantBaseDB(
         base_name="app", image=db_image, organization=organization, user=user, app=app
     )
-    await engine.save(db_base)
+    await db_base.create()
 
     appvariant = AppVariantDB(
         app=app,
@@ -102,6 +97,6 @@ async def get_first_user_app(get_first_user_object):
         base=db_base,
         config=db_config,
     )
-    await engine.save(appvariant)
+    await appvariant.create()
 
     return appvariant, user, organization, app, db_image, db_config, db_base

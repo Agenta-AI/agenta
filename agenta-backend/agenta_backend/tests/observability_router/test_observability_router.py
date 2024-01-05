@@ -14,14 +14,10 @@ from agenta_backend.models.db_models import (
     AppVariantDB,
     VariantBaseDB,
 )
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.services import selectors
 
 import httpx
 
-
-# Initialize database engine
-engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
@@ -48,13 +44,13 @@ async def test_create_spans_endpoint(spans_db_data):
 @pytest.mark.asyncio
 async def test_create_user_and_org(user_create_data, organization_create_data):
     user_db = UserDB(**user_create_data)
-    await engine.save(user_db)
+    await user_db.create()
 
     org_db = OrganizationDB(**organization_create_data, owner=str(user_db.id))
-    await engine.save(org_db)
+    await org_db.create()
 
     user_db.organizations = [org_db.id]
-    await engine.save(user_db)
+    await user_db.save()
 
     assert org_db.name == "Agenta"
     assert user_db.username == "agenta"
@@ -63,25 +59,25 @@ async def test_create_user_and_org(user_create_data, organization_create_data):
 
 @pytest.mark.asyncio
 async def test_create_organization(organization_create_data):
-    user_db = await engine.find_one(UserDB, UserDB.uid == "0")
+    user_db = await UserDB.find_one(UserDB.uid == "0")
     organization = OrganizationDB(
         **organization_create_data,
         type="default",
         owner=str(user_db.id),
         members=[user_db.id],
     )
-    await engine.save(organization)
+    await organization.create()
 
 
 @pytest.mark.asyncio
 async def test_create_image_in_db(image_create_data):
-    user_db = await engine.find_one(UserDB, UserDB.uid == "0")
-    organization_db = await engine.find_one(
-        OrganizationDB, OrganizationDB.owner == str(user_db.id)
+    user_db = await UserDB.find_one(UserDB.uid == "0")
+    organization_db = await OrganizationDB.find_one(
+        OrganizationDB.owner == str(user_db.id)
     )
 
     image_db = ImageDB(**image_create_data, user=user_db, organization=organization_db)
-    await engine.save(image_db)
+    await image_db.create()
 
     assert image_db.user.id == user_db.id
     assert image_db.tags == image_create_data["tags"]
@@ -89,22 +85,22 @@ async def test_create_image_in_db(image_create_data):
 
 @pytest.mark.asyncio
 async def test_create_appvariant_in_db(app_variant_create_data):
-    user_db = await engine.find_one(UserDB, UserDB.uid == "0")
+    user_db = await UserDB.find_one(UserDB.uid == "0")
     organization_db = await selectors.get_user_own_org(user_db.uid)
-    image_db = await engine.find_one(ImageDB, ImageDB.user == user_db.id)
+    image_db = await ImageDB.find_one(ImageDB.user == user_db.id)
 
     app = AppDB(
         app_name="test_app",
         organization=organization_db,
         user=user_db,
     )
-    await engine.save(app)
+    await app.create()
 
     db_config = ConfigDB(
         config_name="default",
         parameters={},
     )
-    await engine.save(db_config)
+    await db_config.create()
 
     db_base = VariantBaseDB(
         app=app,
@@ -113,7 +109,7 @@ async def test_create_appvariant_in_db(app_variant_create_data):
         base_name="app",
         image=image_db,
     )
-    await engine.save(db_base)
+    await db_base.create()
 
     app_variant_db = AppVariantDB(
         **app_variant_create_data,
@@ -126,7 +122,7 @@ async def test_create_appvariant_in_db(app_variant_create_data):
         base=db_base,
         config=db_config,
     )
-    await engine.save(app_variant_db)
+    await app_variant_db.create()
 
     assert app_variant_db.image.id == image_db.id
     assert app_variant_db.user.id == user_db.id
@@ -147,7 +143,7 @@ async def test_create_spans_in_db(spans_db_data):
         # In this case, we are getting the first span id that was
         # created in the first test and updating the previous_span_id with it
         if previous_span_id is None and not first_span_id_used:
-            first_span = await engine.find_one(SpanDB)
+            first_span = await SpanDB.find_one()
             previous_span_id = str(first_span.id)
 
         # Create a new span instance
@@ -159,7 +155,7 @@ async def test_create_spans_in_db(spans_db_data):
 
         # Save the span instance and set the first_span_id_used
         # to True to avoid reusing it
-        await engine.save(span_db)
+        await span_db.create()
         first_span_id_used = True
 
         # Check if the previous span id exists and that first_span_id_used is True
@@ -172,15 +168,15 @@ async def test_create_spans_in_db(spans_db_data):
 
 @pytest.mark.asyncio
 async def fetch_spans_id():
-    spans = await engine.find(SpanDB)
+    spans = await SpanDB.find().to_list()
     assert type(spans) == List[SpanDB]
     assert len(spans) == 3
 
 
 @pytest.mark.asyncio
 async def test_create_trace_endpoint(trace_create_data):
-    spans = await engine.find(SpanDB)
-    variants = await engine.find(AppVariantDB)
+    spans = await SpanDB.find().to_list()
+    variants = await AppVariantDB.find(fetch_links=True).to_list()
 
     # Prepare required data
     spans_id = [str(span.id) for span in spans]
@@ -202,7 +198,7 @@ async def test_create_trace_endpoint(trace_create_data):
 
 @pytest.mark.asyncio
 async def test_get_traces_endpoint():
-    variants = await engine.find(AppVariantDB)
+    variants = await AppVariantDB.find(fetch_links=True).to_list()
     app_id, variant_id = variants[0].app.id, variants[0].id
 
     response = await test_client.get(
@@ -214,9 +210,9 @@ async def test_get_traces_endpoint():
 
 @pytest.mark.asyncio
 async def test_get_trace_endpoint():
-    traces = await engine.find(TraceDB)
+    traces = await TraceDB.find().to_list()
 
-    variants = await engine.find(AppVariantDB)
+    variants = await AppVariantDB.find(fetch_links=True).to_list()
     app_id, variant_id = variants[0].app.id, variants[0].id
 
     response = await test_client.get(
@@ -234,7 +230,7 @@ async def test_update_trace_status_endpoint():
         "status": random.choice(["initiated", "completed", "stopped", "cancelled"])
     }
 
-    traces = await engine.find(TraceDB)
+    traces = await TraceDB.find().to_list()
     response = await test_client.put(
         f"{BACKEND_API_HOST}/observability/traces/{str(traces[0].id)}/",
         json=payload,
@@ -245,7 +241,7 @@ async def test_update_trace_status_endpoint():
 
 @pytest.mark.asyncio
 async def test_create_feedback_endpoint(feedbacks_create_data):
-    traces = await engine.find(TraceDB)
+    traces = await TraceDB.find().to_list()
     for feedback_data in feedbacks_create_data:
         response = await test_client.post(
             f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/",
@@ -257,7 +253,7 @@ async def test_create_feedback_endpoint(feedbacks_create_data):
 
 @pytest.mark.asyncio
 async def test_get_trace_feedbacks_endpoint():
-    traces = await engine.find(TraceDB)
+    traces = await TraceDB.find().to_list()
     response = await test_client.get(
         f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/"
     )
@@ -267,7 +263,7 @@ async def test_get_trace_feedbacks_endpoint():
 
 @pytest.mark.asyncio
 async def test_get_feedback_endpoint():
-    traces = await engine.find(TraceDB)
+    traces = await TraceDB.find().to_list()
     feedback_id = traces[0].feedbacks[0].uid
     response = await test_client.get(
         f"{BACKEND_API_HOST}/observability/feedbacks/{str(traces[0].id)}/{feedback_id}/"
@@ -278,7 +274,7 @@ async def test_get_feedback_endpoint():
 
 @pytest.mark.asyncio
 async def test_update_feedback_endpoint():
-    traces = await engine.find(TraceDB)
+    traces = await TraceDB.find(fetch_links=True).to_list()
     feedbacks_ids = [feedback.uid for feedback in traces[0].feedbacks]
 
     for feedback_id in feedbacks_ids:

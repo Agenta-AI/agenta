@@ -3,12 +3,8 @@ import httpx
 import pytest
 
 from agenta_backend.models.db_models import UserDB
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.api.user_models import User
 
-
-# Initialize database engine
-engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
@@ -24,7 +20,7 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_user_profile():
-    user_db = await engine.find_one(UserDB, UserDB.uid == "0")
+    user_db = await UserDB.find_one(UserDB.uid == "0")
     user_db_dict = User(
         id=str(user_db.id),
         uid=str(user_db.uid),
