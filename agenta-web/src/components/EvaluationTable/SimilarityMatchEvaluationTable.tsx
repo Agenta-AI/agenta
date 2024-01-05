@@ -215,6 +215,10 @@ const SimilarityMatchEvaluationTable: React.FC<SimilarityMatchEvaluationTablePro
                         ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                         : [],
                 )
+                if (typeof result !== "string") {
+                    result = result.message
+                }
+
                 if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
                 const {similarityThreshold} = form.getFieldsValue()

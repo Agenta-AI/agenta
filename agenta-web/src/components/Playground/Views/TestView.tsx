@@ -166,7 +166,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     imageSize="large"
                 />
             </Row>
-            {additionalData && (
+            {additionalData?.cost || additionalData?.latency ? (
                 <Space>
                     <p>
                         Tokens:{" "}
@@ -187,6 +187,8 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                             : "0ms"}
                     </p>
                 </Space>
+            ) : (
+                ""
             )}
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
                 <Col span={24} className={classes.row2Col} id={variant.variantId}>
@@ -340,13 +342,17 @@ const App: React.FC<TestViewProps> = ({
                 variant.baseId || "",
                 isChatVariant ? testItem.chat : [],
             )
-
-            setResultForIndex(res.message, index)
-            setAdditionalDataList((prev) => {
-                const newDataList = [...prev]
-                newDataList[index] = {cost: res.cost, latency: res.latency, usage: res.usage}
-                return newDataList
-            })
+            // check if res is an object or string
+            if (typeof res === "string") {
+                setResultForIndex(res, index)
+            } else {
+                setResultForIndex(res.message, index)
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {cost: res.cost, latency: res.latency, usage: res.usage}
+                    return newDataList
+                })
+            }
         } catch (e) {
             setResultForIndex(
                 "The code has resulted in the following error: \n\n --------------------- \n" +
