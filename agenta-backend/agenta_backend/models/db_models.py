@@ -19,6 +19,7 @@ class APIKeyDB(Document):
     class Settings:
         collection = "api_keys"
 
+
 class InvitationDB(BaseModel):
     token: str = Field(unique=True)
     email: str

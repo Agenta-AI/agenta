@@ -71,11 +71,14 @@ async def add_variant_from_base_and_config(
             **user_org_data,
         )
         logger.debug(f"Successfully added new variant: {db_app_variant}")
-        app_variant_db = await db_manager.get_app_variant_instance_by_id(str(db_app_variant.id))
+        app_variant_db = await db_manager.get_app_variant_instance_by_id(
+            str(db_app_variant.id)
+        )
         return await converters.app_variant_db_to_output(app_variant_db)
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         logger.error(f"An exception occurred while adding the new variant: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -51,10 +51,7 @@ def auto_webhook_test(
         with httpx.Client() as client:
             request_body = json.loads(settings_values.get("webhook_body", None))
             payload = request_body if request_body else {}
-            response = client.post(
-                url=settings_values["webhook_url"],
-                json=payload
-            )
+            response = client.post(url=settings_values["webhook_url"], json=payload)
             response.raise_for_status()
             response_data = response.json()
             score = response_data.get("score", None)

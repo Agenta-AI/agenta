@@ -37,7 +37,7 @@ router = APIRouter()
 
 
 # TODO: We need to improve this to use the introduced abstraction to also use start and stop service
-#* Edit: someone remind me (abram) to work on this.
+# * Edit: someone remind me (abram) to work on this.
 @router.post("/build_image/", operation_id="build_image")
 async def build_image(
     app_id: str,

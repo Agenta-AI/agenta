@@ -73,7 +73,7 @@ async def get_app_instance(
 ) -> AppVariantDB:
     queries = (AppVariantDB.is_deleted == show_deleted, AppVariantDB.app == app_id)
     if variant_name is not None:
-        queries += (AppVariantDB.variant_name == variant_name)
+        queries += AppVariantDB.variant_name == variant_name
 
     app_instance = await AppVariantDB.find_one(*queries)
     return app_instance

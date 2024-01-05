@@ -166,7 +166,10 @@ async def fetch_app_by_name(
         user = await get_user(user_uid=user_org_data["uid"])
         app = await AppDB.find_one(AppDB.app_name == app_name, AppDB.user.id == user.id)
     else:
-        app = await AppDB.find_one(AppDB.app_name == app_name, AppDB.organization.id == ObjectId(organization_id))
+        app = await AppDB.find_one(
+            AppDB.app_name == app_name,
+            AppDB.organization.id == ObjectId(organization_id),
+        )
     return app
 
 

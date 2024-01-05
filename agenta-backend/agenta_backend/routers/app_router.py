@@ -187,6 +187,7 @@ async def create_app(
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -310,6 +311,7 @@ async def remove_app(app_id: str, request: Request):
         raise HTTPException(status_code=500, detail=detail)
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         detail = f"Unexpected error while trying to remove the app: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
