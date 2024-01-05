@@ -317,8 +317,8 @@ class EvaluationScenarioDB(Document):
     organization: Link[OrganizationDB]
     evaluation: Link[EvaluationDB]
     variant_id: PydanticObjectId
-    inputs: List[Link[EvaluationScenarioInputDB]]
-    outputs: List[Link[EvaluationScenarioOutputDB]]
+    inputs: List[EvaluationScenarioInputDB]
+    outputs: List[EvaluationScenarioOutputDB]
     correct_answer: Optional[str]
     is_pinned: Optional[bool]
     note: Optional[str]

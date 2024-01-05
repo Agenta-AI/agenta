@@ -41,7 +41,6 @@ from agenta_backend.models.db_models import (
     TestSetDB,
     UserDB,
 )
-
 from agenta_backend.utils.common import check_user_org_access
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 
@@ -1254,7 +1253,7 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
         EvaluationDB: The fetched evaluation, or None if no evaluation was found.
     """
     assert evaluation_id is not None, "evaluation_id cannot be None"
-    evaluation = await EvaluationDB.find_one(EvaluationDB.id == ObjectId(evaluation_id))
+    evaluation = await EvaluationDB.find_one(EvaluationDB.id == ObjectId(evaluation_id), fetch_links=True)
     return evaluation
 
 
@@ -1681,7 +1680,7 @@ async def update_evaluation_with_aggregated_results(
     evaluation.aggregated_results = aggregated_results
     evaluation.updated_at = datetime.utcnow().isoformat()
 
-    await evaluation.update()
+    await evaluation.save()
     return evaluation
 
 
@@ -1694,8 +1693,7 @@ async def fetch_evaluators_configs(app_id: str):
     assert app_id is not None, "evaluation_id cannot be None"
 
     try:
-        query_expressions = EvaluatorConfigDB.app.id == ObjectId(app_id)
-        evaluators_configs = await EvaluatorConfigDB.find_one(query_expressions)
+        evaluators_configs = await EvaluatorConfigDB.find(EvaluatorConfigDB.app.id == ObjectId(app_id)).to_list()
         return evaluators_configs
     except Exception as e:
         raise e
@@ -1731,11 +1729,8 @@ async def fetch_evaluator_config_by_appId(
     """
 
     try:
-        query_expressions = (
-            EvaluatorConfigDB.app.id == ObjectId(app_id),
-            EvaluatorConfigDB.evaluator_key == evaluator_name,
-        )
-        evaluator_config = await EvaluatorConfigDB.find_one(query_expressions)
+        evaluator_config = await EvaluatorConfigDB.find_one(EvaluatorConfigDB.app.id == ObjectId(app_id),
+            EvaluatorConfigDB.evaluator_key == evaluator_name)
         return evaluator_config
     except Exception as e:
         raise e
@@ -1801,10 +1796,8 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
         evaluator_config = await EvaluatorConfigDB.find_one(
             EvaluatorConfigDB.id == ObjectId(evaluator_config_id)
         )
-        delete_result = evaluator_config.delete()
-        return (
-            delete_result is None
-        )  # checking if delete_result is None (has been deleted)
+        delete_result = await evaluator_config.delete()
+        return delete_result.acknowledged
     except Exception as e:
         raise e
 
@@ -1822,10 +1815,10 @@ async def update_evaluation(
     Returns:
         EvaluatorConfigDB: The updated evaluator configuration object.
     """
-    evaluation = await EvaluationDB.find_one(EvaluationDB.id == ObjectId(evaluation_id))
+    evaluation = await EvaluationDB.get(ObjectId(evaluation_id))
 
     for key, value in updates.items():
         if hasattr(evaluation, key):
             setattr(evaluation, key, value)
-    await evaluation.update()
+    await evaluation.save()
     return evaluation

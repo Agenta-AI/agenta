@@ -524,7 +524,7 @@ async def fetch_list_evaluations(
             detail=f"You do not have access to this app: {app_id}",
         )
 
-    evaluations_db = await EvaluationDB.find(EvaluationDB.app == ObjectId(app_id)).to_list()
+    evaluations_db = await EvaluationDB.find(EvaluationDB.app.id == ObjectId(app_id), fetch_links=True).to_list()
     return [
         await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
@@ -570,7 +570,7 @@ async def fetch_list_human_evaluations(
         )
 
     evaluations_db = await HumanEvaluationDB.find(
-        HumanEvaluationDB.app == ObjectId(app_id)
+        HumanEvaluationDB.app.id == ObjectId(app_id)
     ).to_list()
     return [
         await converters.human_evaluation_db_to_pydantic(evaluation)
