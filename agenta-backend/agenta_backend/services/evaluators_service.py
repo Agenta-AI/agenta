@@ -1,4 +1,5 @@
 import re
+import json
 import httpx
 from typing import Any, Dict, Tuple
 
@@ -48,8 +49,11 @@ def auto_webhook_test(
 ) -> Result:
     try:
         with httpx.Client() as client:
+            request_body = json.loads(settings_values.get("webhook_body", None))
+            payload = request_body if request_body else {}
             response = client.post(
-                url=settings_values["webhook_url"], json=settings_values["webhook_body"]
+                url=settings_values["webhook_url"],
+                json=payload
             )
             response.raise_for_status()
             response_data = response.json()
@@ -67,7 +71,7 @@ def auto_webhook_test(
         print(f"An error occurred: {e}")
 
 
-def custom_code_run(
+def auto_custom_code_run(
     variant_output: str,
     correct_answer: str,
     settings_values: Dict[str, Any],
@@ -79,7 +83,7 @@ def custom_code_run(
             inputs=kwargs["inputs"],
             output=variant_output,
             correct_answer=correct_answer,
-            code=settings_values["python_code"],
+            code=settings_values["code"],
         )
         return Result(type="number", value=result)
     except Exception as exc:
@@ -160,14 +164,13 @@ def evaluate(
     *additional_args: Tuple[Any],
     **additional_kwargs: Dict[str, Any],
 ) -> Result:
-    try:
-        evaluation_function = globals()[evaluator_name]
-        return evaluation_function(
-            correct_answer,
-            variant_output,
-            settings_values,
-            *additional_args,
-            **additional_kwargs,
-        )
-    except KeyError:
+    evaluation_function = globals().get(evaluator_name, None)
+    if not evaluation_function:
         raise ValueError(f"Evaluation method '{evaluator_name}' not found.")
+    return evaluation_function(
+        correct_answer,
+        variant_output,
+        settings_values,
+        *additional_args,
+        **additional_kwargs,
+    )

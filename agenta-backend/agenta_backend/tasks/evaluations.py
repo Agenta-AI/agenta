@@ -9,6 +9,7 @@ from agenta_backend.services.db_manager import (
     fetch_evaluation_by_id,
     fetch_app_variant_by_id,
     fetch_evaluator_config,
+    fetch_app_by_id,
     get_deployment_by_objectid,
     fetch_testset_by_id,
     create_new_evaluation_scenario,
@@ -24,6 +25,7 @@ from agenta_backend.models.db_models import (
     AggregatedResult,
     Result,
 )
+from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.services import evaluators_service
 from agenta_backend.models.api.evaluation_model import NewEvaluation
 
@@ -35,7 +37,8 @@ def evaluate(
     loop = asyncio.get_event_loop()
 
     try:
-        app = AppDB(**app_data)
+        loop.run_until_complete(DBEngine().init_db())
+        app = loop.run_until_complete(fetch_app_by_id(app_data["_id"]))
         evaluation = NewEvaluation(**new_evaluation_data)
 
         testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
@@ -100,7 +103,7 @@ def evaluate(
                         "app_params": app_variant_db.config.parameters,
                         "inputs": data_point,  # TODO: fetch input from config parameters when #1102 has been fixed
                     }
-                    if evaluator_config.evaluator_key == "custom_code_run"
+                    if evaluator_config.evaluator_key == "auto_custom_code_run"
                     else {}
                 )
                 result = evaluators_service.evaluate(
