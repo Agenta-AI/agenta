@@ -40,15 +40,18 @@ def evaluate(
     evaluation = NewEvaluation(**new_evaluation_data)
 
     try:
+        variant_id = str(evaluation.variant_ids[0])
+        app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
+        app_variant_parameters = app_variant_db.config.parameters
+
+        # TODO: we need fail evaluation if parameters are empty
+
         testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
         new_evaluation_db = loop.run_until_complete(
             fetch_evaluation_by_id(evaluation_id)
         )
         evaluators_aggregated_data = defaultdict(list)
 
-        variant_id = str(evaluation.variant_ids[0])
-
-        app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         deployment = loop.run_until_complete(
             get_deployment_by_objectid(app_variant_db.base.deployment)
         )
@@ -65,7 +68,10 @@ def evaluate(
         # 1. We get the output from the llm app
         app_outputs: List[AppOutput] = loop.run_until_complete(
             llm_apps_service.batch_invoke(
-                uri, testset.csvdata, evaluation.rate_limit.dict()
+                uri,
+                testset.csvdata,
+                app_variant_parameters,
+                evaluation.rate_limit.dict(),
             )
         )
         for data_point, app_output in zip(testset.csvdata, app_outputs):
