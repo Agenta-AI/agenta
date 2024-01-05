@@ -16,7 +16,6 @@ class EvaluatorConfig(BaseModel):
     id: str
     name: str
     evaluator_key: str
-    direct_use: bool
     settings_values: Optional[Dict[str, Any]]
     created_at: datetime
     updated_at: datetime
@@ -271,7 +270,6 @@ class NewEvaluatorConfig(BaseModel):
     app_id: str
     name: str
     evaluator_key: str
-    direct_use: bool
     settings_values: dict
 
 
