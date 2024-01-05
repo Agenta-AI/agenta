@@ -161,6 +161,12 @@ async def test_create_evaluation():
         "variant_ids": [str(app_variant.id)],
         "evaluators_configs": [],
         "testset_id": str(testset.id),
+        "rate_limit": {
+            "batch_size": 10,
+            "max_retries": 3,
+            "retry_delay": 3,
+            "delay_between_batches": 5,
+        },
     }
 
     # Fetch evaluator configs

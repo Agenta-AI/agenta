@@ -103,10 +103,12 @@ export default function HumanEvaluationResult() {
         }
         const fetchEvaluations = async () => {
             try {
-                loadEvaluations(app_id, true)
+                fetchData(`${getAgentaApiUrl()}/api/human-evaluations/?app_id=${app_id}`)
                     .then((response) => {
                         const fetchPromises = response.map((item: EvaluationResponseType) => {
-                            return fetchEvaluationResults(item.id, true)
+                            return fetchData(
+                                `${getAgentaApiUrl()}/api/human-evaluations/${item.id}/results/`,
+                            )
                                 .then((results) => {
                                     if (item.evaluation_type === EvaluationType.human_a_b_testing) {
                                         if (Object.keys(results.votes_data).length > 0) {
