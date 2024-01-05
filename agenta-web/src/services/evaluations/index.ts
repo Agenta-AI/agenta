@@ -6,6 +6,8 @@ import {
     EvaluationStatus,
     Evaluator,
     EvaluatorConfig,
+    LLMRunRateLimit,
+    TypedValue,
     _Evaluation,
     _EvaluationScenario,
 } from "@/lib/Types"
@@ -17,7 +19,7 @@ import regexImg from "@/media/programming.png"
 import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
-import {calcEvalDuration} from "@/components/pages/evaluations/evaluationResults/EvaluationResults"
+import dayjs from "dayjs"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -72,31 +74,31 @@ export const deleteEvaluatorConfig = async (configId: string) => {
 }
 
 // Evaluations
-const evaluationTransformer = (item: any) => {
-    const res = {
-        id: item.id,
-        appId: item.app_id,
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-        status: item.status,
-        testset: {
-            id: item.testset_id,
-            name: item.testset_name,
-        },
-        user: {
-            id: item.user_id,
-            username: item.user_username,
-        },
-        variants: item.variant_ids.map((id: string, ix: number) => ({
-            variantId: id,
-            variantName: item.variant_names[ix],
-        })),
-        aggregated_results: item.aggregated_results || [],
-    }
-
-    ;(res as _Evaluation).duration = calcEvalDuration(res)
-    return res
-}
+const evaluationTransformer = (item: any) => ({
+    id: item.id,
+    appId: item.app_id,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    duration: dayjs(
+        [EvaluationStatus.STARTED, EvaluationStatus.INITIALIZED].includes(item.status)
+            ? Date.now()
+            : item.updated_at,
+    ).diff(dayjs(item.created_at), "milliseconds"),
+    status: item.status,
+    testset: {
+        id: item.testset_id,
+        name: item.testset_name,
+    },
+    user: {
+        id: item.user_id,
+        username: item.user_username,
+    },
+    variants: item.variant_ids.map((id: string, ix: number) => ({
+        variantId: id,
+        variantName: item.variant_names[ix],
+    })),
+    aggregated_results: item.aggregated_results || [],
+})
 
 export const fetchAllEvaluations = async (appId: string) => {
     const response = await axios.get(`/api/evaluations/`, {params: {app_id: appId}})
@@ -117,6 +119,7 @@ export type CreateEvaluationData = {
     testset_id: string
     variant_ids: string[]
     evaluators_configs: string[]
+    rate_limit: LLMRunRateLimit
 }
 export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluationData) => {
     return axios.post(`/api/evaluations/`, {...evaluation, app_id: appId})

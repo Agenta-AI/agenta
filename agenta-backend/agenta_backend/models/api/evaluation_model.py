@@ -16,6 +16,7 @@ class EvaluatorConfig(BaseModel):
     id: str
     name: str
     evaluator_key: str
+    direct_use: bool
     settings_values: Optional[Dict[str, Any]]
     created_at: datetime
     updated_at: datetime
@@ -66,6 +67,11 @@ class NewHumanEvaluation(BaseModel):
     evaluation_type_settings: Optional[EvaluationTypeSettings]
     inputs: List[str]
     testset_id: str
+    status: str
+
+
+class AppOutput(BaseModel):
+    output: Any
     status: str
 
 
@@ -246,17 +252,26 @@ class EvaluationSettingsTemplate(BaseModel):
     description: str
 
 
+class LLMRunRateLimit(BaseModel):
+    batch_size: int
+    max_retries: int
+    retry_delay: int
+    delay_between_batches: int
+
+
 class NewEvaluation(BaseModel):
     app_id: str
     variant_ids: List[str]
     evaluators_configs: List[str]
     testset_id: str
+    rate_limit: LLMRunRateLimit
 
 
 class NewEvaluatorConfig(BaseModel):
     app_id: str
     name: str
     evaluator_key: str
+    direct_use: bool
     settings_values: dict
 
 

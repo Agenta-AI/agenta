@@ -214,6 +214,7 @@ class EvaluatorConfigDB(Model):
     user: UserDB = Reference(key_name="user")
     name: str
     evaluator_key: str
+    direct_use: bool
     settings_values: Optional[Dict[str, Any]] = None
     created_at: datetime = Field(default=datetime.utcnow())
     updated_at: datetime = Field(default=datetime.utcnow())
