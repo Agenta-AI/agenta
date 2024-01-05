@@ -77,6 +77,23 @@ class AppVariantOutput(BaseModel):
     uri: Optional[str]
 
 
+class ConfigVersionHistory(BaseModel):
+    version: int
+    parameters: Dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class AppVariantConfigOutput(BaseModel):
+    config_id: str
+    config_name: str
+    current_version: int
+    parameters: Dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    version_history: List[ConfigVersionHistory]
+
+
 class EnvironmentOutput(BaseModel):
     name: str
     app_id: str
