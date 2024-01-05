@@ -44,7 +44,15 @@ def evaluate(
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         app_variant_parameters = app_variant_db.config.parameters
 
-        # TODO: we need fail evaluation if parameters are empty
+        if (
+            not app_variant_db.config.parameters
+            or "inputs" not in app_variant_db.config.parameters
+            or not app_variant_db.config.parameters["inputs"]
+        ):
+            loop.run_until_complete(
+                update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
+            )
+            return
 
         testset = loop.run_until_complete(fetch_testset_by_id(testset_id))
         new_evaluation_db = loop.run_until_complete(
