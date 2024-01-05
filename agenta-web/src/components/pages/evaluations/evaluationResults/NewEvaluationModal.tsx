@@ -233,7 +233,8 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                     >
                                         <InputNumber
                                             defaultValue={rateLimitValues.batch_size}
-                                            onChange={(value: number) =>
+                                            onChange={(value: number | null) =>
+                                                value !== null &&
                                                 onRateLimitInputChange("batch_size", value)
                                             }
                                             style={{width: "100%"}}
@@ -257,7 +258,8 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                     >
                                         <InputNumber
                                             defaultValue={rateLimitValues.max_retries}
-                                            onChange={(value: number) =>
+                                            onChange={(value: number | null) =>
+                                                value !== null &&
                                                 onRateLimitInputChange("max_retries", value)
                                             }
                                             style={{width: "100%"}}
@@ -282,7 +284,8 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                     >
                                         <InputNumber
                                             defaultValue={rateLimitValues.retry_delay}
-                                            onChange={(value: number) =>
+                                            onChange={(value: number | null) =>
+                                                value !== null &&
                                                 onRateLimitInputChange("retry_delay", value)
                                             }
                                             style={{width: "100%"}}
@@ -307,7 +310,8 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                     >
                                         <InputNumber
                                             defaultValue={rateLimitValues.delay_between_batches}
-                                            onChange={(value: number) =>
+                                            onChange={(value: number | null) =>
+                                                value !== null &&
                                                 onRateLimitInputChange(
                                                     "delay_between_batches",
                                                     value,
