@@ -787,3 +787,87 @@ async def retrieve_evaluation_results(
             detail=f"You do not have access to this app: {str(evaluation.app.id)}",
         )
     return await converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
+
+
+async def compare_evaluations_scenarios(
+    evaluations_ids: List[str],
+    **user_org_data: dict,
+):
+    evaluation = await db_manager.fetch_evaluation_by_id(evaluations_ids[0])
+    testset = evaluation.testset
+    unique_testset_datapoints = remove_duplicates(testset.csvdata)
+    formatted_inputs = extract_inputs_values_from_testset(unique_testset_datapoints)
+    # # formatted_inputs: [{'input_name': 'country', 'input_value': 'Nauru'}]
+
+    all_scenarios = []
+
+    for evaluation_id in evaluations_ids:
+        eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(
+            evaluation_id, **user_org_data
+        )
+        all_scenarios.append(eval_scenarios)
+
+    grouped_scenarios_by_inputs = find_scenarios_by_input(
+        formatted_inputs, all_scenarios
+    )
+
+    return grouped_scenarios_by_inputs
+
+
+def extract_inputs_values_from_testset(testset):
+    extracted_values = []
+
+    input_keys = testset[0].keys()
+
+    for entry in testset:
+        for key in input_keys:
+            if key != "correct_answer":
+                extracted_values.append({"input_name": key, "input_value": entry[key]})
+
+    return extracted_values
+
+
+def find_scenarios_by_input(formatted_inputs, all_scenarios):
+    results = []
+    flattened_scenarios = [
+        scenario for sublist in all_scenarios for scenario in sublist
+    ]
+
+    for formatted_input in formatted_inputs:
+        input_name = formatted_input["input_name"]
+        input_value = formatted_input["input_value"]
+
+        matching_scenarios = [
+            scenario
+            for scenario in flattened_scenarios
+            if any(
+                input_item.name == input_name and input_item.value == input_value
+                for input_item in scenario.inputs
+            )
+        ]
+
+        results.append(
+            {
+                "input_name": input_name,
+                "input_value": input_value,
+                "scenarios": matching_scenarios,
+            }
+        )
+
+    return {
+        "inputs": formatted_inputs,
+        "data": results,
+    }
+
+
+def remove_duplicates(csvdata):
+    unique_data = set()
+    unique_entries = []
+
+    for entry in csvdata:
+        entry_tuple = tuple(entry.items())
+        if entry_tuple not in unique_data:
+            unique_data.add(entry_tuple)
+            unique_entries.append(entry)
+
+    return unique_entries

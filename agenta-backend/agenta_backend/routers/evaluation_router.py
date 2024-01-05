@@ -1,6 +1,6 @@
 import os
 import secrets
-from typing import List
+from typing import Any, List
 
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
@@ -69,6 +69,7 @@ async def create_evaluation(
                 "variant_ids": [variant_id],  # Only this variant ID
                 "evaluators_configs": payload.evaluators_configs,
                 "testset_id": payload.testset_id,
+                "rate_limit": payload.rate_limit.dict(),
             }
 
             evaluation = await evaluation_service.create_new_evaluation(
@@ -78,7 +79,10 @@ async def create_evaluation(
             )
 
             evaluate.delay(
-                app_data, new_evaluation_data, evaluation.id, evaluation.testset_id
+                app_data,
+                new_evaluation_data,
+                evaluation.id,
+                evaluation.testset_id,
             )
             evaluations.append(evaluation)
 
@@ -242,3 +246,31 @@ async def webhook_example_fake():
     random_generator = secrets.SystemRandom()
     random_number = random_generator.random()
     return {"score": random_number}
+
+
+@router.get(
+    "/evaluation_scenarios/comparison-results/",
+    response_model=Any,
+)
+async def fetch_evaluation_scenarios(
+    evaluations_ids: str,
+    request: Request,
+):
+    """Fetches evaluation scenarios for a given evaluation ID.
+
+    Arguments:
+        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+
+    Raises:
+        HTTPException: If the evaluation is not found or access is denied.
+
+    Returns:
+        List[EvaluationScenario]: A list of evaluation scenarios.
+    """
+    evaluations_ids_list = evaluations_ids.split(",")
+    user_org_data: dict = await get_user_and_org_id(request.state.user_id)
+    eval_scenarios = await evaluation_service.compare_evaluations_scenarios(
+        evaluations_ids_list, **user_org_data
+    )
+
+    return eval_scenarios
