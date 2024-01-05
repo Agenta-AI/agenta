@@ -2,15 +2,11 @@ import os
 import httpx
 import pytest
 
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.db_models import (
     UserDB,
     OrganizationDB,
 )
 
-
-# Initialize database engine
-engine = DBEngine().engine()
 
 # Set global variables
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
@@ -40,7 +36,7 @@ def fetch_single_prompt_template(fetch_templates):
 
 @pytest.fixture()
 async def fetch_user_organization():
-    organization = await engine.find(OrganizationDB)
+    organization = await OrganizationDB.find().to_list()
     return {"org_id": str(organization[0].id)}
 
 
@@ -56,7 +52,7 @@ def app_from_template():
 
 @pytest.fixture(scope="session")
 async def fetch_user():
-    user = await engine.find_one(UserDB, UserDB.uid == "0")
+    user = await UserDB.find_one(UserDB.uid == "0", fetch_links=True)
     return user
 
 

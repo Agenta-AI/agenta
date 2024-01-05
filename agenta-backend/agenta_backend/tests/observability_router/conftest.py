@@ -1,13 +1,6 @@
 import pytest
 from datetime import datetime
 
-from agenta_backend.models.db_engine import DBEngine
-from agenta_backend.models.db_models import OrganizationDB
-
-
-# Initialize database engine
-engine = DBEngine().engine()
-
 
 @pytest.fixture()
 def spans_db_data():
