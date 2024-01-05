@@ -2,6 +2,7 @@ import axios from "@/lib//helpers/axiosConfig"
 import {
     Annotation,
     AnnotationScenario,
+    ComparisonResult,
     EvaluationStatus,
     Evaluator,
     EvaluatorConfig,
@@ -195,4 +196,14 @@ export const updateAnnotationScenario = async (
         `/api/annotations/${annotationId}/annotation_scenarios/${annotationScenarioId}`,
         data,
     )
+}
+
+// Comparison
+export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
+    const response = await axios.get(`/api/evaluations/evaluation_scenarios/comparison-results`, {
+        params: {
+            evaluations_ids: evaluationIds.join(","),
+        },
+    })
+    return response.data as ComparisonResult[]
 }

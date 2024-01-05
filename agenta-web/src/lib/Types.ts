@@ -395,3 +395,15 @@ export interface AnnotationScenario {
     note?: string
     result: TypedValue
 }
+
+export interface ComparisonResult {
+    inputs: {name: string; value: string}[]
+    correct_answer: string
+    variants: {
+        variant_id: string
+        variant_name: string
+        evaluation_id: string
+        evaluator_configs: EvaluatorConfig[]
+    }[]
+    data: _EvaluationScenario[]
+}
