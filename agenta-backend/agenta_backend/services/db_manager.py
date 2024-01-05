@@ -1797,6 +1797,7 @@ async def create_evaluator_config(
     organization: OrganizationDB,
     name: str,
     evaluator_key: str,
+    direct_use: bool,
     settings_values: Optional[Dict[str, Any]] = None,
 ) -> EvaluatorConfigDB:
     """Create a new evaluator configuration in the database."""
@@ -1807,6 +1808,7 @@ async def create_evaluator_config(
         organization=organization,
         name=name,
         evaluator_key=evaluator_key,
+        direct_use=direct_use,
         settings_values=settings_values,
     )
 

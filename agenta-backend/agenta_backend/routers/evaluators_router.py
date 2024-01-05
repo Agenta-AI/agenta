@@ -102,6 +102,7 @@ async def create_new_evaluator_config(
         app_id=payload.app_id,
         name=payload.name,
         evaluator_key=payload.evaluator_key,
+        direct_use=payload.direct_use,
         settings_values=payload.settings_values,
     )
     return evaluator_config
