@@ -47,7 +47,11 @@ async def get_variant_traces(
     """
 
     user = await db_manager.get_user(user_uid=kwargs["uid"])
-    query_expressions = (TraceDB.user == user.id, TraceDB.app_id == app_id, TraceDB.variant_id == variant_id)
+    query_expressions = (
+        TraceDB.user == user.id,
+        TraceDB.app_id == app_id,
+        TraceDB.variant_id == variant_id,
+    )
     traces = await TraceDB.find(query_expressions).to_list()
     return [trace_db_to_pydantic(trace) for trace in traces]
 
@@ -86,9 +90,7 @@ async def get_trace_single(trace_id: str, **kwargs: dict) -> Trace:
     """
 
     user = await db_manager.get_user(user_uid=kwargs["uid"])
-    query_expressions = (TraceDB.id == ObjectId(trace_id),
-        TraceDB.user == user.id
-    )
+    query_expressions = (TraceDB.id == ObjectId(trace_id), TraceDB.user == user.id)
 
     # Get trace
     trace = await TraceDB.find_one(query_expressions)
@@ -109,9 +111,7 @@ async def trace_status_update(
     """
 
     user = await db_manager.get_user(user_uid=kwargs["uid"])
-    query_expressions = (TraceDB.id == ObjectId(trace_id),
-        TraceDB.user == user.id
-    )
+    query_expressions = (TraceDB.id == ObjectId(trace_id), TraceDB.user == user.id)
 
     # Get trace
     trace = await TraceDB.find_one(query_expressions)
@@ -148,9 +148,7 @@ async def get_trace_spans(trace_id: str, **kwargs: dict) -> List[Span]:
     """
 
     user = await db_manager.get_user(user_uid=kwargs["uid"])
-    query_expressions = (TraceDB.id == ObjectId(trace_id),
-        TraceDB.user == user.id
-    )
+    query_expressions = (TraceDB.id == ObjectId(trace_id), TraceDB.user == user.id)
 
     # Get trace
     trace = await TraceDB.find_one(query_expressions)
@@ -205,9 +203,7 @@ async def get_trace_feedbacks(trace_id: str, **kwargs: dict) -> List[Feedback]:
     user = await db_manager.get_user(user_uid=kwargs["uid"])
 
     # Build query expressions
-    query_expressions = (TraceDB.id == ObjectId(trace_id),
-        TraceDB.user == user.id
-    )
+    query_expressions = (TraceDB.id == ObjectId(trace_id), TraceDB.user == user.id)
 
     # Get feedbacks in trace
     trace = await TraceDB.find_one(query_expressions)
@@ -231,9 +227,7 @@ async def get_feedback_detail(
     user = await db_manager.get_user(user_uid=kwargs["uid"])
 
     # Build query expressions
-    query_expressions = (TraceDB.id == ObjectId(trace_id),
-        TraceDB.user == user.id
-    )
+    query_expressions = (TraceDB.id == ObjectId(trace_id), TraceDB.user == user.id)
 
     # Get trace
     trace = await TraceDB.find_one(query_expressions)
@@ -264,9 +258,7 @@ async def update_trace_feedback(
     user = await db_manager.get_user(user_uid=kwargs["uid"])
 
     # Build query expressions
-    query_expressions = (TraceDB.id == ObjectId(trace_id),
-        TraceDB.user == user.id
-    )
+    query_expressions = (TraceDB.id == ObjectId(trace_id), TraceDB.user == user.id)
 
     # Get trace
     trace = await TraceDB.find_one(query_expressions)

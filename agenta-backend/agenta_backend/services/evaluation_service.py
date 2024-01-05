@@ -338,7 +338,8 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
         **user_org_data,
     )
     scenarios = await HumanEvaluationScenarioDB.find(
-        HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id), fetch_links=True
+        HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
+        fetch_links=True,
     ).to_list()
     eval_scenarios = [
         converters.human_evaluation_scenario_db_to_pydantic(scenario)
@@ -520,7 +521,9 @@ async def fetch_list_evaluations(
             detail=f"You do not have access to this app: {app_id}",
         )
 
-    evaluations_db = await EvaluationDB.find(EvaluationDB.app.id == ObjectId(app_id), fetch_links=True).to_list()
+    evaluations_db = await EvaluationDB.find(
+        EvaluationDB.app.id == ObjectId(app_id), fetch_links=True
+    ).to_list()
     return [
         await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
