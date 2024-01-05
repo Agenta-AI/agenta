@@ -186,6 +186,8 @@ async def create_app(
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -265,7 +267,7 @@ async def add_variant_from_image(
             )
         app = await db_manager.fetch_app_by_id(app_id)
 
-        app_variant_db = await app_manager.add_variant_based_on_image(
+        variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             variant_name=payload.variant_name,
             docker_id_or_template_uri=payload.docker_id,
@@ -275,6 +277,7 @@ async def add_variant_from_image(
             is_template_image=False,
             **user_org_data,
         )
+        app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
         return await converters.app_variant_db_to_output(app_variant_db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

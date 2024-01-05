@@ -282,10 +282,10 @@ class HumanEvaluationScenarioDB(Document):
     user: Link[UserDB]
     organization: Link[OrganizationDB]
     evaluation: Link[HumanEvaluationDB]
-    inputs: List[Link[HumanEvaluationScenarioInput]]
-    outputs: List[Link[HumanEvaluationScenarioOutput]]
+    inputs: List[HumanEvaluationScenarioInput]
+    outputs: List[HumanEvaluationScenarioOutput]
     vote: Optional[str]
-    score: Optional[Union[str, int]]
+    score: Optional[Any]
     correct_answer: Optional[str]
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())

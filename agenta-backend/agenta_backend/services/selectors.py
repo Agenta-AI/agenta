@@ -52,13 +52,9 @@ async def get_user_own_org(user_uid: str) -> OrganizationDB:
     """
 
     user = await UserDB.find_one(UserDB.uid == user_uid)
-
-    # Build the query expression for the two conditions
-    query_expression = (
-        OrganizationDB.owner == str(user.id),
-        OrganizationDB.type == "default",
+    org: OrganizationDB = await OrganizationDB.find_one(
+        OrganizationDB.owner == str(user.id), OrganizationDB.type == "default"
     )
-    org: OrganizationDB = await OrganizationDB.find_one(query_expression)
     if org is not None:
         return org
     else:

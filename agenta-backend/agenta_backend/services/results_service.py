@@ -12,7 +12,7 @@ from bson import ObjectId
 
 async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
     evaluation_scenarios = await HumanEvaluationScenarioDB.find(
-        HumanEvaluationScenarioDB.evaluation == ObjectId(evaluation.id),
+        HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id),
     ).to_list()
 
     results = {}
@@ -82,8 +82,9 @@ async def fetch_results_for_single_model_test(evaluation_id: str):
 
 
 async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
-    query_exp = EvaluationScenarioDB.evaluation == ObjectId(evaluation_id)
-    eval_scenarios = await EvaluationScenarioDB.find(query_exp).to_list()
+    eval_scenarios = await EvaluationScenarioDB.find(
+        EvaluationScenarioDB.evaluation.id == ObjectId(evaluation_id)
+    ).to_list()
 
     list_of_scores = []
     for scenario in eval_scenarios:

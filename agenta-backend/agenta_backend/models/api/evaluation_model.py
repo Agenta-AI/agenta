@@ -185,7 +185,7 @@ class AICritiqueCreate(BaseModel):
 
 class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str]
-    score: Optional[Union[str, int]]
+    score: Optional[Any]
     correct_answer: Optional[str]  # will be used when running custom code evaluation
     outputs: Optional[List[EvaluationScenarioOutput]]
     inputs: Optional[List[EvaluationScenarioInput]]
