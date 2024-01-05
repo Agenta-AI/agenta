@@ -164,14 +164,9 @@ async def fetch_app_by_name(
 
     if not organization_id:
         user = await get_user(user_uid=user_org_data["uid"])
-        query_expressions = {"app_name": app_name, "user": user.id}
+        app = await AppDB.find_one(AppDB.app_name == app_name, AppDB.user.id == user.id)
     else:
-        query_expressions = {
-            "app_name": app_name,
-            "organization": ObjectId(organization_id),
-        }
-
-    app = await AppDB.find_one(query_expressions)
+        app = await AppDB.find_one(AppDB.app_name == app_name, AppDB.organization.id == ObjectId(organization_id))
     return app
 
 
@@ -533,9 +528,8 @@ async def list_app_variants_for_app_id(
         List[AppVariant]: List of AppVariant objects
     """
     assert app_id is not None, "app_id cannot be None"
-    query_expressions = AppVariantDB.app.id == ObjectId(app_id)
     app_variants_db = await AppVariantDB.find(
-        query_expressions, fetch_links=True
+        AppVariantDB.app.id == ObjectId(app_id), fetch_links=True
     ).to_list()
     return app_variants_db
 
@@ -675,11 +669,10 @@ async def get_orga_image_instance_by_docker_id(
         ImageDB: instance of image object
     """
 
-    query_expressions = {
-        "docker_id": docker_id,
-        "organization": ObjectId(organization_id),
-    }
-    image = await ImageDB.find_one(query_expressions)
+    image = await ImageDB.find_one(
+        ImageDB.docker_id == docker_id,
+        ImageDB.organization.id == ObjectId(organization_id),
+    )
     return image
 
 
@@ -700,11 +693,10 @@ async def get_orga_image_instance_by_uri(
     if not parsed_url.scheme and not parsed_url.netloc:
         raise ValueError(f"Invalid URL: {template_uri}")
 
-    query_expressions = (
+    image = await ImageDB.fine_one(
         ImageDB.template_uri == template_uri,
-        ImageDB.organization == organization_id,
+        ImageDB.organization.id == ObjectId(organization_id),
     )
-    image = await ImageDB.fine_one(query_expressions)
     return image
 
 
@@ -1253,7 +1245,9 @@ async def fetch_evaluation_by_id(evaluation_id: str) -> Optional[EvaluationDB]:
         EvaluationDB: The fetched evaluation, or None if no evaluation was found.
     """
     assert evaluation_id is not None, "evaluation_id cannot be None"
-    evaluation = await EvaluationDB.find_one(EvaluationDB.id == ObjectId(evaluation_id), fetch_links=True)
+    evaluation = await EvaluationDB.find_one(
+        EvaluationDB.id == ObjectId(evaluation_id), fetch_links=True
+    )
     return evaluation
 
 
@@ -1268,7 +1262,7 @@ async def fetch_human_evaluation_by_id(
     """
     assert evaluation_id is not None, "evaluation_id cannot be None"
     evaluation = await HumanEvaluationDB.find_one(
-        HumanEvaluationDB.id == ObjectId(evaluation_id)
+        HumanEvaluationDB.id == ObjectId(evaluation_id), fetch_links=True
     )
     return evaluation
 
@@ -1301,6 +1295,7 @@ async def fetch_human_evaluation_scenario_by_id(
     assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
     evaluation_scenario = await HumanEvaluationScenarioDB.find_one(
         HumanEvaluationScenarioDB.id == ObjectId(evaluation_scenario_id),
+        fetch_links=True,
     )
     return evaluation_scenario
 
@@ -1533,7 +1528,7 @@ async def fetch_app_and_check_access(
     Raises:
         HTTPException: If the app is not found or the user does not have access to it.
     """
-    app = await AppDB.find_one(AppDB.id == ObjectId(app_id))
+    app = await AppDB.find_one(AppDB.id == ObjectId(app_id), fetch_links=True)
     if app is None:
         logger.error("App not found")
         raise HTTPException
@@ -1567,7 +1562,7 @@ async def fetch_app_variant_and_check_access(
         HTTPException: If the app variant is not found or the user does not have access to it.
     """
     app_variant = await AppVariantDB.find_one(
-        AppVariantDB.id == ObjectId(app_variant_id)
+        AppVariantDB.id == ObjectId(app_variant_id), fetch_links=True
     )
     if app_variant is None:
         logger.error("App variant not found")
@@ -1693,7 +1688,9 @@ async def fetch_evaluators_configs(app_id: str):
     assert app_id is not None, "evaluation_id cannot be None"
 
     try:
-        evaluators_configs = await EvaluatorConfigDB.find(EvaluatorConfigDB.app.id == ObjectId(app_id)).to_list()
+        evaluators_configs = await EvaluatorConfigDB.find(
+            EvaluatorConfigDB.app.id == ObjectId(app_id)
+        ).to_list()
         return evaluators_configs
     except Exception as e:
         raise e
@@ -1729,8 +1726,10 @@ async def fetch_evaluator_config_by_appId(
     """
 
     try:
-        evaluator_config = await EvaluatorConfigDB.find_one(EvaluatorConfigDB.app.id == ObjectId(app_id),
-            EvaluatorConfigDB.evaluator_key == evaluator_name)
+        evaluator_config = await EvaluatorConfigDB.find_one(
+            EvaluatorConfigDB.app.id == ObjectId(app_id),
+            EvaluatorConfigDB.evaluator_key == evaluator_name,
+        )
         return evaluator_config
     except Exception as e:
         raise e

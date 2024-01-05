@@ -108,9 +108,6 @@ async def _fetch_human_evaluation_scenario_and_check_access(
     evaluation_scenario = await db_manager.fetch_human_evaluation_scenario_by_id(
         evaluation_scenario_id=evaluation_scenario_id
     )
-
-    print("evaluation_scenario")
-    print(evaluation_scenario)
     if evaluation_scenario is None:
         raise HTTPException(
             status_code=404,
@@ -287,8 +284,7 @@ async def update_human_evaluation_service(
         updates["evaluation_type_settings"] = current_settings
 
     # Update the evaluation
-    evaluation.update(updates)
-    await evaluation.create()
+    await evaluation.update({"$set": updates})
 
 
 async def fetch_evaluation_scenarios_for_evaluation(
@@ -342,7 +338,7 @@ async def fetch_human_evaluation_scenarios_for_evaluation(
         **user_org_data,
     )
     scenarios = await HumanEvaluationScenarioDB.find(
-        HumanEvaluationScenarioDB.evaluation == ObjectId(evaluation.id)
+        HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation.id), fetch_links=True
     ).to_list()
     eval_scenarios = [
         converters.human_evaluation_scenario_db_to_pydantic(scenario)
@@ -424,7 +420,7 @@ async def update_human_evaluation_scenario(
     if updated_data["correct_answer"] is not None:
         new_eval_set["correct_answer"] = updated_data["correct_answer"]
 
-    await eval_scenario.update(new_eval_set)
+    await eval_scenario.update({"$set": new_eval_set})
 
 
 async def update_evaluation_scenario_score_service(
@@ -447,7 +443,7 @@ async def update_evaluation_scenario_score_service(
     eval_scenario.score = score
 
     # Save the updated evaluation scenario
-    await eval_scenario.create()
+    await eval_scenario.save()
 
 
 async def get_evaluation_scenario_score_service(
@@ -570,7 +566,7 @@ async def fetch_list_human_evaluations(
         )
 
     evaluations_db = await HumanEvaluationDB.find(
-        HumanEvaluationDB.app.id == ObjectId(app_id)
+        HumanEvaluationDB.app.id == ObjectId(app_id), fetch_links=True
     ).to_list()
     return [
         await converters.human_evaluation_db_to_pydantic(evaluation)
@@ -667,41 +663,6 @@ async def create_custom_code_evaluation(
         updated_at=datetime.utcnow(),
     )
 
-    await custom_eval.create()
-    return str(custom_eval.id)
-
-
-async def update_custom_code_evaluation(
-    id: str, payload: CreateCustomEvaluation, **kwargs: dict
-) -> str:
-    """Update a custom code evaluation in the database.
-    Args:
-        id (str): the ID of the custom evaluation to update
-        payload (CreateCustomEvaluation): the payload with updated data
-    Returns:
-        str: the ID of the updated custom evaluation
-    """
-
-    # Get user object
-    user = await get_user(user_uid=kwargs["uid"])
-
-    # Build query expression
-    query_expression = (
-        CustomEvaluationDB.user == user.id,
-        CustomEvaluationDB.id == ObjectId(id),
-    )
-
-    # Get custom evaluation
-    custom_eval = await CustomEvaluationDB.find_one(query_expression)
-    if not custom_eval:
-        raise HTTPException(status_code=404, detail="Custom evaluation not found")
-
-    # Update the custom evaluation fields
-    custom_eval.evaluation_name = payload.evaluation_name
-    custom_eval.python_code = payload.python_code
-    custom_eval.updated_at = datetime.utcnow()
-
-    # Save the updated custom evaluation
     await custom_eval.create()
     return str(custom_eval.id)
 
