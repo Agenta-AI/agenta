@@ -72,13 +72,14 @@ async def _compute_stats_for_human_a_b_testing_evaluation(evaluation_scenarios: 
 
 
 async def fetch_results_for_single_model_test(evaluation_id: str):
-    pipeline = [
-        {"$match": {"evaluations": ObjectId(evaluation_id)}},
-        {"$group": {"_id": "$score", "count": {"$sum": 1}}},
-    ]
-
-    results = await HumanEvaluationScenarioDB.aggregate(pipeline).to_list(length=None)
-    return {result._id: result.count for result in results}
+    results = await HumanEvaluationScenarioDB.find(
+        HumanEvaluationScenarioDB.evaluation.id == ObjectId(evaluation_id)
+    ).to_list()
+    scores_and_counts = {}
+    for result in results:
+        score = result.score
+        scores_and_counts[score] = scores_and_counts.get(score, 0) + 1
+    return scores_and_counts
 
 
 async def fetch_average_score_for_custom_code_run(evaluation_id: str) -> float:
