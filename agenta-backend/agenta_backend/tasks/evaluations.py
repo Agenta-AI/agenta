@@ -38,8 +38,6 @@ def evaluate(
     testset_id: str,
 ):
     loop = asyncio.get_event_loop()
-    app = AppDB(**app_data)
-    evaluation = NewEvaluation(**new_evaluation_data)
 
     try:
         loop.run_until_complete(DBEngine().init_db())
@@ -50,7 +48,7 @@ def evaluate(
         app_variant_parameters = app_variant_db.config.parameters
 
         if (
-            not app_variant_db.config.parameters
+            not app_variant_parameters
             or "inputs" not in app_variant_db.config.parameters
             or not app_variant_db.config.parameters["inputs"]
         ):
