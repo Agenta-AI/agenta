@@ -214,7 +214,6 @@ def feedbacks_create_data():
     ]
 
 
-
 @pytest.fixture(scope="session")
 def fetch_templates():
     response = httpx.get(f"{BACKEND_API_HOST}/containers/templates/")
@@ -257,15 +256,15 @@ async def fetch_user():
 @pytest.fixture()
 def update_app_variant_parameters():
     return {
-    "temperature": 1,
-    "model": "gpt-3.5-turbo",
-    "max_tokens": -1,
-    "prompt_system": "You are an expert in geography.",
-    "prompt_user": "What is the capital of {country}?",
-    "top_p": 1,
-    "frequence_penalty": 0,
-    "presence_penalty": 0
-  }
+        "temperature": 1,
+        "model": "gpt-3.5-turbo",
+        "max_tokens": -1,
+        "prompt_system": "You are an expert in geography.",
+        "prompt_user": "What is the capital of {country}?",
+        "top_p": 1,
+        "frequence_penalty": 0,
+        "presence_penalty": 0,
+    }
 
 
 @pytest.fixture()
