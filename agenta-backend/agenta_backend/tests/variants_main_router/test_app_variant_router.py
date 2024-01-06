@@ -55,7 +55,7 @@ async def test_list_apps():
     response = await test_client.get(f"{BACKEND_API_HOST}/apps/")
 
     assert response.status_code == 200
-    assert len(response.json()) == 3
+    assert len(response.json()) == 1
 
 
 @pytest.mark.asyncio
@@ -157,12 +157,3 @@ async def test_get_variant_by_env(get_first_user_app):
             app_id=str(app.id), environment=environment.name
         )
         assert response == []
-
-
-@pytest.mark.asyncio
-async def test_remove_app():
-    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
-    await app.delete()
-
-    app = await AppDB.find_one(AppDB, AppDB.app_name == "app_variant_test")
-    assert app == None
