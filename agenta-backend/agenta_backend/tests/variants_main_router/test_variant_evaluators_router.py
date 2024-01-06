@@ -152,8 +152,7 @@ async def test_update_app_variant_parameters(update_app_variant_parameters):
     app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
     app_variant = await AppVariantDB.find_one(
-        AppVariantDB.app.id == app.id,
-        AppVariantDB.variant_name == "app.default"
+        AppVariantDB.app.id == app.id, AppVariantDB.variant_name == "app.default"
     )
 
     parameters = update_app_variant_parameters

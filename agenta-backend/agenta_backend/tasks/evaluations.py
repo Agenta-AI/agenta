@@ -87,7 +87,9 @@ def evaluate(
         )
         for data_point, app_output in zip(testset.csvdata, app_outputs):
             if len(testset.csvdata) != len(app_outputs):
-                raise ValueError("Length of testset.csvdata and app_outputs are not the same")
+                raise ValueError(
+                    "Length of testset.csvdata and app_outputs are not the same"
+                )
 
             # 2. We prepare the inputs
             raw_inputs = (

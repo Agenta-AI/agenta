@@ -51,7 +51,7 @@ async def get_variant_traces(
         TraceDB.user.id == user.id,
         TraceDB.app_id == app_id,
         TraceDB.variant_id == variant_id,
-        fetch_links=True
+        fetch_links=True,
     ).to_list()
     return [trace_db_to_pydantic(trace) for trace in traces]
 
