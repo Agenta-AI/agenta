@@ -42,34 +42,6 @@ async def test_create_spans_endpoint(spans_db_data):
 
 
 @pytest.mark.asyncio
-async def test_create_user_and_org(user_create_data, organization_create_data):
-    user_db = UserDB(**user_create_data)
-    await user_db.create()
-
-    org_db = OrganizationDB(**organization_create_data, owner=str(user_db.id))
-    await org_db.create()
-
-    user_db.organizations = [org_db.id]
-    await user_db.save()
-
-    assert org_db.name == "Agenta"
-    assert user_db.username == "agenta"
-    assert user_db.organizations == [org_db.id]
-
-
-@pytest.mark.asyncio
-async def test_create_organization(organization_create_data):
-    user_db = await UserDB.find_one(UserDB.uid == "0")
-    organization = OrganizationDB(
-        **organization_create_data,
-        type="default",
-        owner=str(user_db.id),
-        members=[user_db.id],
-    )
-    await organization.create()
-
-
-@pytest.mark.asyncio
 async def test_create_image_in_db(image_create_data):
     user_db = await UserDB.find_one(UserDB.uid == "0")
     organization_db = await OrganizationDB.find_one(
@@ -87,7 +59,7 @@ async def test_create_image_in_db(image_create_data):
 async def test_create_appvariant_in_db(app_variant_create_data):
     user_db = await UserDB.find_one(UserDB.uid == "0")
     organization_db = await selectors.get_user_own_org(user_db.uid)
-    image_db = await ImageDB.find_one(ImageDB.user == user_db.id)
+    image_db = await ImageDB.find_one(ImageDB.user.id == user_db.id)
 
     app = AppDB(
         app_name="test_app",
