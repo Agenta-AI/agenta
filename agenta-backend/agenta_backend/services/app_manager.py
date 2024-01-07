@@ -461,7 +461,7 @@ async def add_variant_based_on_image(
         image=db_image,
         user=user_instance,
         organization=app.organization,
-        parameters=config_db.parameters,
+        parameters={},
         base_name=base_name,
         config_name=config_name,
         base=db_base,
