@@ -1153,11 +1153,7 @@ async def update_variant_parameters(
         config_db.current_version = new_version
         config_db.parameters = parameters
 
-        # Update variant parameters
-        app_variant_db.parameters = config_db.parameters
-
         # Save updated ConfigDB
-        await app_variant_db.save()
         await config_db.save()
 
     except Exception as e:

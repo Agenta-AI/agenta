@@ -17,7 +17,7 @@ class APIKeyDB(Document):
     updated_at: Optional[datetime]
 
     class Settings:
-        collection = "api_keys"
+        name = "api_keys"
 
 
 class InvitationDB(BaseModel):
@@ -38,7 +38,7 @@ class OrganizationDB(Document):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "organizations"
+        name = "organizations"
 
 
 class UserDB(Document):
@@ -50,7 +50,7 @@ class UserDB(Document):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "users"
+        name = "users"
 
 
 class ImageDB(Document):
@@ -68,7 +68,7 @@ class ImageDB(Document):
     deletable: bool = Field(default=True)
 
     class Settings:
-        collection = "docker_images"
+        name = "docker_images"
 
 
 class AppDB(Document):
@@ -79,7 +79,7 @@ class AppDB(Document):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "app_db"
+        name = "app_db"
 
 
 class DeploymentDB(Document):
@@ -94,7 +94,7 @@ class DeploymentDB(Document):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "deployments"
+        name = "deployments"
 
 
 class VariantBaseDB(Document):
@@ -108,7 +108,7 @@ class VariantBaseDB(Document):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "bases"
+        name = "bases"
 
 
 class ConfigVersionDB(BaseModel):
@@ -127,7 +127,7 @@ class ConfigDB(Document):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "configs"
+        name = "configs"
 
 
 class AppVariantDB(Document):
@@ -150,7 +150,7 @@ class AppVariantDB(Document):
     )  # soft deletion for using the template variants
 
     class Settings:
-        collection = "app_variants"
+        name = "app_variants"
 
 
 class AppEnvironmentDB(Document):
@@ -163,7 +163,7 @@ class AppEnvironmentDB(Document):
     created_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "app_environment_db"
+        name = "app_environment_db"
 
 
 class TemplateDB(Document):
@@ -192,7 +192,7 @@ class TestSetDB(Document):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "testsets"
+        name = "testsets"
 
 
 class CustomEvaluationDB(Document):
@@ -205,7 +205,7 @@ class CustomEvaluationDB(Document):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "custom_evaluations"
+        name = "custom_evaluations"
 
 
 class EvaluationSettingsTemplate(BaseModel):
@@ -225,7 +225,7 @@ class EvaluatorConfigDB(Document):
     updated_at: datetime = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "evaluators_configs"
+        name = "evaluators_configs"
 
 
 class Result(BaseModel):
@@ -276,7 +276,7 @@ class HumanEvaluationDB(Document):
     updated_at: Optional[datetime] = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "human_evaluations"
+        name = "human_evaluations"
 
 
 class HumanEvaluationScenarioDB(Document):
@@ -294,7 +294,7 @@ class HumanEvaluationScenarioDB(Document):
     note: Optional[str]
 
     class Settings:
-        collection = "human_evaluations_scenarios"
+        name = "human_evaluations_scenarios"
 
 
 class EvaluationDB(Document):
@@ -310,7 +310,7 @@ class EvaluationDB(Document):
     updated_at: datetime = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "evaluations"
+        name = "evaluations"
 
 
 class EvaluationScenarioDB(Document):
@@ -329,7 +329,7 @@ class EvaluationScenarioDB(Document):
     updated_at: datetime = Field(default=datetime.utcnow())
 
     class Settings:
-        collection = "evaluation_scenarios"
+        name = "evaluation_scenarios"
 
 
 class SpanDB(Document):
@@ -351,7 +351,7 @@ class SpanDB(Document):
     tags: Optional[List[str]]
 
     class Settings:
-        collection = "spans"
+        name = "spans"
 
 
 class Feedback(BaseModel):
@@ -379,4 +379,4 @@ class TraceDB(Document):
     feedbacks: Optional[List[Feedback]]
 
     class Settings:
-        collection = "traces"
+        name = "traces"
