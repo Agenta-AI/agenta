@@ -49,8 +49,8 @@ def evaluate(
 
         if (
             not app_variant_parameters
-            or "inputs" not in app_variant_db.config.parameters
-            or not app_variant_db.config.parameters["inputs"]
+            or "inputs" not in app_variant_parameters
+            or not app_variant_parameters["inputs"]
         ):
             loop.run_until_complete(
                 update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
@@ -93,8 +93,8 @@ def evaluate(
 
             # 2. We prepare the inputs
             raw_inputs = (
-                app_variant_db.parameters.get("inputs", [])
-                if app_variant_db.parameters
+                app_variant_parameters.get("inputs", [])
+                if app_variant_parameters
                 else []
             )
             inputs = []
@@ -117,7 +117,7 @@ def evaluate(
 
                 additional_kwargs = (
                     {
-                        "app_params": app_variant_db.config.parameters,
+                        "app_params": app_variant_parameters,
                         "inputs": data_point,
                     }
                     if evaluator_config.evaluator_key == "auto_custom_code_run"
