@@ -49,9 +49,16 @@ def auto_webhook_test(
 ) -> Result:
     try:
         with httpx.Client() as client:
-            request_body = json.loads(settings_values.get("webhook_body", None))
-            payload = request_body if request_body else {}
-            response = client.post(url=settings_values["webhook_url"], json=payload)
+            webhook_body = settings_values.get("webhook_body", None)
+            if isinstance(webhook_body, str):
+                payload = json.loads(webhook_body)
+            if not webhook_body:
+                payload = {}
+            if isinstance(webhook_body, dict):
+                payload = webhook_body
+            response = client.post(
+                url=settings_values["webhook_url"], json=payload
+            )
             response.raise_for_status()
             response_data = response.json()
             score = response_data.get("score", None)
@@ -65,6 +72,8 @@ def auto_webhook_test(
     except httpx.HTTPError as e:
         print(f"An HTTP error occurred: {e}")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"An error occurred: {e}")
 
 
@@ -164,10 +173,15 @@ def evaluate(
     evaluation_function = globals().get(evaluator_name, None)
     if not evaluation_function:
         raise ValueError(f"Evaluation method '{evaluator_name}' not found.")
-    return evaluation_function(
-        correct_answer,
-        variant_output,
-        settings_values,
-        *additional_args,
-        **additional_kwargs,
-    )
+    try:
+        return evaluation_function(
+            correct_answer,
+            variant_output,
+            settings_values,
+            *additional_args,
+            **additional_kwargs,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"Error occurred while running {evaluator_name} evaluation. Exception: {str(exc)}"
+        )
