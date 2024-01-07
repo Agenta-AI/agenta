@@ -200,12 +200,12 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                         placeholder="Results will be shown here"
                         disabled={!result || result === LOADING_TEXT}
                         style={{
-                            background: result.startsWith("❌ Error code")
+                            background: result?.startsWith("❌ Error code")
                                 ? appTheme === "dark"
                                     ? "#490b0b"
                                     : "#fff1f0"
                                 : "",
-                            color: result.startsWith("❌ Error code")
+                            color: result?.startsWith("❌ Error code")
                                 ? appTheme === "dark"
                                     ? "#ffffffd9"
                                     : "#000000e0"
