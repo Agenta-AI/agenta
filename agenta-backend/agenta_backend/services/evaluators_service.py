@@ -56,9 +56,7 @@ def auto_webhook_test(
                 payload = {}
             if isinstance(webhook_body, dict):
                 payload = webhook_body
-            response = client.post(
-                url=settings_values["webhook_url"], json=payload
-            )
+            response = client.post(url=settings_values["webhook_url"], json=payload)
             response.raise_for_status()
             response_data = response.json()
             score = response_data.get("score", None)
@@ -73,6 +71,7 @@ def auto_webhook_test(
         print(f"An HTTP error occurred: {e}")
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         print(f"An error occurred: {e}")
 
