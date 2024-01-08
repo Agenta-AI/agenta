@@ -225,6 +225,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     className={`${
                         appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"
                     } ${classes.table}`}
+                    data-cy="evaluation-compare-table"
                 >
                     <AgGridReact<ComparisonResultRow>
                         ref={gridRef as any}
