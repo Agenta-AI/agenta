@@ -1,11 +1,34 @@
+import json
+import os
 from typing import Any, Dict, Optional, List
 
 from agenta_backend.services import db_manager
 
 
 from agenta_backend.models.db_models import EvaluatorConfigDB
-from agenta_backend.models.api.evaluation_model import EvaluatorConfig
+from agenta_backend.models.api.evaluation_model import Evaluator, EvaluatorConfig
 from agenta_backend.models.converters import evaluator_config_db_to_pydantic
+
+
+def get_evaluators() -> Optional[List[Evaluator]]:
+    """
+    Fetches a list of evaluators from a JSON file.
+
+    Returns:
+        Optional[List[Evaluator]]: A list of evaluator objects or None if an error occurs.
+    """
+
+    file_path = "agenta_backend/resources/evaluators/evaluators.json"
+
+    if not os.path.exists(file_path):
+        return None
+
+    try:
+        with open(file_path, "r") as file:
+            evaluators = json.load(file)
+        return evaluators
+    except Exception:
+        return None
 
 
 async def get_evaluators_configs(app_id: str) -> List[EvaluatorConfig]:
@@ -43,7 +66,6 @@ async def create_evaluator_config(
     app_id: str,
     name: str,
     evaluator_key: str,
-    direct_use: bool,
     settings_values: Optional[Dict[str, Any]] = None,
 ) -> EvaluatorConfig:
     """
@@ -65,7 +87,6 @@ async def create_evaluator_config(
         user=app.user,
         name=name,
         evaluator_key=evaluator_key,
-        direct_use=direct_use,
         settings_values=settings_values,
     )
     return evaluator_config_db_to_pydantic(evaluator_config=evaluator_config)
