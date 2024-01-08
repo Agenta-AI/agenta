@@ -1,3 +1,4 @@
+import {v4 as uuidv4} from "uuid"
 import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
@@ -37,7 +38,11 @@ export const getAllLlmProviderKeysAsEnvVariable = () => {
 }
 
 export const renameVariables = (name: string) => {
-    return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
+    if (name === "inputs") {
+        return "Prompt Variables"
+    } else {
+        return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
+    }
 }
 
 export const renameVariablesCapitalizeAll = (name: string) => {
@@ -360,4 +365,17 @@ export function getDurationStr(date1: DayjsDate, date2: DayjsDate) {
     const d2 = dayjs(date2)
 
     return durationToStr(d2.diff(d1, "milliseconds"))
+}
+
+export const generateOrRetrieveDistinctId = (): string => {
+    if (typeof localStorage !== "undefined") {
+        let distinctId = localStorage.getItem("posthog_distinct_id")
+        if (!distinctId) {
+            distinctId = uuidv4()
+            localStorage.setItem("posthog_distinct_id", distinctId)
+        }
+        return distinctId
+    } else {
+        return uuidv4()
+    }
 }
