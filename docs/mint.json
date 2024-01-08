@@ -84,8 +84,7 @@
       "pages": [
         "basic_guides/creating_an_app",
         "basic_guides/prompt_engineering",
-        "basic_guides/test_sets",
-        "basic_guides/automatic_evaluation",
+        "basic_guides/test_sets", 
         "basic_guides/deployment",
         "basic_guides/team_management"
       ]
