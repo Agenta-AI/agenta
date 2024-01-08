@@ -1,13 +1,12 @@
 from agenta_backend.models.db_models import (
-    EvaluationScenarioDB,
-    EvaluationDB,
     HumanEvaluationDB,
+    EvaluationScenarioDB,
     HumanEvaluationScenarioDB,
 )
-from agenta_backend.services import evaluation_service
 from agenta_backend.services import db_manager
 from agenta_backend.models.api.evaluation_model import EvaluationType
-from bson import ObjectId
+
+from beanie import PydanticObjectId as ObjectId
 
 
 async def fetch_results_for_evaluation(evaluation: HumanEvaluationDB):
