@@ -139,8 +139,13 @@ async def update_variant_image(
     )
     # Update base with new image
     await db_manager.update_base(app_variant_db.base, image=db_image)
+    # Update variant to remove configuration
+    await db_manager.update_variant_parameters(
+        app_variant_db=app_variant_db, parameters={}
+    )
     # Update variant with new image
     app_variant_db = await db_manager.update_app_variant(app_variant_db, image=db_image)
+
     # Start variant
     await start_variant(app_variant_db, **kwargs)
 
