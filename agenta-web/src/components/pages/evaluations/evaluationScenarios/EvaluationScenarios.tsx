@@ -102,7 +102,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
 
     const fetcher = () => {
         setFetching(true)
-        fetchAllEvaluationScenarios(appId, evaluationId)
+        fetchAllEvaluationScenarios(evaluationId)
             .then((scenarios) => {
                 setScenarios(scenarios)
                 setTimeout(() => {
