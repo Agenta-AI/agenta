@@ -84,7 +84,7 @@
       "pages": [
         "basic_guides/creating_an_app",
         "basic_guides/prompt_engineering",
-        "basic_guides/test_sets", 
+        "basic_guides/test_sets",
         "basic_guides/deployment",
         "basic_guides/team_management"
       ]
@@ -120,9 +120,9 @@
     {
       "group": "Tutorials",
       "pages": [
-        "developer_guides/tutorials/first-app-with-langchain",
-        "developer_guides/tutorials/build-rag-application",
-        "developer_guides/tutorials/deploy-mistral-model"
+        "developer_guides/developer_guides/tutorials/first-app-with-langchain",
+        "developer_guides/developer_guides/tutorials/build-rag-application",
+        "developer_guides/developer_guides/tutorials/deploy-mistral-model"
       ]
     },
     {
