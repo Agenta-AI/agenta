@@ -310,6 +310,7 @@ const EvaluationResults: React.FC<Props> = () => {
                     icon={<PlusCircleOutlined />}
                     type="primary"
                     onClick={() => setNewEvalModalOpen(true)}
+                    data-cy="new-evaluation-button"
                 >
                     New Evaluation
                 </Button>
