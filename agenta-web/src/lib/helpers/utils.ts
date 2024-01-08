@@ -1,3 +1,4 @@
+import {v4 as uuidv4} from "uuid"
 import dynamic from "next/dynamic"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
@@ -315,5 +316,18 @@ export const shortPoll = async (
             shouldContinue = await func()
         } catch {}
         await delay(delayMs)
+    }
+}
+
+export const generateOrRetrieveDistinctId = (): string => {
+    if (typeof localStorage !== "undefined") {
+        let distinctId = localStorage.getItem("posthog_distinct_id")
+        if (!distinctId) {
+            distinctId = uuidv4()
+            localStorage.setItem("posthog_distinct_id", distinctId)
+        }
+        return distinctId
+    } else {
+        return uuidv4()
     }
 }
