@@ -33,25 +33,21 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=List[Evaluator])
-async def get_evaluators():
-    """Fetches a list of evaluators from the hardcoded JSON file.
+async def get_evaluators_endpoint():
+    """
+    Endpoint to fetch a list of evaluators.
 
     Returns:
         List[Evaluator]: A list of evaluator objects.
     """
 
-    file_path = "agenta_backend/resources/evaluators/evaluators.json"
+    evaluators = evaluator_manager.get_evaluators()
 
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Evaluators file not found")
+    if evaluators is None:
+        raise HTTPException(status_code=500, detail="Error processing evaluators file")
 
-    try:
-        with open(file_path, "r") as file:
-            evaluators = json.load(file)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error reading evaluators file: {str(e)}"
-        )
+    if not evaluators:
+        raise HTTPException(status_code=404, detail="No evaluators found")
 
     return evaluators
 
@@ -102,7 +98,6 @@ async def create_new_evaluator_config(
         app_id=payload.app_id,
         name=payload.name,
         evaluator_key=payload.evaluator_key,
-        direct_use=payload.direct_use,
         settings_values=payload.settings_values,
     )
     return evaluator_config
