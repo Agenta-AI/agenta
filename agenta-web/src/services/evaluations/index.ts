@@ -2,11 +2,12 @@ import axios from "@/lib//helpers/axiosConfig"
 import {
     Annotation,
     AnnotationScenario,
+    ComparisonResultRow,
     EvaluationStatus,
     Evaluator,
     EvaluatorConfig,
     LLMRunRateLimit,
-    TypedValue,
+    TestSet,
     _Evaluation,
     _EvaluationScenario,
 } from "@/lib/Types"
@@ -19,6 +20,7 @@ import webhookImg from "@/media/link.png"
 import aiImg from "@/media/artificial-intelligence.png"
 import codeImg from "@/media/browser.png"
 import dayjs from "dayjs"
+import {loadTestset} from "@/lib/services/api"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -129,11 +131,9 @@ export const deleteEvaluations = async (evaluationsIds: string[]) => {
 }
 
 // Evaluation Scenarios
-export const fetchAllEvaluationScenarios = async (appId: string, evaluationId: string) => {
+export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
     const [{data: evaluationScenarios}, evaluation] = await Promise.all([
-        axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios/`, {
-            params: {app_id: appId},
-        }),
+        axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios/`),
         fetchEvaluation(evaluationId),
     ])
 
@@ -198,4 +198,66 @@ export const updateAnnotationScenario = async (
         `/api/annotations/${annotationId}/annotation_scenarios/${annotationScenarioId}`,
         data,
     )
+}
+
+// Comparison
+export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
+    const scenarioGroups = await Promise.all(evaluationIds.map(fetchAllEvaluationScenarios))
+    const testset: TestSet = await loadTestset(scenarioGroups[0][0].evaluation.testset.id)
+
+    const inputsNameSet = new Set<string>()
+    scenarioGroups.forEach((group) => {
+        group.forEach((scenario) => {
+            scenario.inputs.forEach((input) => inputsNameSet.add(input.name))
+        })
+    })
+
+    const rows: ComparisonResultRow[] = []
+    const inputNames = Array.from(inputsNameSet)
+    const inputValuesSet = new Set<string>()
+    const variants = scenarioGroups.map((group) => group[0].evaluation.variants[0])
+    for (const data of testset.csvdata) {
+        const inputValues = inputNames
+            .filter((name) => data[name] !== undefined)
+            .map((name) => ({name, value: data[name]}))
+        const inputValuesStr = inputValues.map((ip) => ip.value).join("")
+        if (inputValuesSet.has(inputValuesStr)) continue
+        else inputValuesSet.add(inputValuesStr)
+
+        rows.push({
+            id: inputValuesStr,
+            inputs: inputNames
+                .map((name) => ({name, value: data[name]}))
+                .filter((ip) => ip.value !== undefined),
+            correctAnswer: data.correct_answer || "",
+            variants: variants.map((variant, ix) => {
+                const group = scenarioGroups[ix]
+                const scenario = group.find((scenario) =>
+                    scenario.inputs.every((input) =>
+                        inputValues.some(
+                            (ip) => ip.name === input.name && ip.value === input.value,
+                        ),
+                    ),
+                )
+                return {
+                    variantId: variant.variantId,
+                    variantName: variant.variantName,
+                    output: scenario?.outputs[0] || {type: "string", value: ""},
+                    evaluationId: scenario?.evaluation.id || "",
+                    evaluatorConfigs: (scenario?.evaluators_configs || []).map((config) => ({
+                        evaluatorConfig: config,
+                        result: scenario?.results.find(
+                            (result) => result.evaluator_config === config.id,
+                        )?.result || {type: "string", value: ""},
+                    })),
+                }
+            }),
+        })
+    }
+
+    return {
+        rows,
+        testset,
+        evaluations: scenarioGroups.map((group) => group[0].evaluation),
+    }
 }
