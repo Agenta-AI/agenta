@@ -101,15 +101,15 @@ Agenta allows developers and product teams to collaborate and build robust AI ap
 
 | Using an LLM App Template (For Non-Technical Users)  | Starting from Code |
 | ------------- | ------------- |
-|1. [Create an application using a pre-built template from our UI](https://cloud.agenta.ai?utm_source=github&utm_medium=readme&utm_campaign=github)<br />2. Access a playground where you can test and compare different prompts and configurations side-by-side.<br /> 3. Systematically evaluate your application using pre-built or custom evaluators.<br /> 4. Deploy the application to production with one click. |1. [Add a few lines to any LLM application code to automatically create a playground for it](https://docs.agenta.ai/tutorials/first-app-with-langchain) <br />2. Experiment with prompts and configurations, and compare them side-by-side in the playground. <br />3. Systematically evaluate your application using pre-built or custom evaluators. <br />4. Deploy the application to production with one click. |
+|1. [Create an application using a pre-built template from our UI](https://cloud.agenta.ai?utm_source=github&utm_medium=readme&utm_campaign=github)<br />2. Access a playground where you can test and compare different prompts and configurations side-by-side.<br /> 3. Systematically evaluate your application using pre-built or custom evaluators.<br /> 4. Deploy the application to production with one click. |1. [Add a few lines to any LLM application code to automatically create a playground for it](https://docs.agenta.ai/developer_guides/tutorials/first-app-with-langchain) <br />2. Experiment with prompts and configurations, and compare them side-by-side in the playground. <br />3. Systematically evaluate your application using pre-built or custom evaluators. <br />4. Deploy the application to production with one click. |
 
 <br /><br />
 
 # Quick Start
 
 ### [Try the cloud version](https://cloud.agenta.ai?utm_source=github&utm_medium=readme&utm_campaign=github)
-### [Create your first application in one-minute](https://docs.agenta.ai/quickstart/getting-started-ui)
-### [Create an application using Langchain](https://docs.agenta.ai/tutorials/first-app-with-langchain)
+### [Create your first application in one-minute](https://docs.agenta.ai/getting_started/getting-started-ui)
+### [Create an application using Langchain](https://docs.agenta.ai/developer_guides/tutorials/first-app-with-langchain)
 ### [Self-host agenta](https://docs.agenta.ai/self-host/host-locally)
 ### [Read the Documentation](https://docs.agenta.ai)
 ### [Check the Cookbook](https://docs.agenta.ai/cookbook)
