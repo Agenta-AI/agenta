@@ -195,25 +195,6 @@ class TestSetDB(Document):
         name = "testsets"
 
 
-class CustomEvaluationDB(Document):
-    evaluation_name: str
-    python_code: str
-    app: Link[AppDB]
-    user: Link[UserDB]
-    organization: Link[OrganizationDB]
-    created_at: Optional[datetime] = Field(default=datetime.utcnow())
-    updated_at: Optional[datetime] = Field(default=datetime.utcnow())
-
-    class Settings:
-        name = "custom_evaluations"
-
-
-class EvaluationSettingsTemplate(BaseModel):
-    type: str
-    default: str
-    description: str
-
-
 class EvaluatorConfigDB(Document):
     app: Link[AppDB]
     organization: Link[OrganizationDB]

@@ -21,25 +21,8 @@ class EvaluatorConfig(BaseModel):
     updated_at: datetime
 
 
-class EvaluationTypeSettings(BaseModel):
-    similarity_threshold: Optional[float]
-    regex_pattern: Optional[str]
-    regex_should_match: Optional[bool]
-    webhook_url: Optional[str]
-    custom_code_evaluation_id: Optional[str]
-    llm_app_prompt_template: Optional[str]
-    evaluation_prompt_template: Optional[str]
-
-
 class EvaluationType(str, Enum):
-    auto_exact_match = "auto_exact_match"
-    auto_similarity_match = "auto_similarity_match"
-    auto_regex_test = "auto_regex_test"
-    auto_webhook_test = "auto_webhook_test"
-    auto_ai_critique = "auto_ai_critique"
     human_a_b_testing = "human_a_b_testing"
-    human_scoring = "human_scoring"
-    custom_code_run = "custom_code_run"
     single_model_test = "single_model_test"
 
 
@@ -63,7 +46,6 @@ class NewHumanEvaluation(BaseModel):
     app_id: str
     variant_ids: List[str]
     evaluation_type: EvaluationType
-    evaluation_type_settings: Optional[EvaluationTypeSettings]
     inputs: List[str]
     testset_id: str
     status: str
@@ -99,7 +81,6 @@ class SimpleEvaluationOutput(BaseModel):
 
 class HumanEvaluationUpdate(BaseModel):
     status: Optional[EvaluationStatusEnum]
-    evaluation_type_settings: Optional[EvaluationTypeSettings]
 
 
 class EvaluationScenarioResult(BaseModel):
@@ -134,7 +115,6 @@ class HumanEvaluation(BaseModel):
     user_id: str
     user_username: str
     evaluation_type: EvaluationType
-    evaluation_type_settings: Optional[EvaluationTypeSettings]
     variant_ids: List[str]
     variant_names: List[str]
     testset_id: str
@@ -177,15 +157,6 @@ class EvaluationScenario(BaseModel):
     is_pinned: Optional[bool]
     note: Optional[str]
     results: List[EvaluationScenarioResult]
-
-
-class AICritiqueCreate(BaseModel):
-    correct_answer: str
-    llm_app_prompt_template: Optional[str]
-    inputs: List[EvaluationScenarioInput]
-    outputs: List[EvaluationScenarioOutput]
-    evaluation_prompt_template: Optional[str]
-    open_ai_key: Optional[str]
 
 
 class EvaluationScenarioUpdate(BaseModel):
@@ -243,12 +214,6 @@ class ExecuteCustomEvaluationCode(BaseModel):
 
 class EvaluationWebhook(BaseModel):
     score: float
-
-
-class EvaluationSettingsTemplate(BaseModel):
-    type: str
-    default: str
-    description: str
 
 
 class LLMRunRateLimit(BaseModel):
