@@ -135,7 +135,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                     >
                         <Select placeholder="Select testset" data-cy="select-testset-group">
                             {testSets.map((testSet) => (
-                                <Select.Option key={testSet._id} value={testSet._id} data-cy="select-testset-option">
+                                <Select.Option
+                                    key={testSet._id}
+                                    value={testSet._id}
+                                    data-cy="select-testset-option"
+                                >
                                     {testSet.name}
                                 </Select.Option>
                             ))}
@@ -147,9 +151,17 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         label="Which variants you would like to evaluate?"
                         rules={[{required: true, message: "This field is required"}]}
                     >
-                        <Select mode="multiple" placeholder="Select variants" data-cy="select-variant-group">
+                        <Select
+                            mode="multiple"
+                            placeholder="Select variants"
+                            data-cy="select-variant-group"
+                        >
                             {variants.map((variant) => (
-                                <Select.Option key={variant.variantId} value={variant.variantId} data-cy="select-variant-option">
+                                <Select.Option
+                                    key={variant.variantId}
+                                    value={variant.variantId}
+                                    data-cy="select-variant-option"
+                                >
                                     {variant.variantName}
                                 </Select.Option>
                             ))}
@@ -180,7 +192,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                                     (item) => item.key === config.evaluator_key,
                                 )!
                                 return (
-                                    <Select.Option key={config.id} value={config.id} data-cy="select-evaluators-option">
+                                    <Select.Option
+                                        key={config.id}
+                                        value={config.id}
+                                        data-cy="select-evaluators-option"
+                                    >
                                         <div className={classes.configRow}>
                                             <div className={classes.configRowContent}>
                                                 {evaluator.icon_url && (
