@@ -64,7 +64,7 @@ def call_llm(prompt_system, prompt_human):
         ]
         output = chat(
             messages,
-        ).content
+        )
 
     # replicate
     if ag.config.model.startswith("replicate"):

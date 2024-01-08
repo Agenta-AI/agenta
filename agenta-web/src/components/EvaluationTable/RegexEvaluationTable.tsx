@@ -220,6 +220,10 @@ const RegexEvaluationTable: React.FC<RegexEvaluationTableProps> = ({
                         ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                         : [],
                 )
+                if (typeof result !== "string") {
+                    result = result.message
+                }
+
                 if (variantData[idx].isChatVariant) result = contentToChatMessageString(result)
 
                 const {regexPattern, regexShouldMatch} = form.getFieldsValue()
