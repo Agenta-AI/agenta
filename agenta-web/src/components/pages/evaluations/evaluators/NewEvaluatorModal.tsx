@@ -184,7 +184,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
                     label="Name"
                     rules={[{required: true, message: "This field is required"}]}
                 >
-                    <Input />
+                    <Input data-cy="new-evaluator-modal-input" />
                 </Form.Item>
                 <Form.Item
                     name="evaluator_key"
@@ -200,9 +200,12 @@ const NewEvaluatorModal: React.FC<Props> = ({
                         }
                         className={classes.radioGroup}
                     >
-                        {evaluators.map((evaluator) => (
+                        {evaluators.map((evaluator, index) => (
                             <Radio.Button key={evaluator.key} value={evaluator.key}>
-                                <div className={classes.radioBtn}>
+                                <div
+                                    className={classes.radioBtn}
+                                    data-cy={`new-evaluator-modal-button-${index}`}
+                                >
                                     {evaluator.icon_url && (
                                         <Image
                                             src={evaluator.icon_url}
