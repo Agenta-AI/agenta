@@ -13,6 +13,8 @@ import {DownloadOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
+import {stringToNumberInRange} from "@/lib/helpers/utils"
+import Link from "next/link"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -25,6 +27,15 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         alignItems: "center",
         justifyContent: "space-between",
     },
+    tag: {
+        "& a": {
+            color: "inherit",
+            "&:hover": {
+                color: "inherit",
+                textDecoration: "underline",
+            },
+        },
+    },
 }))
 
 interface Props {}
@@ -33,7 +44,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const appId = useAppId()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
-    const [evaluationIdsStr, setEvaluationIdsStr] = useQueryParam("evaluations")
+    const [evaluationIdsStr = "", setEvaluationIdsStr] = useQueryParam("evaluations")
     const [fetching, setFetching] = useState(false)
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
     const [testset, setTestset] = useState<TestSet>()
@@ -43,7 +54,12 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         return rows[0]?.variants || []
     }, [rows])
 
-    const colors = useMemo(() => getTagColors(), [variants])
+    const colors = useMemo(() => {
+        const colors = getTagColors()
+        return variants.map(
+            (v) => colors[stringToNumberInRange(v.evaluationId, 0, colors.length - 1)],
+        )
+    }, [variants])
 
     const evaluationIds = useMemo(
         () => evaluationIdsStr.split(",").filter((item) => !!item),
@@ -176,21 +192,28 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                             {testset?.name || ""}
                         </Typography.Link>
                     </Space>
-                    <Space>
-                        <Typography.Text strong>Variants:</Typography.Text>
-                        <div>
-                            {variants?.map((v, vi) => (
-                                <Tag
-                                    key={evaluationIds[vi]}
-                                    color={colors[vi]}
-                                    onClose={() => handleDeleteVariant((v as any).evaluation.id)}
-                                    closable
-                                >
-                                    {v.variantName}
-                                </Tag>
-                            ))}
-                        </div>
-                    </Space>
+                    <Spin spinning={fetching}>
+                        <Space>
+                            <Typography.Text strong>Variants:</Typography.Text>
+                            <div>
+                                {variants?.map((v, vi) => (
+                                    <Tag
+                                        key={evaluationIds[vi]}
+                                        color={colors[vi]}
+                                        onClose={() => handleDeleteVariant(v.evaluationId)}
+                                        closable={evaluationIds.length > 1}
+                                        className={classes.tag}
+                                    >
+                                        <Link
+                                            href={`/apps/${appId}/playground/?variant=${v.variantName}`}
+                                        >
+                                            {v.variantName}
+                                        </Link>
+                                    </Tag>
+                                ))}
+                            </div>
+                        </Space>
+                    </Spin>
                 </Space>
                 <Tooltip title="Export as CSV">
                     <DownloadOutlined onClick={onExport} style={{fontSize: 16}} />
