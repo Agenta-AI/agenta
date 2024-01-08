@@ -115,8 +115,6 @@ async def _fetch_human_evaluation_scenario_and_check_access(
         evaluation_scenario_id=evaluation_scenario_id
     )
 
-    print("evaluation_scenario")
-    print(evaluation_scenario)
     if evaluation_scenario is None:
         raise HTTPException(
             status_code=404,

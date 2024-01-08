@@ -58,7 +58,9 @@ def evaluate(
         new_evaluation_db = loop.run_until_complete(
             fetch_evaluation_by_id(evaluation_id)
         )
-        evaluators_aggregated_data = defaultdict(list)
+        evaluators_aggregated_data = defaultdict(
+            lambda: {"evaluator_key": "", "results": list()}
+        )
 
         deployment = loop.run_until_complete(
             get_deployment_by_objectid(app_variant_db.base.deployment)
@@ -132,7 +134,14 @@ def evaluate(
                     result=result,
                 )
                 evaluators_results.append(result_object)
-                evaluators_aggregated_data[evaluator_config.evaluator_key].append(
+                if (
+                    evaluators_aggregated_data[evaluator_config_id]["evaluator_key"]
+                    == ""
+                ):
+                    evaluators_aggregated_data[evaluator_config_id][
+                        "evaluator_key"
+                    ] = evaluator_config.evaluator_key
+                evaluators_aggregated_data[evaluator_config_id]["results"].append(
                     result
                 )
 
@@ -175,7 +184,9 @@ async def aggregate_evaluator_results(
     app: AppDB, evaluators_aggregated_data: dict
 ) -> List[AggregatedResult]:
     aggregated_results = []
-    for evaluator_key, results in evaluators_aggregated_data.items():
+    for config_id, val in evaluators_aggregated_data.items():
+        evaluator_key = val["evaluator_key"] or ""
+        results = val["results"] or []
         if evaluator_key != "auto_ai_critique":
             average_value = (
                 sum([result.value for result in results]) / len(results)
@@ -198,7 +209,7 @@ async def aggregate_evaluator_results(
                 )
             except TypeError:
                 average_value = None
-        evaluator_config = await fetch_evaluator_config_by_appId(app.id, evaluator_key)
+        evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
             evaluator_config=evaluator_config.id,
             result=Result(type="number", value=average_value),
