@@ -76,7 +76,6 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     isValidRegex(value) ? res("") : rej("Regex pattern is not valid"),
                 ),
         })
-
     return (
         <Form.Item
             name={name}
@@ -101,6 +100,8 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                 <Switch />
             ) : type === "text" ? (
                 <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
+            ) : type === "object" ? (
+                <Input.TextArea />
             ) : type === "code" ? (
                 <Editor height={220} width="100%" language="python" theme={`vs-${appTheme}`} />
             ) : null}
@@ -160,7 +161,7 @@ const NewEvaluatorModal: React.FC<Props> = ({
 
     return (
         <Modal
-            title="New Evaluation"
+            title="New Evaluator"
             onOk={form.submit}
             okText={editMode ? "Update" : "Create"}
             okButtonProps={{

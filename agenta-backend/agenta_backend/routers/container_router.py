@@ -1,15 +1,9 @@
 import os
+import logging
 from typing import List, Optional, Union
-from agenta_backend.models.api.api_models import (
-    URI,
-    Image,
-    RestartAppContainer,
-    Template,
-)
-from agenta_backend.services import db_manager
-from fastapi import Request, UploadFile, HTTPException
-from agenta_backend.utils.common import APIRouter
+
 from fastapi.responses import JSONResponse
+from fastapi import Request, UploadFile, HTTPException
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
     from agenta_backend.commons.services.selectors import (
@@ -26,16 +20,24 @@ elif os.environ["FEATURE_FLAG"] in ["ee"]:
 else:
     from agenta_backend.services import container_manager
 
-import logging
+from agenta_backend.models.api.api_models import (
+    URI,
+    Image,
+    RestartAppContainer,
+    Template,
+)
+from agenta_backend.services import db_manager
+from agenta_backend.utils.common import APIRouter
+
 
 logger = logging.getLogger(__name__)
-
 logger.setLevel(logging.DEBUG)
 
 router = APIRouter()
 
 
 # TODO: We need to improve this to use the introduced abstraction to also use start and stop service
+# * Edit: someone remind me (abram) to work on this.
 @router.post("/build_image/", operation_id="build_image")
 async def build_image(
     app_id: str,
