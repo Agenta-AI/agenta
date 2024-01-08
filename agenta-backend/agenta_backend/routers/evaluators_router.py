@@ -53,7 +53,7 @@ async def get_evaluators_endpoint():
 
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])
-async def get_evaluator_configs(app_id: str = Query()):
+async def get_evaluator_configs(app_id: str):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Args:

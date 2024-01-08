@@ -1,10 +1,9 @@
 import logging
-from bson import ObjectId
-from odmantic import query
+from typing import Dict, List, Union, Optional, Any, Callable
+
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
-from agenta_backend.models.db_engine import DBEngine
-from typing import Dict, List, Union, Optional, Any, Callable
+
 from agenta_backend.models.db_models import (
     UserDB,
     AppVariantDB,
@@ -13,7 +12,9 @@ from agenta_backend.models.db_models import (
     VariantBaseDB,
 )
 
-engine = DBEngine().engine()
+from beanie import PydanticObjectId as ObjectId
+
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -60,7 +61,7 @@ class APIRouter(FastAPIRouter):
 
 
 async def get_organization(org_id: str) -> OrganizationDB:
-    org = await engine.find_one(OrganizationDB, OrganizationDB.id == ObjectId(org_id))
+    org = await OrganizationDB.find_one(OrganizationDB.id == ObjectId(org_id))
     if org is not None:
         return org
     else:
@@ -70,22 +71,11 @@ async def get_organization(org_id: str) -> OrganizationDB:
 async def get_app_instance(
     app_id: str, variant_name: str = None, show_deleted: bool = False
 ) -> AppVariantDB:
+    queries = (AppVariantDB.is_deleted == show_deleted, AppVariantDB.app == app_id)
     if variant_name is not None:
-        query_expression = (
-            query.eq(AppVariantDB.is_deleted, show_deleted)
-            & query.eq(AppVariantDB.app, ObjectId(app_id))
-            & query.eq(AppVariantDB.variant_name, variant_name)
-        )
-    else:
-        query_expression = query.eq(AppVariantDB.is_deleted, show_deleted) & query.eq(
-            AppVariantDB.app_name, ObjectId(app_id)
-        )
+        queries += AppVariantDB.variant_name == variant_name
 
-    print("query_expression: " + str(query_expression))
-
-    app_instance = await engine.find_one(AppVariantDB, query_expression)
-
-    print("app_instance: " + str(app_instance))
+    app_instance = await AppVariantDB.find_one(*queries)
     return app_instance
 
 
@@ -93,7 +83,7 @@ async def check_user_org_access(
     kwargs: dict, organization_id: str, check_owner=False
 ) -> bool:
     if check_owner:  # Check that the user is the owner of the organization
-        user = await engine.find_one(UserDB, UserDB.uid == kwargs["uid"])
+        user = await UserDB.find_one(UserDB.uid == kwargs["uid"])
         organization = await get_organization(organization_id)
         if not organization:
             logger.error("Organization not found")
@@ -105,7 +95,8 @@ async def check_user_org_access(
         logger.debug(
             f"object_organization_id: {object_organization_id}, user_organizations: {user_organizations}"
         )
-        return object_organization_id in user_organizations
+        user_exists_in_organizations = object_organization_id in user_organizations
+        return user_exists_in_organizations
 
 
 async def check_access_to_app(
@@ -135,7 +126,7 @@ async def check_access_to_app(
 
     # Fetch the app if only app_id is provided.
     if app is None:
-        app = await engine.find_one(AppDB, AppDB.id == ObjectId(app_id))
+        app = await AppDB.find_one(AppDB.id == ObjectId(app_id), fetch_links=True)
         if app is None:
             logger.error("App not found")
             return False
@@ -152,8 +143,8 @@ async def check_access_to_variant(
 ) -> bool:
     if variant_id is None:
         raise Exception("No variant_id provided")
-    variant = await engine.find_one(
-        AppVariantDB, AppVariantDB.id == ObjectId(variant_id)
+    variant = await AppVariantDB.find_one(
+        AppVariantDB.id == ObjectId(variant_id), fetch_links=True
     )
     if variant is None:
         logger.error("Variant not found")
@@ -169,7 +160,7 @@ async def check_access_to_base(
 ) -> bool:
     if base_id is None:
         raise Exception("No base_id provided")
-    base = await engine.find_one(VariantBaseDB, VariantBaseDB.id == ObjectId(base_id))
+    base = await VariantBaseDB.find_one(VariantBaseDB.id == base_id, fetch_links=True)
     if base is None:
         logger.error("Base not found")
         return False

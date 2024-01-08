@@ -2,15 +2,11 @@ import os
 
 from agenta_backend.services import selectors
 from agenta_backend.models.db_models import UserDB
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.api.organization_models import OrganizationOutput
 
 import httpx
 import pytest
 
-
-# Initialize database engine
-engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
@@ -34,7 +30,7 @@ async def test_list_organizations():
 
 @pytest.mark.asyncio
 async def test_get_user_organization():
-    user = await engine.find_one(UserDB, UserDB.uid == "0")
+    user = await UserDB.find_one(UserDB.uid == "0")
     user_org = await selectors.get_user_own_org(user.uid)
 
     response = await test_client.get(f"{BACKEND_API_HOST}/organizations/own/")
@@ -48,7 +44,7 @@ async def test_get_user_organization():
 @pytest.mark.asyncio
 async def test_user_does_not_have_an_organization():
     user = UserDB(uid="0123", username="john_doe", email="johndoe@email.com")
-    await engine.save(user)
+    await user.create()
 
     user_org = await selectors.get_user_own_org(user.uid)
     assert user_org == None

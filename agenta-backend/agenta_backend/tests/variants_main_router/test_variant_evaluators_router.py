@@ -3,19 +3,18 @@ import httpx
 import pytest
 import asyncio
 
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.models.api.evaluation_model import EvaluationStatusEnum
 from agenta_backend.models.db_models import (
-    EvaluationDB,
     AppDB,
+    ConfigDB,
     TestSetDB,
     AppVariantDB,
+    EvaluationDB,
+    AppVariantDB,
     DeploymentDB,
+    EvaluationScenarioDB,
 )
 
-
-# Initialize database engine
-engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
@@ -60,7 +59,7 @@ async def test_get_evaluators_endpoint():
 async def test_create_auto_exact_match_evaluator_config(
     auto_exact_match_evaluator_config,
 ):
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_exact_match_evaluator_config
     payload["app_id"] = str(app.id)
 
@@ -76,7 +75,7 @@ async def test_create_auto_exact_match_evaluator_config(
 async def test_create_auto_similarity_match_evaluator_config(
     auto_similarity_match_evaluator_config,
 ):
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_similarity_match_evaluator_config
     payload["app_id"] = str(app.id)
 
@@ -92,7 +91,7 @@ async def test_create_auto_similarity_match_evaluator_config(
 async def test_create_auto_regex_test_evaluator_config(
     auto_regex_test_evaluator_config,
 ):
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_regex_test_evaluator_config
     payload["app_id"] = str(app.id)
     payload["settings_values"]["regex_pattern"] = "^ig\\d{3}$"
@@ -109,7 +108,7 @@ async def test_create_auto_regex_test_evaluator_config(
 async def test_create_auto_webhook_test_evaluator_config(
     auto_webhook_test_evaluator_config,
 ):
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_webhook_test_evaluator_config
     payload["app_id"] = str(app.id)
 
@@ -125,7 +124,7 @@ async def test_create_auto_webhook_test_evaluator_config(
 async def test_create_auto_ai_critique_evaluator_config(
     auto_ai_critique_evaluator_config,
 ):
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     payload = auto_ai_critique_evaluator_config
     payload["app_id"] = str(app.id)
 
@@ -139,7 +138,7 @@ async def test_create_auto_ai_critique_evaluator_config(
 
 @pytest.mark.asyncio
 async def test_get_evaluator_configs():
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     response = await test_client.get(
         f"{BACKEND_API_HOST}/evaluators/configs/?app_id={str(app.id)}",
         timeout=timeout,
@@ -149,11 +148,29 @@ async def test_get_evaluator_configs():
 
 
 @pytest.mark.asyncio
+async def test_update_app_variant_parameters(update_app_variant_parameters):
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
+    testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
+    app_variant = await AppVariantDB.find_one(
+        AppVariantDB.app.id == app.id, AppVariantDB.variant_name == "app.default"
+    )
+
+    parameters = update_app_variant_parameters
+    parameters["inputs"] = [{"name": list(testset.csvdata[0].keys())[0]}]
+    payload = {"parameters": parameters}
+
+    response = await test_client.put(
+        f"{BACKEND_API_HOST}/variants/{str(app_variant.id)}/parameters/", json=payload
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_create_evaluation():
     # Fetch app, app_variant and testset
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
-    app_variant = await engine.find_one(AppVariantDB, AppVariantDB.app == app.id)
-    testset = await engine.find_one(TestSetDB, TestSetDB.app == app.id)
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
+    app_variant = await AppVariantDB.find_one(AppVariantDB.app.id == app.id)
+    testset = await TestSetDB.find_one(TestSetDB.app.id == app.id)
 
     # Prepare payload
     payload = {
@@ -196,7 +213,9 @@ async def test_create_evaluation():
 
 @pytest.mark.asyncio
 async def test_fetch_evaluation_status():
-    evaluations = await engine.find(EvaluationDB)  # will return only one in this case
+    evaluations = (
+        await EvaluationDB.find().to_list()
+    )  # will return only one in this case
     evaluation = evaluations[0]
 
     # Prepare and start short-polling request
@@ -220,7 +239,9 @@ async def test_fetch_evaluation_status():
 
 @pytest.mark.asyncio
 async def test_fetch_evaluation_results():
-    evaluations = await engine.find(EvaluationDB)  # will return only one in this case
+    evaluations = (
+        await EvaluationDB.find().to_list()
+    )  # will return only one in this case
     evaluation = evaluations[0]
 
     response = await test_client.get(
@@ -235,7 +256,7 @@ async def test_fetch_evaluation_results():
 
 @pytest.mark.asyncio
 async def test_delete_evaluator_config():
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
     response = await test_client.get(
         f"{BACKEND_API_HOST}/evaluators/configs/?app_id={str(app.id)}",
         timeout=timeout,
@@ -254,13 +275,26 @@ async def test_delete_evaluator_config():
 
 
 @pytest.mark.asyncio
+async def test_evaluation_scenario_match_evaluation_testset_length():
+    evaluations = await EvaluationDB.find(
+        fetch_links=True
+    ).to_list()  # will return only one in this case
+    evaluation = evaluations[0]
+    evaluation_scenario_count = await EvaluationScenarioDB.find(
+        EvaluationScenarioDB.evaluation.id == evaluation.id
+    ).count()
+
+    assert evaluation_scenario_count == len(evaluation.testset.csvdata)
+
+
+@pytest.mark.asyncio
 async def test_remove_running_template_app_container():
     import docker
 
     # Connect to the Docker daemon
     client = docker.from_env()
-    app = await engine.find_one(AppDB, AppDB.app_name == APP_NAME)
-    deployment = await engine.find_one(DeploymentDB, DeploymentDB.app == app.id)
+    app = await AppDB.find_one(AppDB.app_name == APP_NAME)
+    deployment = await DeploymentDB.find_one(DeploymentDB.app.id == app.id)
     try:
         # Retrieve container
         container = client.containers.get(deployment.container_name)

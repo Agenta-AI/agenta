@@ -6,11 +6,10 @@ import requests
 from bson import ObjectId
 from datetime import datetime
 from typing import Optional, List
-
-from fastapi import HTTPException, UploadFile, File, Form, Request
-from agenta_backend.utils.common import APIRouter
-from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+
+from fastapi.responses import JSONResponse
+from fastapi import HTTPException, UploadFile, File, Form, Request
 
 from agenta_backend.models.api.testset_model import (
     TestSetSimpleResponse,
@@ -18,15 +17,15 @@ from agenta_backend.models.api.testset_model import (
     NewTestset,
     TestSetOutputResponse,
 )
-from agenta_backend.utils.common import engine, check_access_to_app
+from agenta_backend.services import db_manager
 from agenta_backend.models.db_models import TestSetDB
 from agenta_backend.services.db_manager import get_user
-from agenta_backend.services import db_manager
 from agenta_backend.models.converters import testset_db_to_pydantic
+from agenta_backend.utils.common import APIRouter, check_access_to_app
 
-upload_folder = "./path/to/upload/folder"
 
 router = APIRouter()
+upload_folder = "./path/to/upload/folder"
 
 
 if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
@@ -107,7 +106,7 @@ async def upload_file(
         testset_instance = TestSetDB(**document, user=user)
     except ValidationError as e:
         raise HTTPException(status_code=403, detail=e.errors())
-    result = await engine.save(testset_instance)
+    result = await testset_instance.create()
 
     if isinstance(result.id, ObjectId):
         return TestSetSimpleResponse(
@@ -172,7 +171,7 @@ async def import_testset(
 
         user = await get_user(user_uid=user_org_data["uid"])
         testset_instance = TestSetDB(**document, user=user)
-        result = await engine.save(testset_instance)
+        result = await testset_instance.create()
 
         if isinstance(result.id, ObjectId):
             return TestSetSimpleResponse(
@@ -239,7 +238,7 @@ async def create_testset(
 
     try:
         testset_instance = TestSetDB(**testset)
-        await engine.save(testset_instance)
+        await testset_instance.create()
 
         if testset_instance is not None:
             return TestSetSimpleResponse(
@@ -288,9 +287,7 @@ async def update_testset(
             status_code=400,
         )
     try:
-        test_set.update(testset_update)
-        await engine.save(test_set)
-
+        await test_set.update({"$set": testset_update})
         if isinstance(test_set.id, ObjectId):
             return {
                 "status": "success",
@@ -407,7 +404,7 @@ async def delete_testsets(
                 {"detail": error_msg},
                 status_code=400,
             )
-        await engine.delete(test_set)
+        await test_set.delete()
         deleted_ids.append(testset_id)
 
     return deleted_ids

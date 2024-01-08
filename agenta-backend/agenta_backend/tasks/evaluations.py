@@ -9,6 +9,7 @@ from agenta_backend.services.db_manager import (
     fetch_evaluation_by_id,
     fetch_app_variant_by_id,
     fetch_evaluator_config,
+    fetch_app_by_id,
     get_deployment_by_objectid,
     update_evaluation,
     fetch_testset_by_id,
@@ -24,6 +25,7 @@ from agenta_backend.models.db_models import (
     AggregatedResult,
     Result,
 )
+from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.services import evaluators_service
 from agenta_backend.models.api.evaluation_model import NewEvaluation, AppOutput
 
@@ -36,18 +38,19 @@ def evaluate(
     testset_id: str,
 ):
     loop = asyncio.get_event_loop()
-    app = AppDB(**app_data)
-    evaluation = NewEvaluation(**new_evaluation_data)
 
     try:
+        loop.run_until_complete(DBEngine().init_db())
+        app = loop.run_until_complete(fetch_app_by_id(app_data["_id"]))
+        evaluation = NewEvaluation(**new_evaluation_data)
         variant_id = str(evaluation.variant_ids[0])
         app_variant_db = loop.run_until_complete(fetch_app_variant_by_id(variant_id))
         app_variant_parameters = app_variant_db.config.parameters
 
         if (
-            not app_variant_db.config.parameters
-            or "inputs" not in app_variant_db.config.parameters
-            or not app_variant_db.config.parameters["inputs"]
+            not app_variant_parameters
+            or "inputs" not in app_variant_parameters
+            or not app_variant_parameters["inputs"]
         ):
             loop.run_until_complete(
                 update_evaluation(evaluation_id, {"status": "EVALUATION_FAILED"})
@@ -84,13 +87,14 @@ def evaluate(
         )
         for data_point, app_output in zip(testset.csvdata, app_outputs):
             if len(testset.csvdata) != len(app_outputs):
-                # TODO: properly handle error in the case where the length are not the same
-                break
+                raise ValueError(
+                    "Length of testset.csvdata and app_outputs are not the same"
+                )
 
             # 2. We prepare the inputs
             raw_inputs = (
-                app_variant_db.parameters.get("inputs", [])
-                if app_variant_db.parameters
+                app_variant_parameters.get("inputs", [])
+                if app_variant_parameters
                 else []
             )
             inputs = []
@@ -113,10 +117,10 @@ def evaluate(
 
                 additional_kwargs = (
                     {
-                        "app_params": app_variant_db.config.parameters,
-                        "inputs": data_point,  # TODO: fetch input from config parameters when #1102 has been fixed
+                        "app_params": app_variant_parameters,
+                        "inputs": data_point,
                     }
-                    if evaluator_config.evaluator_key == "custom_code_run"
+                    if evaluator_config.evaluator_key == "auto_custom_code_run"
                     else {}
                 )
                 result = evaluators_service.evaluate(
