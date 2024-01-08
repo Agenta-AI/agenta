@@ -100,8 +100,6 @@ const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                 <Switch />
             ) : type === "text" ? (
                 <Input.TextArea autoSize={{minRows: 3, maxRows: 8}} />
-            ) : type === "object" ? (
-                <Input.TextArea />
             ) : type === "code" ? (
                 <Editor height={220} width="100%" language="python" theme={`vs-${appTheme}`} />
             ) : null}
