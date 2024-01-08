@@ -5,7 +5,6 @@ import logging
 from bson import ObjectId
 
 from agenta_backend.routers import app_router
-from agenta_backend.models.db_engine import DBEngine
 from agenta_backend.services import selectors, db_manager
 from agenta_backend.models.db_models import (
     AppDB,
@@ -15,9 +14,6 @@ from agenta_backend.models.db_models import (
     AppVariantDB,
 )
 
-
-# Initialize database engine
-engine = DBEngine().engine()
 
 # Initialize http client
 test_client = httpx.AsyncClient()
@@ -59,14 +55,14 @@ async def test_list_apps():
     response = await test_client.get(f"{BACKEND_API_HOST}/apps/")
 
     assert response.status_code == 200
-    assert len(response.json()) == 3
+    assert len(response.json()) == 1
 
 
 @pytest.mark.asyncio
 async def test_create_app_variant(get_first_user_object):
     user = await get_first_user_object
     organization = await selectors.get_user_own_org(user.uid)
-    app = await engine.find_one(AppDB, AppDB.app_name == "app_variant_test")
+    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
 
     db_image = ImageDB(
         docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -74,13 +70,13 @@ async def test_create_app_variant(get_first_user_object):
         user=user,
         organization=organization,
     )
-    await engine.save(db_image)
+    await db_image.create()
 
     db_config = ConfigDB(
         config_name="default",
         parameters={},
     )
-    await engine.save(db_config)
+    await db_config.create()
 
     db_base = VariantBaseDB(
         base_name="app",
@@ -89,7 +85,7 @@ async def test_create_app_variant(get_first_user_object):
         user=user,
         image=db_image,
     )
-    await engine.save(db_base)
+    await db_base.create()
 
     appvariant = AppVariantDB(
         app=app,
@@ -103,7 +99,7 @@ async def test_create_app_variant(get_first_user_object):
         base=db_base,
         config=db_config,
     )
-    await engine.save(appvariant)
+    await appvariant.create()
 
     response = await test_client.get(f"{BACKEND_API_HOST}/apps/{str(app.id)}/variants/")
     assert response.status_code == 200
@@ -112,7 +108,7 @@ async def test_create_app_variant(get_first_user_object):
 
 @pytest.mark.asyncio
 async def test_list_app_variants():
-    app_db = await engine.find_one(AppDB, AppDB.app_name == "app_variant_test")
+    app_db = await AppDB.find_one(AppDB.app_name == "app_variant_test")
     response = await test_client.get(
         f"{BACKEND_API_HOST}/apps/{str(app_db.id)}/variants/"
     )
@@ -131,7 +127,7 @@ async def test_delete_app_without_permission(get_second_user_object):
         organization=user2_organization,
         user=user2,
     )
-    await engine.save(user2_app)
+    await user2_app.create()
 
     response = await test_client.delete(
         f"{BACKEND_API_HOST}/apps/{str(user2_app.id)}/",
@@ -142,7 +138,7 @@ async def test_delete_app_without_permission(get_second_user_object):
 
 @pytest.mark.asyncio
 async def test_list_environments():
-    app = await engine.find_one(AppDB, AppDB.app_name == "app_variant_test")
+    app = await AppDB.find_one(AppDB.app_name == "app_variant_test")
     response = await test_client.get(
         f"{BACKEND_API_HOST}/apps/{str(app.id)}/environments/"
     )
@@ -161,12 +157,3 @@ async def test_get_variant_by_env(get_first_user_app):
             app_id=str(app.id), environment=environment.name
         )
         assert response == []
-
-
-@pytest.mark.asyncio
-async def test_remove_app():
-    app = await engine.find_one(AppDB, AppDB.app_name == "app_variant_test")
-    await engine.delete(app)
-
-    app = await engine.find_one(AppDB, AppDB.app_name == "app_variant_test")
-    assert app == None

@@ -1,63 +1,94 @@
 import os
 import logging
+from typing import List
 
-from odmantic import AIOEngine
 from pymongo import MongoClient
+from beanie import init_beanie, Document
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from agenta_backend.models.db_models import (
+    APIKeyDB,
+    AppEnvironmentDB,
+    OrganizationDB,
+    UserDB,
+    ImageDB,
+    AppDB,
+    DeploymentDB,
+    VariantBaseDB,
+    ConfigDB,
+    AppVariantDB,
+    TemplateDB,
+    TestSetDB,
+    EvaluatorConfigDB,
+    HumanEvaluationDB,
+    HumanEvaluationScenarioDB,
+    EvaluationDB,
+    EvaluationScenarioDB,
+    SpanDB,
+    TraceDB,
+)
 
 # Configure and set logging level
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+# Define Document Models
+document_models: List[Document] = [
+    APIKeyDB,
+    AppEnvironmentDB,
+    OrganizationDB,
+    UserDB,
+    ImageDB,
+    AppDB,
+    DeploymentDB,
+    VariantBaseDB,
+    ConfigDB,
+    AppVariantDB,
+    TemplateDB,
+    TestSetDB,
+    EvaluatorConfigDB,
+    HumanEvaluationDB,
+    HumanEvaluationScenarioDB,
+    EvaluationDB,
+    EvaluationScenarioDB,
+    SpanDB,
+    TraceDB,
+]
 
-class DBEngine(object):
+
+class DBEngine:
     """
-    Database engine to initialize client and return engine based on mode
+    Database engine to initialize Beanie and return the engine based on mode.
     """
 
     def __init__(self) -> None:
         self.mode = os.environ.get("DATABASE_MODE", "v2")
         self.db_url = os.environ["MONGODB_URI"]
 
-    @property
-    def initialize_client(self) -> AsyncIOMotorClient:
+    async def initialize_client(self):
+        return AsyncIOMotorClient(self.db_url)
+
+    async def init_db(self):
         """
-        Returns an instance of `AsyncIOMotorClient` initialized \
-            with the provided `db_url`.
+        Initialize Beanie based on the mode and store the engine.
         """
 
-        client = AsyncIOMotorClient(self.db_url)
-        return client
+        client = await self.initialize_client()
+        db_name = self._get_database_name(self.mode)
 
-    def engine(self) -> AIOEngine:
-        """
-        Returns an AIOEngine object with a specified database name based on the mode.
-        """
+        await init_beanie(database=client[db_name], document_models=document_models)
+        logger.info(f"Using {db_name} database...")
 
-        if self.mode == "test":
-            aio_engine = AIOEngine(
-                client=self.initialize_client, database="agenta_test"
-            )
-            logger.info("Using test database...")
-            return aio_engine
-        elif self.mode == "default":
-            aio_engine = AIOEngine(client=self.initialize_client, database="agenta")
-            logger.info("Using default database...")
-            return aio_engine
-        elif self.mode == "v2":
-            aio_engine = AIOEngine(client=self.initialize_client, database="agenta_v2")
-            logger.info("Using v2 database...")
-            return aio_engine
-        else:
-            # make sure that self.mode does only contain alphanumeric characters
-            if not self.mode.isalnum():
-                raise ValueError("Mode of database needs to be alphanumeric.")
-            aio_engine = AIOEngine(
-                client=self.initialize_client, database=f"agenta_{self.mode}"
-            )
-            logger.info(f"Using {self.mode} database...")
-            return aio_engine
+    def _get_database_name(self, mode: str) -> str:
+        """
+        Determine the appropriate database name based on the mode.
+        """
+        if mode in ("test", "default", "v2"):
+            return f"agenta_{mode}"
+
+        if not mode.isalnum():
+            raise ValueError("Mode of database needs to be alphanumeric.")
+        return f"agenta_{mode}"
 
     def remove_db(self) -> None:
         """
@@ -67,7 +98,5 @@ class DBEngine(object):
         client = MongoClient(self.db_url)
         if self.mode == "default":
             client.drop_database("agenta")
-        elif self.mode == "v2":
-            client.drop_database("agenta_v2")
-        elif self.mode == "test":
-            client.drop_database("agenta_test")
+        else:
+            client.drop_database(f"agenta_{self.mode}")

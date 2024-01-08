@@ -155,8 +155,8 @@ async def fetch_evaluation_scenarios(
     return eval_scenarios
 
 
-@router.put("/{evaluation_id}/", operation_id="update_evaluation")
-async def update_evaluation(
+@router.put("/{evaluation_id}/", operation_id="update_human_evaluation")
+async def update_human_evaluation(
     request: Request,
     evaluation_id: str,
     update_data: HumanEvaluationUpdate = Body(...),

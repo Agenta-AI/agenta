@@ -1,6 +1,5 @@
 # Stdlib Imports
-import toml
-from pathlib import Path
+from uuid import uuid4
 
 # Own Imports
 from agenta.cli import helper
@@ -26,7 +25,6 @@ class EventTracking(Posthog):
 
     def capture_event(
         self,
-        distinct_id: str,
         event_name: str,
         body: dict,
     ) -> None:
@@ -34,11 +32,15 @@ class EventTracking(Posthog):
         Captures an event.
 
         Args:
-            distinct_id (str): A unique identifier for the user or entity associated with the event.
             event_name (str): The name of the event being captured.
             body (dict): Contains the data associated with the event being captured.
         """
 
+        # A unique identifier for the user or entity associated with the event
+        distinct_id = helper.get_global_config("telemetry_distinct_id")
+        if not distinct_id:
+            distinct_id = uuid4()
+            helper.set_global_config("telemetry_distinct_id", str(distinct_id))
         self.capture(distinct_id, event_name, body)
 
 
