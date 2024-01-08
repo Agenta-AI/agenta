@@ -1,6 +1,6 @@
 from typing import Union, Text, Dict, Any
 
-from RestrictedPython import safe_builtins, compile_restricted
+from RestrictedPython import safe_builtins, compile_restricted, utility_builtins
 from RestrictedPython.Eval import (
     default_guarded_getiter,
     default_guarded_getitem,
@@ -72,6 +72,7 @@ def execute_code_safely(
 
     # Add the allowed modules to the local built-ins
     local_builtins.update(allowed_modules)
+    local_builtins.update(utility_builtins)
 
     # Define the environment for the code execution
     environment = {
