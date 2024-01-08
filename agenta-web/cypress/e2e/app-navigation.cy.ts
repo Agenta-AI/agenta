@@ -34,6 +34,11 @@ describe("App Navigation without errors", () => {
         //TOOD add more assertions specific to the new evaluations page
     })
 
+    it("should navigate successfully to Annotations", () => {
+        cy.clickLinkAndWait('[data-cy="app-annotations-link"]')
+        cy.location("pathname").should("include", "/annotations")
+    })
+
     if (isDemo()) {
         it("should navigate successfully to Endpoints", () => {
             cy.clickLinkAndWait('[data-cy="app-endpoints-link"]')
