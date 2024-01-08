@@ -10,6 +10,7 @@ from agenta_backend.services.selectors import get_user_own_org
 from agenta_backend.services import (
     app_manager,
     db_manager,
+    evaluator_manager,
 )
 from agenta_backend.utils.common import (
     check_access_to_app,
@@ -394,7 +395,23 @@ async def create_app_and_variant_from_template(
             **user_org_data,
         )
 
-        logger.debug("Step 8: Starting variant and injecting environment variables")
+        logger.debug("Step 8: We create ready-to use evaluators")
+        evaluators = evaluator_manager.get_evaluators()
+        direct_use_evaluators = [
+            evaluator for evaluator in evaluators if evaluator.get("direct_use")
+        ]
+
+        for evaluator in direct_use_evaluators:
+            await db_manager.create_evaluator_config(
+                app=app,
+                organization=app.organization,
+                user=app.user,
+                name=evaluator["name"],
+                evaluator_key=evaluator["key"],
+                settings_values={},
+            )
+
+        logger.debug("Step 9: Starting variant and injecting environment variables")
         if os.environ["FEATURE_FLAG"] in ["cloud", "ee"]:
             if not os.environ["OPENAI_API_KEY"]:
                 raise Exception(
