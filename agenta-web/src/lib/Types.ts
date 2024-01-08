@@ -403,14 +403,18 @@ export interface AnnotationScenario {
     result: TypedValue
 }
 
-export interface ComparisonResult {
+export type ComparisonResultRow = {
     inputs: {name: string; value: string}[]
-    correct_answer: string
+    correctAnswer: string
     variants: {
-        variant_id: string
-        variant_name: string
-        evaluation_id: string
-        evaluator_configs: EvaluatorConfig[]
+        variantId: string
+        variantName: string
+        output: TypedValue
+        evaluationId: string
+        evaluatorConfigs: {
+            evaluatorConfig: EvaluatorConfig
+            result: TypedValue
+        }[]
     }[]
-    data: _EvaluationScenario[]
+    id: string
 }

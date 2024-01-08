@@ -264,7 +264,7 @@ const EvaluationResults: React.FC<Props> = () => {
             selected.length < 2 ||
             selected.some(
                 (item) =>
-                    runningStatuses.includes(item.status) ||
+                    item.status !== EvaluationStatus.FINISHED ||
                     item.testset.id !== selected[0].testset.id,
             ),
         [selected],
